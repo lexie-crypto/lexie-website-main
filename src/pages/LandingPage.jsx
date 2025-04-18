@@ -2,16 +2,28 @@ import React, { useEffect, useState } from 'react';
 
 export default function LandingPage() {
   const [bgLoaded, setBgLoaded] = useState(false);
+  const [contentVisible, setContentVisible] = useState(false);
   
   useEffect(() => {
     // Preload the background image
     const bgImg = new Image();
     bgImg.src = '/background.png';
-    bgImg.onload = () => setBgLoaded(true);
+    bgImg.onload = () => {
+      setBgLoaded(true);
+      // Add small delay before showing content for smoother transition
+      setTimeout(() => setContentVisible(true), 300);
+    };
   }, []);
   
   return (
     <main className="relative h-screen w-full bg-black text-white overflow-hidden">
+      {/* Loading overlay - visible until background loads */}
+      <div className={`absolute inset-0 z-50 bg-black flex items-center justify-center transition-opacity duration-500 ${bgLoaded ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
+        <div className="text-purple-300 text-2xl font-mono">
+          Loading<span className="animate-[ellipsis_1.5s_infinite]">...</span>
+        </div>
+      </div>
+      
       {/* Background layer - lowest z-index */}
       <div className="absolute inset-0 z-10 overflow-hidden bg-black">
         {/* Primary background image - fullscreen with best quality */}
@@ -30,17 +42,26 @@ export default function LandingPage() {
         <div className="absolute inset-0 bg-gradient-to-b from-black/5 to-black/20 opacity-40"></div>
       </div>
 
+      {/* Decorative neon signs with glowing borders - matching the circled areas in the reference image */}
+      <div className={`absolute inset-0 z-[15] pointer-events-none transition-opacity duration-700 ${contentVisible ? 'opacity-100' : 'opacity-0'}`}>
+        {/* Left tall neon sign border - with offset flickering effect */}
+        <div className="absolute top-[5%] left-[18.5%] w-[69px] h-[245px] border-[0.2px] border-pink-500 rounded-md animate-neon-flicker-alt"></div>
+        
+        {/* Bottom left neon sign border - adjusted to better match the actual sign */}
+        <div className="absolute bottom-[18%] left-[30.2%] w-[66px] h-[70px] border-[0.8px] border-pink-500 rounded-md animate-neon-flicker"></div>
+      </div>
+
       {/* Lexie Character Layer - middle z-index between bg and text */}
-      <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center">
+      <div className={`absolute inset-0 z-20 pointer-events-none flex items-center justify-center transition-opacity duration-700 ${contentVisible ? 'opacity-95' : 'opacity-0'}`}>
         <img
           src="/lexie.png"
           alt="Lexie"
-          className="h-full w-auto max-w-full object-contain opacity-95"
+          className="h-full w-auto max-w-full object-contain"
         />
       </div>
 
       {/* Content layer - highest z-index */}
-      <div className="relative z-30 h-full">
+      <div className={`relative z-30 h-full transition-opacity duration-700 ${contentVisible ? 'opacity-100' : 'opacity-0'}`}>
         {/* Main Content - Adjusted position */}
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4 mt-[15vh] md:mt-[18vh]">
           {/* Main title with enhanced glitch effect */}
@@ -66,21 +87,21 @@ export default function LandingPage() {
 
           {/* Buttons container for horizontal alignment */}
           <div className="flex flex-col md:flex-row gap-4 w-full justify-center">
-                        {/* Telegram Button with identical styling */}
-                        <a
+            {/* Telegram Button with neon border and hover effect */}
+            <a
               href="https://t.me/Lexie_Crypto_Bot"
               target="_blank"
               rel="noopener noreferrer"
-              className="bg-black hover:bg-gray-900 text-purple-300 px-6 py-3 rounded-full font-medium shadow-lg transition-all animate-neon-pulse border border-purple-500 min-w-[210px] flex items-center justify-center"
+              className="btn-neon group bg-black text-purple-300 px-6 py-3 rounded-full font-medium shadow-lg transition-colors duration-300 border border-purple-500 min-w-[210px] flex items-center justify-center hover:bg-pink-200 hover:text-slate-900 hover:border-transparent"
             >
               Try it on Telegram
             </a>
-            {/* Twitter Button with neon pulse effect */}
+            {/* Twitter Button with neon border and hover effect */}
             <a
               href="https://twitter.com/0xLexieLaine"
               target="_blank"
               rel="noopener noreferrer"
-              className="bg-black hover:bg-gray-900 text-purple-300 px-6 py-3 rounded-full font-medium shadow-lg transition-all animate-neon-pulse border border-purple-500 min-w-[210px] flex items-center justify-center"
+              className="btn-neon group bg-black text-purple-300 px-6 py-3 rounded-full font-medium shadow-lg transition-colors duration-300 border border-purple-500 min-w-[210px] flex items-center justify-center hover:bg-pink-200 hover:text-slate-900 hover:border-transparent"
             >
               Follow @0xLexieLaine
             </a>
@@ -141,6 +162,66 @@ export default function LandingPage() {
             0% { box-shadow: 0 0 5px #a855f7, 0 0 10px #a855f7; }
             50% { box-shadow: 0 0 10px #ec4899, 0 0 20px #ec4899; }
             100% { box-shadow: 0 0 5px #a855f7, 0 0 10px #a855f7; }
+          }
+
+          @keyframes neonSignGlow {
+            0% { box-shadow: 0 0 5px #ec4899, 0 0 10px #ec4899, 0 0 15px #ec4899, inset 0 0 5px #ec4899; }
+            50% { box-shadow: 0 0 10px #ec4899, 0 0 20px #ec4899, 0 0 30px #ec4899, inset 0 0 10px #ec4899; }
+            100% { box-shadow: 0 0 5px #ec4899, 0 0 10px #ec4899, 0 0 15px #ec4899, inset 0 0 5px #ec4899; }
+          }
+
+          @keyframes neonFlicker {
+            0%, 22%, 49%, 62%, 81%, 92% {
+              box-shadow: 0 0 7px #ec4899, 0 0 15px #ec4899, 0 0 20px #ec4899, inset 0 0 7px #ec4899;
+              opacity: 1;
+            }
+            14%, 23%, 55%, 75%, 93% {
+              box-shadow: 0 0 3px #ec4899, 0 0 7px #ec4899, 0 0 10px #ec4899, inset 0 0 3px #ec4899;
+              opacity: 0.8;
+            }
+            24%, 56%, 94% {
+              box-shadow: none;
+              opacity: 0.2;
+            }
+            25%, 57%, 95% {
+              box-shadow: 0 0 5px #ec4899, 0 0 10px #ec4899, inset 0 0 3px #ec4899;
+              opacity: 0.6;
+            }
+            26%, 58%, 96% {
+              box-shadow: none;
+              opacity: 0.1;
+            }
+            27%, 59%, 97% {
+              box-shadow: 0 0 7px #ec4899, 0 0 15px #ec4899, 0 0 20px #ec4899, inset 0 0 7px #ec4899;
+              opacity: 1;
+            }
+          }
+
+          @keyframes neonFlickerAlt {
+            0%, 35%, 72%, 85% {
+              box-shadow: 0 0 7px #ec4899, 0 0 15px #ec4899, 0 0 20px #ec4899, inset 0 0 7px #ec4899;
+              opacity: 1;
+            }
+            30%, 44%, 78%, 84% {
+              box-shadow: 0 0 3px #ec4899, 0 0 7px #ec4899, 0 0 10px #ec4899, inset 0 0 3px #ec4899;
+              opacity: 0.8;
+            }
+            32%, 45%, 80% {
+              box-shadow: none;
+              opacity: 0.2;
+            }
+            33%, 46%, 81% {
+              box-shadow: 0 0 5px #ec4899, 0 0 10px #ec4899, inset 0 0 3px #ec4899;
+              opacity: 0.6;
+            }
+            34%, 47%, 82% {
+              box-shadow: none;
+              opacity: 0.1;
+            }
+            36%, 48%, 83% {
+              box-shadow: 0 0 7px #ec4899, 0 0 15px #ec4899, 0 0 20px #ec4899, inset 0 0 7px #ec4899;
+              opacity: 1;
+            }
           }
 
           /* Enhanced and new animations for more intense glitch effect */
@@ -239,6 +320,13 @@ export default function LandingPage() {
             100% { opacity: 1; }
           }
 
+          @keyframes ellipsis {
+            0% { content: '.'; }
+            33% { content: '..'; }
+            66% { content: '...'; }
+            100% { content: ''; }
+          }
+
           .glitch-container {
             position: relative;
             overflow: hidden;
@@ -310,10 +398,38 @@ export default function LandingPage() {
           .animate-neon-pulse {
             animation: neonPulse 2s infinite 2s;
           }
+
+          .animate-neon-sign {
+            animation: neonSignGlow 3s infinite;
+          }
+
+          .animate-neon-flicker {
+            animation: neonFlicker 10s infinite;
+          }
+
+          .animate-neon-flicker-alt {
+            animation: neonFlickerAlt 13s infinite;
+          }
+
+          /* Button with neon effect that turns off on hover */
+          .btn-neon {
+            box-shadow: 0 0 5px #a855f7, 0 0 10px #a855f7;
+            animation: neonPulse 2s infinite 2s;
+          }
+          
+          .btn-neon:hover {
+            box-shadow: none;
+            animation: none;
+          }
+
+          .animate-[ellipsis_1.5s_infinite]::after {
+            content: '';
+            animation: ellipsis 1.5s infinite steps(4, end);
+          }
         `}</style>
 
-        {/* Footer Quote - Updated with lighter color and larger size */}
-        <div className="absolute bottom-6 w-full text-center text-base md:text-lg text-gray-300 font-mono animate-fade-in delay-500">
+        {/* Footer Quote - Updated with larger size and text shadow for better visibility */}
+        <div className="absolute bottom-8 w-full text-center text-xl md:text-2xl lg:text-3xl text-purple-200 font-mono" style={{ textShadow: '0 0 8px rgba(216, 180, 254, 0.7)' }}>
           "She guides. She protects. She educates."
         </div>
       </div>
