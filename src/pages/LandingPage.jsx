@@ -45,7 +45,7 @@ export default function LandingPage() {
       // Wait 15 seconds before starting the first glitch cycle
       const initialDelay = setTimeout(() => {
         startGlitchCycle();
-      }, 15000);
+      }, 9000);
       
       timersRef.current.push(initialDelay);
     }
@@ -99,8 +99,8 @@ export default function LandingPage() {
     const endRebootTimer = setTimeout(() => {
       setRebootActive(false);
       
-      // Schedule the next glitch cycle in 45-60 seconds
-      const nextCycleDelay = Math.floor(Math.random() * 15000) + 45000;
+      // Schedule the next glitch cycle in 9-14 seconds 
+      const nextCycleDelay = Math.floor(Math.random() * 9000) + 5000;
       const nextCycleTimer = setTimeout(() => {
         startGlitchCycle();
       }, nextCycleDelay);
