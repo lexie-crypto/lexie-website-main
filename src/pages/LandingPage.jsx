@@ -277,12 +277,12 @@ export default function LandingPage() {
             </a>
             {/* Twitter Button with neon border and hover effect */}
             <a
-              href="https://twitter.com/0xLexieLaine"
+              href="https://twitter.com/0xLexieAI"
               target="_blank"
               rel="noopener noreferrer"
               className={`btn-neon group bg-black text-purple-300 px-6 py-3 rounded-full font-medium shadow-lg transition-colors duration-300 border border-purple-500 flex items-center justify-center hover:bg-pink-200 hover:text-slate-900 hover:border-transparent ${isMobile ? 'w-full' : 'min-w-[210px]'} ${glitchActive ? 'animate-btn-glitch' : ''}`}
             >
-              Follow @0xLexieLaine
+              Follow @0xLexieAI
             </a>
           </div>
         </div>
