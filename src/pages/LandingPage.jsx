@@ -9,9 +9,11 @@ export default function LandingPage() {
   const [blackoutActive, setBlackoutActive] = useState(false);
   const [rebootingText, setRebootingText] = useState(false);
   const [rebootActive, setRebootActive] = useState(false);
+  const [emailButtonKey, setEmailButtonKey] = useState(0);
   
   // Ref to keep track of timer IDs for cleanup
   const timersRef = useRef([]);
+  const prevRebootActiveRef = useRef(rebootActive);
   
   useEffect(() => {
     // Check if device is mobile
@@ -57,6 +59,25 @@ export default function LandingPage() {
     };
   }, [contentVisible]);
   
+  // Reset email button animation after reboot completes
+  useEffect(() => {
+    // Track previous rebootActive state
+    const wasRebooting = prevRebootActiveRef.current;
+    prevRebootActiveRef.current = rebootActive;
+    
+    // If rebootActive changed from true to false (reboot just completed)
+    if (wasRebooting && !rebootActive && contentVisible) {
+      // After reboot completes, wait a bit then trigger email button re-animation
+      const resetTimer = setTimeout(() => {
+        setEmailButtonKey(prevKey => prevKey + 1); // Change key to force re-render with fresh animation
+      }, 50);
+      
+      timersRef.current.push(resetTimer);
+    }
+    
+    return () => {};
+  }, [rebootActive, contentVisible]);
+  
   // Function to start a complete glitch cycle
   const startGlitchCycle = () => {
     // Phase 1: Start the glitch effect
@@ -71,6 +92,17 @@ export default function LandingPage() {
     // Phase 3: Start blackout
     const blackoutTimer = setTimeout(() => {
       setBlackoutActive(true);
+      
+      // Reset email button to trigger a fresh slide-in
+      setEmailButtonKey(prevKey => prevKey + 1);
+      
+      // Make email button reappear after 2 seconds, even during blackout
+      const emailTimer = setTimeout(() => {
+        // Increment key again to force a fresh animation
+        setEmailButtonKey(prevKey => prevKey + 1);
+      }, 2000);
+      
+      timersRef.current.push(emailTimer);
     }, 3000);
     timersRef.current.push(blackoutTimer);
     
@@ -869,6 +901,21 @@ export default function LandingPage() {
               box-shadow: 0 0 5px #ec4899, 0 0 10px #ec4899;
             }
           }
+
+          @keyframes slide-in {
+            from {
+              right: -200px;
+              opacity: 0;
+            }
+            to {
+              right: 1.5rem;
+              opacity: 1;
+            }
+          }
+          
+          .animate-slide-in {
+            animation: slide-in 1.2s ease-out forwards 0.2s;
+          }
         `}</style>
 
         {/* Footer Quote - Updated with larger size and text shadow for better visibility */}
@@ -876,6 +923,36 @@ export default function LandingPage() {
           "She guides. She educates. She protects."
         </div>
       </div>
+
+      {/* Contact Email Button with proper blackout behavior */}
+      {!rebootActive && (
+        <div 
+          key={`email-button-${emailButtonKey}`}
+          className="fixed bottom-6 right-[-200px] animate-slide-in z-30 opacity-0"
+        >
+          <a 
+            href="mailto:lexie@lexiecrypto.com" 
+            className={`email-btn group bg-black text-purple-300 px-3 py-1.5 text-sm rounded-full font-medium shadow-lg transition-colors duration-300 border border-pink-500 flex items-center justify-center hover:bg-pink-200 hover:text-slate-900 hover:border-transparent ${glitchActive ? 'animate-btn-glitch' : ''}`}
+            title="Email Lexie at lexie@lexiecrypto.com"
+          >
+            <span className="mr-1">✉️</span> Email Lexie
+          </a>
+        </div>
+      )}
+
+      <style jsx>{`
+        .shadow-glow {
+          box-shadow: 0 0 10px rgba(168, 85, 247, 0.7);
+        }
+        
+        .email-btn {
+          box-shadow: 0 0 5px #a855f7, 0 0 10px #a855f7;
+        }
+        
+        .email-btn:hover {
+          box-shadow: none;
+        }
+      `}</style>
     </main>
   );
 }
