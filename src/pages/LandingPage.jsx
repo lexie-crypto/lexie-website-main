@@ -715,7 +715,7 @@ export default function LandingPage() {
                 {
                   title: "Auto-Airdrop Quester",
                   missionType: "STEALTH_OPS",
-                  description: "Deploys autonomous agents to discover and execute airdrop campaigns with surgical precision",
+                  description: "Deploys autonomous agents to discover and execute airdrop campaigns",
                   icon: "🎯",
                   color: "purple",
                   status: "ACTIVE",
@@ -733,7 +733,7 @@ export default function LandingPage() {
                 {
                   title: "Smart DCA Engine",
                   missionType: "MARKET_INTEL",
-                  description: "Advanced algorithmic averaging with real-time sentiment analysis and predictive modeling",
+                  description: "Advanced algorithmic averaging with real-time analysis and instant execution",
                   icon: "📈",
                   color: "blue",
                   status: "OPTIMIZING",
@@ -769,7 +769,7 @@ export default function LandingPage() {
                 {
                   title: "Delegated DAO Voting",
                   missionType: "DEMOCRACY_BOT",
-                  description: "Proposal analysis with automated voting based on user-defined strategic preferences",
+                  description: "Proposal analysis with automated voting based on user-defined preferences",
                   icon: "🗳️",
                   color: "red",
                   status: "ANALYZING",
@@ -778,7 +778,7 @@ export default function LandingPage() {
                 {
                   title: "Alpha Loop Integration",
                   missionType: "INTEL_FEED",
-                  description: "Real-time market intelligence with automated position management and risk assessment",
+                  description: "Real-time market intelligence and risk assessment",
                   icon: "🔮",
                   color: "cyan",
                   status: "MONITORING",
