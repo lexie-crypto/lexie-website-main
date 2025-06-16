@@ -684,8 +684,8 @@ export default function LandingPage() {
 
           {/* Feature Panels Container with External Navigation */}
           <div className="relative flex items-center">
-            {/* Scroll Left Arrow - External */}
-            <div className="flex-shrink-0 mr-6">
+            {/* Scroll Left Arrow - External - Hidden on Mobile */}
+            <div className="hidden md:flex flex-shrink-0 mr-6">
               <button 
                 onClick={scrollCarouselLeft}
                 className="flex items-center space-x-2 bg-black/80 backdrop-blur-sm border border-purple-500/40 rounded-full px-4 py-2 hover:border-purple-500/80 hover:bg-purple-500/20 transition-all duration-300 cursor-pointer group"
@@ -699,7 +699,7 @@ export default function LandingPage() {
             
             {/* Carousel Container */}
             <div className="flex-1 overflow-hidden">
-              <div ref={carouselRef} className="flex space-x-8 pb-8 overflow-x-auto scrollbar-hide" style={{scrollbarWidth: 'none', msOverflowStyle: 'none'}}>
+              <div ref={carouselRef} className="flex space-x-4 md:space-x-8 pb-8 overflow-x-auto scrollbar-hide snap-x snap-mandatory" style={{scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch'}}>
                 {/* Create three sets of cards for infinite scroll */}
                 {[...Array(3)].map((_, setIndex) => {
                   const features = [
@@ -789,18 +789,18 @@ export default function LandingPage() {
                   return features.map((feature, index) => (
                 <div
                   key={`${setIndex}-${index}`}
-                  className="group relative flex-shrink-0 w-80 h-96"
+                  className="group relative flex-shrink-0 w-72 sm:w-80 h-80 sm:h-96 snap-center"
                   style={{ animationDelay: `${index * 0.2}s` }}
                 >
                   {/* Main Panel */}
-                  <div className="relative h-full bg-black/60 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 overflow-hidden transition-all duration-500 hover:border-purple-500/80 hover:shadow-2xl hover:shadow-purple-500/25 group-hover:scale-105">
+                  <div className="relative h-full bg-black/60 backdrop-blur-sm border border-purple-500/30 rounded-xl p-4 sm:p-6 overflow-hidden transition-all duration-500 hover:border-purple-500/80 hover:shadow-2xl hover:shadow-purple-500/25 sm:group-hover:scale-105">
                     
                     {/* Background Glow Effect */}
                     <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-purple-500/5 via-transparent to-purple-500/10"></div>
                     
                     {/* Panel Header */}
-                    <div className="relative z-10 flex items-center justify-between mb-4">
-                      <div className="text-3xl p-2 rounded-lg bg-purple-500/20">
+                    <div className="relative z-10 flex items-center justify-between mb-3 sm:mb-4">
+                      <div className="text-2xl sm:text-3xl p-1.5 sm:p-2 rounded-lg bg-purple-500/20">
                         {feature.icon}
                       </div>
                       <div className="px-2 py-1 rounded text-xs font-mono border border-purple-500/40 bg-purple-500/20 text-purple-300">
@@ -809,20 +809,20 @@ export default function LandingPage() {
                     </div>
 
                     {/* Mission Type */}
-                    <div className="relative z-10 mb-3">
+                    <div className="relative z-10 mb-2 sm:mb-3">
                       <div className="text-xs font-mono text-gray-500 mb-1">// MISSION_TYPE:</div>
-                      <div className="font-mono font-semibold text-sm tracking-wider text-purple-300">
+                      <div className="font-mono font-semibold text-xs sm:text-sm tracking-wider text-purple-300">
                         {feature.missionType}
                       </div>
                     </div>
 
                     {/* Title */}
-                    <h3 className="relative z-10 text-xl font-bold text-white mb-4 group-hover:text-purple-300 transition-colors duration-300">
+                    <h3 className="relative z-10 text-lg sm:text-xl font-bold text-white mb-3 sm:mb-4 group-hover:text-purple-300 transition-colors duration-300">
                       {feature.title}
                     </h3>
 
                     {/* Description */}
-                    <p className="relative z-10 text-gray-300 text-sm leading-relaxed mb-6 group-hover:text-gray-100 transition-colors duration-300">
+                    <p className="relative z-10 text-gray-300 text-xs sm:text-sm leading-relaxed mb-4 sm:mb-6 group-hover:text-gray-100 transition-colors duration-300">
                       {feature.description}
                     </p>
 
@@ -855,8 +855,8 @@ export default function LandingPage() {
               </div>
             </div>
             
-            {/* Scroll Right Arrow - External */}
-            <div className="flex-shrink-0 ml-6">
+            {/* Scroll Right Arrow - External - Hidden on Mobile */}
+            <div className="hidden md:flex flex-shrink-0 ml-6">
               <button 
                 onClick={scrollCarousel}
                 className="flex items-center space-x-2 bg-black/80 backdrop-blur-sm border border-purple-500/40 rounded-full px-4 py-2 hover:border-purple-500/80 hover:bg-purple-500/20 transition-all duration-300 cursor-pointer group"
@@ -869,8 +869,8 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Navigation Dots */}
-          <div className="flex justify-center space-x-2 mt-8">
+          {/* Navigation Dots - Hidden on Mobile */}
+          <div className="hidden md:flex justify-center space-x-2 mt-8">
             {Array.from({ length: 9 }).map((_, i) => (
               <button
                 key={i}
