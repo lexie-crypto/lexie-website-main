@@ -1,5 +1,5 @@
 import { formatUnits, formatEther, createPublicClient, http } from 'viem';
-import { mainnet, polygon, bsc } from 'viem/chains';
+import { mainnet, polygon, bsc, arbitrum } from 'viem/chains';
 
 // Supported chains configuration
 export const SUPPORTED_CHAINS = {
@@ -26,6 +26,14 @@ export const SUPPORTED_CHAINS = {
     chain: bsc,
     nativeSymbol: 'BNB',
     rpcUrl: 'https://bsc-dataseed.binance.org'
+  },
+  42161: { 
+    id: 42161, 
+    name: 'Arbitrum One', 
+    shortName: 'ARB',
+    chain: arbitrum,
+    nativeSymbol: 'ETH',
+    rpcUrl: 'https://arbitrum.llamarpc.com'
   }
 };
 
@@ -35,21 +43,25 @@ export const SUPPORTED_TOKENS = {
     1: { address: null, decimals: 18 }, // Native ETH
     137: { address: null, decimals: 18 }, // Native MATIC  
     56: { address: null, decimals: 18 }, // Native BNB
+    42161: { address: null, decimals: 18 }, // Native ETH on Arbitrum
   },
   USDC: {
     1: { address: '0xA0b86a33E6556c98EeE24CdDC1E4dFaD7D6FfF68', decimals: 6 },
     137: { address: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', decimals: 6 },
     56: { address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', decimals: 18 },
+    42161: { address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', decimals: 6 }, // USDC on Arbitrum
   },
   USDT: {
     1: { address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6 },
     137: { address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', decimals: 6 },
     56: { address: '0x55d398326f99059fF775485246999027B3197955', decimals: 18 },
+    42161: { address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', decimals: 6 }, // USDT on Arbitrum
   },
   DAI: {
     1: { address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', decimals: 18 },
     137: { address: '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063', decimals: 18 },
     56: { address: '0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3', decimals: 18 },
+    42161: { address: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1', decimals: 18 }, // DAI on Arbitrum
   }
 };
 
