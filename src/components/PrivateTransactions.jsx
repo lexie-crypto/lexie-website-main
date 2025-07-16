@@ -251,20 +251,20 @@ const PrivateTransactions = ({ isOpen, onClose }) => {
           <div className="p-6 text-center">
             <h3 className="text-xl font-semibold text-white mb-4">Connect Your Wallet</h3>
             <p className="text-gray-400 mb-6">Connect your wallet to access private transaction features</p>
-            <div className="flex gap-4 justify-center">
-              <button
-                onClick={() => connectWallet('metamask')}
-                className="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white font-semibold rounded-lg transition-colors"
-              >
-                Connect MetaMask
-              </button>
-              <button
-                onClick={() => connectWallet('walletconnect')}
-                className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
-              >
-                WalletConnect
-              </button>
-            </div>
+                         <div className="flex gap-4 justify-center">
+               <button
+                 onClick={() => connectWallet('metamask')}
+                 className="px-6 py-3 bg-orange-600 hover:bg-orange-700 text-white font-semibold rounded-lg transition-colors"
+               >
+                 Connect MetaMask
+               </button>
+               <button
+                 onClick={() => connectWallet('walletconnect')}
+                 className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg transition-colors"
+               >
+                 WalletConnect
+               </button>
+             </div>
           </div>
         ) : !isRailgunInitialized ? (
           <div className="p-6 text-center">
