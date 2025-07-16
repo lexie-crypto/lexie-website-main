@@ -1,6 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useWallet } from '../contexts/WalletContext';
 import { useNavigate } from 'react-router-dom';
+import { 
+  fetchPublicBalances, 
+  fetchPrivateBalances, 
+  refreshRailgunBalances,
+  SUPPORTED_CHAINS,
+  SUPPORTED_TOKENS,
+  getChainConfig,
+  clearBalanceCache
+} from '../utils/railgunUtils';
 
 const WalletPage = () => {
   const {
@@ -16,8 +25,8 @@ const WalletPage = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('shield');
   const [balances, setBalances] = useState({
-    public: {},
-    private: {},
+    public: {},  // Will be structured as: {chainId: {tokenSymbol: balance}}
+    private: {}, // Will be structured as: {chainId: {tokenSymbol: balance}}
   });
   const [loading, setLoading] = useState(false);
   const [transactions, setTransactions] = useState([]);
@@ -43,43 +52,63 @@ const WalletPage = () => {
     recipientAddress: '',
   });
 
-  // Common ERC-20 tokens for demo
-  const commonTokens = [
-    { symbol: 'ETH', address: '0x0000000000000000000000000000000000000000', decimals: 18 },
-    { symbol: 'USDC', address: '0xA0b86a33E6556c98EeE24CdDC1E4dFaD7D6FfF68', decimals: 6 },
-    { symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6 },
-    { symbol: 'DAI', address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', decimals: 18 },
-  ];
+  // Get supported tokens list for forms
+  const getTokensForChain = (chainId) => {
+    return Object.entries(SUPPORTED_TOKENS)
+      .filter(([symbol, chains]) => chains[chainId])
+      .map(([symbol, chains]) => ({
+        symbol,
+        address: chains[chainId].address || '0x0000000000000000000000000000000000000000',
+        decimals: chains[chainId].decimals
+      }));
+  };
 
   const loadBalances = async () => {
-    if (!isConnected || !isRailgunInitialized) return;
+    if (!isConnected || !address) return;
 
     setLoading(true);
     try {
-      // For demo purposes, simulate some balances
-      // In production, you would load actual balances from Railgun
-      setBalances({
-        public: {
-          ETH: '1.2345',
-          USDC: '1000.50',
-          USDT: '500.00',
-        },
-        private: {
-          ETH: '0.5432',
-          USDC: '250.25',
-          USDT: '100.00',
-        },
-      });
-      
-      // Try to load real balances if functions are available
-      try {
-        const railgunWallet = await import('@railgun-community/wallet');
-        if (railgunWallet.refreshRailgunBalances) {
-          await railgunWallet.refreshRailgunBalances(address, railgunAddress);
-        }
-      } catch (importError) {
-        console.log('Railgun balance functions not available, using demo data');
+      console.log('Loading multi-chain balances for address:', address);
+
+      // Fetch public balances across all supported chains
+      console.log('Fetching public balances...');
+      const publicBalances = await fetchPublicBalances(address);
+
+      // Fetch private balances if Railgun is initialized
+      let privateBalances = {};
+      if (isRailgunInitialized && railgunAddress) {
+        console.log('Refreshing and fetching Railgun balances...');
+        await refreshRailgunBalances(address, railgunAddress);
+        privateBalances = await fetchPrivateBalances(railgunAddress, address);
+      } else {
+        // Initialize with zeros if Railgun not ready
+        privateBalances = Object.fromEntries(
+          Object.keys(SUPPORTED_CHAINS).map(chainId => [
+            parseInt(chainId),
+            Object.fromEntries(
+              Object.keys(SUPPORTED_TOKENS).map(symbol => [
+                symbol,
+                SUPPORTED_TOKENS[symbol][parseInt(chainId)] ? 
+                  (SUPPORTED_TOKENS[symbol][parseInt(chainId)].decimals === 18 ? '0.0000' : '0.00') : 
+                  '0.00'
+              ])
+            )
+          ])
+        );
       }
+
+      console.log('Final multi-chain balances:', {
+        public: publicBalances,
+        private: privateBalances,
+        isRailgunInitialized,
+        railgunAddress
+      });
+
+      setBalances({
+        public: publicBalances,
+        private: privateBalances,
+      });
+
     } catch (error) {
       console.error('Failed to load balances:', error);
     } finally {
@@ -88,10 +117,16 @@ const WalletPage = () => {
   };
 
   useEffect(() => {
-    if (isRailgunInitialized) {
+    if (isConnected && address) {
       loadBalances();
     }
-  }, [isRailgunInitialized]);
+  }, [isConnected, address, isRailgunInitialized]);
+
+  // Manual refresh function
+  const handleRefreshBalances = async () => {
+    clearBalanceCache();
+    await loadBalances();
+  };
 
   const handleShield = async (e) => {
     e.preventDefault();
@@ -116,7 +151,9 @@ const WalletPage = () => {
         type: 'shield',
         status: 'pending',
         amount: shieldForm.amount,
-        token: commonTokens.find(t => t.address === shieldForm.tokenAddress)?.symbol || 'Unknown',
+        token: Object.keys(SUPPORTED_TOKENS).find(symbol => 
+          Object.values(SUPPORTED_TOKENS[symbol]).some(config => config.address === shieldForm.tokenAddress)
+        ) || 'Unknown',
         timestamp: new Date(),
       };
       setTransactions(prev => [newTx, ...prev]);
@@ -161,7 +198,9 @@ const WalletPage = () => {
         type: 'transfer',
         status: 'pending',
         amount: transferForm.amount,
-        token: commonTokens.find(t => t.address === transferForm.tokenAddress)?.symbol || 'Unknown',
+        token: Object.keys(SUPPORTED_TOKENS).find(symbol => 
+          Object.values(SUPPORTED_TOKENS[symbol]).some(config => config.address === transferForm.tokenAddress)
+        ) || 'Unknown',
         recipient: transferForm.recipientAddress,
         timestamp: new Date(),
       };
@@ -206,7 +245,9 @@ const WalletPage = () => {
         type: 'unshield',
         status: 'pending',
         amount: unshieldForm.amount,
-        token: commonTokens.find(t => t.address === unshieldForm.tokenAddress)?.symbol || 'Unknown',
+        token: Object.keys(SUPPORTED_TOKENS).find(symbol => 
+          Object.values(SUPPORTED_TOKENS[symbol]).some(config => config.address === unshieldForm.tokenAddress)
+        ) || 'Unknown',
         recipient: unshieldForm.recipientAddress || address,
         timestamp: new Date(),
       };
@@ -367,11 +408,16 @@ const WalletPage = () => {
                           required
                         >
                           <option value="">Select a token</option>
-                          {commonTokens.map((token) => (
-                            <option key={token.address} value={token.address}>
-                              {token.symbol}
-                            </option>
-                          ))}
+                          {Object.entries(SUPPORTED_TOKENS).map(([symbol, chains]) => 
+                            Object.entries(chains).map(([chainId, config]) => {
+                              const chainConfig = getChainConfig(parseInt(chainId));
+                              return (
+                                <option key={`${chainId}-${symbol}`} value={config.address || '0x0000000000000000000000000000000000000000'}>
+                                  {symbol} ({chainConfig?.name})
+                                </option>
+                              );
+                            })
+                          ).flat()}
                         </select>
                       </div>
                       <div>
@@ -423,11 +469,16 @@ const WalletPage = () => {
                           required
                         >
                           <option value="">Select a token</option>
-                          {commonTokens.map((token) => (
-                            <option key={token.address} value={token.address}>
-                              {token.symbol}
-                            </option>
-                          ))}
+                          {Object.entries(SUPPORTED_TOKENS).map(([symbol, chains]) => 
+                            Object.entries(chains).map(([chainId, config]) => {
+                              const chainConfig = getChainConfig(parseInt(chainId));
+                              return (
+                                <option key={`${chainId}-${symbol}`} value={config.address || '0x0000000000000000000000000000000000000000'}>
+                                  {symbol} ({chainConfig?.name})
+                                </option>
+                              );
+                            })
+                          ).flat()}
                         </select>
                       </div>
                       <div>
@@ -468,11 +519,16 @@ const WalletPage = () => {
                           required
                         >
                           <option value="">Select a token</option>
-                          {commonTokens.map((token) => (
-                            <option key={token.address} value={token.address}>
-                              {token.symbol}
-                            </option>
-                          ))}
+                          {Object.entries(SUPPORTED_TOKENS).map(([symbol, chains]) => 
+                            Object.entries(chains).map(([chainId, config]) => {
+                              const chainConfig = getChainConfig(parseInt(chainId));
+                              return (
+                                <option key={`${chainId}-${symbol}`} value={config.address || '0x0000000000000000000000000000000000000000'}>
+                                  {symbol} ({chainConfig?.name})
+                                </option>
+                              );
+                            })
+                          ).flat()}
                         </select>
                       </div>
                       <div>
@@ -515,31 +571,142 @@ const WalletPage = () => {
               <div className="space-y-6">
                 {/* Balances Card */}
                 <div className="bg-gray-900 border border-gray-700 rounded-lg p-6">
-                  <h3 className="text-xl font-semibold text-white mb-6">Balances</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-400 mb-3">Private Balances</h4>
-                      <div className="space-y-2">
-                        {Object.entries(balances.private).map(([token, amount]) => (
-                          <div key={token} className="flex justify-between py-2 px-3 bg-gray-800 rounded">
-                            <span className="text-gray-300 font-medium">{token}</span>
-                            <span className="text-green-400 font-semibold">{amount}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-400 mb-3">Public Balances</h4>
-                      <div className="space-y-2">
-                        {Object.entries(balances.public).map(([token, amount]) => (
-                          <div key={token} className="flex justify-between py-2 px-3 bg-gray-800 rounded">
-                            <span className="text-gray-300 font-medium">{token}</span>
-                            <span className="text-blue-400 font-semibold">{amount}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
+                  <div className="flex justify-between items-center mb-6">
+                    <h3 className="text-xl font-semibold text-white">Multi-Chain Balances</h3>
+                    <button
+                      onClick={handleRefreshBalances}
+                      disabled={loading}
+                      className="px-3 py-1 text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded"
+                    >
+                      {loading ? 'Loading...' : 'Refresh'}
+                    </button>
                   </div>
+                  
+                  {loading ? (
+                    <div className="flex items-center justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                      <span className="ml-3 text-gray-400">Loading balances...</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      {/* Private Balances by Chain */}
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-400 mb-4">
+                          🔒 Private Balances (RAILGUN)
+                          {!isRailgunInitialized && (
+                            <span className="ml-2 text-xs text-amber-400">(Initializing...)</span>
+                          )}
+                        </h4>
+                        {Object.entries(balances.private).map(([chainId, chainBalances]) => {
+                          const chainConfig = getChainConfig(parseInt(chainId));
+                          if (!chainConfig) return null;
+                          
+                          const hasNonZeroBalances = Object.values(chainBalances).some(balance => 
+                            parseFloat(balance) > 0
+                          );
+
+                          return (
+                            <div key={chainId} className="mb-4">
+                              <div className="flex items-center mb-2">
+                                <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  {chainConfig.name}
+                                </span>
+                                {!hasNonZeroBalances && (
+                                  <span className="ml-2 text-xs text-gray-600">(No assets)</span>
+                                )}
+                              </div>
+                              {hasNonZeroBalances ? (
+                                <div className="space-y-1 ml-2">
+                                  {Object.entries(chainBalances)
+                                    .filter(([symbol, balance]) => parseFloat(balance) > 0)
+                                    .map(([symbol, balance]) => (
+                                    <div key={`${chainId}-${symbol}`} className="flex justify-between py-1.5 px-3 bg-gray-800 rounded text-sm">
+                                      <span className="text-gray-300 font-medium">{symbol}</span>
+                                      <div className="flex items-center space-x-2">
+                                        <span className="text-green-400 font-semibold">{balance}</span>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-xs text-gray-600 ml-2 italic">No private assets on this chain</div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        
+                        {isRailgunInitialized && Object.values(balances.private).every(chainBalances => 
+                          Object.values(chainBalances).every(v => parseFloat(v) === 0)
+                        ) && (
+                          <div className="text-xs text-gray-500 mt-2 p-3 bg-gray-800/50 rounded">
+                            <div className="flex items-center">
+                              <svg className="w-4 h-4 mr-2 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                              </svg>
+                              No private assets found. Shield tokens to create private balances.
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Public Balances by Chain */}
+                      <div>
+                        <h4 className="text-sm font-medium text-gray-400 mb-4">🌐 Public Balances</h4>
+                        {Object.entries(balances.public).map(([chainId, chainBalances]) => {
+                          const chainConfig = getChainConfig(parseInt(chainId));
+                          if (!chainConfig) return null;
+                          
+                          const hasNonZeroBalances = Object.values(chainBalances).some(balance => 
+                            parseFloat(balance) > 0
+                          );
+
+                          return (
+                            <div key={chainId} className="mb-4">
+                              <div className="flex items-center mb-2">
+                                <span className="text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                  {chainConfig.name}
+                                </span>
+                                {!hasNonZeroBalances && (
+                                  <span className="ml-2 text-xs text-gray-600">(No assets)</span>
+                                )}
+                              </div>
+                              {hasNonZeroBalances ? (
+                                <div className="space-y-1 ml-2">
+                                  {Object.entries(chainBalances)
+                                    .filter(([symbol, balance]) => parseFloat(balance) > 0)
+                                    .map(([symbol, balance]) => (
+                                    <div key={`${chainId}-${symbol}`} className="flex justify-between py-1.5 px-3 bg-gray-800 rounded text-sm">
+                                      <span className="text-gray-300 font-medium">{symbol}</span>
+                                      <div className="flex items-center space-x-2">
+                                        <span className="text-blue-400 font-semibold">{balance}</span>
+                                        <button
+                                          onClick={() => {
+                                            // Pre-fill shield form
+                                            setShieldForm(prev => ({
+                                              ...prev,
+                                              tokenAddress: SUPPORTED_TOKENS[symbol]?.[parseInt(chainId)]?.address || '0x0000000000000000000000000000000000000000',
+                                              amount: balance
+                                            }));
+                                            setActiveTab('shield');
+                                          }}
+                                          className="text-xs px-2 py-0.5 bg-green-600 hover:bg-green-700 text-white rounded"
+                                          title="Shield this asset"
+                                        >
+                                          Shield
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div className="text-xs text-gray-600 ml-2 italic">No assets on this chain</div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Recent Transactions Card */}
