@@ -9,7 +9,7 @@ export const SUPPORTED_CHAINS = {
     shortName: 'ETH',
     chain: mainnet,
     nativeSymbol: 'ETH',
-    rpcUrl: 'https://eth.llamarpc.com'
+    rpcUrl: 'https://eth.drpc.org'
   },
   137: { 
     id: 137, 
@@ -17,7 +17,7 @@ export const SUPPORTED_CHAINS = {
     shortName: 'MATIC',
     chain: polygon,
     nativeSymbol: 'MATIC',
-    rpcUrl: 'https://polygon.llamarpc.com'
+    rpcUrl: 'https://polygon.drpc.org'
   },
   56: { 
     id: 56, 
@@ -25,7 +25,7 @@ export const SUPPORTED_CHAINS = {
     shortName: 'BNB',
     chain: bsc,
     nativeSymbol: 'BNB',
-    rpcUrl: 'https://bsc-dataseed.binance.org'
+    rpcUrl: 'https://bsc.drpc.org'
   },
   42161: { 
     id: 42161, 
@@ -33,7 +33,7 @@ export const SUPPORTED_CHAINS = {
     shortName: 'ARB',
     chain: arbitrum,
     nativeSymbol: 'ETH',
-    rpcUrl: 'https://arbitrum.llamarpc.com'
+    rpcUrl: 'https://arbitrum.drpc.org'
   }
 };
 
@@ -46,10 +46,10 @@ export const SUPPORTED_TOKENS = {
     42161: { address: null, decimals: 18 }, // Native ETH on Arbitrum
   },
   USDC: {
-    1: { address: '0xA0b86a33E6556c98EeE24CdDC1E4dFaD7D6FfF68', decimals: 6 },
-    137: { address: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', decimals: 6 },
-    56: { address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', decimals: 18 },
-    42161: { address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', decimals: 6 }, // USDC on Arbitrum
+    1: { address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals: 6 }, // Official USDC on Ethereum
+    137: { address: '0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359', decimals: 6 }, // Official USDC on Polygon
+    56: { address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', decimals: 18 }, // Binance-Peg USDC on BSC
+    42161: { address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', decimals: 6 }, // Official USDC on Arbitrum
   },
   USDT: {
     1: { address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals: 6 },
