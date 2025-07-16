@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import PrivateTransactions from '../components/PrivateTransactions';
+import { useNavigate } from 'react-router-dom';
 import { useWallet } from '../contexts/WalletContext';
 
 export default function LandingPage() {
@@ -19,11 +19,21 @@ export default function LandingPage() {
   const [bootCurrentChar, setBootCurrentChar] = useState(0);
   const [bootIsTyping, setBootIsTyping] = useState(false);
   const [activeCardIndex, setActiveCardIndex] = useState(0);
-  const [isPrivateTransactionsOpen, setIsPrivateTransactionsOpen] = useState(false);
   const carouselRef = useRef(null);
   
-  // Wallet context
+  // Hooks
+  const navigate = useNavigate();
   const { isConnected, address, isRailgunInitialized, connectWallet } = useWallet();
+
+  // Redirect to wallet page after successful connection
+  useEffect(() => {
+    if (isConnected && address) {
+      // Small delay to let the user see the connection happened
+      setTimeout(() => {
+        navigate('/wallet');
+      }, 1000);
+    }
+  }, [isConnected, address, navigate]);
   
   const scrollCarousel = () => {
     if (carouselRef.current) {
@@ -318,7 +328,7 @@ export default function LandingPage() {
             <a href="#features" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Features</a>
             <a href="#security" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Security</a>
             <button 
-              onClick={() => setIsPrivateTransactionsOpen(true)}
+              onClick={() => navigate('/wallet')}
               className="text-lg font-bold text-purple-300 hover:text-white transition-colors"
             >
               Private TX
@@ -425,7 +435,7 @@ export default function LandingPage() {
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-4">
                 <button
-                  onClick={() => setIsPrivateTransactionsOpen(true)}
+                  onClick={() => navigate('/wallet')}
                   className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-indigo-500/25 hover:scale-105 text-center flex items-center justify-center space-x-2"
                 >
                   <span>🔐</span>
@@ -1190,12 +1200,6 @@ export default function LandingPage() {
           /* No custom animations needed - using only Tailwind defaults */
         `}</style>
       </main>
-
-      {/* Private Transactions Modal */}
-      <PrivateTransactions 
-        isOpen={isPrivateTransactionsOpen} 
-        onClose={() => setIsPrivateTransactionsOpen(false)} 
-      />
     </>
   );
 }
