@@ -1,13 +1,16 @@
 import React from 'react';
 import LandingPage from './pages/LandingPage';
 import { Analytics } from "@vercel/analytics/react";
+import WalletProvider from './contexts/WalletContext';
 
 function App() {
   return (
-    <div className="App">
-      <LandingPage />
-      <Analytics />
-    </div>
+    <WalletProvider>
+      <div className="App">
+        <LandingPage />
+        <Analytics />
+      </div>
+    </WalletProvider>
   );
 }
 

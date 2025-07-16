@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
+import PrivateTransactions from '../components/PrivateTransactions';
+import { useWallet } from '../contexts/WalletContext';
 
 export default function LandingPage() {
   const [bgLoaded, setBgLoaded] = useState(false);
@@ -17,7 +19,11 @@ export default function LandingPage() {
   const [bootCurrentChar, setBootCurrentChar] = useState(0);
   const [bootIsTyping, setBootIsTyping] = useState(false);
   const [activeCardIndex, setActiveCardIndex] = useState(0);
+  const [isPrivateTransactionsOpen, setIsPrivateTransactionsOpen] = useState(false);
   const carouselRef = useRef(null);
+  
+  // Wallet context
+  const { isConnected, address, isRailgunInitialized, connectWallet } = useWallet();
   
   const scrollCarousel = () => {
     if (carouselRef.current) {
@@ -308,10 +314,36 @@ export default function LandingPage() {
           <div className="text-4xl font-bold text-purple-300">
             LEXIE AI
           </div>
-          <div className="hidden md:flex space-x-6">
+          <div className="hidden md:flex items-center space-x-6">
             <a href="#features" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Features</a>
             <a href="#security" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Security</a>
+            <button 
+              onClick={() => setIsPrivateTransactionsOpen(true)}
+              className="text-lg font-bold text-purple-300 hover:text-white transition-colors"
+            >
+              Private TX
+            </button>
             <a href="#beta" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Beta</a>
+            
+            {/* Wallet Connection Button */}
+            {!isConnected ? (
+              <button
+                onClick={() => connectWallet('metamask')}
+                className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-300 text-sm"
+              >
+                Connect Wallet
+              </button>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                <span className="text-green-400 text-sm font-mono">
+                  {address?.slice(0, 6)}...{address?.slice(-4)}
+                </span>
+                {isRailgunInitialized && (
+                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </nav>
@@ -392,6 +424,13 @@ export default function LandingPage() {
 
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-4">
+                <button
+                  onClick={() => setIsPrivateTransactionsOpen(true)}
+                  className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-semibold rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all duration-300 shadow-lg hover:shadow-indigo-500/25 hover:scale-105 text-center flex items-center justify-center space-x-2"
+                >
+                  <span>🔐</span>
+                  <span>Private Transactions</span>
+                </button>
                 <a
                   href="https://t.me/lexie_crypto_bot"
               target="_blank"
@@ -724,10 +763,10 @@ export default function LandingPage() {
                 {
                   title: "Dark Wallet Mode",
                   missionType: "GHOST_PROTOCOL",
-                  description: "Zero-knowledge transaction obfuscation with quantum-resistant privacy layers",
+                  description: "Zero-knowledge private transactions powered by Railgun - shield, transfer, and unshield assets",
                   icon: "👻",
                   color: "gray",
-                  status: "PHANTOM",
+                  status: "ACTIVE",
                   efficiency: "100%"
                 },
                 {
@@ -1151,6 +1190,12 @@ export default function LandingPage() {
           /* No custom animations needed - using only Tailwind defaults */
         `}</style>
       </main>
+
+      {/* Private Transactions Modal */}
+      <PrivateTransactions 
+        isOpen={isPrivateTransactionsOpen} 
+        onClose={() => setIsPrivateTransactionsOpen(false)} 
+      />
     </>
   );
 }
