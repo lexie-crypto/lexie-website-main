@@ -292,7 +292,7 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
          feeTokenDetails = {
            tokenAddress: tokenAddress === null ? undefined : tokenAddress, // Native tokens use undefined
            chainId: chain.id,
-           chain: chain.id, // ✅ Add 'chain' property that SDK might be looking for
+           chain: networkName, // ✅ this is what the SDK tries to read `.chain` from
            decimals: currentToken.decimals,
            symbol: currentToken.symbol,
          };
@@ -312,7 +312,7 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
            feeTokenDetails = {
              tokenAddress: fallbackToken.address === null ? undefined : fallbackToken.address,
              chainId: chain.id,
-             chain: chain.id, // ✅ Add 'chain' property that SDK might be looking for
+             chain: networkName, // ✅ this is what the SDK tries to read `.chain` from
              decimals: fallbackToken.decimals,
              symbol: fallbackToken.symbol,
            };
