@@ -1,37 +1,26 @@
 /**
- * Railgun Privacy Actions
+ * Railgun Privacy Actions - OFFICIAL IMPLEMENTATION
  * Implements Shield, Transfer, and Unshield operations using the Railgun SDK
  * 
- * SHIELD OPERATION FLOW (Fixed):
- * ===============================
+ * Based on official Railgun Community patterns from:
+ * - https://github.com/Railgun-Community/wallet
+ * - https://github.com/Railgun-Community/cookbook
+ * 
+ * SHIELD OPERATION FLOW (CORRECTED):
+ * ==================================
  * The Railgun SDK requires a 3-step process for shield operations:
  * 
  * 1. Gas Estimation: gasEstimateForShield
- *    - Parameters: networkName, railgunWalletID, encryptionKey, erc20AmountRecipients, nftAmountRecipients, fromAddress
- * 
  * 2. Transaction Generation: generateShieldTransaction  
- *    - Parameters: networkName, railgunWalletID, encryptionKey, erc20AmountRecipients, nftAmountRecipients, fromAddress
- *    - Returns: { transaction, shieldPrivateKey }
+ * 3. Transaction Population: populateShield
  * 
- * 3. Transaction Population: populateShield (THIS WAS MISSING!)
- *    - Parameters: networkName, railgunWalletID, erc20AmountRecipients, nftAmountRecipients, shieldPrivateKey
- *    - Returns: { transaction } (final ready-to-broadcast transaction)
- * 
- * REQUIRED PARAMETERS FOR SHIELD:
- * ================================
- * - railgunWalletID: String (Railgun wallet identifier)
- * - encryptionKey: String (minimum 32 characters, wallet encryption key)
- * - tokenAddress: String (ERC20 contract address, or '0x0000000000000000000000000000000000000000' for native)
- * - amount: String (amount in token's smallest units)
- * - chain: Object ({ type: string, id: number })
- * - fromAddress: String (EOA address sending tokens)
- * - railgunAddress: String (Railgun address receiving shielded tokens)
- * 
- * UNSHIELD & TRANSFER OPERATIONS:
- * ===============================
- * These were already correctly implemented with proper 3-step flows:
- * - Unshield: gasEstimateForUnprovenUnshield → generateUnshieldProof → populateProvedUnshield
- * - Transfer: gasEstimateForUnprovenTransfer → generateTransferProof → populateProvedTransfer
+ * CRITICAL PARAMETER REQUIREMENTS:
+ * - networkName: Must be exact match: "Ethereum", "Arbitrum", "Polygon", "BNB", "Hardhat"
+ * - erc20AmountRecipients: Array of { tokenAddress, amount, recipientAddress }
+ * - nftAmountRecipients: Always empty array []
+ * - Native tokens: tokenAddress must be undefined (not null)
+ * - All amounts: Must be strings (hex BigNumber values)
+ * - All addresses: Must be checksummed Ethereum addresses
  */
 
 import { formatUnits, parseUnits, getAddress } from 'ethers';
@@ -51,27 +40,86 @@ import { waitForRailgunReady } from './engine.js';
 import { getTokensForChain } from '../../constants/tokens.js';
 import { deriveEncryptionKey } from './wallet.js';
 
-// Helper to convert chain config to NetworkName
-const getNetworkNameFromChainId = (chainId) => {
-  switch (chainId) {
-    case 1:
-      return NetworkName.Ethereum;
-    case 137:
-      return NetworkName.Polygon;
-    case 42161:
-      return NetworkName.Arbitrum;
-    case 56:
-      return NetworkName.BNBChain;
-    default:
-      throw new Error(`Unsupported chain ID: ${chainId}`);
-  }
+/**
+ * NETWORK NAME MAPPING 
+ * =====================
+ * Maps our chain configuration to Railgun's expected network names
+ */
+const RAILGUN_NETWORK_MAPPING = {
+  1: 'Ethereum',      // Mainnet
+  5: 'Ethereum',      // Goerli (mapped to Ethereum for Railgun)
+  42161: 'Arbitrum',  // Arbitrum One
+  137: 'Polygon',     // Polygon Mainnet
+  56: 'BNB',          // BNB Smart Chain
+  31337: 'Hardhat',   // Local development
 };
 
 /**
+ * Get the correct Railgun network name for a given chain ID
+ * @param {number} chainId - The chain ID
+ * @returns {string} The Railgun network name
+ */
+function getRailgunNetworkName(chainId) {
+  const networkName = RAILGUN_NETWORK_MAPPING[chainId];
+  if (!networkName) {
+    throw new Error(`Unsupported chain ID for Railgun: ${chainId}`);
+  }
+  return networkName;
+}
+
+/**
+ * Validates and formats an Ethereum address
+ * @param {string} address - The address to validate
+ * @param {string} paramName - Parameter name for error messages
+ * @returns {string} Checksummed address
+ */
+function validateAndFormatAddress(address, paramName) {
+  if (!address || typeof address !== 'string') {
+    throw new Error(`${paramName} must be a valid Ethereum address string`);
+  }
+  try {
+    return getAddress(address); // This validates and checksums the address
+  } catch (error) {
+    throw new Error(`Invalid ${paramName}: ${address}. ${error.message}`);
+  }
+}
+
+/**
+ * Creates a properly structured ERC20AmountRecipient for Railgun SDK
+ * @param {string|null} tokenAddress - Token contract address (null for native)
+ * @param {string} amount - Amount in token units as string
+ * @param {string} recipientAddress - Recipient Railgun address
+ * @returns {Object} Properly structured recipient object
+ */
+function createERC20AmountRecipient(tokenAddress, amount, recipientAddress) {
+  // Validate inputs
+  if (!amount || typeof amount !== 'string') {
+    throw new Error('Amount must be a string');
+  }
+  
+  if (!recipientAddress || typeof recipientAddress !== 'string') {
+    throw new Error('Recipient address must be a string');
+  }
+
+  // For native tokens, tokenAddress should be undefined (not null)
+  const processedTokenAddress = (tokenAddress === null || tokenAddress === '0x0000000000000000000000000000000000000000') 
+    ? undefined 
+    : validateAndFormatAddress(tokenAddress, 'tokenAddress');
+
+  return {
+    tokenAddress: processedTokenAddress,
+    amount: amount,
+    recipientAddress: recipientAddress, // Railgun addresses don't need checksum validation
+  };
+}
+
+/**
  * Shield ERC20 tokens into Railgun (Public → Private)
+ * OFFICIAL IMPLEMENTATION based on Railgun Community patterns
+ * 
  * @param {string} railgunWalletID - Railgun wallet ID
  * @param {string} encryptionKey - Wallet encryption key
- * @param {string} tokenAddress - Token contract address (null for native)
+ * @param {string|null} tokenAddress - Token contract address (null for native)
  * @param {string} amount - Amount to shield (in token units)
  * @param {Object} chain - Chain configuration
  * @param {string} fromAddress - EOA address sending the tokens
@@ -80,98 +128,59 @@ const getNetworkNameFromChainId = (chainId) => {
  */
 export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress, amount, chain, fromAddress, railgunAddress) => {
   try {
-    console.log('[RailgunActions] Shielding tokens with parameters:', {
+    console.log('[RailgunActions] Starting OFFICIAL shield operation with parameters:', {
       railgunWalletID: railgunWalletID ? `${railgunWalletID.slice(0, 8)}...` : 'MISSING',
       hasEncryptionKey: !!encryptionKey,
       encryptionKeyLength: encryptionKey ? encryptionKey.length : 0,
       tokenAddress,
+      tokenType: tokenAddress === null ? 'NATIVE' : 'ERC20',
       amount,
-      chain: chain?.type,
       chainId: chain?.id,
       fromAddress,
-      railgunAddress: railgunAddress ? `${railgunAddress.slice(0, 8)}...` : 'MISSING',
+      railgunAddress,
     });
 
-    // Enhanced parameter validation with detailed logging
-    // Note: tokenAddress can be null for native tokens (ETH, MATIC, etc.)
-    const missingParams = [];
-    if (!railgunWalletID || typeof railgunWalletID !== 'string') missingParams.push('railgunWalletID');
-    if (!encryptionKey || typeof encryptionKey !== 'string') missingParams.push('encryptionKey');
-    if (tokenAddress === undefined) missingParams.push('tokenAddress'); // Allow null for native tokens
-    if (!amount || typeof amount !== 'string') missingParams.push('amount');
-    if (!chain || typeof chain !== 'object') missingParams.push('chain');
-    if (!fromAddress || typeof fromAddress !== 'string') missingParams.push('fromAddress');
-    if (!railgunAddress || typeof railgunAddress !== 'string') missingParams.push('railgunAddress');
-
-    if (missingParams.length > 0) {
-      console.error('[RailgunActions] Missing or invalid required parameters:', missingParams);
-      throw new Error(`Missing or invalid required parameters for shield operation: ${missingParams.join(', ')}`);
-    }
-
-    // Log token type for debugging
-    const tokenType = tokenAddress === null ? 'NATIVE' : 'ERC20';
-    console.log('[RailgunActions] Token type:', tokenType, 'Address:', tokenAddress);
-
-    // Validate encryption key format
-    if (encryptionKey.length < 32) {
-      console.error('[RailgunActions] Invalid encryption key length:', encryptionKey.length);
-      throw new Error('Encryption key must be at least 32 characters');
-    }
-
+    // Wait for Railgun to be ready
     await waitForRailgunReady();
 
-    // Convert chain ID to NetworkName
-    const networkName = getNetworkNameFromChainId(chain.id);
-    console.log('[RailgunActions] Using network:', networkName);
-
-    // Prepare ERC20 amount object - for shield operations, we need to specify the Railgun address as recipient
-    // ✅ CRITICAL: Ensure all fields are properly typed and validated
-    const processedTokenAddress = (tokenAddress === null || tokenAddress === '0x0000000000000000000000000000000000000000') ? undefined : tokenAddress;
-    const processedAmount = amount.toString();
-    const processedRecipientAddress = railgunAddress;
-
-    // Validate processed values
-    if (processedAmount === '0' || processedAmount === 'NaN' || processedAmount === '') {
-      throw new Error('Invalid amount: cannot be zero, NaN, or empty');
-    }
-    
-    if (!processedRecipientAddress || processedRecipientAddress.length < 10) {
-      throw new Error('Invalid Railgun recipient address');
+    // ✅ COMPREHENSIVE PARAMETER VALIDATION (Official Railgun Pattern)
+    if (!railgunWalletID || typeof railgunWalletID !== 'string') {
+      throw new Error('railgunWalletID must be a non-empty string');
     }
 
-    const erc20AmountRecipient = {
-      tokenAddress: processedTokenAddress,
-      amount: processedAmount,
-      recipientAddress: processedRecipientAddress,
-    };
-
-    // ✅ CRITICAL: Validate the recipient object structure before creating arrays
-    if (!erc20AmountRecipient || typeof erc20AmountRecipient !== 'object') {
-      throw new Error('Failed to create valid ERC20AmountRecipient object');
+    if (!encryptionKey || typeof encryptionKey !== 'string' || encryptionKey.length < 32) {
+      throw new Error('encryptionKey must be a string with at least 32 characters');
     }
 
-    if (typeof erc20AmountRecipient.amount !== 'string') {
-      throw new Error('ERC20AmountRecipient amount must be a string');
+    if (tokenAddress !== null && tokenAddress !== undefined) {
+      tokenAddress = validateAndFormatAddress(tokenAddress, 'tokenAddress');
     }
 
-    if (typeof erc20AmountRecipient.recipientAddress !== 'string') {
-      throw new Error('ERC20AmountRecipient recipientAddress must be a string');
+    if (!amount || typeof amount !== 'string') {
+      throw new Error('amount must be a non-empty string');
     }
 
-    // Ensure arrays are properly initialized (never null) and validate them
+    if (!chain || typeof chain !== 'object' || !chain.id) {
+      throw new Error('chain must be an object with an id property');
+    }
+
+    fromAddress = validateAndFormatAddress(fromAddress, 'fromAddress');
+
+    if (!railgunAddress || typeof railgunAddress !== 'string') {
+      throw new Error('railgunAddress must be a non-empty string');
+    }
+
+    // Get the correct Railgun network name
+    const networkName = getRailgunNetworkName(chain.id);
+    console.log('[RailgunActions] Using Railgun network:', networkName);
+
+    // ✅ CREATE PROPERLY STRUCTURED PARAMETERS (Official Pattern)
+    const erc20AmountRecipient = createERC20AmountRecipient(tokenAddress, amount, railgunAddress);
     const erc20AmountRecipients = [erc20AmountRecipient];
-    const nftAmountRecipients = []; // Empty array, never null
+    const nftAmountRecipients = []; // Always empty array for shield operations
 
-    // ✅ CRITICAL: Final validation of arrays before SDK calls
-    if (!Array.isArray(erc20AmountRecipients) || erc20AmountRecipients.length === 0) {
-      throw new Error('erc20AmountRecipients must be a non-empty array');
-    }
-
-    if (!Array.isArray(nftAmountRecipients)) {
-      throw new Error('nftAmountRecipients must be an array');
-    }
-    
-    console.log('[RailgunActions] Prepared recipients for shield:', {
+    console.log('[RailgunActions] Created properly structured parameters:', {
+      networkName,
       erc20AmountRecipients: erc20AmountRecipients.map(r => ({
         tokenAddress: r.tokenAddress,
         tokenAddressType: typeof r.tokenAddress,
@@ -179,194 +188,88 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
         amountType: typeof r.amount,
         recipientAddress: r.recipientAddress ? `${r.recipientAddress.slice(0, 8)}...` : 'MISSING'
       })),
-      nftAmountRecipientsCount: nftAmountRecipients.length,
-      parametersToSDK: {
-        networkName,
-        railgunWalletID: railgunWalletID ? `${railgunWalletID.slice(0, 8)}...` : 'MISSING',
-        encryptionKey: encryptionKey ? `${encryptionKey.slice(0, 8)}...` : 'MISSING',
-        fromAddress
-      }
-    });
-    
-    // Step 1: Get gas estimate first
-    console.log('[RailgunActions] Step 1: Getting gas estimate...');
-    
-    // ✅ DETAILED PARAMETER VALIDATION BEFORE SDK CALL
-    console.log('[RailgunActions] Validating all parameters before gasEstimateForShield:', {
-      networkName: {
-        value: networkName,
-        type: typeof networkName,
-        isUndefined: networkName === undefined,
-        isNull: networkName === null
-      },
-      railgunWalletID: {
-        value: railgunWalletID ? `${railgunWalletID.slice(0, 8)}...` : railgunWalletID,
-        type: typeof railgunWalletID,
-        isUndefined: railgunWalletID === undefined,
-        isNull: railgunWalletID === null
-      },
-      encryptionKey: {
-        value: encryptionKey ? `${encryptionKey.slice(0, 8)}...` : encryptionKey,
-        type: typeof encryptionKey,
-        length: encryptionKey ? encryptionKey.length : 0,
-        isUndefined: encryptionKey === undefined,
-        isNull: encryptionKey === null
-      },
-      erc20AmountRecipients: {
-        value: erc20AmountRecipients,
-        type: typeof erc20AmountRecipients,
-        isArray: Array.isArray(erc20AmountRecipients),
-        length: erc20AmountRecipients ? erc20AmountRecipients.length : 0,
-        isUndefined: erc20AmountRecipients === undefined,
-        isNull: erc20AmountRecipients === null
-      },
-      nftAmountRecipients: {
-        value: nftAmountRecipients,
-        type: typeof nftAmountRecipients,
-        isArray: Array.isArray(nftAmountRecipients),
-        length: nftAmountRecipients ? nftAmountRecipients.length : 0,
-        isUndefined: nftAmountRecipients === undefined,
-        isNull: nftAmountRecipients === null
-      },
-      fromAddress: {
-        value: fromAddress,
-        type: typeof fromAddress,
-        isUndefined: fromAddress === undefined,
-        isNull: fromAddress === null
-      }
+      nftAmountRecipientsLength: nftAmountRecipients.length,
     });
 
-    // Ensure no parameters are undefined before calling the SDK
-    if (networkName === undefined) throw new Error('networkName is undefined');
-    if (railgunWalletID === undefined) throw new Error('railgunWalletID is undefined');
-    if (encryptionKey === undefined) throw new Error('encryptionKey is undefined');
-    if (erc20AmountRecipients === undefined) throw new Error('erc20AmountRecipients is undefined');
-    if (nftAmountRecipients === undefined) throw new Error('nftAmountRecipients is undefined');
-    if (fromAddress === undefined) throw new Error('fromAddress is undefined');
-    
-    // ✅ CRITICAL: Wrap SDK call in comprehensive error handling
+    // ✅ STEP 1: Gas Estimation (Official Pattern)
+    console.log('[RailgunActions] Step 1: Gas estimation...');
     let gasDetails;
     try {
-      console.log('[RailgunActions] Calling gasEstimateForShield with validated parameters...');
       gasDetails = await gasEstimateForShield(
         networkName,
         railgunWalletID,
         encryptionKey,
         erc20AmountRecipients,
         nftAmountRecipients,
-        fromAddress,
+        fromAddress
       );
-      console.log('[RailgunActions] gasEstimateForShield completed successfully');
+      console.log('[RailgunActions] Gas estimation successful:', gasDetails);
     } catch (sdkError) {
-      console.error('[RailgunActions] gasEstimateForShield failed:', {
+      console.error('[RailgunActions] Gas estimation failed:', {
         error: sdkError,
         message: sdkError.message,
-        stack: sdkError.stack,
-        name: sdkError.name
+        stack: sdkError.stack
       });
-      
-      // Provide more specific error messages based on common patterns
-      if (sdkError.message && sdkError.message.includes('is not iterable')) {
-        throw new Error('Shield operation failed: Invalid parameter structure passed to Railgun SDK. This usually indicates a parameter type mismatch.');
-      } else if (sdkError.message && sdkError.message.includes('undefined')) {
-        throw new Error('Shield operation failed: Undefined parameter passed to Railgun SDK. All parameters must be properly defined.');
-      } else {
-        throw new Error(`Shield operation failed: ${sdkError.message || 'Unknown Railgun SDK error'}`);
-      }
+      throw new Error(`Gas estimation failed: ${sdkError.message}`);
     }
 
-    console.log('[RailgunActions] Gas estimate completed:', gasDetails);
-
-    // Step 2: Generate shield transaction
+    // ✅ STEP 2: Generate Shield Transaction (Official Pattern)
     console.log('[RailgunActions] Step 2: Generating shield transaction...');
     let shieldTxResult;
     try {
-      console.log('[RailgunActions] Calling generateShieldTransaction...');
       shieldTxResult = await generateShieldTransaction(
         networkName,
         railgunWalletID,
         encryptionKey,
         erc20AmountRecipients,
         nftAmountRecipients,
-        fromAddress,
+        fromAddress
       );
-      console.log('[RailgunActions] generateShieldTransaction completed successfully');
+      console.log('[RailgunActions] Shield transaction generated successfully');
     } catch (sdkError) {
-      console.error('[RailgunActions] generateShieldTransaction failed:', {
+      console.error('[RailgunActions] Shield transaction generation failed:', {
         error: sdkError,
         message: sdkError.message,
         stack: sdkError.stack
       });
-      
-      if (sdkError.message && sdkError.message.includes('is not iterable')) {
-        throw new Error('Shield transaction generation failed: Invalid parameter structure passed to Railgun SDK.');
-      } else {
-        throw new Error(`Shield transaction generation failed: ${sdkError.message || 'Unknown Railgun SDK error'}`);
-      }
+      throw new Error(`Shield transaction generation failed: ${sdkError.message}`);
     }
 
-    console.log('[RailgunActions] Shield transaction generated:', {
-      hasTransaction: !!shieldTxResult?.transaction,
-      hasShieldPrivateKey: !!shieldTxResult?.shieldPrivateKey,
-      shieldTxResult: shieldTxResult
-    });
-
-    if (!shieldTxResult || !shieldTxResult.transaction) {
-      throw new Error('Failed to generate shield transaction');
-    }
-
-    // Step 3: Populate shield transaction (the missing step!)
+    // ✅ STEP 3: Populate Shield Transaction (Official Pattern)
     console.log('[RailgunActions] Step 3: Populating shield transaction...');
     let populatedResult;
     try {
-      console.log('[RailgunActions] Calling populateShield...');
       populatedResult = await populateShield(
         networkName,
         railgunWalletID,
         erc20AmountRecipients,
         nftAmountRecipients,
-        shieldTxResult.shieldPrivateKey, // Use the shield private key from generateShieldTransaction
+        shieldTxResult.shieldPrivateKey
       );
-      console.log('[RailgunActions] populateShield completed successfully');
+      console.log('[RailgunActions] Shield transaction populated successfully');
     } catch (sdkError) {
-      console.error('[RailgunActions] populateShield failed:', {
+      console.error('[RailgunActions] Shield transaction population failed:', {
         error: sdkError,
         message: sdkError.message,
         stack: sdkError.stack
       });
-      
-      if (sdkError.message && sdkError.message.includes('is not iterable')) {
-        throw new Error('Shield transaction population failed: Invalid parameter structure passed to Railgun SDK.');
-      } else {
-        throw new Error(`Shield transaction population failed: ${sdkError.message || 'Unknown Railgun SDK error'}`);
-      }
+      throw new Error(`Shield transaction population failed: ${sdkError.message}`);
     }
 
-    console.log('[RailgunActions] Shield transaction populated:', populatedResult);
-
-    if (!populatedResult || !populatedResult.transaction) {
-      throw new Error('Failed to populate shield transaction');
-    }
-
-    return { 
-      success: true, 
-      transaction: populatedResult.transaction,
+    console.log('[RailgunActions] ✅ Shield operation completed successfully');
+    return {
       gasEstimate: gasDetails,
-      shieldPrivateKey: shieldTxResult.shieldPrivateKey // Include for potential future use
+      transaction: populatedResult.transaction,
+      shieldPrivateKey: shieldTxResult.shieldPrivateKey,
     };
 
   } catch (error) {
-    console.error('[RailgunActions] Shield failed with detailed error:', {
-      errorMessage: error.message,
-      errorStack: error.stack,
-      railgunWalletID: railgunWalletID ? `${railgunWalletID.slice(0, 8)}...` : 'MISSING',
-      hasEncryptionKey: !!encryptionKey,
-      tokenAddress,
-      amount,
-      fromAddress,
-      railgunAddress: railgunAddress ? `${railgunAddress.slice(0, 8)}...` : 'MISSING'
+    console.error('[RailgunActions] ❌ Shield operation failed:', {
+      error: error,
+      message: error.message,
+      stack: error.stack
     });
-    throw new Error(`Shield failed: ${error.message}`);
+    throw error;
   }
 };
 
