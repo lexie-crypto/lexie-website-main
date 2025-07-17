@@ -198,6 +198,16 @@ const WalletContextProvider = ({ children }) => {
 
       setRailgunAddress(railgunWalletInfo.railgunAddress);
       setRailgunWalletID(railgunWalletInfo.railgunWalletID);
+
+      console.log('🕐 Waiting for RAILGUN wallet to be ready...');
+      // Wait for the wallet to be fully ready before marking as initialized
+      if (railgunWallet.waitForRailgunWalletReady) {
+        await railgunWallet.waitForRailgunWalletReady(railgunWalletInfo.railgunWalletID);
+        console.log('✅ RAILGUN wallet is ready for transactions');
+      } else {
+        console.warn('⚠️ waitForRailgunWalletReady not available, proceeding without wait');
+      }
+
       setIsRailgunInitialized(true);
 
       console.log('🎉 RAILGUN wallet initialized successfully:', {

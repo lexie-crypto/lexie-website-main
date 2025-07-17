@@ -82,6 +82,14 @@ const PrivateTransactions = ({ isOpen, onClose }) => {
       // Try to load real balances if functions are available
       try {
         const railgunWallet = await import('@railgun-community/wallet');
+        
+        // Wait for wallet readiness before attempting to refresh balances
+        if (railgunWalletID && railgunWallet.waitForRailgunWalletReady) {
+          console.log('🕐 Waiting for RAILGUN wallet readiness before balance refresh...');
+          await railgunWallet.waitForRailgunWalletReady(railgunWalletID);
+          console.log('✅ RAILGUN wallet ready for balance operations');
+        }
+        
         if (railgunWallet.refreshRailgunBalances) {
           await railgunWallet.refreshRailgunBalances(address, railgunAddress);
         }

@@ -85,12 +85,12 @@ const WalletPage = () => {
 
       // Get private balances from RAILGUN callback system
       let privateBalances = {};
-      if (isRailgunInitialized && railgunAddress) {
+      if (isRailgunInitialized && railgunAddress && railgunWalletID) {
         console.log('🔄 Triggering RAILGUN balance refresh...');
-        await refreshRailgunBalances();
+        await refreshRailgunBalances(railgunWalletID);
         
         console.log('📈 Getting RAILGUN balances from callback system...');
-        privateBalances = getRailgunBalances();
+        privateBalances = await getRailgunBalances(railgunWalletID);
       } else {
         console.log('⚠️ RAILGUN not initialized, using zero balances');
         // Initialize with zeros if Railgun not ready
@@ -139,14 +139,19 @@ const WalletPage = () => {
     if (isRailgunInitialized) {
       console.log('🔔 Setting up RAILGUN balance update listener...');
       
-      const unsubscribe = addBalanceUpdateListener(() => {
+      const unsubscribe = addBalanceUpdateListener(async () => {
         console.log('💰 RAILGUN balance update received, refreshing UI...');
         
         // Update private balances with new data from callback
-        setBalances(prevBalances => ({
-          ...prevBalances,
-          private: getRailgunBalances()
-        }));
+        try {
+          const updatedPrivateBalances = await getRailgunBalances(railgunWalletID);
+          setBalances(prevBalances => ({
+            ...prevBalances,
+            private: updatedPrivateBalances
+          }));
+        } catch (error) {
+          console.error('❌ Error updating private balances:', error);
+        }
       });
 
       console.log('✅ RAILGUN balance update listener active');

@@ -1,4 +1,4 @@
-import { formatUnits, createPublicClient, custom } from 'viem';
+import { formatUnits, createPublicClient, custom, checksumAddress } from 'viem';
 import { mainnet, polygon, bsc, arbitrum } from 'viem/chains';
 
 // Supported chains configuration with custom RPC URLs
@@ -350,10 +350,19 @@ export async function setupRailgunBalanceCallbacks(): Promise<boolean> {
           for (const erc20Amount of erc20Amounts) {
             const { tokenAddress, amount } = erc20Amount;
             
+            // Normalize token address for comparison (checksum both addresses)
+            const normalizedTokenAddress = tokenAddress === '0x0000000000000000000000000000000000000000' 
+              ? tokenAddress 
+              : checksumAddress(tokenAddress);
+            
             // Find matching token symbol
             for (const [tokenSymbol, tokenChains] of Object.entries(SUPPORTED_TOKENS)) {
               const tokenConfig = tokenChains[chainId];
-              if (tokenConfig && (tokenConfig.address === tokenAddress || (tokenAddress === '0x0000000000000000000000000000000000000000' && tokenConfig.address === null))) {
+              const normalizedConfigAddress = tokenConfig?.address 
+                ? checksumAddress(tokenConfig.address) 
+                : null;
+              
+              if (tokenConfig && (normalizedConfigAddress === normalizedTokenAddress || (normalizedTokenAddress === '0x0000000000000000000000000000000000000000' && tokenConfig.address === null))) {
                 // Format balance
                 const balanceValue = BigInt(amount || '0');
                 const decimals = Number(tokenConfig.decimals);
@@ -450,10 +459,19 @@ export async function setupWalletBalanceCallbacks(railgunWalletID: string): Prom
           for (const erc20Amount of erc20Amounts) {
             const { tokenAddress, amount } = erc20Amount;
             
+            // Normalize token address for comparison (checksum both addresses)
+            const normalizedTokenAddress = tokenAddress === '0x0000000000000000000000000000000000000000' 
+              ? tokenAddress 
+              : checksumAddress(tokenAddress);
+            
             // Find matching token symbol
             for (const [tokenSymbol, tokenChains] of Object.entries(SUPPORTED_TOKENS)) {
               const tokenConfig = tokenChains[chainId];
-              if (tokenConfig && (tokenConfig.address === tokenAddress || (tokenAddress === '0x0000000000000000000000000000000000000000' && tokenConfig.address === null))) {
+              const normalizedConfigAddress = tokenConfig?.address 
+                ? checksumAddress(tokenConfig.address) 
+                : null;
+              
+              if (tokenConfig && (normalizedConfigAddress === normalizedTokenAddress || (normalizedTokenAddress === '0x0000000000000000000000000000000000000000' && tokenConfig.address === null))) {
                 // Format balance
                 const balanceValue = BigInt(amount || '0');
                 const decimals = Number(tokenConfig.decimals);
@@ -564,7 +582,25 @@ export async function fetchPublicBalances(userAddress: string): Promise<Record<n
 }
 
 // Get current RAILGUN balances from global state (updated via callbacks)
-export function getRailgunBalances(): Record<number, Record<string, string>> {
+export async function getRailgunBalances(railgunWalletID?: string): Promise<Record<number, Record<string, string>>> {
+  // Wait for wallet readiness if walletID provided
+  if (railgunWalletID) {
+    try {
+      console.log('🕐 Checking RAILGUN wallet readiness before reading balances...');
+      const railgunWallet = await import('@railgun-community/wallet');
+      
+      if ((railgunWallet as any).waitForRailgunWalletReady) {
+        await (railgunWallet as any).waitForRailgunWalletReady(railgunWalletID);
+        console.log('✅ RAILGUN wallet ready, reading balances');
+      } else {
+        console.warn('⚠️ waitForRailgunWalletReady not available, proceeding without wait');
+      }
+    } catch (error) {
+      console.error('❌ Error waiting for RAILGUN wallet readiness:', error);
+      // Continue anyway, but log the error
+    }
+  }
+
   // Initialize empty balances if not set
   if (Object.keys(railgunBalanceState).length === 0) {
     const emptyBalances: Record<number, Record<string, string>> = {};
@@ -587,13 +623,29 @@ export function getRailgunBalances(): Record<number, Record<string, string>> {
 }
 
 // Trigger manual RAILGUN balance refresh (if supported)
-export async function refreshRailgunBalances(): Promise<void> {
+export async function refreshRailgunBalances(railgunWalletID?: string): Promise<void> {
   try {
     console.log('🔄 Triggering RAILGUN balance refresh...');
     const railgunWallet = await import('@railgun-community/wallet');
     
+    // Wait for wallet readiness if walletID provided
+    if (railgunWalletID) {
+      try {
+        console.log('🕐 Waiting for RAILGUN wallet readiness before refresh...');
+        if ((railgunWallet as any).waitForRailgunWalletReady) {
+          await (railgunWallet as any).waitForRailgunWalletReady(railgunWalletID);
+          console.log('✅ RAILGUN wallet ready, proceeding with balance refresh');
+        } else {
+          console.warn('⚠️ waitForRailgunWalletReady not available, proceeding without wait');
+        }
+      } catch (waitError) {
+        console.error('❌ Error waiting for RAILGUN wallet readiness:', waitError);
+        // Continue anyway, but log the error
+      }
+    }
+    
     // Try to trigger manual balance scan (note: actual implementation may require wallet address and chain parameters)
-    if (railgunWallet.refreshBalances && typeof railgunWallet.refreshBalances === 'function') {
+    if ((railgunWallet as any).refreshBalances && typeof (railgunWallet as any).refreshBalances === 'function') {
       console.log('ℹ️ Manual RAILGUN balance refresh available but requires wallet parameters');
       // Note: In a real implementation, you would pass the necessary wallet and chain parameters
       // await railgunWallet.refreshBalances(walletAddress, chainId);
@@ -729,16 +781,10 @@ export async function executeShield({
     }
 
     if (!shieldProofFunction && !submitFunction) {
-      // For now, return a demo response indicating the function isn't available
-      console.warn('⚠️ Shield functions not found in RAILGUN SDK - using demo mode');
-      
-      // Simulate a successful transaction for demo purposes
-      const demoTxid = '0x' + Math.random().toString(16).substr(2, 64);
-      console.log('🔧 Demo shield transaction simulated:', demoTxid);
-      
+      console.error('❌ Shield functions not found in RAILGUN SDK - engine may not be ready');
       return {
-        success: true,
-        txid: demoTxid
+        success: false,
+        error: 'RAILGUN engine not ready or shield functions unavailable. Please wait for initialization to complete.'
       };
     }
 
@@ -862,14 +908,10 @@ export async function executePrivateTransfer({
     }
 
     if (!transferProofFunction && !submitFunction) {
-      console.warn('⚠️ Transfer functions not found in RAILGUN SDK - using demo mode');
-      
-      const demoTxid = '0x' + Math.random().toString(16).substr(2, 64);
-      console.log('🔧 Demo private transfer simulated:', demoTxid);
-      
+      console.error('❌ Transfer functions not found in RAILGUN SDK - engine may not be ready');
       return {
-        success: true,
-        txid: demoTxid
+        success: false,
+        error: 'RAILGUN engine not ready or transfer functions unavailable. Please wait for initialization to complete.'
       };
     }
 
@@ -995,14 +1037,10 @@ export async function executeUnshield({
     }
 
     if (!unshieldProofFunction && !submitFunction) {
-      console.warn('⚠️ Unshield functions not found in RAILGUN SDK - using demo mode');
-      
-      const demoTxid = '0x' + Math.random().toString(16).substr(2, 64);
-      console.log('🔧 Demo unshield transaction simulated:', demoTxid);
-      
+      console.error('❌ Unshield functions not found in RAILGUN SDK - engine may not be ready');
       return {
-        success: true,
-        txid: demoTxid
+        success: false,
+        error: 'RAILGUN engine not ready or unshield functions unavailable. Please wait for initialization to complete.'
       };
     }
 
