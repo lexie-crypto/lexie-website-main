@@ -536,7 +536,8 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
         railgunWalletID,
         erc20AmountRecipients,
         nftAmountRecipients,
-        shieldTxResult.shieldPrivateKey
+        shieldTxResult.shieldPrivateKey,
+        feeTokenDetails // ✅ Add fee token details for consistency (if required by SDK)
       );
       console.log('[RailgunActions] Shield transaction populated successfully');
     } catch (sdkError) {
@@ -974,11 +975,27 @@ export const isTokenSupportedByRailgun = (tokenAddress, chainId) => {
  * @param {Array} erc20AmountRecipients - Array of ERC20 amount recipients
  * @param {Array} nftAmountRecipients - Array of NFT amount recipients
  * @param {string} fromAddress - EOA address sending the tokens
+ * @param {Object} feeTokenDetails - Fee token details with chain property
  * @returns {Object} Gas details
  */
-export const estimateShieldGas = async (networkName, railgunWalletID, encryptionKey, erc20AmountRecipients, nftAmountRecipients, fromAddress) => {
+export const estimateShieldGas = async (networkName, railgunWalletID, encryptionKey, erc20AmountRecipients, nftAmountRecipients, fromAddress, feeTokenDetails) => {
   try {
     console.log('[RailgunActions] Estimating shield gas');
+    
+    // ✅ VALIDATE FEE TOKEN DETAILS PARAMETER
+    if (!feeTokenDetails || typeof feeTokenDetails !== 'object') {
+      throw new Error('feeTokenDetails is required and must be an object');
+    }
+    
+    if (!feeTokenDetails.chain || typeof feeTokenDetails.chain !== 'string') {
+      throw new Error('feeTokenDetails.chain is required and must be a string (network name)');
+    }
+    
+    console.log('[RailgunActions] Using feeTokenDetails:', {
+      chain: feeTokenDetails.chain,
+      chainId: feeTokenDetails.chainId,
+      symbol: feeTokenDetails.symbol
+    });
     
     // Ensure arrays are properly initialized (never null)
     const safeErc20Recipients = Array.isArray(erc20AmountRecipients) ? erc20AmountRecipients : [];
@@ -992,6 +1009,7 @@ export const estimateShieldGas = async (networkName, railgunWalletID, encryption
       safeErc20Recipients,
       safeNftRecipients,
       fromAddress,
+      feeTokenDetails // ✅ CRITICAL: Add fee token details to prevent 'chain' property error
     );
     
     return gasDetails;
