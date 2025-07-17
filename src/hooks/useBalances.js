@@ -199,7 +199,6 @@ const useBalances = () => {
       case 42161: return { type: NetworkName.Arbitrum, id: 42161 };
       case 10: return { type: NetworkName.Optimism, id: 10 };
       case 56: return { type: NetworkName.BNBChain, id: 56 };
-      case 11155111: return { type: NetworkName.EthereumSepolia_DEPRECATED, id: 11155111 };
       default: return null;
     }
   }, []);

@@ -295,19 +295,6 @@ export const SUPPORTED_TOKENS = {
       isNative: false,
     },
   },
-
-  // Ethereum Sepolia Testnet (Chain ID: 11155111)
-  11155111: {
-    ETH: {
-      symbol: 'ETH',
-      name: 'Ethereum',
-      decimals: 18,
-      address: null, // Native token
-      coingeckoId: 'ethereum',
-      isNative: true,
-    },
-    // Add common testnet tokens as needed
-  },
 };
 
 // Get token by symbol and chain ID

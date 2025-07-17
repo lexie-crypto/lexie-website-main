@@ -5,7 +5,7 @@
 
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
 import { createConfig, http, connect, disconnect, getAccount, getChainId, switchChain } from '@wagmi/core';
-import { mainnet, polygon, arbitrum, optimism, bsc, sepolia } from '@wagmi/core/chains';
+import { mainnet, polygon, arbitrum, optimism, bsc } from '@wagmi/core/chains';
 import { injected, walletConnect } from '@wagmi/connectors';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { setSelectedRailgunWallet } from '@railgun-community/wallet';
@@ -167,7 +167,7 @@ const WalletContext = createContext();
 const queryClient = new QueryClient();
 
 const config = createConfig({
-  chains: [mainnet, polygon, arbitrum, optimism, bsc, sepolia],
+  chains: [mainnet, polygon, arbitrum, optimism, bsc],
   connectors: [
     injected(),
     walletConnect({
@@ -181,7 +181,6 @@ const config = createConfig({
     [arbitrum.id]: http(RPC_URLS.arbitrum),
     [optimism.id]: http(RPC_URLS.optimism),
     [bsc.id]: http(RPC_URLS.bsc),
-    [sepolia.id]: http(RPC_URLS.sepolia),
   },
 });
 
@@ -410,7 +409,6 @@ export const WalletProvider = ({ children }) => {
       42161: { name: 'Arbitrum', symbol: 'ETH' },
       10: { name: 'Optimism', symbol: 'ETH' },
       56: { name: 'BSC', symbol: 'BNB' },
-      11155111: { name: 'Sepolia', symbol: 'ETH' },
     };
     
     return networks[state.chainId] || null;

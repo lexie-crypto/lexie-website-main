@@ -21,11 +21,6 @@ export const RPC_URLS = {
     buildAlchemyUrl('https://opt-mainnet.alchemyapi.io/v2/demo'),
   bsc: import.meta.env.VITE_ALCHEMY_BSC_URL || 
     buildAlchemyUrl('https://bnb-mainnet.g.alchemy.com/v2/demo'),
-  
-  // Testnets
-  sepolia: import.meta.env.VITE_ALCHEMY_SEPOLIA_URL || 
-    buildAlchemyUrl('https://eth-sepolia.alchemyapi.io/v2/demo'),
-  mumbai: import.meta.env.VITE_ALCHEMY_POLYGON_MUMBAI_URL || 'https://rpc-mumbai.maticvigil.com',
 };
 
 // Railgun Configuration

@@ -154,7 +154,6 @@ export const loadNetworkProvider = async (networkName, chainId, rpcUrl, pollingI
       42161: 'https://rpc.ankr.com/arbitrum/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
       10: 'https://rpc.ankr.com/optimism/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
       56: 'https://rpc.ankr.com/bsc/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
-      11155111: 'https://rpc.ankr.com/eth_sepolia/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
     };
 
     const ankrFallbackUrl = fallbackMap[chainId];
@@ -229,7 +228,6 @@ export const loadAllNetworkProviders = async () => {
     { name: NetworkName.Arbitrum, chainId: 42161, rpcUrl: RPC_URLS.arbitrum },
     { name: NetworkName.Optimism, chainId: 10, rpcUrl: RPC_URLS.optimism },
     { name: NetworkName.BNBChain, chainId: 56, rpcUrl: RPC_URLS.bsc },
-    { name: NetworkName.EthereumSepolia_DEPRECATED, chainId: 11155111, rpcUrl: RPC_URLS.sepolia },
   ];
 
   const results = [];

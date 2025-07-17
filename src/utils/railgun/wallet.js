@@ -118,7 +118,6 @@ export const createNewRailgunWallet = async (encryptionKey, mnemonic, creationBl
       [NetworkName.Arbitrum]: '150000000',
       [NetworkName.BNBChain]: '35000000',
       [NetworkName.Optimism]: '115000000',
-      [NetworkName.EthereumSepolia_DEPRECATED]: '4500000',
       ...creationBlockNumbers,
     };
 
