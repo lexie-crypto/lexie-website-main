@@ -61,32 +61,38 @@ const useBalances = () => {
     setBalanceErrors(prev => ({ ...prev, public: null }));
 
     try {
-      const tokens = getTokensForChain(chainId);
+      console.log('[useBalances] Fetching real public balances...');
+      
+      // Use Web3 balance fetching helper to get real balances
+      const { fetchPublicBalances: fetchWeb3Balances } = await import('../utils/web3/balances.js');
+      const balances = await fetchWeb3Balances(address, chainId);
+      
+      // Convert to the format expected by the UI
       const newBalances = {};
-
-      // This is a simplified version - you would implement actual Web3 calls here
-      // For now, we'll mock some balances for development
-      if (process.env.NODE_ENV === 'development') {
-        // Mock balances for development
-        Object.values(tokens).forEach(token => {
-          newBalances[token.symbol] = {
-            ...token,
-            balance: '0',
-            formattedBalance: '0.00',
-            balanceUSD: '0.00',
-          };
-        });
-      } else {
-        // TODO: Implement actual Web3 balance fetching
-        // You would use ethers or viem here to fetch real balances
-        console.log('TODO: Implement real balance fetching for production');
-      }
+      balances.forEach(token => {
+        newBalances[token.symbol] = {
+          ...token,
+          // Ensure all required fields are present
+          balance: token.balance || '0',
+          formattedBalance: token.formattedBalance || '0.00',
+          balanceUSD: token.balanceUSD || '0.00',
+        };
+      });
 
       setPublicBalances(newBalances);
       setLastUpdateTime(Date.now());
+      
+      const tokensWithBalance = Object.values(newBalances).filter(t => t.hasBalance).length;
+      console.log('[useBalances] Public balances loaded:', {
+        total: Object.keys(newBalances).length,
+        withBalance: tokensWithBalance,
+      });
     } catch (error) {
-      console.error('Error fetching public balances:', error);
+      console.error('[useBalances] Error fetching public balances:', error);
       setBalanceErrors(prev => ({ ...prev, public: error.message }));
+      
+      // Fallback to empty balances on error
+      setPublicBalances({});
     } finally {
       setIsLoadingPublic(false);
     }
