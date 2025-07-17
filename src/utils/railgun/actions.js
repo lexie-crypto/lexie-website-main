@@ -92,13 +92,51 @@ function validateAndFormatAddress(address, paramName) {
  * @returns {Object} Properly structured recipient object
  */
 function createERC20AmountRecipient(tokenAddress, amount, recipientAddress) {
-  // Validate inputs
+  // ✅ 1. SANITIZE TOKEN INPUTS BEFORE SHIELDING (SYMBOL FIX)
+  console.log('[CreateRecipient] Raw input validation:', {
+    tokenAddress: {
+      value: tokenAddress,
+      type: typeof tokenAddress,
+      isSymbol: typeof tokenAddress === 'symbol',
+      constructor: tokenAddress?.constructor?.name
+    },
+    amount: {
+      value: amount,
+      type: typeof amount,
+      isSymbol: typeof amount === 'symbol',
+      constructor: amount?.constructor?.name
+    },
+    recipientAddress: {
+      value: recipientAddress ? `${recipientAddress.slice(0, 8)}...` : recipientAddress,
+      type: typeof recipientAddress,
+      isSymbol: typeof recipientAddress === 'symbol',
+      constructor: recipientAddress?.constructor?.name
+    }
+  });
+
+  // ✅ 2. PREVENT SYMBOL OBJECTS FROM REACHING SDK
+  if (typeof tokenAddress === 'symbol') {
+    console.error('Invalid token address (Symbol object detected):', tokenAddress);
+    throw new Error('Invalid token address (Symbol object detected): ' + String(tokenAddress));
+  }
+  
+  if (typeof amount === 'symbol') {
+    console.error('Invalid amount (Symbol object detected):', amount);
+    throw new Error('Invalid amount (Symbol object detected): ' + String(amount));
+  }
+  
+  if (typeof recipientAddress === 'symbol') {
+    console.error('Invalid recipient address (Symbol object detected):', recipientAddress);
+    throw new Error('Invalid recipient address (Symbol object detected): ' + String(recipientAddress));
+  }
+
+  // ✅ 3. VALIDATE STRING INPUTS AFTER SYMBOL CHECK
   if (!amount || typeof amount !== 'string') {
-    throw new Error('Amount must be a string');
+    throw new Error('Amount must be a string, got: ' + typeof amount);
   }
   
   if (!recipientAddress || typeof recipientAddress !== 'string') {
-    throw new Error('Recipient address must be a string');
+    throw new Error('Recipient address must be a string, got: ' + typeof recipientAddress);
   }
 
   // For native tokens, tokenAddress should be undefined (not null)
@@ -106,11 +144,23 @@ function createERC20AmountRecipient(tokenAddress, amount, recipientAddress) {
     ? undefined 
     : validateAndFormatAddress(tokenAddress, 'tokenAddress');
 
-  return {
+  // ✅ 4. FINAL VALIDATION OF RECIPIENT OBJECT
+  const recipient = {
     tokenAddress: processedTokenAddress,
-    amount: amount,
-    recipientAddress: recipientAddress, // Railgun addresses don't need checksum validation
+    amount: String(amount), // Ensure it's a string
+    recipientAddress: String(recipientAddress), // Ensure it's a string
   };
+
+  console.log('[CreateRecipient] Created recipient object:', {
+    tokenAddress: recipient.tokenAddress,
+    tokenAddressType: typeof recipient.tokenAddress,
+    amount: recipient.amount,
+    amountType: typeof recipient.amount,
+    recipientAddress: recipient.recipientAddress ? `${recipient.recipientAddress.slice(0, 8)}...` : 'MISSING',
+    recipientAddressType: typeof recipient.recipientAddress
+  });
+
+  return recipient;
 }
 
 /**
@@ -193,8 +243,58 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
 
     // ✅ STEP 1: Gas Estimation (Official Pattern)
     console.log('[RailgunActions] Step 1: Gas estimation...');
+    
+    // ✅ 3. ADD LOGGING FOR DEBUGGING (Before SDK Call)
+    console.log('[RailgunActions] Preparing gasEstimateForShield with exact parameters:', {
+      networkName: {
+        value: networkName,
+        type: typeof networkName,
+        isSymbol: typeof networkName === 'symbol'
+      },
+      railgunWalletID: {
+        value: railgunWalletID ? `${railgunWalletID.slice(0, 8)}...` : railgunWalletID,
+        type: typeof railgunWalletID,
+        isSymbol: typeof railgunWalletID === 'symbol'
+      },
+      encryptionKey: {
+        hasValue: !!encryptionKey,
+        type: typeof encryptionKey,
+        length: encryptionKey?.length,
+        isSymbol: typeof encryptionKey === 'symbol'
+      },
+      erc20AmountRecipients: {
+        isArray: Array.isArray(erc20AmountRecipients),
+        length: erc20AmountRecipients?.length,
+        type: typeof erc20AmountRecipients,
+        isSymbol: typeof erc20AmountRecipients === 'symbol',
+        firstItem: erc20AmountRecipients?.[0] ? {
+          tokenAddress: erc20AmountRecipients[0].tokenAddress,
+          tokenAddressType: typeof erc20AmountRecipients[0].tokenAddress,
+          tokenAddressIsSymbol: typeof erc20AmountRecipients[0].tokenAddress === 'symbol',
+          amount: erc20AmountRecipients[0].amount,
+          amountType: typeof erc20AmountRecipients[0].amount,
+          amountIsSymbol: typeof erc20AmountRecipients[0].amount === 'symbol',
+          recipientAddress: erc20AmountRecipients[0].recipientAddress?.slice(0, 8) + '...',
+          recipientAddressType: typeof erc20AmountRecipients[0].recipientAddress,
+          recipientAddressIsSymbol: typeof erc20AmountRecipients[0].recipientAddress === 'symbol'
+        } : 'NO_FIRST_ITEM'
+      },
+      nftAmountRecipients: {
+        isArray: Array.isArray(nftAmountRecipients),
+        length: nftAmountRecipients?.length,
+        type: typeof nftAmountRecipients,
+        isSymbol: typeof nftAmountRecipients === 'symbol'
+      },
+      fromAddress: {
+        value: fromAddress ? `${fromAddress.slice(0, 8)}...` : fromAddress,
+        type: typeof fromAddress,
+        isSymbol: typeof fromAddress === 'symbol'
+      }
+    });
+
     let gasDetails;
     try {
+      console.log('[RailgunActions] Calling gasEstimateForShield...');
       gasDetails = await gasEstimateForShield(
         networkName,
         railgunWalletID,

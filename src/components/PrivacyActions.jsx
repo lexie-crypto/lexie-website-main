@@ -280,6 +280,59 @@ const PrivacyActions = () => {
         chain: chainConfig
       });
 
+      // ✅ SYMBOL VALIDATION BEFORE SHIELD CALL (Critical Fix)
+      console.log('[PrivacyActions] Pre-shield Symbol validation:', {
+        tokenAddress: {
+          value: token.address,
+          type: typeof token.address,
+          isSymbol: typeof token.address === 'symbol',
+          constructor: token.address?.constructor?.name
+        },
+        tokenSymbol: {
+          value: token.symbol,
+          type: typeof token.symbol,
+          isSymbol: typeof token.symbol === 'symbol',
+          constructor: token.symbol?.constructor?.name
+        },
+        amountInUnits: {
+          value: amountInUnits,
+          type: typeof amountInUnits,
+          isSymbol: typeof amountInUnits === 'symbol',
+          constructor: amountInUnits?.constructor?.name
+        },
+        railgunAddress: {
+          value: railgunAddress ? `${railgunAddress.slice(0, 8)}...` : railgunAddress,
+          type: typeof railgunAddress,
+          isSymbol: typeof railgunAddress === 'symbol',
+          constructor: railgunAddress?.constructor?.name
+        }
+      });
+
+      // ✅ PREVENT SYMBOL OBJECTS FROM REACHING SHIELD FUNCTION
+      if (typeof token.address === 'symbol') {
+        console.error('[PrivacyActions] Token address is Symbol object:', token.address);
+        toast.error(`Invalid token address (Symbol detected) for ${token.symbol}`);
+        return;
+      }
+
+      if (typeof token.symbol === 'symbol') {
+        console.error('[PrivacyActions] Token symbol is Symbol object:', token.symbol);
+        toast.error('Invalid token symbol (Symbol detected)');
+        return;
+      }
+
+      if (typeof amountInUnits === 'symbol') {
+        console.error('[PrivacyActions] Amount is Symbol object:', amountInUnits);
+        toast.error('Invalid amount (Symbol detected)');
+        return;
+      }
+
+      if (typeof railgunAddress === 'symbol') {
+        console.error('[PrivacyActions] Railgun address is Symbol object:', railgunAddress);
+        toast.error('Invalid Railgun address (Symbol detected)');
+        return;
+      }
+
       // Double-check token address before shield call (allow null for native tokens)
       if (token.address === undefined) {
         console.error('[PrivacyActions] Token address is undefined:', token);
