@@ -17,7 +17,7 @@ import { ethers } from 'ethers';
  * Derive encryption key from user password using PBKDF2
  * @param {string} password - User password
  * @param {string} salt - Salt for key derivation (defaults to user's address)
- * @returns {string} 32-byte hex string encryption key
+ * @returns {string} 32-byte hex string encryption key (without 0x prefix)
  */
 export const deriveEncryptionKey = async (password, salt = 'lexie-wallet-salt') => {
   if (!password) {
@@ -51,13 +51,19 @@ export const deriveEncryptionKey = async (password, salt = 'lexie-wallet-salt') 
       256 // 32 bytes * 8 bits
     );
 
-    // Convert to hex string
+    // Convert to hex string (without 0x prefix for Railgun SDK)
     const keyArray = new Uint8Array(derivedBits);
     const keyHex = Array.from(keyArray)
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
 
-    return `0x${keyHex}`;
+    // Validate key length
+    if (keyHex.length !== 64) {
+      throw new Error(`Invalid encryption key length: expected 64 characters, got ${keyHex.length}`);
+    }
+
+    console.log('[RailgunWallet] Generated encryption key length:', keyHex.length, 'characters (✅ correct)');
+    return keyHex; // Return without 0x prefix - exactly 32 bytes as hex
   } catch (error) {
     console.error('[RailgunWallet] Failed to derive encryption key:', error);
     throw new Error('Failed to derive encryption key');
