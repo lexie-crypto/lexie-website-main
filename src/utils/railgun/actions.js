@@ -126,7 +126,7 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
 
     // Prepare ERC20 amount object - for shield operations, we need to specify the Railgun address as recipient
     const erc20AmountRecipient = {
-      tokenAddress: tokenAddress === '0x0000000000000000000000000000000000000000' ? undefined : tokenAddress,
+      tokenAddress: (tokenAddress === null || tokenAddress === '0x0000000000000000000000000000000000000000') ? undefined : tokenAddress,
       amount: amount.toString(), // Ensure amount is string
       recipientAddress: railgunAddress, // Use the Railgun address as recipient for shield operations
     };
@@ -138,10 +138,18 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
     console.log('[RailgunActions] Prepared recipients for shield:', {
       erc20AmountRecipients: erc20AmountRecipients.map(r => ({
         tokenAddress: r.tokenAddress,
+        tokenAddressType: typeof r.tokenAddress,
         amount: r.amount,
+        amountType: typeof r.amount,
         recipientAddress: r.recipientAddress ? `${r.recipientAddress.slice(0, 8)}...` : 'MISSING'
       })),
-      nftAmountRecipientsCount: nftAmountRecipients.length
+      nftAmountRecipientsCount: nftAmountRecipients.length,
+      parametersToSDK: {
+        networkName,
+        railgunWalletID: railgunWalletID ? `${railgunWalletID.slice(0, 8)}...` : 'MISSING',
+        encryptionKey: encryptionKey ? `${encryptionKey.slice(0, 8)}...` : 'MISSING',
+        fromAddress
+      }
     });
     
     // Step 1: Get gas estimate first
@@ -247,7 +255,7 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
 
     // Prepare ERC20 amount recipient for unshield
     const erc20AmountRecipient = {
-      tokenAddress: tokenAddress === '0x0000000000000000000000000000000000000000' ? undefined : tokenAddress,
+      tokenAddress: (tokenAddress === null || tokenAddress === '0x0000000000000000000000000000000000000000') ? undefined : tokenAddress,
       amount: amount.toString(), // Ensure amount is string
       recipientAddress: toAddress,
     };
@@ -342,7 +350,7 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
 
     // Prepare ERC20 amount recipient for private transfer
     const erc20AmountRecipient = {
-      tokenAddress: tokenAddress === '0x0000000000000000000000000000000000000000' ? undefined : tokenAddress,
+      tokenAddress: (tokenAddress === null || tokenAddress === '0x0000000000000000000000000000000000000000') ? undefined : tokenAddress,
       amount: amount.toString(), // Ensure amount is string
       recipientAddress: toRailgunAddress,
     };
