@@ -133,7 +133,33 @@ const WalletPage = () => {
       // Get encryption key
       const key = await getEncryptionKey();
 
-      // Execute shield operation
+      // Execute shield operation with enhanced logging
+      console.log('[WalletPage] About to call shieldTokens with:', {
+        railgunWalletId: railgunWalletId ? `${railgunWalletId.slice(0, 8)}...` : 'MISSING',
+        hasKey: !!key,
+        tokenAddress: token.address,
+        tokenDetails: {
+          symbol: token.symbol,
+          address: token.address,
+          hasAddress: !!token.address,
+          addressType: typeof token.address,
+          addressLength: token.address ? token.address.length : 0
+        },
+        amountInUnits,
+        chainConfig,
+        fromAddress: address,
+        railgunAddress: railgunAddress ? `${railgunAddress.slice(0, 8)}...` : 'MISSING'
+      });
+
+      // Validate token address before calling shield (allow null for native tokens)
+      if (token.address === undefined) {
+        throw new Error(`Token ${token.symbol} has no address property`);
+      }
+      
+      // Log token type for debugging
+      const tokenType = token.address === null ? 'NATIVE' : 'ERC20';
+      console.log('[WalletPage] About to shield', tokenType, 'token:', token.symbol);
+
       toast.loading(`Shielding ${amount} ${token.symbol}...`);
       
       const result = await shieldTokens(

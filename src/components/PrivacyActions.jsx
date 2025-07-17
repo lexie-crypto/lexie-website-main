@@ -156,7 +156,8 @@ const PrivacyActions = () => {
       setIsProcessing(true);
       
       // ✅ COMPREHENSIVE VALIDATION GUARDS (as requested)
-      if (!token || !token.address || !token.symbol || !token.decimals) {
+      // Note: token.address can be null for native tokens (ETH, MATIC, etc.)
+      if (!token || token.address === undefined || !token.symbol || !token.decimals) {
         toast.error('Invalid token data for shielding.');
         console.error('[PrivacyActions] Invalid token object:', token);
         return;
@@ -240,12 +241,15 @@ const PrivacyActions = () => {
         return;
       }
 
-      // ✅ FINAL GUARD BEFORE SDK CALL (as requested)
-      if (!token || !token.address || !amountInUnits || isNaN(amountInUnits)) {
+      // ✅ FINAL GUARD BEFORE SDK CALL (as requested)  
+      // Note: token.address can be null for native tokens
+      if (!token || token.address === undefined || !amountInUnits || isNaN(amountInUnits)) {
         toast.error('Invalid token or amount for shielding.');
         console.error('[PrivacyActions] Final validation failed:', {
           hasToken: !!token,
-          hasTokenAddress: !!(token && token.address),
+          hasTokenAddress: token && token.address !== undefined,
+          tokenAddress: token ? token.address : 'NO_TOKEN',
+          isNativeToken: token && token.address === null,
           amountInUnits,
           isValidAmount: !isNaN(amountInUnits)
         });
@@ -257,7 +261,11 @@ const PrivacyActions = () => {
         token: {
           symbol: token.symbol,
           address: token.address,
-          decimals: token.decimals
+          decimals: token.decimals,
+          hasAddress: !!token.address,
+          addressType: typeof token.address,
+          addressValue: token.address,
+          fullTokenObject: token
         },
         amount: {
           original: amount,
@@ -271,6 +279,17 @@ const PrivacyActions = () => {
         },
         chain: chainConfig
       });
+
+      // Double-check token address before shield call (allow null for native tokens)
+      if (token.address === undefined) {
+        console.error('[PrivacyActions] Token address is undefined:', token);
+        toast.error(`Token ${token.symbol} has no valid address`);
+        return;
+      }
+      
+      // Log token type for debugging
+      const tokenType = token.address === null ? 'NATIVE' : 'ERC20';
+      console.log('[PrivacyActions] About to shield', tokenType, 'token:', token.symbol);
       
       toast.loading(`Shielding ${amount} ${token.symbol}...`, { duration: 0 });
       

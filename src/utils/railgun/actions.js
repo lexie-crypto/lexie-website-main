@@ -93,10 +93,11 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
     });
 
     // Enhanced parameter validation with detailed logging
+    // Note: tokenAddress can be null for native tokens (ETH, MATIC, etc.)
     const missingParams = [];
     if (!railgunWalletID) missingParams.push('railgunWalletID');
     if (!encryptionKey) missingParams.push('encryptionKey');
-    if (!tokenAddress) missingParams.push('tokenAddress');
+    if (tokenAddress === undefined) missingParams.push('tokenAddress'); // Allow null for native tokens
     if (!amount) missingParams.push('amount');
     if (!chain) missingParams.push('chain');
     if (!fromAddress) missingParams.push('fromAddress');
@@ -106,6 +107,10 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       console.error('[RailgunActions] Missing required parameters:', missingParams);
       throw new Error(`Missing required parameters for shield operation: ${missingParams.join(', ')}`);
     }
+
+    // Log token type for debugging
+    const tokenType = tokenAddress === null ? 'NATIVE' : 'ERC20';
+    console.log('[RailgunActions] Token type:', tokenType, 'Address:', tokenAddress);
 
     // Validate encryption key format
     if (encryptionKey.length < 32) {
