@@ -19,7 +19,8 @@ export const RPC_URLS = {
     buildAlchemyUrl('https://arb-mainnet.alchemyapi.io/v2/demo'),
   optimism: import.meta.env.VITE_ALCHEMY_OPTIMISM_URL || 
     buildAlchemyUrl('https://opt-mainnet.alchemyapi.io/v2/demo'),
-  bsc: import.meta.env.VITE_ALCHEMY_BSC_URL || 'https://bsc-dataseed.binance.org',
+  bsc: import.meta.env.VITE_ALCHEMY_BSC_URL || 
+    buildAlchemyUrl('https://bnb-mainnet.g.alchemy.com/v2/demo'),
   
   // Testnets
   sepolia: import.meta.env.VITE_ALCHEMY_SEPOLIA_URL || 
