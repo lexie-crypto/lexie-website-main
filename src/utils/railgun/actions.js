@@ -23,7 +23,7 @@
  * - All addresses: Must be checksummed Ethereum addresses
  */
 
-import { formatUnits, parseUnits, getAddress } from 'ethers';
+import { formatUnits, parseUnits, getAddress, isAddress } from 'ethers';
 import { 
   gasEstimateForShield,
   generateShieldTransaction,
@@ -139,10 +139,22 @@ function createERC20AmountRecipient(tokenAddress, amount, recipientAddress) {
     throw new Error('Recipient address must be a string, got: ' + typeof recipientAddress);
   }
 
-  // For native tokens, tokenAddress should be undefined (not null)
-  const processedTokenAddress = (tokenAddress === null || tokenAddress === '0x0000000000000000000000000000000000000000') 
-    ? undefined 
-    : validateAndFormatAddress(tokenAddress, 'tokenAddress');
+  // ✅ TOKEN ADDRESS VALIDATION (ETHERS.JS)
+  let processedTokenAddress;
+  
+  if (tokenAddress === null || tokenAddress === '0x0000000000000000000000000000000000000000') {
+    // Native token - should be undefined
+    processedTokenAddress = undefined;
+    console.log('[CreateRecipient] Processing NATIVE token (tokenAddress set to undefined)');
+  } else {
+    // ERC20 token - must be valid address
+    if (!tokenAddress || !isAddress(tokenAddress)) {
+      console.error(`[CreateRecipient] Invalid or missing tokenAddress: ${tokenAddress}`);
+      throw new Error("Invalid token address passed to shielding flow");
+    }
+    processedTokenAddress = validateAndFormatAddress(tokenAddress, 'tokenAddress');
+    console.log('[CreateRecipient] Processing ERC20 token with valid address:', processedTokenAddress);
+  }
 
   // ✅ 4. FINAL VALIDATION OF RECIPIENT OBJECT
   const recipient = {
@@ -202,7 +214,12 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       throw new Error('encryptionKey must be a string with at least 32 characters');
     }
 
+    // ✅ ENHANCED TOKEN ADDRESS VALIDATION (ETHERS.JS)
     if (tokenAddress !== null && tokenAddress !== undefined) {
+      if (!isAddress(tokenAddress)) {
+        console.error(`[Shield] Invalid or missing tokenAddress: ${tokenAddress}`);
+        throw new Error("Invalid token address passed to shielding flow");
+      }
       tokenAddress = validateAndFormatAddress(tokenAddress, 'tokenAddress');
     }
 
@@ -226,7 +243,30 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
 
     // ✅ CREATE PROPERLY STRUCTURED PARAMETERS (Official Pattern)
     const erc20AmountRecipient = createERC20AmountRecipient(tokenAddress, amount, railgunAddress);
+    
+    // ✅ DEFENSIVE CHECK AFTER RECIPIENT CREATION
+    if (!erc20AmountRecipient || typeof erc20AmountRecipient !== 'object') {
+      throw new Error('createERC20AmountRecipient() returned invalid value');
+    }
+
     const erc20AmountRecipients = [erc20AmountRecipient];
+    if (!Array.isArray(erc20AmountRecipients) || erc20AmountRecipients.length === 0) {
+      throw new Error('erc20AmountRecipients is not a valid array');
+    }
+
+    // ✅ GUARD AGAINST EMPTY FIELDS
+    if (!erc20AmountRecipient.tokenAddress && tokenAddress !== null) {
+      throw new Error('Missing tokenAddress in recipient');
+    }
+
+    if (!erc20AmountRecipient.amount) {
+      throw new Error('Missing amount in recipient');
+    }
+
+    if (!erc20AmountRecipient.recipientAddress) {
+      throw new Error('Missing recipientAddress in recipient');
+    }
+
     const nftAmountRecipients = []; // Always empty array for shield operations
 
     console.log('[RailgunActions] Created properly structured parameters:', {
@@ -294,7 +334,28 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
 
     let gasDetails;
     try {
-      console.log('[RailgunActions] Calling gasEstimateForShield...');
+      // ✅ ENHANCED LOGGING BEFORE GASESTIMATE (AS REQUESTED)
+      console.log('[RailgunActions] Calling gasEstimateForShield with:', {
+        networkName,
+        railgunWalletID: railgunWalletID ? `${railgunWalletID.slice(0, 8)}...` : railgunWalletID,
+        erc20Recipients: erc20AmountRecipients.map(recipient => ({
+          tokenAddress: recipient.tokenAddress,
+          tokenAddressType: typeof recipient.tokenAddress,
+          amount: recipient.amount,
+          amountType: typeof recipient.amount,
+          recipientAddress: recipient.recipientAddress ? `${recipient.recipientAddress.slice(0, 8)}...` : recipient.recipientAddress,
+          recipientAddressType: typeof recipient.recipientAddress,
+          isComplete: !!(recipient.tokenAddress !== undefined && recipient.amount && recipient.recipientAddress)
+        })),
+        nftRecipients: nftAmountRecipients,
+        fromAddress: fromAddress ? `${fromAddress.slice(0, 8)}...` : fromAddress,
+        fromAddressType: typeof fromAddress
+      });
+      
+      // ✅ FINAL STRUCTURE DEBUG (AS REQUESTED)
+      console.log('[Debug] Final erc20AmountRecipients:', JSON.stringify(erc20AmountRecipients, null, 2));
+      
+      console.log('[RailgunActions] About to call gasEstimateForShield...');
       gasDetails = await gasEstimateForShield(
         networkName,
         railgunWalletID,
