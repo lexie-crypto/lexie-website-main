@@ -280,8 +280,18 @@ const useBalances = () => {
 
   // Refresh private balances manually with retry logic
   const refreshPrivateBalances = useCallback(async () => {
+    // Enhanced early return checks
     if (!canUseRailgun || !railgunWalletId || !chainId) {
       console.log('[useBalances] Early return: Railgun not ready or missing required params');
+      setIsLoadingPrivate(false);
+      return;
+    }
+
+    // Prevent excessive retries - bail out if we've tried too many times
+    if (retryAttempts >= 3) {
+      console.log('[useBalances] Max retry attempts reached, stopping private balance refresh');
+      setIsLoadingPrivate(false);
+      setRetryAttempts(0);
       return;
     }
 
@@ -307,12 +317,13 @@ const useBalances = () => {
       // Only set up retry timer if this is the initial attempt (not a retry)
       if (retryAttempts === 0) {
         // Check for balance update after 10 seconds
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           // Only retry if we still have no private balances and haven't exceeded max attempts
           const hasNoBalances = Object.keys(privateBalances).length === 0;
           const canRetry = retryAttempts < 3;
+          const isStillConnected = canUseRailgun && railgunWalletId;
           
-          if (hasNoBalances && canRetry) {
+          if (hasNoBalances && canRetry && isStillConnected) {
             console.log(`[useBalances] No balance data received, retrying... (attempt ${retryAttempts + 1}/3)`);
             setRetryAttempts(prev => prev + 1);
             refreshPrivateBalances();
@@ -320,13 +331,21 @@ const useBalances = () => {
             console.log('[useBalances] Private balances found, stopping retry attempts');
             setRetryAttempts(0);
             setIsLoadingPrivate(false);
-          } else {
-            console.log('[useBalances] Max retry attempts reached, stopping');
+          } else if (!isStillConnected) {
+            console.log('[useBalances] Railgun disconnected, stopping retry attempts');
+            setRetryAttempts(0);
             setIsLoadingPrivate(false);
+          } else {
+            console.log('[useBalances] Max retry attempts reached or conditions changed, stopping');
+            setIsLoadingPrivate(false);
+            setRetryAttempts(0);
           }
         }, 10000);
+        
+        // Store timeout ID to clear it if component unmounts or conditions change
+        return () => clearTimeout(timeoutId);
       } else {
-        // For retries, shorter timeout and don't setup another timer
+        // For retries, don't setup another timer, just complete
         setIsLoadingPrivate(false);
       }
       
@@ -335,15 +354,17 @@ const useBalances = () => {
       setBalanceErrors(prev => ({ ...prev, private: error.message }));
       setIsLoadingPrivate(false);
       
-      // Only retry on error if we haven't exceeded max attempts
-      if (retryAttempts < 3) {
+      // Only retry on error if we haven't exceeded max attempts and are still connected
+      if (retryAttempts < 3 && canUseRailgun && railgunWalletId) {
         console.log(`[useBalances] Retrying balance refresh after error (attempt ${retryAttempts + 1}/3)`);
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           setRetryAttempts(prev => prev + 1);
           refreshPrivateBalances();
         }, 5000);
+        
+        return () => clearTimeout(timeoutId);
       } else {
-        console.log('[useBalances] Max retry attempts reached after error, stopping');
+        console.log('[useBalances] Max retry attempts reached after error or disconnected, stopping');
         setRetryAttempts(0);
       }
     }
@@ -369,16 +390,29 @@ const useBalances = () => {
     }
   }, [isConnected, address, chainId, fetchPublicBalances]);
 
-  // Clear balances when disconnected
+  // Clear balances when disconnected and reset retry state
   useEffect(() => {
     if (!isConnected) {
+      console.log('[useBalances] Wallet disconnected, clearing all balance state');
       setPublicBalances({});
       setPrivateBalances({});
       setBalanceErrors({});
       setLastUpdateTime(null);
       setRetryAttempts(0);
+      setIsLoadingPrivate(false);
+      setIsLoadingPublic(false);
     }
   }, [isConnected]);
+
+  // Reset retry attempts when Railgun connection state changes
+  useEffect(() => {
+    if (!canUseRailgun || !railgunWalletId) {
+      console.log('[useBalances] Railgun unavailable, resetting private balance state');
+      setRetryAttempts(0);
+      setIsLoadingPrivate(false);
+      setBalanceErrors(prev => ({ ...prev, private: null }));
+    }
+  }, [canUseRailgun, railgunWalletId]);
 
   // Get total balance for a token (public + private)
   const getTotalBalance = useCallback((tokenSymbol) => {

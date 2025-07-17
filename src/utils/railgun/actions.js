@@ -57,6 +57,11 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       to: railgunAddress,
     });
 
+    // Validate required parameters
+    if (!railgunWalletID || !encryptionKey || !tokenAddress || !amount || !chain || !fromAddress || !railgunAddress) {
+      throw new Error('Missing required parameters for shield operation');
+    }
+
     await waitForRailgunReady();
 
     // Convert chain ID to NetworkName
@@ -65,20 +70,26 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
     // Prepare ERC20 amount object - for shield operations, we need to specify the Railgun address as recipient
     const erc20AmountRecipient = {
       tokenAddress: tokenAddress === '0x0000000000000000000000000000000000000000' ? undefined : tokenAddress,
-      amount: amount,
+      amount: amount.toString(), // Ensure amount is string
       recipientAddress: railgunAddress, // Use the Railgun address as recipient for shield operations
     };
 
-    // Generate proper encryption key from user address
-    const properEncryptionKey = await deriveEncryptionKey(fromAddress, chain.id);
+    // Ensure arrays are properly initialized (never null)
+    const erc20AmountRecipients = [erc20AmountRecipient];
+    const nftAmountRecipients = []; // Empty array, never null
+    
+    console.log('[RailgunActions] Prepared recipients:', {
+      erc20AmountRecipients,
+      nftAmountRecipients
+    });
     
     // Get gas estimate first
     const gasDetails = await gasEstimateForShield(
       networkName,
       railgunWalletID,
-      properEncryptionKey,
-      [erc20AmountRecipient], // erc20AmountRecipients
-      [], // nftAmountRecipients
+      encryptionKey, // Use the provided encryption key directly
+      erc20AmountRecipients,
+      nftAmountRecipients,
       fromAddress,
     );
 
@@ -88,15 +99,15 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
     const shieldTxResult = await generateShieldTransaction(
       networkName,
       railgunWalletID,
-      properEncryptionKey,
-      [erc20AmountRecipient], // erc20AmountRecipients  
-      [], // nftAmountRecipients
+      encryptionKey, // Use the provided encryption key directly  
+      erc20AmountRecipients,
+      nftAmountRecipients,
       fromAddress,
     );
 
     console.log('[RailgunActions] Shield transaction generated:', shieldTxResult);
 
-    if (!shieldTxResult.transaction) {
+    if (!shieldTxResult || !shieldTxResult.transaction) {
       throw new Error('Failed to generate shield transaction');
     }
 
@@ -131,28 +142,39 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
       to: toAddress,
     });
 
+    // Validate required parameters
+    if (!railgunWalletID || !encryptionKey || !tokenAddress || !amount || !chain || !toAddress) {
+      throw new Error('Missing required parameters for unshield operation');
+    }
+
     await waitForRailgunReady();
 
     // Convert chain ID to NetworkName
     const networkName = getNetworkNameFromChainId(chain.id);
 
-    // Generate proper encryption key
-    const properEncryptionKey = await deriveEncryptionKey(toAddress, chain.id);
-
     // Prepare ERC20 amount recipient for unshield
     const erc20AmountRecipient = {
       tokenAddress: tokenAddress === '0x0000000000000000000000000000000000000000' ? undefined : tokenAddress,
-      amount: amount,
+      amount: amount.toString(), // Ensure amount is string
       recipientAddress: toAddress,
     };
+
+    // Ensure arrays are properly initialized (never null)
+    const erc20AmountRecipients = [erc20AmountRecipient];
+    const nftAmountRecipients = []; // Empty array, never null
+
+    console.log('[RailgunActions] Prepared unshield recipients:', {
+      erc20AmountRecipients,
+      nftAmountRecipients
+    });
 
     // Get gas estimate
     const gasDetails = await gasEstimateForUnprovenUnshield(
       networkName,
       railgunWalletID,
-      properEncryptionKey,
-      [erc20AmountRecipient], // erc20AmountRecipients
-      [], // nftAmountRecipients
+      encryptionKey,
+      erc20AmountRecipients,
+      nftAmountRecipients,
     );
 
     console.log('[RailgunActions] Unshield gas estimate:', gasDetails);
@@ -161,9 +183,9 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
     const proofResult = await generateUnshieldProof(
       networkName,
       railgunWalletID,
-      properEncryptionKey,
-      [erc20AmountRecipient], // erc20AmountRecipients
-      [], // nftAmountRecipients
+      encryptionKey,
+      erc20AmountRecipients,
+      nftAmountRecipients,
     );
 
     console.log('[RailgunActions] Unshield proof generated:', proofResult);
@@ -172,13 +194,13 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
     const populatedResult = await populateProvedUnshield(
       networkName,
       railgunWalletID,
-      [erc20AmountRecipient], // erc20AmountRecipients
-      [], // nftAmountRecipients
+      erc20AmountRecipients,
+      nftAmountRecipients,
     );
 
     console.log('[RailgunActions] Unshield transaction populated:', populatedResult);
 
-    if (!populatedResult.transaction) {
+    if (!populatedResult || !populatedResult.transaction) {
       throw new Error('Failed to populate unshield transaction');
     }
 
@@ -215,6 +237,11 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
       memo,
     });
 
+    // Validate required parameters
+    if (!railgunWalletID || !encryptionKey || !toRailgunAddress || !tokenAddress || !amount || !chain) {
+      throw new Error('Missing required parameters for transfer operation');
+    }
+
     await waitForRailgunReady();
 
     // Convert chain ID to NetworkName
@@ -223,18 +250,29 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
     // Prepare ERC20 amount recipient for private transfer
     const erc20AmountRecipient = {
       tokenAddress: tokenAddress === '0x0000000000000000000000000000000000000000' ? undefined : tokenAddress,
-      amount: amount,
+      amount: amount.toString(), // Ensure amount is string
       recipientAddress: toRailgunAddress,
     };
+
+    // Ensure arrays are properly initialized (never null)
+    const erc20AmountRecipients = [erc20AmountRecipient];
+    const nftAmountRecipients = []; // Empty array, never null
+    const memoArray = memo ? [memo] : []; // Memo array, properly initialized
+
+    console.log('[RailgunActions] Prepared transfer recipients:', {
+      erc20AmountRecipients,
+      nftAmountRecipients,
+      memoArray
+    });
 
     // Get gas estimate
     const gasDetails = await gasEstimateForUnprovenTransfer(
       networkName,
       railgunWalletID,
       encryptionKey,
-      memo ? [memo] : [], // memoText array
-      [erc20AmountRecipient], // erc20AmountRecipients
-      [], // nftAmountRecipients
+      memoArray,
+      erc20AmountRecipients,
+      nftAmountRecipients,
     );
 
     console.log('[RailgunActions] Transfer gas estimate:', gasDetails);
@@ -244,9 +282,9 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
       networkName,
       railgunWalletID,
       encryptionKey,
-      memo ? [memo] : [], // memoText array
-      [erc20AmountRecipient], // erc20AmountRecipients
-      [], // nftAmountRecipients
+      memoArray,
+      erc20AmountRecipients,
+      nftAmountRecipients,
     );
 
     console.log('[RailgunActions] Transfer proof generated:', proofResult);
@@ -255,14 +293,14 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
     const populatedResult = await populateProvedTransfer(
       networkName,
       railgunWalletID,
-      memo ? [memo] : [], // memoText array
-      [erc20AmountRecipient], // erc20AmountRecipients
-      [], // nftAmountRecipients
+      memoArray,
+      erc20AmountRecipients,
+      nftAmountRecipients,
     );
 
     console.log('[RailgunActions] Transfer transaction populated:', populatedResult);
 
-    if (!populatedResult.transaction) {
+    if (!populatedResult || !populatedResult.transaction) {
       throw new Error('Failed to populate transfer transaction');
     }
 
@@ -471,13 +509,17 @@ export const estimateShieldGas = async (networkName, railgunWalletID, encryption
   try {
     console.log('[RailgunActions] Estimating shield gas');
     
+    // Ensure arrays are properly initialized (never null)
+    const safeErc20Recipients = Array.isArray(erc20AmountRecipients) ? erc20AmountRecipients : [];
+    const safeNftRecipients = Array.isArray(nftAmountRecipients) ? nftAmountRecipients : [];
+    
     // Use actual Railgun gas estimation
     const gasDetails = await gasEstimateForShield(
       networkName,
       railgunWalletID,
       encryptionKey,
-      erc20AmountRecipients,
-      nftAmountRecipients,
+      safeErc20Recipients,
+      safeNftRecipients,
       fromAddress,
     );
     
@@ -486,7 +528,7 @@ export const estimateShieldGas = async (networkName, railgunWalletID, encryption
     console.warn('[RailgunActions] Shield gas estimation failed, using hardcoded fallback:', error.message);
     
     return {
-      gasLimit: BigInt(300000), // 300k gas limit fallback
+      gasLimit: BigInt(300000), // 300k gas limit for shield
       gasPrice: BigInt(20000000000), // 20 gwei fallback
     };
   }
@@ -505,13 +547,17 @@ export const estimateUnshieldGas = async (networkName, railgunWalletID, encrypti
   try {
     console.log('[RailgunActions] Estimating unshield gas');
     
+    // Ensure arrays are properly initialized (never null)
+    const safeErc20Recipients = Array.isArray(erc20AmountRecipients) ? erc20AmountRecipients : [];
+    const safeNftRecipients = Array.isArray(nftAmountRecipients) ? nftAmountRecipients : [];
+    
     // Use actual Railgun gas estimation
     const gasDetails = await gasEstimateForUnprovenUnshield(
       networkName,
       railgunWalletID,
       encryptionKey,
-      erc20AmountRecipients,
-      nftAmountRecipients,
+      safeErc20Recipients,
+      safeNftRecipients,
     );
     
     return gasDetails;
