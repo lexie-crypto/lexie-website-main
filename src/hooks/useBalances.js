@@ -11,6 +11,7 @@ import { NetworkName } from '@railgun-community/shared-models';
 import { useWallet } from '../contexts/WalletContext';
 import { getTokensForChain } from '../constants/tokens';
 import { setBalanceUpdateCallback, waitForRailgunReady } from '../utils/railgun/engine';
+import { fetchTokenPrices } from '../utils/pricing/coinGecko';
 
 const useBalances = () => {
   const {
@@ -99,7 +100,7 @@ const useBalances = () => {
   }, [isConnected, address, chainId]);
 
   // Handle Railgun balance updates
-  const handleRailgunBalanceUpdate = useCallback((balanceEvent) => {
+  const handleRailgunBalanceUpdate = useCallback(async (balanceEvent) => {
     console.log('[RAILGUN] Private balance callback triggered:', balanceEvent);
     
     if (!railgunWalletId || balanceEvent.railgunWalletID !== railgunWalletId) {
@@ -124,8 +125,9 @@ const useBalances = () => {
       const tokens = getTokensForChain(chain.id);
       const newPrivateBalances = {};
       const missingTokens = [];
+      const tokensToProcess = [];
 
-      // Process each token balance with proper address normalization
+      // First pass: collect token information
       erc20Amounts.forEach(({ tokenAddress, amount }) => {
         try {
           // Normalize token address to proper checksum format
@@ -158,18 +160,14 @@ const useBalances = () => {
               });
             }
             
-            const formattedBalance = formatBalance(amount.toString(), decimals);
-            
-            newPrivateBalances[symbol] = {
-              ...tokenInfo,
+            tokensToProcess.push({
+              tokenInfo,
               symbol,
               decimals,
               name,
               address: checksummedAddress || tokenInfo.address,
-              balance: amount.toString(),
-              formattedBalance,
-              balanceUSD: '0.00', // TODO: Add price fetching
-            };
+              amount,
+            });
           } else {
             const tokenIdentifier = checksummedAddress || 'native';
             missingTokens.push(tokenIdentifier);
@@ -177,6 +175,64 @@ const useBalances = () => {
           }
         } catch (error) {
           console.error(`[useBalances] Error processing token ${tokenAddress}:`, error);
+        }
+      });
+
+      // Fetch prices for all tokens at once
+      const tokenSymbols = tokensToProcess.map(token => token.symbol);
+      let tokenPrices = {};
+      
+      try {
+        if (tokenSymbols.length > 0) {
+          console.log('[useBalances] Fetching prices for private balances:', tokenSymbols);
+          tokenPrices = await fetchTokenPrices(tokenSymbols);
+        }
+      } catch (priceError) {
+        console.error('[useBalances] Error fetching prices for private balances:', priceError);
+        // Continue without prices - balanceUSD will be '0.00'
+      }
+
+      // Second pass: process balances with USD calculations
+      tokensToProcess.forEach(({ tokenInfo, symbol, decimals, name, address, amount }) => {
+        try {
+          const formattedBalance = formatBalance(amount.toString(), decimals);
+          const numericBalance = parseFloat(formatUnits(amount.toString(), decimals));
+          
+          // Calculate USD value
+          const tokenPrice = tokenPrices[symbol] || 0;
+          const usdValue = numericBalance * tokenPrice;
+          const formattedUsdValue = usdValue < 0.01 && usdValue > 0 
+            ? '< 0.01' 
+            : usdValue.toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              });
+          
+          newPrivateBalances[symbol] = {
+            ...tokenInfo,
+            symbol,
+            decimals,
+            name,
+            address,
+            balance: amount.toString(),
+            formattedBalance,
+            balanceUSD: formattedUsdValue,
+            priceUSD: tokenPrice,
+          };
+        } catch (error) {
+          console.error(`[useBalances] Error calculating USD value for ${symbol}:`, error);
+          // Fallback without USD value
+          newPrivateBalances[symbol] = {
+            ...tokenInfo,
+            symbol,
+            decimals,
+            name,
+            address,
+            balance: amount.toString(),
+            formattedBalance: formatBalance(amount.toString(), decimals),
+            balanceUSD: '0.00',
+            priceUSD: 0,
+          };
         }
       });
 

@@ -9,6 +9,7 @@ import { createPublicClient, http } from 'viem';
 
 import { getTokensForChain } from '../../constants/tokens.js';
 import { RPC_URLS } from '../../config/environment.js';
+import { fetchTokenPrices, calculateUSDValue } from '../pricing/coinGecko.js';
 
 // Standard ERC20 ABI for balance checking
 const ERC20_ABI = [
@@ -43,6 +44,12 @@ export const fetchPublicBalances = async (address, chainId) => {
     }
 
     const balances = [];
+    const tokenSymbols = tokenArray.map(token => token.symbol);
+
+    // Fetch prices for all tokens at once (more efficient)
+    console.log('[Web3Balances] Fetching token prices...');
+    const tokenPrices = await fetchTokenPrices(tokenSymbols);
+    console.log('[Web3Balances] Token prices fetched:', tokenPrices);
 
     // Fetch balances for each token
     for (const token of tokenArray) {
@@ -77,6 +84,16 @@ export const fetchPublicBalances = async (address, chainId) => {
         const formattedBalance = formatUnits(balance, actualDecimals);
         const numericBalance = parseFloat(formattedBalance);
 
+        // Calculate USD value using the token price
+        const tokenPrice = tokenPrices[actualSymbol] || 0;
+        const usdValue = numericBalance * tokenPrice;
+        const formattedUsdValue = usdValue < 0.01 && usdValue > 0 
+          ? '< 0.01' 
+          : usdValue.toLocaleString('en-US', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            });
+
         // Only include tokens with non-zero balances (or include all for UI completeness)
         balances.push({
           ...token,
@@ -90,10 +107,11 @@ export const fetchPublicBalances = async (address, chainId) => {
           }),
           numericBalance,
           hasBalance: numericBalance > 0,
-          balanceUSD: '0.00', // TODO: Add price fetching
+          balanceUSD: formattedUsdValue,
+          priceUSD: tokenPrice,
         });
 
-        console.log(`[Web3Balances] ${actualSymbol}: ${formattedBalance}`);
+        console.log(`[Web3Balances] ${actualSymbol}: ${formattedBalance} (${formattedUsdValue})`);
       } catch (error) {
         console.error(`[Web3Balances] Error fetching balance for ${token.symbol}:`, error);
         
@@ -105,25 +123,36 @@ export const fetchPublicBalances = async (address, chainId) => {
           numericBalance: 0,
           hasBalance: false,
           balanceUSD: '0.00',
+          priceUSD: 0,
           error: error.message,
         });
       }
     }
 
-    // Sort by balance (highest first) and then by symbol
+    // Sort by USD value (highest first) and then by symbol
     balances.sort((a, b) => {
-      if (a.numericBalance !== b.numericBalance) {
-        return b.numericBalance - a.numericBalance;
+      const aUsdValue = parseFloat(a.balanceUSD.replace(/[<,]/g, '')) || 0;
+      const bUsdValue = parseFloat(b.balanceUSD.replace(/[<,]/g, '')) || 0;
+      
+      if (aUsdValue !== bUsdValue) {
+        return bUsdValue - aUsdValue;
       }
       return a.symbol.localeCompare(b.symbol);
     });
 
     const totalTokens = balances.length;
     const tokensWithBalance = balances.filter(b => b.hasBalance).length;
+    const totalUsdValue = balances
+      .filter(b => b.hasBalance)
+      .reduce((sum, token) => {
+        const usdValue = parseFloat(token.balanceUSD.replace(/[<,]/g, '')) || 0;
+        return sum + usdValue;
+      }, 0);
 
     console.log('[Web3Balances] Public balances fetched:', {
       totalTokens,
       tokensWithBalance,
+      totalUsdValue: totalUsdValue.toLocaleString('en-US', { style: 'currency', currency: 'USD' }),
       chain: chainId,
     });
 
