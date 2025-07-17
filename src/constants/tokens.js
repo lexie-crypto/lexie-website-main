@@ -176,66 +176,6 @@ export const SUPPORTED_TOKENS = {
     },
   },
 
-  // Optimism (Chain ID: 10)
-  10: {
-    ETH: {
-      symbol: 'ETH',
-      name: 'Ethereum',
-      decimals: 18,
-      address: null, // Native token
-      coingeckoId: 'ethereum',
-      isNative: true,
-    },
-    WETH: {
-      symbol: 'WETH',
-      name: 'Wrapped Ethereum',
-      decimals: 18,
-      address: '0x4200000000000000000000000000000000000006',
-      coingeckoId: 'weth',
-      isNative: false,
-    },
-    USDC: {
-      symbol: 'USDC',
-      name: 'USD Coin',
-      decimals: 6,
-      address: '0x7F5c764cBc14f9669B88837ca1490cCa17c31607',
-      coingeckoId: 'usd-coin',
-      isNative: false,
-    },
-    'USDC.e': {
-      symbol: 'USDC.e',
-      name: 'USD Coin (Bridged)',
-      decimals: 6,
-      address: '0x7F5c764cBc14f9669B88837ca1490cCa17c31607',
-      coingeckoId: 'usd-coin',
-      isNative: false,
-    },
-    USDT: {
-      symbol: 'USDT',
-      name: 'Tether USD',
-      decimals: 6,
-      address: '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58',
-      coingeckoId: 'tether',
-      isNative: false,
-    },
-    DAI: {
-      symbol: 'DAI',
-      name: 'Dai Stablecoin',
-      decimals: 18,
-      address: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1',
-      coingeckoId: 'dai',
-      isNative: false,
-    },
-    OP: {
-      symbol: 'OP',
-      name: 'Optimism',
-      decimals: 18,
-      address: '0x4200000000000000000000000000000000000042',
-      coingeckoId: 'optimism',
-      isNative: false,
-    },
-  },
-
   // BSC (Chain ID: 56)
   56: {
     BNB: {
@@ -295,6 +235,66 @@ export const SUPPORTED_TOKENS = {
       isNative: false,
     },
   },
+
+  // Note: Optimism (Chain ID: 10) temporarily disabled until Railgun SDK adds full support
+  // 10: {
+  //   ETH: {
+  //     symbol: 'ETH',
+  //     name: 'Ethereum',
+  //     decimals: 18,
+  //     address: null, // Native token
+  //     coingeckoId: 'ethereum',
+  //     isNative: true,
+  //   },
+  //   WETH: {
+  //     symbol: 'WETH',
+  //     name: 'Wrapped Ethereum',
+  //     decimals: 18,
+  //     address: '0x4200000000000000000000000000000000000006',
+  //     coingeckoId: 'weth',
+  //     isNative: false,
+  //   },
+  //   USDC: {
+  //     symbol: 'USDC',
+  //     name: 'USD Coin',
+  //     decimals: 6,
+  //     address: '0x7F5c764cBc14f9669B88837ca1490cCa17c31607',
+  //     coingeckoId: 'usd-coin',
+  //     isNative: false,
+  //   },
+  //   'USDC.e': {
+  //     symbol: 'USDC.e',
+  //     name: 'USD Coin (Bridged)',
+  //     decimals: 6,
+  //     address: '0x7F5c764cBc14f9669B88837ca1490cCa17c31607',
+  //     coingeckoId: 'usd-coin',
+  //     isNative: false,
+  //   },
+  //   USDT: {
+  //     symbol: 'USDT',
+  //     name: 'Tether USD',
+  //     decimals: 6,
+  //     address: '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58',
+  //     coingeckoId: 'tether',
+  //     isNative: false,
+  //   },
+  //   DAI: {
+  //     symbol: 'DAI',
+  //     name: 'Dai Stablecoin',
+  //     decimals: 18,
+  //     address: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1',
+  //     coingeckoId: 'dai',
+  //     isNative: false,
+  //   },
+  //   OP: {
+  //     symbol: 'OP',
+  //     name: 'Optimism',
+  //     decimals: 18,
+  //     address: '0x4200000000000000000000000000000000000042',
+  //     coingeckoId: 'optimism',
+  //     isNative: false,
+  //   },
+  // },
 };
 
 // Get token by symbol and chain ID

@@ -57,7 +57,7 @@ export const WALLETCONNECT_CONFIG = {
 export const NETWORK_CONFIG = {
   environment: import.meta.env.VITE_NETWORK_ENV || 'mainnet',
   defaultChainId: 1, // Ethereum mainnet
-  supportedChainIds: [1, 137, 42161, 10, 56], // Ethereum, Polygon, Arbitrum, Optimism, BSC
+  supportedChainIds: [1, 137, 42161, 56], // Ethereum, Polygon, Arbitrum, BSC (Optimism temporarily disabled)
 };
 
 // Application Configuration

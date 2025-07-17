@@ -197,7 +197,8 @@ const useBalances = () => {
       case 1: return { type: NetworkName.Ethereum, id: 1 };
       case 137: return { type: NetworkName.Polygon, id: 137 };
       case 42161: return { type: NetworkName.Arbitrum, id: 42161 };
-      case 10: return { type: NetworkName.Optimism, id: 10 };
+      // Note: Optimism temporarily disabled until Railgun SDK adds full support
+      // case 10: return { type: NetworkName.Optimism, id: 10 };
       case 56: return { type: NetworkName.BNBChain, id: 56 };
       default: return null;
     }

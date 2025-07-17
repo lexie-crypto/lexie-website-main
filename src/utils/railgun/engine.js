@@ -152,7 +152,8 @@ export const loadNetworkProvider = async (networkName, chainId, rpcUrl, pollingI
       1: 'https://rpc.ankr.com/eth/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
       137: 'https://rpc.ankr.com/polygon/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
       42161: 'https://rpc.ankr.com/arbitrum/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
-      10: 'https://rpc.ankr.com/optimism/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+      // Note: Optimism temporarily disabled until Railgun SDK adds full support
+      // 10: 'https://rpc.ankr.com/optimism/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
       56: 'https://rpc.ankr.com/bsc/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
     };
 
@@ -226,7 +227,8 @@ export const loadAllNetworkProviders = async () => {
     { name: NetworkName.Ethereum, chainId: 1, rpcUrl: RPC_URLS.ethereum },
     { name: NetworkName.Polygon, chainId: 137, rpcUrl: RPC_URLS.polygon },
     { name: NetworkName.Arbitrum, chainId: 42161, rpcUrl: RPC_URLS.arbitrum },
-    { name: NetworkName.Optimism, chainId: 10, rpcUrl: RPC_URLS.optimism },
+    // Note: Optimism temporarily disabled until Railgun SDK adds full support
+    // { name: NetworkName.Optimism, chainId: 10, rpcUrl: RPC_URLS.optimism },
     { name: NetworkName.BNBChain, chainId: 56, rpcUrl: RPC_URLS.bsc },
   ];
 
@@ -383,7 +385,8 @@ export const getNetworkNameFromChainId = (chainId) => {
     case 1: return NetworkName.Ethereum;
     case 137: return NetworkName.Polygon;
     case 42161: return NetworkName.Arbitrum;
-    case 10: return NetworkName.Optimism;
+    // Note: Optimism temporarily disabled until Railgun SDK adds full support
+    // case 10: return NetworkName.Optimism;
     case 56: return NetworkName.BNBChain;
     case 11155111: return NetworkName.EthereumSepolia_DEPRECATED;
     default: return null;

@@ -117,7 +117,8 @@ export const createNewRailgunWallet = async (encryptionKey, mnemonic, creationBl
       [NetworkName.Polygon]: '50000000',
       [NetworkName.Arbitrum]: '150000000',
       [NetworkName.BNBChain]: '35000000',
-      [NetworkName.Optimism]: '115000000',
+      // Note: Optimism temporarily disabled until Railgun SDK adds full support
+      // [NetworkName.Optimism]: '115000000',
       ...creationBlockNumbers,
     };
 

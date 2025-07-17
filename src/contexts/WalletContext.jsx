@@ -5,7 +5,7 @@
 
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
 import { createConfig, http, connect, disconnect, getAccount, getChainId, switchChain } from '@wagmi/core';
-import { mainnet, polygon, arbitrum, optimism, bsc } from '@wagmi/core/chains';
+import { mainnet, polygon, arbitrum, bsc } from '@wagmi/core/chains';
 import { injected, walletConnect } from '@wagmi/connectors';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { setSelectedRailgunWallet } from '@railgun-community/wallet';
@@ -167,7 +167,7 @@ const WalletContext = createContext();
 const queryClient = new QueryClient();
 
 const config = createConfig({
-  chains: [mainnet, polygon, arbitrum, optimism, bsc],
+  chains: [mainnet, polygon, arbitrum, bsc],
   connectors: [
     injected(),
     walletConnect({
@@ -179,8 +179,9 @@ const config = createConfig({
     [mainnet.id]: http(RPC_URLS.ethereum),
     [polygon.id]: http(RPC_URLS.polygon),
     [arbitrum.id]: http(RPC_URLS.arbitrum),
-    [optimism.id]: http(RPC_URLS.optimism),
     [bsc.id]: http(RPC_URLS.bsc),
+    // Note: Optimism temporarily disabled until Railgun SDK adds full support
+    // [optimism.id]: http(RPC_URLS.optimism),
   },
 });
 
@@ -407,8 +408,9 @@ export const WalletProvider = ({ children }) => {
       1: { name: 'Ethereum', symbol: 'ETH' },
       137: { name: 'Polygon', symbol: 'MATIC' },
       42161: { name: 'Arbitrum', symbol: 'ETH' },
-      10: { name: 'Optimism', symbol: 'ETH' },
       56: { name: 'BSC', symbol: 'BNB' },
+      // Note: Optimism temporarily disabled until Railgun SDK adds full support
+      // 10: { name: 'Optimism', symbol: 'ETH' },
     };
     
     return networks[state.chainId] || null;
