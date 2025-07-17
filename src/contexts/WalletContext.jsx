@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { createConfig, http } from 'wagmi';
-import { mainnet, polygon, arbitrum } from 'wagmi/chains';
+import { createConfig, custom } from 'wagmi';
+import { mainnet, polygon, arbitrum, bsc } from 'wagmi/chains';
 import { metaMask, walletConnect } from 'wagmi/connectors';
 import { WagmiProvider, useAccount, useConnect, useDisconnect } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -8,9 +8,35 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 // Create a client for React Query
 const queryClient = new QueryClient();
 
+// Create custom transport that routes through our Vercel API
+const createProxyTransport = (chainId) => custom({
+  async request({ method, params }) {
+    const response = await fetch('/api/get-balance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chainId,
+        method,
+        params,
+      }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`RPC request failed: ${response.status}`);
+    }
+    
+    const { result, error } = await response.json();
+    if (error) {
+      throw new Error(`RPC error: ${JSON.stringify(error)}`);
+    }
+    
+    return result;
+  },
+});
+
 // Create wagmi config
 const wagmiConfig = createConfig({
-  chains: [mainnet, polygon, arbitrum],
+  chains: [mainnet, polygon, arbitrum, bsc],
   connectors: [
     metaMask(),
     walletConnect({
@@ -18,9 +44,10 @@ const wagmiConfig = createConfig({
     }),
   ],
   transports: {
-    [mainnet.id]: http(),
-    [polygon.id]: http(),
-    [arbitrum.id]: http(),
+    [mainnet.id]: createProxyTransport(mainnet.id),
+    [polygon.id]: createProxyTransport(polygon.id),
+    [arbitrum.id]: createProxyTransport(arbitrum.id),
+    [bsc.id]: createProxyTransport(bsc.id),
   },
 });
 

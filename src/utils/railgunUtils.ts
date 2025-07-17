@@ -1,34 +1,62 @@
 import { formatUnits, formatEther, createPublicClient, custom } from 'viem';
 import { mainnet, polygon, bsc, arbitrum } from 'viem/chains';
 
-// Supported chains configuration
+// Supported chains configuration with custom RPC URLs
 export const SUPPORTED_CHAINS = {
   1: { 
     id: 1, 
     name: 'Ethereum', 
     shortName: 'ETH',
-    chain: mainnet,
+    chain: {
+      ...mainnet,
+      rpcUrls: {
+        default: {
+          http: ['/api/get-balance']
+        }
+      }
+    },
     nativeSymbol: 'ETH'
   },
   137: { 
     id: 137, 
     name: 'Polygon', 
     shortName: 'MATIC',
-    chain: polygon,
+    chain: {
+      ...polygon,
+      rpcUrls: {
+        default: {
+          http: ['/api/get-balance']
+        }
+      }
+    },
     nativeSymbol: 'MATIC'
   },
   56: { 
     id: 56, 
     name: 'BNB Chain', 
     shortName: 'BNB',
-    chain: bsc,
+    chain: {
+      ...bsc,
+      rpcUrls: {
+        default: {
+          http: ['/api/get-balance']
+        }
+      }
+    },
     nativeSymbol: 'BNB'
   },
   42161: { 
     id: 42161, 
     name: 'Arbitrum One', 
     shortName: 'ARB',
-    chain: arbitrum,
+    chain: {
+      ...arbitrum,
+      rpcUrls: {
+        default: {
+          http: ['/api/get-balance']
+        }
+      }
+    },
     nativeSymbol: 'ETH'
   }
 };
@@ -58,6 +86,9 @@ export const SUPPORTED_TOKENS = {
     137: { address: '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063', decimals: 18 },
     56: { address: '0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3', decimals: 18 },
     42161: { address: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1', decimals: 18 }, // DAI on Arbitrum
+  },
+  BUSD: {
+    56: { address: '0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56', decimals: 18 }, // Native BUSD on BSC
   }
 };
 

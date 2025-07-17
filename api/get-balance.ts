@@ -11,6 +11,9 @@ export default async function handler(req: any, res: any) {
   }
 
   const { chainId, method, params } = req.body;
+  
+  // Add console logging to confirm API is being hit
+  console.log(`🔗 Alchemy Proxy Called: Chain ${chainId}, Method: ${method}`, params ? `Params: ${JSON.stringify(params).substring(0, 100)}...` : '');
 
   if (!chainId || !method) {
     return res.status(400).json({ error: 'Missing chainId or method' });
