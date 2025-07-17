@@ -3,11 +3,18 @@ import { useWallet } from '../contexts/WalletContext';
 import { useNavigate } from 'react-router-dom';
 import { 
   fetchPublicBalances, 
-  fetchPrivateBalances, 
+  getRailgunBalances, 
   refreshRailgunBalances,
+  addBalanceUpdateListener,
+  executeShield,
+  executePrivateTransfer,
+  executeUnshield,
+  convertToBaseUnits,
+  getBlockExplorerUrl,
   SUPPORTED_CHAINS,
   SUPPORTED_TOKENS,
   getChainConfig,
+  getTokenConfig,
   clearBalanceCache
 } from '../utils/railgunUtils';
 
@@ -15,8 +22,10 @@ const WalletPage = () => {
   const {
     isConnected,
     address,
+    chainId,
     isRailgunInitialized,
     railgunAddress,
+    railgunWalletID,
     isInitializing,
     connectWallet,
     disconnectWallet,
@@ -68,19 +77,22 @@ const WalletPage = () => {
 
     setLoading(true);
     try {
-      console.log('Loading multi-chain balances for address:', address);
+      console.log('📊 Loading multi-chain balances for address:', address);
 
       // Fetch public balances across all supported chains
-      console.log('Fetching public balances...');
+      console.log('🔍 Fetching public balances...');
       const publicBalances = await fetchPublicBalances(address);
 
-      // Fetch private balances if Railgun is initialized
+      // Get private balances from RAILGUN callback system
       let privateBalances = {};
       if (isRailgunInitialized && railgunAddress) {
-        console.log('Refreshing and fetching Railgun balances...');
-        await refreshRailgunBalances(address, railgunAddress);
-        privateBalances = await fetchPrivateBalances(railgunAddress, address);
+        console.log('🔄 Triggering RAILGUN balance refresh...');
+        await refreshRailgunBalances();
+        
+        console.log('📈 Getting RAILGUN balances from callback system...');
+        privateBalances = getRailgunBalances();
       } else {
+        console.log('⚠️ RAILGUN not initialized, using zero balances');
         // Initialize with zeros if Railgun not ready
         privateBalances = Object.fromEntries(
           Object.keys(SUPPORTED_CHAINS).map(chainId => [
@@ -97,7 +109,7 @@ const WalletPage = () => {
         );
       }
 
-      console.log('Final multi-chain balances:', {
+      console.log('✅ Final multi-chain balances:', {
         public: publicBalances,
         private: privateBalances,
         isRailgunInitialized,
@@ -110,7 +122,7 @@ const WalletPage = () => {
       });
 
     } catch (error) {
-      console.error('Failed to load balances:', error);
+      console.error('❌ Failed to load balances:', error);
     } finally {
       setLoading(false);
     }
@@ -122,6 +134,31 @@ const WalletPage = () => {
     }
   }, [isConnected, address, isRailgunInitialized]);
 
+  // Set up RAILGUN balance update listener
+  useEffect(() => {
+    if (isRailgunInitialized) {
+      console.log('🔔 Setting up RAILGUN balance update listener...');
+      
+      const unsubscribe = addBalanceUpdateListener(() => {
+        console.log('💰 RAILGUN balance update received, refreshing UI...');
+        
+        // Update private balances with new data from callback
+        setBalances(prevBalances => ({
+          ...prevBalances,
+          private: getRailgunBalances()
+        }));
+      });
+
+      console.log('✅ RAILGUN balance update listener active');
+      
+      // Cleanup listener on unmount or when Railgun state changes
+      return () => {
+        console.log('🔕 Removing RAILGUN balance update listener...');
+        unsubscribe();
+      };
+    }
+  }, [isRailgunInitialized]);
+
   // Manual refresh function
   const handleRefreshBalances = async () => {
     clearBalanceCache();
@@ -130,47 +167,99 @@ const WalletPage = () => {
 
   const handleShield = async (e) => {
     e.preventDefault();
-    if (!isRailgunInitialized) return;
+    if (!isRailgunInitialized || !railgunWalletID || !railgunAddress) {
+      alert('RAILGUN wallet not initialized');
+      return;
+    }
+
+    if (!shieldForm.tokenAddress || !shieldForm.amount) {
+      alert('Please select a token and enter an amount');
+      return;
+    }
 
     setLoading(true);
+    
+    const newTx = {
+      id: Date.now(),
+      type: 'shield',
+      status: 'pending',
+      amount: shieldForm.amount,
+      token: Object.keys(SUPPORTED_TOKENS).find(symbol => 
+        Object.values(SUPPORTED_TOKENS[symbol]).some(config => config.address === shieldForm.tokenAddress)
+      ) || 'Unknown',
+      timestamp: new Date(),
+    };
+    setTransactions(prev => [newTx, ...prev]);
+
     try {
-      console.log('Shielding assets:', shieldForm);
+      console.log('🛡️ Starting shield transaction:', shieldForm);
       
-      // Try to use real Railgun functions, fallback to demo mode
-      try {
-        const railgunWallet = await import('@railgun-community/wallet');
-        // In production, you would call actual Railgun shield functions here
-        console.log('Railgun functions available for shielding');
-      } catch (importError) {
-        console.log('Using demo mode for shielding');
+      // Get token configuration
+      const tokenSymbol = Object.keys(SUPPORTED_TOKENS).find(symbol => 
+        Object.values(SUPPORTED_TOKENS[symbol]).some(config => config.address === shieldForm.tokenAddress)
+      );
+      
+      if (!tokenSymbol) {
+        throw new Error('Token configuration not found');
       }
       
-      // Add to transaction history (for demo)
-      const newTx = {
-        id: Date.now(),
-        type: 'shield',
-        status: 'pending',
-        amount: shieldForm.amount,
-        token: Object.keys(SUPPORTED_TOKENS).find(symbol => 
-          Object.values(SUPPORTED_TOKENS[symbol]).some(config => config.address === shieldForm.tokenAddress)
-        ) || 'Unknown',
-        timestamp: new Date(),
-      };
-      setTransactions(prev => [newTx, ...prev]);
+      const currentChainId = chainId || 1; // Default to Ethereum if chainId not available
+      const tokenConfig = getTokenConfig(currentChainId, tokenSymbol);
+      
+      if (!tokenConfig) {
+        throw new Error(`Token ${tokenSymbol} not supported on chain ${currentChainId}`);
+      }
 
-      // Simulate transaction completion
-      setTimeout(() => {
+      // Convert amount to base units
+      const amountInBaseUnits = convertToBaseUnits(shieldForm.amount, tokenConfig.decimals);
+      
+      // Execute shield transaction
+      const result = await executeShield({
+        railgunWalletID,
+        railgunAddress,
+        tokenAddress: tokenConfig.address, // null for native tokens becomes '0x0000...' in function
+        amount: amountInBaseUnits,
+        chainId: currentChainId
+      });
+
+      if (result.success && result.txid) {
+        console.log('✅ Shield transaction successful!', result.txid);
+        
+        // Update transaction with success and txid
         setTransactions(prev => 
           prev.map(tx => 
-            tx.id === newTx.id ? { ...tx, status: 'completed' } : tx
+            tx.id === newTx.id ? { 
+              ...tx, 
+              status: 'completed',
+              txid: result.txid,
+              explorerUrl: getBlockExplorerUrl(currentChainId, result.txid)
+            } : tx
           )
         );
-        loadBalances();
-      }, 3000);
+        
+        // Refresh balances
+        setTimeout(() => {
+          loadBalances();
+        }, 2000);
+        
+        setShieldForm({ tokenAddress: '', amount: '', customToken: '' });
+        alert(`Shield transaction submitted successfully!\nTx ID: ${result.txid}`);
+        
+      } else {
+        throw new Error(result.error || 'Shield transaction failed');
+      }
 
-      setShieldForm({ tokenAddress: '', amount: '', customToken: '' });
     } catch (error) {
-      console.error('Shield failed:', error);
+      console.error('❌ Shield transaction failed:', error);
+      
+      // Update transaction with failure
+      setTransactions(prev => 
+        prev.map(tx => 
+          tx.id === newTx.id ? { ...tx, status: 'failed', error: error.message } : tx
+        )
+      );
+      
+      alert(`Shield transaction failed: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -178,46 +267,101 @@ const WalletPage = () => {
 
   const handlePrivateTransfer = async (e) => {
     e.preventDefault();
-    if (!isRailgunInitialized) return;
+    if (!isRailgunInitialized || !railgunWalletID || !railgunAddress) {
+      alert('RAILGUN wallet not initialized');
+      return;
+    }
+
+    if (!transferForm.tokenAddress || !transferForm.amount || !transferForm.recipientAddress) {
+      alert('Please fill in all fields');
+      return;
+    }
 
     setLoading(true);
+    
+    const newTx = {
+      id: Date.now(),
+      type: 'transfer',
+      status: 'pending',
+      amount: transferForm.amount,
+      token: Object.keys(SUPPORTED_TOKENS).find(symbol => 
+        Object.values(SUPPORTED_TOKENS[symbol]).some(config => config.address === transferForm.tokenAddress)
+      ) || 'Unknown',
+      recipient: transferForm.recipientAddress,
+      timestamp: new Date(),
+    };
+    setTransactions(prev => [newTx, ...prev]);
+
     try {
-      console.log('Private transfer:', transferForm);
+      console.log('🔒 Starting private transfer:', transferForm);
       
-      // Try to use real Railgun functions, fallback to demo mode
-      try {
-        const railgunWallet = await import('@railgun-community/wallet');
-        // In production, you would call actual Railgun transfer functions here
-        console.log('Railgun functions available for private transfer');
-      } catch (importError) {
-        console.log('Using demo mode for private transfer');
+      // Get token configuration
+      const tokenSymbol = Object.keys(SUPPORTED_TOKENS).find(symbol => 
+        Object.values(SUPPORTED_TOKENS[symbol]).some(config => config.address === transferForm.tokenAddress)
+      );
+      
+      if (!tokenSymbol) {
+        throw new Error('Token configuration not found');
+      }
+      
+      const currentChainId = chainId || 1;
+      const tokenConfig = getTokenConfig(currentChainId, tokenSymbol);
+      
+      if (!tokenConfig) {
+        throw new Error(`Token ${tokenSymbol} not supported on chain ${currentChainId}`);
       }
 
-      const newTx = {
-        id: Date.now(),
-        type: 'transfer',
-        status: 'pending',
-        amount: transferForm.amount,
-        token: Object.keys(SUPPORTED_TOKENS).find(symbol => 
-          Object.values(SUPPORTED_TOKENS[symbol]).some(config => config.address === transferForm.tokenAddress)
-        ) || 'Unknown',
-        recipient: transferForm.recipientAddress,
-        timestamp: new Date(),
-      };
-      setTransactions(prev => [newTx, ...prev]);
+      // Convert amount to base units
+      const amountInBaseUnits = convertToBaseUnits(transferForm.amount, tokenConfig.decimals);
+      
+      // Execute private transfer
+      const result = await executePrivateTransfer({
+        railgunWalletID,
+        fromRailgunAddress: railgunAddress,
+        toRailgunAddress: transferForm.recipientAddress,
+        tokenAddress: tokenConfig.address,
+        amount: amountInBaseUnits,
+        chainId: currentChainId
+      });
 
-      setTimeout(() => {
+      if (result.success && result.txid) {
+        console.log('✅ Private transfer successful!', result.txid);
+        
+        // Update transaction with success and txid
         setTransactions(prev => 
           prev.map(tx => 
-            tx.id === newTx.id ? { ...tx, status: 'completed' } : tx
+            tx.id === newTx.id ? { 
+              ...tx, 
+              status: 'completed',
+              txid: result.txid,
+              explorerUrl: getBlockExplorerUrl(currentChainId, result.txid)
+            } : tx
           )
         );
-        loadBalances();
-      }, 3000);
+        
+        // Refresh balances
+        setTimeout(() => {
+          loadBalances();
+        }, 2000);
+        
+        setTransferForm({ recipientAddress: '', tokenAddress: '', amount: '' });
+        alert(`Private transfer submitted successfully!\nTx ID: ${result.txid}`);
+        
+      } else {
+        throw new Error(result.error || 'Private transfer failed');
+      }
 
-      setTransferForm({ recipientAddress: '', tokenAddress: '', amount: '' });
     } catch (error) {
-      console.error('Private transfer failed:', error);
+      console.error('❌ Private transfer failed:', error);
+      
+      // Update transaction with failure
+      setTransactions(prev => 
+        prev.map(tx => 
+          tx.id === newTx.id ? { ...tx, status: 'failed', error: error.message } : tx
+        )
+      );
+      
+      alert(`Private transfer failed: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -225,46 +369,103 @@ const WalletPage = () => {
 
   const handleUnshield = async (e) => {
     e.preventDefault();
-    if (!isRailgunInitialized) return;
+    if (!isRailgunInitialized || !railgunWalletID || !railgunAddress) {
+      alert('RAILGUN wallet not initialized');
+      return;
+    }
+
+    if (!unshieldForm.tokenAddress || !unshieldForm.amount) {
+      alert('Please select a token and enter an amount');
+      return;
+    }
 
     setLoading(true);
+    
+    const recipientAddress = unshieldForm.recipientAddress || address;
+    
+    const newTx = {
+      id: Date.now(),
+      type: 'unshield',
+      status: 'pending',
+      amount: unshieldForm.amount,
+      token: Object.keys(SUPPORTED_TOKENS).find(symbol => 
+        Object.values(SUPPORTED_TOKENS[symbol]).some(config => config.address === unshieldForm.tokenAddress)
+      ) || 'Unknown',
+      recipient: recipientAddress,
+      timestamp: new Date(),
+    };
+    setTransactions(prev => [newTx, ...prev]);
+
     try {
-      console.log('Unshielding assets:', unshieldForm);
+      console.log('🔓 Starting unshield transaction:', unshieldForm);
       
-      // Try to use real Railgun functions, fallback to demo mode
-      try {
-        const railgunWallet = await import('@railgun-community/wallet');
-        // In production, you would call actual Railgun unshield functions here
-        console.log('Railgun functions available for unshielding');
-      } catch (importError) {
-        console.log('Using demo mode for unshielding');
+      // Get token configuration
+      const tokenSymbol = Object.keys(SUPPORTED_TOKENS).find(symbol => 
+        Object.values(SUPPORTED_TOKENS[symbol]).some(config => config.address === unshieldForm.tokenAddress)
+      );
+      
+      if (!tokenSymbol) {
+        throw new Error('Token configuration not found');
+      }
+      
+      const currentChainId = chainId || 1;
+      const tokenConfig = getTokenConfig(currentChainId, tokenSymbol);
+      
+      if (!tokenConfig) {
+        throw new Error(`Token ${tokenSymbol} not supported on chain ${currentChainId}`);
       }
 
-      const newTx = {
-        id: Date.now(),
-        type: 'unshield',
-        status: 'pending',
-        amount: unshieldForm.amount,
-        token: Object.keys(SUPPORTED_TOKENS).find(symbol => 
-          Object.values(SUPPORTED_TOKENS[symbol]).some(config => config.address === unshieldForm.tokenAddress)
-        ) || 'Unknown',
-        recipient: unshieldForm.recipientAddress || address,
-        timestamp: new Date(),
-      };
-      setTransactions(prev => [newTx, ...prev]);
+      // Convert amount to base units
+      const amountInBaseUnits = convertToBaseUnits(unshieldForm.amount, tokenConfig.decimals);
+      
+      // Execute unshield transaction
+      const result = await executeUnshield({
+        railgunWalletID,
+        railgunAddress,
+        tokenAddress: tokenConfig.address,
+        amount: amountInBaseUnits,
+        recipientAddress,
+        chainId: currentChainId
+      });
 
-      setTimeout(() => {
+      if (result.success && result.txid) {
+        console.log('✅ Unshield transaction successful!', result.txid);
+        
+        // Update transaction with success and txid
         setTransactions(prev => 
           prev.map(tx => 
-            tx.id === newTx.id ? { ...tx, status: 'completed' } : tx
+            tx.id === newTx.id ? { 
+              ...tx, 
+              status: 'completed',
+              txid: result.txid,
+              explorerUrl: getBlockExplorerUrl(currentChainId, result.txid)
+            } : tx
           )
         );
-        loadBalances();
-      }, 3000);
+        
+        // Refresh balances
+        setTimeout(() => {
+          loadBalances();
+        }, 2000);
+        
+        setUnshieldForm({ tokenAddress: '', amount: '', recipientAddress: '' });
+        alert(`Unshield transaction submitted successfully!\nTx ID: ${result.txid}`);
+        
+      } else {
+        throw new Error(result.error || 'Unshield transaction failed');
+      }
 
-      setUnshieldForm({ tokenAddress: '', amount: '', recipientAddress: '' });
     } catch (error) {
-      console.error('Unshield failed:', error);
+      console.error('❌ Unshield transaction failed:', error);
+      
+      // Update transaction with failure
+      setTransactions(prev => 
+        prev.map(tx => 
+          tx.id === newTx.id ? { ...tx, status: 'failed', error: error.message } : tx
+        )
+      );
+      
+      alert(`Unshield transaction failed: ${error.message}`);
     } finally {
       setLoading(false);
     }

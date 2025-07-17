@@ -62,6 +62,7 @@ const WalletContext = createContext({
   isRailgunInitialized: false,
   initializeRailgun: () => {},
   railgunAddress: null,
+  railgunWalletID: null,
 });
 
 export const useWallet = () => {
@@ -75,6 +76,7 @@ export const useWallet = () => {
 const WalletContextProvider = ({ children }) => {
   const [isRailgunInitialized, setIsRailgunInitialized] = useState(false);
   const [railgunAddress, setRailgunAddress] = useState(null);
+  const [railgunWalletID, setRailgunWalletID] = useState(null);
   const [isInitializing, setIsInitializing] = useState(false);
 
   const { address, isConnected, chainId } = useAccount();
@@ -105,6 +107,7 @@ const WalletContextProvider = ({ children }) => {
       await disconnect();
       setIsRailgunInitialized(false);
       setRailgunAddress(null);
+      setRailgunWalletID(null);
     } catch (error) {
       console.error('Failed to disconnect wallet:', error);
     }
@@ -117,16 +120,20 @@ const WalletContextProvider = ({ children }) => {
     }
 
     setIsInitializing(true);
-    console.log('Starting Railgun initialization for address:', address);
+    console.log('🚀 Starting RAILGUN initialization for address:', address);
     
     try {
+      // Import RAILGUN utilities
+      const { initializeRailgunSystem, setupWalletBalanceCallbacks } = await import('../utils/railgunUtils');
+      console.log('✅ RAILGUN utilities imported successfully');
+
       // Try to import Railgun wallet functions dynamically
-      console.log('Importing Railgun wallet functions...');
+      console.log('📦 Importing RAILGUN wallet functions...');
       const railgunWallet = await import('@railgun-community/wallet');
-      console.log('Railgun wallet imported successfully');
+      console.log('✅ RAILGUN wallet imported successfully');
 
       if (!railgunWallet.startRailgunEngine) {
-        throw new Error('Railgun functions not available - using demo mode');
+        throw new Error('RAILGUN functions not available - using demo mode');
       }
 
       // Initialize Railgun engine
@@ -135,9 +142,9 @@ const WalletContextProvider = ({ children }) => {
       const shouldDebug = true; // Enable debugging for now
       const customArtifactGetter = undefined;
       const useNativeArtifacts = false;
-      const skipMerkletreeScans = true; // Skip for faster initialization
+      const skipMerkletreeScans = false; // Enable scans for real balance updates
 
-      console.log('Starting Railgun engine...');
+      console.log('🔧 Starting RAILGUN engine...');
       await railgunWallet.startRailgunEngine(
         walletSource,
         dbPath,
@@ -146,7 +153,16 @@ const WalletContextProvider = ({ children }) => {
         useNativeArtifacts,
         skipMerkletreeScans
       );
-      console.log('Railgun engine started successfully');
+      console.log('✅ RAILGUN engine started successfully');
+
+      // Initialize RAILGUN provider and callback system
+      console.log('🌐 Initializing RAILGUN provider system...');
+      const systemInitialized = await initializeRailgunSystem();
+      if (!systemInitialized) {
+        console.warn('⚠️ RAILGUN system initialization failed, using basic mode');
+      } else {
+        console.log('✅ RAILGUN provider system initialized');
+      }
 
       // Create or load Railgun wallet
       const encryptionKey = address.toLowerCase();
@@ -157,14 +173,14 @@ const WalletContextProvider = ({ children }) => {
         try {
           if (railgunWallet.generateMnemonic) {
             mnemonic = railgunWallet.generateMnemonic();
-            console.log('Generated new mnemonic using Railgun');
+            console.log('🔑 Generated new mnemonic using RAILGUN');
           } else {
             // Fallback mnemonic generation
             mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
-            console.warn('Using fallback mnemonic generation for demo');
+            console.warn('⚠️ Using fallback mnemonic generation for demo');
           }
         } catch (mnemonicError) {
-          console.warn('Mnemonic generation failed, using fallback:', mnemonicError);
+          console.warn('⚠️ Mnemonic generation failed, using fallback:', mnemonicError);
           mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
         }
         
@@ -172,7 +188,7 @@ const WalletContextProvider = ({ children }) => {
         localStorage.setItem(`railgun-mnemonic-${address}`, mnemonic);
       }
 
-      console.log('Creating Railgun wallet...');
+      console.log('👛 Creating RAILGUN wallet...');
       const creationBlockNumberMap = {}; // Will use default block numbers
       const railgunWalletInfo = await railgunWallet.createRailgunWallet(
         encryptionKey,
@@ -181,16 +197,30 @@ const WalletContextProvider = ({ children }) => {
       );
 
       setRailgunAddress(railgunWalletInfo.railgunAddress);
+      setRailgunWalletID(railgunWalletInfo.railgunWalletID);
       setIsRailgunInitialized(true);
 
-      console.log('Railgun wallet initialized successfully:', railgunWalletInfo.railgunAddress);
+      console.log('🎉 RAILGUN wallet initialized successfully:', {
+        address: railgunWalletInfo.railgunAddress,
+        walletID: railgunWalletInfo.railgunWalletID
+      });
+
+      // Set up wallet-specific balance callbacks
+      console.log('🔔 Setting up wallet balance callbacks...');
+      const callbacksSetup = await setupWalletBalanceCallbacks(railgunWalletInfo.railgunWalletID);
+      if (callbacksSetup) {
+        console.log('✅ RAILGUN wallet balance callbacks configured');
+      } else {
+        console.warn('⚠️ Failed to set up wallet balance callbacks');
+      }
     } catch (error) {
-      console.error('Failed to initialize Railgun (falling back to demo mode):', error);
+      console.error('❌ Failed to initialize RAILGUN (falling back to demo mode):', error);
       
       // Set demo mode - we'll simulate Railgun functionality
       setIsRailgunInitialized(true);
       setRailgunAddress('demo-railgun-address-' + address.slice(-6));
-      console.log('Running in demo mode for private transactions');
+      setRailgunWalletID('demo-wallet-id-' + address.slice(-6));
+      console.log('🔧 Running in demo mode for private transactions');
     } finally {
       setIsInitializing(false);
     }
@@ -214,6 +244,7 @@ const WalletContextProvider = ({ children }) => {
     isRailgunInitialized,
     initializeRailgun,
     railgunAddress,
+    railgunWalletID,
     isInitializing,
   };
 
