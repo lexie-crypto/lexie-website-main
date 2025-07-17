@@ -111,18 +111,30 @@ export const createNewRailgunWallet = async (encryptionKey, mnemonic, creationBl
   try {
     console.log('[RailgunWallet] Creating new Railgun wallet...');
 
-    // Default creation block numbers for faster scanning
+    // Default creation block numbers for faster scanning (converted to strings)
     const defaultBlockNumbers = {
-      [NetworkName.Ethereum]: BigInt(18000000), // Recent block
-      [NetworkName.Polygon]: BigInt(50000000),
-      [NetworkName.Arbitrum]: BigInt(150000000),
+      [NetworkName.Ethereum]: '18000000', // Convert BigInt to string
+      [NetworkName.Polygon]: '50000000',
+      [NetworkName.Arbitrum]: '150000000',
+      [NetworkName.BNBChain]: '35000000',
+      [NetworkName.Optimism]: '115000000',
+      [NetworkName.EthereumSepolia_DEPRECATED]: '4500000',
       ...creationBlockNumbers,
     };
+
+    // Ensure all values in creationBlockNumbers are strings
+    const stringifiedBlockNumbers = {};
+    Object.keys(defaultBlockNumbers).forEach(key => {
+      const value = defaultBlockNumbers[key];
+      stringifiedBlockNumbers[key] = typeof value === 'bigint' ? value.toString() : value.toString();
+    });
+
+    console.log('[RailgunWallet] Creation block numbers:', stringifiedBlockNumbers);
 
     const walletInfo = await createRailgunWallet(
       encryptionKey,
       mnemonic,
-      defaultBlockNumbers
+      stringifiedBlockNumbers
     );
 
     console.log('[RailgunWallet] Railgun wallet created successfully:', {

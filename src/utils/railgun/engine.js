@@ -147,17 +147,54 @@ export const loadNetworkProvider = async (networkName, chainId, rpcUrl, pollingI
       return { success: false, error: 'Invalid RPC URL' };
     }
 
+    // Chain-specific Ankr fallback endpoints with API key
+    const fallbackMap = {
+      1: 'https://rpc.ankr.com/eth/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+      137: 'https://rpc.ankr.com/polygon/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+      42161: 'https://rpc.ankr.com/arbitrum/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+      10: 'https://rpc.ankr.com/optimism/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+      56: 'https://rpc.ankr.com/bsc/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+      11155111: 'https://rpc.ankr.com/eth_sepolia/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+    };
+
+    const ankrFallbackUrl = fallbackMap[chainId];
+    
+    if (!ankrFallbackUrl) {
+      console.warn(`[Railgun] No Ankr fallback available for chain ${chainId}`);
+      return { success: false, error: `Unsupported chain ID: ${chainId}` };
+    }
+
     const providerConfig = {
       chainId,
       providers: [
         {
           provider: rpcUrl,
           priority: 1,
+          weight: 2,
+        },
+        {
+          provider: ankrFallbackUrl,
+          priority: 2,
           weight: 1,
         },
       ],
     };
 
+    console.log(`[Railgun] Provider config for ${networkName}:`, {
+      chainId,
+      primaryRPC: rpcUrl,
+      fallbackRPC: ankrFallbackUrl,
+      providerCount: providerConfig.providers.length,
+    });
+
+    // Validate configuration before attempting to load
+    if (!providerConfig.chainId || !providerConfig.providers || providerConfig.providers.length === 0) {
+      console.error(`[Railgun] Invalid provider config for ${networkName}:`, providerConfig);
+      return { success: false, error: 'Invalid provider configuration' };
+    }
+
+    console.log(`[Railgun] Attempting to load provider for ${networkName}...`);
+    
     const { feesSerialized } = await loadProvider(
       providerConfig,
       networkName,
@@ -166,13 +203,19 @@ export const loadNetworkProvider = async (networkName, chainId, rpcUrl, pollingI
 
     loadedNetworks.add(networkName);
     
-    console.log(`[Railgun] Provider loaded for ${networkName}`);
+    console.log(`[Railgun] ✅ Provider loaded successfully for ${networkName}`);
     console.log(`[Railgun] Fees for ${networkName}:`, feesSerialized);
 
-    return { feesSerialized };
+    return { success: true, feesSerialized };
   } catch (error) {
-    console.error(`[Railgun] Failed to load provider for ${networkName}:`, error);
-    throw error;
+    console.error(`[Railgun] ❌ Failed to load provider for ${networkName}:`, error);
+    console.error(`[Railgun] Error details:`, {
+      networkName,
+      chainId,
+      error: error.message,
+      stack: error.stack,
+    });
+    return { success: false, error: error.message };
   }
 };
 
@@ -184,21 +227,60 @@ export const loadAllNetworkProviders = async () => {
     { name: NetworkName.Ethereum, chainId: 1, rpcUrl: RPC_URLS.ethereum },
     { name: NetworkName.Polygon, chainId: 137, rpcUrl: RPC_URLS.polygon },
     { name: NetworkName.Arbitrum, chainId: 42161, rpcUrl: RPC_URLS.arbitrum },
+    { name: NetworkName.Optimism, chainId: 10, rpcUrl: RPC_URLS.optimism },
     { name: NetworkName.BNBChain, chainId: 56, rpcUrl: RPC_URLS.bsc },
     { name: NetworkName.EthereumSepolia_DEPRECATED, chainId: 11155111, rpcUrl: RPC_URLS.sepolia },
   ];
 
   const results = [];
+  let successCount = 0;
+  let failureCount = 0;
+  
+  console.log(`[Railgun] Loading ${networkConfigs.length} network providers...`);
   
   for (const config of networkConfigs) {
     try {
+      console.log(`[Railgun] Loading ${config.name}...`);
       const result = await loadNetworkProvider(config.name, config.chainId, config.rpcUrl);
-      results.push({ ...config, success: true, result });
+      
+      if (result.success) {
+        successCount++;
+        console.log(`[Railgun] ✅ ${config.name} loaded successfully`);
+      } else {
+        failureCount++;
+        console.warn(`[Railgun] ⚠️ ${config.name} failed to load: ${result.error}`);
+      }
+      
+      results.push({ 
+        ...config, 
+        success: result.success, 
+        error: result.error,
+        result: result.success ? result : null 
+      });
     } catch (error) {
-      console.warn(`Failed to load ${config.name}:`, error.message);
-      results.push({ ...config, success: false, error: error.message });
+      failureCount++;
+      console.error(`[Railgun] ❌ ${config.name} failed with exception:`, error.message);
+      results.push({ 
+        ...config, 
+        success: false, 
+        error: error.message,
+        result: null 
+      });
     }
   }
+
+  console.log(`[Railgun] Network provider loading complete:`, {
+    total: networkConfigs.length,
+    successful: successCount,
+    failed: failureCount,
+    successRate: `${Math.round((successCount / networkConfigs.length) * 100)}%`
+  });
+
+  // Log detailed results
+  results.forEach(result => {
+    const status = result.success ? '✅' : '❌';
+    console.log(`[Railgun] ${status} ${result.name} (Chain ${result.chainId}): ${result.success ? 'SUCCESS' : result.error}`);
+  });
 
   return results;
 };
