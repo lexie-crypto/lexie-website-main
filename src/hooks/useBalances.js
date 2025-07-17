@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { formatUnits, getAddress } from 'ethers';
 import { refreshBalances } from '@railgun-community/wallet';
-import { NETWORK_CONFIG } from '@railgun-community/shared-models';
+import { NetworkName } from '@railgun-community/shared-models';
 
 import { useWallet } from '../contexts/WalletContext';
 import { getTokensForChain } from '../constants/tokens';
@@ -155,6 +155,19 @@ const useBalances = () => {
     }
   }, [railgunWalletId, formatBalance]);
 
+  // Get network configuration from chain ID
+  const getNetworkFromChainId = useCallback((chainId) => {
+    switch (chainId) {
+      case 1: return { type: NetworkName.Ethereum, id: 1 };
+      case 137: return { type: NetworkName.Polygon, id: 137 };
+      case 42161: return { type: NetworkName.Arbitrum, id: 42161 };
+      case 10: return { type: NetworkName.Optimism, id: 10 };
+      case 56: return { type: NetworkName.BNBChain, id: 56 };
+      case 11155111: return { type: NetworkName.EthereumSepolia_DEPRECATED, id: 11155111 };
+      default: return null;
+    }
+  }, []);
+
   // Refresh private balances manually
   const refreshPrivateBalances = useCallback(async () => {
     if (!canUseRailgun || !railgunWalletId || !chainId) return;
@@ -167,24 +180,22 @@ const useBalances = () => {
       await waitForRailgunReady();
       
       // Get the chain config for Railgun
-      const chainConfig = Object.values(NETWORK_CONFIG).find(config => 
-        config.chain.id === chainId
-      );
+      const chainConfig = getNetworkFromChainId(chainId);
 
       if (!chainConfig) {
         throw new Error(`Unsupported chain ID: ${chainId}`);
       }
 
-      console.log('[useBalances] Refreshing private balances for chain:', chainConfig.chain.type);
+      console.log('[useBalances] Refreshing private balances for chain:', chainConfig.type);
       
-      await refreshBalances(chainConfig.chain, [railgunWalletId]);
+      await refreshBalances(chainConfig, [railgunWalletId]);
       console.log('[useBalances] Private balance refresh initiated');
     } catch (error) {
       console.error('[useBalances] Error refreshing private balances:', error);
       setBalanceErrors(prev => ({ ...prev, private: error.message }));
       setIsLoadingPrivate(false);
     }
-  }, [canUseRailgun, railgunWalletId, chainId]);
+  }, [canUseRailgun, railgunWalletId, chainId, getNetworkFromChainId]);
 
   // Set up Railgun balance callback
   useEffect(() => {

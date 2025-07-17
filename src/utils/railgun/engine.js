@@ -139,12 +139,23 @@ export const loadNetworkProvider = async (networkName, chainId, rpcUrl, pollingI
 
   try {
     console.log(`[Railgun] Loading provider for ${networkName} (Chain ID: ${chainId})`);
+    console.log(`[Railgun] RPC URL: ${rpcUrl}`);
+
+    // Check if RPC URL is valid
+    if (!rpcUrl || rpcUrl.includes('undefined') || rpcUrl.includes('demo')) {
+      console.warn(`[Railgun] Skipping ${networkName} - invalid or demo RPC URL: ${rpcUrl}`);
+      return { success: false, error: 'Invalid RPC URL' };
+    }
 
     const providerConfig = {
       chainId,
       providers: [
-        { provider: rpcUrl, priority: 1, weight: 1 },
-      ]
+        {
+          provider: rpcUrl,
+          priority: 1,
+          weight: 1,
+        },
+      ],
     };
 
     const { feesSerialized } = await loadProvider(

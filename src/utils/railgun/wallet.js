@@ -400,10 +400,16 @@ const generateDeterministicMnemonic = (userAddress, chainId) => {
     // Create deterministic seed from user address and chain
     const seed = `${userAddress.toLowerCase()}-${chainId}-lexie-railgun`;
     
-    // Use ethers HDNode to create deterministic wallet
-    const hdNode = ethers.HDNodeWallet.fromSeed(ethers.id(seed));
+    // Create a hash of the seed to use as entropy
+    const hash = ethers.id(seed);
     
-    return hdNode.mnemonic.phrase;
+    // Convert hash to bytes for entropy (32 bytes = 256 bits)
+    const entropy = ethers.getBytes(hash);
+    
+    // Generate mnemonic from entropy
+    const mnemonic = ethers.Mnemonic.fromEntropy(entropy);
+    
+    return mnemonic.phrase;
   } catch (error) {
     console.error('[RailgunWallet] Failed to generate deterministic mnemonic:', error);
     throw new Error('Failed to generate deterministic mnemonic');
