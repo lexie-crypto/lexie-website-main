@@ -4,19 +4,36 @@
  */
 
 import { formatUnits, parseUnits, getAddress } from 'ethers';
+import { 
+  gasEstimateForShield,
+  generateShieldTransaction,
+  populateShield,
+  gasEstimateForUnprovenUnshield,
+  generateUnshieldProof,
+  populateProvedUnshield,
+  gasEstimateForUnprovenTransfer,
+  generateTransferProof,
+  populateProvedTransfer,
+} from '@railgun-community/wallet';
+import { NetworkName } from '@railgun-community/shared-models';
 import { waitForRailgunReady } from './engine.js';
 import { getTokensForChain } from '../../constants/tokens.js';
 import { deriveEncryptionKey } from './wallet.js';
 
-// NOTE: The Railgun SDK imports need to be corrected based on the actual API
-// These are placeholder implementations to prevent crashes
-const railgunSDKPlaceholder = {
-  // Placeholder implementations for testing - these should be replaced with actual Railgun SDK calls
-  estimateGas: async () => ({ gasLimit: BigInt(300000), gasPrice: BigInt(20000000000) }),
-  shield: async () => ({ success: false, error: 'Railgun SDK functions need proper implementation' }),
-  unshield: async () => ({ success: false, error: 'Railgun SDK functions need proper implementation' }),
-  transfer: async () => ({ success: false, error: 'Railgun SDK functions need proper implementation' }),
-  generateProof: async () => ({ success: false, error: 'Railgun SDK functions need proper implementation' }),
+// Helper to convert chain config to NetworkName
+const getNetworkNameFromChainId = (chainId) => {
+  switch (chainId) {
+    case 1:
+      return NetworkName.Ethereum;
+    case 137:
+      return NetworkName.Polygon;
+    case 42161:
+      return NetworkName.Arbitrum;
+    case 56:
+      return NetworkName.BNBChain;
+    default:
+      throw new Error(`Unsupported chain ID: ${chainId}`);
+  }
 };
 
 /**
@@ -40,26 +57,53 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
 
     await waitForRailgunReady();
 
+    // Convert chain ID to NetworkName
+    const networkName = getNetworkNameFromChainId(chain.id);
+
+    // Prepare ERC20 amount object
+    const erc20AmountRecipient = {
+      tokenAddress: tokenAddress === '0x0000000000000000000000000000000000000000' ? undefined : tokenAddress,
+      amount: amount,
+      recipientAddress: undefined, // Shield to wallet, no specific recipient
+    };
+
     // Generate proper encryption key from user address
     const properEncryptionKey = await deriveEncryptionKey(fromAddress, chain.id);
     
-    // Use placeholder implementation for now
-    const result = await railgunSDKPlaceholder.shield({
-      walletId: railgunWalletID,
-      encryptionKey: properEncryptionKey,
-      tokenAddress,
-      amount,
-      chain,
+    // Get gas estimate first
+    const gasDetails = await gasEstimateForShield(
+      networkName,
+      railgunWalletID,
+      properEncryptionKey,
+      [erc20AmountRecipient], // erc20AmountRecipients
+      [], // nftAmountRecipients
       fromAddress,
-    });
+    );
 
-    console.log('[RailgunActions] Shield result:', result);
-    
-    if (!result.success) {
-      throw new Error(result.error || 'Shield operation failed');
+    console.log('[RailgunActions] Gas estimate:', gasDetails);
+
+    // Generate shield transaction
+    const shieldTxResult = await generateShieldTransaction(
+      networkName,
+      railgunWalletID,
+      properEncryptionKey,
+      [erc20AmountRecipient], // erc20AmountRecipients  
+      [], // nftAmountRecipients
+      fromAddress,
+    );
+
+    console.log('[RailgunActions] Shield transaction generated:', shieldTxResult);
+
+    if (!shieldTxResult.transaction) {
+      throw new Error('Failed to generate shield transaction');
     }
 
-    return { success: true, txResult: result };
+    return { 
+      success: true, 
+      transaction: shieldTxResult.transaction,
+      gasEstimate: gasDetails 
+    };
+
   } catch (error) {
     console.error('[RailgunActions] Shield failed:', error);
     throw new Error(`Shield failed: ${error.message}`);
@@ -87,26 +131,61 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
 
     await waitForRailgunReady();
 
+    // Convert chain ID to NetworkName
+    const networkName = getNetworkNameFromChainId(chain.id);
+
     // Generate proper encryption key
     const properEncryptionKey = await deriveEncryptionKey(toAddress, chain.id);
 
-    // Use placeholder implementation
-    const result = await railgunSDKPlaceholder.unshield({
-      walletId: railgunWalletID,
-      encryptionKey: properEncryptionKey,
-      tokenAddress,
-      amount,
-      chain,
-      toAddress,
-    });
+    // Prepare ERC20 amount recipient for unshield
+    const erc20AmountRecipient = {
+      tokenAddress: tokenAddress === '0x0000000000000000000000000000000000000000' ? undefined : tokenAddress,
+      amount: amount,
+      recipientAddress: toAddress,
+    };
 
-    console.log('[RailgunActions] Unshield result:', result);
-    
-    if (!result.success) {
-      throw new Error(result.error || 'Unshield operation failed');
+    // Get gas estimate
+    const gasDetails = await gasEstimateForUnprovenUnshield(
+      networkName,
+      railgunWalletID,
+      properEncryptionKey,
+      [erc20AmountRecipient], // erc20AmountRecipients
+      [], // nftAmountRecipients
+    );
+
+    console.log('[RailgunActions] Unshield gas estimate:', gasDetails);
+
+    // Generate unshield proof
+    const proofResult = await generateUnshieldProof(
+      networkName,
+      railgunWalletID,
+      properEncryptionKey,
+      [erc20AmountRecipient], // erc20AmountRecipients
+      [], // nftAmountRecipients
+    );
+
+    console.log('[RailgunActions] Unshield proof generated:', proofResult);
+
+    // Populate the proved unshield transaction
+    const populatedResult = await populateProvedUnshield(
+      networkName,
+      railgunWalletID,
+      [erc20AmountRecipient], // erc20AmountRecipients
+      [], // nftAmountRecipients
+    );
+
+    console.log('[RailgunActions] Unshield transaction populated:', populatedResult);
+
+    if (!populatedResult.transaction) {
+      throw new Error('Failed to populate unshield transaction');
     }
 
-    return { success: true, txResult: result };
+    return { 
+      success: true, 
+      transaction: populatedResult.transaction,
+      gasEstimate: gasDetails 
+    };
+
   } catch (error) {
     console.error('[RailgunActions] Unshield failed:', error);
     throw new Error(`Unshield failed: ${error.message}`);
@@ -135,26 +214,64 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, tokenAddre
 
     await waitForRailgunReady();
 
+    // Convert chain ID to NetworkName
+    const networkName = getNetworkNameFromChainId(chain.id);
+
     // Generate proper encryption key
     const properEncryptionKey = await deriveEncryptionKey(fromAddress, chain.id);
 
-    // Use placeholder implementation
-    const result = await railgunSDKPlaceholder.transfer({
-      walletId: railgunWalletID,
-      encryptionKey: properEncryptionKey,
-      tokenAddress,
-      amount,
-      chain,
-      toRailgunAddress,
-    });
+    // Prepare ERC20 amount recipient for private transfer
+    const erc20AmountRecipient = {
+      tokenAddress: tokenAddress === '0x0000000000000000000000000000000000000000' ? undefined : tokenAddress,
+      amount: amount,
+      recipientAddress: toRailgunAddress,
+    };
 
-    console.log('[RailgunActions] Private transfer result:', result);
-    
-    if (!result.success) {
-      throw new Error(result.error || 'Private transfer failed');
+    // Get gas estimate
+    const gasDetails = await gasEstimateForUnprovenTransfer(
+      networkName,
+      railgunWalletID,
+      properEncryptionKey,
+      [], // memoText (optional)
+      [erc20AmountRecipient], // erc20AmountRecipients
+      [], // nftAmountRecipients
+    );
+
+    console.log('[RailgunActions] Transfer gas estimate:', gasDetails);
+
+    // Generate transfer proof
+    const proofResult = await generateTransferProof(
+      networkName,
+      railgunWalletID,
+      properEncryptionKey,
+      [], // memoText (optional)
+      [erc20AmountRecipient], // erc20AmountRecipients
+      [], // nftAmountRecipients
+    );
+
+    console.log('[RailgunActions] Transfer proof generated:', proofResult);
+
+    // Populate the proved transfer transaction
+    const populatedResult = await populateProvedTransfer(
+      networkName,
+      railgunWalletID,
+      [], // memoText (optional)
+      [erc20AmountRecipient], // erc20AmountRecipients
+      [], // nftAmountRecipients
+    );
+
+    console.log('[RailgunActions] Transfer transaction populated:', populatedResult);
+
+    if (!populatedResult.transaction) {
+      throw new Error('Failed to populate transfer transaction');
     }
 
-    return { success: true, txResult: result };
+    return { 
+      success: true, 
+      transaction: populatedResult.transaction,
+      gasEstimate: gasDetails 
+    };
+
   } catch (error) {
     console.error('[RailgunActions] Private transfer failed:', error);
     throw new Error(`Private transfer failed: ${error.message}`);
@@ -341,21 +458,27 @@ export const isTokenSupportedByRailgun = (tokenAddress, chainId) => {
  * Placeholder gas estimation function
  * @returns {Object} Gas details with fallback values
  */
-export const estimateShieldGas = async () => {
+export const estimateShieldGas = async (networkName, railgunWalletID, encryptionKey, erc20AmountRecipients, nftAmountRecipients, fromAddress) => {
   try {
-    console.log('[RailgunActions] Using fallback gas estimation');
+    console.log('[RailgunActions] Estimating shield gas');
     
-    // Fallback gas details - should be replaced with actual Railgun gas estimation
+    // Use actual Railgun gas estimation
+    const gasDetails = await gasEstimateForShield(
+      networkName,
+      railgunWalletID,
+      encryptionKey,
+      erc20AmountRecipients,
+      nftAmountRecipients,
+      fromAddress,
+    );
+    
+    return gasDetails;
+  } catch (error) {
+    console.warn('[RailgunActions] Shield gas estimation failed, using hardcoded fallback:', error.message);
+    
     return {
       gasLimit: BigInt(300000), // 300k gas limit fallback
       gasPrice: BigInt(20000000000), // 20 gwei fallback
-    };
-  } catch (error) {
-    console.warn('[RailgunActions] Gas estimation failed, using hardcoded fallback:', error.message);
-    
-    return {
-      gasLimit: BigInt(300000),
-      gasPrice: BigInt(20000000000),
     };
   }
 };
@@ -364,20 +487,26 @@ export const estimateShieldGas = async () => {
  * Placeholder gas estimation for unshield operations
  * @returns {Object} Gas details with fallback values
  */
-export const estimateUnshieldGas = async () => {
+export const estimateUnshieldGas = async (networkName, railgunWalletID, encryptionKey, erc20AmountRecipients, nftAmountRecipients) => {
   try {
-    console.log('[RailgunActions] Using fallback unshield gas estimation');
+    console.log('[RailgunActions] Estimating unshield gas');
     
-    return {
-      gasLimit: BigInt(350000), // 350k gas limit for unshield
-      gasPrice: BigInt(20000000000), // 20 gwei fallback
-    };
+    // Use actual Railgun gas estimation
+    const gasDetails = await gasEstimateForUnprovenUnshield(
+      networkName,
+      railgunWalletID,
+      encryptionKey,
+      erc20AmountRecipients,
+      nftAmountRecipients,
+    );
+    
+    return gasDetails;
   } catch (error) {
     console.warn('[RailgunActions] Unshield gas estimation failed:', error.message);
     
     return {
-      gasLimit: BigInt(350000),
-      gasPrice: BigInt(20000000000),
+      gasLimit: BigInt(350000), // 350k gas limit for unshield
+      gasPrice: BigInt(20000000000), // 20 gwei fallback
     };
   }
 };
