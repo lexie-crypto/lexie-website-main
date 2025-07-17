@@ -484,15 +484,15 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
         }
       });
       
-      console.log('[RailgunActions] About to call gasEstimateForShield...');
+      console.log('[RailgunActions] About to call gasEstimateForShield WITHOUT feeTokenDetails to debug...');
       gasDetails = await gasEstimateForShield(
         networkName,
         railgunWalletID,
         encryptionKey,
         erc20AmountRecipients,
         nftAmountRecipients,
-        fromAddress,
-        feeTokenDetails // ✅ CRITICAL: Add fee token details to prevent 'chain' property error
+        fromAddress
+        // TEMPORARILY REMOVED feeTokenDetails to debug parameter order
       );
       console.log('[RailgunActions] Gas estimation successful:', gasDetails);
     } catch (sdkError) {
@@ -1008,8 +1008,8 @@ export const estimateShieldGas = async (networkName, railgunWalletID, encryption
       encryptionKey,
       safeErc20Recipients,
       safeNftRecipients,
-      fromAddress,
-      feeTokenDetails // ✅ CRITICAL: Add fee token details to prevent 'chain' property error
+      fromAddress
+      // TEMPORARILY REMOVED feeTokenDetails to debug parameter order
     );
     
     return gasDetails;
