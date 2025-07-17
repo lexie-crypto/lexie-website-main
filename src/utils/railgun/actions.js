@@ -1,6 +1,37 @@
 /**
  * Railgun Privacy Actions
  * Implements Shield, Transfer, and Unshield operations using the Railgun SDK
+ * 
+ * SHIELD OPERATION FLOW (Fixed):
+ * ===============================
+ * The Railgun SDK requires a 3-step process for shield operations:
+ * 
+ * 1. Gas Estimation: gasEstimateForShield
+ *    - Parameters: networkName, railgunWalletID, encryptionKey, erc20AmountRecipients, nftAmountRecipients, fromAddress
+ * 
+ * 2. Transaction Generation: generateShieldTransaction  
+ *    - Parameters: networkName, railgunWalletID, encryptionKey, erc20AmountRecipients, nftAmountRecipients, fromAddress
+ *    - Returns: { transaction, shieldPrivateKey }
+ * 
+ * 3. Transaction Population: populateShield (THIS WAS MISSING!)
+ *    - Parameters: networkName, railgunWalletID, erc20AmountRecipients, nftAmountRecipients, shieldPrivateKey
+ *    - Returns: { transaction } (final ready-to-broadcast transaction)
+ * 
+ * REQUIRED PARAMETERS FOR SHIELD:
+ * ================================
+ * - railgunWalletID: String (Railgun wallet identifier)
+ * - encryptionKey: String (minimum 32 characters, wallet encryption key)
+ * - tokenAddress: String (ERC20 contract address, or '0x0000000000000000000000000000000000000000' for native)
+ * - amount: String (amount in token's smallest units)
+ * - chain: Object ({ type: string, id: number })
+ * - fromAddress: String (EOA address sending tokens)
+ * - railgunAddress: String (Railgun address receiving shielded tokens)
+ * 
+ * UNSHIELD & TRANSFER OPERATIONS:
+ * ===============================
+ * These were already correctly implemented with proper 3-step flows:
+ * - Unshield: gasEstimateForUnprovenUnshield → generateUnshieldProof → populateProvedUnshield
+ * - Transfer: gasEstimateForUnprovenTransfer → generateTransferProof → populateProvedTransfer
  */
 
 import { formatUnits, parseUnits, getAddress } from 'ethers';
@@ -49,23 +80,44 @@ const getNetworkNameFromChainId = (chainId) => {
  */
 export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress, amount, chain, fromAddress, railgunAddress) => {
   try {
-    console.log('[RailgunActions] Shielding tokens:', {
+    console.log('[RailgunActions] Shielding tokens with parameters:', {
+      railgunWalletID: railgunWalletID ? `${railgunWalletID.slice(0, 8)}...` : 'MISSING',
+      hasEncryptionKey: !!encryptionKey,
+      encryptionKeyLength: encryptionKey ? encryptionKey.length : 0,
       tokenAddress,
       amount,
-      chain: chain.type,
-      from: fromAddress,
-      to: railgunAddress,
+      chain: chain?.type,
+      chainId: chain?.id,
+      fromAddress,
+      railgunAddress: railgunAddress ? `${railgunAddress.slice(0, 8)}...` : 'MISSING',
     });
 
-    // Validate required parameters
-    if (!railgunWalletID || !encryptionKey || !tokenAddress || !amount || !chain || !fromAddress || !railgunAddress) {
-      throw new Error('Missing required parameters for shield operation');
+    // Enhanced parameter validation with detailed logging
+    const missingParams = [];
+    if (!railgunWalletID) missingParams.push('railgunWalletID');
+    if (!encryptionKey) missingParams.push('encryptionKey');
+    if (!tokenAddress) missingParams.push('tokenAddress');
+    if (!amount) missingParams.push('amount');
+    if (!chain) missingParams.push('chain');
+    if (!fromAddress) missingParams.push('fromAddress');
+    if (!railgunAddress) missingParams.push('railgunAddress');
+
+    if (missingParams.length > 0) {
+      console.error('[RailgunActions] Missing required parameters:', missingParams);
+      throw new Error(`Missing required parameters for shield operation: ${missingParams.join(', ')}`);
+    }
+
+    // Validate encryption key format
+    if (encryptionKey.length < 32) {
+      console.error('[RailgunActions] Invalid encryption key length:', encryptionKey.length);
+      throw new Error('Encryption key must be at least 32 characters');
     }
 
     await waitForRailgunReady();
 
     // Convert chain ID to NetworkName
     const networkName = getNetworkNameFromChainId(chain.id);
+    console.log('[RailgunActions] Using network:', networkName);
 
     // Prepare ERC20 amount object - for shield operations, we need to specify the Railgun address as recipient
     const erc20AmountRecipient = {
@@ -78,47 +130,83 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
     const erc20AmountRecipients = [erc20AmountRecipient];
     const nftAmountRecipients = []; // Empty array, never null
     
-    console.log('[RailgunActions] Prepared recipients:', {
-      erc20AmountRecipients,
-      nftAmountRecipients
+    console.log('[RailgunActions] Prepared recipients for shield:', {
+      erc20AmountRecipients: erc20AmountRecipients.map(r => ({
+        tokenAddress: r.tokenAddress,
+        amount: r.amount,
+        recipientAddress: r.recipientAddress ? `${r.recipientAddress.slice(0, 8)}...` : 'MISSING'
+      })),
+      nftAmountRecipientsCount: nftAmountRecipients.length
     });
     
-    // Get gas estimate first
+    // Step 1: Get gas estimate first
+    console.log('[RailgunActions] Step 1: Getting gas estimate...');
     const gasDetails = await gasEstimateForShield(
       networkName,
       railgunWalletID,
-      encryptionKey, // Use the provided encryption key directly
+      encryptionKey,
       erc20AmountRecipients,
       nftAmountRecipients,
       fromAddress,
     );
 
-    console.log('[RailgunActions] Gas estimate:', gasDetails);
+    console.log('[RailgunActions] Gas estimate completed:', gasDetails);
 
-    // Generate shield transaction
+    // Step 2: Generate shield transaction
+    console.log('[RailgunActions] Step 2: Generating shield transaction...');
     const shieldTxResult = await generateShieldTransaction(
       networkName,
       railgunWalletID,
-      encryptionKey, // Use the provided encryption key directly  
+      encryptionKey,
       erc20AmountRecipients,
       nftAmountRecipients,
       fromAddress,
     );
 
-    console.log('[RailgunActions] Shield transaction generated:', shieldTxResult);
+    console.log('[RailgunActions] Shield transaction generated:', {
+      hasTransaction: !!shieldTxResult?.transaction,
+      hasShieldPrivateKey: !!shieldTxResult?.shieldPrivateKey,
+      shieldTxResult: shieldTxResult
+    });
 
     if (!shieldTxResult || !shieldTxResult.transaction) {
       throw new Error('Failed to generate shield transaction');
     }
 
+    // Step 3: Populate shield transaction (the missing step!)
+    console.log('[RailgunActions] Step 3: Populating shield transaction...');
+    const populatedResult = await populateShield(
+      networkName,
+      railgunWalletID,
+      erc20AmountRecipients,
+      nftAmountRecipients,
+      shieldTxResult.shieldPrivateKey, // Use the shield private key from generateShieldTransaction
+    );
+
+    console.log('[RailgunActions] Shield transaction populated:', populatedResult);
+
+    if (!populatedResult || !populatedResult.transaction) {
+      throw new Error('Failed to populate shield transaction');
+    }
+
     return { 
       success: true, 
-      transaction: shieldTxResult.transaction,
-      gasEstimate: gasDetails 
+      transaction: populatedResult.transaction,
+      gasEstimate: gasDetails,
+      shieldPrivateKey: shieldTxResult.shieldPrivateKey // Include for potential future use
     };
 
   } catch (error) {
-    console.error('[RailgunActions] Shield failed:', error);
+    console.error('[RailgunActions] Shield failed with detailed error:', {
+      errorMessage: error.message,
+      errorStack: error.stack,
+      railgunWalletID: railgunWalletID ? `${railgunWalletID.slice(0, 8)}...` : 'MISSING',
+      hasEncryptionKey: !!encryptionKey,
+      tokenAddress,
+      amount,
+      fromAddress,
+      railgunAddress: railgunAddress ? `${railgunAddress.slice(0, 8)}...` : 'MISSING'
+    });
     throw new Error(`Shield failed: ${error.message}`);
   }
 };
