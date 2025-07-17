@@ -1,4 +1,4 @@
-# Lexie Website 12 BILLION BABY
+# Lexie Website 12 BILLIONAIRE BABY
 
 Landing page for Lexie, an AI companion for the world of Web3.
 
