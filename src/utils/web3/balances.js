@@ -7,7 +7,7 @@ import { ethers, formatUnits, Contract } from 'ethers';
 import { getAccount, getPublicClient } from '@wagmi/core';
 import { createPublicClient, http } from 'viem';
 
-import { getTokensForChain } from '../constants/tokens.js';
+import { getTokensForChain } from '../../constants/tokens.js';
 import { RPC_URLS } from '../../config/environment.js';
 
 // Standard ERC20 ABI for balance checking

@@ -15,7 +15,7 @@ import {
 import { formatUnits, parseUnits, getAddress } from 'ethers';
 
 import { waitForRailgunReady } from './engine.js';
-import { getTokensForChain } from '../constants/tokens.js';
+import { getTokensForChain } from '../../constants/tokens.js';
 
 /**
  * Shield ERC20 tokens into Railgun (Public → Private)
