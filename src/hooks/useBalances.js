@@ -295,6 +295,7 @@ const useBalances = () => {
       return;
     }
 
+    console.log(`[useBalances] Starting private balance refresh (attempt ${retryAttempts + 1}/4)`);
     setIsLoadingPrivate(true);
     setBalanceErrors(prev => ({ ...prev, private: null }));
 
@@ -312,41 +313,45 @@ const useBalances = () => {
       console.log('[useBalances] Refreshing private balances for chain:', chainConfig.type);
       
       await refreshBalances(chainConfig, [railgunWalletId]);
-      console.log('[useBalances] Private balance refresh initiated');
+      console.log('[useBalances] Private balance refresh initiated successfully');
+      
+      // ✅ IMPROVED RETRY LOGIC - Always complete loading state management
+      setIsLoadingPrivate(false);
       
       // Only set up retry timer if this is the initial attempt (not a retry)
       if (retryAttempts === 0) {
-        // Check for balance update after 10 seconds
+        // Check for balance update after 8 seconds (reduced from 10)
         const timeoutId = setTimeout(() => {
+          // Re-check conditions to prevent stale retries
+          if (!canUseRailgun || !railgunWalletId) {
+            console.log('[useBalances] Railgun disconnected during retry timer, stopping');
+            setRetryAttempts(0);
+            return;
+          }
+          
           // Only retry if we still have no private balances and haven't exceeded max attempts
           const hasNoBalances = Object.keys(privateBalances).length === 0;
-          const canRetry = retryAttempts < 3;
+          const canRetry = retryAttempts < 2; // Reduced to 2 attempts total
           const isStillConnected = canUseRailgun && railgunWalletId;
           
           if (hasNoBalances && canRetry && isStillConnected) {
-            console.log(`[useBalances] No balance data received, retrying... (attempt ${retryAttempts + 1}/3)`);
+            console.log(`[useBalances] No balance data received, retrying... (attempt ${retryAttempts + 2}/3)`);
             setRetryAttempts(prev => prev + 1);
             refreshPrivateBalances();
           } else if (!hasNoBalances) {
             console.log('[useBalances] Private balances found, stopping retry attempts');
             setRetryAttempts(0);
-            setIsLoadingPrivate(false);
           } else if (!isStillConnected) {
             console.log('[useBalances] Railgun disconnected, stopping retry attempts');
             setRetryAttempts(0);
-            setIsLoadingPrivate(false);
           } else {
             console.log('[useBalances] Max retry attempts reached or conditions changed, stopping');
-            setIsLoadingPrivate(false);
             setRetryAttempts(0);
           }
-        }, 10000);
+        }, 8000); // Reduced timeout
         
         // Store timeout ID to clear it if component unmounts or conditions change
         return () => clearTimeout(timeoutId);
-      } else {
-        // For retries, don't setup another timer, just complete
-        setIsLoadingPrivate(false);
       }
       
     } catch (error) {
@@ -355,12 +360,18 @@ const useBalances = () => {
       setIsLoadingPrivate(false);
       
       // Only retry on error if we haven't exceeded max attempts and are still connected
-      if (retryAttempts < 3 && canUseRailgun && railgunWalletId) {
-        console.log(`[useBalances] Retrying balance refresh after error (attempt ${retryAttempts + 1}/3)`);
+      if (retryAttempts < 2 && canUseRailgun && railgunWalletId) { // Reduced max attempts
+        console.log(`[useBalances] Retrying balance refresh after error (attempt ${retryAttempts + 2}/3)`);
         const timeoutId = setTimeout(() => {
-          setRetryAttempts(prev => prev + 1);
-          refreshPrivateBalances();
-        }, 5000);
+          // Re-check connection state before retry
+          if (canUseRailgun && railgunWalletId) {
+            setRetryAttempts(prev => prev + 1);
+            refreshPrivateBalances();
+          } else {
+            console.log('[useBalances] Connection lost during error retry, stopping');
+            setRetryAttempts(0);
+          }
+        }, 3000); // Shorter retry delay for errors
         
         return () => clearTimeout(timeoutId);
       } else {

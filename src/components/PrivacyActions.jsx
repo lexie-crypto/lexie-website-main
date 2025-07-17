@@ -155,14 +155,23 @@ const PrivacyActions = () => {
     try {
       setIsProcessing(true);
       
+      // ✅ COMPREHENSIVE VALIDATION GUARDS (as requested)
+      if (!token || !token.address || !token.symbol || !token.decimals) {
+        toast.error('Invalid token data for shielding.');
+        console.error('[PrivacyActions] Invalid token object:', token);
+        return;
+      }
+
       // Validate amount
-      if (!amount || parseFloat(amount) <= 0) {
-        throw new Error('Please enter a valid amount');
+      if (!amount || parseFloat(amount) <= 0 || isNaN(parseFloat(amount))) {
+        toast.error('Please enter a valid amount');
+        return;
       }
 
       // Validate token is supported
       if (!isTokenSupportedByRailgun(token.address, chainId)) {
-        throw new Error(`${token.symbol} is not supported by Railgun on this network`);
+        toast.error(`${token.symbol} is not supported by Railgun on this network`);
+        return;
       }
 
       // Check sufficient balance
@@ -170,25 +179,97 @@ const PrivacyActions = () => {
       const availableBalance = token.numericBalance || 0;
       
       if (numericAmount > availableBalance) {
-        throw new Error(`Insufficient balance. Available: ${token.formattedBalance} ${token.symbol}`);
+        toast.error(`Insufficient balance. Available: ${token.formattedBalance} ${token.symbol}`);
+        return;
       }
 
-      // Parse amount to smallest units
-      const amountInUnits = parseTokenAmount(amount, token.decimals);
+      // Parse amount to smallest units with comprehensive validation
+      let amountInUnits;
+      try {
+        amountInUnits = parseTokenAmount(amount, token.decimals);
+        
+        // ✅ VALIDATE amountInUnits as requested
+        if (!amountInUnits || isNaN(amountInUnits) || amountInUnits === '0') {
+          toast.error('Invalid token or amount for shielding.');
+          console.error('[PrivacyActions] Invalid amountInUnits:', {
+            original: amount,
+            parsed: amountInUnits,
+            decimals: token.decimals
+          });
+          return;
+        }
+        
+        // ✅ CONSOLE LOG as requested
+        console.log('Amount in units:', amountInUnits);
+        
+      } catch (error) {
+        toast.error('Failed to parse token amount. Please check your input.');
+        console.error('[PrivacyActions] parseTokenAmount failed:', error);
+        return;
+      }
+
+      // Validate required parameters before SDK call
+      if (!railgunWalletId || !railgunAddress || !address || !chainId) {
+        toast.error('Missing required wallet information for shielding.');
+        console.error('[PrivacyActions] Missing required params:', {
+          railgunWalletId: !!railgunWalletId,
+          railgunAddress: !!railgunAddress,
+          address: !!address,
+          chainId: !!chainId
+        });
+        return;
+      }
 
       // Get chain configuration
       const chainConfig = { type: network.name.toLowerCase(), id: chainId };
+      if (!chainConfig.type || !chainConfig.id) {
+        toast.error('Invalid network configuration.');
+        return;
+      }
 
       // Get encryption key
-      const key = await getEncryptionKey();
+      let key;
+      try {
+        key = await getEncryptionKey();
+        if (!key || key.length < 32) {
+          throw new Error('Invalid encryption key generated');
+        }
+      } catch (error) {
+        toast.error('Failed to generate encryption key.');
+        console.error('[PrivacyActions] Encryption key error:', error);
+        return;
+      }
 
-      // Execute shield operation
-      console.log('[PrivacyActions] Starting shield operation:', {
-        token: token.symbol,
-        amount,
-        amountInUnits: amountInUnits.toString(),
-        from: address,
-        to: railgunAddress
+      // ✅ FINAL GUARD BEFORE SDK CALL (as requested)
+      if (!token || !token.address || !amountInUnits || isNaN(amountInUnits)) {
+        toast.error('Invalid token or amount for shielding.');
+        console.error('[PrivacyActions] Final validation failed:', {
+          hasToken: !!token,
+          hasTokenAddress: !!(token && token.address),
+          amountInUnits,
+          isValidAmount: !isNaN(amountInUnits)
+        });
+        return;
+      }
+
+      // Execute shield operation with comprehensive logging
+      console.log('[PrivacyActions] Starting shield operation with validated parameters:', {
+        token: {
+          symbol: token.symbol,
+          address: token.address,
+          decimals: token.decimals
+        },
+        amount: {
+          original: amount,
+          parsed: amountInUnits,
+          numeric: numericAmount
+        },
+        addresses: {
+          from: address,
+          to: railgunAddress,
+          railgunWalletId
+        },
+        chain: chainConfig
       });
       
       toast.loading(`Shielding ${amount} ${token.symbol}...`, { duration: 0 });
@@ -214,13 +295,26 @@ const PrivacyActions = () => {
         [token.symbol]: ''
       }));
       
-      // Refresh balances
-      await refreshAllBalances();
+      // Refresh balances - ensure this happens even if there are errors
+      try {
+        await refreshAllBalances();
+      } catch (refreshError) {
+        console.warn('[PrivacyActions] Balance refresh failed after shield:', refreshError);
+        // Don't show error to user since shield succeeded
+      }
       
     } catch (error) {
       console.error('[PrivacyActions] Shield failed:', error);
       toast.dismiss();
       toast.error(`❌ Shield failed: ${error.message}`, { duration: 8000 });
+      
+      // ✅ ENSURE BALANCE REFRESH HAPPENS EVEN ON ERROR (to fix retry loop)
+      try {
+        await refreshAllBalances();
+      } catch (refreshError) {
+        console.warn('[PrivacyActions] Balance refresh failed after error:', refreshError);
+      }
+      
     } finally {
       setIsProcessing(false);
     }

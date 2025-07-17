@@ -436,10 +436,39 @@ export const getShieldableTokens = async (address, chainId) => {
  */
 export const parseTokenAmount = (amount, decimals = 18) => {
   try {
-    if (!amount || amount === '0') return '0';
-    return parseUnits(amount, decimals).toString();
+    // Enhanced validation
+    if (!amount || amount === '0' || amount === '' || isNaN(parseFloat(amount))) {
+      return '0';
+    }
+    
+    // Validate decimals
+    if (typeof decimals !== 'number' || decimals < 0 || decimals > 77) {
+      console.warn('[RailgunActions] Invalid decimals, using default 18:', decimals);
+      decimals = 18;
+    }
+    
+    // Parse using ethers
+    const result = parseUnits(amount.toString(), decimals);
+    
+    // Ensure result is valid
+    if (!result || result.toString() === 'NaN') {
+      throw new Error(`Failed to parse amount: ${amount} with decimals: ${decimals}`);
+    }
+    
+    const resultString = result.toString();
+    console.log('[RailgunActions] parseTokenAmount result:', {
+      input: amount,
+      decimals,
+      output: resultString
+    });
+    
+    return resultString;
   } catch (error) {
-    console.error('[RailgunActions] Error parsing amount:', error);
+    console.error('[RailgunActions] Error parsing amount:', {
+      amount,
+      decimals,
+      error: error.message
+    });
     throw new Error(`Invalid amount: ${amount}`);
   }
 };
