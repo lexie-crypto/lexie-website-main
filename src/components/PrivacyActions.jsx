@@ -367,7 +367,7 @@ const PrivacyActions = () => {
         [token.symbol]: ''
       }));
       
-      // Refresh balances - ensure this happens even if there are errors
+      // Only refresh balances on SUCCESS to avoid retry loops
       try {
         await refreshAllBalances();
       } catch (refreshError) {
@@ -380,12 +380,8 @@ const PrivacyActions = () => {
       toast.dismiss();
       toast.error(`❌ Shield failed: ${error.message}`, { duration: 8000 });
       
-      // ✅ ENSURE BALANCE REFRESH HAPPENS EVEN ON ERROR (to fix retry loop)
-      try {
-        await refreshAllBalances();
-      } catch (refreshError) {
-        console.warn('[PrivacyActions] Balance refresh failed after error:', refreshError);
-      }
+      // DO NOT REFRESH BALANCES ON ERROR - this causes infinite API calls!
+      console.log('[PrivacyActions] Skipping balance refresh on error to prevent API token burn');
       
     } finally {
       setIsProcessing(false);
