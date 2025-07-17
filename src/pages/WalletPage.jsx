@@ -21,12 +21,13 @@ import {
 import { useWallet } from '../contexts/WalletContext';
 import useBalances from '../hooks/useBalances';
 import PrivacyActions from '../components/PrivacyActions';
-import { 
-  shieldTokens, 
-  parseTokenAmount, 
-  isTokenSupportedByRailgun 
+import {
+  shieldTokens,
+  parseTokenAmount,
+  isTokenSupportedByRailgun,
+  getShieldableTokens,
 } from '../utils/railgun/actions';
-import { checkSufficientBalance, getShieldableTokens } from '../utils/web3/balances';
+import { checkSufficientBalance } from '../utils/web3/balances';
 import { deriveEncryptionKey } from '../utils/railgun/wallet';
 
 const WalletPage = () => {
@@ -141,7 +142,8 @@ const WalletPage = () => {
         token.address,
         amountInUnits,
         chainConfig,
-        address
+        address,
+        railgunAddress
       );
 
       toast.dismiss();
@@ -216,7 +218,8 @@ const WalletPage = () => {
         key,
         tokensToShield,
         chainConfig,
-        address
+        address,
+        railgunAddress
       );
 
       toast.dismiss();
@@ -437,29 +440,75 @@ const WalletPage = () => {
           </div>
         </div>
 
-        {/* Content */}
-        {selectedView === 'balances' && (
-          <div className="space-y-8">
-            {/* Shield All Section */}
-            {canUseRailgun && Object.keys(publicBalances).length > 0 && (
-              <div className="bg-gray-800 rounded-lg shadow-lg p-6">
+        {/* Privacy Status and Shield All Banner */}
+        {showPrivateMode && (
+          <div className="mb-6 space-y-4">
+            {/* Privacy Engine Status */}
+            <div className="bg-green-900 border border-green-700 rounded-lg p-4">
+              <div className="flex items-center space-x-3">
+                <div className="flex-shrink-0">
+                  <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+                </div>
+                <div>
+                  <h3 className="text-green-100 font-medium">🟢 Privacy Engine Ready</h3>
+                  <p className="text-green-200 text-sm">
+                    Railgun wallet active • Address: 
+                    <span 
+                      className="font-mono ml-1 cursor-help" 
+                      title="Your Railgun address starts with '0zk' and provides private transactions. Tokens sent to this address are shielded from public view."
+                    >
+                      {railgunAddress?.slice(0, 8)}...{railgunAddress?.slice(-6)}
+                    </span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Shield All Banner */}
+            {Object.values(publicBalances).filter(token => token.hasBalance && isTokenSupportedByRailgun(token.address, chainId)).length >= 2 && (
+              <div className="bg-purple-900 border border-purple-700 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <h3 className="text-lg font-medium text-white">Quick Shield</h3>
-                    <p className="text-gray-300 text-sm">
-                      Shield all supported tokens with one click
+                    <h3 className="text-purple-100 font-medium">🛡️ Multiple Tokens Available</h3>
+                    <p className="text-purple-200 text-sm">
+                      You have {Object.values(publicBalances).filter(token => token.hasBalance && isTokenSupportedByRailgun(token.address, chainId)).length} supported tokens ready to shield
                     </p>
                   </div>
                   <button
                     onClick={handleShieldAll}
-                    disabled={isShielding || isLoading}
-                    className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white px-6 py-2 rounded-lg font-medium transition-colors"
+                    disabled={isShielding}
+                    className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                   >
                     {isShielding ? 'Shielding...' : 'Shield All'}
                   </button>
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {selectedView === 'balances' && (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-white">Wallet Balances</h2>
+              <div className="flex items-center space-x-4">
+                {showPrivateMode && (
+                  <button
+                    onClick={() => setSelectedView('privacy')}
+                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    Privacy Actions
+                  </button>
+                )}
+                <button
+                  onClick={refreshAllBalances}
+                  disabled={isLoading}
+                  className="bg-gray-600 hover:bg-gray-700 disabled:bg-gray-800 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                >
+                  {isLoading ? 'Refreshing...' : 'Refresh All'}
+                </button>
+              </div>
+            </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Public Balances */}

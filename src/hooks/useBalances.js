@@ -56,13 +56,16 @@ const useBalances = () => {
 
   // Fetch public balances using standard Web3 calls
   const fetchPublicBalances = useCallback(async () => {
-    if (!isConnected || !address || !chainId) return;
+    if (!isConnected || !address || !chainId) {
+      console.log('[useBalances] Early return: Wallet not connected or missing params');
+      return;
+    }
 
     setIsLoadingPublic(true);
     setBalanceErrors(prev => ({ ...prev, public: null }));
 
     try {
-      console.log('[useBalances] Fetching real public balances...');
+      console.log('[useBalances] Fetching public balances for:', { address: address.slice(0, 6) + '...', chainId });
       
       // Use Web3 balance fetching helper to get real balances
       const { fetchPublicBalances: fetchWeb3Balances } = await import('../utils/web3/balances.js');
@@ -84,18 +87,27 @@ const useBalances = () => {
       setLastUpdateTime(Date.now());
       
       const tokensWithBalance = Object.values(newBalances).filter(t => t.hasBalance).length;
-      console.log('[useBalances] Public balances loaded:', {
+      console.log('[useBalances] Public balances loaded successfully:', {
         total: Object.keys(newBalances).length,
         withBalance: tokensWithBalance,
+        address: address.slice(0, 6) + '...',
+        chainId,
       });
+      
     } catch (error) {
       console.error('[useBalances] Error fetching public balances:', error);
       setBalanceErrors(prev => ({ ...prev, public: error.message }));
       
-      // Fallback to empty balances on error
+      // Show toast notification for user feedback
+      const { toast } = await import('react-hot-toast');
+      toast.error(`Failed to load public balances: ${error.message}`);
+      
+      // Fallback to empty balances on error to prevent infinite loops
       setPublicBalances({});
+      
     } finally {
       setIsLoadingPublic(false);
+      console.log('[useBalances] Public balance fetch completed');
     }
   }, [isConnected, address, chainId]);
 
@@ -268,7 +280,10 @@ const useBalances = () => {
 
   // Refresh private balances manually with retry logic
   const refreshPrivateBalances = useCallback(async () => {
-    if (!canUseRailgun || !railgunWalletId || !chainId) return;
+    if (!canUseRailgun || !railgunWalletId || !chainId) {
+      console.log('[useBalances] Early return: Railgun not ready or missing required params');
+      return;
+    }
 
     setIsLoadingPrivate(true);
     setBalanceErrors(prev => ({ ...prev, private: null }));
@@ -289,27 +304,47 @@ const useBalances = () => {
       await refreshBalances(chainConfig, [railgunWalletId]);
       console.log('[useBalances] Private balance refresh initiated');
       
-      // Start retry timer if no balance update is received within 10 seconds
-      setTimeout(() => {
-        if (retryAttempts < 3 && Object.keys(privateBalances).length === 0) {
-          console.log(`[useBalances] No balance data received, retrying... (attempt ${retryAttempts + 1}/3)`);
-          setRetryAttempts(prev => prev + 1);
-          refreshPrivateBalances();
-        }
-      }, 10000);
+      // Only set up retry timer if this is the initial attempt (not a retry)
+      if (retryAttempts === 0) {
+        // Check for balance update after 10 seconds
+        setTimeout(() => {
+          // Only retry if we still have no private balances and haven't exceeded max attempts
+          const hasNoBalances = Object.keys(privateBalances).length === 0;
+          const canRetry = retryAttempts < 3;
+          
+          if (hasNoBalances && canRetry) {
+            console.log(`[useBalances] No balance data received, retrying... (attempt ${retryAttempts + 1}/3)`);
+            setRetryAttempts(prev => prev + 1);
+            refreshPrivateBalances();
+          } else if (!hasNoBalances) {
+            console.log('[useBalances] Private balances found, stopping retry attempts');
+            setRetryAttempts(0);
+            setIsLoadingPrivate(false);
+          } else {
+            console.log('[useBalances] Max retry attempts reached, stopping');
+            setIsLoadingPrivate(false);
+          }
+        }, 10000);
+      } else {
+        // For retries, shorter timeout and don't setup another timer
+        setIsLoadingPrivate(false);
+      }
       
     } catch (error) {
       console.error('[useBalances] Error refreshing private balances:', error);
       setBalanceErrors(prev => ({ ...prev, private: error.message }));
       setIsLoadingPrivate(false);
       
-      // Retry on error if we haven't exceeded max attempts
+      // Only retry on error if we haven't exceeded max attempts
       if (retryAttempts < 3) {
         console.log(`[useBalances] Retrying balance refresh after error (attempt ${retryAttempts + 1}/3)`);
         setTimeout(() => {
           setRetryAttempts(prev => prev + 1);
           refreshPrivateBalances();
         }, 5000);
+      } else {
+        console.log('[useBalances] Max retry attempts reached after error, stopping');
+        setRetryAttempts(0);
       }
     }
   }, [canUseRailgun, railgunWalletId, chainId, getNetworkFromChainId, retryAttempts, privateBalances]);

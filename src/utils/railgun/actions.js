@@ -44,15 +44,17 @@ const getNetworkNameFromChainId = (chainId) => {
  * @param {string} amount - Amount to shield (in token units)
  * @param {Object} chain - Chain configuration
  * @param {string} fromAddress - EOA address sending the tokens
+ * @param {string} railgunAddress - Railgun address to shield to (recipient)
  * @returns {Object} Transaction result
  */
-export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress, amount, chain, fromAddress) => {
+export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress, amount, chain, fromAddress, railgunAddress) => {
   try {
     console.log('[RailgunActions] Shielding tokens:', {
       tokenAddress,
       amount,
       chain: chain.type,
       from: fromAddress,
+      to: railgunAddress,
     });
 
     await waitForRailgunReady();
@@ -60,11 +62,11 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
     // Convert chain ID to NetworkName
     const networkName = getNetworkNameFromChainId(chain.id);
 
-    // Prepare ERC20 amount object
+    // Prepare ERC20 amount object - for shield operations, we need to specify the Railgun address as recipient
     const erc20AmountRecipient = {
       tokenAddress: tokenAddress === '0x0000000000000000000000000000000000000000' ? undefined : tokenAddress,
       amount: amount,
-      recipientAddress: undefined, // Shield to wallet, no specific recipient
+      recipientAddress: railgunAddress, // Use the Railgun address as recipient for shield operations
     };
 
     // Generate proper encryption key from user address
@@ -196,29 +198,27 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
  * Transfer tokens privately within Railgun (Private → Private)
  * @param {string} railgunWalletID - Railgun wallet ID
  * @param {string} encryptionKey - Wallet encryption key
+ * @param {string} toRailgunAddress - Destination Railgun address
  * @param {string} tokenAddress - Token contract address (null for native)
  * @param {string} amount - Amount to transfer (in token units)
  * @param {Object} chain - Chain configuration
- * @param {string} toRailgunAddress - Destination Railgun address
- * @param {string} fromAddress - Source address for encryption key generation
+ * @param {string} memo - Optional memo text
  * @returns {Object} Transaction result
  */
-export const transferPrivate = async (railgunWalletID, encryptionKey, tokenAddress, amount, chain, toRailgunAddress, fromAddress) => {
+export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunAddress, tokenAddress, amount, chain, memo = '') => {
   try {
     console.log('[RailgunActions] Transferring tokens privately:', {
       tokenAddress,
       amount,
       chain: chain.type,
       to: toRailgunAddress,
+      memo,
     });
 
     await waitForRailgunReady();
 
     // Convert chain ID to NetworkName
     const networkName = getNetworkNameFromChainId(chain.id);
-
-    // Generate proper encryption key
-    const properEncryptionKey = await deriveEncryptionKey(fromAddress, chain.id);
 
     // Prepare ERC20 amount recipient for private transfer
     const erc20AmountRecipient = {
@@ -231,8 +231,8 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, tokenAddre
     const gasDetails = await gasEstimateForUnprovenTransfer(
       networkName,
       railgunWalletID,
-      properEncryptionKey,
-      [], // memoText (optional)
+      encryptionKey,
+      memo ? [memo] : [], // memoText array
       [erc20AmountRecipient], // erc20AmountRecipients
       [], // nftAmountRecipients
     );
@@ -243,8 +243,8 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, tokenAddre
     const proofResult = await generateTransferProof(
       networkName,
       railgunWalletID,
-      properEncryptionKey,
-      [], // memoText (optional)
+      encryptionKey,
+      memo ? [memo] : [], // memoText array
       [erc20AmountRecipient], // erc20AmountRecipients
       [], // nftAmountRecipients
     );
@@ -255,7 +255,7 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, tokenAddre
     const populatedResult = await populateProvedTransfer(
       networkName,
       railgunWalletID,
-      [], // memoText (optional)
+      memo ? [memo] : [], // memoText array
       [erc20AmountRecipient], // erc20AmountRecipients
       [], // nftAmountRecipients
     );
@@ -285,14 +285,16 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, tokenAddre
  * @param {Array} tokens - Array of token objects with balance and address
  * @param {Object} chain - Chain configuration
  * @param {string} fromAddress - EOA address sending the tokens
+ * @param {string} railgunAddress - Railgun address to shield to (recipient)
  * @returns {Object} Shield results for all tokens
  */
-export const shieldAllTokens = async (railgunWalletID, encryptionKey, tokens, chain, fromAddress) => {
+export const shieldAllTokens = async (railgunWalletID, encryptionKey, tokens, chain, fromAddress, railgunAddress) => {
   try {
     console.log('[RailgunActions] Shielding all tokens:', {
       tokensCount: tokens.length,
       chain: chain.type,
       from: fromAddress,
+      to: railgunAddress,
     });
 
     // Generate proper encryption key
@@ -311,7 +313,8 @@ export const shieldAllTokens = async (railgunWalletID, encryptionKey, tokens, ch
           token.address,
           token.balance,
           chain,
-          fromAddress
+          fromAddress,
+          railgunAddress  // Pass the railgun address
         );
         
         results.push({
@@ -455,8 +458,14 @@ export const isTokenSupportedByRailgun = (tokenAddress, chainId) => {
 };
 
 /**
- * Placeholder gas estimation function
- * @returns {Object} Gas details with fallback values
+ * Gas estimation function for shield operations
+ * @param {string} networkName - Network name
+ * @param {string} railgunWalletID - Railgun wallet ID  
+ * @param {string} encryptionKey - Wallet encryption key
+ * @param {Array} erc20AmountRecipients - Array of ERC20 amount recipients
+ * @param {Array} nftAmountRecipients - Array of NFT amount recipients
+ * @param {string} fromAddress - EOA address sending the tokens
+ * @returns {Object} Gas details
  */
 export const estimateShieldGas = async (networkName, railgunWalletID, encryptionKey, erc20AmountRecipients, nftAmountRecipients, fromAddress) => {
   try {
@@ -484,8 +493,13 @@ export const estimateShieldGas = async (networkName, railgunWalletID, encryption
 };
 
 /**
- * Placeholder gas estimation for unshield operations
- * @returns {Object} Gas details with fallback values
+ * Gas estimation function for unshield operations
+ * @param {string} networkName - Network name
+ * @param {string} railgunWalletID - Railgun wallet ID
+ * @param {string} encryptionKey - Wallet encryption key
+ * @param {Array} erc20AmountRecipients - Array of ERC20 amount recipients
+ * @param {Array} nftAmountRecipients - Array of NFT amount recipients
+ * @returns {Object} Gas details
  */
 export const estimateUnshieldGas = async (networkName, railgunWalletID, encryptionKey, erc20AmountRecipients, nftAmountRecipients) => {
   try {
