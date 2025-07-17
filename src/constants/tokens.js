@@ -26,7 +26,7 @@ export const SUPPORTED_TOKENS = {
       symbol: 'USDC',
       name: 'USD Coin',
       decimals: 6,
-      address: '0xA0b86a33E6441c8D2c7Fc09C31a8b1C53a4e8C45',
+      address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
       coingeckoId: 'usd-coin',
       isNative: false,
     },

@@ -384,17 +384,35 @@ export const estimateTransferGas = async (railgunWalletID, encryptionKey, transf
  * @returns {boolean} True if supported
  */
 export const isTokenSupportedByRailgun = (tokenAddress, chainId) => {
-  const supportedTokens = getTokensForChain(chainId);
-  
-  if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000') {
-    // Native token - check if chain has native token support
-    return Object.values(supportedTokens).some(token => token.isNative);
+  try {
+    const supportedTokens = getTokensForChain(chainId);
+    
+    if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000') {
+      // Native token - check if chain has native token support
+      return Object.values(supportedTokens).some(token => token.isNative);
+    }
+    
+    // ERC20 token - check by address with proper error handling
+    return Object.values(supportedTokens).some(token => {
+      if (!token.address) return false;
+      
+      try {
+        // Safely compare checksummed addresses
+        return getAddress(token.address) === getAddress(tokenAddress);
+      } catch (error) {
+        console.warn(`[isTokenSupportedByRailgun] Invalid address comparison:`, {
+          tokenSymbol: token.symbol,
+          configAddress: token.address,
+          inputAddress: tokenAddress,
+          error: error.message
+        });
+        return false;
+      }
+    });
+  } catch (error) {
+    console.error('[isTokenSupportedByRailgun] Error checking token support:', error);
+    return false;
   }
-  
-  // ERC20 token - check by address
-  return Object.values(supportedTokens).some(token => 
-    token.address && getAddress(token.address) === getAddress(tokenAddress)
-  );
 };
 
 /**
