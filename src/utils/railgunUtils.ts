@@ -1,4 +1,4 @@
-import { formatUnits, formatEther, createPublicClient, http } from 'viem';
+import { formatUnits, formatEther, createPublicClient, custom } from 'viem';
 import { mainnet, polygon, bsc, arbitrum } from 'viem/chains';
 
 // Supported chains configuration
@@ -8,32 +8,28 @@ export const SUPPORTED_CHAINS = {
     name: 'Ethereum', 
     shortName: 'ETH',
     chain: mainnet,
-    nativeSymbol: 'ETH',
-    rpcUrl: 'https://eth.drpc.org'
+    nativeSymbol: 'ETH'
   },
   137: { 
     id: 137, 
     name: 'Polygon', 
     shortName: 'MATIC',
     chain: polygon,
-    nativeSymbol: 'MATIC',
-    rpcUrl: 'https://polygon.drpc.org'
+    nativeSymbol: 'MATIC'
   },
   56: { 
     id: 56, 
     name: 'BNB Chain', 
     shortName: 'BNB',
     chain: bsc,
-    nativeSymbol: 'BNB',
-    rpcUrl: 'https://bsc.drpc.org'
+    nativeSymbol: 'BNB'
   },
   42161: { 
     id: 42161, 
     name: 'Arbitrum One', 
     shortName: 'ARB',
     chain: arbitrum,
-    nativeSymbol: 'ETH',
-    rpcUrl: 'https://arbitrum.drpc.org'
+    nativeSymbol: 'ETH'
   }
 };
 
@@ -118,13 +114,39 @@ function setCache(cacheKey: string, balance: string): void {
   };
 }
 
-// Create public clients for each chain
+// Create a custom transport that routes through our Vercel API
+const createCustomTransport = (chainId: number) => custom({
+  async request({ method, params }: any) {
+    const response = await fetch('/api/get-balance', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chainId,
+        method,
+        params,
+      }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`RPC request failed: ${response.status}`);
+    }
+    
+    const { result, error } = await response.json();
+    if (error) {
+      throw new Error(`RPC error: ${JSON.stringify(error)}`);
+    }
+    
+    return result;
+  },
+});
+
+// Create public clients for each chain using custom transport
 const publicClients = Object.fromEntries(
   Object.entries(SUPPORTED_CHAINS).map(([chainId, config]) => [
     chainId,
     createPublicClient({
       chain: config.chain,
-      transport: http(config.rpcUrl)
+      transport: createCustomTransport(parseInt(chainId))
     })
   ])
 );
