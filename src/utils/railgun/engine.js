@@ -209,8 +209,36 @@ export const loadAllNetworkProviders = async () => {
  */
 export const setBalanceUpdateCallback = (callback) => {
   balanceUpdateCallback = callback;
-  setOnBalanceUpdateCallback(callback);
-  console.log('[Railgun] Balance update callback registered');
+  
+  // Wrap the callback with enhanced logging
+  const wrappedCallback = (balanceEvent) => {
+    console.log('[RAILGUN] Private balance callback triggered:', balanceEvent);
+    console.log('[RAILGUN] Balance event details:', {
+      railgunWalletID: balanceEvent.railgunWalletID,
+      balanceBucket: balanceEvent.balanceBucket,
+      chain: balanceEvent.chain,
+      tokenCount: balanceEvent.erc20Amounts?.length || 0,
+      tokens: balanceEvent.erc20Amounts?.map(token => ({ 
+        address: token.tokenAddress, 
+        amount: token.amount.toString() 
+      })) || [],
+    });
+    
+    // Call the original callback
+    if (callback) {
+      try {
+        callback(balanceEvent);
+        console.log('[RAILGUN] Balance callback executed successfully');
+      } catch (error) {
+        console.error('[RAILGUN] Error in balance callback:', error);
+      }
+    } else {
+      console.warn('[RAILGUN] No balance callback function provided');
+    }
+  };
+  
+  setOnBalanceUpdateCallback(wrappedCallback);
+  console.log('[Railgun] Balance update callback registered with enhanced logging');
 };
 
 /**

@@ -54,6 +54,14 @@ export const SUPPORTED_TOKENS = {
       coingeckoId: 'wrapped-bitcoin',
       isNative: false,
     },
+    UNI: {
+      symbol: 'UNI',
+      name: 'Uniswap',
+      decimals: 18,
+      address: '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984',
+      coingeckoId: 'uniswap',
+      isNative: false,
+    },
   },
 
   // Polygon (Chain ID: 137)
@@ -72,6 +80,14 @@ export const SUPPORTED_TOKENS = {
       decimals: 18,
       address: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270',
       coingeckoId: 'wmatic',
+      isNative: false,
+    },
+    ETH: {
+      symbol: 'ETH',
+      name: 'Ethereum (Bridged)',
+      decimals: 18,
+      address: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619',
+      coingeckoId: 'ethereum',
       isNative: false,
     },
     USDC: {
@@ -126,6 +142,14 @@ export const SUPPORTED_TOKENS = {
       coingeckoId: 'usd-coin',
       isNative: false,
     },
+    'USDC.e': {
+      symbol: 'USDC.e',
+      name: 'USD Coin (Bridged)',
+      decimals: 6,
+      address: '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8',
+      coingeckoId: 'usd-coin',
+      isNative: false,
+    },
     USDT: {
       symbol: 'USDT',
       name: 'Tether USD',
@@ -140,6 +164,14 @@ export const SUPPORTED_TOKENS = {
       decimals: 18,
       address: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1',
       coingeckoId: 'dai',
+      isNative: false,
+    },
+    ARB: {
+      symbol: 'ARB',
+      name: 'Arbitrum',
+      decimals: 18,
+      address: '0x912CE59144191C1204E64559FE8253a0e49E6548',
+      coingeckoId: 'arbitrum',
       isNative: false,
     },
   },
@@ -170,6 +202,14 @@ export const SUPPORTED_TOKENS = {
       coingeckoId: 'usd-coin',
       isNative: false,
     },
+    'USDC.e': {
+      symbol: 'USDC.e',
+      name: 'USD Coin (Bridged)',
+      decimals: 6,
+      address: '0x7F5c764cBc14f9669B88837ca1490cCa17c31607',
+      coingeckoId: 'usd-coin',
+      isNative: false,
+    },
     USDT: {
       symbol: 'USDT',
       name: 'Tether USD',
@@ -184,6 +224,14 @@ export const SUPPORTED_TOKENS = {
       decimals: 18,
       address: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1',
       coingeckoId: 'dai',
+      isNative: false,
+    },
+    OP: {
+      symbol: 'OP',
+      name: 'Optimism',
+      decimals: 18,
+      address: '0x4200000000000000000000000000000000000042',
+      coingeckoId: 'optimism',
       isNative: false,
     },
   },
@@ -204,6 +252,14 @@ export const SUPPORTED_TOKENS = {
       decimals: 18,
       address: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c',
       coingeckoId: 'wbnb',
+      isNative: false,
+    },
+    ETH: {
+      symbol: 'ETH',
+      name: 'Ethereum (Bridged)',
+      decimals: 18,
+      address: '0x2170Ed0880ac9A755fd29B2688956BD959F933F8',
+      coingeckoId: 'ethereum',
       isNative: false,
     },
     USDC: {
@@ -230,6 +286,27 @@ export const SUPPORTED_TOKENS = {
       coingeckoId: 'binance-usd',
       isNative: false,
     },
+    CAKE: {
+      symbol: 'CAKE',
+      name: 'PancakeSwap Token',
+      decimals: 18,
+      address: '0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82',
+      coingeckoId: 'pancakeswap-token',
+      isNative: false,
+    },
+  },
+
+  // Ethereum Sepolia Testnet (Chain ID: 11155111)
+  11155111: {
+    ETH: {
+      symbol: 'ETH',
+      name: 'Ethereum',
+      decimals: 18,
+      address: null, // Native token
+      coingeckoId: 'ethereum',
+      isNative: true,
+    },
+    // Add common testnet tokens as needed
   },
 };
 
@@ -256,6 +333,25 @@ export const isTokenSupported = (chainId, tokenAddress) => {
     token.address?.toLowerCase() === tokenAddress?.toLowerCase() ||
     (token.isNative && !tokenAddress)
   );
+};
+
+// Get native token for a chain
+export const getNativeToken = (chainId) => {
+  const tokens = getTokensForChain(chainId);
+  return Object.values(tokens).find(token => token.isNative) || null;
+};
+
+// Search tokens by symbol across all chains
+export const findTokenBySymbol = (symbol) => {
+  const results = [];
+  Object.entries(SUPPORTED_TOKENS).forEach(([chainId, tokens]) => {
+    Object.values(tokens).forEach(token => {
+      if (token.symbol.toLowerCase() === symbol.toLowerCase()) {
+        results.push({ ...token, chainId: parseInt(chainId) });
+      }
+    });
+  });
+  return results;
 };
 
 export default SUPPORTED_TOKENS; 

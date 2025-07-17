@@ -8,6 +8,7 @@ import {
   loadWalletByID,
   getWalletMnemonic,
   getWalletAddress,
+  setSelectedRailgunWallet,
 } from '@railgun-community/wallet';
 import { NetworkName } from '@railgun-community/shared-models';
 import { ethers } from 'ethers';
@@ -129,6 +130,14 @@ export const createNewRailgunWallet = async (encryptionKey, mnemonic, creationBl
       address: walletInfo.railgunAddress,
     });
 
+    // Set as selected wallet after creation
+    try {
+      await setSelectedRailgunWallet(walletInfo.id);
+      console.log('[RailgunWallet] Wallet set as selected:', walletInfo.id);
+    } catch (error) {
+      console.warn('[RailgunWallet] Failed to set wallet as selected (non-critical):', error.message);
+    }
+
     return {
       id: walletInfo.id,
       address: walletInfo.railgunAddress,
@@ -160,6 +169,14 @@ export const loadExistingRailgunWallet = async (encryptionKey, walletId) => {
       id: walletInfo.id,
       address: walletInfo.railgunAddress,
     });
+
+    // Set as selected wallet after loading
+    try {
+      await setSelectedRailgunWallet(walletInfo.id);
+      console.log('[RailgunWallet] Wallet set as selected:', walletInfo.id);
+    } catch (error) {
+      console.warn('[RailgunWallet] Failed to set wallet as selected (non-critical):', error.message);
+    }
 
     return {
       id: walletInfo.id,

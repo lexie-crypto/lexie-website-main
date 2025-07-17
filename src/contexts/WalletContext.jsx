@@ -8,6 +8,7 @@ import { createConfig, http, connect, disconnect, getAccount, getChainId, switch
 import { mainnet, polygon, arbitrum, optimism, bsc, sepolia } from '@wagmi/core/chains';
 import { injected, walletConnect } from '@wagmi/connectors';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { setSelectedRailgunWallet } from '@railgun-community/wallet';
 
 import { initializeRailgunEngine, loadAllNetworkProviders, getEngineStatus, waitForRailgunReady } from '../utils/railgun/engine.js';
 import { deriveRailgunWalletFromAddress, loadCachedRailgunWallet, clearCachedRailgunWallet } from '../utils/railgun/wallet.js';
@@ -269,6 +270,14 @@ export const WalletProvider = ({ children }) => {
       // Derive wallet from external wallet address
       const railgunWallet = await deriveRailgunWalletFromAddress(userAddress, chainId);
       
+      // Set as selected wallet
+      try {
+        await setSelectedRailgunWallet(railgunWallet.walletID);
+        console.log('[WalletContext] Railgun wallet set as selected:', railgunWallet.walletID);
+      } catch (error) {
+        console.warn('[WalletContext] Failed to set wallet as selected (non-critical):', error.message);
+      }
+      
       // Update context with Railgun wallet info
       dispatch({
         type: actionTypes.SET_RAILGUN_WALLET,
@@ -309,6 +318,14 @@ export const WalletProvider = ({ children }) => {
       const cachedWallet = await loadCachedRailgunWallet(userAddress);
       
       if (cachedWallet) {
+        // Set as selected wallet
+        try {
+          await setSelectedRailgunWallet(cachedWallet.walletID);
+          console.log('[WalletContext] Cached Railgun wallet set as selected:', cachedWallet.walletID);
+        } catch (error) {
+          console.warn('[WalletContext] Failed to set cached wallet as selected (non-critical):', error.message);
+        }
+        
         dispatch({
           type: actionTypes.SET_RAILGUN_WALLET,
           payload: {

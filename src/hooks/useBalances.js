@@ -29,6 +29,7 @@ const useBalances = () => {
   const [isLoadingPrivate, setIsLoadingPrivate] = useState(false);
   const [balanceErrors, setBalanceErrors] = useState({});
   const [lastUpdateTime, setLastUpdateTime] = useState(null);
+  const [retryAttempts, setRetryAttempts] = useState(0);
 
   // Format balance for display
   const formatBalance = useCallback((amount, decimals = 18) => {
@@ -93,7 +94,13 @@ const useBalances = () => {
 
   // Handle Railgun balance updates
   const handleRailgunBalanceUpdate = useCallback((balanceEvent) => {
+    console.log('[RAILGUN] Private balance callback triggered:', balanceEvent);
+    
     if (!railgunWalletId || balanceEvent.railgunWalletID !== railgunWalletId) {
+      console.log('[RAILGUN] Balance update for different wallet, ignoring:', {
+        expectedWalletId: railgunWalletId,
+        receivedWalletId: balanceEvent.railgunWalletID,
+      });
       return;
     }
 
@@ -110,6 +117,7 @@ const useBalances = () => {
 
       const tokens = getTokensForChain(chain.id);
       const newPrivateBalances = {};
+      const missingTokens = [];
 
       // Process each token balance with proper address normalization
       erc20Amounts.forEach(({ tokenAddress, amount }) => {
@@ -129,25 +137,53 @@ const useBalances = () => {
           });
 
           if (tokenInfo) {
-            const formattedBalance = formatBalance(amount.toString(), tokenInfo.decimals);
+            // Guard for missing token metadata with safe fallbacks
+            const symbol = tokenInfo.symbol || 'UNKNOWN';
+            const decimals = tokenInfo.decimals || 18;
+            const name = tokenInfo.name || 'Unknown Token';
             
-            newPrivateBalances[tokenInfo.symbol] = {
+            // Warn if metadata is incomplete
+            if (!tokenInfo.symbol || tokenInfo.decimals === undefined) {
+              console.warn(`[useBalances] Incomplete token metadata for ${checksummedAddress}:`, {
+                hasSymbol: !!tokenInfo.symbol,
+                hasDecimals: tokenInfo.decimals !== undefined,
+                hasName: !!tokenInfo.name,
+                tokenInfo,
+              });
+            }
+            
+            const formattedBalance = formatBalance(amount.toString(), decimals);
+            
+            newPrivateBalances[symbol] = {
               ...tokenInfo,
+              symbol,
+              decimals,
+              name,
               address: checksummedAddress || tokenInfo.address,
               balance: amount.toString(),
               formattedBalance,
               balanceUSD: '0.00', // TODO: Add price fetching
             };
           } else {
-            console.warn(`[useBalances] Unknown token address: ${checksummedAddress || 'native'}`);
+            const tokenIdentifier = checksummedAddress || 'native';
+            missingTokens.push(tokenIdentifier);
+            console.warn(`[useBalances] Unknown token address: ${tokenIdentifier} on chain ${chain.id}`);
           }
         } catch (error) {
           console.error(`[useBalances] Error processing token ${tokenAddress}:`, error);
         }
       });
 
+      // Log any missing or unmatched token addresses to help expand token registry
+      if (missingTokens.length > 0) {
+        console.warn(`[useBalances] Missing tokens for chain ${chain.id}:`, missingTokens);
+        console.log(`[useBalances] Consider adding these tokens to SUPPORTED_TOKENS[${chain.id}]:`, 
+          missingTokens.map(addr => `"${addr}": { symbol: "???", name: "???", decimals: ??, address: "${addr}", isNative: false }`));
+      }
+
       setPrivateBalances(newPrivateBalances);
       setLastUpdateTime(Date.now());
+      setRetryAttempts(0); // Reset retry attempts on successful update
       console.log('[useBalances] Private balances updated:', newPrivateBalances);
     } catch (error) {
       console.error('[useBalances] Error processing Railgun balance update:', error);
@@ -168,7 +204,7 @@ const useBalances = () => {
     }
   }, []);
 
-  // Refresh private balances manually
+  // Refresh private balances manually with retry logic
   const refreshPrivateBalances = useCallback(async () => {
     if (!canUseRailgun || !railgunWalletId || !chainId) return;
 
@@ -190,12 +226,31 @@ const useBalances = () => {
       
       await refreshBalances(chainConfig, [railgunWalletId]);
       console.log('[useBalances] Private balance refresh initiated');
+      
+      // Start retry timer if no balance update is received within 10 seconds
+      setTimeout(() => {
+        if (retryAttempts < 3 && Object.keys(privateBalances).length === 0) {
+          console.log(`[useBalances] No balance data received, retrying... (attempt ${retryAttempts + 1}/3)`);
+          setRetryAttempts(prev => prev + 1);
+          refreshPrivateBalances();
+        }
+      }, 10000);
+      
     } catch (error) {
       console.error('[useBalances] Error refreshing private balances:', error);
       setBalanceErrors(prev => ({ ...prev, private: error.message }));
       setIsLoadingPrivate(false);
+      
+      // Retry on error if we haven't exceeded max attempts
+      if (retryAttempts < 3) {
+        console.log(`[useBalances] Retrying balance refresh after error (attempt ${retryAttempts + 1}/3)`);
+        setTimeout(() => {
+          setRetryAttempts(prev => prev + 1);
+          refreshPrivateBalances();
+        }, 5000);
+      }
     }
-  }, [canUseRailgun, railgunWalletId, chainId, getNetworkFromChainId]);
+  }, [canUseRailgun, railgunWalletId, chainId, getNetworkFromChainId, retryAttempts, privateBalances]);
 
   // Set up Railgun balance callback
   useEffect(() => {
@@ -224,6 +279,7 @@ const useBalances = () => {
       setPrivateBalances({});
       setBalanceErrors({});
       setLastUpdateTime(null);
+      setRetryAttempts(0);
     }
   }, [isConnected]);
 
@@ -313,6 +369,7 @@ const useBalances = () => {
     
     // Metadata
     lastUpdateTime,
+    retryAttempts,
   };
 };
 
