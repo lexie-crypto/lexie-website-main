@@ -1,0 +1,308 @@
+/**
+ * useBalances Hook
+ * Manages both public and private balances with real-time updates
+ */
+
+import { useState, useEffect, useCallback } from 'react';
+import { formatUnits, getAddress } from 'ethers';
+import { refreshBalances } from '@railgun-community/wallet';
+import { NETWORK_CONFIG } from '@railgun-community/shared-models';
+
+import { useWallet } from '../contexts/WalletContext';
+import { getTokensForChain } from '../constants/tokens';
+import { setBalanceUpdateCallback, waitForRailgunReady } from '../utils/railgun/engine';
+
+const useBalances = () => {
+  const {
+    isConnected,
+    address,
+    chainId,
+    isRailgunInitialized,
+    railgunWalletId,
+    canUseRailgun,
+  } = useWallet();
+
+  // Balance states
+  const [publicBalances, setPublicBalances] = useState({});
+  const [privateBalances, setPrivateBalances] = useState({});
+  const [isLoadingPublic, setIsLoadingPublic] = useState(false);
+  const [isLoadingPrivate, setIsLoadingPrivate] = useState(false);
+  const [balanceErrors, setBalanceErrors] = useState({});
+  const [lastUpdateTime, setLastUpdateTime] = useState(null);
+
+  // Format balance for display
+  const formatBalance = useCallback((amount, decimals = 18) => {
+    if (!amount || amount === '0') return '0.00';
+    
+    try {
+      const formatted = formatUnits(amount, decimals);
+      const num = parseFloat(formatted);
+      
+      if (num < 0.01 && num > 0) {
+        return '< 0.01';
+      }
+      
+      return num.toLocaleString('en-US', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 6,
+      });
+    } catch (error) {
+      console.error('Error formatting balance:', error);
+      return '0.00';
+    }
+  }, []);
+
+  // Fetch public balances using standard Web3 calls
+  const fetchPublicBalances = useCallback(async () => {
+    if (!isConnected || !address || !chainId) return;
+
+    setIsLoadingPublic(true);
+    setBalanceErrors(prev => ({ ...prev, public: null }));
+
+    try {
+      const tokens = getTokensForChain(chainId);
+      const newBalances = {};
+
+      // This is a simplified version - you would implement actual Web3 calls here
+      // For now, we'll mock some balances for development
+      if (process.env.NODE_ENV === 'development') {
+        // Mock balances for development
+        Object.values(tokens).forEach(token => {
+          newBalances[token.symbol] = {
+            ...token,
+            balance: '0',
+            formattedBalance: '0.00',
+            balanceUSD: '0.00',
+          };
+        });
+      } else {
+        // TODO: Implement actual Web3 balance fetching
+        // You would use ethers or viem here to fetch real balances
+        console.log('TODO: Implement real balance fetching for production');
+      }
+
+      setPublicBalances(newBalances);
+      setLastUpdateTime(Date.now());
+    } catch (error) {
+      console.error('Error fetching public balances:', error);
+      setBalanceErrors(prev => ({ ...prev, public: error.message }));
+    } finally {
+      setIsLoadingPublic(false);
+    }
+  }, [isConnected, address, chainId]);
+
+  // Handle Railgun balance updates
+  const handleRailgunBalanceUpdate = useCallback((balanceEvent) => {
+    if (!railgunWalletId || balanceEvent.railgunWalletID !== railgunWalletId) {
+      return;
+    }
+
+    console.log('[useBalances] Railgun balance update:', balanceEvent);
+
+    try {
+      const { balanceBucket, erc20Amounts, chain } = balanceEvent;
+      
+      // Only process spendable balances for now
+      if (balanceBucket !== 'Spendable') {
+        console.log(`[useBalances] Ignoring non-spendable balance bucket: ${balanceBucket}`);
+        return;
+      }
+
+      const tokens = getTokensForChain(chain.id);
+      const newPrivateBalances = {};
+
+      // Process each token balance with proper address normalization
+      erc20Amounts.forEach(({ tokenAddress, amount }) => {
+        try {
+          // Normalize token address to proper checksum format
+          const checksummedAddress = tokenAddress ? getAddress(tokenAddress) : null;
+          
+          // Find token info by address (comparing checksummed addresses)
+          const tokenInfo = Object.values(tokens).find(token => {
+            if (token.isNative && !checksummedAddress) {
+              return true; // Native token (ETH, MATIC, etc.)
+            }
+            if (token.address && checksummedAddress) {
+              return getAddress(token.address) === checksummedAddress;
+            }
+            return false;
+          });
+
+          if (tokenInfo) {
+            const formattedBalance = formatBalance(amount.toString(), tokenInfo.decimals);
+            
+            newPrivateBalances[tokenInfo.symbol] = {
+              ...tokenInfo,
+              address: checksummedAddress || tokenInfo.address,
+              balance: amount.toString(),
+              formattedBalance,
+              balanceUSD: '0.00', // TODO: Add price fetching
+            };
+          } else {
+            console.warn(`[useBalances] Unknown token address: ${checksummedAddress || 'native'}`);
+          }
+        } catch (error) {
+          console.error(`[useBalances] Error processing token ${tokenAddress}:`, error);
+        }
+      });
+
+      setPrivateBalances(newPrivateBalances);
+      setLastUpdateTime(Date.now());
+      console.log('[useBalances] Private balances updated:', newPrivateBalances);
+    } catch (error) {
+      console.error('[useBalances] Error processing Railgun balance update:', error);
+      setBalanceErrors(prev => ({ ...prev, private: error.message }));
+    }
+  }, [railgunWalletId, formatBalance]);
+
+  // Refresh private balances manually
+  const refreshPrivateBalances = useCallback(async () => {
+    if (!canUseRailgun || !railgunWalletId || !chainId) return;
+
+    setIsLoadingPrivate(true);
+    setBalanceErrors(prev => ({ ...prev, private: null }));
+
+    try {
+      // Wait for Railgun engine to be ready
+      await waitForRailgunReady();
+      
+      // Get the chain config for Railgun
+      const chainConfig = Object.values(NETWORK_CONFIG).find(config => 
+        config.chain.id === chainId
+      );
+
+      if (!chainConfig) {
+        throw new Error(`Unsupported chain ID: ${chainId}`);
+      }
+
+      console.log('[useBalances] Refreshing private balances for chain:', chainConfig.chain.type);
+      
+      await refreshBalances(chainConfig.chain, [railgunWalletId]);
+      console.log('[useBalances] Private balance refresh initiated');
+    } catch (error) {
+      console.error('[useBalances] Error refreshing private balances:', error);
+      setBalanceErrors(prev => ({ ...prev, private: error.message }));
+      setIsLoadingPrivate(false);
+    }
+  }, [canUseRailgun, railgunWalletId, chainId]);
+
+  // Set up Railgun balance callback
+  useEffect(() => {
+    if (canUseRailgun) {
+      console.log('[useBalances] Setting up Railgun balance callback');
+      setBalanceUpdateCallback(handleRailgunBalanceUpdate);
+      
+      // Refresh balances on setup
+      if (railgunWalletId) {
+        refreshPrivateBalances();
+      }
+    }
+  }, [canUseRailgun, railgunWalletId, handleRailgunBalanceUpdate, refreshPrivateBalances]);
+
+  // Fetch public balances when wallet connects or chain changes
+  useEffect(() => {
+    if (isConnected && address && chainId) {
+      fetchPublicBalances();
+    }
+  }, [isConnected, address, chainId, fetchPublicBalances]);
+
+  // Clear balances when disconnected
+  useEffect(() => {
+    if (!isConnected) {
+      setPublicBalances({});
+      setPrivateBalances({});
+      setBalanceErrors({});
+      setLastUpdateTime(null);
+    }
+  }, [isConnected]);
+
+  // Get total balance for a token (public + private)
+  const getTotalBalance = useCallback((tokenSymbol) => {
+    const publicBalance = publicBalances[tokenSymbol]?.balance || '0';
+    const privateBalance = privateBalances[tokenSymbol]?.balance || '0';
+    
+    try {
+      const pubBigInt = BigInt(publicBalance);
+      const privBigInt = BigInt(privateBalance);
+      const total = pubBigInt + privBigInt;
+      
+      const tokenInfo = publicBalances[tokenSymbol] || privateBalances[tokenSymbol];
+      if (tokenInfo) {
+        return {
+          balance: total.toString(),
+          formattedBalance: formatBalance(total.toString(), tokenInfo.decimals),
+        };
+      }
+    } catch (error) {
+      console.error('Error calculating total balance:', error);
+    }
+    
+    return { balance: '0', formattedBalance: '0.00' };
+  }, [publicBalances, privateBalances, formatBalance]);
+
+  // Get all unique tokens (from both public and private)
+  const getAllTokens = useCallback(() => {
+    const allTokenSymbols = new Set([
+      ...Object.keys(publicBalances),
+      ...Object.keys(privateBalances),
+    ]);
+
+    return Array.from(allTokenSymbols).map(symbol => {
+      const publicToken = publicBalances[symbol];
+      const privateToken = privateBalances[symbol];
+      const tokenInfo = publicToken || privateToken;
+      const total = getTotalBalance(symbol);
+
+      return {
+        ...tokenInfo,
+        publicBalance: publicToken?.formattedBalance || '0.00',
+        privateBalance: privateToken?.formattedBalance || '0.00',
+        totalBalance: total.formattedBalance,
+      };
+    });
+  }, [publicBalances, privateBalances, getTotalBalance]);
+
+  // Manual refresh functions
+  const refreshAllBalances = useCallback(async () => {
+    const promises = [];
+    
+    if (isConnected) {
+      promises.push(fetchPublicBalances());
+    }
+    
+    if (canUseRailgun && railgunWalletId) {
+      promises.push(refreshPrivateBalances());
+    }
+    
+    await Promise.allSettled(promises);
+  }, [isConnected, canUseRailgun, railgunWalletId, fetchPublicBalances, refreshPrivateBalances]);
+
+  return {
+    // Balance data
+    publicBalances,
+    privateBalances,
+    
+    // Loading states
+    isLoadingPublic,
+    isLoadingPrivate,
+    isLoading: isLoadingPublic || isLoadingPrivate,
+    
+    // Error states
+    balanceErrors,
+    
+    // Utility functions
+    formatBalance,
+    getTotalBalance,
+    getAllTokens,
+    
+    // Manual refresh
+    refreshAllBalances,
+    refreshPrivateBalances,
+    refreshPublicBalances: fetchPublicBalances,
+    
+    // Metadata
+    lastUpdateTime,
+  };
+};
+
+export default useBalances; 
