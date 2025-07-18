@@ -96,9 +96,12 @@ function createERC20AmountRecipient(tokenAddress, amount, recipientAddress) {
     processedTokenAddress = undefined;
   }
 
+  // Convert amount string to BigInt as expected by RAILGUN SDK
+  const amountBigInt = BigInt(amount);
+
   return {
     tokenAddress: processedTokenAddress,
-    amount: amount,
+    amount: amountBigInt,
     recipientAddress: recipientAddress,
   };
 }
