@@ -52,6 +52,7 @@ const WalletPage = () => {
     getCurrentNetwork,
     walletProviders,
     isWalletAvailable,
+    resetConnectionState,
   } = useWallet();
 
   const {
@@ -342,6 +343,18 @@ const WalletPage = () => {
               <p>Choose your preferred wallet to connect</p>
               <p className="mt-1 text-xs">Only selected wallet will be used - no auto-detection</p>
             </div>
+
+            {/* Reset button if connection is stuck */}
+            {isConnecting && (
+              <div className="mt-4">
+                <button
+                  onClick={resetConnectionState}
+                  className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors"
+                >
+                  Reset Connection (If Stuck)
+                </button>
+              </div>
+            )}
 
             {connectionError && (
               <div className="mt-4 p-3 bg-red-900 border border-red-700 rounded-lg">

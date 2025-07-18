@@ -218,15 +218,27 @@ By signing, you authorize the creation of your privacy wallet.`;
     setRailgunError(null);
   }, []);
 
+  // Force reset connection state (emergency function)
+  const resetConnectionState = useCallback(() => {
+    console.log('[WalletContext] Force resetting connection state');
+    setIsConnecting(false);
+    setConnectionError(null);
+    setRailgunError(null);
+  }, []);
+
   // Connect wallet function
   const connectWallet = useCallback(async (providerType) => {
     if (isConnecting) return;
     if (!providerType) {
-      throw new Error('Please select a wallet provider');
+      toast.error('Please select a wallet provider');
+      return;
     }
 
     setIsConnecting(true);
     setConnectionError(null);
+    
+    console.log('[WalletContext] Starting wallet connection for:', providerType);
+    
     try {
       // Check if the selected wallet is available
       if (!isWalletAvailable(providerType)) {
@@ -286,17 +298,21 @@ By signing, you authorize the creation of your privacy wallet.`;
       setSelectedProvider(providerType);
       setWalletProvider(provider);
 
-      // Setup Railgun wallet if network is supported
+      // Basic wallet connection successful
+      toast.success('Wallet connected successfully');
+      
+      // Setup Railgun wallet if network is supported (non-blocking)
       if (SUPPORTED_NETWORKS[chainIdNumber]) {
-        try {
-          await setupRailgunWallet(userAddress);
-          toast.success('Wallet connected with privacy features enabled');
-        } catch (railgunError) {
-          console.warn('[WalletContext] Railgun setup failed, continuing without privacy:', railgunError);
-          toast.success('Wallet connected (privacy features unavailable)');
-        }
-      } else {
-        toast.success('Wallet connected (unsupported network for privacy)');
+        // Do Railgun setup in background without blocking wallet connection
+        setupRailgunWallet(userAddress)
+          .then(() => {
+            console.log('[WalletContext] Railgun privacy features enabled');
+            toast.success('Privacy features now available');
+          })
+          .catch((railgunError) => {
+            console.warn('[WalletContext] Railgun setup failed:', railgunError);
+            // Don't show error toast - wallet connection is still successful
+          });
       }
 
     } catch (error) {
@@ -304,10 +320,18 @@ By signing, you authorize the creation of your privacy wallet.`;
       const errorMessage = error.message || 'Failed to connect wallet';
       setConnectionError(errorMessage);
       toast.error(errorMessage);
+      
+      // Reset states on error
+      setIsConnected(false);
+      setAddress(null);
+      setChainId(null);
+      setSelectedProvider(null);
+      setWalletProvider(null);
     } finally {
       setIsConnecting(false);
+      console.log('[WalletContext] Connection attempt finished, resetting isConnecting');
     }
-  }, [isConnecting, setupRailgunWallet, isWalletAvailable, getWalletProvider]);
+  }, [isRailgunInitialized, setupRailgunWallet, isWalletAvailable, getWalletProvider]);
 
   // Disconnect wallet function
   const disconnectWallet = useCallback(async () => {
@@ -435,6 +459,7 @@ By signing, you authorize the creation of your privacy wallet.`;
     isWalletAvailable,
     getWalletProvider,
     clearErrors,
+    resetConnectionState,
 
     // Utilities
     isValidRailgunAddress,
