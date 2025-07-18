@@ -209,8 +209,8 @@ const PrivacyActions = () => {
       // Get encryption key
       const key = await getEncryptionKey();
 
-      // Step 1: Shield the tokens first
-      toast.loading(`Step 1/2: Shielding ${sendAmount} ${selectedToken.symbol}...`, { duration: 0 });
+      // Step 1: Shield the tokens to user's own Railgun wallet
+      toast.loading(`Step 1/2: Shielding ${sendAmount} ${selectedToken.symbol} to your private wallet...`, { duration: 0 });
       
       const shieldResult = await shieldTokens(
         railgunWalletId,
@@ -218,19 +218,19 @@ const PrivacyActions = () => {
         selectedToken.address,
         amountInUnits,
         chainConfig,
-        address,
-        railgunAddress,
-        recipientAddress.trim() // Pass final recipient for proper gas estimation
+        address, // From user's public address
+        railgunAddress, // To user's own Railgun address (this is correct)
+        address // Use user's own address for gas estimation (required parameter)
       );
 
       console.log('[PrivacyActions] Shield completed:', shieldResult);
 
-      // Step 2: Now transfer the shielded tokens
+      // Step 2: Now transfer the shielded tokens to the recipient
       let transferResult;
 
       if (addressValidation.type === 'railgun') {
         // Railgun-to-Railgun private transfer
-        toast.loading(`Step 2/2: Sending ${sendAmount} ${selectedToken.symbol} privately...`, { duration: 0 });
+        toast.loading(`Step 2/2: Sending ${sendAmount} ${selectedToken.symbol} privately to recipient...`, { duration: 0 });
         
         transferResult = await transferPrivate(
           railgunWalletId,
