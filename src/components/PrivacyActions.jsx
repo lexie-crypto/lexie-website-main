@@ -71,11 +71,6 @@ const PrivacyActions = () => {
   const [transferAmount, setTransferAmount] = useState('');
   const [transferMemo, setTransferMemo] = useState('');
 
-  // Unshield state
-  const [selectedUnshieldToken, setSelectedUnshieldToken] = useState(null);
-  const [unshieldAmount, setUnshieldAmount] = useState('');
-  const [unshieldDestination, setUnshieldDestination] = useState('');
-
   const network = getCurrentNetwork();
 
   // Derive encryption key from user address and chain ID
@@ -457,7 +452,61 @@ const PrivacyActions = () => {
     }
   }, [canUseRailgun, railgunWalletId, address, shieldableTokens, chainId, network, refreshAllBalances, getEncryptionKey]);
 
-  // Private transfer
+  // Auto-detect address type and return validation info
+  const detectAddressType = useCallback((address) => {
+    if (!address || address.trim() === '') {
+      return { type: 'unknown', isValid: false, message: 'Please enter an address' };
+    }
+
+    const trimmedAddress = address.trim();
+    
+    // Railgun address detection
+    if (trimmedAddress.startsWith('0zk')) {
+      if (trimmedAddress.length >= 64) { // Railgun addresses are typically longer
+        return { 
+          type: 'railgun', 
+          isValid: true, 
+          message: '🔒 Private transfer - Your identity will remain hidden'
+        };
+      } else {
+        return { 
+          type: 'railgun', 
+          isValid: false, 
+          message: 'Invalid Railgun address format'
+        };
+      }
+    }
+    
+    // EOA address detection
+    if (trimmedAddress.startsWith('0x')) {
+      if (/^0x[a-fA-F0-9]{40}$/.test(trimmedAddress)) {
+        return { 
+          type: 'eoa', 
+          isValid: true, 
+          message: '⚠️ Public transfer - This transaction will be visible on-chain, but your identity will remain private'
+        };
+      } else {
+        return { 
+          type: 'eoa', 
+          isValid: false, 
+          message: 'Invalid Ethereum address format'
+        };
+      }
+    }
+    
+    return { 
+      type: 'unknown', 
+      isValid: false, 
+      message: 'Address must start with "0zk" (Railgun) or "0x" (Ethereum)'
+    };
+  }, []);
+
+  // Get current address validation info
+  const addressValidation = useMemo(() => {
+    return detectAddressType(recipientAddress);
+  }, [recipientAddress, detectAddressType]);
+
+  // Private transfer (handles both Railgun-to-Railgun and Railgun-to-EOA)
   const handlePrivateTransfer = useCallback(async () => {
     if (!canUseRailgun || !railgunWalletId || !selectedTransferToken) {
       toast.error('Railgun wallet not ready or no token selected');
@@ -467,9 +516,9 @@ const PrivacyActions = () => {
     try {
       setIsProcessing(true);
       
-      // Validate inputs
-      if (!recipientAddress || !recipientAddress.startsWith('0zk')) {
-        throw new Error('Invalid Railgun address. Must start with "0zk"');
+      // Validate address using auto-detection
+      if (!addressValidation.isValid) {
+        throw new Error(addressValidation.message);
       }
 
       if (!transferAmount || parseFloat(transferAmount) <= 0) {
@@ -493,28 +542,57 @@ const PrivacyActions = () => {
       // Get encryption key
       const key = await getEncryptionKey();
 
-      console.log('[PrivacyActions] Starting private transfer:', {
+      console.log('[PrivacyActions] Starting transfer:', {
         token: selectedTransferToken.symbol,
         amount: transferAmount,
         to: recipientAddress,
+        addressType: addressValidation.type,
         memo: transferMemo || 'None'
       });
 
-      // Execute private transfer with correct parameter order
-      toast.loading(`Transferring ${transferAmount} ${selectedTransferToken.symbol}...`, { duration: 0 });
-      
-      const result = await transferPrivate(
-        railgunWalletId,
-        key,
-        recipientAddress,
-        selectedTransferToken.address,
-        amountInUnits,
-        chainConfig,
-        transferMemo
-      );
+      let result;
 
-      toast.dismiss();
-      toast.success(`✅ Successfully transferred ${transferAmount} ${selectedTransferToken.symbol}!`, { duration: 5000 });
+      if (addressValidation.type === 'railgun') {
+        // Railgun-to-Railgun private transfer
+        toast.loading(`Sending ${transferAmount} ${selectedTransferToken.symbol} privately...`, { duration: 0 });
+        
+        result = await transferPrivate(
+          railgunWalletId,
+          key,
+          recipientAddress,
+          selectedTransferToken.address,
+          amountInUnits,
+          chainConfig,
+          transferMemo
+        );
+
+        toast.dismiss();
+        toast.success(`✅ Private transfer completed! ${transferAmount} ${selectedTransferToken.symbol} sent privately.`, { duration: 5000 });
+        
+      } else if (addressValidation.type === 'eoa') {
+        // Railgun-to-EOA unshield transfer
+        toast.loading(`Unshielding ${transferAmount} ${selectedTransferToken.symbol} to public wallet...`, { duration: 0 });
+        
+        result = await unshieldTokens(
+          railgunWalletId,
+          key,
+          selectedTransferToken.address,
+          amountInUnits,
+          chainConfig,
+          recipientAddress
+        );
+
+        toast.dismiss();
+        
+        // Show fee information in success message
+        const feeAmount = result.feeAmount || '0';
+        const feeInTokens = formatTokenAmount(feeAmount, selectedTransferToken.decimals);
+        
+        toast.success(
+          `✅ Unshield completed! ${transferAmount} ${selectedTransferToken.symbol} sent to public wallet. Fee: ${feeInTokens} ${selectedTransferToken.symbol}`, 
+          { duration: 8000 }
+        );
+      }
       
       console.log('[PrivacyActions] Transfer completed:', result);
       
@@ -527,88 +605,15 @@ const PrivacyActions = () => {
       setTransferMemo('');
       
     } catch (error) {
-      console.error('[PrivacyActions] Private transfer failed:', error);
+      console.error('[PrivacyActions] Transfer failed:', error);
       toast.dismiss();
       toast.error(`❌ Transfer failed: ${error.message}`, { duration: 8000 });
     } finally {
       setIsProcessing(false);
     }
-  }, [canUseRailgun, railgunWalletId, selectedTransferToken, recipientAddress, transferAmount, transferMemo, chainId, network, refreshAllBalances, getEncryptionKey]);
+  }, [canUseRailgun, railgunWalletId, selectedTransferToken, recipientAddress, transferAmount, transferMemo, chainId, network, refreshAllBalances, getEncryptionKey, addressValidation]);
 
-  // Unshield tokens
-  const handleUnshield = useCallback(async () => {
-    if (!canUseRailgun || !railgunWalletId || !selectedUnshieldToken) {
-      toast.error('Railgun wallet not ready or no token selected');
-      return;
-    }
 
-    try {
-      setIsProcessing(true);
-      
-      // Validate inputs
-      if (!unshieldDestination || !/^0x[a-fA-F0-9]{40}$/.test(unshieldDestination)) {
-        throw new Error('Please enter a valid Ethereum address (0x...)');
-      }
-
-      if (!unshieldAmount || parseFloat(unshieldAmount) <= 0) {
-        throw new Error('Please enter a valid amount');
-      }
-
-      // Check sufficient private balance
-      const available = selectedUnshieldToken.numericBalance || 0;
-      const required = parseFloat(unshieldAmount);
-      
-      if (available < required) {
-        throw new Error(`Insufficient private balance. Available: ${available} ${selectedUnshieldToken.symbol}`);
-      }
-
-      // Parse amount to smallest units
-      const amountInUnits = parseTokenAmount(unshieldAmount, selectedUnshieldToken.decimals);
-
-      // Get chain configuration
-      const chainConfig = { type: network.name.toLowerCase(), id: chainId };
-
-      // Get encryption key
-      const key = await getEncryptionKey();
-
-      console.log('[PrivacyActions] Starting unshield operation:', {
-        token: selectedUnshieldToken.symbol,
-        amount: unshieldAmount,
-        to: unshieldDestination
-      });
-
-      // Execute unshield operation
-      toast.loading(`Unshielding ${unshieldAmount} ${selectedUnshieldToken.symbol}...`, { duration: 0 });
-      
-      const result = await unshieldTokens(
-        railgunWalletId,
-        key,
-        selectedUnshieldToken.address,
-        amountInUnits,
-        chainConfig,
-        unshieldDestination
-      );
-
-      toast.dismiss();
-      toast.success(`✅ Successfully unshielded ${unshieldAmount} ${selectedUnshieldToken.symbol}!`, { duration: 5000 });
-      
-      console.log('[PrivacyActions] Unshield completed:', result);
-      
-      // Refresh balances
-      await refreshAllBalances();
-      
-      // Clear form
-      setUnshieldAmount('');
-      setUnshieldDestination('');
-      
-    } catch (error) {
-      console.error('[PrivacyActions] Unshield failed:', error);
-      toast.dismiss();
-      toast.error(`❌ Unshield failed: ${error.message}`, { duration: 8000 });
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [canUseRailgun, railgunWalletId, selectedUnshieldToken, unshieldAmount, unshieldDestination, chainId, network, refreshAllBalances, getEncryptionKey]);
 
   if (!isConnected || !canUseRailgun) {
     return (
@@ -634,8 +639,7 @@ const PrivacyActions = () => {
 
   const tabs = [
     { id: 'shield', name: 'Shield', icon: ShieldCheckIcon, description: 'Convert public tokens to private' },
-    { id: 'transfer', name: 'Transfer', icon: ArrowRightIcon, description: 'Send private tokens to another Railgun wallet' },
-    { id: 'unshield', name: 'Unshield', icon: EyeSlashIcon, description: 'Convert private tokens back to public' },
+    { id: 'transfer', name: 'Send', icon: ArrowRightIcon, description: 'Send private tokens to Railgun addresses or public wallets' },
   ];
 
   return (
@@ -655,8 +659,8 @@ const PrivacyActions = () => {
           <h3 className="text-white font-medium mb-2">🔐 How Privacy Works</h3>
           <p className="text-gray-300 text-sm leading-relaxed">
             <strong>Shield:</strong> Move public tokens into private Railgun pools (visible → hidden)<br/>
-            <strong>Transfer:</strong> Send private tokens to other Railgun users (hidden → hidden)<br/>
-            <strong>Unshield:</strong> Move private tokens back to public wallet (hidden → visible)
+            <strong>Send to Railgun:</strong> Send private tokens to other Railgun users (hidden → hidden)<br/>
+            <strong>Send to EOA:</strong> Send private tokens to public wallets (hidden → visible) with 1% fee
           </p>
           <div className="mt-3 p-3 bg-gray-600 rounded border-l-4 border-purple-500">
             <p className="text-gray-200 text-xs">
@@ -849,9 +853,9 @@ const PrivacyActions = () => {
         {activeTab === 'transfer' && (
           <div className="space-y-6">
             <div>
-              <h3 className="text-lg font-medium text-white mb-2">Private Transfer</h3>
+              <h3 className="text-lg font-medium text-white mb-2">Send Tokens</h3>
               <p className="text-gray-300 text-sm mb-4">
-                Send private tokens to another Railgun wallet address.
+                Send private tokens to a Railgun address (private) or regular wallet address (public).
               </p>
             </div>
 
@@ -859,15 +863,61 @@ const PrivacyActions = () => {
               {/* Recipient Address */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Recipient Railgun Address
+                  Recipient Address
                 </label>
                 <input
                   type="text"
-                  placeholder="0zk..."
+                  placeholder="0zk... (Railgun) or 0x... (Ethereum)"
                   value={recipientAddress}
                   onChange={(e) => setRecipientAddress(e.target.value)}
-                  className="w-full bg-gray-700 text-white rounded-lg px-4 py-3 border border-gray-600 focus:border-purple-500 focus:outline-none"
+                  className={`w-full bg-gray-700 text-white rounded-lg px-4 py-3 border focus:outline-none ${
+                    recipientAddress.trim() === '' 
+                      ? 'border-gray-600 focus:border-purple-500'
+                      : addressValidation.isValid 
+                        ? 'border-green-500 focus:border-green-400' 
+                        : 'border-red-500 focus:border-red-400'
+                  }`}
                 />
+                
+                {/* Address Validation Feedback */}
+                {recipientAddress.trim() !== '' && (
+                  <div className={`mt-2 p-3 rounded-lg border ${
+                    addressValidation.isValid 
+                      ? addressValidation.type === 'railgun'
+                        ? 'bg-purple-900 border-purple-600 text-purple-200'
+                        : 'bg-yellow-900 border-yellow-600 text-yellow-200'
+                      : 'bg-red-900 border-red-600 text-red-200'
+                  }`}>
+                    <div className="flex items-start space-x-2">
+                      <div className="flex-shrink-0 mt-0.5">
+                        {addressValidation.isValid ? (
+                          addressValidation.type === 'railgun' ? (
+                            <ShieldCheckIcon className="h-4 w-4" />
+                          ) : (
+                            <ArrowUpIcon className="h-4 w-4" />
+                          )
+                        ) : (
+                          <ExclamationTriangleIcon className="h-4 w-4" />
+                        )}
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">
+                          {addressValidation.type === 'railgun' ? 'Railgun Address Detected' :
+                           addressValidation.type === 'eoa' ? 'Ethereum Address Detected' :
+                           'Invalid Address'}
+                        </p>
+                        <p className="text-xs mt-1 opacity-90">
+                          {addressValidation.message}
+                        </p>
+                        {addressValidation.isValid && addressValidation.type === 'eoa' && (
+                          <p className="text-xs mt-2 font-medium">
+                            💰 Platform fee: 1% will be deducted and sent to our fee wallet
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Token Selection */}
@@ -945,115 +995,24 @@ const PrivacyActions = () => {
               {/* Transfer Button */}
               <button
                 onClick={handlePrivateTransfer}
-                disabled={isProcessing || !recipientAddress || !selectedTransferToken || !transferAmount}
-                className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white py-3 rounded-lg font-medium transition-colors"
+                disabled={isProcessing || !addressValidation.isValid || !selectedTransferToken || !transferAmount}
+                className={`w-full py-3 rounded-lg font-medium transition-colors ${
+                  addressValidation.isValid && addressValidation.type === 'eoa'
+                    ? 'bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600'
+                    : 'bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600'
+                } text-white`}
               >
-                {isProcessing ? 'Processing Transfer...' : 'Send Private Transfer'}
+                {isProcessing ? (
+                  addressValidation.type === 'eoa' ? 'Processing Unshield...' : 'Processing Transfer...'
+                ) : addressValidation.isValid ? (
+                  addressValidation.type === 'railgun' ? 'Send Private Transfer' : 'Unshield to Public Wallet'
+                ) : 'Enter Valid Address'}
               </button>
             </div>
           </div>
         )}
 
-        {/* Unshield Tab */}
-        {activeTab === 'unshield' && (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-medium text-white mb-2">Unshield Tokens</h3>
-              <p className="text-gray-300 text-sm mb-4">
-                Convert your private tokens back to public tokens in your EOA wallet.
-              </p>
-            </div>
 
-            <div className="space-y-4">
-              {/* Token Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Token
-                </label>
-                <select
-                  value={selectedUnshieldToken?.symbol || ''}
-                  onChange={(e) => {
-                    const token = Object.values(privateBalances).find(t => t.symbol === e.target.value);
-                    setSelectedUnshieldToken(token);
-                  }}
-                  className="w-full bg-gray-700 text-white rounded-lg px-4 py-3 border border-gray-600 focus:border-purple-500 focus:outline-none"
-                >
-                  <option value="">Select token</option>
-                  {Object.values(privateBalances).map((token) => (
-                    <option key={token.symbol} value={token.symbol}>
-                      {token.symbol} (Balance: {token.formattedBalance})
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Amount */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Amount
-                </label>
-                <div className="flex space-x-2">
-                  <input
-                    type="number"
-                    placeholder="0.0"
-                    step="any"
-                    min="0"
-                    max={selectedUnshieldToken?.numericBalance || 0}
-                    value={unshieldAmount}
-                    onChange={(e) => setUnshieldAmount(e.target.value)}
-                    className="flex-1 bg-gray-700 text-white rounded-lg px-4 py-3 border border-gray-600 focus:border-purple-500 focus:outline-none"
-                  />
-                  <button
-                    onClick={() => {
-                      if (selectedUnshieldToken?.numericBalance) {
-                        setUnshieldAmount(selectedUnshieldToken.numericBalance.toString());
-                      }
-                    }}
-                    disabled={!selectedUnshieldToken?.numericBalance}
-                    className="bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white px-3 py-3 rounded-lg text-sm transition-colors"
-                    title="Set maximum amount"
-                  >
-                    Max
-                  </button>
-                </div>
-                {selectedUnshieldToken && (
-                  <p className="text-gray-400 text-xs mt-1">
-                    Available: {selectedUnshieldToken.formattedBalance} {selectedUnshieldToken.symbol}
-                  </p>
-                )}
-              </div>
-
-              {/* Destination Address */}
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Destination Address
-                </label>
-                <input
-                  type="text"
-                  placeholder="0x..."
-                  value={unshieldDestination}
-                  onChange={(e) => setUnshieldDestination(e.target.value)}
-                  className="w-full bg-gray-700 text-white rounded-lg px-4 py-3 border border-gray-600 focus:border-purple-500 focus:outline-none"
-                />
-                <button
-                  onClick={() => setUnshieldDestination(address)}
-                  className="mt-2 text-purple-400 hover:text-purple-300 text-sm"
-                >
-                  Use my address ({address?.slice(0, 6)}...{address?.slice(-4)})
-                </button>
-              </div>
-
-              {/* Unshield Button */}
-              <button
-                onClick={handleUnshield}
-                disabled={isProcessing || !selectedUnshieldToken || !unshieldAmount || !unshieldDestination}
-                className="w-full bg-red-600 hover:bg-red-700 disabled:bg-gray-600 text-white py-3 rounded-lg font-medium transition-colors"
-              >
-                {isProcessing ? 'Processing Unshield...' : 'Unshield to Public'}
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

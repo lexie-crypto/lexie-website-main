@@ -1,0 +1,21 @@
+{
+  "name": "railgun-shield-test",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Standalone test script for Railgun shielding operations",
+  "main": "test-railgun-shield.js",
+  "scripts": {
+    "test": "node test-railgun-shield.js",
+    "test:debug": "node --inspect test-railgun-shield.js"
+  },
+  "dependencies": {
+    "@railgun-community/wallet": "10.4.1",
+    "@railgun-community/shared-models": "7.6.2",
+    "snarkjs": "0.7.4",
+    "level-js": "6.1.0",
+    "ethers": "6.13.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+} 
