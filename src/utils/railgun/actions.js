@@ -477,14 +477,18 @@ export async function shieldTokens(
 
     let gasEstimate;
     try {
-      const result = await gasEstimateForShield(
+      // Gas estimate
+      console.log("mn is:", erc20AmountRecipients);
+      console.assert(typeof erc20AmountRecipients.map === "function", "mn.map not a function");
+      
+      const { gasEstimate } = await gasEstimateForShield(
         networkName,
         shieldPrivateKey,
-        safeErc20Recipients, // ✅ VERIFIED: Using fresh array copy
-        safeNftRecipients, // ✅ VERIFIED: Using fresh array copy
-        fromAddress // ✅ VERIFIED: This should be string address
+        erc20AmountRecipients,
+        nftAmountRecipients,
+        fromAddress,
       );
-      gasEstimate = result.gasEstimate;
+      gasEstimate = gasEstimate;
     } catch (gasError) {
       console.error('[RailgunActions] 🚨 Gas estimation failed with original error:', gasError);
       console.error('[RailgunActions] Error name:', gasError.name);
@@ -537,12 +541,16 @@ export async function shieldTokens(
     }
 
     console.log('[RailgunActions] 🚀 Calling populateShield with validated arrays...');
+    // Populate shield transaction
+    console.log("mn is:", erc20AmountRecipients);
+    console.assert(typeof erc20AmountRecipients.map === "function", "mn.map not a function");
+    
     const { transaction } = await populateShield(
       networkName,
       shieldPrivateKey,
-      safeErc20Recipients, // ✅ VERIFIED: Using fresh array copy
-      safeNftRecipients, // ✅ VERIFIED: Using fresh array copy
-      transactionGasDetails // ✅ VERIFIED: This should be gas details object
+      erc20AmountRecipients,
+      nftAmountRecipients,
+      transactionGasDetails,
     );
 
     // Set the from address as shown in official docs
