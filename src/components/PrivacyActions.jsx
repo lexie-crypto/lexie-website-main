@@ -177,7 +177,7 @@ const PrivacyActions = () => {
     );
   }, [addressValidation, selectedToken, sendAmount]);
 
-  // Send Privately (handles both Railgun-to-Railgun and Railgun-to-EOA with proper gas estimation)
+  // Send Privately (handles both Railgun-to-Railgun and Railgun-to-EOA with atomic shield → transfer)
   const handleSendPrivately = useCallback(async () => {
     if (!canUseRailgun || !railgunWalletId) {
       toast.error('Railgun wallet not ready');
@@ -192,7 +192,7 @@ const PrivacyActions = () => {
     try {
       setIsProcessing(true);
       
-      console.log('[PrivacyActions] Starting private send with proper erc20AmountRecipients:', {
+      console.log('[PrivacyActions] Starting atomic shield → transfer operation:', {
         token: selectedToken.symbol,
         amount: sendAmount,
         to: recipientAddress,
@@ -209,13 +209,30 @@ const PrivacyActions = () => {
       // Get encryption key
       const key = await getEncryptionKey();
 
-      let result;
+      // Step 1: Shield the tokens first
+      toast.loading(`Step 1/2: Shielding ${sendAmount} ${selectedToken.symbol}...`, { duration: 0 });
+      
+      const shieldResult = await shieldTokens(
+        railgunWalletId,
+        key,
+        selectedToken.address,
+        amountInUnits,
+        chainConfig,
+        address,
+        railgunAddress,
+        recipientAddress.trim() // Pass final recipient for proper gas estimation
+      );
+
+      console.log('[PrivacyActions] Shield completed:', shieldResult);
+
+      // Step 2: Now transfer the shielded tokens
+      let transferResult;
 
       if (addressValidation.type === 'railgun') {
         // Railgun-to-Railgun private transfer
-        toast.loading(`Sending ${sendAmount} ${selectedToken.symbol} privately...`, { duration: 0 });
+        toast.loading(`Step 2/2: Sending ${sendAmount} ${selectedToken.symbol} privately...`, { duration: 0 });
         
-        result = await transferPrivate(
+        transferResult = await transferPrivate(
           railgunWalletId,
           key,
           recipientAddress,
@@ -230,9 +247,9 @@ const PrivacyActions = () => {
         
       } else if (addressValidation.type === 'eoa') {
         // Railgun-to-EOA unshield transfer
-        toast.loading(`Unshielding ${sendAmount} ${selectedToken.symbol} to public wallet...`, { duration: 0 });
+        toast.loading(`Step 2/2: Unshielding ${sendAmount} ${selectedToken.symbol} to public wallet...`, { duration: 0 });
         
-        result = await unshieldTokens(
+        transferResult = await unshieldTokens(
           railgunWalletId,
           key,
           selectedToken.address,
@@ -244,16 +261,16 @@ const PrivacyActions = () => {
         toast.dismiss();
         
         // Show fee information in success message
-        const feeAmount = result.feeAmount || '0';
+        const feeAmount = transferResult.feeAmount || '0';
         const feeInTokens = formatTokenAmount(feeAmount, selectedToken.decimals);
         
         toast.success(
-          `✅ Unshield completed! ${sendAmount} ${selectedToken.symbol} sent to public wallet. Fee: ${feeInTokens} ${selectedToken.symbol}`, 
+          `✅ Private transaction completed! ${sendAmount} ${selectedToken.symbol} sent to public wallet. Fee: ${feeInTokens} ${selectedToken.symbol}`, 
           { duration: 8000 }
         );
       }
       
-      console.log('[PrivacyActions] Send completed:', result);
+      console.log('[PrivacyActions] Complete transaction finished:', { shieldResult, transferResult });
       
       // Clear form
       setSendAmount('');
@@ -261,14 +278,22 @@ const PrivacyActions = () => {
       setMemo('');
       setSelectedToken(null);
       
+      // Refresh balances to reflect the changes
+      try {
+        await refreshAllBalances();
+      } catch (refreshError) {
+        console.warn('[PrivacyActions] Balance refresh failed after transaction:', refreshError);
+        // Don't show error to user since transaction succeeded
+      }
+      
     } catch (error) {
-      console.error('[PrivacyActions] Send failed:', error);
+      console.error('[PrivacyActions] Private transaction failed:', error);
       toast.dismiss();
-      toast.error(`❌ Send failed: ${error.message}`, { duration: 8000 });
+      toast.error(`❌ Private transaction failed: ${error.message}`, { duration: 8000 });
     } finally {
       setIsProcessing(false);
     }
-  }, [canUseRailgun, railgunWalletId, isFormValid, selectedToken, sendAmount, recipientAddress, memo, chainId, network, getEncryptionKey, addressValidation]);
+  }, [canUseRailgun, railgunWalletId, isFormValid, selectedToken, sendAmount, recipientAddress, memo, chainId, network, getEncryptionKey, addressValidation, address, railgunAddress, refreshAllBalances]);
 
 
 
@@ -312,11 +337,11 @@ const PrivacyActions = () => {
         
         {/* Privacy Explanation */}
         <div className="bg-gray-700 rounded-lg p-4 mb-4">
-          <h3 className="text-white font-medium mb-2">🔐 How Privacy Works</h3>
+          <h3 className="text-white font-medium mb-2">🔐 How Private Transactions Work</h3>
           <p className="text-gray-300 text-sm leading-relaxed">
-            <strong>Shield:</strong> Move public tokens into private Railgun pools (visible → hidden)<br/>
-            <strong>Send to Railgun:</strong> Send private tokens to other Railgun users (hidden → hidden)<br/>
-            <strong>Send to EOA:</strong> Send private tokens to public wallets (hidden → visible) with 1% fee
+            <strong>Private Transactions:</strong> Your public tokens are automatically shielded (made private) and then transferred to the recipient in one secure operation.<br/>
+            <strong>To Railgun Address:</strong> Completely private transfer (hidden → hidden)<br/>
+            <strong>To EOA Address:</strong> Private shield then public transfer (visible → hidden → visible) with 1% fee
           </p>
           <div className="mt-3 p-3 bg-gray-600 rounded border-l-4 border-purple-500">
             <p className="text-gray-200 text-xs">
@@ -364,7 +389,7 @@ const PrivacyActions = () => {
             <div>
               <h3 className="text-lg font-medium text-white mb-2">Send Privately</h3>
               <p className="text-gray-300 text-sm mb-4">
-                Send your private tokens to any Railgun address (private) or Ethereum address (public with 1% fee).
+                Send your public tokens privately to any address. Tokens will be automatically shielded and transferred in one transaction.
               </p>
             </div>
 
@@ -437,23 +462,23 @@ const PrivacyActions = () => {
                 <select
                   value={selectedToken?.symbol || ''}
                   onChange={(e) => {
-                    const token = Object.values(privateBalances).find(t => t.symbol === e.target.value);
+                    const token = Object.values(publicBalances).find(t => t.symbol === e.target.value);
                     setSelectedToken(token);
                   }}
                   className="w-full bg-gray-700 text-white rounded-lg px-4 py-3 border border-gray-600 focus:border-purple-500 focus:outline-none"
                 >
                   <option value="">Select token</option>
-                  {Object.values(privateBalances)
-                    .filter(token => (token.numericBalance || 0) > 0)
+                  {Object.values(publicBalances)
+                    .filter(token => token.hasBalance && isTokenSupportedByRailgun(token.address, chainId))
                     .map((token) => (
                     <option key={token.symbol} value={token.symbol}>
                       {token.symbol} (Balance: {token.formattedBalance})
                     </option>
                   ))}
                 </select>
-                {Object.values(privateBalances).filter(token => (token.numericBalance || 0) > 0).length === 0 && (
+                {Object.values(publicBalances).filter(token => token.hasBalance && isTokenSupportedByRailgun(token.address, chainId)).length === 0 && (
                   <p className="text-yellow-400 text-xs mt-1">
-                    No private tokens with balance available. Shield some tokens first.
+                    No supported public tokens with balance available.
                   </p>
                 )}
               </div>
@@ -524,13 +549,13 @@ const PrivacyActions = () => {
                   <div className="flex items-center justify-center space-x-2">
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
                     <span>
-                      {addressValidation.type === 'eoa' ? 'Processing Unshield...' : 'Processing Transfer...'}
+                      {addressValidation.type === 'eoa' ? 'Processing Private Transaction...' : 'Processing Private Transfer...'}
                     </span>
                   </div>
                 ) : !isFormValid ? (
                   'Fill All Required Fields'
                 ) : (
-                  addressValidation.type === 'railgun' ? 'Send Private Transfer' : 'Unshield to Public Wallet'
+                  addressValidation.type === 'railgun' ? 'Send Private Transaction' : 'Send Private Transaction (1% Fee)'
                 )}
               </button>
 
