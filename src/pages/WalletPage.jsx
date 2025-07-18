@@ -41,10 +41,14 @@ const WalletPage = () => {
     railgunWalletId,
     railgunAddress,
     isRailgunInitialized,
+    isInitializingRailgun,
     canUseRailgun,
+    railgunError,
     connectWallet,
     disconnectWallet,
     getCurrentNetwork,
+    walletProviders,
+    isWalletAvailable,
   } = useWallet();
 
   const {
