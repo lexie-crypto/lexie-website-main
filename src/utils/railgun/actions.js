@@ -70,6 +70,72 @@ function getRailgunNetworkName(chainId) {
 }
 
 /**
+ * Ensure arrays are properly initialized for Railgun SDK calls
+ * CRITICAL: Prevents "pn.map is not a function" errors
+ * @param {any} erc20Recipients - ERC20 amount recipients
+ * @param {any} nftRecipients - NFT amount recipients  
+ * @param {any} memoArray - Memo array (optional)
+ * @returns {Object} Safe arrays for SDK calls
+ */
+function ensureSafeArraysForSDK(erc20Recipients, nftRecipients, memoArray = null) {
+  // Check for problematic types that cause "pn.map is not a function"
+  if (typeof erc20Recipients === 'number' || typeof erc20Recipients === 'string') {
+    console.error('[RailgunActions] ❌ CRITICAL: erc20Recipients is not an array!', {
+      type: typeof erc20Recipients,
+      value: erc20Recipients,
+      shouldBe: 'Array'
+    });
+  }
+  
+  if (typeof nftRecipients === 'number' || typeof nftRecipients === 'string') {
+    console.error('[RailgunActions] ❌ CRITICAL: nftRecipients is not an array!', {
+      type: typeof nftRecipients,
+      value: nftRecipients,
+      shouldBe: 'Array'
+    });
+  }
+
+  const safeErc20Recipients = Array.isArray(erc20Recipients) ? erc20Recipients : [];
+  const safeNftRecipients = Array.isArray(nftRecipients) ? nftRecipients : [];
+  const safeMemoArray = memoArray ? (Array.isArray(memoArray) ? memoArray : []) : [];
+  
+  console.log('[RailgunActions] ✅ Array validation for SDK:', {
+    erc20Recipients: {
+      original: erc20Recipients,
+      originalType: typeof erc20Recipients,
+      isArray: Array.isArray(erc20Recipients),
+      safe: safeErc20Recipients,
+      length: safeErc20Recipients.length,
+      fixed: !Array.isArray(erc20Recipients)
+    },
+    nftRecipients: {
+      original: nftRecipients,
+      originalType: typeof nftRecipients,
+      isArray: Array.isArray(nftRecipients),
+      safe: safeNftRecipients,
+      length: safeNftRecipients.length,
+      fixed: !Array.isArray(nftRecipients)
+    },
+    ...(memoArray && {
+      memoArray: {
+        original: memoArray,
+        originalType: typeof memoArray,
+        isArray: Array.isArray(memoArray),
+        safe: safeMemoArray,
+        length: safeMemoArray.length,
+        fixed: memoArray && !Array.isArray(memoArray)
+      }
+    })
+  });
+  
+  return {
+    safeErc20Recipients,
+    safeNftRecipients,
+    safeMemoArray
+  };
+}
+
+/**
  * Validates and formats an Ethereum address
  * @param {string} address - The address to validate
  * @param {string} paramName - Parameter name for error messages
@@ -305,16 +371,22 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
     const erc20AmountRecipients = [erc20AmountRecipient];
     const nftAmountRecipients = []; // Always empty array for shield operations
 
+    // ✅ CRITICAL: Ensure arrays are safe for SDK calls
+    const { safeErc20Recipients, safeNftRecipients } = ensureSafeArraysForSDK(
+      erc20AmountRecipients, 
+      nftAmountRecipients
+    );
+
     console.log('[RailgunActions] Created properly structured parameters:', {
       networkName,
-      erc20AmountRecipients: erc20AmountRecipients.map(r => ({
+      erc20AmountRecipients: safeErc20Recipients.map(r => ({
         tokenAddress: r.tokenAddress,
         tokenAddressType: typeof r.tokenAddress,
         amount: r.amount,
         amountType: typeof r.amount,
         recipientAddress: r.recipientAddress ? `${r.recipientAddress.slice(0, 8)}...` : 'MISSING'
       })),
-      nftAmountRecipientsLength: nftAmountRecipients.length,
+      nftAmountRecipientsLength: safeNftRecipients.length,
     });
 
     // ✅ STEP 1: Generate Shield Private Key (Official Pattern from docs)
@@ -352,8 +424,8 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
     console.log('[RailgunActions] Gas estimation parameters (official pattern):', {
       networkName,
       shieldPrivateKey: shieldPrivateKey ? 'PRESENT' : 'MISSING',
-      erc20AmountRecipients: erc20AmountRecipients.length,
-      nftAmountRecipients: nftAmountRecipients.length,
+      erc20AmountRecipients: safeErc20Recipients.length,
+      nftAmountRecipients: safeNftRecipients.length,
       fromAddress: fromAddress ? `${fromAddress.slice(0, 8)}...` : 'MISSING'
     });
 
@@ -363,8 +435,8 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       gasEstimateResult = await gasEstimateForShield(
         networkName,
         shieldPrivateKey,
-        erc20AmountRecipients,
-        nftAmountRecipients,
+        safeErc20Recipients,
+        safeNftRecipients,
         fromAddress
       );
       console.log('[RailgunActions] Gas estimation successful (official pattern):', gasEstimateResult);
@@ -417,8 +489,8 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       populatedResult = await populateShield(
         networkName,
         shieldPrivateKey,
-        erc20AmountRecipients,
-        nftAmountRecipients,
+        safeErc20Recipients,
+        safeNftRecipients,
         transactionGasDetails // ✅ Use proper TransactionGasDetails object
       );
       console.log('[RailgunActions] Shield transaction populated successfully');
@@ -521,9 +593,15 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
     const erc20AmountRecipients = [erc20AmountRecipient];
     const nftAmountRecipients = []; // Always empty array for unshield operations
 
-    console.log('[RailgunActions] Prepared unshield recipients:', {
-      erc20AmountRecipients,
+    // ✅ CRITICAL: Ensure arrays are safe for SDK calls
+    const { safeErc20Recipients, safeNftRecipients } = ensureSafeArraysForSDK(
+      erc20AmountRecipients, 
       nftAmountRecipients
+    );
+
+    console.log('[RailgunActions] Prepared unshield recipients:', {
+      erc20AmountRecipients: safeErc20Recipients,
+      nftAmountRecipients: safeNftRecipients
     });
 
     // ✅ STEP 1: Gas Estimation (Official Pattern)
@@ -534,8 +612,8 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
         networkName,
         railgunWalletID,
         encryptionKey,
-        erc20AmountRecipients,
-        nftAmountRecipients
+        safeErc20Recipients,
+        safeNftRecipients
       );
       console.log('[RailgunActions] Unshield gas estimation successful:', gasDetails);
     } catch (sdkError) {
@@ -555,8 +633,8 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
         networkName,
         railgunWalletID,
         encryptionKey,
-        erc20AmountRecipients,
-        nftAmountRecipients
+        safeErc20Recipients,
+        safeNftRecipients
       );
       console.log('[RailgunActions] Unshield proof generated successfully');
     } catch (sdkError) {
@@ -575,8 +653,8 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
       populatedResult = await populateProvedUnshield(
         networkName,
         railgunWalletID,
-        erc20AmountRecipients,
-        nftAmountRecipients
+        safeErc20Recipients,
+        safeNftRecipients
       );
       console.log('[RailgunActions] Unshield transaction populated successfully');
     } catch (sdkError) {
@@ -652,10 +730,17 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
     const nftAmountRecipients = []; // Empty array, never null
     const memoArray = memo ? [memo] : []; // Memo array, properly initialized
 
-    console.log('[RailgunActions] Prepared transfer recipients:', {
-      erc20AmountRecipients,
+    // ✅ CRITICAL: Ensure arrays are safe for SDK calls
+    const { safeErc20Recipients, safeNftRecipients, safeMemoArray } = ensureSafeArraysForSDK(
+      erc20AmountRecipients, 
       nftAmountRecipients,
       memoArray
+    );
+
+    console.log('[RailgunActions] Prepared transfer recipients:', {
+      erc20AmountRecipients: safeErc20Recipients,
+      nftAmountRecipients: safeNftRecipients,
+      memoArray: safeMemoArray
     });
 
     // Get gas estimate
@@ -663,9 +748,9 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
       networkName,
       railgunWalletID,
       encryptionKey,
-      memoArray,
-      erc20AmountRecipients,
-      nftAmountRecipients,
+      safeMemoArray,
+      safeErc20Recipients,
+      safeNftRecipients,
     );
 
     console.log('[RailgunActions] Transfer gas estimate:', gasDetails);
@@ -675,9 +760,9 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
       networkName,
       railgunWalletID,
       encryptionKey,
-      memoArray,
-      erc20AmountRecipients,
-      nftAmountRecipients,
+      safeMemoArray,
+      safeErc20Recipients,
+      safeNftRecipients,
     );
 
     console.log('[RailgunActions] Transfer proof generated:', proofResult);
@@ -686,9 +771,9 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
     const populatedResult = await populateProvedTransfer(
       networkName,
       railgunWalletID,
-      memoArray,
-      erc20AmountRecipients,
-      nftAmountRecipients,
+      safeMemoArray,
+      safeErc20Recipients,
+      safeNftRecipients,
     );
 
     console.log('[RailgunActions] Transfer transaction populated:', populatedResult);
@@ -931,9 +1016,11 @@ export const estimateShieldGas = async (networkName, shieldPrivateKey, erc20Amou
   try {
     console.log('[RailgunActions] Estimating shield gas');
     
-    // Ensure arrays are properly initialized (never null)
-    const safeErc20Recipients = Array.isArray(erc20AmountRecipients) ? erc20AmountRecipients : [];
-    const safeNftRecipients = Array.isArray(nftAmountRecipients) ? nftAmountRecipients : [];
+    // ✅ CRITICAL: Ensure arrays are safe for SDK calls
+    const { safeErc20Recipients, safeNftRecipients } = ensureSafeArraysForSDK(
+      erc20AmountRecipients, 
+      nftAmountRecipients
+    );
     
     // Use actual Railgun gas estimation (Official Pattern)
     const gasDetails = await gasEstimateForShield(
@@ -968,9 +1055,11 @@ export const estimateUnshieldGas = async (networkName, railgunWalletID, encrypti
   try {
     console.log('[RailgunActions] Estimating unshield gas');
     
-    // Ensure arrays are properly initialized (never null)
-    const safeErc20Recipients = Array.isArray(erc20AmountRecipients) ? erc20AmountRecipients : [];
-    const safeNftRecipients = Array.isArray(nftAmountRecipients) ? nftAmountRecipients : [];
+    // ✅ CRITICAL: Ensure arrays are safe for SDK calls
+    const { safeErc20Recipients, safeNftRecipients } = ensureSafeArraysForSDK(
+      erc20AmountRecipients, 
+      nftAmountRecipients
+    );
     
     // Use actual Railgun gas estimation (Official Pattern)
     const gasDetails = await gasEstimateForUnprovenUnshield(
