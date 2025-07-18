@@ -34,7 +34,11 @@ import {
   populateProvedTransfer,
   getShieldPrivateKeySignatureMessage,
 } from '@railgun-community/wallet';
-import { NetworkName } from '@railgun-community/shared-models';
+import { 
+  NetworkName, 
+  EVMGasType, 
+  getEVMGasTypeForTransaction 
+} from '@railgun-community/shared-models';
 import { waitForRailgunReady } from './engine.js';
 import railgunEngine from './engine.js';
 import { getTokensForChain } from '../../constants/tokens.js';
@@ -353,17 +357,17 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       fromAddress: fromAddress ? `${fromAddress.slice(0, 8)}...` : 'MISSING'
     });
 
-    let gasDetails;
+    let gasEstimateResult;
     try {
-      // ✅ USE OFFICIAL PATTERN: gasEstimateForShield with shieldPrivateKey
-      gasDetails = await gasEstimateForShield(
+      // ✅ OFFICIAL PATTERN: destructure { gasEstimate } from gasEstimateForShield
+      gasEstimateResult = await gasEstimateForShield(
         networkName,
         shieldPrivateKey,
         erc20AmountRecipients,
         nftAmountRecipients,
         fromAddress
       );
-      console.log('[RailgunActions] Gas estimation successful (official pattern):', gasDetails);
+      console.log('[RailgunActions] Gas estimation successful (official pattern):', gasEstimateResult);
     } catch (sdkError) {
       console.error('[RailgunActions] Gas estimation failed (official pattern):', {
         error: sdkError,
@@ -373,17 +377,49 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       throw new Error(`Gas estimation failed: ${sdkError.message}`);
     }
 
+    // ✅ CONSTRUCT PROPER TRANSACTION GAS DETAILS
+    const sendWithPublicWallet = true; // Always true for Shield transactions
+    const evmGasType = getEVMGasTypeForTransaction(networkName, sendWithPublicWallet);
+    
+    let transactionGasDetails;
+    switch (evmGasType) {
+      case EVMGasType.Type0:
+      case EVMGasType.Type1:
+        transactionGasDetails = {
+          evmGasType,
+          gasEstimate: gasEstimateResult.gasEstimate || gasEstimateResult,
+          gasPrice: BigInt(20000000000), // 20 gwei fallback
+        };
+        break;
+      case EVMGasType.Type2:
+        transactionGasDetails = {
+          evmGasType,
+          gasEstimate: gasEstimateResult.gasEstimate || gasEstimateResult,
+          maxFeePerGas: BigInt(25000000000), // 25 gwei
+          maxPriorityFeePerGas: BigInt(2000000000), // 2 gwei
+        };
+        break;
+    }
+
+    console.log('[RailgunActions] Constructed TransactionGasDetails:', {
+      evmGasType: transactionGasDetails.evmGasType,
+      gasEstimate: transactionGasDetails.gasEstimate?.toString(),
+      gasPrice: transactionGasDetails.gasPrice?.toString(),
+      maxFeePerGas: transactionGasDetails.maxFeePerGas?.toString(),
+      maxPriorityFeePerGas: transactionGasDetails.maxPriorityFeePerGas?.toString(),
+    });
+
     // ✅ STEP 3: Populate Shield Transaction (Official Pattern)
     console.log('[RailgunActions] Step 3: Populating shield transaction...');
     let populatedResult;
     try {
-      // ✅ OFFICIAL PATTERN: populateShield with gasDetails
+      // ✅ OFFICIAL PATTERN: destructure { transaction } from populateShield
       populatedResult = await populateShield(
         networkName,
         shieldPrivateKey,
         erc20AmountRecipients,
         nftAmountRecipients,
-        gasDetails // ✅ Use gasDetails, not feeTokenDetails
+        transactionGasDetails // ✅ Use proper TransactionGasDetails object
       );
       console.log('[RailgunActions] Shield transaction populated successfully');
     } catch (sdkError) {
@@ -401,7 +437,7 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
 
     console.log('[RailgunActions] ✅ Shield operation completed successfully');
     return {
-      gasEstimate: gasDetails,
+      gasEstimate: gasEstimateResult,
       transaction: populatedResult.transaction,
       shieldPrivateKey: shieldPrivateKey,
     };
