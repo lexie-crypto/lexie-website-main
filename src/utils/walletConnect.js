@@ -17,7 +17,7 @@ const ethersAdapter = new EthersAdapter();
 const walletConnectConfig = {
   adapters: [ethersAdapter],
   networks,
-  projectId: process.env.REACT_APP_WALLETCONNECT_PROJECT_ID || 'demo-project-id',
+  projectId: import.meta.env.VITE_REOWN_PROJECT_ID || 'demo-project-id',
   metadata: {
     name: 'Lexie Crypto',
     description: 'AI-powered crypto trading with privacy features',
