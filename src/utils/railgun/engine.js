@@ -196,7 +196,7 @@ const startEngine = async () => {
 
     // Step 1: Start the engine
     const walletSource = 'Lexie Wallet'; // Identify our wallet implementation
-    const shouldDebug = process.env.NODE_ENV === 'development';
+    const shouldDebug = import.meta.env.DEV;
     
     await startRailgunEngine(
       walletSource,
@@ -223,7 +223,9 @@ const startEngine = async () => {
   } catch (error) {
     console.error('[RAILGUN] Engine initialization failed:', error);
     isEngineStarted = false;
-    throw new Error(`RAILGUN Engine failed to start: ${error.message}`);
+    // More robust error handling
+    const errorMessage = error?.message || error?.toString() || 'Unknown error occurred';
+    throw new Error(`RAILGUN Engine failed to start: ${errorMessage}`);
   }
 };
 
