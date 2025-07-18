@@ -10,6 +10,23 @@
  * - Step 5: Set up a debug logger
  */
 
+// ✅ OFFICIAL RAILGUN DEBUG LOGGER SETUP
+import debug from 'debug';
+// Enable all Railgun debug logs
+debug.enabled = function(name) { return name.startsWith('railgun:'); };
+debug.log = console.log.bind(console);
+
+// Enable Railgun debug logging
+if (typeof window !== 'undefined') {
+  // Browser environment
+  localStorage.debug = 'railgun:*';
+  console.log('[RailgunEngine] 🔍 ENABLED OFFICIAL RAILGUN DEBUG LOGGING (Browser)');
+} else {
+  // Node environment
+  process.env.DEBUG = 'railgun:*';
+  console.log('[RailgunEngine] 🔍 ENABLED OFFICIAL RAILGUN DEBUG LOGGING (Node)');
+}
+
 import { 
   startRailgunEngine,
   setLoggers,
@@ -24,6 +41,8 @@ import {
   NETWORK_CONFIG,
   isDefined,
 } from '@railgun-community/shared-models';
+import { groth16 } from 'snarkjs';
+import LevelJS from 'level-js';
 import { createArtifactStore } from './artifactStore.js';
 
 // Engine state
@@ -56,53 +75,9 @@ const RPC_PROVIDERS = {
   },
 };
 
-/**
- * Debug logger setup
- * Following Step 5 of the documentation
- */
-const setupLogger = () => {
-  const logger = {
-    log: (message, data) => {
-      console.log(`[RAILGUN] ${message}`, data || '');
-    },
-    warn: (message, data) => {
-      console.warn(`[RAILGUN WARNING] ${message}`, data || '');
-    },
-    error: (message, data) => {
-      console.error(`[RAILGUN ERROR] ${message}`, data || '');
-    },
-  };
 
-  setLoggers(logger, logger, logger); // Set for all log levels
-  console.log('[RAILGUN] Debug logger configured');
-};
 
-/**
- * Load Groth16 Prover for browser platform
- * Following Step 3 of the documentation
- */
-const loadProver = async () => {
-  if (isProverLoaded) {
-    console.log('[RAILGUN] Prover already loaded');
-    return;
-  }
 
-  try {
-    console.log('[RAILGUN] Loading Groth16 prover for browser...');
-    
-    // Load the browser prover
-    const prover = await getProver();
-    if (!prover) {
-      throw new Error('Failed to get prover instance');
-    }
-
-    console.log('[RAILGUN] Groth16 prover loaded successfully');
-    isProverLoaded = true;
-  } catch (error) {
-    console.error('[RAILGUN] Failed to load prover:', error);
-    throw new Error(`Prover loading failed: ${error.message}`);
-  }
-};
 
 /**
  * Add networks and RPC providers
@@ -175,8 +150,31 @@ const setupBalanceCallbacks = () => {
 };
 
 /**
+ * Load and register the snarkJS Groth16 prover
+ */
+const loadSnarkJSGroth16 = async () => {
+  if (isProverLoaded) {
+    console.log('[RAILGUN] Prover already loaded');
+    return;
+  }
+
+  try {
+    console.log('[RAILGUN] Loading snarkJS Groth16 prover...');
+    
+    // Register the Groth16 prover with Railgun
+    getProver().setSnarkJSGroth16(groth16);
+    
+    isProverLoaded = true;
+    console.log('[RAILGUN] snarkJS Groth16 prover loaded successfully');
+  } catch (error) {
+    console.error('[RAILGUN] Failed to load prover:', error);
+    throw error;
+  }
+};
+
+/**
  * Start RAILGUN Engine
- * Following Step 1 of the documentation
+ * Following the working implementation pattern
  */
 const startEngine = async () => {
   if (isEngineStarted) {
@@ -185,32 +183,54 @@ const startEngine = async () => {
   }
 
   try {
-    console.log('[RAILGUN] Starting RAILGUN Privacy Engine...');
+    console.log('[RAILGUN] 🚀 Initializing Railgun engine with FULL DEBUG LOGGING...');
 
-    // Step 2: Create artifact store
+    // Create database instance (KEY FIX!)
+    const db = new LevelJS('railgun-db');
+    
+    // Create artifact store
     const artifactStore = createArtifactStore();
     console.log('[RAILGUN] Artifact store created');
 
-    // Step 5: Setup debug logger
-    setupLogger();
+    // ✅ ENHANCED DEBUG LOGGING SETUP
+    const railgunLogger = debug('railgun:engine');
+    const railgunErrorLogger = debug('railgun:error');
+    
+    // Set up comprehensive Railgun logging
+    setLoggers(
+      (message) => {
+        console.log(`🔍 [RAILGUN:LOG] ${message}`);
+        railgunLogger(message);
+      },
+      (error) => {
+        console.error(`🚨 [RAILGUN:ERROR] ${error}`);
+        railgunErrorLogger(error);
+      }
+    );
 
-    // Step 1: Start the engine
-    const walletSource = 'Lexie Wallet'; // Identify our wallet implementation
+    console.log('[RAILGUN] ✅ Debug loggers configured - all Railgun internals will be logged');
+
+    // Start the engine with correct parameter order (KEY FIX!)
+    const walletSource = 'Lexie Wallet';
     const shouldDebug = import.meta.env.DEV;
     
     await startRailgunEngine(
-      walletSource,
-      artifactStore,
-      shouldDebug,
-      undefined, // skipMerkletreeScans - let it scan normally
-      undefined  // poiNodeInterface - not using POI initially
+      walletSource,                 // walletSource
+      db,                          // db (THIS WAS MISSING!)
+      shouldDebug,                 // shouldDebug  
+      artifactStore,               // artifactStore
+      false,                       // useNativeArtifacts
+      false,                       // skipMerkletreeScans
+      [],                          // poiNodeUrls
+      [],                          // customPOILists
+      true                         // verboseScanLogging
     );
 
     isEngineStarted = true;
-    console.log('[RAILGUN] Privacy Engine started successfully');
+    console.log('[RAILGUN] 🎉 Engine initialized successfully with FULL DEBUG LOGGING ACTIVE');
 
     // Step 3: Load prover
-    await loadProver();
+    await loadSnarkJSGroth16();
 
     // Step 4: Setup networks
     await setupNetworks();
