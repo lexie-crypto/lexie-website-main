@@ -81,11 +81,7 @@ export const getAllFees = () => {
  * Blocks all Railgun balance and transaction calls until engine is initialized
  */
 export const waitForRailgunReady = async () => {
-  let retries = 20;
-  while (!getEngineStatus().isInitialized && retries > 0) {
-    await new Promise(res => setTimeout(res, 300));
-    retries--;
-  }
+  // NO RETRIES - Single check only to stop infinite polling
   if (!getEngineStatus().isInitialized) {
     throw new Error("Railgun engine did not initialize");
   }
