@@ -7,7 +7,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { createConfig, custom } from 'wagmi';
 import { mainnet, polygon, arbitrum, bsc } from 'wagmi/chains';
 import { metaMask, walletConnect } from 'wagmi/connectors';
-import { WagmiProvider, useAccount, useConnect, useDisconnect, useSwitchChain, useConnectorClient } from 'wagmi';
+import { WagmiProvider, useAccount, useConnect, useDisconnect, useSwitchChain, useConnectorClient, useSignMessage } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/environment';
 
@@ -106,20 +106,19 @@ const WalletContextProvider = ({ children }) => {
   const { disconnect } = useDisconnect();
   const { switchChain } = useSwitchChain();
   const { data: connectorClient } = useConnectorClient();
+  const { signMessageAsync } = useSignMessage();
 
   // Get current wallet provider for signing operations
   const getCurrentWalletProvider = () => {
-    // If we have a connector client (connected wallet), use it for signing
-    if (connectorClient) {
-      // For WalletConnect and other connectors, we need to create a provider
-      // that can handle personal_sign requests
+    // If we have a connector client (connected wallet), use wagmi's signMessage
+    if (connectorClient && signMessageAsync) {
       return {
         request: async ({ method, params }) => {
           try {
             if (method === 'personal_sign') {
-              // Use the connector client to sign
+              // Use wagmi's signMessageAsync for proper signing
               const [message, address] = params;
-              return await connectorClient.signMessage({ message });
+              return await signMessageAsync({ message });
             }
             // For other methods, delegate to the underlying provider
             if (connectorClient.transport?.request) {
@@ -360,6 +359,7 @@ const WalletContextProvider = ({ children }) => {
     disconnectWallet,
     switchChain: (chainId) => switchChain({ chainId }),
     switchNetwork: (chainId) => switchChain({ chainId }), // Add this for components calling switchNetwork directly
+    signMessage: signMessageAsync, // Add direct access to sign message function
     isRailgunInitialized,
     initializeRailgun,
     railgunAddress,
