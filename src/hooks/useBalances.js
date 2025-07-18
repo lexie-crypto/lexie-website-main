@@ -71,6 +71,7 @@ export function useBalances() {
         ...prices
       }));
       
+      console.log('[useBalances] Fetched fresh prices:', prices);
       return prices;
     } catch (error) {
       console.error('[useBalances] Failed to fetch token prices:', error);
@@ -238,31 +239,39 @@ export function useBalances() {
     try {
       console.log('[useBalances] Refreshing all balances...');
 
-      // Fetch prices first
-      const allSymbols = [
-        ...new Set([
-          ...(TOKEN_LISTS[chainId] || []).map(t => t.symbol),
-          'ETH', 'MATIC', 'BNB', // Native tokens
-        ])
-      ];
-      await fetchAndCachePrices(allSymbols);
+              // Fetch prices first and get them directly
+        const allSymbols = [
+          ...new Set([
+            ...(TOKEN_LISTS[chainId] || []).map(t => t.symbol),
+            'ETH', 'MATIC', 'BNB', // Native tokens
+          ])
+        ];
+        const freshPrices = await fetchAndCachePrices(allSymbols);
 
-      // Fetch public and private balances in parallel
-      const [publicBals, privateBals] = await Promise.all([
-        fetchPublicBalances(),
-        fetchPrivateBalances(),
-      ]);
+        // Fetch public and private balances in parallel
+        const [publicBals, privateBals] = await Promise.all([
+          fetchPublicBalances(),
+          fetchPrivateBalances(),
+        ]);
 
-      // Add USD values to balances after fetching
-      const publicWithUSD = publicBals.map(token => ({
-        ...token,
-        balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
-      }));
+        // Add USD values using fresh prices directly
+        const calculateUSD = (numericBalance, symbol) => {
+          const price = freshPrices[symbol] || tokenPrices[symbol];
+          if (price && typeof price === 'number' && numericBalance > 0) {
+            return (numericBalance * price).toFixed(2);
+          }
+          return '0.00';
+        };
 
-      const privateWithUSD = privateBals.map(token => ({
-        ...token,
-        balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
-      }));
+        const publicWithUSD = publicBals.map(token => ({
+          ...token,
+          balanceUSD: calculateUSD(token.numericBalance, token.symbol)
+        }));
+
+        const privateWithUSD = privateBals.map(token => ({
+          ...token,
+          balanceUSD: calculateUSD(token.numericBalance, token.symbol)
+        }));
 
       setPublicBalances(publicWithUSD);
       setPrivateBalances(privateWithUSD);
