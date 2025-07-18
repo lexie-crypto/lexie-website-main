@@ -14,6 +14,13 @@ import {
   getCurrentWallet,
   isValidRailgunAddress,
 } from '../utils/railgun/wallet';
+import {
+  initializeWalletConnect,
+  connectWalletConnect,
+  disconnectWalletConnect,
+  getWalletConnectState,
+  isWalletConnectAvailable,
+} from '../utils/walletConnect';
 
 // Wallet providers
 const WALLET_PROVIDERS = {
@@ -51,7 +58,7 @@ export const WalletProvider = ({ children }) => {
   const [isInitializingRailgun, setIsInitializingRailgun] = useState(false);
   const [railgunError, setRailgunError] = useState(null);
 
-  // Initialize Railgun when component mounts
+  // Initialize Railgun and WalletConnect when component mounts
   useEffect(() => {
     const setupRailgun = async () => {
       setIsInitializingRailgun(true);
@@ -70,7 +77,19 @@ export const WalletProvider = ({ children }) => {
       }
     };
 
+    const setupWalletConnect = async () => {
+      try {
+        console.log('[WalletContext] Initializing WalletConnect...');
+        await initializeWalletConnect();
+        console.log('[WalletContext] WalletConnect initialized successfully');
+      } catch (error) {
+        console.error('[WalletContext] Failed to initialize WalletConnect:', error);
+        // Don't show error toast for WalletConnect init, just log it
+      }
+    };
+
     setupRailgun();
+    setupWalletConnect();
   }, []);
 
   // Check if current network is supported
@@ -86,9 +105,9 @@ export const WalletProvider = ({ children }) => {
       case WALLET_PROVIDERS.PHANTOM:
         return window.phantom && window.phantom.ethereum ? window.phantom.ethereum : null;
       case WALLET_PROVIDERS.WALLETCONNECT:
-        // WalletConnect implementation would go here
-        // For now, fallback to any available provider
-        return window.ethereum;
+        // WalletConnect uses its own provider system, not window.ethereum
+        const wcState = getWalletConnectState();
+        return wcState.provider || null;
       default:
         return null;
     }
@@ -102,7 +121,7 @@ export const WalletProvider = ({ children }) => {
       case WALLET_PROVIDERS.PHANTOM:
         return !!(window.phantom && window.phantom.ethereum);
       case WALLET_PROVIDERS.WALLETCONNECT:
-        return true; // Always available as it's a protocol
+        return isWalletConnectAvailable(); // Always true since it's a protocol
       default:
         return false;
     }
@@ -176,29 +195,40 @@ export const WalletProvider = ({ children }) => {
         throw new Error(`Please install ${walletNames[providerType]} or select a different wallet`);
       }
 
-      const provider = getWalletProvider(providerType);
-      if (!provider) {
-        throw new Error('Wallet provider not available');
-      }
-
       console.log('[WalletContext] Connecting wallet with provider:', providerType);
 
-      // Request account access
-      const accounts = await provider.request({
-        method: 'eth_requestAccounts',
-      });
+      let userAddress, chainIdNumber, provider;
 
-      if (accounts.length === 0) {
-        throw new Error('No accounts found');
+      if (providerType === WALLET_PROVIDERS.WALLETCONNECT) {
+        // Handle WalletConnect connection
+        const wcResult = await connectWalletConnect();
+        userAddress = wcResult.address;
+        chainIdNumber = wcResult.chainId;
+        provider = wcResult.provider;
+      } else {
+        // Handle browser extension wallets (MetaMask, Phantom)
+        provider = getWalletProvider(providerType);
+        if (!provider) {
+          throw new Error('Wallet provider not available');
+        }
+
+        // Request account access
+        const accounts = await provider.request({
+          method: 'eth_requestAccounts',
+        });
+
+        if (accounts.length === 0) {
+          throw new Error('No accounts found');
+        }
+
+        // Get chain ID
+        const chainId = await provider.request({
+          method: 'eth_chainId',
+        });
+
+        userAddress = accounts[0];
+        chainIdNumber = parseInt(chainId, 16);
       }
-
-      // Get chain ID
-      const chainId = await provider.request({
-        method: 'eth_chainId',
-      });
-
-      const userAddress = accounts[0];
-      const chainIdNumber = parseInt(chainId, 16);
 
       console.log('[WalletContext] Wallet connected:', {
         provider: providerType,
@@ -237,8 +267,17 @@ export const WalletProvider = ({ children }) => {
   }, [isConnecting, setupRailgunWallet, isWalletAvailable, getWalletProvider]);
 
   // Disconnect wallet function
-  const disconnectWallet = useCallback(() => {
+  const disconnectWallet = useCallback(async () => {
     console.log('[WalletContext] Disconnecting wallet...');
+    
+    // Handle WalletConnect disconnection
+    if (selectedProvider === WALLET_PROVIDERS.WALLETCONNECT) {
+      try {
+        await disconnectWalletConnect();
+      } catch (error) {
+        console.error('[WalletContext] Failed to disconnect WalletConnect:', error);
+      }
+    }
     
     setIsConnected(false);
     setAddress(null);
@@ -252,7 +291,7 @@ export const WalletProvider = ({ children }) => {
     setRailgunError(null);
 
     toast.success('Wallet disconnected');
-  }, []);
+  }, [selectedProvider]);
 
   // Switch network function
   const switchNetwork = useCallback(async (targetChainId) => {
