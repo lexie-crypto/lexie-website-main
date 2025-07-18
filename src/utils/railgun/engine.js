@@ -223,33 +223,25 @@ const startEngine = async () => {
   try {
     console.log('[RAILGUN] 🚀 Initializing Railgun engine...');
 
-        // Step 1: Create artifact store
-    const artifactStore = createArtifactStore();
+    // Step 1: Create artifact store
+    const artifactStore = await createArtifactStore();
     console.log('[RAILGUN] Artifact store created:', {
       hasDownloadMethod: typeof artifactStore.downloadAndSaveArtifacts === 'function',
-      storeMethods: Object.getOwnPropertyNames(artifactStore.__proto__),
+      storeMethods: Object.getOwnPropertyNames(Object.getPrototypeOf(artifactStore)),
+      hasGet: typeof artifactStore.get === 'function',
+      hasSet: typeof artifactStore.set === 'function', 
+      hasExists: typeof artifactStore.exists === 'function',
+      instanceType: typeof artifactStore,
     });
+    console.log('[RAILGUN] SDK will handle artifact downloads on demand');
     
-    // Step 2: Download artifacts - MUST succeed for RAILGUN to work
-    try {
-      console.log('[RAILGUN] 📦 Starting artifact download from S3...');
-      console.log('[RAILGUN] Expected URLs: https://railgun-downloads.s3.us-east-2.amazonaws.com/artifacts/');
-      
-      
-      console.log('[RAILGUN] ✅ Artifacts downloaded successfully');
-      areArtifactsLoaded = true;
-    } catch (artifactError) {
-      console.error('[RAILGUN] ❌ Artifact download failed:', artifactError.message);
-      console.error('[RAILGUN] ❌ Stack trace:', artifactError.stack);
-      console.error('[RAILGUN] ❌ This will cause "mm.map is not a function" errors in gas estimation');
-      areArtifactsLoaded = false;
-      throw artifactError;
-    }
+    // Set artifacts as ready since SDK handles them internally
+    areArtifactsLoaded = true;
 
-    // Step 3: Create database
+    // Step 2: Create database
     const db = new LevelJS('railgun-db');
     
-    // Step 4: Set up logging
+    // Step 3: Set up logging
     setLoggers(
       (message) => console.log(`🔍 [RAILGUN:LOG] ${message}`),
       (error) => console.error(`🚨 [RAILGUN:ERROR] ${error}`)
@@ -257,7 +249,7 @@ const startEngine = async () => {
 
     console.log('[RAILGUN] ✅ Debug loggers configured');
 
-    // Step 5: Start engine with artifact store
+    // Step 4: Start engine with artifact store
     await startRailgunEngine(
       'Lexie Wallet',
       db,
