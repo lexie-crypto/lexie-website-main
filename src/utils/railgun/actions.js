@@ -37,7 +37,8 @@ import {
 import { 
   NetworkName, 
   EVMGasType, 
-  getEVMGasTypeForTransaction 
+  getEVMGasTypeForTransaction,
+  NETWORK_CONFIG
 } from '@railgun-community/shared-models';
 import { waitForRailgunReady } from './engine.js';
 import railgunEngine from './engine.js';
@@ -47,26 +48,37 @@ import { deriveEncryptionKey } from './wallet.js';
 /**
  * NETWORK NAME MAPPING 
  * =====================
- * Maps our chain configuration to Railgun's expected NetworkName string values
- * Based on official Railgun SDK documentation
+ * Maps our chain configuration to Railgun's expected NetworkName enum values
+ * CRITICAL: We need to use the actual enum values from NetworkName
  */
 const RAILGUN_NETWORK_MAPPING = {
-  1: 'Ethereum',        // Mainnet
-  42161: 'Arbitrum',    // Arbitrum One  
-  137: 'Polygon',       // Polygon Mainnet
-  56: 'BNBChain',       // BNB Smart Chain
+  1: NetworkName.Ethereum,        // Mainnet - use enum directly
+  42161: NetworkName.Arbitrum,    // Arbitrum One - use enum directly
+  137: NetworkName.Polygon,       // Polygon Mainnet - use enum directly
+  56: NetworkName.BNBChain,       // BNB Smart Chain - use enum directly
 };
 
 /**
  * Get the correct Railgun network name for a given chain ID
  * @param {number} chainId - The chain ID
- * @returns {string} The Railgun network name as string
+ * @returns {NetworkName} The Railgun network name enum value
  */
 function getRailgunNetworkName(chainId) {
   const networkName = RAILGUN_NETWORK_MAPPING[chainId];
   if (!networkName) {
     throw new Error(`Unsupported chain ID for Railgun: ${chainId}`);
   }
+  
+  // Log what we're actually returning
+  console.log('[getRailgunNetworkName] Returning network:', {
+    chainId,
+    networkName,
+    type: typeof networkName,
+    enumValue: NetworkName[networkName],
+    allEnumValues: Object.keys(NetworkName),
+    allEnumEntries: Object.entries(NetworkName)
+  });
+  
   return networkName;
 }
 
@@ -325,7 +337,15 @@ function createERC20AmountRecipient(tokenAddress, amount, recipientAddress) {
       throw new Error("Invalid token address passed to shielding flow");
     }
     processedTokenAddress = validateAndFormatAddress(tokenAddress, 'tokenAddress');
-    console.log('[CreateRecipient] Processing ERC20 token with valid address:', processedTokenAddress);
+    
+    // ✅ CRITICAL: Force tokenAddress to be a primitive string (not String object)
+    processedTokenAddress = String(processedTokenAddress);
+    console.log('[CreateRecipient] Processing ERC20 token with sanitized address:', {
+      address: processedTokenAddress,
+      type: typeof processedTokenAddress,
+      isPrimitive: processedTokenAddress === processedTokenAddress.valueOf(),
+      hasToLowerCase: typeof processedTokenAddress?.toLowerCase === 'function'
+    });
   }
 
   // ✅ 4. FINAL VALIDATION OF RECIPIENT OBJECT
@@ -416,9 +436,19 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       if (tokenAddress.address) {
         console.log(`[RailgunActions:${callId}] 🔧 EXTRACTING address from token object:`, {
           original: tokenAddress,
-          extracted: tokenAddress.address
+          extracted: tokenAddress.address,
+          extractedType: typeof tokenAddress.address,
+          hasToLowerCase: typeof tokenAddress.address?.toLowerCase === 'function'
         });
         processedTokenAddress = tokenAddress.address;
+        
+        // ✅ IMMEDIATE SANITIZATION after extraction
+        processedTokenAddress = String(processedTokenAddress);
+        console.log(`[RailgunActions:${callId}] 🔧 SANITIZED extracted address:`, {
+          sanitized: processedTokenAddress,
+          type: typeof processedTokenAddress,
+          isPrimitive: processedTokenAddress === processedTokenAddress.valueOf()
+        });
       } else {
         console.error(`[RailgunActions:${callId}] ❌ Token object missing address property:`, tokenAddress);
         throw new Error('Token object must have an address property');
@@ -457,6 +487,14 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
         throw new Error("Invalid token address passed to shielding flow");
       }
       processedTokenAddress = validateAndFormatAddress(processedTokenAddress, 'tokenAddress');
+      
+      // ✅ CRITICAL: Force to primitive string to prevent .toLowerCase errors
+      processedTokenAddress = String(processedTokenAddress);
+      console.log('[Shield] Sanitized tokenAddress:', {
+        address: processedTokenAddress,
+        type: typeof processedTokenAddress,
+        isPrimitive: processedTokenAddress === processedTokenAddress.valueOf()
+      });
     }
 
     if (!amount || typeof amount !== 'string') {
@@ -569,6 +607,22 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       const encoder = new TextEncoder();
       const seedBytes = encoder.encode(deterministicSeed);
       shieldPrivateKey = keccak256(seedBytes);
+      
+      // ✅ CRITICAL: Validate shieldPrivateKey is a proper string
+      console.log('[RailgunActions] Shield private key inspection:', {
+        value: shieldPrivateKey,
+        type: typeof shieldPrivateKey,
+        isString: typeof shieldPrivateKey === 'string',
+        hasToLowerCase: typeof shieldPrivateKey?.toLowerCase === 'function',
+        length: shieldPrivateKey?.length,
+        startsWithHex: shieldPrivateKey?.startsWith?.('0x')
+      });
+      
+      // Force to string if needed
+      if (typeof shieldPrivateKey !== 'string') {
+        console.warn('[RailgunActions] shieldPrivateKey is not a string, converting...');
+        shieldPrivateKey = String(shieldPrivateKey);
+      }
       
       console.log('[RailgunActions] Generated shield private key:', shieldPrivateKey ? 'SUCCESS' : 'FAILED');
     } catch (keyError) {
@@ -710,10 +764,77 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
         hasToLowerCase: typeof sanitizedNetworkName?.toLowerCase === 'function'
       });
       
+      // ✅ EXTRA VALIDATION: Check ALL parameters that might have toLowerCase called
+      console.log('🔍 [CRITICAL] VALIDATING ALL SDK PARAMETERS:');
+      
+      // Check each parameter individually
+      const params = {
+        1: { name: 'networkName', value: sanitizedNetworkName },
+        2: { name: 'shieldPrivateKey', value: shieldPrivateKey },
+        3: { name: 'safeErc20Recipients', value: safeErc20Recipients },
+        4: { name: 'safeNftRecipients', value: safeNftRecipients },
+        5: { name: 'relayerFeeERC20AmountRecipient', value: relayerFeeERC20AmountRecipient },
+        6: { name: 'sendWithPublicWallet', value: sendWithPublicWallet },
+        7: { name: 'overallBatchMinGasPrice', value: overallBatchMinGasPrice }
+      };
+      
+      Object.entries(params).forEach(([idx, param]) => {
+        console.log(`🔍 Param ${idx} - ${param.name}:`, {
+          value: param.value,
+          type: typeof param.value,
+          hasToLowerCase: typeof param.value?.toLowerCase === 'function',
+          isNull: param.value === null,
+          isUndefined: param.value === undefined
+        });
+      });
+      
+      // Check inside arrays for tokenAddress values that might cause issues
+      if (safeErc20Recipients && safeErc20Recipients.length > 0) {
+        console.log('🔍 Checking tokenAddress inside recipients:');
+        safeErc20Recipients.forEach((r, i) => {
+          console.log(`  Recipient[${i}].tokenAddress:`, {
+            value: r.tokenAddress,
+            type: typeof r.tokenAddress,
+            isUndefined: r.tokenAddress === undefined,
+            hasToLowerCase: typeof r.tokenAddress?.toLowerCase === 'function'
+          });
+        });
+      }
+      
+      // ✅ FINAL SANITIZATION: Ensure shieldPrivateKey is a primitive string
+      const sanitizedShieldPrivateKey = String(shieldPrivateKey);
+      
+      // ✅ FINAL VALIDATION: Check tokenAddress inside recipients one more time
+      const finalSafeErc20Recipients = safeErc20Recipients.map(recipient => {
+        if (recipient.tokenAddress !== undefined && recipient.tokenAddress !== null) {
+          return {
+            ...recipient,
+            tokenAddress: String(recipient.tokenAddress) // Force to primitive string
+          };
+        }
+        return recipient;
+      });
+      
+      console.log('🔍 [FINAL CHECK] All parameters before gasEstimateForShield:', {
+        networkName: { value: networkName, type: typeof networkName },
+        shieldPrivateKey: { 
+          value: sanitizedShieldPrivateKey?.substring(0, 10) + '...', 
+          type: typeof sanitizedShieldPrivateKey,
+          hasToLowerCase: typeof sanitizedShieldPrivateKey?.toLowerCase === 'function'
+        },
+        finalSafeErc20Recipients: finalSafeErc20Recipients.map(r => ({
+          tokenAddress: r.tokenAddress,
+          tokenAddressType: typeof r.tokenAddress,
+          hasToLowerCase: typeof r.tokenAddress?.toLowerCase === 'function'
+        }))
+      });
+      
+      // ✅ CRITICAL FIX: Remove extra parameters - gasEstimateForShield only needs 7 params, not 8!
+      // According to Railgun docs, fromAddress is NOT a parameter for gasEstimateForShield
       gasEstimateResult = await gasEstimateForShield(
-        sanitizedNetworkName,                 // 1. NetworkName (primitive string)
-        shieldPrivateKey,                     // 2. shieldPrivateKey
-        safeErc20Recipients,                  // 3. tokenAmountRecipients
+        networkName,                          // 1. NetworkName (use enum value directly)
+        sanitizedShieldPrivateKey,            // 2. shieldPrivateKey (sanitized)
+        finalSafeErc20Recipients,             // 3. tokenAmountRecipients (with sanitized tokenAddress)
         safeNftRecipients,                    // 4. nftAmountRecipients (empty [])
         relayerFeeERC20AmountRecipient,       // 5. relayerFeeERC20AmountRecipient (undefined)
         sendWithPublicWallet,                 // 6. sendWithPublicWallet (true)
@@ -861,17 +982,14 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
     console.log('[RailgunActions] Step 3: Populating shield transaction...');
     let populatedResult;
     try {
-      // ✅ CRITICAL: Force networkName to be a primitive string before populateShield
-      const sanitizedNetworkName = String(networkName);
-      
       // ✅ OFFICIAL PATTERN: CORRECT PARAMETER ORDER FROM RAILGUN DOCS
       // populateShield also requires the same 7 parameters as gasEstimateForShield
       // but with transactionGasDetails instead of overallBatchMinGasPrice
       
       populatedResult = await populateShield(
-        sanitizedNetworkName,                 // 1. NetworkName (primitive string)
-        shieldPrivateKey,                     // 2. shieldPrivateKey
-        safeErc20Recipients,                  // 3. tokenAmountRecipients
+        networkName,                          // 1. NetworkName (use enum value directly)
+        sanitizedShieldPrivateKey,            // 2. shieldPrivateKey (sanitized)
+        finalSafeErc20Recipients,             // 3. tokenAmountRecipients (with sanitized tokenAddress)
         safeNftRecipients,                    // 4. nftAmountRecipients (empty [])
         relayerFeeERC20AmountRecipient,       // 5. relayerFeeERC20AmountRecipient (undefined)
         sendWithPublicWallet,                 // 6. sendWithPublicWallet (true)
@@ -974,6 +1092,14 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
         throw new Error("Invalid token address passed to unshielding flow");
       }
       processedTokenAddress = validateAndFormatAddress(processedTokenAddress, 'tokenAddress');
+      
+      // ✅ CRITICAL: Force to primitive string to prevent .toLowerCase errors
+      processedTokenAddress = String(processedTokenAddress);
+      console.log('[Unshield] Sanitized tokenAddress:', {
+        address: processedTokenAddress,
+        type: typeof processedTokenAddress,
+        isPrimitive: processedTokenAddress === processedTokenAddress.valueOf()
+      });
     }
 
     if (!amount || typeof amount !== 'string') {
@@ -1018,19 +1144,15 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
     // ✅ STEP 1: Gas Estimation (Official Pattern)
     console.log('[RailgunActions] Step 1: Gas estimation for unshield...');
     
-    // ✅ CRITICAL: Force networkName to be a primitive string (not String object)
-    const sanitizedNetworkName = String(networkName);
-    console.log('[unshieldTokens] Using sanitized networkName:', {
-      original: networkName,
-      sanitized: sanitizedNetworkName,
-      type: typeof sanitizedNetworkName,
-      isPrimitive: sanitizedNetworkName === sanitizedNetworkName.valueOf()
+    console.log('[unshieldTokens] Using networkName:', {
+      networkName,
+      type: typeof networkName
     });
     
     let gasDetails;
     try {
       gasDetails = await gasEstimateForUnprovenUnshield(
-        sanitizedNetworkName,
+        networkName,
         railgunWalletID,
         encryptionKey,
         safeErc20Recipients,
@@ -1050,11 +1172,8 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
     console.log('[RailgunActions] Step 2: Generating unshield proof...');
     let proofResult;
     try {
-      // ✅ CRITICAL: Force networkName to be a primitive string before generateUnshieldProof
-      const sanitizedNetworkName = String(networkName);
-      
       proofResult = await generateUnshieldProof(
-        sanitizedNetworkName,
+        networkName,
         railgunWalletID,
         encryptionKey,
         safeErc20Recipients,
@@ -1074,11 +1193,8 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
     console.log('[RailgunActions] Step 3: Populating unshield transaction...');
     let populatedResult;
     try {
-      // ✅ CRITICAL: Force networkName to be a primitive string before populateProvedUnshield
-      const sanitizedNetworkName = String(networkName);
-      
       populatedResult = await populateProvedUnshield(
-        sanitizedNetworkName,
+        networkName,
         railgunWalletID,
         safeErc20Recipients,
         safeNftRecipients
@@ -1169,6 +1285,17 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
     // Convert chain ID to NetworkName
     const networkName = getRailgunNetworkName(chain.id);
 
+    // ✅ ENHANCED TOKEN ADDRESS VALIDATION FOR TRANSFER
+    if (processedTokenAddress !== null && processedTokenAddress !== undefined && processedTokenAddress !== '0x0000000000000000000000000000000000000000') {
+      // Force to primitive string to prevent .toLowerCase errors
+      processedTokenAddress = String(processedTokenAddress);
+      console.log('[Transfer] Sanitized tokenAddress:', {
+        address: processedTokenAddress,
+        type: typeof processedTokenAddress,
+        isPrimitive: processedTokenAddress === processedTokenAddress.valueOf()
+      });
+    }
+
     // Prepare ERC20 amount recipient for private transfer
     const erc20AmountRecipient = {
       tokenAddress: (processedTokenAddress === null || processedTokenAddress === '0x0000000000000000000000000000000000000000') ? undefined : processedTokenAddress,
@@ -1197,18 +1324,14 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
       memoArray: safeMemoArray
     });
 
-    // ✅ CRITICAL: Force networkName to be a primitive string (not String object)
-    const sanitizedNetworkName = String(networkName);
-    console.log('[transferPrivate] Using sanitized networkName:', {
-      original: networkName,
-      sanitized: sanitizedNetworkName,
-      type: typeof sanitizedNetworkName,
-      isPrimitive: sanitizedNetworkName === sanitizedNetworkName.valueOf()
+    console.log('[transferPrivate] Using networkName:', {
+      networkName,
+      type: typeof networkName
     });
 
     // Get gas estimate
     const gasDetails = await gasEstimateForUnprovenTransfer(
-      sanitizedNetworkName,
+      networkName,
       railgunWalletID,
       encryptionKey,
       safeMemoArray,
@@ -1219,10 +1342,8 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
     console.log('[RailgunActions] Transfer gas estimate:', gasDetails);
 
     // Generate transfer proof
-    // ✅ CRITICAL: Force networkName to be a primitive string before generateTransferProof
-    
     const proofResult = await generateTransferProof(
-      sanitizedNetworkName,
+      networkName,
       railgunWalletID,
       encryptionKey,
       safeMemoArray,
@@ -1233,10 +1354,8 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
     console.log('[RailgunActions] Transfer proof generated:', proofResult);
 
     // Populate the proved transfer transaction
-    // ✅ CRITICAL: Force networkName to be a primitive string before populateProvedTransfer
-    
     const populatedResult = await populateProvedTransfer(
-      sanitizedNetworkName,
+      networkName,
       railgunWalletID,
       safeMemoArray,
       safeErc20Recipients,
@@ -1496,17 +1615,13 @@ export const estimateShieldGas = async (networkName, shieldPrivateKey, erc20Amou
     const relayerFeeERC20AmountRecipient = undefined; // Self-signing, no relayer fee
     const overallBatchMinGasPrice = undefined; // Optional for gas estimation
     
-    // ✅ CRITICAL: Force networkName to be a primitive string (not String object)
-    const sanitizedNetworkName = String(networkName);
-    console.log('[estimateShieldGas] Using sanitized networkName:', {
-      original: networkName,
-      sanitized: sanitizedNetworkName,
-      type: typeof sanitizedNetworkName,
-      isPrimitive: sanitizedNetworkName === sanitizedNetworkName.valueOf()
+    console.log('[estimateShieldGas] Using networkName:', {
+      networkName,
+      type: typeof networkName
     });
     
     const gasDetails = await gasEstimateForShield(
-      sanitizedNetworkName,                 // 1. NetworkName (primitive string)
+      networkName,                          // 1. NetworkName (use enum value)
       shieldPrivateKey,                     // 2. shieldPrivateKey
       safeErc20Recipients,                  // 3. tokenAmountRecipients
       safeNftRecipients,                    // 4. nftAmountRecipients (empty [])
@@ -1549,17 +1664,13 @@ export const estimateUnshieldGas = async (networkName, railgunWalletID, encrypti
     const safeNftRecipients = [];
     
     // Use actual Railgun gas estimation (Official Pattern)
-    // ✅ CRITICAL: Force networkName to be a primitive string (not String object)
-    const sanitizedNetworkName = String(networkName);
-    console.log('[estimateUnshieldGas] Using sanitized networkName:', {
-      original: networkName,
-      sanitized: sanitizedNetworkName,
-      type: typeof sanitizedNetworkName,
-      isPrimitive: sanitizedNetworkName === sanitizedNetworkName.valueOf()
+    console.log('[estimateUnshieldGas] Using networkName:', {
+      networkName,
+      type: typeof networkName
     });
     
     const gasDetails = await gasEstimateForUnprovenUnshield(
-      sanitizedNetworkName,
+      networkName,
       railgunWalletID,
       encryptionKey,
       safeErc20Recipients,
