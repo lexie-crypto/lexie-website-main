@@ -3,6 +3,23 @@
  * Handles starting the Railgun engine, loading network providers, and ZK prover setup
  */
 
+// ✅ OFFICIAL RAILGUN DEBUG LOGGER SETUP
+import debug from 'debug';
+// Enable all Railgun debug logs
+debug.enabled = function(name) { return name.startsWith('railgun:'); };
+debug.log = console.log.bind(console);
+
+// Enable Railgun debug logging
+if (typeof window !== 'undefined') {
+  // Browser environment
+  localStorage.debug = 'railgun:*';
+  console.log('[RailgunEngine] 🔍 ENABLED OFFICIAL RAILGUN DEBUG LOGGING (Browser)');
+} else {
+  // Node environment
+  process.env.DEBUG = 'railgun:*';
+  console.log('[RailgunEngine] 🔍 ENABLED OFFICIAL RAILGUN DEBUG LOGGING (Node)');
+}
+
 import { 
   startRailgunEngine, 
   loadProvider, 
@@ -80,12 +97,12 @@ export const waitForRailgunReady = async () => {
  */
 export const initializeRailgunEngine = async () => {
   if (isEngineInitialized) {
-    console.log('[Railgun] Engine already initialized');
+    console.log('[RailgunEngine] Engine already initialized');
     return true;
   }
 
   try {
-    console.log('[Railgun] Initializing engine...');
+    console.log('[RailgunEngine] 🚀 Initializing Railgun engine with FULL DEBUG LOGGING...');
 
     // Create database instance
     const db = new LevelJS(RAILGUN_CONFIG.dbName);
@@ -93,36 +110,46 @@ export const initializeRailgunEngine = async () => {
     // Create artifact store
     const artifactStore = createArtifactStore();
 
-    // Set up logging
-    if (RAILGUN_CONFIG.debug) {
-      setLoggers(
-        (message) => console.log(`[Railgun] ${message}`),
-        (error) => console.error(`[Railgun] ${error}`)
-      );
-    }
+    // ✅ ENHANCED DEBUG LOGGING SETUP
+    const railgunLogger = debug('railgun:engine');
+    const railgunErrorLogger = debug('railgun:error');
+    
+    // Set up comprehensive Railgun logging
+    setLoggers(
+      (message) => {
+        console.log(`🔍 [RAILGUN:LOG] ${message}`);
+        railgunLogger(message);
+      },
+      (error) => {
+        console.error(`🚨 [RAILGUN:ERROR] ${error}`);
+        railgunErrorLogger(error);
+      }
+    );
 
-    // Start the engine
+    console.log('[RailgunEngine] ✅ Debug loggers configured - all Railgun internals will be logged');
+
+    // Start the engine with debug enabled
     await startRailgunEngine(
       RAILGUN_CONFIG.walletSourceName,      // walletSource
       db,                                   // db
-      RAILGUN_CONFIG.debug,                 // shouldDebug
+      true,                                 // shouldDebug - FORCE DEBUG ON
       artifactStore,                        // artifactStore
       RAILGUN_CONFIG.useNativeArtifacts,    // useNativeArtifacts
       RAILGUN_CONFIG.skipMerkletreeScans,   // skipMerkletreeScans
       POI_CONFIG.aggregatorUrls,            // poiNodeUrls
       POI_CONFIG.customPOILists,           // customPOILists
-      RAILGUN_CONFIG.verboseScanLogging     // verboseScanLogging
+      true                                  // verboseScanLogging - FORCE VERBOSE ON
     );
 
     isEngineInitialized = true;
-    console.log('[Railgun] Engine initialized successfully');
+    console.log('[RailgunEngine] 🎉 Engine initialized successfully with FULL DEBUG LOGGING ACTIVE');
 
     // Load ZK prover
     await loadSnarkJSGroth16();
 
     return true;
   } catch (error) {
-    console.error('[Railgun] Failed to initialize engine:', error);
+    console.error('[RailgunEngine] ❌ Failed to initialize engine:', error);
     isEngineInitialized = false;
     throw error;
   }

@@ -491,6 +491,26 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       console.log('[RailgunActions] Call Stack Trace:', new Error().stack);
       console.log('[RailgunActions] ===== END CRITICAL DEBUG =====');
 
+      // ✅ DEFENSIVE SDK CALL WITH ENHANCED ERROR CAPTURE
+      console.log('🔍 [RAILGUN:CALL] About to call gasEstimateForShield with official debug logging...');
+      
+      // Ensure all parameters are exactly what the SDK expects
+      const sdkParams = [
+        networkName,           // string: NetworkName enum
+        shieldPrivateKey,      // string: hex private key
+        safeErc20Recipients,   // Array: ERC20AmountRecipient[]
+        safeNftRecipients,     // Array: NFTAmountRecipient[] (empty)
+        fromAddress            // string: EOA address
+      ];
+      
+      console.log('🔍 [RAILGUN:PARAMS] SDK Parameters:', sdkParams.map((param, i) => ({
+        index: i,
+        value: param,
+        type: typeof param,
+        isArray: Array.isArray(param),
+        length: Array.isArray(param) ? param.length : 'N/A'
+      })));
+
       // ✅ OFFICIAL PATTERN: destructure { gasEstimate } from gasEstimateForShield
       gasEstimateResult = await gasEstimateForShield(
         networkName,
@@ -499,7 +519,8 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
         safeNftRecipients,
         fromAddress
       );
-      console.log('[RailgunActions] Gas estimation successful (official pattern):', gasEstimateResult);
+      
+      console.log('🎉 [RAILGUN:SUCCESS] Gas estimation successful (official pattern):', gasEstimateResult);
     } catch (sdkError) {
       console.error('[RailgunActions] ===== GAS ESTIMATION ERROR DEBUG =====');
       console.error('[RailgunActions] Error occurred with these exact parameters:');
@@ -508,11 +529,28 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       console.error('[RailgunActions] - safeErc20Recipients:', safeErc20Recipients, Array.isArray(safeErc20Recipients));
       console.error('[RailgunActions] - safeNftRecipients:', safeNftRecipients, Array.isArray(safeNftRecipients));
       console.error('[RailgunActions] - fromAddress:', fromAddress, typeof fromAddress);
-      console.error('[RailgunActions] Original error details:', {
-        error: sdkError,
-        message: sdkError.message,
-        stack: sdkError.stack
-      });
+      
+      // ✅ ENHANCED ERROR ANALYSIS
+      console.error('🚨 [RAILGUN:ERROR] Detailed error analysis:');
+      console.error('- Error name:', sdkError.name);
+      console.error('- Error message:', sdkError.message);
+      console.error('- Error stack:', sdkError.stack);
+      console.error('- Error cause:', sdkError.cause);
+      console.error('- Full error object:', sdkError);
+      
+      // Check for specific "map" errors
+      if (sdkError.message.includes('.map is not a function')) {
+        console.error('🎯 [RAILGUN:MAP_ERROR] Map function error detected!');
+        console.error('- This usually means an array parameter is not actually an array');
+        console.error('- Checking all our arrays:');
+        console.error('  * safeErc20Recipients isArray:', Array.isArray(safeErc20Recipients));
+        console.error('  * safeNftRecipients isArray:', Array.isArray(safeNftRecipients));
+        console.error('- Full array contents:', {
+          erc20: safeErc20Recipients,
+          nft: safeNftRecipients
+        });
+      }
+      
       console.error('[RailgunActions] ===== END ERROR DEBUG =====');
       throw new Error(`Gas estimation failed: ${sdkError.message}`);
     }

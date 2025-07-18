@@ -56,6 +56,7 @@ const WalletPage = () => {
     isLoading,
     balanceErrors,
     refreshAllBalances,
+    refreshBalancesAfterTransaction,
     lastUpdateTime,
   } = useBalances();
 
@@ -178,8 +179,8 @@ const WalletPage = () => {
       // Clear the amount for this token
       setShieldAmounts(prev => ({ ...prev, [token.symbol]: '' }));
       
-      // Refresh balances
-      await refreshAllBalances();
+      // Refresh balances after successful transaction
+      await refreshBalancesAfterTransaction();
       
     } catch (error) {
       console.error('[WalletPage] Shield failed:', error);
@@ -193,7 +194,7 @@ const WalletPage = () => {
         return newSet;
       });
     }
-  }, [canUseRailgun, railgunWalletId, address, chainId, network, shieldAmounts, refreshAllBalances, getEncryptionKey]);
+  }, [canUseRailgun, railgunWalletId, address, chainId, network, shieldAmounts, refreshBalancesAfterTransaction, getEncryptionKey]);
 
   // Handle Shield All functionality
   const handleShieldAll = useCallback(async () => {
@@ -256,8 +257,8 @@ const WalletPage = () => {
         toast.error(`Shield All completed with ${result.summary.failed} failures`);
       }
       
-      // Refresh balances
-      await refreshAllBalances();
+      // Refresh balances after successful transaction
+      await refreshBalancesAfterTransaction();
       
     } catch (error) {
       console.error('[WalletPage] Shield All failed:', error);
@@ -266,7 +267,7 @@ const WalletPage = () => {
     } finally {
       setIsShielding(false);
     }
-  }, [canUseRailgun, railgunWalletId, address, chainId, network, refreshAllBalances, getEncryptionKey]);
+  }, [canUseRailgun, railgunWalletId, address, chainId, network, refreshBalancesAfterTransaction, getEncryptionKey]);
 
   const handleNetworkSwitch = async (targetChainId) => {
     try {

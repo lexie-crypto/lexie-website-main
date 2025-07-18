@@ -46,6 +46,7 @@ const PrivacyActions = () => {
     privateBalances,
     isLoading,
     refreshAllBalances,
+    refreshBalancesAfterTransaction,
     formatBalance,
   } = useBalances();
 
@@ -277,9 +278,9 @@ const PrivacyActions = () => {
       setMemo('');
       setSelectedToken(null);
       
-      // Refresh balances to reflect the changes
+      // Refresh balances to reflect the changes after successful transaction
       try {
-        await refreshAllBalances();
+        await refreshBalancesAfterTransaction();
       } catch (refreshError) {
         console.warn('[PrivacyActions] Balance refresh failed after transaction:', refreshError);
         // Don't show error to user since transaction succeeded
@@ -292,7 +293,7 @@ const PrivacyActions = () => {
     } finally {
       setIsProcessing(false);
     }
-  }, [canUseRailgun, railgunWalletId, isFormValid, selectedToken, sendAmount, recipientAddress, memo, chainId, network, getEncryptionKey, addressValidation, address, railgunAddress, refreshAllBalances]);
+  }, [canUseRailgun, railgunWalletId, isFormValid, selectedToken, sendAmount, recipientAddress, memo, chainId, network, getEncryptionKey, addressValidation, address, railgunAddress, refreshBalancesAfterTransaction]);
 
 
   if (!isConnected || !canUseRailgun) {
