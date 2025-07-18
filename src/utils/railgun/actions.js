@@ -674,8 +674,28 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       const relayerFeeERC20AmountRecipient = undefined; // Self-signing, no relayer fee
       const overallBatchMinGasPrice = undefined; // Optional for gas estimation
       
+      // 🔍 CRITICAL DEBUGGING: Inspect networkName type and value before SDK call
+      console.log('🔍 [CRITICAL] NETWORKNAME INSPECTION BEFORE SDK CALL:');
+      console.log('🔍 networkName raw value:', networkName);
+      console.log('🔍 networkName type:', typeof networkName);
+      console.log('🔍 networkName constructor:', networkName?.constructor?.name);
+      console.log('🔍 networkName toString():', networkName?.toString?.());
+      console.log('🔍 networkName has toLowerCase():', typeof networkName?.toLowerCase === 'function');
+      console.log('🔍 networkName JSON.stringify():', JSON.stringify(networkName));
+      console.log('🔍 networkName String():', String(networkName));
+      console.log('🔍 NetworkName enum values:', Object.values(NetworkName));
+      console.log('🔍 All NetworkName enum:', NetworkName);
+      
+      // Force networkName to be a string to avoid toLowerCase errors
+      const safeNetworkName = String(networkName);
+      console.log('🔍 safeNetworkName after String():', {
+        value: safeNetworkName,
+        type: typeof safeNetworkName,
+        hasToLowerCase: typeof safeNetworkName.toLowerCase === 'function'
+      });
+      
       gasEstimateResult = await gasEstimateForShield(
-        networkName,                          // 1. NetworkName
+        safeNetworkName,                      // 1. NetworkName (forced to string)
         shieldPrivateKey,                     // 2. shieldPrivateKey
         safeErc20Recipients,                  // 3. tokenAmountRecipients
         safeNftRecipients,                    // 4. nftAmountRecipients (empty [])
@@ -830,7 +850,7 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       // but with transactionGasDetails instead of overallBatchMinGasPrice
       
       populatedResult = await populateShield(
-        networkName,                          // 1. NetworkName
+        safeNetworkName,                      // 1. NetworkName (forced to string)
         shieldPrivateKey,                     // 2. shieldPrivateKey
         safeErc20Recipients,                  // 3. tokenAmountRecipients
         safeNftRecipients,                    // 4. nftAmountRecipients (empty [])
@@ -954,10 +974,19 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
 
     // ✅ STEP 1: Gas Estimation (Official Pattern)
     console.log('[RailgunActions] Step 1: Gas estimation for unshield...');
+    
+    // Force networkName to be a string to avoid toLowerCase errors
+    const safeNetworkName = String(networkName);
+    console.log('[unshieldTokens] Using safeNetworkName:', {
+      original: networkName,
+      safe: safeNetworkName,
+      type: typeof safeNetworkName
+    });
+    
     let gasDetails;
     try {
       gasDetails = await gasEstimateForUnprovenUnshield(
-        networkName,
+        safeNetworkName,
         railgunWalletID,
         encryptionKey,
         safeErc20Recipients,
@@ -999,7 +1028,7 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
     let populatedResult;
     try {
       populatedResult = await populateProvedUnshield(
-        networkName,
+        safeNetworkName,
         railgunWalletID,
         safeErc20Recipients,
         safeNftRecipients
@@ -1094,9 +1123,17 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
       memoArray: safeMemoArray
     });
 
+    // Force networkName to be a string to avoid toLowerCase errors
+    const safeNetworkName = String(networkName);
+    console.log('[transferPrivate] Using safeNetworkName:', {
+      original: networkName,
+      safe: safeNetworkName,
+      type: typeof safeNetworkName
+    });
+
     // Get gas estimate
     const gasDetails = await gasEstimateForUnprovenTransfer(
-      networkName,
+      safeNetworkName,
       railgunWalletID,
       encryptionKey,
       safeMemoArray,
@@ -1108,7 +1145,7 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
 
     // Generate transfer proof
     const proofResult = await generateTransferProof(
-      networkName,
+      safeNetworkName,
       railgunWalletID,
       encryptionKey,
       safeMemoArray,
@@ -1120,7 +1157,7 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
 
     // Populate the proved transfer transaction
     const populatedResult = await populateProvedTransfer(
-      networkName,
+      safeNetworkName,
       railgunWalletID,
       safeMemoArray,
       safeErc20Recipients,
@@ -1380,8 +1417,16 @@ export const estimateShieldGas = async (networkName, shieldPrivateKey, erc20Amou
     const relayerFeeERC20AmountRecipient = undefined; // Self-signing, no relayer fee
     const overallBatchMinGasPrice = undefined; // Optional for gas estimation
     
+    // Force networkName to be a string to avoid toLowerCase errors
+    const safeNetworkName = String(networkName);
+    console.log('[estimateShieldGas] Using safeNetworkName:', {
+      original: networkName,
+      safe: safeNetworkName,
+      type: typeof safeNetworkName
+    });
+    
     const gasDetails = await gasEstimateForShield(
-      networkName,                          // 1. NetworkName
+      safeNetworkName,                      // 1. NetworkName (forced to string)
       shieldPrivateKey,                     // 2. shieldPrivateKey
       safeErc20Recipients,                  // 3. tokenAmountRecipients
       safeNftRecipients,                    // 4. nftAmountRecipients (empty [])
@@ -1424,8 +1469,16 @@ export const estimateUnshieldGas = async (networkName, railgunWalletID, encrypti
     const safeNftRecipients = [];
     
     // Use actual Railgun gas estimation (Official Pattern)
+    // Force networkName to be a string to avoid toLowerCase errors
+    const safeNetworkName = String(networkName);
+    console.log('[estimateUnshieldGas] Using safeNetworkName:', {
+      original: networkName,
+      safe: safeNetworkName,
+      type: typeof safeNetworkName
+    });
+    
     const gasDetails = await gasEstimateForUnprovenUnshield(
-      networkName,
+      safeNetworkName,
       railgunWalletID,
       encryptionKey,
       safeErc20Recipients,
