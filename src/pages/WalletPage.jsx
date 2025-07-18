@@ -46,6 +46,7 @@ const WalletPage = () => {
     railgunError,
     connectWallet,
     disconnectWallet,
+    switchNetwork,
     getCurrentNetwork,
     walletProviders,
     isWalletAvailable,

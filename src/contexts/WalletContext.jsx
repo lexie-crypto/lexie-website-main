@@ -7,7 +7,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { createConfig, custom } from 'wagmi';
 import { mainnet, polygon, arbitrum, bsc } from 'wagmi/chains';
 import { metaMask, walletConnect } from 'wagmi/connectors';
-import { WagmiProvider, useAccount, useConnect, useDisconnect } from 'wagmi';
+import { WagmiProvider, useAccount, useConnect, useDisconnect, useSwitchChain } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/environment';
 
@@ -104,6 +104,7 @@ const WalletContextProvider = ({ children }) => {
   const { address, isConnected, chainId } = useAccount();
   const { connect, connectors, isPending: isConnecting } = useConnect();
   const { disconnect } = useDisconnect();
+  const { switchChain } = useSwitchChain();
 
   const connectWallet = async (connectorType = 'metamask') => {
     try {
@@ -321,7 +322,8 @@ const WalletContextProvider = ({ children }) => {
     isConnecting,
     connectWallet,
     disconnectWallet,
-    switchChain: () => {}, // Implement chain switching if needed
+    switchChain: (chainId) => switchChain({ chainId }),
+    switchNetwork: (chainId) => switchChain({ chainId }), // Add this for components calling switchNetwork directly
     isRailgunInitialized,
     initializeRailgun,
     railgunAddress,
@@ -331,7 +333,18 @@ const WalletContextProvider = ({ children }) => {
     railgunError,
     canUseRailgun: isRailgunInitialized,
     railgunWalletId: railgunWalletID,
-    getCurrentNetwork: () => ({ id: chainId, name: 'Current Network' }),
+    getCurrentNetwork: () => {
+      const networkNames = {
+        1: 'Ethereum',
+        137: 'Polygon',
+        42161: 'Arbitrum',
+        56: 'BSC'
+      };
+      return { 
+        id: chainId, 
+        name: networkNames[chainId] || `Chain ${chainId}` 
+      };
+    },
     supportedNetworks: { 1: true, 137: true, 42161: true, 56: true },
     walletProviders: { METAMASK: 'metamask', WALLETCONNECT: 'walletconnect' },
     isWalletAvailable: (type) => {
