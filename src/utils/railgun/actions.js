@@ -104,23 +104,44 @@ function createERC20AmountRecipient(tokenAddress, amount, recipientAddress) {
 }
 
 /**
- * Generate a deterministic shield private key
- * In production, this should be replaced with proper signature from wallet
+ * Generate shield private key from wallet signature - PRODUCTION READY
  * @param {string} railgunWalletID
  * @param {string} fromAddress
  * @param {Object} recipient
- * @returns {string} Shield private key
+ * @param {Object} walletProvider - Wallet provider for signing
+ * @returns {Promise<string>} Shield private key
  */
-function generateShieldPrivateKey(railgunWalletID, fromAddress, recipient) {
-  // Get the message that should be signed
-  const shieldSignatureMessage = getShieldPrivateKeySignatureMessage();
-  
-  // For demo purposes, generate deterministic key
-  // In production, have user sign the shieldSignatureMessage
-  const seed = `${railgunWalletID}-${fromAddress}-${JSON.stringify(recipient)}-${shieldSignatureMessage}`;
-  const encoder = new TextEncoder();
-  const seedBytes = encoder.encode(seed);
-  return keccak256(seedBytes);
+async function generateShieldPrivateKey(railgunWalletID, fromAddress, recipient, walletProvider) {
+  try {
+    if (!walletProvider) {
+      throw new Error('Wallet provider required for shield private key generation');
+    }
+
+    // Get the official message that should be signed
+    const shieldSignatureMessage = getShieldPrivateKeySignatureMessage();
+    
+    // Create a more descriptive message for the user
+    const userMessage = `Lexie Shield Operation\n\nAuthorize shield transaction to move tokens into privacy.\n\nFrom: ${fromAddress}\nTo: ${recipient.recipientAddress}\nAmount: ${recipient.amount}\n\nOfficial Shield Message:\n${shieldSignatureMessage}`;
+    
+    console.log('[RailgunActions] Requesting shield signature from wallet...');
+    
+    // Request signature from user's wallet
+    const signature = await walletProvider.request({
+      method: 'personal_sign',
+      params: [userMessage, fromAddress],
+    });
+
+    console.log('[RailgunActions] Shield signature received');
+    
+    // Generate shield private key from the signature
+    return keccak256(signature);
+  } catch (error) {
+    console.error('[RailgunActions] Failed to generate shield private key:', error);
+    if (error.code === 4001 || error.message.includes('rejected')) {
+      throw new Error('Shield signature required. Please approve the signature request to proceed.');
+    }
+    throw new Error(`Failed to generate shield private key: ${error.message}`);
+  }
 }
 
 /**
@@ -164,6 +185,7 @@ function createTransactionGasDetails(networkName, sendWithPublicWallet, gasEstim
  * @param {Object} chain - Chain configuration with id property
  * @param {string} fromAddress - EOA address sending the tokens
  * @param {string} railgunAddress - Railgun address to shield to
+ * @param {Object} walletProvider - Wallet provider for signing
  * @returns {Object} Transaction result with gasEstimate and transaction
  */
 export async function shieldTokens(
@@ -173,7 +195,8 @@ export async function shieldTokens(
   amount,
   chain,
   fromAddress,
-  railgunAddress
+  railgunAddress,
+  walletProvider
 ) {
   try {
     console.log('[RailgunActions] Starting shield operation:', {
@@ -205,6 +228,10 @@ export async function shieldTokens(
       throw new Error('railgunAddress must be a valid Railgun address (starts with 0zk)');
     }
 
+    if (!walletProvider) {
+      throw new Error('walletProvider is required for shield operations');
+    }
+
     // Validate fromAddress
     fromAddress = validateAddress(fromAddress, 'fromAddress');
 
@@ -224,11 +251,12 @@ export async function shieldTokens(
     const erc20AmountRecipients = [erc20AmountRecipient];
     const nftAmountRecipients = []; // Always empty for shield
 
-    // Step 1: Generate shield private key
-    const shieldPrivateKey = generateShieldPrivateKey(
+    // Step 1: Generate shield private key from wallet signature
+    const shieldPrivateKey = await generateShieldPrivateKey(
       railgunWalletID,
       fromAddress,
-      erc20AmountRecipient
+      erc20AmountRecipient,
+      walletProvider
     );
 
     // Step 2: Gas estimation

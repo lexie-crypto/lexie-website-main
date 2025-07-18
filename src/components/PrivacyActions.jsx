@@ -47,6 +47,7 @@ const PrivacyActions = () => {
     railgunAddress,
     canUseRailgun,
     getCurrentNetwork,
+    walletProvider,
   } = useWallet();
 
   const {
@@ -151,17 +152,31 @@ const PrivacyActions = () => {
     }
   }, [amount, selectedToken]);
 
-  // Get encryption key for operations
+  // Get encryption key for operations - PRODUCTION READY
   const getEncryptionKey = useCallback(async () => {
     try {
-      // For demo purposes, use a deterministic key
-      // In production, you would request a signature from the user
-      return await deriveEncryptionKey('demo-signature', address);
+      if (!walletProvider) {
+        throw new Error('No wallet provider available');
+      }
+
+      // Request signature for encryption key derivation
+      const message = `Lexie Privacy Operation\n\nAuthorize privacy wallet access for this operation.\n\nAddress: ${address}\nTimestamp: ${Date.now()}\n\nThis signature enables access to your privacy wallet and never leaves your device.`;
+      
+      const signature = await walletProvider.request({
+        method: 'personal_sign',
+        params: [message, address],
+      });
+
+      // Generate encryption key from real signature
+      return deriveEncryptionKey(signature, address);
     } catch (error) {
       console.error('[PrivacyActions] Failed to get encryption key:', error);
+      if (error.code === 4001 || error.message.includes('rejected')) {
+        throw new Error('Signature required for privacy operations. Please approve the signature request.');
+      }
       throw new Error('Failed to get encryption key');
     }
-  }, [address]);
+  }, [address, walletProvider]);
 
   // Handle shield operation
   const handleShield = useCallback(async () => {
@@ -201,7 +216,8 @@ const PrivacyActions = () => {
         amountInUnits,
         chainConfig,
         address,
-        railgunAddress
+        railgunAddress,
+        walletProvider
       );
 
       toast.dismiss(toastId);

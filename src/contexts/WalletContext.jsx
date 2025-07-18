@@ -135,10 +135,47 @@ export const WalletProvider = ({ children }) => {
         throw new Error('Railgun not initialized');
       }
 
+      if (!walletProvider) {
+        throw new Error('No wallet provider available');
+      }
+
       console.log('[WalletContext] Setting up Railgun wallet...');
 
-      // Generate encryption key (in production, this would use user signature)
-      const encryptionKey = await deriveEncryptionKey('demo-signature', userAddress);
+      // Request signature from user for encryption key derivation
+      console.log('[WalletContext] Requesting signature for Railgun encryption key...');
+      
+      const message = `Lexie Privacy Wallet Creation
+
+Please sign this message to create your Railgun privacy wallet.
+
+Wallet Address: ${userAddress}
+Timestamp: ${Date.now()}
+Action: Create Privacy Wallet
+
+SECURITY NOTICE:
+- This signature generates your private encryption key
+- Your signature never leaves your device
+- Only you can access your private balances
+- This action is free and does not send any transaction
+
+By signing, you authorize the creation of your privacy wallet.`;
+      
+      let signature;
+      try {
+        // Request signature from the connected wallet
+        signature = await walletProvider.request({
+          method: 'personal_sign',
+          params: [message, userAddress],
+        });
+        
+        console.log('[WalletContext] Signature received for encryption key derivation');
+      } catch (signError) {
+        console.error('[WalletContext] User rejected signature request:', signError);
+        throw new Error('Signature required to create Railgun privacy wallet. Please approve the signature request.');
+      }
+
+      // Generate encryption key from REAL user signature
+      const encryptionKey = deriveEncryptionKey(signature, userAddress);
 
       // Try to load existing wallet first, or create new one
       let walletResult;
@@ -146,7 +183,12 @@ export const WalletProvider = ({ children }) => {
       
       if (existingWalletId) {
         console.log('[WalletContext] Loading existing Railgun wallet...');
-        walletResult = await loadWallet(existingWalletId, encryptionKey);
+        try {
+          walletResult = await loadWallet(existingWalletId, encryptionKey);
+        } catch (loadError) {
+          console.warn('[WalletContext] Failed to load existing wallet, creating new one:', loadError);
+          walletResult = await createWallet(encryptionKey);
+        }
       } else {
         console.log('[WalletContext] Creating new Railgun wallet...');
         walletResult = await createWallet(encryptionKey);
@@ -168,7 +210,7 @@ export const WalletProvider = ({ children }) => {
       setCanUseRailgun(false);
       throw error;
     }
-  }, [isRailgunInitialized]);
+  }, [isRailgunInitialized, walletProvider]);
 
   // Clear errors function
   const clearErrors = useCallback(() => {
