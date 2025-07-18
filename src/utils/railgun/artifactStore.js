@@ -1,18 +1,12 @@
 /**
  * RAILGUN Artifact Store Implementation
- * Following official docs: https://docs.railgun.org/developer-guide/wallet/getting-started/2.-build-a-persistent-store-for-artifact-downloads
- * 
- * Browser implementation using localforage for persistent storage
+ * Creates a persistent storage mechanism for RAILGUN artifacts using localforage
+ * Based on: https://docs.railgun.org/developer-guide/wallet/getting-started/2.-build-a-persistent-store-for-artifact-downloads
  */
 
-import { ArtifactStore } from '@railgun-community/shared-models';
+import { ArtifactStore } from '@railgun-community/wallet';
 import localforage from 'localforage';
 
-/**
- * Create artifact store for browser environment
- * Stores RAILGUN artifacts (proofs, circuits) in browser persistent storage
- * @returns {ArtifactStore} Configured artifact store
- */
 export const createArtifactStore = () => {
   // Configure localforage for RAILGUN artifacts
   const railgunStorage = localforage.createInstance({
@@ -21,41 +15,17 @@ export const createArtifactStore = () => {
     description: 'RAILGUN cryptographic artifacts and proofs storage'
   });
 
-  const getFile = async (path) => {
-    try {
-      const item = await railgunStorage.getItem(path);
-      if (!item) {
-        throw new Error(`Artifact not found: ${path}`);
-      }
-      return item;
-    } catch (error) {
-      console.error('[ArtifactStore] Failed to get file:', path, error);
-      throw error;
-    }
-  };
+  console.log('[ArtifactStore] Creating RAILGUN artifact store...');
 
-  const storeFile = async (dir, path, item) => {
-    try {
-      const fullPath = `${dir}/${path}`;
-      await railgunStorage.setItem(fullPath, item);
-      console.log('[ArtifactStore] ✅ Stored artifact:', fullPath, 'Size:', item?.length || 'unknown');
-    } catch (error) {
-      console.error('[ArtifactStore] ❌ Failed to store file:', path, error);
-      throw error;
-    }
-  };
-
-  const fileExists = async (path) => {
-    try {
-      const item = await railgunStorage.getItem(path);
-      return item !== null;
-    } catch (error) {
-      console.error('[ArtifactStore] Failed to check file existence:', path, error);
-      return false;
-    }
-  };
-
-  return new ArtifactStore(getFile, storeFile, fileExists);
-};
-
-export default createArtifactStore; 
+  return new ArtifactStore(
+    async (path) => {
+      console.log('[ArtifactStore] Getting file:', path);
+      return railgunStorage.getItem(path);
+    },
+    async (dir, path, item) => {
+      console.log('[ArtifactStore] Storing file:', path, 'Size:', item?.length || 'unknown');
+      await railgunStorage.setItem(path, item);
+    },
+    async (path) => (await railgunStorage.getItem(path)) != null,
+  );
+}; 
