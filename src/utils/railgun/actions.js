@@ -751,7 +751,36 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       // 7. overallBatchMinGasPrice (optional)
       
       const sendWithPublicWallet = true; // Always true for shield operations
-      const relayerFeeERC20AmountRecipient = undefined; // Self-signing, no relayer fee
+      
+      // ✅ CRITICAL FIX: relayerFeeERC20AmountRecipient must ALWAYS be defined
+      // Even with 0 fee, SDK expects a valid recipient object
+      // Get chain-specific USDC address as the fee token
+      const getRelayerFeeTokenAddress = (chainId) => {
+        const USDC_ADDRESSES = {
+          1: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',     // Mainnet USDC
+          42161: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', // Arbitrum USDC
+          137: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',  // Polygon USDC.e
+          56: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d'    // BSC USDC
+        };
+        return USDC_ADDRESSES[chainId] || USDC_ADDRESSES[1]; // Default to mainnet
+      };
+      
+      const RELAYER_FEE_TOKEN_ADDRESS = getRelayerFeeTokenAddress(chain.id);
+      const RELAYER_WALLET_ADDRESS = '0x0000000000000000000000000000000000000000'; // Zero address for self-relay
+      
+      const relayerFeeERC20AmountRecipient = {
+        tokenAddress: String(RELAYER_FEE_TOKEN_ADDRESS), // Force to primitive string
+        amount: '0', // Zero fee for self-signing
+        recipientAddress: String(RELAYER_WALLET_ADDRESS) // Force to primitive string
+      };
+      
+      console.log('[Shield] Created relayerFeeERC20AmountRecipient:', {
+        tokenAddress: relayerFeeERC20AmountRecipient.tokenAddress,
+        tokenAddressType: typeof relayerFeeERC20AmountRecipient.tokenAddress,
+        amount: relayerFeeERC20AmountRecipient.amount,
+        recipientAddress: relayerFeeERC20AmountRecipient.recipientAddress
+      });
+      
       const overallBatchMinGasPrice = undefined; // Optional for gas estimation
       
       // ✅ CRITICAL: Force networkName to be a primitive string (not String object)
@@ -1595,9 +1624,10 @@ export const isTokenSupportedByRailgun = (tokenAddress, chainId) => {
  * @param {string} shieldPrivateKey - Shield private key
  * @param {Array} erc20AmountRecipients - Array of ERC20 amount recipients
  * @param {Array} nftAmountRecipients - Array of NFT amount recipients
+ * @param {number} chainId - Chain ID for proper token addresses
  * @returns {Object} Gas details
  */
-export const estimateShieldGas = async (networkName, shieldPrivateKey, erc20AmountRecipients, nftAmountRecipients) => {
+export const estimateShieldGas = async (networkName, shieldPrivateKey, erc20AmountRecipients, nftAmountRecipients, chainId = 1) => {
   try {
     console.log('[RailgunActions] Estimating shield gas');
     
@@ -1612,7 +1642,29 @@ export const estimateShieldGas = async (networkName, shieldPrivateKey, erc20Amou
     
     // Use actual Railgun gas estimation (Official Pattern with CORRECT parameters)
     const sendWithPublicWallet = true; // Always true for shield operations
-    const relayerFeeERC20AmountRecipient = undefined; // Self-signing, no relayer fee
+    
+    // ✅ CRITICAL FIX: relayerFeeERC20AmountRecipient must ALWAYS be defined
+    // Even with 0 fee, SDK expects a valid recipient object
+    // Get chain-specific USDC address as the fee token
+    const getRelayerFeeTokenAddress = (chainId) => {
+      const USDC_ADDRESSES = {
+        1: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',     // Mainnet USDC
+        42161: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', // Arbitrum USDC
+        137: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',  // Polygon USDC.e
+        56: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d'    // BSC USDC
+      };
+      return USDC_ADDRESSES[chainId] || USDC_ADDRESSES[1]; // Default to mainnet
+    };
+    
+    const RELAYER_FEE_TOKEN_ADDRESS = getRelayerFeeTokenAddress(chainId);
+    const RELAYER_WALLET_ADDRESS = '0x0000000000000000000000000000000000000000'; // Zero address for self-relay
+    
+    const relayerFeeERC20AmountRecipient = {
+      tokenAddress: String(RELAYER_FEE_TOKEN_ADDRESS), // Force to primitive string
+      amount: '0', // Zero fee for self-signing
+      recipientAddress: String(RELAYER_WALLET_ADDRESS) // Force to primitive string
+    };
+    
     const overallBatchMinGasPrice = undefined; // Optional for gas estimation
     
     console.log('[estimateShieldGas] Using networkName:', {
