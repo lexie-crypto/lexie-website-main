@@ -6,10 +6,12 @@
 // Helper function to build Alchemy URLs with API key - PRODUCTION READY
 const buildAlchemyUrl = (baseUrl, apiKey = null) => {
   const key = apiKey || import.meta.env.VITE_ALCHEMY_API_KEY;
-  if (!key) {
-    throw new Error('VITE_ALCHEMY_API_KEY environment variable is required for Alchemy RPC URLs');
+  if (!key && import.meta.env.PROD) {
+    throw new Error('VITE_ALCHEMY_API_KEY environment variable is required for production');
   }
-  return baseUrl.replace('/v2/demo', `/v2/${key}`);
+  // In development, allow fallback to demo key
+  const finalKey = key || 'demo';
+  return baseUrl.replace('/v2/demo', `/v2/${finalKey}`);
 };
 
 // Alchemy RPC URLs with proper API key integration
@@ -44,9 +46,18 @@ export const POI_CONFIG = {
 };
 
 // WalletConnect Configuration (ReOwn) - PRODUCTION READY
+const walletConnectProjectId = import.meta.env.VITE_REOWN_PROJECT_ID || 
+  import.meta.env.VITE_WALLETCONNECT_PROJECT_ID;
+
+// Validate required WalletConnect configuration
+if (!walletConnectProjectId && APP_CONFIG.isProduction) {
+  throw new Error('VITE_REOWN_PROJECT_ID or VITE_WALLETCONNECT_PROJECT_ID environment variable is required for production');
+} else if (!walletConnectProjectId) {
+  console.warn('⚠️ WalletConnect project ID not set - using demo fallback for development');
+}
+
 export const WALLETCONNECT_CONFIG = {
-  projectId: import.meta.env.VITE_REOWN_PROJECT_ID || 
-    import.meta.env.VITE_WALLETCONNECT_PROJECT_ID,
+  projectId: walletConnectProjectId || 'demo-project-id',
   metadata: {
     name: import.meta.env.VITE_APP_NAME || 'Lexie AI Wallet',
     description: 'AI-powered Web3 wallet with privacy features',
@@ -54,11 +65,6 @@ export const WALLETCONNECT_CONFIG = {
     icons: [`${window.location.origin}/lexie.png`],
   },
 };
-
-// Validate required WalletConnect configuration
-if (!WALLETCONNECT_CONFIG.projectId) {
-  throw new Error('VITE_REOWN_PROJECT_ID or VITE_WALLETCONNECT_PROJECT_ID environment variable is required');
-}
 
 // Network Configuration
 export const NETWORK_CONFIG = {

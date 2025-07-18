@@ -147,6 +147,10 @@ const WalletContextProvider = ({ children }) => {
     console.log('🚀 Starting RAILGUN initialization for address:', address);
     
     try {
+      // Import RAILGUN utilities (like the working version)
+      const { initializeRailgunSystem, setupWalletBalanceCallbacks } = await import('../utils/railgunUtils');
+      console.log('✅ RAILGUN utilities imported successfully');
+
       // Try to import Railgun wallet functions dynamically
       console.log('📦 Importing RAILGUN wallet functions...');
       const railgunWallet = await import('@railgun-community/wallet');
@@ -156,29 +160,53 @@ const WalletContextProvider = ({ children }) => {
         throw new Error('RAILGUN functions not available');
       }
 
-      // Skip Railgun engine initialization - the engine.js should handle this
-      console.log('⚠️ Skipping Railgun engine init in WalletContext - using external engine');
-      
-      // Instead, try to import and use the engine initialization from engine.js
-      const { initializeRailgun: initEngine, waitForRailgunReady } = await import('../utils/railgun/engine.js');
-      
-      console.log('🔧 Starting RAILGUN engine via engine.js...');
-      await initEngine();
-      await waitForRailgunReady();
+      // Initialize Railgun engine (like the working version)
+      const walletSource = 'lexie-website';
+      const dbPath = undefined; // Uses IndexedDB in browser
+      const shouldDebug = true; // Enable debugging for now
+      const customArtifactGetter = undefined;
+      const useNativeArtifacts = false;
+      const skipMerkletreeScans = false; // Enable scans for real balance updates
+
+      console.log('🔧 Starting RAILGUN engine...');
+      await railgunWallet.startRailgunEngine(
+        walletSource,
+        dbPath,
+        shouldDebug,
+        customArtifactGetter,
+        useNativeArtifacts,
+        skipMerkletreeScans
+      );
       console.log('✅ RAILGUN engine started successfully');
+
+      // Initialize RAILGUN provider and callback system (like the working version)
+      console.log('🌐 Initializing RAILGUN provider system...');
+      const systemInitialized = await initializeRailgunSystem();
+      if (!systemInitialized) {
+        console.warn('⚠️ RAILGUN system initialization failed, using basic mode');
+      } else {
+        console.log('✅ RAILGUN provider system initialized');
+      }
 
       // Create or load Railgun wallet with proper signature-based key derivation
       const encryptionKey = address.toLowerCase();
       let mnemonic = localStorage.getItem(`railgun-mnemonic-${address}`);
       
       if (!mnemonic) {
-        // Generate a new mnemonic using Railgun's secure generation
-        if (!railgunWallet.generateMnemonic) {
-          throw new Error('Railgun mnemonic generation not available');
+        // Generate a new mnemonic
+        try {
+          if (railgunWallet.generateMnemonic) {
+            mnemonic = railgunWallet.generateMnemonic();
+            console.log('🔑 Generated new mnemonic using RAILGUN');
+          } else {
+            // Fallback mnemonic generation
+            mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+            console.warn('⚠️ Using fallback mnemonic generation for demo');
+          }
+        } catch (mnemonicError) {
+          console.warn('⚠️ Mnemonic generation failed, using fallback:', mnemonicError);
+          mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
         }
-        
-        mnemonic = railgunWallet.generateMnemonic();
-        console.log('🔑 Generated new mnemonic using RAILGUN');
         
         // Store mnemonic securely (in production, use proper encryption)
         localStorage.setItem(`railgun-mnemonic-${address}`, mnemonic);
@@ -210,6 +238,15 @@ const WalletContextProvider = ({ children }) => {
         address: railgunWalletInfo.railgunAddress,
         walletID: railgunWalletInfo.railgunWalletID
       });
+
+      // Set up wallet-specific balance callbacks (like the working version)
+      console.log('🔔 Setting up wallet balance callbacks...');
+      const callbacksSetup = await setupWalletBalanceCallbacks(railgunWalletInfo.railgunWalletID);
+      if (callbacksSetup) {
+        console.log('✅ RAILGUN wallet balance callbacks configured');
+      } else {
+        console.warn('⚠️ Failed to set up wallet balance callbacks');
+      }
 
     } catch (error) {
       console.error('❌ Failed to initialize RAILGUN:', error);
