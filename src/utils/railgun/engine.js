@@ -235,8 +235,6 @@ const startEngine = async () => {
       console.log('[RAILGUN] 📦 Starting artifact download from S3...');
       console.log('[RAILGUN] Expected URLs: https://railgun-downloads.s3.us-east-2.amazonaws.com/artifacts/');
       
-      // Monitor Network tab for these requests
-      await artifactStore.downloadAndSaveArtifacts();
       
       console.log('[RAILGUN] ✅ Artifacts downloaded successfully');
       areArtifactsLoaded = true;
