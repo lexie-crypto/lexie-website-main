@@ -131,6 +131,11 @@ const WalletContextProvider = ({ children }) => {
       setRailgunAddress(null);
       setRailgunWalletID(null);
       setRailgunError(null);
+      // Clear stored wallet ID when disconnecting
+      if (address) {
+        localStorage.removeItem(`railgun-walletID-${address}`);
+        localStorage.removeItem(`railgun-mnemonic-${address}`);
+      }
     } catch (error) {
       console.error('Failed to disconnect wallet:', error);
     }
@@ -195,43 +200,74 @@ const WalletContextProvider = ({ children }) => {
 
       // Create or load Railgun wallet with proper signature-based key derivation
       const encryptionKey = address.toLowerCase().padEnd(64, '0').slice(0, 64);
-      let mnemonic = localStorage.getItem(`railgun-mnemonic-${address}`);
+      const savedWalletID = localStorage.getItem(`railgun-walletID-${address}`);
       
-      if (!mnemonic) {
-        // Generate a new mnemonic
+      let railgunWalletInfo;
+
+      if (savedWalletID) {
+        // Load existing wallet by ID
+        console.log('👛 Loading existing RAILGUN wallet...', savedWalletID.slice(0, 8) + '...');
         try {
-          if (railgunWallet.generateMnemonic) {
-            mnemonic = railgunWallet.generateMnemonic();
-            console.log('🔑 Generated new mnemonic using RAILGUN');
-          } else {
-            // Fallback mnemonic generation
-            mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
-            console.warn('⚠️ Using fallback mnemonic generation for demo');
-          }
-        } catch (mnemonicError) {
-          console.warn('⚠️ Mnemonic generation failed, using fallback:', mnemonicError);
-          mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+          await railgunWallet.loadRailgunWalletByID(encryptionKey, savedWalletID);
+          railgunWalletInfo = {
+            railgunAddress: railgunWallet.getWalletAddress(savedWalletID),
+            railgunWalletID: savedWalletID,
+            id: savedWalletID
+          };
+          console.log('✅ Existing RAILGUN wallet loaded successfully');
+        } catch (loadError) {
+          console.warn('⚠️ Failed to load existing wallet, creating new one:', loadError);
+          // Fall through to create new wallet
         }
-        
-        // Store mnemonic securely (in production, use proper encryption)
-        localStorage.setItem(`railgun-mnemonic-${address}`, mnemonic);
       }
 
-      console.log('👛 Creating RAILGUN wallet...');
-      const creationBlockNumberMap = {}; // Will use default block numbers
-      const railgunWalletInfo = await railgunWallet.createRailgunWallet(
-        encryptionKey,
-        mnemonic,
-        creationBlockNumberMap
-      );
+      if (!railgunWalletInfo) {
+        // Create new wallet - first time setup
+        let mnemonic = localStorage.getItem(`railgun-mnemonic-${address}`);
+        
+        if (!mnemonic) {
+          // Generate a new mnemonic
+          try {
+            if (railgunWallet.generateMnemonic) {
+              mnemonic = railgunWallet.generateMnemonic();
+              console.log('🔑 Generated new mnemonic using RAILGUN');
+            } else {
+              // Fallback mnemonic generation
+              mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+              console.warn('⚠️ Using fallback mnemonic generation for demo');
+            }
+          } catch (mnemonicError) {
+            console.warn('⚠️ Mnemonic generation failed, using fallback:', mnemonicError);
+            mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+          }
+          
+          // Store mnemonic securely (in production, use proper encryption)
+          localStorage.setItem(`railgun-mnemonic-${address}`, mnemonic);
+        }
+
+        console.log('👛 Creating new RAILGUN wallet...');
+        const creationBlockNumberMap = {}; // Will use default block numbers
+        railgunWalletInfo = await railgunWallet.createRailgunWallet(
+          encryptionKey,
+          mnemonic,
+          creationBlockNumberMap
+        );
+
+        // Save wallet ID for future loads
+        localStorage.setItem(`railgun-walletID-${address}`, railgunWalletInfo.railgunWalletID);
+        console.log('💾 Saved RAILGUN wallet ID for future loads');
+      }
+
+      // Extract consistent wallet ID for all subsequent operations
+      const walletID = railgunWalletInfo.railgunWalletID || railgunWalletInfo.id;
 
       setRailgunAddress(railgunWalletInfo.railgunAddress);
-      setRailgunWalletID(railgunWalletInfo.railgunWalletID);
+      setRailgunWalletID(walletID);
 
       console.log('🕐 Waiting for RAILGUN wallet to be ready...');
       // Wait for the wallet to be fully ready before marking as initialized
       if (railgunWallet.waitForRailgunWalletReady) {
-        await railgunWallet.waitForRailgunWalletReady(railgunWalletInfo.railgunWalletID);
+        await railgunWallet.waitForRailgunWalletReady(walletID);
         console.log('✅ RAILGUN wallet is ready for transactions');
       } else {
         console.warn('⚠️ waitForRailgunWalletReady not available, proceeding without wait');
@@ -241,12 +277,12 @@ const WalletContextProvider = ({ children }) => {
 
       console.log('🎉 RAILGUN wallet initialized successfully:', {
         address: railgunWalletInfo.railgunAddress,
-        walletID: railgunWalletInfo.railgunWalletID
+        walletID: walletID
       });
 
-      // Set up wallet-specific balance callbacks (like the working version)
+      // Set up wallet-specific balance callbacks with proper wallet ID (like the working version)
       console.log('🔔 Setting up wallet balance callbacks...');
-      const callbacksSetup = await setupWalletBalanceCallbacks(railgunWalletInfo.railgunWalletID);
+      const callbacksSetup = await setupWalletBalanceCallbacks(walletID);
       if (callbacksSetup) {
         console.log('✅ RAILGUN wallet balance callbacks configured');
       } else {
