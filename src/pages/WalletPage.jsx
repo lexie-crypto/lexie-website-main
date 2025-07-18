@@ -50,6 +50,8 @@ const WalletPage = () => {
     switchNetwork,
     clearErrors,
     getCurrentNetwork,
+    walletProviders,
+    isWalletAvailable,
   } = useWallet();
 
   const {
@@ -297,21 +299,48 @@ const WalletPage = () => {
             </p>
             
             <div className="space-y-4">
+              {/* MetaMask */}
               <button
-                onClick={() => connectWallet('injected')}
-                disabled={isConnecting}
-                className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white py-3 px-6 rounded-lg font-medium transition-colors"
+                onClick={() => connectWallet(walletProviders.METAMASK)}
+                disabled={isConnecting || !isWalletAvailable(walletProviders.METAMASK)}
+                className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-3 px-6 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2"
               >
-                {isConnecting ? 'Connecting...' : 'Connect MetaMask'}
+                <span>🦊</span>
+                <span>
+                  {isConnecting ? 'Connecting...' : 
+                   !isWalletAvailable(walletProviders.METAMASK) ? 'MetaMask Not Detected' : 
+                   'Connect MetaMask'}
+                </span>
+              </button>
+
+              {/* Phantom */}
+              <button
+                onClick={() => connectWallet(walletProviders.PHANTOM)}
+                disabled={isConnecting || !isWalletAvailable(walletProviders.PHANTOM)}
+                className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-3 px-6 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2"
+              >
+                <span>👻</span>
+                <span>
+                  {isConnecting ? 'Connecting...' : 
+                   !isWalletAvailable(walletProviders.PHANTOM) ? 'Phantom Not Detected' : 
+                   'Connect Phantom'}
+                </span>
               </button>
               
+              {/* WalletConnect */}
               <button
-                onClick={() => connectWallet('walletconnect')}
+                onClick={() => connectWallet(walletProviders.WALLETCONNECT)}
                 disabled={isConnecting}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white py-3 px-6 rounded-lg font-medium transition-colors"
+                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white py-3 px-6 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2"
               >
-                {isConnecting ? 'Connecting...' : 'WalletConnect'}
+                <span>🔗</span>
+                <span>{isConnecting ? 'Connecting...' : 'WalletConnect'}</span>
               </button>
+            </div>
+
+            <div className="mt-4 text-sm text-gray-400 text-center">
+              <p>Choose your preferred wallet to connect</p>
+              <p className="mt-1 text-xs">Only selected wallet will be used - no auto-detection</p>
             </div>
 
             {connectionError && (
