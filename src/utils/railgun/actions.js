@@ -277,37 +277,6 @@ export async function shieldTokens(
     // Wait for Railgun to be ready
     await waitForRailgunReady();
 
-    // 🛑 DEFENSIVE: Ensure RAILGUN providers are loaded for the network
-    console.log('[RailgunActions] 🔍 Checking RAILGUN provider status...');
-    try {
-      // Import the provider check from engine
-      const { isProviderLoaded } = await import('./engine.js');
-      const providerLoaded = await isProviderLoaded(chain.id);
-      if (!providerLoaded) {
-        throw new Error(`RAILGUN provider not loaded for chain ${chain.id}. Please wait for initialization.`);
-      }
-      console.log('[RailgunActions] ✅ RAILGUN provider loaded for network');
-    } catch (providerError) {
-      console.error('[RailgunActions] Provider check failed:', providerError);
-      throw new Error(`RAILGUN provider check failed: ${providerError.message}`);
-    }
-
-    // 🛑 DEFENSIVE: Ensure wallet has synced for this network
-    console.log('[RailgunActions] 🔍 Checking wallet sync status...');
-    try {
-      // Import balance refresh to ensure wallet is synced
-      const { refreshBalances } = await import('./engine.js');
-      
-      // Refresh balances to ensure wallet is synced
-      console.log('[RailgunActions] Refreshing RAILGUN balances...');
-      await refreshBalances(chain.id);
-      
-      console.log('[RailgunActions] ✅ Wallet synced for network');
-    } catch (syncError) {
-      console.error('[RailgunActions] Wallet sync failed:', syncError);
-      throw new Error(`RAILGUN wallet sync failed: ${syncError.message}`);
-    }
-
     // Get network name
     const networkName = getRailgunNetworkName(chain.id);
 
