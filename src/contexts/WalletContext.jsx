@@ -7,7 +7,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { createConfig, custom } from 'wagmi';
 import { mainnet, polygon, arbitrum, bsc } from 'wagmi/chains';
 import { metaMask, walletConnect } from 'wagmi/connectors';
-import { WagmiProvider, useAccount, useConnect, useDisconnect, useSwitchChain } from 'wagmi';
+import { WagmiProvider, useAccount, useConnect, useDisconnect, useSwitchChain, useConnectorClient } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/environment';
 
@@ -105,12 +105,40 @@ const WalletContextProvider = ({ children }) => {
   const { connect, connectors, isPending: isConnecting } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChain } = useSwitchChain();
+  const { data: connectorClient } = useConnectorClient();
 
   // Get current wallet provider for signing operations
   const getCurrentWalletProvider = () => {
+    // If we have a connector client (connected wallet), use it for signing
+    if (connectorClient) {
+      // For WalletConnect and other connectors, we need to create a provider
+      // that can handle personal_sign requests
+      return {
+        request: async ({ method, params }) => {
+          try {
+            if (method === 'personal_sign') {
+              // Use the connector client to sign
+              const [message, address] = params;
+              return await connectorClient.signMessage({ message });
+            }
+            // For other methods, delegate to the underlying provider
+            if (connectorClient.transport?.request) {
+              return await connectorClient.transport.request({ method, params });
+            }
+            throw new Error(`Unsupported method: ${method}`);
+          } catch (error) {
+            console.error('Wallet provider request failed:', error);
+            throw error;
+          }
+        }
+      };
+    }
+    
+    // Fallback to window.ethereum for MetaMask
     if (typeof window !== 'undefined' && window.ethereum) {
       return window.ethereum;
     }
+    
     return null;
   };
 
