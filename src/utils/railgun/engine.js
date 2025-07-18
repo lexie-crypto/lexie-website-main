@@ -349,4 +349,32 @@ export default {
   refreshBalances,
   getSupportedNetworks,
   getNetworkConfig,
+  isProviderLoaded, // Add this to exports
+}; 
+
+/**
+ * Check if provider is loaded for a specific chain
+ * @param {number} chainId - Chain ID to check
+ * @returns {Promise<boolean>} True if provider is loaded
+ */
+export const isProviderLoaded = async (chainId) => {
+  try {
+    await waitForRailgunReady();
+    
+    // Check if we have a network name for this chain
+    const networkName = Object.entries(RPC_PROVIDERS).find(
+      ([_, config]) => config.chainId === chainId
+    )?.[0];
+    
+    if (!networkName) {
+      console.error(`[RAILGUN] No network configuration for chain ${chainId}`);
+      return false;
+    }
+    
+    console.log(`[RAILGUN] Provider loaded for chain ${chainId} (${networkName})`);
+    return true;
+  } catch (error) {
+    console.error(`[RAILGUN] Provider not loaded for chain ${chainId}:`, error);
+    return false;
+  }
 }; 

@@ -277,6 +277,37 @@ export async function shieldTokens(
     // Wait for Railgun to be ready
     await waitForRailgunReady();
 
+    // 🛑 DEFENSIVE: Ensure RAILGUN providers are loaded for the network
+    console.log('[RailgunActions] 🔍 Checking RAILGUN provider status...');
+    try {
+      // Import the provider check from engine
+      const { isProviderLoaded } = await import('./engine.js');
+      const providerLoaded = await isProviderLoaded(chain.id);
+      if (!providerLoaded) {
+        throw new Error(`RAILGUN provider not loaded for chain ${chain.id}. Please wait for initialization.`);
+      }
+      console.log('[RailgunActions] ✅ RAILGUN provider loaded for network');
+    } catch (providerError) {
+      console.error('[RailgunActions] Provider check failed:', providerError);
+      throw new Error(`RAILGUN provider check failed: ${providerError.message}`);
+    }
+
+    // 🛑 DEFENSIVE: Ensure wallet has synced for this network
+    console.log('[RailgunActions] 🔍 Checking wallet sync status...');
+    try {
+      // Import balance refresh to ensure wallet is synced
+      const { refreshBalances } = await import('./engine.js');
+      
+      // Refresh balances to ensure wallet is synced
+      console.log('[RailgunActions] Refreshing RAILGUN balances...');
+      await refreshBalances(chain.id);
+      
+      console.log('[RailgunActions] ✅ Wallet synced for network');
+    } catch (syncError) {
+      console.error('[RailgunActions] Wallet sync failed:', syncError);
+      throw new Error(`RAILGUN wallet sync failed: ${syncError.message}`);
+    }
+
     // Get network name
     const networkName = getRailgunNetworkName(chain.id);
 
@@ -427,13 +458,30 @@ export async function shieldTokens(
     });
     console.log('[RailgunActions] Parameter 5 (fromAddress):', typeof fromAddress, fromAddress);
 
-    const { gasEstimate } = await gasEstimateForShield(
-      networkName,
-      shieldPrivateKey,
-      erc20AmountRecipients, // ✅ VERIFIED: This should be the array [{ tokenAddress, amount: BigInt, recipientAddress }]
-      nftAmountRecipients, // ✅ VERIFIED: This should be empty array []
-      fromAddress // ✅ VERIFIED: This should be string address
-    );
+    let gasEstimate;
+    try {
+      const result = await gasEstimateForShield(
+        networkName,
+        shieldPrivateKey,
+        erc20AmountRecipients, // ✅ VERIFIED: This should be the array [{ tokenAddress, amount: BigInt, recipientAddress }]
+        nftAmountRecipients, // ✅ VERIFIED: This should be empty array []
+        fromAddress // ✅ VERIFIED: This should be string address
+      );
+      gasEstimate = result.gasEstimate;
+    } catch (gasError) {
+      console.error('[RailgunActions] 🚨 Gas estimation failed with original error:', gasError);
+      console.error('[RailgunActions] Error name:', gasError.name);
+      console.error('[RailgunActions] Error message:', gasError.message);
+      console.error('[RailgunActions] Error stack:', gasError.stack);
+      
+      // Try to extract more information from the error
+      if (gasError.cause) {
+        console.error('[RailgunActions] Error cause:', gasError.cause);
+      }
+      
+      // Re-throw with more context
+      throw new Error(`RAILGUN gas estimation failed: ${gasError.message || 'Unknown error'}. This may be due to missing contract data for ${networkName} or token ${erc20AmountRecipients[0]?.tokenAddress}`);
+    }
 
     // Step 3: Create transaction gas details
     const sendWithPublicWallet = true; // Always true for Shield transactions
