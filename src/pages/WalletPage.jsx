@@ -50,6 +50,7 @@ const WalletPage = () => {
     getCurrentNetwork,
     walletProviders,
     isWalletAvailable,
+    walletProvider, // Add walletProvider to destructuring
   } = useWallet();
 
   const {
@@ -172,7 +173,8 @@ const WalletPage = () => {
         amountInUnits,
         chainConfig,
         address,
-        railgunAddress
+        railgunAddress,
+        walletProvider // Pass walletProvider
       );
 
       toast.dismiss();
@@ -196,7 +198,7 @@ const WalletPage = () => {
         return newSet;
       });
     }
-  }, [canUseRailgun, railgunWalletId, address, chainId, network, shieldAmounts, refreshBalancesAfterTransaction, getEncryptionKey]);
+  }, [canUseRailgun, railgunWalletId, address, chainId, network, shieldAmounts, refreshBalancesAfterTransaction, getEncryptionKey, walletProvider]);
 
   // Handle Shield All functionality
   const handleShieldAll = useCallback(async () => {
