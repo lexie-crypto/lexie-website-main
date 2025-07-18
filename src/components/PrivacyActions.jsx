@@ -57,20 +57,14 @@ const PrivacyActions = () => {
   } = useRailgunFees();
 
   // UI state
-  const [activeTab, setActiveTab] = useState('shield');
+  const [activeTab, setActiveTab] = useState('send');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [shieldableTokens, setShieldableTokens] = useState([]);
 
-  // Shield state
-  const [selectedShieldToken, setSelectedShieldToken] = useState(null);
-  const [shieldAmounts, setShieldAmounts] = useState({}); // Changed to per-token amounts
-  const [shieldRecipientAddress, setShieldRecipientAddress] = useState(''); // Public EOA address for gas estimation
-
-  // Transfer state
+  // Send Privately form state
   const [recipientAddress, setRecipientAddress] = useState('');
-  const [selectedTransferToken, setSelectedTransferToken] = useState(null);
-  const [transferAmount, setTransferAmount] = useState('');
-  const [transferMemo, setTransferMemo] = useState('');
+  const [selectedToken, setSelectedToken] = useState(null);
+  const [sendAmount, setSendAmount] = useState('');
+  const [memo, setMemo] = useState('');
 
   const network = getCurrentNetwork();
 
@@ -87,14 +81,14 @@ const PrivacyActions = () => {
     }
   }, [address, chainId]);
 
-  // Load shieldable tokens when connected
+  // Load shieldable tokens when connected (keeping for potential future use)
   useEffect(() => {
     const loadShieldableTokens = async () => {
       if (!isConnected || !address || !chainId) return;
 
       try {
         const tokens = await getShieldableTokens(address, chainId);
-        setShieldableTokens(tokens);
+        // tokens available for future features
       } catch (error) {
         console.error('[PrivacyActions] Failed to load shieldable tokens:', error);
       }
@@ -102,37 +96,6 @@ const PrivacyActions = () => {
 
     loadShieldableTokens();
   }, [isConnected, address, chainId, publicBalances]);
-
-  // Auto-select first token with balance for each action
-  useEffect(() => {
-    if (shieldableTokens.length > 0 && !selectedShieldToken) {
-      setSelectedShieldToken(shieldableTokens[0]);
-    }
-  }, [shieldableTokens, selectedShieldToken]);
-
-  useEffect(() => {
-    const privateTokensArray = Object.values(privateBalances);
-    if (privateTokensArray.length > 0) {
-      // Add numericBalance property for private tokens if missing
-      const tokensWithNumericBalance = privateTokensArray.map(token => {
-        if (!token.numericBalance && token.formattedBalance) {
-          // Parse the formatted balance to get numeric value
-          const numericValue = parseFloat(token.formattedBalance.replace(/,/g, '')) || 0;
-          return { ...token, numericBalance: numericValue };
-        }
-        return token;
-      });
-      
-      if (!selectedTransferToken) {
-        const tokenWithBalance = tokensWithNumericBalance.find(t => (t.numericBalance || 0) > 0);
-        setSelectedTransferToken(tokenWithBalance || tokensWithNumericBalance[0]);
-      }
-      if (!selectedUnshieldToken) {
-        const tokenWithBalance = tokensWithNumericBalance.find(t => (t.numericBalance || 0) > 0);
-        setSelectedUnshieldToken(tokenWithBalance || tokensWithNumericBalance[0]);
-      }
-    }
-  }, [privateBalances, selectedTransferToken, selectedUnshieldToken]);
 
   // Get encryption key asynchronously
   const getEncryptionKey = useCallback(async () => {
@@ -148,324 +111,6 @@ const PrivacyActions = () => {
       throw new Error('Failed to derive encryption key');
     }
   }, [address, chainId]);
-
-  // Shield individual token
-  const handleShieldToken = useCallback(async (token, amount) => {
-    if (!canUseRailgun || !railgunWalletId || !address) {
-      toast.error('Railgun wallet not ready');
-      return;
-    }
-
-    // ✅ Validate recipient address is provided and valid
-    if (!shieldAddressValidation.isValid) {
-      toast.error(`Invalid recipient address: ${shieldAddressValidation.message}`);
-      return;
-    }
-
-    try {
-      setIsProcessing(true);
-      
-      // ✅ COMPREHENSIVE VALIDATION GUARDS (as requested)
-      // Note: token.address can be null for native tokens (ETH, MATIC, etc.)
-      if (!token || token.address === undefined || !token.symbol || !token.decimals) {
-        toast.error('Invalid token data for shielding.');
-        console.error('[PrivacyActions] Invalid token object:', token);
-        return;
-      }
-
-      // Validate amount
-      if (!amount || parseFloat(amount) <= 0 || isNaN(parseFloat(amount))) {
-        toast.error('Please enter a valid amount');
-        return;
-      }
-
-      // Validate token is supported
-      if (!isTokenSupportedByRailgun(token.address, chainId)) {
-        toast.error(`${token.symbol} is not supported by Railgun on this network`);
-        return;
-      }
-
-      // Check sufficient balance
-      const numericAmount = parseFloat(amount);
-      const availableBalance = token.numericBalance || 0;
-      
-      if (numericAmount > availableBalance) {
-        toast.error(`Insufficient balance. Available: ${token.formattedBalance} ${token.symbol}`);
-        return;
-      }
-
-      // Parse amount to smallest units with comprehensive validation
-      let amountInUnits;
-      try {
-        amountInUnits = parseTokenAmount(amount, token.decimals);
-        
-        // ✅ VALIDATE amountInUnits as requested
-        if (!amountInUnits || isNaN(amountInUnits) || amountInUnits === '0') {
-          toast.error('Invalid token or amount for shielding.');
-          console.error('[PrivacyActions] Invalid amountInUnits:', {
-            original: amount,
-            parsed: amountInUnits,
-            decimals: token.decimals
-          });
-          return;
-        }
-        
-        // ✅ CONSOLE LOG as requested
-        console.log('Amount in units:', amountInUnits);
-        
-      } catch (error) {
-        toast.error('Failed to parse token amount. Please check your input.');
-        console.error('[PrivacyActions] parseTokenAmount failed:', error);
-        return;
-      }
-
-      // Validate required parameters before SDK call
-      if (!railgunWalletId || !railgunAddress || !address || !chainId) {
-        toast.error('Missing required wallet information for shielding.');
-        console.error('[PrivacyActions] Missing required params:', {
-          railgunWalletId: !!railgunWalletId,
-          railgunAddress: !!railgunAddress,
-          address: !!address,
-          chainId: !!chainId
-        });
-        return;
-      }
-
-      // Get chain configuration
-      const chainConfig = { type: network.name.toLowerCase(), id: chainId };
-      if (!chainConfig.type || !chainConfig.id) {
-        toast.error('Invalid network configuration.');
-        return;
-      }
-
-      // Get encryption key
-      let key;
-      try {
-        key = await getEncryptionKey();
-        if (!key || key.length < 32) {
-          throw new Error('Invalid encryption key generated');
-        }
-      } catch (error) {
-        toast.error('Failed to generate encryption key.');
-        console.error('[PrivacyActions] Encryption key error:', error);
-        return;
-      }
-
-      // ✅ FINAL GUARD BEFORE SDK CALL (as requested)  
-      // Note: token.address can be null for native tokens
-      if (!token || token.address === undefined || !amountInUnits || isNaN(amountInUnits)) {
-        toast.error('Invalid token or amount for shielding.');
-        console.error('[PrivacyActions] Final validation failed:', {
-          hasToken: !!token,
-          hasTokenAddress: token && token.address !== undefined,
-          tokenAddress: token ? token.address : 'NO_TOKEN',
-          isNativeToken: token && token.address === null,
-          amountInUnits,
-          isValidAmount: !isNaN(amountInUnits)
-        });
-        return;
-      }
-
-      // Execute shield operation with comprehensive logging
-      console.log('[PrivacyActions] Starting shield operation with validated parameters:', {
-        token: {
-          symbol: token.symbol,
-          address: token.address,
-          decimals: token.decimals,
-          hasAddress: !!token.address,
-          addressType: typeof token.address,
-          addressValue: token.address,
-          fullTokenObject: token
-        },
-        amount: {
-          original: amount,
-          parsed: amountInUnits,
-          numeric: numericAmount
-        },
-        addresses: {
-          from: address,
-          to: railgunAddress,
-          railgunWalletId
-        },
-        chain: chainConfig
-      });
-
-      // ✅ SYMBOL VALIDATION BEFORE SHIELD CALL (Critical Fix)
-      console.log('[PrivacyActions] Pre-shield Symbol validation:', {
-        tokenAddress: {
-          value: token.address,
-          type: typeof token.address,
-          isSymbol: typeof token.address === 'symbol',
-          constructor: token.address?.constructor?.name
-        },
-        tokenSymbol: {
-          value: token.symbol,
-          type: typeof token.symbol,
-          isSymbol: typeof token.symbol === 'symbol',
-          constructor: token.symbol?.constructor?.name
-        },
-        amountInUnits: {
-          value: amountInUnits,
-          type: typeof amountInUnits,
-          isSymbol: typeof amountInUnits === 'symbol',
-          constructor: amountInUnits?.constructor?.name
-        },
-        railgunAddress: {
-          value: railgunAddress ? `${railgunAddress.slice(0, 8)}...` : railgunAddress,
-          type: typeof railgunAddress,
-          isSymbol: typeof railgunAddress === 'symbol',
-          constructor: railgunAddress?.constructor?.name
-        }
-      });
-
-      // ✅ PREVENT SYMBOL OBJECTS FROM REACHING SHIELD FUNCTION
-      if (typeof token.address === 'symbol') {
-        console.error('[PrivacyActions] Token address is Symbol object:', token.address);
-        toast.error(`Invalid token address (Symbol detected) for ${token.symbol}`);
-        return;
-      }
-
-      if (typeof token.symbol === 'symbol') {
-        console.error('[PrivacyActions] Token symbol is Symbol object:', token.symbol);
-        toast.error('Invalid token symbol (Symbol detected)');
-        return;
-      }
-
-      if (typeof amountInUnits === 'symbol') {
-        console.error('[PrivacyActions] Amount is Symbol object:', amountInUnits);
-        toast.error('Invalid amount (Symbol detected)');
-        return;
-      }
-
-      if (typeof railgunAddress === 'symbol') {
-        console.error('[PrivacyActions] Railgun address is Symbol object:', railgunAddress);
-        toast.error('Invalid Railgun address (Symbol detected)');
-        return;
-      }
-
-      // Double-check token address before shield call (allow null for native tokens)
-      if (token.address === undefined) {
-        console.error('[PrivacyActions] Token address is undefined:', token);
-        toast.error(`Token ${token.symbol} has no valid address`);
-        return;
-      }
-      
-      // Log token type for debugging
-      const tokenType = token.address === null ? 'NATIVE' : 'ERC20';
-      console.log('[PrivacyActions] About to shield', tokenType, 'token:', token.symbol);
-      
-      toast.loading(`Shielding ${amount} ${token.symbol}...`, { duration: 0 });
-      
-      const result = await shieldTokens(
-        railgunWalletId,
-        key,
-        token.address,
-        amountInUnits,
-        chainConfig,
-        address,
-        railgunAddress,
-        shieldRecipientAddress.trim() // ✅ Pass public address for gas estimation
-      );
-
-      toast.dismiss();
-      toast.success(`✅ Successfully shielded ${amount} ${token.symbol}!`, { duration: 5000 });
-      
-      console.log('[PrivacyActions] Shield operation completed:', result);
-      
-      // Clear the amount for this specific token
-      setShieldAmounts(prev => ({
-        ...prev,
-        [token.symbol]: ''
-      }));
-      
-      // Only refresh balances on SUCCESS to avoid retry loops
-      try {
-        await refreshAllBalances();
-      } catch (refreshError) {
-        console.warn('[PrivacyActions] Balance refresh failed after shield:', refreshError);
-        // Don't show error to user since shield succeeded
-      }
-      
-    } catch (error) {
-      console.error('[PrivacyActions] Shield failed:', error);
-      toast.dismiss();
-      toast.error(`❌ Shield failed: ${error.message}`, { duration: 8000 });
-      
-      // DO NOT REFRESH BALANCES ON ERROR - this causes infinite API calls!
-      console.log('[PrivacyActions] Skipping balance refresh on error to prevent API token burn');
-      
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [canUseRailgun, railgunWalletId, address, chainId, network, refreshAllBalances, getEncryptionKey, railgunAddress, shieldAddressValidation, shieldRecipientAddress]);
-
-  // Shield all tokens
-  const handleShieldAll = useCallback(async () => {
-    if (!canUseRailgun || !railgunWalletId || !address || shieldableTokens.length === 0) {
-      toast.error('No tokens available to shield');
-      return;
-    }
-
-    // ✅ Validate recipient address is provided and valid
-    if (!shieldAddressValidation.isValid) {
-      toast.error(`Invalid recipient address: ${shieldAddressValidation.message}`);
-      return;
-    }
-
-    try {
-      setIsProcessing(true);
-      
-      // Prepare tokens for shielding (only those with meaningful balances)
-      const tokensToShield = shieldableTokens
-        .filter(token => token.numericBalance > 0.001) // Ignore dust balances
-        .map(token => ({
-          address: token.address,
-          amount: parseTokenAmount(token.numericBalance.toString(), token.decimals),
-          symbol: token.symbol,
-        }));
-
-      if (tokensToShield.length === 0) {
-        throw new Error('No tokens with sufficient balance to shield');
-      }
-
-      // Get chain configuration
-      const chainConfig = { type: network.name.toLowerCase(), id: chainId };
-
-      // Get encryption key
-      const key = await getEncryptionKey();
-
-      // Execute shield all operation
-      toast.loading(`Shielding ${tokensToShield.length} tokens...`);
-      
-      const result = await shieldAllTokens(
-        railgunWalletId,
-        key,
-        tokensToShield,
-        chainConfig,
-        address,
-        railgunAddress,
-        shieldRecipientAddress.trim() // ✅ Pass public address for gas estimation
-      );
-
-      toast.dismiss();
-      
-      if (result.success) {
-        toast.success(`Successfully shielded all tokens!`);
-      } else {
-        toast.error(`Shield All completed with ${result.summary.failed} failures`);
-      }
-      
-      // Refresh balances
-      await refreshAllBalances();
-      
-    } catch (error) {
-      console.error('[PrivacyActions] Shield All failed:', error);
-      toast.dismiss();
-      toast.error(`Shield All failed: ${error.message}`);
-    } finally {
-      setIsProcessing(false);
-    }
-  }, [canUseRailgun, railgunWalletId, address, shieldableTokens, chainId, network, refreshAllBalances, getEncryptionKey, railgunAddress, shieldAddressValidation, shieldRecipientAddress]);
 
   // Auto-detect address type and return validation info
   const detectAddressType = useCallback((address) => {
@@ -521,63 +166,42 @@ const PrivacyActions = () => {
     return detectAddressType(recipientAddress);
   }, [recipientAddress, detectAddressType]);
 
-  // Validate shield recipient address (must be public EOA)
-  const shieldAddressValidation = useMemo(() => {
-    if (!shieldRecipientAddress || shieldRecipientAddress.trim() === '') {
-      return { isValid: false, message: 'Please enter a recipient address' };
+  // Validate form fields
+  const isFormValid = useMemo(() => {
+    return (
+      addressValidation.isValid &&
+      selectedToken &&
+      sendAmount &&
+      parseFloat(sendAmount) > 0 &&
+      parseFloat(sendAmount) <= (selectedToken?.numericBalance || 0)
+    );
+  }, [addressValidation, selectedToken, sendAmount]);
+
+  // Send Privately (handles both Railgun-to-Railgun and Railgun-to-EOA with proper gas estimation)
+  const handleSendPrivately = useCallback(async () => {
+    if (!canUseRailgun || !railgunWalletId) {
+      toast.error('Railgun wallet not ready');
+      return;
     }
 
-    const trimmedAddress = shieldRecipientAddress.trim();
-    
-    if (trimmedAddress.startsWith('0x')) {
-      if (/^0x[a-fA-F0-9]{40}$/.test(trimmedAddress)) {
-        return { 
-          isValid: true, 
-          message: '✅ Valid Ethereum address for gas estimation'
-        };
-      } else {
-        return { 
-          isValid: false, 
-          message: 'Invalid Ethereum address format'
-        };
-      }
-    }
-    
-    return { 
-      isValid: false, 
-      message: 'Address must be a valid Ethereum address (0x...)'
-    };
-  }, [shieldRecipientAddress]);
-
-  // Private transfer (handles both Railgun-to-Railgun and Railgun-to-EOA)
-  const handlePrivateTransfer = useCallback(async () => {
-    if (!canUseRailgun || !railgunWalletId || !selectedTransferToken) {
-      toast.error('Railgun wallet not ready or no token selected');
+    if (!isFormValid) {
+      toast.error('Please fill all required fields correctly');
       return;
     }
 
     try {
       setIsProcessing(true);
       
-      // Validate address using auto-detection
-      if (!addressValidation.isValid) {
-        throw new Error(addressValidation.message);
-      }
-
-      if (!transferAmount || parseFloat(transferAmount) <= 0) {
-        throw new Error('Please enter a valid amount');
-      }
-
-      // Check sufficient private balance
-      const available = selectedTransferToken.numericBalance || 0;
-      const required = parseFloat(transferAmount);
-      
-      if (available < required) {
-        throw new Error(`Insufficient private balance. Available: ${available} ${selectedTransferToken.symbol}`);
-      }
+      console.log('[PrivacyActions] Starting private send with proper erc20AmountRecipients:', {
+        token: selectedToken.symbol,
+        amount: sendAmount,
+        to: recipientAddress,
+        addressType: addressValidation.type,
+        memo: memo || 'None'
+      });
 
       // Parse amount to smallest units
-      const amountInUnits = parseTokenAmount(transferAmount, selectedTransferToken.decimals);
+      const amountInUnits = parseTokenAmount(sendAmount, selectedToken.decimals);
 
       // Get chain configuration
       const chainConfig = { type: network.name.toLowerCase(), id: chainId };
@@ -585,41 +209,33 @@ const PrivacyActions = () => {
       // Get encryption key
       const key = await getEncryptionKey();
 
-      console.log('[PrivacyActions] Starting transfer:', {
-        token: selectedTransferToken.symbol,
-        amount: transferAmount,
-        to: recipientAddress,
-        addressType: addressValidation.type,
-        memo: transferMemo || 'None'
-      });
-
       let result;
 
       if (addressValidation.type === 'railgun') {
         // Railgun-to-Railgun private transfer
-        toast.loading(`Sending ${transferAmount} ${selectedTransferToken.symbol} privately...`, { duration: 0 });
+        toast.loading(`Sending ${sendAmount} ${selectedToken.symbol} privately...`, { duration: 0 });
         
         result = await transferPrivate(
           railgunWalletId,
           key,
           recipientAddress,
-          selectedTransferToken.address,
+          selectedToken.address,
           amountInUnits,
           chainConfig,
-          transferMemo
+          memo
         );
 
         toast.dismiss();
-        toast.success(`✅ Private transfer completed! ${transferAmount} ${selectedTransferToken.symbol} sent privately.`, { duration: 5000 });
+        toast.success(`✅ Private transfer completed! ${sendAmount} ${selectedToken.symbol} sent privately.`, { duration: 5000 });
         
       } else if (addressValidation.type === 'eoa') {
         // Railgun-to-EOA unshield transfer
-        toast.loading(`Unshielding ${transferAmount} ${selectedTransferToken.symbol} to public wallet...`, { duration: 0 });
+        toast.loading(`Unshielding ${sendAmount} ${selectedToken.symbol} to public wallet...`, { duration: 0 });
         
         result = await unshieldTokens(
           railgunWalletId,
           key,
-          selectedTransferToken.address,
+          selectedToken.address,
           amountInUnits,
           chainConfig,
           recipientAddress
@@ -629,32 +245,30 @@ const PrivacyActions = () => {
         
         // Show fee information in success message
         const feeAmount = result.feeAmount || '0';
-        const feeInTokens = formatTokenAmount(feeAmount, selectedTransferToken.decimals);
+        const feeInTokens = formatTokenAmount(feeAmount, selectedToken.decimals);
         
         toast.success(
-          `✅ Unshield completed! ${transferAmount} ${selectedTransferToken.symbol} sent to public wallet. Fee: ${feeInTokens} ${selectedTransferToken.symbol}`, 
+          `✅ Unshield completed! ${sendAmount} ${selectedToken.symbol} sent to public wallet. Fee: ${feeInTokens} ${selectedToken.symbol}`, 
           { duration: 8000 }
         );
       }
       
-      console.log('[PrivacyActions] Transfer completed:', result);
-      
-      // Refresh balances
-      await refreshAllBalances();
+      console.log('[PrivacyActions] Send completed:', result);
       
       // Clear form
-      setTransferAmount('');
+      setSendAmount('');
       setRecipientAddress('');
-      setTransferMemo('');
+      setMemo('');
+      setSelectedToken(null);
       
     } catch (error) {
-      console.error('[PrivacyActions] Transfer failed:', error);
+      console.error('[PrivacyActions] Send failed:', error);
       toast.dismiss();
-      toast.error(`❌ Transfer failed: ${error.message}`, { duration: 8000 });
+      toast.error(`❌ Send failed: ${error.message}`, { duration: 8000 });
     } finally {
       setIsProcessing(false);
     }
-  }, [canUseRailgun, railgunWalletId, selectedTransferToken, recipientAddress, transferAmount, transferMemo, chainId, network, refreshAllBalances, getEncryptionKey, addressValidation]);
+  }, [canUseRailgun, railgunWalletId, isFormValid, selectedToken, sendAmount, recipientAddress, memo, chainId, network, getEncryptionKey, addressValidation]);
 
 
 
@@ -681,8 +295,7 @@ const PrivacyActions = () => {
   }
 
   const tabs = [
-    { id: 'shield', name: 'Shield', icon: ShieldCheckIcon, description: 'Convert public tokens to private' },
-    { id: 'transfer', name: 'Send', icon: ArrowRightIcon, description: 'Send private tokens to Railgun addresses or public wallets' },
+    { id: 'send', name: 'Send Privately', icon: ArrowRightIcon, description: 'Send your private tokens to any address' },
   ];
 
   return (
@@ -745,218 +358,13 @@ const PrivacyActions = () => {
 
       {/* Tab Content */}
       <div className="p-6">
-        {/* Shield Tab */}
-        {activeTab === 'shield' && (
+        {/* Send Privately Tab */}
+        {activeTab === 'send' && (
           <div className="space-y-6">
             <div>
-              <h3 className="text-lg font-medium text-white mb-2">Shield Tokens</h3>
+              <h3 className="text-lg font-medium text-white mb-2">Send Privately</h3>
               <p className="text-gray-300 text-sm mb-4">
-                Convert your public tokens into private Railgun tokens for enhanced privacy.
-              </p>
-              
-              {/* Fee Information */}
-              <div className="bg-blue-900/30 border border-blue-700/50 rounded-lg p-3 mb-4">
-                <div className="flex items-center gap-2 mb-2">
-                  <CurrencyDollarIcon className="h-4 w-4 text-blue-400" />
-                  <span className="text-blue-300 text-sm font-medium">Transaction Fees</span>
-                </div>
-                <div className="text-sm text-gray-300 space-y-1">
-                  <div className="flex justify-between">
-                    <span>Platform Fee:</span>
-                    <span className="text-yellow-300 font-medium">1.0%</span>
-                  </div>
-                  {railgunFees && !isFeesLoading && (
-                    <div className="flex justify-between">
-                      <span>Railgun Protocol Fee:</span>
-                      <span className="text-blue-300">{railgunFees.formatted?.deposit?.percentage || '0.25%'}</span>
-                    </div>
-                  )}
-                  <div className="border-t border-gray-600 pt-1 mt-2">
-                    <div className="flex justify-between font-medium">
-                      <span>Total Fees:</span>
-                      <span className="text-orange-300">
-                        {railgunFees?.formatted?.deposit?.percentage ? 
-                          `${(1.0 + parseFloat(railgunFees.formatted.deposit.percentage.replace('%', ''))).toFixed(2)}%` : 
-                          '~1.25%'
-                        }
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-2 text-xs text-gray-400">
-                  Platform fees support development and operations
-                </div>
-              </div>
-
-              {/* Recipient Address Field */}
-              <div className="bg-gray-700 rounded-lg p-4">
-                <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Recipient Address <span className="text-red-400">*</span>
-                </label>
-                <p className="text-gray-400 text-xs mb-3">
-                  Enter a public Ethereum address (0x...) required for gas estimation
-                </p>
-                <input
-                  type="text"
-                  placeholder="0x... (Ethereum address)"
-                  value={shieldRecipientAddress}
-                  onChange={(e) => setShieldRecipientAddress(e.target.value)}
-                  className={`w-full bg-gray-600 text-white rounded-lg px-4 py-3 border focus:outline-none ${
-                    shieldRecipientAddress.trim() === '' 
-                      ? 'border-gray-500 focus:border-purple-500'
-                      : shieldAddressValidation.isValid 
-                        ? 'border-green-500 focus:border-green-400' 
-                        : 'border-red-500 focus:border-red-400'
-                  }`}
-                />
-                
-                {/* Address Validation Feedback */}
-                {shieldRecipientAddress.trim() !== '' && (
-                  <div className={`mt-2 p-3 rounded-lg border text-sm ${
-                    shieldAddressValidation.isValid 
-                      ? 'bg-green-900/30 border-green-600/50 text-green-200'
-                      : 'bg-red-900/30 border-red-600/50 text-red-200'
-                  }`}>
-                    <div className="flex items-center space-x-2">
-                      <div className="flex-shrink-0">
-                        {shieldAddressValidation.isValid ? (
-                          <ShieldCheckIcon className="h-4 w-4" />
-                        ) : (
-                          <ExclamationTriangleIcon className="h-4 w-4" />
-                        )}
-                      </div>
-                      <span>{shieldAddressValidation.message}</span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Quick Fill Buttons */}
-                <div className="mt-3 flex gap-2">
-                  <button
-                    onClick={() => setShieldRecipientAddress(address || '')}
-                    disabled={!address}
-                    className="text-purple-400 hover:text-purple-300 text-xs disabled:text-gray-500"
-                  >
-                    Use my address ({address?.slice(0, 6)}...{address?.slice(-4)})
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Shield All Button */}
-            {shieldableTokens.length > 0 && shieldAddressValidation.isValid && (
-              <div className="bg-gray-700 rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="text-white font-medium">Shield All Tokens</h4>
-                    <p className="text-gray-300 text-sm">
-                      Shield all {shieldableTokens.length} tokens with non-zero balances
-                    </p>
-                  </div>
-                  <button
-                    onClick={handleShieldAll}
-                    disabled={isProcessing || shieldableTokens.length === 0}
-                    className="bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                  >
-                    {isProcessing ? 'Processing...' : 'Shield All'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Individual Token Shielding */}
-            <div className="space-y-4">
-              <h4 className="text-white font-medium">Shield Individual Tokens</h4>
-              
-              {Object.values(publicBalances).filter(token => token.hasBalance).map((token) => (
-                <div key={token.symbol} className="bg-gray-700 rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="bg-gray-600 rounded-full p-2">
-                        <CurrencyDollarIcon className="h-5 w-5 text-gray-300" />
-                      </div>
-                      <div>
-                        <div className="text-white font-medium">{token.symbol}</div>
-                        <div className="text-gray-300 text-sm">
-                          Balance: {token.formattedBalance} ${token.balanceUSD}
-                        </div>
-                        {!isTokenSupportedByRailgun(token.address, chainId) && (
-                          <div className="text-yellow-400 text-xs">
-                            ⚠️ Not supported by Railgun
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center space-x-2">
-                      <input
-                        type="number"
-                        placeholder="0.0"
-                        step="any"
-                        min="0"
-                        max={token.numericBalance}
-                        className="bg-gray-600 text-white rounded px-3 py-1 w-32 text-sm"
-                        value={shieldAmounts[token.symbol] || ''}
-                        onChange={(e) => {
-                          setShieldAmounts(prev => ({
-                            ...prev,
-                            [token.symbol]: e.target.value
-                          }));
-                        }}
-                        disabled={isProcessing || !token.hasBalance || !isTokenSupportedByRailgun(token.address, chainId)}
-                      />
-                      <button
-                        onClick={() => {
-                          const amount = shieldAmounts[token.symbol];
-                          if (!amount || parseFloat(amount) <= 0) {
-                            toast.error('Please enter a valid amount');
-                            return;
-                          }
-                          handleShieldToken(token, amount);
-                        }}
-                        disabled={
-                          isProcessing || 
-                          !token.hasBalance || 
-                          !shieldAmounts[token.symbol] || 
-                          parseFloat(shieldAmounts[token.symbol] || '0') <= 0 ||
-                          !isTokenSupportedByRailgun(token.address, chainId) ||
-                          !shieldAddressValidation.isValid
-                        }
-                        className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white px-3 py-1 rounded text-sm font-medium transition-colors"
-                        title={!shieldAddressValidation.isValid ? 'Enter recipient address to enable shielding' : 'Shield tokens'}
-                      >
-                        {isProcessing ? '...' : 
-                         !shieldAddressValidation.isValid ? 'Need Address' : 
-                         'Shield'}
-                      </button>
-                      <button
-                        onClick={() => {
-                          setShieldAmounts(prev => ({
-                            ...prev,
-                            [token.symbol]: token.numericBalance.toString()
-                          }));
-                        }}
-                        disabled={isProcessing || !token.hasBalance}
-                        className="bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white px-2 py-1 rounded text-xs transition-colors"
-                        title="Set maximum amount"
-                      >
-                        Max
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Transfer Tab */}
-        {activeTab === 'transfer' && (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-lg font-medium text-white mb-2">Send Tokens</h3>
-              <p className="text-gray-300 text-sm mb-4">
-                Send private tokens to a Railgun address (private) or regular wallet address (public).
+                Send your private tokens to any Railgun address (private) or Ethereum address (public with 1% fee).
               </p>
             </div>
 
@@ -964,7 +372,7 @@ const PrivacyActions = () => {
               {/* Recipient Address */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Recipient Address
+                  To <span className="text-red-400">*</span>
                 </label>
                 <input
                   type="text"
@@ -985,9 +393,9 @@ const PrivacyActions = () => {
                   <div className={`mt-2 p-3 rounded-lg border ${
                     addressValidation.isValid 
                       ? addressValidation.type === 'railgun'
-                        ? 'bg-purple-900 border-purple-600 text-purple-200'
-                        : 'bg-yellow-900 border-yellow-600 text-yellow-200'
-                      : 'bg-red-900 border-red-600 text-red-200'
+                        ? 'bg-purple-900/30 border-purple-600/50 text-purple-200'
+                        : 'bg-yellow-900/30 border-yellow-600/50 text-yellow-200'
+                      : 'bg-red-900/30 border-red-600/50 text-red-200'
                   }`}>
                     <div className="flex items-start space-x-2">
                       <div className="flex-shrink-0 mt-0.5">
@@ -1024,29 +432,36 @@ const PrivacyActions = () => {
               {/* Token Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Token
+                  Token <span className="text-red-400">*</span>
                 </label>
                 <select
-                  value={selectedTransferToken?.symbol || ''}
+                  value={selectedToken?.symbol || ''}
                   onChange={(e) => {
                     const token = Object.values(privateBalances).find(t => t.symbol === e.target.value);
-                    setSelectedTransferToken(token);
+                    setSelectedToken(token);
                   }}
                   className="w-full bg-gray-700 text-white rounded-lg px-4 py-3 border border-gray-600 focus:border-purple-500 focus:outline-none"
                 >
                   <option value="">Select token</option>
-                  {Object.values(privateBalances).map((token) => (
+                  {Object.values(privateBalances)
+                    .filter(token => (token.numericBalance || 0) > 0)
+                    .map((token) => (
                     <option key={token.symbol} value={token.symbol}>
                       {token.symbol} (Balance: {token.formattedBalance})
                     </option>
                   ))}
                 </select>
+                {Object.values(privateBalances).filter(token => (token.numericBalance || 0) > 0).length === 0 && (
+                  <p className="text-yellow-400 text-xs mt-1">
+                    No private tokens with balance available. Shield some tokens first.
+                  </p>
+                )}
               </div>
 
               {/* Amount */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  Amount
+                  Amount <span className="text-red-400">*</span>
                 </label>
                 <div className="flex space-x-2">
                   <input
@@ -1054,27 +469,27 @@ const PrivacyActions = () => {
                     placeholder="0.0"
                     step="any"
                     min="0"
-                    max={selectedTransferToken?.numericBalance || 0}
-                    value={transferAmount}
-                    onChange={(e) => setTransferAmount(e.target.value)}
+                    max={selectedToken?.numericBalance || 0}
+                    value={sendAmount}
+                    onChange={(e) => setSendAmount(e.target.value)}
                     className="flex-1 bg-gray-700 text-white rounded-lg px-4 py-3 border border-gray-600 focus:border-purple-500 focus:outline-none"
                   />
                   <button
                     onClick={() => {
-                      if (selectedTransferToken?.numericBalance) {
-                        setTransferAmount(selectedTransferToken.numericBalance.toString());
+                      if (selectedToken?.numericBalance) {
+                        setSendAmount(selectedToken.numericBalance.toString());
                       }
                     }}
-                    disabled={!selectedTransferToken?.numericBalance}
+                    disabled={!selectedToken?.numericBalance}
                     className="bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white px-3 py-3 rounded-lg text-sm transition-colors"
                     title="Set maximum amount"
                   >
                     Max
                   </button>
                 </div>
-                {selectedTransferToken && (
+                {selectedToken && (
                   <p className="text-gray-400 text-xs mt-1">
-                    Available: {selectedTransferToken.formattedBalance} {selectedTransferToken.symbol}
+                    Available: {selectedToken.formattedBalance} {selectedToken.symbol}
                   </p>
                 )}
               </div>
@@ -1087,33 +502,63 @@ const PrivacyActions = () => {
                 <input
                   type="text"
                   placeholder="Optional message"
-                  value={transferMemo}
-                  onChange={(e) => setTransferMemo(e.target.value)}
+                  value={memo}
+                  onChange={(e) => setMemo(e.target.value)}
                   className="w-full bg-gray-700 text-white rounded-lg px-4 py-3 border border-gray-600 focus:border-purple-500 focus:outline-none"
                 />
               </div>
 
-              {/* Transfer Button */}
+              {/* Send Privately Button */}
               <button
-                onClick={handlePrivateTransfer}
-                disabled={isProcessing || !addressValidation.isValid || !selectedTransferToken || !transferAmount}
+                onClick={handleSendPrivately}
+                disabled={!isFormValid || isProcessing}
                 className={`w-full py-3 rounded-lg font-medium transition-colors ${
-                  addressValidation.isValid && addressValidation.type === 'eoa'
-                    ? 'bg-yellow-600 hover:bg-yellow-700 disabled:bg-gray-600'
-                    : 'bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600'
+                  isFormValid
+                    ? addressValidation.type === 'eoa'
+                      ? 'bg-yellow-600 hover:bg-yellow-700'
+                      : 'bg-purple-600 hover:bg-purple-700'
+                    : 'bg-gray-600 cursor-not-allowed'
                 } text-white`}
               >
                 {isProcessing ? (
-                  addressValidation.type === 'eoa' ? 'Processing Unshield...' : 'Processing Transfer...'
-                ) : addressValidation.isValid ? (
+                  <div className="flex items-center justify-center space-x-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>
+                      {addressValidation.type === 'eoa' ? 'Processing Unshield...' : 'Processing Transfer...'}
+                    </span>
+                  </div>
+                ) : !isFormValid ? (
+                  'Fill All Required Fields'
+                ) : (
                   addressValidation.type === 'railgun' ? 'Send Private Transfer' : 'Unshield to Public Wallet'
-                ) : 'Enter Valid Address'}
+                )}
               </button>
+
+              {/* Form Validation Summary */}
+              {!isFormValid && (recipientAddress || selectedToken || sendAmount) && (
+                <div className="bg-gray-700 rounded-lg p-3 border border-gray-600">
+                  <h4 className="text-white text-sm font-medium mb-2">Required Fields:</h4>
+                  <ul className="text-xs text-gray-300 space-y-1">
+                    <li className={addressValidation.isValid ? 'text-green-400' : 'text-red-400'}>
+                      ✓ Valid recipient address {!addressValidation.isValid && '(missing)'}
+                    </li>
+                    <li className={selectedToken ? 'text-green-400' : 'text-red-400'}>
+                      ✓ Token selection {!selectedToken && '(missing)'}
+                    </li>
+                    <li className={sendAmount && parseFloat(sendAmount) > 0 ? 'text-green-400' : 'text-red-400'}>
+                      ✓ Valid amount {(!sendAmount || parseFloat(sendAmount) <= 0) && '(missing)'}
+                    </li>
+                    {selectedToken && sendAmount && parseFloat(sendAmount) > (selectedToken.numericBalance || 0) && (
+                      <li className="text-red-400">
+                        ✗ Amount exceeds balance
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              )}
             </div>
           </div>
         )}
-
-
       </div>
     </div>
   );
