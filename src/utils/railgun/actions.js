@@ -47,19 +47,20 @@ import { deriveEncryptionKey } from './wallet.js';
 /**
  * NETWORK NAME MAPPING 
  * =====================
- * Maps our chain configuration to Railgun's expected NetworkName enum values
+ * Maps our chain configuration to Railgun's expected NetworkName string values
+ * Based on official Railgun SDK documentation
  */
 const RAILGUN_NETWORK_MAPPING = {
-  1: NetworkName.Ethereum,      // Mainnet
-  42161: NetworkName.Arbitrum,  // Arbitrum One
-  137: NetworkName.Polygon,     // Polygon Mainnet
-  56: NetworkName.BNBChain,     // BNB Smart Chain
+  1: 'Ethereum',        // Mainnet
+  42161: 'Arbitrum',    // Arbitrum One  
+  137: 'Polygon',       // Polygon Mainnet
+  56: 'BNBChain',       // BNB Smart Chain
 };
 
 /**
  * Get the correct Railgun network name for a given chain ID
  * @param {number} chainId - The chain ID
- * @returns {string} The Railgun network name
+ * @returns {string} The Railgun network name as string
  */
 function getRailgunNetworkName(chainId) {
   const networkName = RAILGUN_NETWORK_MAPPING[chainId];
@@ -578,13 +579,14 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
     // ✅ STEP 2: Gas Estimation (Official Pattern - following docs exactly)
     console.log('[RailgunActions] Step 2: Gas estimation with official pattern...');
     
-    // Validate networkName is a valid enum value
-    if (!Object.values(NetworkName).includes(networkName)) {
-      console.error('[RailgunActions] ❌ Invalid NetworkName enum value:', {
+    // Validate networkName is a valid string value
+    if (!networkName || typeof networkName !== 'string') {
+      console.error('[RailgunActions] ❌ Invalid NetworkName string value:', {
         provided: networkName,
-        validValues: Object.values(NetworkName)
+        type: typeof networkName,
+        validValues: Object.values(RAILGUN_NETWORK_MAPPING)
       });
-      throw new Error(`Invalid NetworkName: ${networkName}. Valid values: ${Object.values(NetworkName).join(', ')}`);
+      throw new Error(`Invalid NetworkName: ${networkName}. Must be a valid network string.`);
     }
 
     console.log('[RailgunActions] Gas estimation parameters (official pattern):', {
@@ -698,28 +700,15 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       const relayerFeeERC20AmountRecipient = undefined; // Self-signing, no relayer fee
       const overallBatchMinGasPrice = undefined; // Optional for gas estimation
       
-      // 🔍 CRITICAL DEBUGGING: Inspect networkName type and value before SDK call
-      console.log('🔍 [CRITICAL] NETWORKNAME INSPECTION BEFORE SDK CALL:');
-      console.log('🔍 networkName raw value:', networkName);
-      console.log('🔍 networkName type:', typeof networkName);
-      console.log('🔍 networkName constructor:', networkName?.constructor?.name);
-      console.log('🔍 networkName toString():', networkName?.toString?.());
-      console.log('🔍 networkName has toLowerCase():', typeof networkName?.toLowerCase === 'function');
-      console.log('🔍 networkName JSON.stringify():', JSON.stringify(networkName));
-      console.log('🔍 networkName String():', String(networkName));
-      console.log('🔍 NetworkName enum values:', Object.values(NetworkName));
-      console.log('🔍 All NetworkName enum:', NetworkName);
-      
-      // Force networkName to be a string to avoid toLowerCase errors
-      const safeNetworkName = String(networkName);
-      console.log('🔍 safeNetworkName after String():', {
-        value: safeNetworkName,
-        type: typeof safeNetworkName,
-        hasToLowerCase: typeof safeNetworkName.toLowerCase === 'function'
+      // networkName is already a string from our mapping, ready for SDK
+      console.log('🔍 [CRITICAL] Using networkName for SDK call:', {
+        networkName,
+        type: typeof networkName,
+        hasToLowerCase: typeof networkName?.toLowerCase === 'function'
       });
       
       gasEstimateResult = await gasEstimateForShield(
-        safeNetworkName,                      // 1. NetworkName (forced to string)
+        networkName,                          // 1. NetworkName (string)
         shieldPrivateKey,                     // 2. shieldPrivateKey
         safeErc20Recipients,                  // 3. tokenAmountRecipients
         safeNftRecipients,                    // 4. nftAmountRecipients (empty [])
@@ -874,7 +863,7 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       // but with transactionGasDetails instead of overallBatchMinGasPrice
       
       populatedResult = await populateShield(
-        safeNetworkName,                      // 1. NetworkName (forced to string)
+        networkName,                          // 1. NetworkName (string)
         shieldPrivateKey,                     // 2. shieldPrivateKey
         safeErc20Recipients,                  // 3. tokenAmountRecipients
         safeNftRecipients,                    // 4. nftAmountRecipients (empty [])
@@ -1023,18 +1012,16 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
     // ✅ STEP 1: Gas Estimation (Official Pattern)
     console.log('[RailgunActions] Step 1: Gas estimation for unshield...');
     
-    // Force networkName to be a string to avoid toLowerCase errors
-    const safeNetworkName = String(networkName);
-    console.log('[unshieldTokens] Using safeNetworkName:', {
-      original: networkName,
-      safe: safeNetworkName,
-      type: typeof safeNetworkName
+    // networkName is already a string from our mapping
+    console.log('[unshieldTokens] Using networkName:', {
+      networkName,
+      type: typeof networkName
     });
     
     let gasDetails;
     try {
       gasDetails = await gasEstimateForUnprovenUnshield(
-        safeNetworkName,
+        networkName,
         railgunWalletID,
         encryptionKey,
         safeErc20Recipients,
@@ -1076,7 +1063,7 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
     let populatedResult;
     try {
       populatedResult = await populateProvedUnshield(
-        safeNetworkName,
+        networkName,
         railgunWalletID,
         safeErc20Recipients,
         safeNftRecipients
@@ -1195,17 +1182,15 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
       memoArray: safeMemoArray
     });
 
-    // Force networkName to be a string to avoid toLowerCase errors
-    const safeNetworkName = String(networkName);
-    console.log('[transferPrivate] Using safeNetworkName:', {
-      original: networkName,
-      safe: safeNetworkName,
-      type: typeof safeNetworkName
+    // networkName is already a string from our mapping
+    console.log('[transferPrivate] Using networkName:', {
+      networkName,
+      type: typeof networkName
     });
 
     // Get gas estimate
     const gasDetails = await gasEstimateForUnprovenTransfer(
-      safeNetworkName,
+      networkName,
       railgunWalletID,
       encryptionKey,
       safeMemoArray,
@@ -1217,7 +1202,7 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
 
     // Generate transfer proof
     const proofResult = await generateTransferProof(
-      safeNetworkName,
+      networkName,
       railgunWalletID,
       encryptionKey,
       safeMemoArray,
@@ -1229,7 +1214,7 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
 
     // Populate the proved transfer transaction
     const populatedResult = await populateProvedTransfer(
-      safeNetworkName,
+      networkName,
       railgunWalletID,
       safeMemoArray,
       safeErc20Recipients,
@@ -1489,16 +1474,14 @@ export const estimateShieldGas = async (networkName, shieldPrivateKey, erc20Amou
     const relayerFeeERC20AmountRecipient = undefined; // Self-signing, no relayer fee
     const overallBatchMinGasPrice = undefined; // Optional for gas estimation
     
-    // Force networkName to be a string to avoid toLowerCase errors
-    const safeNetworkName = String(networkName);
-    console.log('[estimateShieldGas] Using safeNetworkName:', {
-      original: networkName,
-      safe: safeNetworkName,
-      type: typeof safeNetworkName
+    // networkName should already be a string from our mapping
+    console.log('[estimateShieldGas] Using networkName:', {
+      networkName,
+      type: typeof networkName
     });
     
     const gasDetails = await gasEstimateForShield(
-      safeNetworkName,                      // 1. NetworkName (forced to string)
+      networkName,                          // 1. NetworkName (string)
       shieldPrivateKey,                     // 2. shieldPrivateKey
       safeErc20Recipients,                  // 3. tokenAmountRecipients
       safeNftRecipients,                    // 4. nftAmountRecipients (empty [])
@@ -1541,16 +1524,14 @@ export const estimateUnshieldGas = async (networkName, railgunWalletID, encrypti
     const safeNftRecipients = [];
     
     // Use actual Railgun gas estimation (Official Pattern)
-    // Force networkName to be a string to avoid toLowerCase errors
-    const safeNetworkName = String(networkName);
-    console.log('[estimateUnshieldGas] Using safeNetworkName:', {
-      original: networkName,
-      safe: safeNetworkName,
-      type: typeof safeNetworkName
+    // networkName should already be a string from our mapping
+    console.log('[estimateUnshieldGas] Using networkName:', {
+      networkName,
+      type: typeof networkName
     });
     
     const gasDetails = await gasEstimateForUnprovenUnshield(
-      safeNetworkName,
+      networkName,
       railgunWalletID,
       encryptionKey,
       safeErc20Recipients,
