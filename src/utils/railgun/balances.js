@@ -10,7 +10,7 @@
  */
 
 import {
-  getERC20Balances,
+  getTokenBalances,
   refreshRailgunBalances,
   rescanFullUTXOMerkletreesAndWallets,
   fullRescanUTXOMerkletreesAndWalletsForNetwork,
@@ -70,13 +70,13 @@ export const getPrivateBalances = async (walletID, chainId) => {
       networkName,
     });
     
-    // Get ERC20 balances
-    const erc20Balances = await getERC20Balances(networkName, walletID);
+    // Get token balances using correct function
+    const tokenBalances = await getTokenBalances(walletID, networkName, undefined, undefined, true);
     
     // Process and format balances
     const formattedBalances = [];
     
-    for (const [tokenAddress, railgunAmount] of Object.entries(erc20Balances)) {
+    for (const [tokenAddress, railgunAmount] of Object.entries(tokenBalances)) {
       try {
         // Get token information
         const tokenData = await getTokenInfo(tokenAddress, chainId);
