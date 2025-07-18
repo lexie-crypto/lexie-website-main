@@ -41,18 +41,10 @@ const WalletPage = () => {
     railgunWalletId,
     railgunAddress,
     isRailgunInitialized,
-    isInitializingRailgun,
     canUseRailgun,
-    railgunError,
-    connectionError,
     connectWallet,
     disconnectWallet,
-    switchNetwork,
-    clearErrors,
     getCurrentNetwork,
-    walletProviders,
-    isWalletAvailable,
-    resetConnectionState,
   } = useWallet();
 
   const {
@@ -302,35 +294,19 @@ const WalletPage = () => {
             <div className="space-y-4">
               {/* MetaMask */}
               <button
-                onClick={() => connectWallet(walletProviders.METAMASK)}
-                disabled={isConnecting || !isWalletAvailable(walletProviders.METAMASK)}
+                onClick={() => connectWallet('metamask')}
+                disabled={isConnecting}
                 className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-3 px-6 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2"
               >
                 <span>🦊</span>
                 <span>
-                  {isConnecting ? 'Connecting...' : 
-                   !isWalletAvailable(walletProviders.METAMASK) ? 'MetaMask Not Detected' : 
-                   'Connect MetaMask'}
-                </span>
-              </button>
-
-              {/* Phantom */}
-              <button
-                onClick={() => connectWallet(walletProviders.PHANTOM)}
-                disabled={isConnecting || !isWalletAvailable(walletProviders.PHANTOM)}
-                className="w-full bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-3 px-6 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2"
-              >
-                <span>👻</span>
-                <span>
-                  {isConnecting ? 'Connecting...' : 
-                   !isWalletAvailable(walletProviders.PHANTOM) ? 'Phantom Not Detected' : 
-                   'Connect Phantom'}
+                  {isConnecting ? 'Connecting...' : 'Connect MetaMask'}
                 </span>
               </button>
               
               {/* WalletConnect */}
               <button
-                onClick={() => connectWallet(walletProviders.WALLETCONNECT)}
+                onClick={() => connectWallet('walletconnect')}
                 disabled={isConnecting}
                 className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white py-3 px-6 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2"
               >
@@ -341,32 +317,8 @@ const WalletPage = () => {
 
             <div className="mt-4 text-sm text-gray-400 text-center">
               <p>Choose your preferred wallet to connect</p>
-              <p className="mt-1 text-xs">Only selected wallet will be used - no auto-detection</p>
+              <p className="mt-1 text-xs">Clean wagmi-based connection system</p>
             </div>
-
-            {/* Reset button if connection is stuck */}
-            {isConnecting && (
-              <div className="mt-4">
-                <button
-                  onClick={resetConnectionState}
-                  className="w-full bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors"
-                >
-                  Reset Connection (If Stuck)
-                </button>
-              </div>
-            )}
-
-            {connectionError && (
-              <div className="mt-4 p-3 bg-red-900 border border-red-700 rounded-lg">
-                <p className="text-red-300 text-sm">{connectionError}</p>
-                <button
-                  onClick={clearErrors}
-                  className="mt-2 text-red-400 hover:text-red-300 text-sm underline"
-                >
-                  Clear Error
-                </button>
-              </div>
-            )}
           </div>
         </div>
       </div>
