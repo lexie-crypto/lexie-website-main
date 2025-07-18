@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { ethers, formatUnits, Contract } from 'ethers';
 import { useWallet } from '../contexts/WalletContext';
 import { getPrivateBalances, refreshPrivateBalances } from '../utils/railgun/balances';
+import { fetchTokenPrices } from '../utils/pricing/coinGecko';
 import { RPC_URLS } from '../config/environment';
 
 // ERC20 ABI for balance checking
@@ -54,24 +55,44 @@ const CHAIN_RPC_MAPPING = {
   56: RPC_URLS.bsc,
 };
 
-const useBalances = () => {
-  const { 
-    isConnected, 
-    address, 
-    chainId, 
-    railgunWalletId,
-    canUseRailgun 
-  } = useWallet();
-
-  // State
+export function useBalances() {
+  const { address, chainId, railgunWalletId } = useWallet();
   const [publicBalances, setPublicBalances] = useState([]);
   const [privateBalances, setPrivateBalances] = useState([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [lastUpdate, setLastUpdate] = useState(null);
-  const [balanceErrors, setBalanceErrors] = useState({ public: null, private: null });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [tokenPrices, setTokenPrices] = useState({});
 
-  // Get provider for current chain
-  const getProvider = useCallback((targetChainId = chainId) => {
+  // Fetch and cache token prices
+  const fetchAndCachePrices = useCallback(async (symbols) => {
+    try {
+      const uniqueSymbols = [...new Set(symbols)];
+      const prices = await fetchTokenPrices(uniqueSymbols);
+      
+      setTokenPrices(prev => ({
+        ...prev,
+        ...prices
+      }));
+      
+      return prices;
+    } catch (error) {
+      console.error('[useBalances] Failed to fetch token prices:', error);
+      return {};
+    }
+  }, []);
+
+  // Calculate USD value for a balance
+  const calculateUSDValue = useCallback((numericBalance, symbol) => {
+    const price = tokenPrices[symbol];
+    if (price && typeof price === 'number' && numericBalance > 0) {
+      return (numericBalance * price).toFixed(2);
+    }
+    return '0.00';
+  }, [tokenPrices]);
+
+  // Get RPC provider for specific chain
+  const getProvider = useCallback((targetChainId) => {
     const rpcUrl = CHAIN_RPC_MAPPING[targetChainId];
     if (!rpcUrl) {
       throw new Error(`No RPC URL configured for chain ${targetChainId}`);
@@ -97,6 +118,7 @@ const useBalances = () => {
 
       const formattedBalance = formatUnits(balance, nativeToken.decimals);
       const numericBalance = parseFloat(formattedBalance);
+      const balanceUSD = calculateUSDValue(numericBalance, nativeToken.symbol);
 
       return {
         address: undefined, // Native token has no address
@@ -106,6 +128,7 @@ const useBalances = () => {
         balance: balance.toString(),
         formattedBalance: formattedBalance,
         numericBalance: numericBalance,
+        balanceUSD: balanceUSD,
         hasBalance: numericBalance > 0,
         chainId: targetChainId,
       };
@@ -113,7 +136,7 @@ const useBalances = () => {
       console.error('[useBalances] Failed to fetch native balance:', error);
       return null;
     }
-  }, [getProvider]);
+  }, [getProvider, calculateUSDValue]);
 
   // Fetch ERC20 token balance
   const fetchTokenBalance = useCallback(async (userAddress, tokenInfo, targetChainId) => {
@@ -130,6 +153,7 @@ const useBalances = () => {
 
       const formattedBalance = formatUnits(balance, decimals);
       const numericBalance = parseFloat(formattedBalance);
+      const balanceUSD = calculateUSDValue(numericBalance, symbol);
 
       return {
         address: tokenInfo.address,
@@ -139,6 +163,7 @@ const useBalances = () => {
         balance: balance.toString(),
         formattedBalance: formattedBalance,
         numericBalance: numericBalance,
+        balanceUSD: balanceUSD,
         hasBalance: numericBalance > 0,
         chainId: targetChainId,
       };
@@ -146,11 +171,11 @@ const useBalances = () => {
       console.error(`[useBalances] Failed to fetch balance for ${tokenInfo.symbol}:`, error);
       return null;
     }
-  }, [getProvider]);
+  }, [getProvider, calculateUSDValue]);
 
   // Fetch all public balances
   const fetchPublicBalances = useCallback(async () => {
-    if (!isConnected || !address || !chainId) {
+    if (!address || !chainId) {
       return [];
     }
 
@@ -158,7 +183,7 @@ const useBalances = () => {
       console.log('[useBalances] Fetching public balances for chain:', chainId);
       
       // Clear previous error
-      setBalanceErrors(prev => ({ ...prev, public: null }));
+      setError(null);
 
       const tokenList = TOKEN_LISTS[chainId] || [];
       
@@ -182,40 +207,49 @@ const useBalances = () => {
       return balances;
     } catch (error) {
       console.error('[useBalances] Failed to fetch public balances:', error);
-      setBalanceErrors(prev => ({ ...prev, public: error.message }));
+      setError(error.message);
       return [];
     }
-  }, [isConnected, address, chainId, fetchNativeBalance, fetchTokenBalance]);
+  }, [address, chainId, fetchNativeBalance, fetchTokenBalance]);
 
   // Fetch private balances using Railgun
   const fetchPrivateBalances = useCallback(async () => {
-    if (!canUseRailgun || !railgunWalletId || !chainId) {
+    if (!railgunWalletId || !chainId) {
       return [];
     }
 
     try {
       console.log('[useBalances] Fetching private balances...');
       // Clear previous error
-      setBalanceErrors(prev => ({ ...prev, private: null }));
+      setError(null);
       
       const balances = await getPrivateBalances(railgunWalletId, chainId);
       return balances;
     } catch (error) {
       console.error('[useBalances] Failed to fetch private balances:', error);
-      setBalanceErrors(prev => ({ ...prev, private: error.message }));
+      setError(error.message);
       return [];
     }
-  }, [canUseRailgun, railgunWalletId, chainId]);
+  }, [railgunWalletId, chainId]);
 
   // Refresh all balances
   const refreshAllBalances = useCallback(async () => {
-    if (!isConnected) {
+    if (!address) {
       return;
     }
 
-    setIsLoading(true);
+    setLoading(true);
     try {
       console.log('[useBalances] Refreshing all balances...');
+
+      // Fetch prices first
+      const allSymbols = [
+        ...new Set([
+          ...(TOKEN_LISTS[chainId] || []).map(t => t.symbol),
+          'ETH', 'MATIC', 'BNB', // Native tokens
+        ])
+      ];
+      await fetchAndCachePrices(allSymbols);
 
       // Fetch public and private balances in parallel
       const [publicBals, privateBals] = await Promise.all([
@@ -225,7 +259,7 @@ const useBalances = () => {
 
       setPublicBalances(publicBals);
       setPrivateBalances(privateBals);
-      setLastUpdate(Date.now());
+      setLastUpdated(Date.now());
 
       console.log('[useBalances] Balances refreshed:', {
         public: publicBals.length,
@@ -237,9 +271,9 @@ const useBalances = () => {
     } catch (error) {
       console.error('[useBalances] Failed to refresh balances:', error);
     } finally {
-      setIsLoading(false);
+      setLoading(false);
     }
-  }, [isConnected, fetchPublicBalances, fetchPrivateBalances]);
+  }, [address, chainId, fetchPublicBalances, fetchPrivateBalances, fetchAndCachePrices]);
 
   // Refresh balances after transactions
   const refreshBalancesAfterTransaction = useCallback(async () => {
@@ -277,32 +311,32 @@ const useBalances = () => {
 
   // Initial load when wallet connects
   useEffect(() => {
-    if (isConnected && address && chainId) {
+    if (address && chainId) {
       refreshAllBalances();
     } else {
       // Clear balances when disconnected
       setPublicBalances([]);
       setPrivateBalances([]);
-      setLastUpdate(null);
+      setLastUpdated(null);
     }
-  }, [isConnected, address, chainId, refreshAllBalances]);
+  }, [address, chainId, refreshAllBalances]);
 
   // Refresh private balances when Railgun wallet changes
   useEffect(() => {
-    if (canUseRailgun && railgunWalletId) {
+    if (railgunWalletId) {
       fetchPrivateBalances().then(balances => {
         setPrivateBalances(balances);
       });
     } else {
       setPrivateBalances([]);
     }
-  }, [canUseRailgun, railgunWalletId, fetchPrivateBalances]);
+  }, [railgunWalletId, fetchPrivateBalances]);
 
   // Listen for Railgun balance updates
   useEffect(() => {
     const handleBalanceUpdate = (event) => {
       console.log('[useBalances] Received Railgun balance update');
-      if (canUseRailgun && railgunWalletId) {
+      if (railgunWalletId) {
         // Refresh private balances when Railgun notifies of updates
         fetchPrivateBalances().then(balances => {
           setPrivateBalances(balances);
@@ -314,7 +348,7 @@ const useBalances = () => {
     return () => {
       window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
     };
-  }, [canUseRailgun, railgunWalletId, fetchPrivateBalances]);
+  }, [railgunWalletId, fetchPrivateBalances]);
 
   return {
     // Balance data
@@ -322,10 +356,10 @@ const useBalances = () => {
     privateBalances,
     
     // State
-    isLoading,
-    lastUpdate,
-    lastUpdateTime: lastUpdate, // Add alias for backward compatibility
-    balanceErrors,
+    loading,
+    lastUpdated,
+    lastUpdateTime: lastUpdated, // Add alias for backward compatibility
+    error,
     
     // Functions
     refreshAllBalances,
