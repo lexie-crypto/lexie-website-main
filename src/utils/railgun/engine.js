@@ -24,9 +24,40 @@ let isEngineInitialized = false;
 let isProverLoaded = false;
 let loadedNetworks = new Set();
 
+// ✅ ADD GLOBAL FEE STORAGE
+let networkFees = new Map(); // Store fees by network name
+
 // Callbacks for engine events
 let balanceUpdateCallback = null;
 let scanProgressCallbacks = new Set();
+
+// ✅ ADD FEE MANAGEMENT FUNCTIONS
+/**
+ * Store fees for a network
+ * @param {string} networkName - Network name (e.g., 'Arbitrum')
+ * @param {object} feesSerialized - Fees data from loadProvider
+ */
+export const storeFees = (networkName, feesSerialized) => {
+  networkFees.set(networkName, feesSerialized);
+  console.log(`[Railgun] Stored fees for ${networkName}:`, feesSerialized);
+};
+
+/**
+ * Get fees for a network
+ * @param {string} networkName - Network name
+ * @returns {object|null} Fees data or null if not found
+ */
+export const getFees = (networkName) => {
+  return networkFees.get(networkName) || null;
+};
+
+/**
+ * Get all stored fees
+ * @returns {Map} All network fees
+ */
+export const getAllFees = () => {
+  return new Map(networkFees);
+};
 
 /**
  * Wait for Railgun engine to be ready
@@ -200,6 +231,9 @@ export const loadNetworkProvider = async (networkName, chainId, rpcUrl, pollingI
       networkName,
       pollingInterval
     );
+
+    // ✅ STORE FEES FOR GLOBAL ACCESS
+    storeFees(networkName, feesSerialized);
 
     loadedNetworks.add(networkName);
     
@@ -405,4 +439,9 @@ export default {
   isNetworkLoaded,
   getNetworkNameFromChainId,
   waitForRailgunReady,
+  
+  // ✅ FEE MANAGEMENT EXPORTS
+  storeFees,
+  getFees,
+  getAllFees,
 }; 

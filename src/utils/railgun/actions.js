@@ -37,6 +37,7 @@ import {
 } from '@railgun-community/wallet';
 import { NetworkName } from '@railgun-community/shared-models';
 import { waitForRailgunReady } from './engine.js';
+import railgunEngine from './engine.js';
 import { getTokensForChain } from '../../constants/tokens.js';
 import { deriveEncryptionKey } from './wallet.js';
 
@@ -52,6 +53,52 @@ const RAILGUN_NETWORK_MAPPING = {
   137: 'Polygon',     // Polygon Mainnet
   56: 'BNB',          // BNB Smart Chain
   31337: 'Hardhat',   // Local development
+};
+
+/**
+ * FEE COLLECTION CONFIGURATION
+ * ============================
+ * 1% fee on all private transactions collected to specified wallet
+ */
+const FEE_COLLECTION_CONFIG = {
+  // Fee recipient wallet address
+  RECIPIENT_ADDRESS: '0x108eA687844AB79223E5D5F49ecDf69f2E93B453',
+  
+  // Fee percentage (1% = 100 basis points)
+  FEE_PERCENTAGE: 1.0, // 1%
+  FEE_BASIS_POINTS: 100, // 1% in basis points
+  
+  // Minimum fee amount to avoid dust
+  MIN_FEE_THRESHOLD: '1000000', // 1 USDC/USDT (6 decimals)
+};
+
+/**
+ * Calculate fee amount for a transaction
+ * @param {string} amount - Transaction amount in token units
+ * @param {number} decimals - Token decimals
+ * @returns {string} Fee amount in token units
+ */
+const calculateTransactionFee = (amount, decimals) => {
+  try {
+    const amountBigInt = BigInt(amount);
+    const feeAmount = (amountBigInt * BigInt(FEE_COLLECTION_CONFIG.FEE_BASIS_POINTS)) / BigInt(10000);
+    
+    // Apply minimum threshold
+    const minFee = BigInt(FEE_COLLECTION_CONFIG.MIN_FEE_THRESHOLD);
+    const finalFee = feeAmount > minFee ? feeAmount : minFee;
+    
+    console.log('[FeeCollection] Calculated fee:', {
+      originalAmount: amount,
+      feeAmount: feeAmount.toString(),
+      finalFee: finalFee.toString(),
+      percentage: FEE_COLLECTION_CONFIG.FEE_PERCENTAGE + '%'
+    });
+    
+    return finalFee.toString();
+  } catch (error) {
+    console.error('[FeeCollection] Error calculating fee:', error);
+    return '0';
+  }
 };
 
 /**
@@ -241,7 +288,7 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
     const networkName = getRailgunNetworkName(chain.id);
     console.log('[RailgunActions] Using Railgun network:', networkName);
 
-    // ✅ CREATE PROPERLY STRUCTURED PARAMETERS (Official Pattern)
+    // ✅ CREATE SINGLE RECIPIENT FOR USER (SDK WILL HANDLE FEE DEDUCTION)
     const erc20AmountRecipient = createERC20AmountRecipient(tokenAddress, amount, railgunAddress);
     
     // ✅ DEFENSIVE CHECK AFTER RECIPIENT CREATION
@@ -269,92 +316,72 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
 
     const nftAmountRecipients = []; // Always empty array for shield operations
 
-    // ✅ CONSTRUCT FEE TOKEN DETAILS (CRITICAL FIX)
-    let feeTokenDetails;
-    try {
-      // Get tokens for this chain to find token details
-      const chainTokens = getTokensForChain(chain.id);
-      let currentToken = null;
-      
-      // Find the current token being shielded
-      if (tokenAddress === null) {
-        // Native token - find the native token for this chain
-        currentToken = Object.values(chainTokens).find(token => token.isNative === true);
-      } else {
-        // ERC20 token - find by address
-        currentToken = Object.values(chainTokens).find(token => 
-          token.address && token.address.toLowerCase() === tokenAddress.toLowerCase()
-        );
+    // ✅ GET STORED RAILGUN FEES FOR THIS NETWORK
+    const storedFees = railgunEngine.getFees(networkName);
+    console.log('[RailgunActions] Retrieved stored fees for', networkName, ':', storedFees);
+
+    // ✅ CALCULATE 1% FEE USING RAILGUN ENGINE DATA
+    const shieldAmount = BigInt(amount); // User's input amount
+    const feeBps = BigInt(FEE_COLLECTION_CONFIG.FEE_BASIS_POINTS); // 100n (1%)
+    const feeAmount = (shieldAmount * feeBps) / 10000n; // Calculate 1% fee
+    
+    // ✅ GET TOKEN DETAILS FOR FEE TOKEN DETAILS
+    const tokens = getTokensForChain(chain.id);
+    const currentToken = Object.values(tokens).find(token => {
+      if (tokenAddress === null && token.isNative) return true;
+      if (tokenAddress && token.address) {
+        return getAddress(token.address) === getAddress(tokenAddress);
       }
+      return false;
+    });
+    
+    if (!currentToken) {
+      throw new Error(`Token not found for address: ${tokenAddress || 'native'}`);
+    }
 
-             if (currentToken && currentToken.decimals !== undefined && currentToken.symbol) {
-         // Use the current token as fee token if it has all required properties
-         feeTokenDetails = {
-           tokenAddress: tokenAddress === null ? undefined : tokenAddress, // Native tokens use undefined
-           chainId: chain.id,
-           chain: networkName, // ✅ this is what the SDK tries to read `.chain` from
-           decimals: currentToken.decimals,
-           symbol: currentToken.symbol,
-         };
-         console.log('[RailgunActions] Using current token as fee token:', currentToken.symbol);
-       } else {
-         // Fallback to a suitable token for gas fees
-         let fallbackToken = null;
-         
-         // Try to find USDC first, then WETH, then any native token
-         const fallbackPriority = ['USDC', 'WETH', 'ETH', 'MATIC', 'BNB'];
-         for (const symbol of fallbackPriority) {
-           fallbackToken = Object.values(chainTokens).find(token => token.symbol === symbol);
-           if (fallbackToken && fallbackToken.decimals !== undefined) break;
-         }
-         
-         if (fallbackToken) {
-           feeTokenDetails = {
-             tokenAddress: fallbackToken.address === null ? undefined : fallbackToken.address,
-             chainId: chain.id,
-             chain: networkName, // ✅ this is what the SDK tries to read `.chain` from
-             decimals: fallbackToken.decimals,
-             symbol: fallbackToken.symbol,
-           };
-           console.log('[RailgunActions] Using fallback fee token:', fallbackToken.symbol);
-         } else {
-           throw new Error(`No suitable fee token found for chain ${chain.id}`);
-         }
-       }
+    // ✅ CONSTRUCT PROPER FEE TOKEN DETAILS WITH FEE AMOUNT
+    const feeTokenDetails = {
+      tokenAddress: tokenAddress === null ? currentToken.address : tokenAddress, // Token being shielded
+      feeAmount, // ✅ CRITICAL: Calculated fee amount for SDK to deduct
+      feePerUnitGas: 0n, // We're not using a relayer
+      feeReceiverAddress: FEE_COLLECTION_CONFIG.RECIPIENT_ADDRESS, // ✅ Our fee wallet
+      chainId: chain.id, // CRITICAL: SDK uses chainId to derive chain internally  
+      decimals: currentToken.decimals,
+      symbol: currentToken.symbol,
+    };
+    
+    console.log('[RailgunActions] ✅ Constructed feeTokenDetails with 1% fee collection:', {
+      tokenAddress: feeTokenDetails.tokenAddress,
+      feeAmount: feeAmount.toString(),
+      feeReceiverAddress: feeTokenDetails.feeReceiverAddress,
+      chainId: feeTokenDetails.chainId,
+      symbol: feeTokenDetails.symbol,
+      feePercentage: '1%'
+        });
 
-             // ✅ VALIDATE FEE TOKEN DETAILS STRUCTURE
-       if (!feeTokenDetails || typeof feeTokenDetails !== 'object') {
-         throw new Error('feeTokenDetails must be an object');
-       }
-       
-       if (typeof feeTokenDetails.chainId !== 'number') {
-         throw new Error('feeTokenDetails.chainId must be a number');
-       }
-       
-       if (typeof feeTokenDetails.decimals !== 'number') {
-         throw new Error('feeTokenDetails.decimals must be a number');
-       }
-       
-       if (typeof feeTokenDetails.symbol !== 'string') {
-         throw new Error('feeTokenDetails.symbol must be a string');
-       }
+    // ✅ VALIDATE FEE TOKEN DETAILS STRUCTURE
+    if (!feeTokenDetails || typeof feeTokenDetails !== 'object') {
+      throw new Error('feeTokenDetails must be an object');
+    }
+    
+    if (typeof feeTokenDetails.chainId !== 'number') {
+      throw new Error('feeTokenDetails.chainId must be a number');
+    }
+    
+    if (typeof feeTokenDetails.decimals !== 'number') {
+      throw new Error('feeTokenDetails.decimals must be a number');
+    }
+    
+    if (typeof feeTokenDetails.symbol !== 'string') {
+      throw new Error('feeTokenDetails.symbol must be a string');
+    }
 
-       console.log('[RailgunActions] Constructed feeTokenDetails:', {
-         tokenAddress: feeTokenDetails.tokenAddress,
-         tokenAddressType: typeof feeTokenDetails.tokenAddress,
-         chainId: feeTokenDetails.chainId,
-         chainIdType: typeof feeTokenDetails.chainId,
-         decimals: feeTokenDetails.decimals,
-         decimalsType: typeof feeTokenDetails.decimals,
-         symbol: feeTokenDetails.symbol,
-         symbolType: typeof feeTokenDetails.symbol,
-         hasChainProperty: 'chain' in feeTokenDetails,
-         allKeys: Object.keys(feeTokenDetails),
-       });
+    if (typeof feeTokenDetails.feeAmount !== 'bigint') {
+      throw new Error('feeTokenDetails.feeAmount must be a BigInt');
+    }
 
-    } catch (feeTokenError) {
-      console.error('[RailgunActions] Failed to construct fee token details:', feeTokenError);
-      throw new Error(`Fee token construction failed: ${feeTokenError.message}`);
+    if (typeof feeTokenDetails.feeReceiverAddress !== 'string') {
+      throw new Error('feeTokenDetails.feeReceiverAddress must be a string');
     }
 
     console.log('[RailgunActions] Created properly structured parameters:', {
@@ -475,24 +502,27 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
           isValid: !!fromAddress
         },
         '7_feeTokenDetails': {
-          value: feeTokenDetails,
-          type: typeof feeTokenDetails,
-          hasTokenAddress: feeTokenDetails && 'tokenAddress' in feeTokenDetails,
-          hasChainId: feeTokenDetails && 'chainId' in feeTokenDetails,
-          hasDecimals: feeTokenDetails && 'decimals' in feeTokenDetails,
-          hasSymbol: feeTokenDetails && 'symbol' in feeTokenDetails
+          tokenAddress: feeTokenDetails.tokenAddress,
+          feeAmount: feeTokenDetails.feeAmount.toString(),
+          feePerUnitGas: feeTokenDetails.feePerUnitGas.toString(),
+          feeReceiverAddress: feeTokenDetails.feeReceiverAddress,
+          chainId: feeTokenDetails.chainId,
+          decimals: feeTokenDetails.decimals,
+          symbol: feeTokenDetails.symbol,
+          hasFeeAmount: 'feeAmount' in feeTokenDetails,
+          hasFeeReceiver: 'feeReceiverAddress' in feeTokenDetails
         }
       });
       
-      console.log('[RailgunActions] About to call gasEstimateForShield WITHOUT feeTokenDetails to debug...');
+      console.log('[RailgunActions] ✅ Calling gasEstimateForShield with V10.4.x compliant feeTokenDetails...');
       gasDetails = await gasEstimateForShield(
         networkName,
         railgunWalletID,
         encryptionKey,
         erc20AmountRecipients,
         nftAmountRecipients,
-        fromAddress
-        // TEMPORARILY REMOVED feeTokenDetails to debug parameter order
+        fromAddress,
+        feeTokenDetails // ✅ CRITICAL: V10.4.x requires feeTokenDetails to prevent 'chain' property error
       );
       console.log('[RailgunActions] Gas estimation successful:', gasDetails);
     } catch (sdkError) {

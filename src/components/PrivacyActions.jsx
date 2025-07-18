@@ -17,6 +17,7 @@ import {
 
 import { useWallet } from '../contexts/WalletContext';
 import useBalances from '../hooks/useBalances';
+import useRailgunFees from '../hooks/useRailgunFees';
 import {
   shieldTokens,
   unshieldTokens,
@@ -47,6 +48,13 @@ const PrivacyActions = () => {
     refreshAllBalances,
     formatBalance,
   } = useBalances();
+
+  const {
+    fees: railgunFees,
+    isLoading: isFeesLoading,
+    getFeeForOperation,
+    calculateFeeAmount,
+  } = useRailgunFees();
 
   // UI state
   const [activeTab, setActiveTab] = useState('shield');
@@ -698,6 +706,40 @@ const PrivacyActions = () => {
               <p className="text-gray-300 text-sm mb-4">
                 Convert your public tokens into private Railgun tokens for enhanced privacy.
               </p>
+              
+              {/* Fee Information */}
+              <div className="bg-blue-900/30 border border-blue-700/50 rounded-lg p-3 mb-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <CurrencyDollarIcon className="h-4 w-4 text-blue-400" />
+                  <span className="text-blue-300 text-sm font-medium">Transaction Fees</span>
+                </div>
+                <div className="text-sm text-gray-300 space-y-1">
+                  <div className="flex justify-between">
+                    <span>Platform Fee:</span>
+                    <span className="text-yellow-300 font-medium">1.0%</span>
+                  </div>
+                  {railgunFees && !isFeesLoading && (
+                    <div className="flex justify-between">
+                      <span>Railgun Protocol Fee:</span>
+                      <span className="text-blue-300">{railgunFees.formatted?.deposit?.percentage || '0.25%'}</span>
+                    </div>
+                  )}
+                  <div className="border-t border-gray-600 pt-1 mt-2">
+                    <div className="flex justify-between font-medium">
+                      <span>Total Fees:</span>
+                      <span className="text-orange-300">
+                        {railgunFees?.formatted?.deposit?.percentage ? 
+                          `${(1.0 + parseFloat(railgunFees.formatted.deposit.percentage.replace('%', ''))).toFixed(2)}%` : 
+                          '~1.25%'
+                        }
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-2 text-xs text-gray-400">
+                  Platform fees support development and operations
+                </div>
+              </div>
             </div>
 
             {/* Shield All Button */}
