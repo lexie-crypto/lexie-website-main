@@ -262,35 +262,46 @@ export async function shieldTokens(
     // Step 2: Gas estimation
     console.log('[RailgunActions] Estimating gas for shield...');
     
-    // Log all inputs being sent to gasEstimateForShield
-    console.log('[RailgunActions] Gas estimation inputs:', {
-      networkName,
-      shieldPrivateKey: shieldPrivateKey?.slice(0, 10) + '...',
-      erc20AmountRecipients: {
-        length: erc20AmountRecipients.length,
-        recipients: erc20AmountRecipients.map((recipient, index) => ({
-          index,
-          tokenAddress: recipient.tokenAddress,
-          amount: recipient.amount?.toString(),
-          recipientAddress: recipient.recipientAddress?.slice(0, 10) + '...',
-          fullRecipient: recipient
-        }))
-      },
-      nftAmountRecipients: {
-        length: nftAmountRecipients.length,
-        isArray: Array.isArray(nftAmountRecipients),
-        value: nftAmountRecipients
-      },
-      fromAddress: fromAddress?.slice(0, 8) + '...',
-      fromAddressFull: fromAddress
+    // Validate that erc20AmountRecipients is a proper array
+    console.log('[RailgunActions] erc20AmountRecipients validation:', {
+      isArray: Array.isArray(erc20AmountRecipients),
+      length: erc20AmountRecipients.length,
+      type: typeof erc20AmountRecipients,
+      constructor: erc20AmountRecipients.constructor.name
     });
     
+    // Log the raw array being passed to RAILGUN SDK
+    console.log('[RailgunActions] Raw erc20AmountRecipients array:', erc20AmountRecipients);
+    
+    // Log detailed structure of each recipient
+    erc20AmountRecipients.forEach((recipient, index) => {
+      console.log(`[RailgunActions] Recipient ${index}:`, {
+        tokenAddress: recipient.tokenAddress,
+        amount: recipient.amount,
+        amountType: typeof recipient.amount,
+        amountString: recipient.amount?.toString(),
+        recipientAddress: recipient.recipientAddress,
+        isBigInt: typeof recipient.amount === 'bigint',
+        fullRecipient: recipient
+      });
+    });
+    
+    // Log all inputs being sent to gasEstimateForShield
+    console.log('[RailgunActions] Complete gas estimation inputs:', {
+      networkName,
+      shieldPrivateKey: shieldPrivateKey?.slice(0, 10) + '...',
+      erc20AmountRecipients_RAW_ARRAY: erc20AmountRecipients, // Raw array, not wrapped in object
+      nftAmountRecipients,
+      fromAddress
+    });
+    
+    console.log('[RailgunActions] Calling gasEstimateForShield with raw array...');
     const { gasEstimate } = await gasEstimateForShield(
       networkName,
       shieldPrivateKey,
-      erc20AmountRecipients,
+      erc20AmountRecipients, // This should be the raw array: [{ tokenAddress, amount: BigInt, recipientAddress }]
       nftAmountRecipients, // Empty array for shield
-      fromAddress // Just the from wallet address
+      fromAddress // From wallet address
     );
 
     // Step 3: Create transaction gas details
