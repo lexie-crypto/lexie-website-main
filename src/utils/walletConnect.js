@@ -5,10 +5,38 @@
 
 import { createAppKit } from '@reown/appkit';
 import { EthersAdapter } from '@reown/appkit-adapter-ethers';
-import { mainnet, arbitrum, polygon, bsc } from '@reown/appkit/networks';
 
 // Supported networks for Reown
-const networks = [mainnet, arbitrum, polygon, bsc];
+const networks = [
+  {
+    id: 1,
+    name: 'Ethereum',
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    rpcUrls: { default: { http: ['https://eth.llamarpc.com'] } },
+    blockExplorers: { default: { name: 'Etherscan', url: 'https://etherscan.io' } }
+  },
+  {
+    id: 42161,
+    name: 'Arbitrum',
+    nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+    rpcUrls: { default: { http: ['https://arb1.arbitrum.io/rpc'] } },
+    blockExplorers: { default: { name: 'Arbiscan', url: 'https://arbiscan.io' } }
+  },
+  {
+    id: 137,
+    name: 'Polygon',
+    nativeCurrency: { name: 'Matic', symbol: 'MATIC', decimals: 18 },
+    rpcUrls: { default: { http: ['https://polygon-rpc.com'] } },
+    blockExplorers: { default: { name: 'PolygonScan', url: 'https://polygonscan.com' } }
+  },
+  {
+    id: 56,
+    name: 'BNB Smart Chain',
+    nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
+    rpcUrls: { default: { http: ['https://bsc-dataseed.binance.org'] } },
+    blockExplorers: { default: { name: 'BSCScan', url: 'https://bscscan.com' } }
+  }
+];
 
 // Create ethers adapter
 const ethersAdapter = new EthersAdapter();
