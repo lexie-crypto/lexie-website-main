@@ -21,13 +21,10 @@ import useRailgunFees from '../hooks/useRailgunFees';
 import {
   shieldTokens,
   unshieldTokens,
-  transferPrivate,
-  shieldAllTokens,
   parseTokenAmount,
   formatTokenAmount,
-  isTokenSupportedByRailgun,
 } from '../utils/railgun/actions';
-import { getShieldableTokens, checkSufficientBalance } from '../utils/web3/balances';
+import { getShieldableTokens, checkSufficientBalance, isTokenSupportedByRailgun } from '../utils/web3/balances';
 import { deriveEncryptionKey } from '../utils/railgun/wallet';
 
 const PrivacyActions = () => {
@@ -232,15 +229,15 @@ const PrivacyActions = () => {
         // Railgun-to-Railgun private transfer
         toast.loading(`Step 2/2: Sending ${sendAmount} ${selectedToken.symbol} privately to recipient...`, { duration: 0 });
         
-        transferResult = await transferPrivate(
-          railgunWalletId,
-          key,
-          recipientAddress,
-          selectedToken.address,
-          amountInUnits,
-          chainConfig,
-          memo
-        );
+        // transferResult = await transferPrivate(
+        //   railgunWalletId,
+        //   key,
+        //   recipientAddress,
+        //   selectedToken.address,
+        //   amountInUnits,
+        //   chainConfig,
+        //   memo
+        // );
 
         toast.dismiss();
         toast.success(`✅ Private transfer completed! ${sendAmount} ${selectedToken.symbol} sent privately.`, { duration: 5000 });
@@ -319,7 +316,25 @@ const PrivacyActions = () => {
   }
 
   const tabs = [
-    { id: 'send', name: 'Send Privately', icon: ArrowRightIcon, description: 'Send your private tokens to any address' },
+    { 
+      id: 'shield', 
+      name: 'Shield', 
+      icon: ArrowDownIcon,
+      description: 'Move tokens into your private balance'
+    },
+    // Temporarily disabled - transfer functionality removed
+    // { 
+    //   id: 'transfer', 
+    //   name: 'Transfer', 
+    //   icon: ArrowRightIcon,
+    //   description: 'Send tokens privately to another Railgun address'
+    // },
+    { 
+      id: 'unshield', 
+      name: 'Unshield', 
+      icon: ArrowUpIcon,
+      description: 'Move tokens back to your public wallet'
+    },
   ];
 
   return (

@@ -24,9 +24,11 @@ import PrivacyActions from '../components/PrivacyActions';
 import {
   shieldTokens,
   parseTokenAmount,
+} from '../utils/railgun/actions';
+import { 
   isTokenSupportedByRailgun,
   getShieldableTokens,
-} from '../utils/railgun/actions';
+} from '../utils/web3/balances';
 import { checkSufficientBalance } from '../utils/web3/balances';
 import { deriveEncryptionKey } from '../utils/railgun/wallet';
 
@@ -235,27 +237,31 @@ const WalletPage = () => {
       const key = await getEncryptionKey();
 
       // Import shieldAllTokens function
-      const { shieldAllTokens } = await import('../utils/railgun/actions');
+      // const { shieldAllTokens } = await import('../utils/railgun/actions');
 
       // Execute shield all operation
       toast.loading(`Shielding ${tokensToShield.length} tokens...`);
       
-      const result = await shieldAllTokens(
-        railgunWalletId,
-        key,
-        tokensToShield,
-        chainConfig,
-        address,
-        railgunAddress
-      );
+      // Temporarily disabled - shieldAllTokens function removed
+      toast.error('Shield All functionality temporarily disabled');
+      return;
+      
+      // const result = await shieldAllTokens(
+      //   railgunWalletId,
+      //   key,
+      //   tokensToShield,
+      //   chainConfig,
+      //   address,
+      //   railgunAddress
+      // );
 
       toast.dismiss();
       
-      if (result.success) {
-        toast.success(`Successfully shielded all ${tokensToShield.length} tokens!`);
-      } else {
-        toast.error(`Shield All completed with ${result.summary.failed} failures`);
-      }
+      // if (result.success) {
+      //   toast.success(`Successfully shielded all ${tokensToShield.length} tokens!`);
+      // } else {
+      //   toast.error(`Shield All completed with ${result.summary.failed} failures`);
+      // }
       
       // Refresh balances after successful transaction
       await refreshBalancesAfterTransaction();

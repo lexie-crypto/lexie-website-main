@@ -3,7 +3,7 @@
  * Fetches real public token balances from connected EOA wallet
  */
 
-import { ethers, formatUnits, Contract } from 'ethers';
+import { ethers, formatUnits, Contract, getAddress } from 'ethers';
 import { getAccount, getPublicClient } from '@wagmi/core';
 import { createPublicClient, http } from 'viem';
 
@@ -274,24 +274,33 @@ const createProvider = (chainId) => {
 };
 
 /**
- * Get tokens with non-zero balances (for Shield All functionality)
+ * Get tokens with shieldable balances from the public balance list
  * @param {string} address - EOA address
  * @param {number} chainId - Chain ID
- * @returns {Array} Array of tokens with balances > 0
+ * @returns {Array} Array of tokens that can be shielded
  */
 export const getShieldableTokens = async (address, chainId) => {
   try {
-    const allBalances = await fetchPublicBalances(address, chainId);
-    const shieldableTokens = allBalances.filter(token => token.hasBalance && token.numericBalance > 0);
+    console.log('[getShieldableTokens] Getting shieldable tokens for:', { address, chainId });
 
-    console.log('[Web3Balances] Shieldable tokens found:', {
+    // Get public balances
+    const balances = await fetchPublicBalances(address, chainId);
+    
+    // Filter tokens that have balance and are supported by Railgun
+    const shieldableTokens = balances.filter(token => {
+      return token.hasBalance && 
+             token.numericBalance > 0 && 
+             isTokenSupportedByRailgun(token.address, chainId);
+    });
+
+    console.log('[getShieldableTokens] Found shieldable tokens:', {
       total: shieldableTokens.length,
       tokens: shieldableTokens.map(t => `${t.symbol}: ${t.formattedBalance}`),
     });
 
     return shieldableTokens;
   } catch (error) {
-    console.error('[Web3Balances] Failed to get shieldable tokens:', error);
+    console.error('[getShieldableTokens] Failed to get shieldable tokens:', error);
     return [];
   }
 };
@@ -353,6 +362,41 @@ export const checkSufficientBalance = async (address, tokenAddress, amount, chai
       required: parseFloat(amount) || 0,
       error: error.message,
     };
+  }
+};
+
+/**
+ * Check if a token is supported by Railgun on the current chain
+ * @param {string} tokenAddress - Token contract address
+ * @param {number} chainId - Chain ID
+ * @returns {boolean} True if supported
+ */
+export const isTokenSupportedByRailgun = (tokenAddress, chainId) => {
+  try {
+    const supportedTokens = getTokensForChain(chainId);
+    
+    if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000') {
+      // Native token - check if chain has native token support
+      return Object.values(supportedTokens).some(token => token.isNative);
+    }
+    
+    // ERC20 token - check by address
+    return Object.values(supportedTokens).some(token => {
+      try {
+        if (!token.address) return false;
+        return getAddress(token.address) === getAddress(tokenAddress);
+      } catch (addressError) {
+        console.warn(`[isTokenSupportedByRailgun] Invalid address comparison:`, {
+          tokenAddress,
+          configAddress: token.address,
+          error: addressError.message
+        });
+        return false;
+      }
+    });
+  } catch (error) {
+    console.error('[isTokenSupportedByRailgun] Error checking token support:', error);
+    return false;
   }
 };
 
