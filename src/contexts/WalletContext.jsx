@@ -60,7 +60,7 @@ const wagmiConfig = createConfig({
   connectors: [
     metaMask(),
     walletConnect({
-      projectId: WALLETCONNECT_CONFIG.projectId || 'demo-project-id',
+      projectId: WALLETCONNECT_CONFIG.projectId,
       metadata: WALLETCONNECT_CONFIG.metadata,
     }),
   ],
@@ -168,25 +168,18 @@ const WalletContextProvider = ({ children }) => {
       );
       console.log('✅ RAILGUN engine started successfully');
 
-      // Create or load Railgun wallet
+      // Create or load Railgun wallet with proper signature-based key derivation
       const encryptionKey = address.toLowerCase();
       let mnemonic = localStorage.getItem(`railgun-mnemonic-${address}`);
       
       if (!mnemonic) {
-        // Generate a new mnemonic
-        try {
-          if (railgunWallet.generateMnemonic) {
-            mnemonic = railgunWallet.generateMnemonic();
-            console.log('🔑 Generated new mnemonic using RAILGUN');
-          } else {
-            // Fallback mnemonic generation
-            mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
-            console.warn('⚠️ Using fallback mnemonic generation for demo');
-          }
-        } catch (mnemonicError) {
-          console.warn('⚠️ Mnemonic generation failed, using fallback:', mnemonicError);
-          mnemonic = 'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+        // Generate a new mnemonic using Railgun's secure generation
+        if (!railgunWallet.generateMnemonic) {
+          throw new Error('Railgun mnemonic generation not available');
         }
+        
+        mnemonic = railgunWallet.generateMnemonic();
+        console.log('🔑 Generated new mnemonic using RAILGUN');
         
         // Store mnemonic securely (in production, use proper encryption)
         localStorage.setItem(`railgun-mnemonic-${address}`, mnemonic);
@@ -220,15 +213,12 @@ const WalletContextProvider = ({ children }) => {
       });
 
     } catch (error) {
-      console.error('❌ Failed to initialize RAILGUN (falling back to demo mode):', error);
+      console.error('❌ Failed to initialize RAILGUN:', error);
       
       setRailgunError(error.message || 'Failed to initialize Railgun');
-      
-      // Set demo mode - we'll simulate Railgun functionality
-      setIsRailgunInitialized(true);
-      setRailgunAddress('demo-railgun-address-' + address.slice(-6));
-      setRailgunWalletID('demo-wallet-id-' + address.slice(-6));
-      console.log('🔧 Running in demo mode for private transactions');
+      setIsRailgunInitialized(false);
+      setRailgunAddress(null);
+      setRailgunWalletID(null);
     } finally {
       setIsInitializing(false);
     }

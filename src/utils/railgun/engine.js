@@ -53,9 +53,12 @@ let enginePromise = null;
 
 /**
  * Alchemy RPC Configuration
- * Using official Alchemy RPC endpoints
+ * Using official Alchemy RPC endpoints - PRODUCTION READY
  */
-const ALCHEMY_API_KEY = import.meta.env.VITE_ALCHEMY_API_KEY || 'demo'; // Use demo key as fallback
+const ALCHEMY_API_KEY = import.meta.env.VITE_ALCHEMY_API_KEY;
+if (!ALCHEMY_API_KEY) {
+  throw new Error('VITE_ALCHEMY_API_KEY environment variable is required for production');
+} // Use demo key as fallback
 
 const RPC_PROVIDERS = {
   [NetworkName.Ethereum]: {
@@ -235,7 +238,7 @@ const startEngine = async () => {
 
     console.log('[RAILGUN] ✅ Debug loggers configured - all Railgun internals will be logged');
 
-    // Start the engine with correct parameter order (KEY FIX!)
+    // Start the engine with correct parameter order - PRODUCTION READY
     const walletSource = 'Lexie Wallet';
     const shouldDebug = import.meta.env.DEV;
     
