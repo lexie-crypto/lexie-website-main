@@ -6,13 +6,12 @@
  * - https://github.com/Railgun-Community/wallet
  * - https://github.com/Railgun-Community/cookbook
  * 
- * SHIELD OPERATION FLOW (CORRECTED):
+ * SHIELD OPERATION FLOW (OFFICIAL):
  * ==================================
- * The Railgun SDK requires a 3-step process for shield operations:
+ * The Railgun SDK requires a 2-step process for shield operations:
  * 
  * 1. Gas Estimation: gasEstimateForShield
- * 2. Transaction Generation: generateShieldTransaction  
- * 3. Transaction Population: populateShield
+ * 2. Transaction Population: populateShield
  * 
  * CRITICAL PARAMETER REQUIREMENTS:
  * - networkName: Must be exact match: "Ethereum", "Arbitrum", "Polygon", "BNB", "Hardhat"
@@ -26,7 +25,6 @@
 import { formatUnits, parseUnits, getAddress, isAddress, keccak256 } from 'ethers';
 import { 
   gasEstimateForShield,
-  generateShieldTransaction,
   populateShield,
   gasEstimateForUnprovenUnshield,
   generateUnshieldProof,
@@ -52,52 +50,6 @@ const RAILGUN_NETWORK_MAPPING = {
   42161: NetworkName.Arbitrum,  // Arbitrum One
   137: NetworkName.Polygon,     // Polygon Mainnet
   56: NetworkName.BNBChain,     // BNB Smart Chain
-};
-
-/**
- * FEE COLLECTION CONFIGURATION
- * ============================
- * 1% fee on all private transactions collected to specified wallet
- */
-const FEE_COLLECTION_CONFIG = {
-  // Fee recipient wallet address
-  RECIPIENT_ADDRESS: '0x108eA687844AB79223E5D5F49ecDf69f2E93B453',
-  
-  // Fee percentage (1% = 100 basis points)
-  FEE_PERCENTAGE: 1.0, // 1%
-  FEE_BASIS_POINTS: 100, // 1% in basis points
-  
-  // Minimum fee amount to avoid dust
-  MIN_FEE_THRESHOLD: '1000000', // 1 USDC/USDT (6 decimals)
-};
-
-/**
- * Calculate fee amount for a transaction
- * @param {string} amount - Transaction amount in token units
- * @param {number} decimals - Token decimals
- * @returns {string} Fee amount in token units
- */
-const calculateTransactionFee = (amount, decimals) => {
-  try {
-    const amountBigInt = BigInt(amount);
-    const feeAmount = (amountBigInt * BigInt(FEE_COLLECTION_CONFIG.FEE_BASIS_POINTS)) / BigInt(10000);
-    
-    // Apply minimum threshold
-    const minFee = BigInt(FEE_COLLECTION_CONFIG.MIN_FEE_THRESHOLD);
-    const finalFee = feeAmount > minFee ? feeAmount : minFee;
-    
-    console.log('[FeeCollection] Calculated fee:', {
-      originalAmount: amount,
-      feeAmount: feeAmount.toString(),
-      finalFee: finalFee.toString(),
-      percentage: FEE_COLLECTION_CONFIG.FEE_PERCENTAGE + '%'
-    });
-    
-    return finalFee.toString();
-  } catch (error) {
-    console.error('[FeeCollection] Error calculating fee:', error);
-    return '0';
-  }
 };
 
 /**
@@ -347,147 +299,7 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
     }
 
     const erc20AmountRecipients = [erc20AmountRecipient];
-    
-    // 🔍 IMMEDIATE VALIDATION OF ARRAY CONSTRUCTION
-    console.log('[RailgunActions] === ARRAY CONSTRUCTION VALIDATION ===');
-    console.log('[RailgunActions] erc20AmountRecipients array construction:', {
-      originalRecipient: erc20AmountRecipient,
-      arrayConstruction: {
-        method: 'Array literal [erc20AmountRecipient]',
-        result: erc20AmountRecipients,
-        isArray: Array.isArray(erc20AmountRecipients),
-        length: erc20AmountRecipients?.length,
-        type: typeof erc20AmountRecipients,
-        constructor: erc20AmountRecipients?.constructor?.name
-      },
-      firstElement: {
-        value: erc20AmountRecipients[0],
-        type: typeof erc20AmountRecipients[0],
-        isObject: typeof erc20AmountRecipients[0] === 'object' && erc20AmountRecipients[0] !== null,
-        keys: erc20AmountRecipients[0] ? Object.keys(erc20AmountRecipients[0]) : 'NO_KEYS'
-      }
-    });
-
-    // Validate array was created correctly
-    if (!Array.isArray(erc20AmountRecipients)) {
-      console.error('[RailgunActions] ❌ Array construction failed - not an array:', erc20AmountRecipients);
-      throw new Error('Failed to create erc20AmountRecipients array');
-    }
-
-    if (erc20AmountRecipients.length !== 1) {
-      console.error('[RailgunActions] ❌ Array construction failed - wrong length:', erc20AmountRecipients.length);
-      throw new Error('erc20AmountRecipients array should have exactly 1 element');
-    }
-
-    if (!erc20AmountRecipients[0] || typeof erc20AmountRecipients[0] !== 'object') {
-      console.error('[RailgunActions] ❌ Array construction failed - first element not an object:', erc20AmountRecipients[0]);
-      throw new Error('First element of erc20AmountRecipients must be an object');
-    }
-
-    console.log('[RailgunActions] ✅ Array construction validated successfully');
-    console.log('[RailgunActions] === END ARRAY CONSTRUCTION VALIDATION ===');
-
     const nftAmountRecipients = []; // Always empty array for shield operations
-
-    // 🔍 VALIDATE NFT ARRAY CONSTRUCTION
-    console.log('[RailgunActions] === NFT ARRAY VALIDATION ===');
-    console.log('[RailgunActions] nftAmountRecipients array construction:', {
-      value: nftAmountRecipients,
-      isArray: Array.isArray(nftAmountRecipients),
-      length: nftAmountRecipients?.length,
-      type: typeof nftAmountRecipients,
-      constructor: nftAmountRecipients?.constructor?.name,
-      isEmpty: nftAmountRecipients.length === 0
-    });
-
-    if (!Array.isArray(nftAmountRecipients)) {
-      console.error('[RailgunActions] ❌ NFT array construction failed - not an array:', nftAmountRecipients);
-      throw new Error('Failed to create nftAmountRecipients array');
-    }
-
-    console.log('[RailgunActions] ✅ NFT array construction validated successfully');
-    console.log('[RailgunActions] === END NFT ARRAY VALIDATION ===');
-
-    // ✅ GUARD AGAINST EMPTY FIELDS
-    if (!erc20AmountRecipient.tokenAddress && tokenAddress !== null) {
-      throw new Error('Missing tokenAddress in recipient');
-    }
-
-    if (!erc20AmountRecipient.amount) {
-      throw new Error('Missing amount in recipient');
-    }
-
-    if (!erc20AmountRecipient.recipientAddress) {
-      throw new Error('Missing recipientAddress in recipient');
-    }
-
-    // ✅ GET STORED RAILGUN FEES FOR THIS NETWORK
-    const storedFees = railgunEngine.getFees(networkName);
-    console.log('[RailgunActions] Retrieved stored fees for', networkName, ':', storedFees);
-
-    // ✅ CALCULATE 1% FEE USING RAILGUN ENGINE DATA
-    const shieldAmount = BigInt(amount); // User's input amount
-    const feeBps = BigInt(FEE_COLLECTION_CONFIG.FEE_BASIS_POINTS); // 100n (1%)
-    const feeAmount = (shieldAmount * feeBps) / 10000n; // Calculate 1% fee
-    
-    // ✅ GET TOKEN DETAILS FOR FEE TOKEN DETAILS
-    const tokens = getTokensForChain(chain.id);
-    const currentToken = Object.values(tokens).find(token => {
-      if (tokenAddress === null && token.isNative) return true;
-      if (tokenAddress && token.address) {
-        return getAddress(token.address) === getAddress(tokenAddress);
-      }
-      return false;
-    });
-    
-    if (!currentToken) {
-      throw new Error(`Token not found for address: ${tokenAddress || 'native'}`);
-    }
-
-    // ✅ CONSTRUCT PROPER FEE TOKEN DETAILS WITH FEE AMOUNT
-    const feeTokenDetails = {
-      tokenAddress: tokenAddress === null ? currentToken.address : tokenAddress, // Token being shielded
-      feeAmount, // ✅ CRITICAL: Calculated fee amount for SDK to deduct
-      feePerUnitGas: 0n, // We're not using a relayer
-      feeReceiverAddress: FEE_COLLECTION_CONFIG.RECIPIENT_ADDRESS, // ✅ Our fee wallet
-      chainId: chain.id, // CRITICAL: SDK uses chainId to derive chain internally  
-      decimals: currentToken.decimals,
-      symbol: currentToken.symbol,
-    };
-    
-    console.log('[RailgunActions] ✅ Constructed feeTokenDetails with 1% fee collection:', {
-      tokenAddress: feeTokenDetails.tokenAddress,
-      feeAmount: feeAmount.toString(),
-      feeReceiverAddress: feeTokenDetails.feeReceiverAddress,
-      chainId: feeTokenDetails.chainId,
-      symbol: feeTokenDetails.symbol,
-      feePercentage: '1%'
-        });
-
-    // ✅ VALIDATE FEE TOKEN DETAILS STRUCTURE
-    if (!feeTokenDetails || typeof feeTokenDetails !== 'object') {
-      throw new Error('feeTokenDetails must be an object');
-    }
-    
-    if (typeof feeTokenDetails.chainId !== 'number') {
-      throw new Error('feeTokenDetails.chainId must be a number');
-    }
-    
-    if (typeof feeTokenDetails.decimals !== 'number') {
-      throw new Error('feeTokenDetails.decimals must be a number');
-    }
-    
-    if (typeof feeTokenDetails.symbol !== 'string') {
-      throw new Error('feeTokenDetails.symbol must be a string');
-    }
-
-    if (typeof feeTokenDetails.feeAmount !== 'bigint') {
-      throw new Error('feeTokenDetails.feeAmount must be a BigInt');
-    }
-
-    if (typeof feeTokenDetails.feeReceiverAddress !== 'string') {
-      throw new Error('feeTokenDetails.feeReceiverAddress must be a string');
-    }
 
     console.log('[RailgunActions] Created properly structured parameters:', {
       networkName,
@@ -524,156 +336,6 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
     // ✅ STEP 2: Gas Estimation (Official Pattern - following docs exactly)
     console.log('[RailgunActions] Step 2: Gas estimation with official pattern...');
     
-    // 🔍 COMPREHENSIVE PARAMETER VALIDATION AND LOGGING
-    console.log('[RailgunActions] === DEBUGGING pn.map ERROR ===');
-    
-    // Validate erc20AmountRecipients array
-    console.log('[RailgunActions] Validating erc20AmountRecipients:', {
-      value: erc20AmountRecipients,
-      isArray: Array.isArray(erc20AmountRecipients),
-      length: erc20AmountRecipients?.length,
-      type: typeof erc20AmountRecipients,
-      constructor: erc20AmountRecipients?.constructor?.name,
-      hasMapMethod: typeof erc20AmountRecipients?.map === 'function'
-    });
-
-    // Safety check for erc20AmountRecipients
-    if (!Array.isArray(erc20AmountRecipients)) {
-      console.error('[RailgunActions] ❌ erc20AmountRecipients must be an array:', erc20AmountRecipients);
-      throw new Error(`erc20AmountRecipients must be an array, got: ${typeof erc20AmountRecipients}`);
-    }
-
-    if (erc20AmountRecipients.length === 0) {
-      console.error('[RailgunActions] ❌ erc20AmountRecipients array is empty');
-      throw new Error('erc20AmountRecipients array cannot be empty');
-    }
-
-    // Validate nftAmountRecipients array  
-    console.log('[RailgunActions] Validating nftAmountRecipients:', {
-      value: nftAmountRecipients,
-      isArray: Array.isArray(nftAmountRecipients),
-      length: nftAmountRecipients?.length,
-      type: typeof nftAmountRecipients,
-      constructor: nftAmountRecipients?.constructor?.name,
-      hasMapMethod: typeof nftAmountRecipients?.map === 'function'
-    });
-
-    // Safety check for nftAmountRecipients
-    if (!Array.isArray(nftAmountRecipients)) {
-      console.error('[RailgunActions] ❌ nftAmountRecipients must be an array:', nftAmountRecipients);
-      throw new Error(`nftAmountRecipients must be an array, got: ${typeof nftAmountRecipients}`);
-    }
-
-    // Inspect each erc20AmountRecipient object structure
-    erc20AmountRecipients.forEach((recipient, index) => {
-      console.log(`[RailgunActions] erc20AmountRecipient[${index}]:`, {
-        tokenAddress: {
-          value: recipient?.tokenAddress,
-          type: typeof recipient?.tokenAddress,
-          isUndefined: recipient?.tokenAddress === undefined,
-          isNull: recipient?.tokenAddress === null
-        },
-        amount: {
-          value: recipient?.amount,
-          type: typeof recipient?.amount,
-          isString: typeof recipient?.amount === 'string'
-        },
-        recipientAddress: {
-          value: recipient?.recipientAddress ? `${recipient.recipientAddress.slice(0, 8)}...` : recipient?.recipientAddress,
-          type: typeof recipient?.recipientAddress,
-          length: recipient?.recipientAddress?.length,
-          startsWithRailgun: recipient?.recipientAddress?.startsWith?.('0zk')
-        },
-        objectStructure: {
-          hasTokenAddress: 'tokenAddress' in (recipient || {}),
-          hasAmount: 'amount' in (recipient || {}),
-          hasRecipientAddress: 'recipientAddress' in (recipient || {}),
-          keys: Object.keys(recipient || {})
-        }
-      });
-
-      // Validate each recipient object
-      if (!recipient || typeof recipient !== 'object') {
-        console.error(`[RailgunActions] ❌ erc20AmountRecipient[${index}] must be an object:`, recipient);
-        throw new Error(`erc20AmountRecipient[${index}] must be an object`);
-      }
-
-      if (!('tokenAddress' in recipient)) {
-        console.error(`[RailgunActions] ❌ erc20AmountRecipient[${index}] missing tokenAddress property`);
-        throw new Error(`erc20AmountRecipient[${index}] must have tokenAddress property`);
-      }
-
-      if (!('amount' in recipient)) {
-        console.error(`[RailgunActions] ❌ erc20AmountRecipient[${index}] missing amount property`);
-        throw new Error(`erc20AmountRecipient[${index}] must have amount property`);
-      }
-
-      if (!('recipientAddress' in recipient)) {
-        console.error(`[RailgunActions] ❌ erc20AmountRecipient[${index}] missing recipientAddress property`);
-        throw new Error(`erc20AmountRecipient[${index}] must have recipientAddress property`);
-      }
-    });
-
-    // Validate all other parameters
-    console.log('[RailgunActions] Validating all gasEstimateForShield parameters:', {
-      networkName: {
-        value: networkName,
-        type: typeof networkName,
-        isString: typeof networkName === 'string'
-      },
-      shieldPrivateKey: {
-        hasValue: !!shieldPrivateKey,
-        type: typeof shieldPrivateKey,
-        isString: typeof shieldPrivateKey === 'string',
-        length: shieldPrivateKey?.length
-      },
-      erc20AmountRecipients: {
-        isArray: Array.isArray(erc20AmountRecipients),
-        length: erc20AmountRecipients.length,
-        type: typeof erc20AmountRecipients
-      },
-      nftAmountRecipients: {
-        isArray: Array.isArray(nftAmountRecipients),
-        length: nftAmountRecipients.length,
-        type: typeof nftAmountRecipients
-      },
-      fromAddress: {
-        value: fromAddress ? `${fromAddress.slice(0, 8)}...` : fromAddress,
-        type: typeof fromAddress,
-        isString: typeof fromAddress === 'string',
-        length: fromAddress?.length
-      }
-    });
-
-    // Final safety checks before SDK call
-    if (typeof networkName !== 'string') {
-      throw new Error(`networkName must be a string, got: ${typeof networkName}`);
-    }
-    if (typeof shieldPrivateKey !== 'string') {
-      throw new Error(`shieldPrivateKey must be a string, got: ${typeof shieldPrivateKey}`);
-    }
-    if (typeof fromAddress !== 'string') {
-      throw new Error(`fromAddress must be a string, got: ${typeof fromAddress}`);
-    }
-
-    console.log('[RailgunActions] ✅ All parameters validated successfully');
-    console.log('[RailgunActions] === END DEBUGGING ===');
-
-    // 🔍 DETAILED NETWORK NAME LOGGING BEFORE SDK CALL
-    console.log('[RailgunActions] === NETWORK NAME VALIDATION ===');
-    console.log('[RailgunActions] networkName detailed analysis:', {
-      value: networkName,
-      type: typeof networkName,
-      stringValue: String(networkName),
-      isString: typeof networkName === 'string',
-      isEnum: Object.values(NetworkName).includes(networkName),
-      enumValues: Object.values(NetworkName),
-      enumKeys: Object.keys(NetworkName),
-      networkNameEnum: NetworkName,
-      arbitrumValue: NetworkName.Arbitrum,
-      isArbitrum: networkName === NetworkName.Arbitrum
-    });
-
     // Validate networkName is a valid enum value
     if (!Object.values(NetworkName).includes(networkName)) {
       console.error('[RailgunActions] ❌ Invalid NetworkName enum value:', {
@@ -682,9 +344,6 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       });
       throw new Error(`Invalid NetworkName: ${networkName}. Valid values: ${Object.values(NetworkName).join(', ')}`);
     }
-
-    console.log('[RailgunActions] ✅ NetworkName is valid enum value');
-    console.log('[RailgunActions] === END NETWORK NAME VALIDATION ===');
 
     console.log('[RailgunActions] Gas estimation parameters (official pattern):', {
       networkName,
@@ -714,40 +373,17 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       throw new Error(`Gas estimation failed: ${sdkError.message}`);
     }
 
-    // ✅ STEP 3: Generate Shield Transaction (Official Pattern)
-    console.log('[RailgunActions] Step 3: Generating shield transaction...');
-    let shieldTxResult;
-    try {
-      shieldTxResult = await generateShieldTransaction(
-        networkName,
-        railgunWalletID,
-        encryptionKey,
-        erc20AmountRecipients,
-        nftAmountRecipients,
-        fromAddress,
-        feeTokenDetails // ✅ Add fee token details for transaction generation
-      );
-      console.log('[RailgunActions] Shield transaction generated successfully');
-    } catch (sdkError) {
-      console.error('[RailgunActions] Shield transaction generation failed:', {
-        error: sdkError,
-        message: sdkError.message,
-        stack: sdkError.stack
-      });
-      throw new Error(`Shield transaction generation failed: ${sdkError.message}`);
-    }
-
-    // ✅ STEP 4: Populate Shield Transaction (Official Pattern)
-    console.log('[RailgunActions] Step 4: Populating shield transaction...');
+    // ✅ STEP 3: Populate Shield Transaction (Official Pattern)
+    console.log('[RailgunActions] Step 3: Populating shield transaction...');
     let populatedResult;
     try {
+      // ✅ OFFICIAL PATTERN: populateShield with gasDetails
       populatedResult = await populateShield(
         networkName,
-        railgunWalletID,
+        shieldPrivateKey,
         erc20AmountRecipients,
         nftAmountRecipients,
-        shieldTxResult.shieldPrivateKey,
-        feeTokenDetails // ✅ Add fee token details for consistency (if required by SDK)
+        gasDetails // ✅ Use gasDetails, not feeTokenDetails
       );
       console.log('[RailgunActions] Shield transaction populated successfully');
     } catch (sdkError) {
@@ -759,11 +395,15 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       throw new Error(`Shield transaction population failed: ${sdkError.message}`);
     }
 
+    if (!populatedResult || !populatedResult.transaction) {
+      throw new Error('Failed to populate shield transaction');
+    }
+
     console.log('[RailgunActions] ✅ Shield operation completed successfully');
     return {
       gasEstimate: gasDetails,
       transaction: populatedResult.transaction,
-      shieldPrivateKey: shieldTxResult.shieldPrivateKey,
+      shieldPrivateKey: shieldPrivateKey,
     };
 
   } catch (error) {
@@ -777,7 +417,7 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
 };
 
 /**
- * Unshield tokens from Railgun (Private → Public) with 1% fee collection
+ * Unshield tokens from Railgun (Private → Public)
  * @param {string} railgunWalletID - Railgun wallet ID
  * @param {string} encryptionKey - Wallet encryption key
  * @param {string} tokenAddress - Token contract address (null for native)
@@ -834,46 +474,7 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
     const networkName = getRailgunNetworkName(chain.id);
     console.log('[RailgunActions] Using Railgun network:', networkName);
 
-    // ✅ CALCULATE 1% FEE USING RAILGUN ENGINE DATA
-    const unshieldAmount = BigInt(amount); // User's input amount
-    const feeBps = BigInt(FEE_COLLECTION_CONFIG.FEE_BASIS_POINTS); // 100n (1%)
-    const feeAmount = (unshieldAmount * feeBps) / 10000n; // Calculate 1% fee
-    
-    // ✅ GET TOKEN DETAILS FOR FEE TOKEN DETAILS
-    const tokens = getTokensForChain(chain.id);
-    const currentToken = Object.values(tokens).find(token => {
-      if (tokenAddress === null && token.isNative) return true;
-      if (tokenAddress && token.address) {
-        return getAddress(token.address) === getAddress(tokenAddress);
-      }
-      return false;
-    });
-    
-    if (!currentToken) {
-      throw new Error(`Token not found for address: ${tokenAddress || 'native'}`);
-    }
-
-    // ✅ CONSTRUCT PROPER FEE TOKEN DETAILS WITH FEE AMOUNT
-    const feeTokenDetails = {
-      tokenAddress: tokenAddress === null ? currentToken.address : tokenAddress, // Token being unshielded
-      feeAmount, // ✅ CRITICAL: Calculated fee amount for SDK to deduct
-      feePerUnitGas: 0n, // We're not using a relayer
-      feeReceiverAddress: FEE_COLLECTION_CONFIG.RECIPIENT_ADDRESS, // ✅ Our fee wallet
-      chainId: chain.id, // CRITICAL: SDK uses chainId to derive chain internally  
-      decimals: currentToken.decimals,
-      symbol: currentToken.symbol,
-    };
-    
-    console.log('[RailgunActions] ✅ Constructed feeTokenDetails with 1% fee collection:', {
-      tokenAddress: feeTokenDetails.tokenAddress,
-      feeAmount: feeAmount.toString(),
-      feeReceiverAddress: feeTokenDetails.feeReceiverAddress,
-      chainId: feeTokenDetails.chainId,
-      symbol: feeTokenDetails.symbol,
-      feePercentage: '1%'
-    });
-
-    // ✅ CREATE RECIPIENT FOR USER (SDK WILL HANDLE FEE DEDUCTION)
+    // ✅ CREATE RECIPIENT FOR USER
     const erc20AmountRecipient = createERC20AmountRecipient(tokenAddress, amount, toAddress);
     
     // ✅ DEFENSIVE CHECK AFTER RECIPIENT CREATION
@@ -889,7 +490,7 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
       nftAmountRecipients
     });
 
-    // ✅ STEP 1: Gas Estimation with feeTokenDetails
+    // ✅ STEP 1: Gas Estimation (Official Pattern)
     console.log('[RailgunActions] Step 1: Gas estimation for unshield...');
     let gasDetails;
     try {
@@ -898,8 +499,7 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
         railgunWalletID,
         encryptionKey,
         erc20AmountRecipients,
-        nftAmountRecipients,
-        feeTokenDetails // ✅ CRITICAL: V10.4.x requires feeTokenDetails to prevent 'chain' property error
+        nftAmountRecipients
       );
       console.log('[RailgunActions] Unshield gas estimation successful:', gasDetails);
     } catch (sdkError) {
@@ -911,7 +511,7 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
       throw new Error(`Unshield gas estimation failed: ${sdkError.message}`);
     }
 
-    // ✅ STEP 2: Generate Unshield Proof
+    // ✅ STEP 2: Generate Unshield Proof (Official Pattern)
     console.log('[RailgunActions] Step 2: Generating unshield proof...');
     let proofResult;
     try {
@@ -920,8 +520,7 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
         railgunWalletID,
         encryptionKey,
         erc20AmountRecipients,
-        nftAmountRecipients,
-        feeTokenDetails // ✅ Add fee token details for consistency
+        nftAmountRecipients
       );
       console.log('[RailgunActions] Unshield proof generated successfully');
     } catch (sdkError) {
@@ -933,7 +532,7 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
       throw new Error(`Unshield proof generation failed: ${sdkError.message}`);
     }
 
-    // ✅ STEP 3: Populate Proved Unshield Transaction
+    // ✅ STEP 3: Populate Proved Unshield Transaction (Official Pattern)
     console.log('[RailgunActions] Step 3: Populating unshield transaction...');
     let populatedResult;
     try {
@@ -941,8 +540,7 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
         networkName,
         railgunWalletID,
         erc20AmountRecipients,
-        nftAmountRecipients,
-        feeTokenDetails // ✅ Add fee token details for consistency (if required by SDK)
+        nftAmountRecipients
       );
       console.log('[RailgunActions] Unshield transaction populated successfully');
     } catch (sdkError) {
@@ -962,9 +560,7 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
     return { 
       success: true, 
       transaction: populatedResult.transaction,
-      gasEstimate: gasDetails,
-      feeAmount: feeAmount.toString(), // Return fee amount for user reference
-      feeReceiverAddress: FEE_COLLECTION_CONFIG.RECIPIENT_ADDRESS
+      gasEstimate: gasDetails
     };
 
   } catch (error) {
@@ -1006,7 +602,7 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
     await waitForRailgunReady();
 
     // Convert chain ID to NetworkName
-    const networkName = getNetworkNameFromChainId(chain.id);
+    const networkName = getRailgunNetworkName(chain.id);
 
     // Prepare ERC20 amount recipient for private transfer
     const erc20AmountRecipient = {
@@ -1289,46 +885,27 @@ export const isTokenSupportedByRailgun = (tokenAddress, chainId) => {
 /**
  * Gas estimation function for shield operations
  * @param {string} networkName - Network name
- * @param {string} railgunWalletID - Railgun wallet ID  
- * @param {string} encryptionKey - Wallet encryption key
+ * @param {string} shieldPrivateKey - Shield private key
  * @param {Array} erc20AmountRecipients - Array of ERC20 amount recipients
  * @param {Array} nftAmountRecipients - Array of NFT amount recipients
  * @param {string} fromAddress - EOA address sending the tokens
- * @param {Object} feeTokenDetails - Fee token details with chain property
  * @returns {Object} Gas details
  */
-export const estimateShieldGas = async (networkName, railgunWalletID, encryptionKey, erc20AmountRecipients, nftAmountRecipients, fromAddress, feeTokenDetails) => {
+export const estimateShieldGas = async (networkName, shieldPrivateKey, erc20AmountRecipients, nftAmountRecipients, fromAddress) => {
   try {
     console.log('[RailgunActions] Estimating shield gas');
-    
-    // ✅ VALIDATE FEE TOKEN DETAILS PARAMETER
-    if (!feeTokenDetails || typeof feeTokenDetails !== 'object') {
-      throw new Error('feeTokenDetails is required and must be an object');
-    }
-    
-    if (!feeTokenDetails.chain || typeof feeTokenDetails.chain !== 'string') {
-      throw new Error('feeTokenDetails.chain is required and must be a string (network name)');
-    }
-    
-    console.log('[RailgunActions] Using feeTokenDetails:', {
-      chain: feeTokenDetails.chain,
-      chainId: feeTokenDetails.chainId,
-      symbol: feeTokenDetails.symbol
-    });
     
     // Ensure arrays are properly initialized (never null)
     const safeErc20Recipients = Array.isArray(erc20AmountRecipients) ? erc20AmountRecipients : [];
     const safeNftRecipients = Array.isArray(nftAmountRecipients) ? nftAmountRecipients : [];
     
-    // Use actual Railgun gas estimation
+    // Use actual Railgun gas estimation (Official Pattern)
     const gasDetails = await gasEstimateForShield(
       networkName,
-      railgunWalletID,
-      encryptionKey,
+      shieldPrivateKey,
       safeErc20Recipients,
       safeNftRecipients,
-      fromAddress,
-      feeTokenDetails // ✅ CRITICAL: V10.4.x requires feeTokenDetails to prevent 'chain' property error
+      fromAddress
     );
     
     return gasDetails;
@@ -1349,10 +926,9 @@ export const estimateShieldGas = async (networkName, railgunWalletID, encryption
  * @param {string} encryptionKey - Wallet encryption key
  * @param {Array} erc20AmountRecipients - Array of ERC20 amount recipients
  * @param {Array} nftAmountRecipients - Array of NFT amount recipients
- * @param {Object} feeTokenDetails - Fee token details with chain property
  * @returns {Object} Gas details
  */
-export const estimateUnshieldGas = async (networkName, railgunWalletID, encryptionKey, erc20AmountRecipients, nftAmountRecipients, feeTokenDetails) => {
+export const estimateUnshieldGas = async (networkName, railgunWalletID, encryptionKey, erc20AmountRecipients, nftAmountRecipients) => {
   try {
     console.log('[RailgunActions] Estimating unshield gas');
     
@@ -1360,14 +936,13 @@ export const estimateUnshieldGas = async (networkName, railgunWalletID, encrypti
     const safeErc20Recipients = Array.isArray(erc20AmountRecipients) ? erc20AmountRecipients : [];
     const safeNftRecipients = Array.isArray(nftAmountRecipients) ? nftAmountRecipients : [];
     
-    // Use actual Railgun gas estimation
+    // Use actual Railgun gas estimation (Official Pattern)
     const gasDetails = await gasEstimateForUnprovenUnshield(
       networkName,
       railgunWalletID,
       encryptionKey,
       safeErc20Recipients,
-      safeNftRecipients,
-      feeTokenDetails // ✅ CRITICAL: V10.4.x requires feeTokenDetails to prevent 'chain' property error
+      safeNftRecipients
     );
     
     return gasDetails;
