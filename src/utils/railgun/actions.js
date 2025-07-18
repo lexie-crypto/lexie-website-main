@@ -658,16 +658,32 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       });
       console.log('🔍 fromAddress:', { value: fromAddress, type: typeof fromAddress, valid: typeof fromAddress === 'string' });
 
-      // ✅ OFFICIAL PATTERN: destructure { gasEstimate } from gasEstimateForShield
-      console.log('🔍 [RAILGUN:CALLING] gasEstimateForShield NOW...');
+      // ✅ OFFICIAL PATTERN: CORRECT PARAMETER ORDER FROM RAILGUN DOCS
+      console.log('🔍 [RAILGUN:CALLING] gasEstimateForShield NOW with CORRECT parameters...');
+      
+      // From official docs: gasEstimateForShield requires 7 parameters:
+      // 1. NetworkName
+      // 2. shieldPrivateKey
+      // 3. tokenAmountRecipients (ERC20)
+      // 4. nftAmountRecipients (empty array)
+      // 5. relayerFeeERC20AmountRecipient (undefined for self-signing)
+      // 6. sendWithPublicWallet (true for shields)
+      // 7. overallBatchMinGasPrice (optional)
+      
+      const sendWithPublicWallet = true; // Always true for shield operations
+      const relayerFeeERC20AmountRecipient = undefined; // Self-signing, no relayer fee
+      const overallBatchMinGasPrice = undefined; // Optional for gas estimation
+      
       gasEstimateResult = await gasEstimateForShield(
-        networkName,
-        shieldPrivateKey,
-        safeErc20Recipients,
-        safeNftRecipients,
-        fromAddress
+        networkName,                          // 1. NetworkName
+        shieldPrivateKey,                     // 2. shieldPrivateKey
+        safeErc20Recipients,                  // 3. tokenAmountRecipients
+        safeNftRecipients,                    // 4. nftAmountRecipients (empty [])
+        relayerFeeERC20AmountRecipient,       // 5. relayerFeeERC20AmountRecipient (undefined)
+        sendWithPublicWallet,                 // 6. sendWithPublicWallet (true)
+        overallBatchMinGasPrice               // 7. overallBatchMinGasPrice (undefined)
       );
-      console.log('🔍 [RAILGUN:SUCCESS] gasEstimateForShield completed successfully');
+      console.log('🔍 [RAILGUN:SUCCESS] gasEstimateForShield completed successfully with CORRECT parameters');
       
       console.log('🎉 [RAILGUN:SUCCESS] Gas estimation successful (official pattern):', gasEstimateResult);
     } catch (sdkError) {
@@ -809,13 +825,18 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
     console.log('[RailgunActions] Step 3: Populating shield transaction...');
     let populatedResult;
     try {
-      // ✅ OFFICIAL PATTERN: destructure { transaction } from populateShield
+      // ✅ OFFICIAL PATTERN: CORRECT PARAMETER ORDER FROM RAILGUN DOCS
+      // populateShield also requires the same 7 parameters as gasEstimateForShield
+      // but with transactionGasDetails instead of overallBatchMinGasPrice
+      
       populatedResult = await populateShield(
-        networkName,
-        shieldPrivateKey,
-        safeErc20Recipients,
-        safeNftRecipients,
-        transactionGasDetails // ✅ Use proper TransactionGasDetails object
+        networkName,                          // 1. NetworkName
+        shieldPrivateKey,                     // 2. shieldPrivateKey
+        safeErc20Recipients,                  // 3. tokenAmountRecipients
+        safeNftRecipients,                    // 4. nftAmountRecipients (empty [])
+        relayerFeeERC20AmountRecipient,       // 5. relayerFeeERC20AmountRecipient (undefined)
+        sendWithPublicWallet,                 // 6. sendWithPublicWallet (true)
+        transactionGasDetails                 // 7. transactionGasDetails
       );
       console.log('[RailgunActions] Shield transaction populated successfully');
     } catch (sdkError) {
@@ -1339,10 +1360,9 @@ export const isTokenSupportedByRailgun = (tokenAddress, chainId) => {
  * @param {string} shieldPrivateKey - Shield private key
  * @param {Array} erc20AmountRecipients - Array of ERC20 amount recipients
  * @param {Array} nftAmountRecipients - Array of NFT amount recipients
- * @param {string} fromAddress - EOA address sending the tokens
  * @returns {Object} Gas details
  */
-export const estimateShieldGas = async (networkName, shieldPrivateKey, erc20AmountRecipients, nftAmountRecipients, fromAddress) => {
+export const estimateShieldGas = async (networkName, shieldPrivateKey, erc20AmountRecipients, nftAmountRecipients) => {
   try {
     console.log('[RailgunActions] Estimating shield gas');
     
@@ -1355,13 +1375,19 @@ export const estimateShieldGas = async (networkName, shieldPrivateKey, erc20Amou
     // 🔧 TEMPORARY: Force NFT recipients to empty array to isolate .map() errors
     const safeNftRecipients = [];
     
-    // Use actual Railgun gas estimation (Official Pattern)
+    // Use actual Railgun gas estimation (Official Pattern with CORRECT parameters)
+    const sendWithPublicWallet = true; // Always true for shield operations
+    const relayerFeeERC20AmountRecipient = undefined; // Self-signing, no relayer fee
+    const overallBatchMinGasPrice = undefined; // Optional for gas estimation
+    
     const gasDetails = await gasEstimateForShield(
-      networkName,
-      shieldPrivateKey,
-      safeErc20Recipients,
-      safeNftRecipients,
-      fromAddress
+      networkName,                          // 1. NetworkName
+      shieldPrivateKey,                     // 2. shieldPrivateKey
+      safeErc20Recipients,                  // 3. tokenAmountRecipients
+      safeNftRecipients,                    // 4. nftAmountRecipients (empty [])
+      relayerFeeERC20AmountRecipient,       // 5. relayerFeeERC20AmountRecipient (undefined)
+      sendWithPublicWallet,                 // 6. sendWithPublicWallet (true)
+      overallBatchMinGasPrice               // 7. overallBatchMinGasPrice (undefined)
     );
     
     return gasDetails;
