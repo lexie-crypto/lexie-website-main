@@ -230,6 +230,17 @@ export async function shieldTokens(
     if (typeof railgunAddress !== 'string') {
       throw new Error(`railgunAddress must be string, got ${typeof railgunAddress}`);
     }
+    
+    // 🛑 DEFENSIVE: Additional input validation
+    if (!tokenAddress || (typeof tokenAddress !== 'string' && tokenAddress !== null)) {
+      throw new Error(`tokenAddress must be string or null for native token, got ${typeof tokenAddress}`);
+    }
+    if (!railgunAddress.startsWith('0zk')) {
+      throw new Error(`railgunAddress must be a valid RAILGUN address starting with '0zk', got ${railgunAddress}`);
+    }
+    if (amount === '0' || BigInt(amount) === 0n) {
+      throw new Error('amount must be greater than 0');
+    }
 
     console.log('[RailgunActions] Starting shield operation:', {
       tokenAddress,
@@ -280,6 +291,16 @@ export async function shieldTokens(
     // Get network name
     const networkName = getRailgunNetworkName(chain.id);
 
+    // 🛑 DEFENSIVE: Log token details for debugging
+    console.log('[RailgunActions] 🔍 Token details:', {
+      tokenAddress,
+      isNullAddress: tokenAddress === null,
+      isZeroAddress: tokenAddress === '0x0000000000000000000000000000000000000000',
+      tokenType: tokenAddress === null ? 'NATIVE' : 'ERC20',
+      network: networkName,
+      chainId: chain.id
+    });
+
     // Create recipient
     const erc20AmountRecipient = createERC20AmountRecipient(
       tokenAddress,
@@ -287,18 +308,58 @@ export async function shieldTokens(
       railgunAddress
     );
 
-    // 🛑 DEFENSIVE: Explicitly create arrays and validate them
+    // 🛑 CRITICAL: Build erc20AmountRecipients as a proper Array
     const erc20AmountRecipients = [erc20AmountRecipient];
     const nftAmountRecipients = []; // Explicitly empty array, not undefined
+    
+    // 🛑 DEFENSIVE: Validate recipient structure
+    console.log('[RailgunActions] 🔍 Validating recipient structure:', {
+      tokenAddress: erc20AmountRecipient.tokenAddress,
+      tokenAddressType: typeof erc20AmountRecipient.tokenAddress,
+      amount: erc20AmountRecipient.amount.toString(),
+      amountType: typeof erc20AmountRecipient.amount,
+      amountIsBigInt: typeof erc20AmountRecipient.amount === 'bigint',
+      recipientAddress: erc20AmountRecipient.recipientAddress,
+      recipientAddressType: typeof erc20AmountRecipient.recipientAddress
+    });
+    
+    // 🛑 CRITICAL: Validate recipient structure
+    if (typeof erc20AmountRecipient.amount !== 'bigint') {
+      throw new Error(`CRITICAL: amount must be BigInt, got ${typeof erc20AmountRecipient.amount}`);
+    }
+    if (!erc20AmountRecipient.recipientAddress || typeof erc20AmountRecipient.recipientAddress !== 'string') {
+      throw new Error(`CRITICAL: recipientAddress must be string, got ${typeof erc20AmountRecipient.recipientAddress}`);
+    }
+    
+    // 🛑 DEBUG: Confirm it's an array immediately after creation
+    console.log('[DEBUG] erc20AmountRecipients after creation:', 
+      Array.isArray(erc20AmountRecipients), 
+      erc20AmountRecipients
+    );
+    
+    // 🛑 CRITICAL: Double-check array status
+    if (!Array.isArray(erc20AmountRecipients)) {
+      throw new Error('CRITICAL: erc20AmountRecipients is not an array after creation!');
+    }
+    
+    // 🛑 CRITICAL: Ensure we can map over it
+    try {
+      const testMap = erc20AmountRecipients.map(x => x);
+      console.log('[DEBUG] Array map test successful, length:', testMap.length);
+    } catch (e) {
+      throw new Error(`CRITICAL: Cannot map over erc20AmountRecipients: ${e.message}`);
+    }
 
     // 🛑 DEFENSIVE: Validate arrays before ANY operations
     console.log('[RailgunActions] 🔍 CRITICAL VALIDATION: Pre-operation array check:', {
       erc20AmountRecipients_isArray: Array.isArray(erc20AmountRecipients),
       erc20AmountRecipients_length: erc20AmountRecipients.length,
       erc20AmountRecipients_constructor: erc20AmountRecipients.constructor.name,
+      erc20AmountRecipients_hasMap: typeof erc20AmountRecipients.map === 'function',
       nftAmountRecipients_isArray: Array.isArray(nftAmountRecipients),
       nftAmountRecipients_length: nftAmountRecipients.length,
-      nftAmountRecipients_constructor: nftAmountRecipients.constructor.name
+      nftAmountRecipients_constructor: nftAmountRecipients.constructor.name,
+      nftAmountRecipients_hasMap: typeof nftAmountRecipients.map === 'function'
     });
 
     // 🛑 DEFENSIVE: Check if arrays can be mapped
@@ -413,27 +474,44 @@ export async function shieldTokens(
       isArray: Array.isArray(erc20AmountRecipients),
       length: erc20AmountRecipients.length,
       firstItem: erc20AmountRecipients[0],
-      stringified: JSON.stringify(erc20AmountRecipients, (_, value) =>
-        typeof value === 'bigint' ? value.toString() : value
-      )
+      // Remove JSON.stringify to avoid any conversion issues
+      raw: erc20AmountRecipients
     });
     console.log('[RailgunActions] Parameter 4 (nftAmountRecipients):', {
       type: typeof nftAmountRecipients,
       isArray: Array.isArray(nftAmountRecipients), 
       length: nftAmountRecipients.length,
-      stringified: JSON.stringify(nftAmountRecipients, (_, value) =>
-        typeof value === 'bigint' ? value.toString() : value
-      )
+      // Remove JSON.stringify to avoid any conversion issues
+      raw: nftAmountRecipients
     });
     console.log('[RailgunActions] Parameter 5 (fromAddress):', typeof fromAddress, fromAddress);
+
+    // 🛑 CRITICAL DEBUG: Log array status right before SDK call
+    console.log('[DEBUG] erc20AmountRecipients:', Array.isArray(erc20AmountRecipients), erc20AmountRecipients);
+    
+    // 🛑 FINAL VALIDATION: Ensure it's still an array
+    if (!Array.isArray(erc20AmountRecipients)) {
+      throw new Error('CRITICAL: erc20AmountRecipients is not an array before gasEstimateForShield!');
+    }
+    
+    // 🛑 SAFEGUARD: Create fresh array copies to ensure no object conversion
+    const safeErc20Recipients = [...erc20AmountRecipients];
+    const safeNftRecipients = [...nftAmountRecipients];
+    
+    console.log('[DEBUG] Safe arrays created:', {
+      safeErc20Recipients_isArray: Array.isArray(safeErc20Recipients),
+      safeErc20Recipients_length: safeErc20Recipients.length,
+      safeNftRecipients_isArray: Array.isArray(safeNftRecipients),
+      safeNftRecipients_length: safeNftRecipients.length
+    });
 
     let gasEstimate;
     try {
       const result = await gasEstimateForShield(
         networkName,
         shieldPrivateKey,
-        erc20AmountRecipients, // ✅ VERIFIED: This should be the array [{ tokenAddress, amount: BigInt, recipientAddress }]
-        nftAmountRecipients, // ✅ VERIFIED: This should be empty array []
+        safeErc20Recipients, // ✅ VERIFIED: Using fresh array copy
+        safeNftRecipients, // ✅ VERIFIED: Using fresh array copy
         fromAddress // ✅ VERIFIED: This should be string address
       );
       gasEstimate = result.gasEstimate;
@@ -481,54 +559,41 @@ export async function shieldTokens(
     });
 
     // 🛑 DEFENSIVE: Validate arrays one more time
-    if (!Array.isArray(erc20AmountRecipients)) {
-      throw new Error(`erc20AmountRecipients corrupted before populateShield: expected array but got ${typeof erc20AmountRecipients}`);
+    if (!Array.isArray(safeErc20Recipients)) {
+      throw new Error(`safeErc20Recipients corrupted before populateShield: expected array but got ${typeof safeErc20Recipients}`);
     }
-    if (!Array.isArray(nftAmountRecipients)) {
-      throw new Error(`nftAmountRecipients corrupted before populateShield: expected array but got ${typeof nftAmountRecipients}`);
+    if (!Array.isArray(safeNftRecipients)) {
+      throw new Error(`safeNftRecipients corrupted before populateShield: expected array but got ${typeof safeNftRecipients}`);
     }
 
     console.log('[RailgunActions] 🚀 Calling populateShield with validated arrays...');
     
-    // 🛑 DEFENSIVE GUARD: Check arrays before populateShield RAILGUN SDK call
-    if (!Array.isArray(erc20AmountRecipients)) {
-      console.error(`[RAILGUN] erc20AmountRecipients is not an array before populateShield. Type: ${typeof erc20AmountRecipients}, Value:`, erc20AmountRecipients);
-      throw new Error(`Expected erc20AmountRecipients to be an array before populateShield, got: ${typeof erc20AmountRecipients}`);
-    }
-    
-    if (!Array.isArray(nftAmountRecipients)) {
-      console.error(`[RAILGUN] nftAmountRecipients is not an array before populateShield. Type: ${typeof nftAmountRecipients}, Value:`, nftAmountRecipients);
-      throw new Error(`Expected nftAmountRecipients to be an array before populateShield, got: ${typeof nftAmountRecipients}`);
-    }
-
     // 🛑 LINE-BY-LINE VERIFICATION: Confirm parameters for populateShield
     console.log('[RailgunActions] 🔍 LINE-BY-LINE VERIFICATION before populateShield:');
     console.log('[RailgunActions] Parameter 1 (networkName):', typeof networkName, networkName);
     console.log('[RailgunActions] Parameter 2 (shieldPrivateKey):', typeof shieldPrivateKey, 'length:', shieldPrivateKey?.length);
-    console.log('[RailgunActions] Parameter 3 (erc20AmountRecipients):', {
-      type: typeof erc20AmountRecipients,
-      isArray: Array.isArray(erc20AmountRecipients),
-      length: erc20AmountRecipients.length,
-      firstItem: erc20AmountRecipients[0],
-      stringified: JSON.stringify(erc20AmountRecipients, (_, value) =>
-        typeof value === 'bigint' ? value.toString() : value
-      )
+    console.log('[RailgunActions] Parameter 3 (safeErc20Recipients):', {
+      type: typeof safeErc20Recipients,
+      isArray: Array.isArray(safeErc20Recipients),
+      length: safeErc20Recipients.length,
+      firstItem: safeErc20Recipients[0],
+      // Remove JSON.stringify to avoid any conversion issues
+      raw: safeErc20Recipients
     });
-    console.log('[RailgunActions] Parameter 4 (nftAmountRecipients):', {
-      type: typeof nftAmountRecipients,
-      isArray: Array.isArray(nftAmountRecipients),
-      length: nftAmountRecipients.length,
-      stringified: JSON.stringify(nftAmountRecipients, (_, value) =>
-        typeof value === 'bigint' ? value.toString() : value
-      )
+    console.log('[RailgunActions] Parameter 4 (safeNftRecipients):', {
+      type: typeof safeNftRecipients,
+      isArray: Array.isArray(safeNftRecipients),
+      length: safeNftRecipients.length,
+      // Remove JSON.stringify to avoid any conversion issues
+      raw: safeNftRecipients
     });
     console.log('[RailgunActions] Parameter 5 (transactionGasDetails):', typeof transactionGasDetails, transactionGasDetails);
 
     const { transaction } = await populateShield(
       networkName,
       shieldPrivateKey,
-      erc20AmountRecipients, // ✅ VERIFIED: This should be the array [{ tokenAddress, amount: BigInt, recipientAddress }]
-      nftAmountRecipients, // ✅ VERIFIED: This should be empty array []
+      safeErc20Recipients, // ✅ VERIFIED: Using fresh array copy
+      safeNftRecipients, // ✅ VERIFIED: Using fresh array copy
       transactionGasDetails // ✅ VERIFIED: This should be gas details object
     );
 
