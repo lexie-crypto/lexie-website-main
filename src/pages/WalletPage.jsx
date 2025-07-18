@@ -56,8 +56,8 @@ const WalletPage = () => {
   const {
     publicBalances,
     privateBalances,
-    isLoading,
-    balanceErrors,
+    loading: isLoading,
+    error: balanceErrors,
     refreshAllBalances,
     refreshBalancesAfterTransaction,
     lastUpdateTime,

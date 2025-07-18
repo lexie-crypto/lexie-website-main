@@ -363,7 +363,7 @@ export function useBalances() {
     
     // Functions
     refreshAllBalances,
-    refreshBalancesAfterTransaction,
+    refreshBalancesAfterTransaction: refreshAllBalances, // Alias for backward compatibility
     formatBalance,
     
     // Utilities
