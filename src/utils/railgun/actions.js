@@ -700,15 +700,17 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       const relayerFeeERC20AmountRecipient = undefined; // Self-signing, no relayer fee
       const overallBatchMinGasPrice = undefined; // Optional for gas estimation
       
-      // networkName is already a string from our mapping, ready for SDK
-      console.log('🔍 [CRITICAL] Using networkName for SDK call:', {
+      // ✅ CRITICAL: Force networkName to be a primitive string (not String object)
+      networkName = String(networkName);
+      console.log('🔍 [CRITICAL] Using sanitized networkName for SDK call:', {
         networkName,
         type: typeof networkName,
+        isPrimitive: networkName === networkName.valueOf(),
         hasToLowerCase: typeof networkName?.toLowerCase === 'function'
       });
       
       gasEstimateResult = await gasEstimateForShield(
-        networkName,                          // 1. NetworkName (string)
+        networkName,                          // 1. NetworkName (primitive string)
         shieldPrivateKey,                     // 2. shieldPrivateKey
         safeErc20Recipients,                  // 3. tokenAmountRecipients
         safeNftRecipients,                    // 4. nftAmountRecipients (empty [])
@@ -858,12 +860,15 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
     console.log('[RailgunActions] Step 3: Populating shield transaction...');
     let populatedResult;
     try {
+      // ✅ CRITICAL: Force networkName to be a primitive string before populateShield
+      networkName = String(networkName);
+      
       // ✅ OFFICIAL PATTERN: CORRECT PARAMETER ORDER FROM RAILGUN DOCS
       // populateShield also requires the same 7 parameters as gasEstimateForShield
       // but with transactionGasDetails instead of overallBatchMinGasPrice
       
       populatedResult = await populateShield(
-        networkName,                          // 1. NetworkName (string)
+        networkName,                          // 1. NetworkName (primitive string)
         shieldPrivateKey,                     // 2. shieldPrivateKey
         safeErc20Recipients,                  // 3. tokenAmountRecipients
         safeNftRecipients,                    // 4. nftAmountRecipients (empty [])
@@ -1012,10 +1017,12 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
     // ✅ STEP 1: Gas Estimation (Official Pattern)
     console.log('[RailgunActions] Step 1: Gas estimation for unshield...');
     
-    // networkName is already a string from our mapping
-    console.log('[unshieldTokens] Using networkName:', {
+    // ✅ CRITICAL: Force networkName to be a primitive string (not String object)
+    networkName = String(networkName);
+    console.log('[unshieldTokens] Using sanitized networkName:', {
       networkName,
-      type: typeof networkName
+      type: typeof networkName,
+      isPrimitive: networkName === networkName.valueOf()
     });
     
     let gasDetails;
@@ -1041,6 +1048,9 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
     console.log('[RailgunActions] Step 2: Generating unshield proof...');
     let proofResult;
     try {
+      // ✅ CRITICAL: Force networkName to be a primitive string before generateUnshieldProof
+      networkName = String(networkName);
+      
       proofResult = await generateUnshieldProof(
         networkName,
         railgunWalletID,
@@ -1062,6 +1072,9 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
     console.log('[RailgunActions] Step 3: Populating unshield transaction...');
     let populatedResult;
     try {
+      // ✅ CRITICAL: Force networkName to be a primitive string before populateProvedUnshield
+      networkName = String(networkName);
+      
       populatedResult = await populateProvedUnshield(
         networkName,
         railgunWalletID,
@@ -1182,10 +1195,12 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
       memoArray: safeMemoArray
     });
 
-    // networkName is already a string from our mapping
-    console.log('[transferPrivate] Using networkName:', {
+    // ✅ CRITICAL: Force networkName to be a primitive string (not String object)
+    networkName = String(networkName);
+    console.log('[transferPrivate] Using sanitized networkName:', {
       networkName,
-      type: typeof networkName
+      type: typeof networkName,
+      isPrimitive: networkName === networkName.valueOf()
     });
 
     // Get gas estimate
@@ -1201,6 +1216,9 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
     console.log('[RailgunActions] Transfer gas estimate:', gasDetails);
 
     // Generate transfer proof
+    // ✅ CRITICAL: Force networkName to be a primitive string before generateTransferProof
+    networkName = String(networkName);
+    
     const proofResult = await generateTransferProof(
       networkName,
       railgunWalletID,
@@ -1213,6 +1231,9 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
     console.log('[RailgunActions] Transfer proof generated:', proofResult);
 
     // Populate the proved transfer transaction
+    // ✅ CRITICAL: Force networkName to be a primitive string before populateProvedTransfer
+    networkName = String(networkName);
+    
     const populatedResult = await populateProvedTransfer(
       networkName,
       railgunWalletID,
@@ -1474,14 +1495,16 @@ export const estimateShieldGas = async (networkName, shieldPrivateKey, erc20Amou
     const relayerFeeERC20AmountRecipient = undefined; // Self-signing, no relayer fee
     const overallBatchMinGasPrice = undefined; // Optional for gas estimation
     
-    // networkName should already be a string from our mapping
-    console.log('[estimateShieldGas] Using networkName:', {
+    // ✅ CRITICAL: Force networkName to be a primitive string (not String object)
+    networkName = String(networkName);
+    console.log('[estimateShieldGas] Using sanitized networkName:', {
       networkName,
-      type: typeof networkName
+      type: typeof networkName,
+      isPrimitive: networkName === networkName.valueOf()
     });
     
     const gasDetails = await gasEstimateForShield(
-      networkName,                          // 1. NetworkName (string)
+      networkName,                          // 1. NetworkName (primitive string)
       shieldPrivateKey,                     // 2. shieldPrivateKey
       safeErc20Recipients,                  // 3. tokenAmountRecipients
       safeNftRecipients,                    // 4. nftAmountRecipients (empty [])
@@ -1524,10 +1547,12 @@ export const estimateUnshieldGas = async (networkName, railgunWalletID, encrypti
     const safeNftRecipients = [];
     
     // Use actual Railgun gas estimation (Official Pattern)
-    // networkName should already be a string from our mapping
-    console.log('[estimateUnshieldGas] Using networkName:', {
+    // ✅ CRITICAL: Force networkName to be a primitive string (not String object)
+    networkName = String(networkName);
+    console.log('[estimateUnshieldGas] Using sanitized networkName:', {
       networkName,
-      type: typeof networkName
+      type: typeof networkName,
+      isPrimitive: networkName === networkName.valueOf()
     });
     
     const gasDetails = await gasEstimateForUnprovenUnshield(
