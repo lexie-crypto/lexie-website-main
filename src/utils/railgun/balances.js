@@ -10,7 +10,6 @@
  */
 
 import {
-  getTokenBalances,
   refreshRailgunBalances,
   rescanFullUTXOMerkletreesAndWallets,
   fullRescanUTXOMerkletreesAndWalletsForNetwork,
@@ -54,70 +53,32 @@ const getRailgunNetworkName = (chainId) => {
 };
 
 /**
- * Get private token balances for a wallet
+ * Get private token balances for a wallet (callback-based like the old working code)
  * @param {string} walletID - RAILGUN wallet ID
  * @param {number} chainId - Chain ID
- * @returns {Array} Array of token balance objects
+ * @returns {Array} Array of token balance objects from cache
  */
 export const getPrivateBalances = async (walletID, chainId) => {
   try {
-    await waitForRailgunReady();
-    
-    const networkName = getRailgunNetworkName(chainId);
-    
-    console.log('[RailgunBalances] Getting private balances:', {
+    console.log('[RailgunBalances] Getting private balances from cache:', {
       walletID: walletID?.slice(0, 8) + '...',
-      networkName,
+      chainId,
     });
     
-    // Get token balances using correct function
-    const tokenBalances = await getTokenBalances(walletID, networkName, undefined, undefined, true);
-    
-    // Process and format balances
-    const formattedBalances = [];
-    
-    for (const [tokenAddress, railgunAmount] of Object.entries(tokenBalances)) {
-      try {
-        // Get token information
-        const tokenData = await getTokenInfo(tokenAddress, chainId);
-        
-        if (tokenData && railgunAmount.amountString !== '0') {
-          const balance = {
-            tokenAddress,
-            symbol: tokenData.symbol,
-            name: tokenData.name,
-            decimals: tokenData.decimals,
-            balance: railgunAmount.amountString,
-            formattedBalance: formatUnits(railgunAmount.amountString, tokenData.decimals),
-            numericBalance: parseFloat(formatUnits(railgunAmount.amountString, tokenData.decimals)),
-            hasBalance: railgunAmount.amountString !== '0',
-            isPrivate: true,
-            chainId,
-            networkName,
-          };
-          
-          formattedBalances.push(balance);
-        }
-      } catch (error) {
-        console.warn('[RailgunBalances] Failed to process token:', tokenAddress, error);
-      }
-    }
-    
-    // Cache the balances
+    // Return cached balances - the real balances come through callbacks
     const cacheKey = `${walletID}-${chainId}`;
-    balanceCache.set(cacheKey, formattedBalances);
-    lastBalanceUpdate.set(cacheKey, Date.now());
+    const cachedBalances = balanceCache.get(cacheKey) || [];
     
-    console.log('[RailgunBalances] Retrieved private balances:', {
-      count: formattedBalances.length,
-      tokens: formattedBalances.map(b => `${b.symbol}: ${b.formattedBalance}`),
+    console.log('[RailgunBalances] Retrieved private balances from cache:', {
+      count: cachedBalances.length,
+      tokens: cachedBalances.map(b => `${b.symbol}: ${b.formattedBalance}`),
     });
     
-    return formattedBalances;
+    return cachedBalances;
     
   } catch (error) {
     console.error('[RailgunBalances] Failed to get private balances:', error);
-    throw new Error(`Private balance retrieval failed: ${error.message}`);
+    return [];
   }
 };
 
@@ -187,10 +148,10 @@ const getNativeTokenInfo = (chainId) => {
 };
 
 /**
- * Refresh private balances for a wallet
+ * Refresh private balances for a wallet (triggers callback-based updates)
  * @param {string} walletID - RAILGUN wallet ID
  * @param {number} chainId - Chain ID
- * @returns {Array} Updated balance array
+ * @returns {Array} Current cached balance array
  */
 export const refreshPrivateBalances = async (walletID, chainId) => {
   try {
@@ -198,17 +159,15 @@ export const refreshPrivateBalances = async (walletID, chainId) => {
     
     const networkName = getRailgunNetworkName(chainId);
     
-    console.log('[RailgunBalances] Refreshing private balances...');
+    console.log('[RailgunBalances] Triggering private balance refresh...');
     
-    // Refresh RAILGUN balances
-    await refreshBalances(walletID, networkName);
+    // Trigger RAILGUN balance refresh - this will cause callbacks to fire
+    await refreshBalances(networkName, walletID);
     
-    // Get updated balances
-    const updatedBalances = await getPrivateBalances(walletID, chainId);
+    console.log('[RailgunBalances] Private balance refresh triggered - waiting for callbacks');
     
-    console.log('[RailgunBalances] Private balances refreshed');
-    
-    return updatedBalances;
+    // Return current cached balances - real update comes through callbacks
+    return getPrivateBalances(walletID, chainId);
     
   } catch (error) {
     console.error('[RailgunBalances] Failed to refresh private balances:', error);
@@ -450,6 +409,105 @@ export const getShieldableTokens = async (address, chainId) => {
   }
 };
 
+/**
+ * Handle Railgun balance update callback (like the old working code)
+ * @param {Object} balanceEvent - Balance update event from Railgun
+ */
+export const handleBalanceUpdateCallback = async (balanceEvent) => {
+  try {
+    console.log('[RailgunBalances] Balance callback triggered:', balanceEvent);
+    
+    const { networkName, railgunWalletID, erc20Amounts, balanceBucket } = balanceEvent;
+    
+    // Only process spendable balances
+    if (balanceBucket !== 'Spendable') {
+      console.log(`[RailgunBalances] Ignoring non-spendable balance bucket: ${balanceBucket}`);
+      return;
+    }
+    
+    // Get chain ID from network name
+    const chainId = getChainIdFromNetworkName(networkName);
+    if (!chainId) {
+      console.warn('[RailgunBalances] Unknown network name:', networkName);
+      return;
+    }
+    
+    console.log('[RailgunBalances] Processing balance update for:', {
+      networkName,
+      chainId,
+      walletID: railgunWalletID?.slice(0, 8) + '...',
+      tokenCount: erc20Amounts?.length || 0,
+    });
+    
+    // Process token balances
+    const formattedBalances = [];
+    
+    if (erc20Amounts) {
+      for (const { tokenAddress, amount } of erc20Amounts) {
+        try {
+          // Get token information
+          const tokenData = await getTokenInfo(tokenAddress, chainId);
+          
+          if (tokenData && amount.toString() !== '0') {
+            const balance = {
+              tokenAddress,
+              symbol: tokenData.symbol,
+              name: tokenData.name,
+              decimals: tokenData.decimals,
+              balance: amount.toString(),
+              formattedBalance: formatUnits(amount.toString(), tokenData.decimals),
+              numericBalance: parseFloat(formatUnits(amount.toString(), tokenData.decimals)),
+              hasBalance: amount.toString() !== '0',
+              isPrivate: true,
+              chainId,
+              networkName,
+            };
+            
+            formattedBalances.push(balance);
+          }
+        } catch (error) {
+          console.warn('[RailgunBalances] Failed to process token in callback:', tokenAddress, error);
+        }
+      }
+    }
+    
+    // Update cache
+    const cacheKey = `${railgunWalletID}-${chainId}`;
+    balanceCache.set(cacheKey, formattedBalances);
+    lastBalanceUpdate.set(cacheKey, Date.now());
+    
+    console.log('[RailgunBalances] Cache updated with callback data:', {
+      count: formattedBalances.length,
+      tokens: formattedBalances.map(b => `${b.symbol}: ${b.formattedBalance}`),
+    });
+    
+    // Dispatch custom event for UI to listen to
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('railgun-balance-update', {
+        detail: { railgunWalletID, chainId, balances: formattedBalances }
+      }));
+    }
+    
+  } catch (error) {
+    console.error('[RailgunBalances] Error in balance callback:', error);
+  }
+};
+
+/**
+ * Get chain ID from network name
+ * @param {string} networkName - Railgun network name
+ * @returns {number|null} Chain ID
+ */
+const getChainIdFromNetworkName = (networkName) => {
+  const networkMapping = {
+    [NetworkName.Ethereum]: 1,
+    [NetworkName.Arbitrum]: 42161,
+    [NetworkName.Polygon]: 137,
+    [NetworkName.BNBChain]: 56,
+  };
+  return networkMapping[networkName] || null;
+};
+
 // Export for use in other modules
 export default {
   getPrivateBalances,
@@ -466,4 +524,5 @@ export default {
   getTokenBalance,
   isTokenSupportedByRailgun,
   getShieldableTokens,
+  handleBalanceUpdateCallback,
 }; 

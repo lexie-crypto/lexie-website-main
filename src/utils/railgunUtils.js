@@ -36,20 +36,9 @@ export const initializeRailgunSystem = async () => {
       }
     }
 
-    // Set up global balance update callback
-    setOnBalanceUpdateCallback((balanceUpdate) => {
-      console.log('[RailgunUtils] Balance updated:', {
-        networkName: balanceUpdate.networkName,
-        walletID: balanceUpdate.walletID?.slice(0, 8) + '...',
-      });
-      
-      // Dispatch custom event for UI to listen to
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('railgun-balance-update', {
-          detail: balanceUpdate
-        }));
-      }
-    });
+    // Set up global balance update callback using the handler from balances.js
+    const { handleBalanceUpdateCallback } = await import('./railgun/balances.js');
+    setOnBalanceUpdateCallback(handleBalanceUpdateCallback);
 
     // Set up UTXO Merkletree scan callback
     setOnUTXOMerkletreeScanCallback((scanData) => {
