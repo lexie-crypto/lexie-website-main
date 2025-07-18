@@ -490,13 +490,13 @@ const WalletPage = () => {
             </div>
 
             {/* Shield All Banner */}
-            {Object.values(publicBalances).filter(token => token.hasBalance && isTokenSupportedByRailgun(token.address, chainId)).length >= 2 && (
+            {publicBalances.filter(token => token.hasBalance && isTokenSupportedByRailgun(token.address, chainId)).length >= 2 && (
               <div className="bg-purple-900 border border-purple-700 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-purple-100 font-medium">🛡️ Multiple Tokens Available</h3>
                     <p className="text-purple-200 text-sm">
-                      You have {Object.values(publicBalances).filter(token => token.hasBalance && isTokenSupportedByRailgun(token.address, chainId)).length} supported tokens ready to shield
+                      You have {publicBalances.filter(token => token.hasBalance && isTokenSupportedByRailgun(token.address, chainId)).length} supported tokens ready to shield
                     </p>
                   </div>
                   <button
@@ -553,7 +553,7 @@ const WalletPage = () => {
                 
                 <div className="p-6">
                   <div className="space-y-4">
-                    {Object.values(publicBalances).map((token) => {
+                    {publicBalances.map((token) => {
                       const isSupported = isTokenSupportedByRailgun(token.address, chainId);
                       const isShieldingThis = shieldingTokens.has(token.symbol);
                       
@@ -635,7 +635,7 @@ const WalletPage = () => {
                       );
                     })}
                     
-                    {Object.keys(publicBalances).length === 0 && !isLoading && (
+                    {publicBalances.length === 0 && !isLoading && (
                       <div className="text-center py-8">
                         <p className="text-gray-400">No tokens found</p>
                       </div>
@@ -654,7 +654,7 @@ const WalletPage = () => {
                         <EyeSlashIcon className="h-5 w-5 text-purple-500" />
                         <span className="text-purple-400 text-sm">Railgun</span>
                       </div>
-                      {canUseRailgun && Object.keys(privateBalances).length > 0 && (
+                      {canUseRailgun && privateBalances.length > 0 && (
                         <button
                           onClick={() => setShowPrivateBalances(!showPrivateBalances)}
                           className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
@@ -679,7 +679,7 @@ const WalletPage = () => {
                         Connect your wallet and wait for initialization
                       </p>
                     </div>
-                  ) : Object.keys(privateBalances).length === 0 ? (
+                  ) : privateBalances.length === 0 ? (
                     <div className="text-center py-8">
                       <div className="bg-gray-700 rounded-full p-4 w-16 h-16 mx-auto mb-4">
                         <EyeSlashIcon className="h-8 w-8 text-gray-400" />
@@ -688,7 +688,7 @@ const WalletPage = () => {
                       <p className="text-gray-500 text-sm mt-1">
                         Shield some tokens to start using privacy features
                       </p>
-                      {Object.keys(publicBalances).length > 0 && (
+                      {publicBalances.length > 0 && (
                         <button
                           onClick={() => setSelectedView('privacy')}
                           className="mt-4 bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
@@ -704,7 +704,7 @@ const WalletPage = () => {
                         <div className="flex items-center justify-between">
                           <div>
                             <div className="text-white font-medium">
-                              {Object.keys(privateBalances).length} Private Token{Object.keys(privateBalances).length !== 1 ? 's' : ''}
+                              {privateBalances.length} Private Token{privateBalances.length !== 1 ? 's' : ''}
                             </div>
                             <div className="text-gray-400 text-sm">
                               Total private holdings across all supported tokens
@@ -722,8 +722,8 @@ const WalletPage = () => {
                       </div>
 
                       {/* Individual Private Token Balances */}
-                      {(showPrivateBalances || Object.keys(privateBalances).length <= 3) && 
-                        Object.values(privateBalances).map((token) => (
+                      {(showPrivateBalances || privateBalances.length <= 3) && 
+                        privateBalances.map((token) => (
                           <div key={token.symbol} className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
                             <div className="flex items-center space-x-3">
                               <div className="bg-purple-600 rounded-full p-2">
@@ -743,13 +743,13 @@ const WalletPage = () => {
                       }
 
                       {/* Show collapsed view for many tokens */}
-                      {!showPrivateBalances && Object.keys(privateBalances).length > 3 && (
+                      {!showPrivateBalances && privateBalances.length > 3 && (
                         <div className="text-center py-4">
                           <button
                             onClick={() => setShowPrivateBalances(true)}
                             className="text-purple-400 hover:text-purple-300 text-sm font-medium"
                           >
-                            Show {Object.keys(privateBalances).length - 3} more private tokens
+                            Show {privateBalances.length - 3} more private tokens
                           </button>
                         </div>
                       )}

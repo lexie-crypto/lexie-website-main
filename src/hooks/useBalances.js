@@ -7,6 +7,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { ethers, formatUnits, Contract } from 'ethers';
 import { useWallet } from '../contexts/WalletContext';
 import { getPrivateBalances, refreshPrivateBalances } from '../utils/railgun/balances';
+import { RPC_URLS } from '../config/environment';
 
 // ERC20 ABI for balance checking
 const ERC20_ABI = [
@@ -45,12 +46,12 @@ const TOKEN_LISTS = {
   ],
 };
 
-// RPC URLs - using Alchemy where available
-const RPC_URLS = {
-  1: `https://eth-mainnet.g.alchemy.com/v2/${import.meta.env.VITE_ALCHEMY_API_KEY || 'demo'}`,
-  42161: `https://arb-mainnet.g.alchemy.com/v2/${import.meta.env.VITE_ALCHEMY_API_KEY || 'demo'}`,
-  137: `https://polygon-mainnet.g.alchemy.com/v2/${import.meta.env.VITE_ALCHEMY_API_KEY || 'demo'}`,
-  56: 'https://bsc-dataseed.binance.org/',
+// Chain ID to RPC URL mapping using environment configuration
+const CHAIN_RPC_MAPPING = {
+  1: RPC_URLS.ethereum,
+  42161: RPC_URLS.arbitrum,
+  137: RPC_URLS.polygon,
+  56: RPC_URLS.bsc,
 };
 
 const useBalances = () => {
@@ -67,10 +68,11 @@ const useBalances = () => {
   const [privateBalances, setPrivateBalances] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [lastUpdate, setLastUpdate] = useState(null);
+  const [balanceErrors, setBalanceErrors] = useState({ public: null, private: null });
 
   // Get provider for current chain
   const getProvider = useCallback((targetChainId = chainId) => {
-    const rpcUrl = RPC_URLS[targetChainId];
+    const rpcUrl = CHAIN_RPC_MAPPING[targetChainId];
     if (!rpcUrl) {
       throw new Error(`No RPC URL configured for chain ${targetChainId}`);
     }
@@ -154,6 +156,9 @@ const useBalances = () => {
 
     try {
       console.log('[useBalances] Fetching public balances for chain:', chainId);
+      
+      // Clear previous error
+      setBalanceErrors(prev => ({ ...prev, public: null }));
 
       const tokenList = TOKEN_LISTS[chainId] || [];
       
@@ -177,6 +182,7 @@ const useBalances = () => {
       return balances;
     } catch (error) {
       console.error('[useBalances] Failed to fetch public balances:', error);
+      setBalanceErrors(prev => ({ ...prev, public: error.message }));
       return [];
     }
   }, [isConnected, address, chainId, fetchNativeBalance, fetchTokenBalance]);
@@ -189,10 +195,14 @@ const useBalances = () => {
 
     try {
       console.log('[useBalances] Fetching private balances...');
+      // Clear previous error
+      setBalanceErrors(prev => ({ ...prev, private: null }));
+      
       const balances = await getPrivateBalances(railgunWalletId, chainId);
       return balances;
     } catch (error) {
       console.error('[useBalances] Failed to fetch private balances:', error);
+      setBalanceErrors(prev => ({ ...prev, private: error.message }));
       return [];
     }
   }, [canUseRailgun, railgunWalletId, chainId]);
@@ -314,6 +324,8 @@ const useBalances = () => {
     // State
     isLoading,
     lastUpdate,
+    lastUpdateTime: lastUpdate, // Add alias for backward compatibility
+    balanceErrors,
     
     // Functions
     refreshAllBalances,

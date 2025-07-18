@@ -9,24 +9,25 @@ import { mainnet, polygon, arbitrum, bsc } from 'wagmi/chains';
 import { metaMask, walletConnect } from 'wagmi/connectors';
 import { WagmiProvider, useAccount, useConnect, useDisconnect } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/environment';
 
 // Create a client for React Query
 const queryClient = new QueryClient();
 
-// Create custom transport that routes through our Vercel API
+// Create custom transport using environment configuration
 const createProxyTransport = (chainId) => custom({
   async request({ method, params }) {
-    // For demo purposes, use public RPC endpoints
+    // Use proper RPC URLs from environment configuration
     const rpcUrls = {
-      1: 'https://eth.llamarpc.com',
-      137: 'https://polygon-rpc.com',
-      42161: 'https://arb1.arbitrum.io/rpc',
-      56: 'https://bsc-dataseed.binance.org'
+      1: RPC_URLS.ethereum,
+      137: RPC_URLS.polygon,
+      42161: RPC_URLS.arbitrum,
+      56: RPC_URLS.bsc
     };
     
     const rpcUrl = rpcUrls[chainId];
     if (!rpcUrl) {
-      throw new Error(`No RPC URL for chain ${chainId}`);
+      throw new Error(`No RPC URL configured for chain ${chainId}`);
     }
     
     const response = await fetch(rpcUrl, {
@@ -59,7 +60,8 @@ const wagmiConfig = createConfig({
   connectors: [
     metaMask(),
     walletConnect({
-      projectId: import.meta.env.VITE_REOWN_PROJECT_ID,
+      projectId: WALLETCONNECT_CONFIG.projectId || 'demo-project-id',
+      metadata: WALLETCONNECT_CONFIG.metadata,
     }),
   ],
   transports: {
@@ -97,6 +99,7 @@ const WalletContextProvider = ({ children }) => {
   const [railgunAddress, setRailgunAddress] = useState(null);
   const [railgunWalletID, setRailgunWalletID] = useState(null);
   const [isInitializing, setIsInitializing] = useState(false);
+  const [railgunError, setRailgunError] = useState(null);
 
   const { address, isConnected, chainId } = useAccount();
   const { connect, connectors, isPending: isConnecting } = useConnect();
@@ -127,6 +130,7 @@ const WalletContextProvider = ({ children }) => {
       setIsRailgunInitialized(false);
       setRailgunAddress(null);
       setRailgunWalletID(null);
+      setRailgunError(null);
     } catch (error) {
       console.error('Failed to disconnect wallet:', error);
     }
@@ -139,6 +143,7 @@ const WalletContextProvider = ({ children }) => {
     }
 
     setIsInitializing(true);
+    setRailgunError(null);
     console.log('🚀 Starting RAILGUN initialization for address:', address);
     
     try {
@@ -151,22 +156,15 @@ const WalletContextProvider = ({ children }) => {
         throw new Error('RAILGUN functions not available - using demo mode');
       }
 
-      // Initialize Railgun engine
-      const walletSource = 'lexie-website';
-      const dbPath = undefined; // Uses IndexedDB in browser
-      const shouldDebug = true; // Enable debugging for now
-      const customArtifactGetter = undefined;
-      const useNativeArtifacts = false;
-      const skipMerkletreeScans = false; // Enable scans for real balance updates
-
+      // Initialize Railgun engine using environment configuration
       console.log('🔧 Starting RAILGUN engine...');
       await railgunWallet.startRailgunEngine(
-        walletSource,
-        dbPath,
-        shouldDebug,
-        customArtifactGetter,
-        useNativeArtifacts,
-        skipMerkletreeScans
+        RAILGUN_CONFIG.walletSourceName,
+        undefined, // Uses IndexedDB in browser
+        RAILGUN_CONFIG.debug,
+        undefined, // customArtifactGetter
+        RAILGUN_CONFIG.useNativeArtifacts,
+        RAILGUN_CONFIG.skipMerkletreeScans
       );
       console.log('✅ RAILGUN engine started successfully');
 
@@ -224,6 +222,8 @@ const WalletContextProvider = ({ children }) => {
     } catch (error) {
       console.error('❌ Failed to initialize RAILGUN (falling back to demo mode):', error);
       
+      setRailgunError(error.message || 'Failed to initialize Railgun');
+      
       // Set demo mode - we'll simulate Railgun functionality
       setIsRailgunInitialized(true);
       setRailgunAddress('demo-railgun-address-' + address.slice(-6));
@@ -254,11 +254,18 @@ const WalletContextProvider = ({ children }) => {
     railgunAddress,
     railgunWalletID,
     isInitializing,
+    isInitializingRailgun: isInitializing,
+    railgunError,
     canUseRailgun: isRailgunInitialized,
     railgunWalletId: railgunWalletID,
     getCurrentNetwork: () => ({ id: chainId, name: 'Current Network' }),
     supportedNetworks: { 1: true, 137: true, 42161: true, 56: true },
     walletProviders: { METAMASK: 'metamask', WALLETCONNECT: 'walletconnect' },
+    isWalletAvailable: (type) => {
+      if (type === 'metamask') return !!window.ethereum?.isMetaMask;
+      if (type === 'walletconnect') return true; // WalletConnect is always available
+      return false;
+    },
   };
 
   return (
