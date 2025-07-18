@@ -64,6 +64,7 @@ const PrivacyActions = () => {
   // Shield state
   const [selectedShieldToken, setSelectedShieldToken] = useState(null);
   const [shieldAmounts, setShieldAmounts] = useState({}); // Changed to per-token amounts
+  const [shieldRecipientAddress, setShieldRecipientAddress] = useState(''); // Public EOA address for gas estimation
 
   // Transfer state
   const [recipientAddress, setRecipientAddress] = useState('');
@@ -152,6 +153,12 @@ const PrivacyActions = () => {
   const handleShieldToken = useCallback(async (token, amount) => {
     if (!canUseRailgun || !railgunWalletId || !address) {
       toast.error('Railgun wallet not ready');
+      return;
+    }
+
+    // ✅ Validate recipient address is provided and valid
+    if (!shieldAddressValidation.isValid) {
+      toast.error(`Invalid recipient address: ${shieldAddressValidation.message}`);
       return;
     }
 
@@ -356,7 +363,8 @@ const PrivacyActions = () => {
         amountInUnits,
         chainConfig,
         address,
-        railgunAddress
+        railgunAddress,
+        shieldRecipientAddress.trim() // ✅ Pass public address for gas estimation
       );
 
       toast.dismiss();
@@ -389,12 +397,18 @@ const PrivacyActions = () => {
     } finally {
       setIsProcessing(false);
     }
-  }, [canUseRailgun, railgunWalletId, address, chainId, network, refreshAllBalances, getEncryptionKey, railgunAddress]);
+  }, [canUseRailgun, railgunWalletId, address, chainId, network, refreshAllBalances, getEncryptionKey, railgunAddress, shieldAddressValidation, shieldRecipientAddress]);
 
   // Shield all tokens
   const handleShieldAll = useCallback(async () => {
     if (!canUseRailgun || !railgunWalletId || !address || shieldableTokens.length === 0) {
       toast.error('No tokens available to shield');
+      return;
+    }
+
+    // ✅ Validate recipient address is provided and valid
+    if (!shieldAddressValidation.isValid) {
+      toast.error(`Invalid recipient address: ${shieldAddressValidation.message}`);
       return;
     }
 
@@ -429,7 +443,8 @@ const PrivacyActions = () => {
         tokensToShield,
         chainConfig,
         address,
-        railgunAddress
+        railgunAddress,
+        shieldRecipientAddress.trim() // ✅ Pass public address for gas estimation
       );
 
       toast.dismiss();
@@ -450,7 +465,7 @@ const PrivacyActions = () => {
     } finally {
       setIsProcessing(false);
     }
-  }, [canUseRailgun, railgunWalletId, address, shieldableTokens, chainId, network, refreshAllBalances, getEncryptionKey]);
+  }, [canUseRailgun, railgunWalletId, address, shieldableTokens, chainId, network, refreshAllBalances, getEncryptionKey, railgunAddress, shieldAddressValidation, shieldRecipientAddress]);
 
   // Auto-detect address type and return validation info
   const detectAddressType = useCallback((address) => {
@@ -505,6 +520,34 @@ const PrivacyActions = () => {
   const addressValidation = useMemo(() => {
     return detectAddressType(recipientAddress);
   }, [recipientAddress, detectAddressType]);
+
+  // Validate shield recipient address (must be public EOA)
+  const shieldAddressValidation = useMemo(() => {
+    if (!shieldRecipientAddress || shieldRecipientAddress.trim() === '') {
+      return { isValid: false, message: 'Please enter a recipient address' };
+    }
+
+    const trimmedAddress = shieldRecipientAddress.trim();
+    
+    if (trimmedAddress.startsWith('0x')) {
+      if (/^0x[a-fA-F0-9]{40}$/.test(trimmedAddress)) {
+        return { 
+          isValid: true, 
+          message: '✅ Valid Ethereum address for gas estimation'
+        };
+      } else {
+        return { 
+          isValid: false, 
+          message: 'Invalid Ethereum address format'
+        };
+      }
+    }
+    
+    return { 
+      isValid: false, 
+      message: 'Address must be a valid Ethereum address (0x...)'
+    };
+  }, [shieldRecipientAddress]);
 
   // Private transfer (handles both Railgun-to-Railgun and Railgun-to-EOA)
   const handlePrivateTransfer = useCallback(async () => {
@@ -744,10 +787,64 @@ const PrivacyActions = () => {
                   Platform fees support development and operations
                 </div>
               </div>
+
+              {/* Recipient Address Field */}
+              <div className="bg-gray-700 rounded-lg p-4">
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  Recipient Address <span className="text-red-400">*</span>
+                </label>
+                <p className="text-gray-400 text-xs mb-3">
+                  Enter a public Ethereum address (0x...) required for gas estimation
+                </p>
+                <input
+                  type="text"
+                  placeholder="0x... (Ethereum address)"
+                  value={shieldRecipientAddress}
+                  onChange={(e) => setShieldRecipientAddress(e.target.value)}
+                  className={`w-full bg-gray-600 text-white rounded-lg px-4 py-3 border focus:outline-none ${
+                    shieldRecipientAddress.trim() === '' 
+                      ? 'border-gray-500 focus:border-purple-500'
+                      : shieldAddressValidation.isValid 
+                        ? 'border-green-500 focus:border-green-400' 
+                        : 'border-red-500 focus:border-red-400'
+                  }`}
+                />
+                
+                {/* Address Validation Feedback */}
+                {shieldRecipientAddress.trim() !== '' && (
+                  <div className={`mt-2 p-3 rounded-lg border text-sm ${
+                    shieldAddressValidation.isValid 
+                      ? 'bg-green-900/30 border-green-600/50 text-green-200'
+                      : 'bg-red-900/30 border-red-600/50 text-red-200'
+                  }`}>
+                    <div className="flex items-center space-x-2">
+                      <div className="flex-shrink-0">
+                        {shieldAddressValidation.isValid ? (
+                          <ShieldCheckIcon className="h-4 w-4" />
+                        ) : (
+                          <ExclamationTriangleIcon className="h-4 w-4" />
+                        )}
+                      </div>
+                      <span>{shieldAddressValidation.message}</span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Quick Fill Buttons */}
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => setShieldRecipientAddress(address || '')}
+                    disabled={!address}
+                    className="text-purple-400 hover:text-purple-300 text-xs disabled:text-gray-500"
+                  >
+                    Use my address ({address?.slice(0, 6)}...{address?.slice(-4)})
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Shield All Button */}
-            {shieldableTokens.length > 0 && (
+            {shieldableTokens.length > 0 && shieldAddressValidation.isValid && (
               <div className="bg-gray-700 rounded-lg p-4">
                 <div className="flex items-center justify-between">
                   <div>
@@ -822,11 +919,15 @@ const PrivacyActions = () => {
                           !token.hasBalance || 
                           !shieldAmounts[token.symbol] || 
                           parseFloat(shieldAmounts[token.symbol] || '0') <= 0 ||
-                          !isTokenSupportedByRailgun(token.address, chainId)
+                          !isTokenSupportedByRailgun(token.address, chainId) ||
+                          !shieldAddressValidation.isValid
                         }
                         className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white px-3 py-1 rounded text-sm font-medium transition-colors"
+                        title={!shieldAddressValidation.isValid ? 'Enter recipient address to enable shielding' : 'Shield tokens'}
                       >
-                        {isProcessing ? '...' : 'Shield'}
+                        {isProcessing ? '...' : 
+                         !shieldAddressValidation.isValid ? 'Need Address' : 
+                         'Shield'}
                       </button>
                       <button
                         onClick={() => {

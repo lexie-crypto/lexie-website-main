@@ -233,9 +233,10 @@ function createERC20AmountRecipient(tokenAddress, amount, recipientAddress) {
  * @param {Object} chain - Chain configuration
  * @param {string} fromAddress - EOA address sending the tokens
  * @param {string} railgunAddress - Railgun address to shield to (recipient)
+ * @param {string} gasEstimationRecipient - Public EOA address for gas estimation (required by SDK)
  * @returns {Object} Transaction result
  */
-export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress, amount, chain, fromAddress, railgunAddress) => {
+export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress, amount, chain, fromAddress, railgunAddress, gasEstimationRecipient) => {
   try {
     console.log('[RailgunActions] Starting OFFICIAL shield operation with parameters:', {
       railgunWalletID: railgunWalletID ? `${railgunWalletID.slice(0, 8)}...` : 'MISSING',
@@ -284,12 +285,23 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       throw new Error('railgunAddress must be a non-empty string');
     }
 
+    if (!gasEstimationRecipient || typeof gasEstimationRecipient !== 'string') {
+      throw new Error('gasEstimationRecipient must be a non-empty string');
+    }
+
+    // Validate gasEstimationRecipient is a valid Ethereum address
+    if (!isAddress(gasEstimationRecipient)) {
+      throw new Error('gasEstimationRecipient must be a valid Ethereum address');
+    }
+
+    gasEstimationRecipient = validateAndFormatAddress(gasEstimationRecipient, 'gasEstimationRecipient');
+
     // Get the correct Railgun network name
     const networkName = getRailgunNetworkName(chain.id);
     console.log('[RailgunActions] Using Railgun network:', networkName);
 
-    // ✅ CREATE SINGLE RECIPIENT FOR USER (SDK WILL HANDLE FEE DEDUCTION)
-    const erc20AmountRecipient = createERC20AmountRecipient(tokenAddress, amount, railgunAddress);
+    // ✅ CREATE RECIPIENT FOR GAS ESTIMATION (using public address as per Railgun docs)
+    const erc20AmountRecipient = createERC20AmountRecipient(tokenAddress, amount, gasEstimationRecipient);
     
     // ✅ DEFENSIVE CHECK AFTER RECIPIENT CREATION
     if (!erc20AmountRecipient || typeof erc20AmountRecipient !== 'object') {
@@ -905,9 +917,10 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
  * @param {Object} chain - Chain configuration
  * @param {string} fromAddress - EOA address sending the tokens
  * @param {string} railgunAddress - Railgun address to shield to (recipient)
+ * @param {string} gasEstimationRecipient - Public EOA address for gas estimation (required by SDK)
  * @returns {Object} Shield results for all tokens
  */
-export const shieldAllTokens = async (railgunWalletID, encryptionKey, tokens, chain, fromAddress, railgunAddress) => {
+export const shieldAllTokens = async (railgunWalletID, encryptionKey, tokens, chain, fromAddress, railgunAddress, gasEstimationRecipient) => {
   try {
     console.log('[RailgunActions] Shielding all tokens:', {
       tokensCount: tokens.length,
@@ -933,7 +946,8 @@ export const shieldAllTokens = async (railgunWalletID, encryptionKey, tokens, ch
           token.balance,
           chain,
           fromAddress,
-          railgunAddress  // Pass the railgun address
+          railgunAddress,  // Pass the railgun address
+          gasEstimationRecipient  // Pass the gas estimation recipient
         );
         
         results.push({
