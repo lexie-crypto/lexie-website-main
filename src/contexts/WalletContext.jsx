@@ -153,19 +153,18 @@ const WalletContextProvider = ({ children }) => {
       console.log('✅ RAILGUN wallet imported successfully');
 
       if (!railgunWallet.startRailgunEngine) {
-        throw new Error('RAILGUN functions not available - using demo mode');
+        throw new Error('RAILGUN functions not available');
       }
 
-      // Initialize Railgun engine using environment configuration
-      console.log('🔧 Starting RAILGUN engine...');
-      await railgunWallet.startRailgunEngine(
-        RAILGUN_CONFIG.walletSourceName,
-        undefined, // Uses IndexedDB in browser
-        RAILGUN_CONFIG.debug,
-        undefined, // customArtifactGetter
-        RAILGUN_CONFIG.useNativeArtifacts,
-        RAILGUN_CONFIG.skipMerkletreeScans
-      );
+      // Skip Railgun engine initialization - the engine.js should handle this
+      console.log('⚠️ Skipping Railgun engine init in WalletContext - using external engine');
+      
+      // Instead, try to import and use the engine initialization from engine.js
+      const { initializeRailgun: initEngine, waitForRailgunReady } = await import('../utils/railgun/engine.js');
+      
+      console.log('🔧 Starting RAILGUN engine via engine.js...');
+      await initEngine();
+      await waitForRailgunReady();
       console.log('✅ RAILGUN engine started successfully');
 
       // Create or load Railgun wallet with proper signature-based key derivation
