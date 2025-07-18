@@ -120,28 +120,25 @@ async function generateShieldPrivateKey(railgunWalletID, fromAddress, recipient,
       throw new Error('Wallet provider required for shield private key generation');
     }
 
-    // Get the official message that should be signed
-    const shieldSignatureMessage = getShieldPrivateKeySignatureMessage();
-    
-    // Create a more descriptive message for the user
-    const userMessage = `Lexie Shield Operation\n\nAuthorize shield transaction to move tokens into privacy.\n\nFrom: ${fromAddress}\nTo: ${recipient.recipientAddress}\nAmount: ${recipient.amount}\n\nOfficial Shield Message:\n${shieldSignatureMessage}`;
-    
     console.log('[RailgunActions] Requesting shield signature from wallet...');
     
+    // Get the official shield private key signature message
+    const message = getShieldPrivateKeySignatureMessage();
+
     // Request signature from user's wallet
     const signature = await walletProvider.request({
       method: 'personal_sign',
-      params: [userMessage, fromAddress],
+      params: [message, fromAddress],
     });
 
     console.log('[RailgunActions] Shield signature received');
     
-    // Generate shield private key from the signature
+    // Generate shield private key using keccak256 hash of signature
     return keccak256(signature);
   } catch (error) {
     console.error('[RailgunActions] Failed to generate shield private key:', error);
     if (error.code === 4001 || error.message.includes('rejected')) {
-      throw new Error('Shield signature required. Please approve the signature request to proceed.');
+      throw new Error('Shield signature required. Please approve the signature request.');
     }
     throw new Error(`Failed to generate shield private key: ${error.message}`);
   }
@@ -263,22 +260,17 @@ export async function shieldTokens(
     );
 
     // Step 2: Gas estimation
-    const sendWithPublicWallet = true; // Always true for shield
-    const relayerFeeERC20AmountRecipient = undefined; // No relayer fee for self-relay
-    const overallBatchMinGasPrice = undefined; // Optional
-
     console.log('[RailgunActions] Estimating gas for shield...');
-    const gasEstimate = await gasEstimateForShield(
+    const { gasEstimate } = await gasEstimateForShield(
       networkName,
       shieldPrivateKey,
       erc20AmountRecipients,
-      nftAmountRecipients,
-      relayerFeeERC20AmountRecipient,
-      sendWithPublicWallet,
-      overallBatchMinGasPrice
+      nftAmountRecipients, // Empty array for shield
+      fromAddress // Just the from wallet address
     );
 
     // Step 3: Create transaction gas details
+    const sendWithPublicWallet = true; // Always true for Shield transactions
     const transactionGasDetails = createTransactionGasDetails(
       networkName,
       sendWithPublicWallet,
@@ -287,20 +279,21 @@ export async function shieldTokens(
 
     // Step 4: Populate shield transaction
     console.log('[RailgunActions] Populating shield transaction...');
-    const populatedTransaction = await populateShield(
+    const { transaction } = await populateShield(
       networkName,
       shieldPrivateKey,
       erc20AmountRecipients,
-      nftAmountRecipients,
-      relayerFeeERC20AmountRecipient,
-      sendWithPublicWallet,
+      nftAmountRecipients, // Empty array for shield
       transactionGasDetails
     );
+
+    // Set the from address as shown in official docs
+    transaction.from = fromAddress;
 
     console.log('[RailgunActions] Shield operation completed successfully');
     return {
       gasEstimate: gasEstimate,
-      transaction: populatedTransaction.transaction,
+      transaction: transaction,
       shieldPrivateKey: shieldPrivateKey,
     };
 
