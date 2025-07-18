@@ -161,7 +161,7 @@ const WalletContextProvider = ({ children }) => {
       }
 
       // Initialize Railgun engine (like the working version)
-      const walletSource = 'lexie-website';
+      const walletSource = 'lexiewebsite';
       const dbPath = undefined; // Uses IndexedDB in browser
       const shouldDebug = true; // Enable debugging for now
       const customArtifactGetter = undefined;
