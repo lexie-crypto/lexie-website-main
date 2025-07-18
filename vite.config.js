@@ -38,6 +38,22 @@ export default defineConfig({
         main: resolve(__dirname, 'index.html'),
       },
     },
+    commonjsOptions: {
+      transformMixedEsModules: true,
+    },
+  },
+  optimizeDeps: {
+    include: [
+      '@railgun-community/wallet',
+      '@railgun-community/shared-models',
+      'localforage',
+      'level-js',
+      'snarkjs'
+    ],
+    exclude: ['@railgun-community/wallet/dist/cjs']
+  },
+  define: {
+    global: 'globalThis',
   },
   base: '/'
 }) 

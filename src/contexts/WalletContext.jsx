@@ -71,7 +71,8 @@ export const WalletProvider = ({ children }) => {
       } catch (error) {
         console.error('[WalletContext] Failed to initialize Railgun:', error);
         setRailgunError(error.message || 'Failed to initialize privacy system');
-        toast.error('Failed to initialize privacy system');
+        // Don't show error toast immediately, just log for now
+        console.warn('[WalletContext] Privacy features will be unavailable, but wallet connection will still work');
       } finally {
         setIsInitializingRailgun(false);
       }
