@@ -481,14 +481,14 @@ export async function shieldTokens(
       console.log("mn is:", erc20AmountRecipients);
       console.assert(typeof erc20AmountRecipients.map === "function", "mn.map not a function");
       
-      const { gasEstimate } = await gasEstimateForShield(
+      const result = await gasEstimateForShield(
         networkName,
         shieldPrivateKey,
         erc20AmountRecipients,
         nftAmountRecipients,
         fromAddress,
       );
-      gasEstimate = gasEstimate;
+      gasEstimate = result.gasEstimate;
     } catch (gasError) {
       console.error('[RailgunActions] 🚨 Gas estimation failed with original error:', gasError);
       console.error('[RailgunActions] Error name:', gasError.name);
