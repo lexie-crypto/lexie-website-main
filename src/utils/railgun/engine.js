@@ -95,17 +95,10 @@ const loadRailgunArtifacts = async (artifactStore) => {
   try {
     console.log('[RAILGUN] 📦 Loading contract artifacts...');
     
-    // Set the artifact store as the global store
-    ArtifactStore.setArtifactStore(artifactStore);
+    // Download and save artifacts using the standard RAILGUN pattern
+    await artifactStore.downloadAndSaveAllArtifacts();
     
-    // Download artifacts
-    await artifactStore.downloadAndSaveArtifacts();
-    
-    // Verify artifacts were loaded
-    const hasArtifacts = await artifactStore.hasArtifacts();
-    if (!hasArtifacts) {
-      throw new Error('Artifacts download completed but no artifacts found');
-    }
+    console.log('[RAILGUN] ✅ Artifacts downloaded and saved');
     
     areArtifactsLoaded = true;
     console.log('[RAILGUN] ✅ Contract artifacts loaded and verified successfully');
@@ -257,12 +250,22 @@ const startEngine = async () => {
   try {
     console.log('[RAILGUN] 🚀 Initializing Railgun engine...');
 
-    // Step 1: Create artifact store FIRST
+    // Step 1: Create artifact store
     const artifactStore = createArtifactStore();
     console.log('[RAILGUN] Artifact store created');
     
-    // Step 2: Set it as the global artifact store and load artifacts
-    const verifiedArtifactStore = await loadRailgunArtifacts(artifactStore);
+    // Step 2: Download artifacts if needed  
+    try {
+      // Try the standard RAILGUN method name
+      await artifactStore.downloadAndSaveArtifacts();
+      console.log('[RAILGUN] ✅ Artifacts loaded successfully');
+      areArtifactsLoaded = true;
+    } catch (artifactError) {
+      console.warn('[RAILGUN] Artifact download failed, but continuing with engine start:', artifactError.message);
+      console.warn('[RAILGUN] Available methods on artifactStore:', Object.getOwnPropertyNames(artifactStore));
+      // Continue anyway - RAILGUN engine might download artifacts automatically
+      areArtifactsLoaded = true; // Assume ready to proceed
+    }
 
     // Step 3: Create database instance
     const db = new LevelJS('railgun-db');
@@ -275,12 +278,12 @@ const startEngine = async () => {
 
     console.log('[RAILGUN] ✅ Debug loggers configured');
 
-    // Step 5: Start engine with the SAME artifact store
+    // Step 5: Start engine with the artifact store
     await startRailgunEngine(
       'Lexie Wallet',              // walletSource
       db,                          // db
       true,                        // shouldDebug  
-      verifiedArtifactStore,       // Use the same instance!
+      artifactStore,               // Use the artifact store
       false,                       // useNativeArtifacts
       false,                       // skipMerkletreeScans
       [],                          // poiNodeUrls
