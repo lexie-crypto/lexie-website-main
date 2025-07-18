@@ -816,11 +816,7 @@ const WalletPage = () => {
           </div>
         )}
         
-        {balanceErrors.private && (
-          <div className="mt-4 p-3 bg-red-900 border border-red-700 rounded-lg">
-            <p className="text-red-300 text-sm">Private balance error: {balanceErrors.private}</p>
-          </div>
-        )}
+
 
         {/* Last Update Time */}
         {lastUpdateTime && (
