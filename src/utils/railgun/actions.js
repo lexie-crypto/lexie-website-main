@@ -45,15 +45,13 @@ import { deriveEncryptionKey } from './wallet.js';
 /**
  * NETWORK NAME MAPPING 
  * =====================
- * Maps our chain configuration to Railgun's expected network names
+ * Maps our chain configuration to Railgun's expected NetworkName enum values
  */
 const RAILGUN_NETWORK_MAPPING = {
-  1: 'Ethereum',      // Mainnet
-  5: 'Ethereum',      // Goerli (mapped to Ethereum for Railgun)
-  42161: 'Arbitrum',  // Arbitrum One
-  137: 'Polygon',     // Polygon Mainnet
-  56: 'BNB',          // BNB Smart Chain
-  31337: 'Hardhat',   // Local development
+  1: NetworkName.Ethereum,      // Mainnet
+  42161: NetworkName.Arbitrum,  // Arbitrum One
+  137: NetworkName.Polygon,     // Polygon Mainnet
+  56: NetworkName.BNBChain,     // BNB Smart Chain
 };
 
 /**
@@ -330,7 +328,15 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
 
     // Get the correct Railgun network name
     const networkName = getRailgunNetworkName(chain.id);
-    console.log('[RailgunActions] Using Railgun network:', networkName);
+    console.log('[RailgunActions] Using Railgun network:', {
+      chainId: chain.id,
+      networkName,
+      networkNameType: typeof networkName,
+      networkNameValue: networkName,
+      isString: typeof networkName === 'string',
+      availableNetworkNames: Object.keys(NetworkName),
+      networkNameEnum: NetworkName
+    });
 
     // ✅ CREATE RECIPIENT FOR SHIELDING (should always be user's own Railgun address)
     const erc20AmountRecipient = createERC20AmountRecipient(tokenAddress, amount, railgunAddress);
@@ -652,6 +658,33 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
 
     console.log('[RailgunActions] ✅ All parameters validated successfully');
     console.log('[RailgunActions] === END DEBUGGING ===');
+
+    // 🔍 DETAILED NETWORK NAME LOGGING BEFORE SDK CALL
+    console.log('[RailgunActions] === NETWORK NAME VALIDATION ===');
+    console.log('[RailgunActions] networkName detailed analysis:', {
+      value: networkName,
+      type: typeof networkName,
+      stringValue: String(networkName),
+      isString: typeof networkName === 'string',
+      isEnum: Object.values(NetworkName).includes(networkName),
+      enumValues: Object.values(NetworkName),
+      enumKeys: Object.keys(NetworkName),
+      networkNameEnum: NetworkName,
+      arbitrumValue: NetworkName.Arbitrum,
+      isArbitrum: networkName === NetworkName.Arbitrum
+    });
+
+    // Validate networkName is a valid enum value
+    if (!Object.values(NetworkName).includes(networkName)) {
+      console.error('[RailgunActions] ❌ Invalid NetworkName enum value:', {
+        provided: networkName,
+        validValues: Object.values(NetworkName)
+      });
+      throw new Error(`Invalid NetworkName: ${networkName}. Valid values: ${Object.values(NetworkName).join(', ')}`);
+    }
+
+    console.log('[RailgunActions] ✅ NetworkName is valid enum value');
+    console.log('[RailgunActions] === END NETWORK NAME VALIDATION ===');
 
     console.log('[RailgunActions] Gas estimation parameters (official pattern):', {
       networkName,
