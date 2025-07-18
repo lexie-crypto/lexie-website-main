@@ -81,9 +81,13 @@ export function useBalances() {
   // Calculate USD value for a balance
   const calculateUSDValue = useCallback((numericBalance, symbol) => {
     const price = tokenPrices[symbol];
+    console.log(`[useBalances] Calculating USD for ${symbol}:`, { numericBalance, price, tokenPrices });
     if (price && typeof price === 'number' && numericBalance > 0) {
-      return (numericBalance * price).toFixed(2);
+      const usdValue = (numericBalance * price).toFixed(2);
+      console.log(`[useBalances] USD calculation result: ${symbol} = $${usdValue}`);
+      return usdValue;
     }
+    console.log(`[useBalances] USD calculation failed for ${symbol}: price=${price}, numericBalance=${numericBalance}`);
     return '0.00';
   }, [tokenPrices]);
 
