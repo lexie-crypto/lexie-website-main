@@ -261,6 +261,30 @@ export async function shieldTokens(
 
     // Step 2: Gas estimation
     console.log('[RailgunActions] Estimating gas for shield...');
+    
+    // Log all inputs being sent to gasEstimateForShield
+    console.log('[RailgunActions] Gas estimation inputs:', {
+      networkName,
+      shieldPrivateKey: shieldPrivateKey?.slice(0, 10) + '...',
+      erc20AmountRecipients: {
+        length: erc20AmountRecipients.length,
+        recipients: erc20AmountRecipients.map((recipient, index) => ({
+          index,
+          tokenAddress: recipient.tokenAddress,
+          amount: recipient.amount?.toString(),
+          recipientAddress: recipient.recipientAddress?.slice(0, 10) + '...',
+          fullRecipient: recipient
+        }))
+      },
+      nftAmountRecipients: {
+        length: nftAmountRecipients.length,
+        isArray: Array.isArray(nftAmountRecipients),
+        value: nftAmountRecipients
+      },
+      fromAddress: fromAddress?.slice(0, 8) + '...',
+      fromAddressFull: fromAddress
+    });
+    
     const { gasEstimate } = await gasEstimateForShield(
       networkName,
       shieldPrivateKey,
