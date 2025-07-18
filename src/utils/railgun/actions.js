@@ -211,6 +211,44 @@ function createERC20AmountRecipient(tokenAddress, amount, recipientAddress) {
     recipientAddress: String(recipientAddress), // Ensure it's a string
   };
 
+  // 🔍 VALIDATE CREATED RECIPIENT OBJECT
+  console.log('[CreateRecipient] Validating created recipient object:', {
+    recipient,
+    isObject: typeof recipient === 'object' && recipient !== null,
+    hasCorrectKeys: Object.keys(recipient).sort().join(',') === 'amount,recipientAddress,tokenAddress',
+    tokenAddress: {
+      value: recipient.tokenAddress,
+      type: typeof recipient.tokenAddress,
+      defined: recipient.tokenAddress !== undefined
+    },
+    amount: {
+      value: recipient.amount,
+      type: typeof recipient.amount,
+      isString: typeof recipient.amount === 'string'
+    },
+    recipientAddress: {
+      value: recipient.recipientAddress ? `${recipient.recipientAddress.slice(0, 8)}...` : recipient.recipientAddress,
+      type: typeof recipient.recipientAddress,
+      isString: typeof recipient.recipientAddress === 'string'
+    }
+  });
+
+  // Validate the recipient object structure
+  if (!recipient || typeof recipient !== 'object') {
+    console.error('[CreateRecipient] ❌ Created recipient is not an object:', recipient);
+    throw new Error('Failed to create valid recipient object');
+  }
+
+  if (!('tokenAddress' in recipient) || !('amount' in recipient) || !('recipientAddress' in recipient)) {
+    console.error('[CreateRecipient] ❌ Created recipient missing required properties:', {
+      hasTokenAddress: 'tokenAddress' in recipient,
+      hasAmount: 'amount' in recipient,
+      hasRecipientAddress: 'recipientAddress' in recipient,
+      keys: Object.keys(recipient)
+    });
+    throw new Error('Created recipient object missing required properties');
+  }
+
   console.log('[CreateRecipient] Created recipient object:', {
     tokenAddress: recipient.tokenAddress,
     tokenAddressType: typeof recipient.tokenAddress,
@@ -303,9 +341,66 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
     }
 
     const erc20AmountRecipients = [erc20AmountRecipient];
-    if (!Array.isArray(erc20AmountRecipients) || erc20AmountRecipients.length === 0) {
-      throw new Error('erc20AmountRecipients is not a valid array');
+    
+    // 🔍 IMMEDIATE VALIDATION OF ARRAY CONSTRUCTION
+    console.log('[RailgunActions] === ARRAY CONSTRUCTION VALIDATION ===');
+    console.log('[RailgunActions] erc20AmountRecipients array construction:', {
+      originalRecipient: erc20AmountRecipient,
+      arrayConstruction: {
+        method: 'Array literal [erc20AmountRecipient]',
+        result: erc20AmountRecipients,
+        isArray: Array.isArray(erc20AmountRecipients),
+        length: erc20AmountRecipients?.length,
+        type: typeof erc20AmountRecipients,
+        constructor: erc20AmountRecipients?.constructor?.name
+      },
+      firstElement: {
+        value: erc20AmountRecipients[0],
+        type: typeof erc20AmountRecipients[0],
+        isObject: typeof erc20AmountRecipients[0] === 'object' && erc20AmountRecipients[0] !== null,
+        keys: erc20AmountRecipients[0] ? Object.keys(erc20AmountRecipients[0]) : 'NO_KEYS'
+      }
+    });
+
+    // Validate array was created correctly
+    if (!Array.isArray(erc20AmountRecipients)) {
+      console.error('[RailgunActions] ❌ Array construction failed - not an array:', erc20AmountRecipients);
+      throw new Error('Failed to create erc20AmountRecipients array');
     }
+
+    if (erc20AmountRecipients.length !== 1) {
+      console.error('[RailgunActions] ❌ Array construction failed - wrong length:', erc20AmountRecipients.length);
+      throw new Error('erc20AmountRecipients array should have exactly 1 element');
+    }
+
+    if (!erc20AmountRecipients[0] || typeof erc20AmountRecipients[0] !== 'object') {
+      console.error('[RailgunActions] ❌ Array construction failed - first element not an object:', erc20AmountRecipients[0]);
+      throw new Error('First element of erc20AmountRecipients must be an object');
+    }
+
+    console.log('[RailgunActions] ✅ Array construction validated successfully');
+    console.log('[RailgunActions] === END ARRAY CONSTRUCTION VALIDATION ===');
+
+    const nftAmountRecipients = []; // Always empty array for shield operations
+
+    // 🔍 VALIDATE NFT ARRAY CONSTRUCTION
+    console.log('[RailgunActions] === NFT ARRAY VALIDATION ===');
+    console.log('[RailgunActions] nftAmountRecipients array construction:', {
+      value: nftAmountRecipients,
+      isArray: Array.isArray(nftAmountRecipients),
+      length: nftAmountRecipients?.length,
+      type: typeof nftAmountRecipients,
+      constructor: nftAmountRecipients?.constructor?.name,
+      isEmpty: nftAmountRecipients.length === 0
+    });
+
+    if (!Array.isArray(nftAmountRecipients)) {
+      console.error('[RailgunActions] ❌ NFT array construction failed - not an array:', nftAmountRecipients);
+      throw new Error('Failed to create nftAmountRecipients array');
+    }
+
+    console.log('[RailgunActions] ✅ NFT array construction validated successfully');
+    console.log('[RailgunActions] === END NFT ARRAY VALIDATION ===');
 
     // ✅ GUARD AGAINST EMPTY FIELDS
     if (!erc20AmountRecipient.tokenAddress && tokenAddress !== null) {
@@ -319,8 +414,6 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
     if (!erc20AmountRecipient.recipientAddress) {
       throw new Error('Missing recipientAddress in recipient');
     }
-
-    const nftAmountRecipients = []; // Always empty array for shield operations
 
     // ✅ GET STORED RAILGUN FEES FOR THIS NETWORK
     const storedFees = railgunEngine.getFees(networkName);
@@ -425,6 +518,141 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
     // ✅ STEP 2: Gas Estimation (Official Pattern - following docs exactly)
     console.log('[RailgunActions] Step 2: Gas estimation with official pattern...');
     
+    // 🔍 COMPREHENSIVE PARAMETER VALIDATION AND LOGGING
+    console.log('[RailgunActions] === DEBUGGING pn.map ERROR ===');
+    
+    // Validate erc20AmountRecipients array
+    console.log('[RailgunActions] Validating erc20AmountRecipients:', {
+      value: erc20AmountRecipients,
+      isArray: Array.isArray(erc20AmountRecipients),
+      length: erc20AmountRecipients?.length,
+      type: typeof erc20AmountRecipients,
+      constructor: erc20AmountRecipients?.constructor?.name,
+      hasMapMethod: typeof erc20AmountRecipients?.map === 'function'
+    });
+
+    // Safety check for erc20AmountRecipients
+    if (!Array.isArray(erc20AmountRecipients)) {
+      console.error('[RailgunActions] ❌ erc20AmountRecipients must be an array:', erc20AmountRecipients);
+      throw new Error(`erc20AmountRecipients must be an array, got: ${typeof erc20AmountRecipients}`);
+    }
+
+    if (erc20AmountRecipients.length === 0) {
+      console.error('[RailgunActions] ❌ erc20AmountRecipients array is empty');
+      throw new Error('erc20AmountRecipients array cannot be empty');
+    }
+
+    // Validate nftAmountRecipients array  
+    console.log('[RailgunActions] Validating nftAmountRecipients:', {
+      value: nftAmountRecipients,
+      isArray: Array.isArray(nftAmountRecipients),
+      length: nftAmountRecipients?.length,
+      type: typeof nftAmountRecipients,
+      constructor: nftAmountRecipients?.constructor?.name,
+      hasMapMethod: typeof nftAmountRecipients?.map === 'function'
+    });
+
+    // Safety check for nftAmountRecipients
+    if (!Array.isArray(nftAmountRecipients)) {
+      console.error('[RailgunActions] ❌ nftAmountRecipients must be an array:', nftAmountRecipients);
+      throw new Error(`nftAmountRecipients must be an array, got: ${typeof nftAmountRecipients}`);
+    }
+
+    // Inspect each erc20AmountRecipient object structure
+    erc20AmountRecipients.forEach((recipient, index) => {
+      console.log(`[RailgunActions] erc20AmountRecipient[${index}]:`, {
+        tokenAddress: {
+          value: recipient?.tokenAddress,
+          type: typeof recipient?.tokenAddress,
+          isUndefined: recipient?.tokenAddress === undefined,
+          isNull: recipient?.tokenAddress === null
+        },
+        amount: {
+          value: recipient?.amount,
+          type: typeof recipient?.amount,
+          isString: typeof recipient?.amount === 'string'
+        },
+        recipientAddress: {
+          value: recipient?.recipientAddress ? `${recipient.recipientAddress.slice(0, 8)}...` : recipient?.recipientAddress,
+          type: typeof recipient?.recipientAddress,
+          length: recipient?.recipientAddress?.length,
+          startsWithRailgun: recipient?.recipientAddress?.startsWith?.('0zk')
+        },
+        objectStructure: {
+          hasTokenAddress: 'tokenAddress' in (recipient || {}),
+          hasAmount: 'amount' in (recipient || {}),
+          hasRecipientAddress: 'recipientAddress' in (recipient || {}),
+          keys: Object.keys(recipient || {})
+        }
+      });
+
+      // Validate each recipient object
+      if (!recipient || typeof recipient !== 'object') {
+        console.error(`[RailgunActions] ❌ erc20AmountRecipient[${index}] must be an object:`, recipient);
+        throw new Error(`erc20AmountRecipient[${index}] must be an object`);
+      }
+
+      if (!('tokenAddress' in recipient)) {
+        console.error(`[RailgunActions] ❌ erc20AmountRecipient[${index}] missing tokenAddress property`);
+        throw new Error(`erc20AmountRecipient[${index}] must have tokenAddress property`);
+      }
+
+      if (!('amount' in recipient)) {
+        console.error(`[RailgunActions] ❌ erc20AmountRecipient[${index}] missing amount property`);
+        throw new Error(`erc20AmountRecipient[${index}] must have amount property`);
+      }
+
+      if (!('recipientAddress' in recipient)) {
+        console.error(`[RailgunActions] ❌ erc20AmountRecipient[${index}] missing recipientAddress property`);
+        throw new Error(`erc20AmountRecipient[${index}] must have recipientAddress property`);
+      }
+    });
+
+    // Validate all other parameters
+    console.log('[RailgunActions] Validating all gasEstimateForShield parameters:', {
+      networkName: {
+        value: networkName,
+        type: typeof networkName,
+        isString: typeof networkName === 'string'
+      },
+      shieldPrivateKey: {
+        hasValue: !!shieldPrivateKey,
+        type: typeof shieldPrivateKey,
+        isString: typeof shieldPrivateKey === 'string',
+        length: shieldPrivateKey?.length
+      },
+      erc20AmountRecipients: {
+        isArray: Array.isArray(erc20AmountRecipients),
+        length: erc20AmountRecipients.length,
+        type: typeof erc20AmountRecipients
+      },
+      nftAmountRecipients: {
+        isArray: Array.isArray(nftAmountRecipients),
+        length: nftAmountRecipients.length,
+        type: typeof nftAmountRecipients
+      },
+      fromAddress: {
+        value: fromAddress ? `${fromAddress.slice(0, 8)}...` : fromAddress,
+        type: typeof fromAddress,
+        isString: typeof fromAddress === 'string',
+        length: fromAddress?.length
+      }
+    });
+
+    // Final safety checks before SDK call
+    if (typeof networkName !== 'string') {
+      throw new Error(`networkName must be a string, got: ${typeof networkName}`);
+    }
+    if (typeof shieldPrivateKey !== 'string') {
+      throw new Error(`shieldPrivateKey must be a string, got: ${typeof shieldPrivateKey}`);
+    }
+    if (typeof fromAddress !== 'string') {
+      throw new Error(`fromAddress must be a string, got: ${typeof fromAddress}`);
+    }
+
+    console.log('[RailgunActions] ✅ All parameters validated successfully');
+    console.log('[RailgunActions] === END DEBUGGING ===');
+
     console.log('[RailgunActions] Gas estimation parameters (official pattern):', {
       networkName,
       shieldPrivateKey: shieldPrivateKey ? 'PRESENT' : 'MISSING',
