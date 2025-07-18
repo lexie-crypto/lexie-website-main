@@ -219,8 +219,7 @@ const PrivacyActions = () => {
         amountInUnits,
         chainConfig,
         address, // From user's public address
-        railgunAddress, // To user's own Railgun address (this is correct)
-        address // Use user's own address for gas estimation (required parameter)
+        railgunAddress // To user's own Railgun address (this is correct)
       );
 
       console.log('[PrivacyActions] Shield completed:', shieldResult);
@@ -294,7 +293,6 @@ const PrivacyActions = () => {
       setIsProcessing(false);
     }
   }, [canUseRailgun, railgunWalletId, isFormValid, selectedToken, sendAmount, recipientAddress, memo, chainId, network, getEncryptionKey, addressValidation, address, railgunAddress, refreshAllBalances]);
-
 
 
   if (!isConnected || !canUseRailgun) {
@@ -590,3 +588,4 @@ const PrivacyActions = () => {
 };
 
 export default PrivacyActions; 
+
