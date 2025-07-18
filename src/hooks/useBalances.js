@@ -273,9 +273,12 @@ export function useBalances() {
           balanceUSD: calculateUSD(token.numericBalance, token.symbol)
         }));
 
-      setPublicBalances(publicWithUSD);
-      setPrivateBalances(privateWithUSD);
-      setLastUpdated(Date.now());
+              setPublicBalances(publicWithUSD);
+        setPrivateBalances(privateWithUSD);
+        setLastUpdated(Date.now());
+        
+        // Expose balances globally for balance checking
+        window.__LEXIE_BALANCES__ = publicWithUSD;
 
       console.log('[useBalances] Balances refreshed:', {
         public: publicBals.length,
