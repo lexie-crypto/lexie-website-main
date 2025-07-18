@@ -194,7 +194,7 @@ const WalletContextProvider = ({ children }) => {
       }
 
       // Create or load Railgun wallet with proper signature-based key derivation
-      const encryptionKey = address.toLowerCase();
+      const encryptionKey = address.toLowerCase().padEnd(64, '0').slice(0, 64);
       let mnemonic = localStorage.getItem(`railgun-mnemonic-${address}`);
       
       if (!mnemonic) {
