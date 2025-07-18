@@ -160,9 +160,14 @@ const WalletContextProvider = ({ children }) => {
         throw new Error('RAILGUN functions not available');
       }
 
-      // Initialize Railgun engine (like the working version)
+      // Initialize Railgun engine with proper database setup
+      console.log('🔧 Creating RAILGUN database...');
+      
+      // Import LevelJS for proper database setup
+      const LevelJS = (await import('level-js')).default;
+      const db = new LevelJS('railgun-db');
+      
       const walletSource = 'lexiewebsite';
-      const dbPath = undefined; // Uses IndexedDB in browser
       const shouldDebug = true; // Enable debugging for now
       const customArtifactGetter = undefined;
       const useNativeArtifacts = false;
@@ -171,7 +176,7 @@ const WalletContextProvider = ({ children }) => {
       console.log('🔧 Starting RAILGUN engine...');
       await railgunWallet.startRailgunEngine(
         walletSource,
-        dbPath,
+        db, // Use proper database instead of undefined
         shouldDebug,
         customArtifactGetter,
         useNativeArtifacts,
