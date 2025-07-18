@@ -33,7 +33,8 @@ import {
   loadProvider,
   getProver,
   setOnBalanceUpdateCallback,
-  setOnUTXOMerkletreeHistoryCallback,
+  setOnUTXOMerkletreeScanCallback,
+  setOnTXIDMerkletreeScanCallback,
   refreshRailgunBalances,
 } from '@railgun-community/wallet';
 import { 
@@ -81,7 +82,7 @@ const RPC_PROVIDERS = {
 
 /**
  * Add networks and RPC providers
- * Following Step 4 of the documentation
+ * Following the working implementation pattern
  */
 const setupNetworks = async () => {
   try {
@@ -92,15 +93,34 @@ const setupNetworks = async () => {
       try {
         console.log(`[RAILGUN] Loading provider for ${networkName}...`);
         
-        await loadProvider(
-          config.rpcUrl,
+        // Create provider config in the format expected by loadProvider
+        const providerConfig = {
+          chainId: config.chainId,
+          providers: [
+            {
+              provider: config.rpcUrl,
+              priority: 1,
+              weight: 2,
+            }
+          ],
+        };
+
+        console.log(`[RAILGUN] Provider config for ${networkName}:`, {
+          chainId: config.chainId,
+          primaryRPC: config.rpcUrl,
+        });
+
+        // Load provider with correct parameters: (providerConfig, networkName, pollingInterval)
+        const { feesSerialized } = await loadProvider(
+          providerConfig,
           networkName,
-          config.chainId
+          5 * 60 * 1000 // 5 minutes polling interval
         );
         
-        console.log(`[RAILGUN] Provider loaded for ${networkName}: ${config.rpcUrl}`);
+        console.log(`[RAILGUN] ✅ Provider loaded successfully for ${networkName}`);
+        console.log(`[RAILGUN] Fees for ${networkName}:`, feesSerialized);
       } catch (error) {
-        console.error(`[RAILGUN] Failed to load provider for ${networkName}:`, error);
+        console.error(`[RAILGUN] ❌ Failed to load provider for ${networkName}:`, error);
         // Continue with other networks even if one fails
       }
     }
@@ -131,18 +151,23 @@ const setupBalanceCallbacks = () => {
     }));
   });
 
-  // UTXO Merkletree history callback
-  setOnUTXOMerkletreeHistoryCallback((merkletreeUpdate) => {
-    console.log('[RAILGUN] Merkletree updated:', {
-      networkName: merkletreeUpdate.networkName,
-      treeNumber: merkletreeUpdate.treeNumber,
-      startPosition: merkletreeUpdate.startPosition,
-      endPosition: merkletreeUpdate.endPosition,
-    });
+  // UTXO Merkletree scan callback
+  setOnUTXOMerkletreeScanCallback((scanData) => {
+    console.log('[RAILGUN] UTXO Merkletree scan progress:', scanData);
     
     // Dispatch custom event for UI to listen to
-    window.dispatchEvent(new CustomEvent('railgun-merkletree-update', {
-      detail: merkletreeUpdate
+    window.dispatchEvent(new CustomEvent('railgun-utxo-scan', {
+      detail: scanData
+    }));
+  });
+
+  // TXID Merkletree scan callback  
+  setOnTXIDMerkletreeScanCallback((scanData) => {
+    console.log('[RAILGUN] TXID Merkletree scan progress:', scanData);
+    
+    // Dispatch custom event for UI to listen to
+    window.dispatchEvent(new CustomEvent('railgun-txid-scan', {
+      detail: scanData
     }));
   });
 
