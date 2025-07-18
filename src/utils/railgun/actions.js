@@ -858,20 +858,198 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
         }))
       });
       
-      // ✅ CRITICAL FIX: Remove extra parameters - gasEstimateForShield only needs 7 params, not 8!
-      // According to Railgun docs, fromAddress is NOT a parameter for gasEstimateForShield
-      gasEstimateResult = await gasEstimateForShield(
-        networkName,                          // 1. NetworkName (use enum value directly)
-        sanitizedShieldPrivateKey,            // 2. shieldPrivateKey (sanitized)
-        finalSafeErc20Recipients,             // 3. tokenAmountRecipients (with sanitized tokenAddress)
-        safeNftRecipients,                    // 4. nftAmountRecipients (empty [])
-        relayerFeeERC20AmountRecipient,       // 5. relayerFeeERC20AmountRecipient (undefined)
-        sendWithPublicWallet,                 // 6. sendWithPublicWallet (true)
-        overallBatchMinGasPrice               // 7. overallBatchMinGasPrice (undefined)
-      );
-      console.log('🔍 [RAILGUN:SUCCESS] gasEstimateForShield completed successfully with CORRECT parameters');
+      // 🔍 DEEP PARAMETER INSPECTION BEFORE SDK CALL
+      console.log('🚨 [CRITICAL DEBUG] DEEP PARAMETER INSPECTION:');
       
-      console.log('🎉 [RAILGUN:SUCCESS] Gas estimation successful (official pattern):', gasEstimateResult);
+      // 1. Network Name Deep Check
+      console.log('1️⃣ networkName DEEP CHECK:', {
+        value: networkName,
+        type: typeof networkName,
+        constructor: networkName?.constructor?.name,
+        isEnum: Object.values(NetworkName).includes(networkName),
+        stringValue: String(networkName),
+        hasToLowerCase: typeof networkName?.toLowerCase === 'function',
+        prototypeChain: Object.getPrototypeOf(networkName),
+        ownProperties: Object.getOwnPropertyNames(networkName || {}),
+        isExtensible: Object.isExtensible(networkName),
+        keys: Object.keys(networkName || {})
+      });
+      
+      // 2. Shield Private Key Deep Check
+      console.log('2️⃣ shieldPrivateKey DEEP CHECK:', {
+        valuePreview: sanitizedShieldPrivateKey?.substring(0, 10) + '...',
+        type: typeof sanitizedShieldPrivateKey,
+        constructor: sanitizedShieldPrivateKey?.constructor?.name,
+        length: sanitizedShieldPrivateKey?.length,
+        hasToLowerCase: typeof sanitizedShieldPrivateKey?.toLowerCase === 'function',
+        isHexString: sanitizedShieldPrivateKey?.startsWith('0x'),
+        charCodeAt0: sanitizedShieldPrivateKey?.charCodeAt(0),
+        isPrimitive: sanitizedShieldPrivateKey === sanitizedShieldPrivateKey?.valueOf()
+      });
+      
+      // 3. Recipients Array Deep Check
+      console.log('3️⃣ finalSafeErc20Recipients DEEP CHECK:');
+      console.log('  - Array itself:', {
+        isArray: Array.isArray(finalSafeErc20Recipients),
+        length: finalSafeErc20Recipients.length,
+        constructor: finalSafeErc20Recipients.constructor.name,
+        hasMap: typeof finalSafeErc20Recipients.map === 'function'
+      });
+      
+      finalSafeErc20Recipients.forEach((recipient, idx) => {
+        console.log(`  - Recipient[${idx}] FULL INSPECTION:`, {
+          fullObject: recipient,
+          keys: Object.keys(recipient),
+          tokenAddress: {
+            value: recipient.tokenAddress,
+            type: typeof recipient.tokenAddress,
+            constructor: recipient.tokenAddress?.constructor?.name,
+            hasToLowerCase: typeof recipient.tokenAddress?.toLowerCase === 'function',
+            isNull: recipient.tokenAddress === null,
+            isUndefined: recipient.tokenAddress === undefined,
+            stringValue: String(recipient.tokenAddress),
+            isPrimitive: recipient.tokenAddress === recipient.tokenAddress?.valueOf()
+          },
+          amount: {
+            value: recipient.amount,
+            type: typeof recipient.amount,
+            constructor: recipient.amount?.constructor?.name,
+            isPrimitive: recipient.amount === recipient.amount?.valueOf()
+          },
+          recipientAddress: {
+            value: recipient.recipientAddress,
+            type: typeof recipient.recipientAddress,
+            constructor: recipient.recipientAddress?.constructor?.name,
+            hasToLowerCase: typeof recipient.recipientAddress?.toLowerCase === 'function',
+            isPrimitive: recipient.recipientAddress === recipient.recipientAddress?.valueOf()
+          }
+        });
+      });
+      
+      // 4. NFT Recipients Deep Check
+      console.log('4️⃣ safeNftRecipients DEEP CHECK:', {
+        value: safeNftRecipients,
+        isArray: Array.isArray(safeNftRecipients),
+        length: safeNftRecipients.length,
+        constructor: safeNftRecipients.constructor.name
+      });
+      
+      // 5. Relayer Fee Recipient Deep Check
+      console.log('5️⃣ relayerFeeERC20AmountRecipient DEEP CHECK:', {
+        fullObject: relayerFeeERC20AmountRecipient,
+        isNull: relayerFeeERC20AmountRecipient === null,
+        isUndefined: relayerFeeERC20AmountRecipient === undefined,
+        type: typeof relayerFeeERC20AmountRecipient,
+        keys: Object.keys(relayerFeeERC20AmountRecipient || {}),
+        tokenAddress: {
+          value: relayerFeeERC20AmountRecipient?.tokenAddress,
+          type: typeof relayerFeeERC20AmountRecipient?.tokenAddress,
+          hasToLowerCase: typeof relayerFeeERC20AmountRecipient?.tokenAddress?.toLowerCase === 'function',
+          isPrimitive: relayerFeeERC20AmountRecipient?.tokenAddress === relayerFeeERC20AmountRecipient?.tokenAddress?.valueOf()
+        },
+        amount: {
+          value: relayerFeeERC20AmountRecipient?.amount,
+          type: typeof relayerFeeERC20AmountRecipient?.amount
+        },
+        recipientAddress: {
+          value: relayerFeeERC20AmountRecipient?.recipientAddress,
+          type: typeof relayerFeeERC20AmountRecipient?.recipientAddress,
+          hasToLowerCase: typeof relayerFeeERC20AmountRecipient?.recipientAddress?.toLowerCase === 'function'
+        }
+      });
+      
+      // 6. Other parameters
+      console.log('6️⃣ sendWithPublicWallet:', {
+        value: sendWithPublicWallet,
+        type: typeof sendWithPublicWallet
+      });
+      
+      console.log('7️⃣ overallBatchMinGasPrice:', {
+        value: overallBatchMinGasPrice,
+        type: typeof overallBatchMinGasPrice,
+        isNull: overallBatchMinGasPrice === null,
+        isUndefined: overallBatchMinGasPrice === undefined
+      });
+      
+            console.log('🚨 [CRITICAL] ABOUT TO CALL gasEstimateForShield WITH THESE EXACT PARAMETERS...');
+      
+      // 🔍 Log the exact parameter order we're sending
+      const gasEstimateParams = [
+        networkName,
+        sanitizedShieldPrivateKey,
+        finalSafeErc20Recipients,
+        safeNftRecipients,
+        relayerFeeERC20AmountRecipient,
+        sendWithPublicWallet,
+        overallBatchMinGasPrice
+      ];
+      
+      console.log('🚨 PARAMETER ARRAY BEING PASSED:', gasEstimateParams.map((param, idx) => ({
+        index: idx,
+        value: param,
+        type: typeof param,
+        isNull: param === null,
+        isUndefined: param === undefined
+      })));
+      
+      // 🔥 CRITICAL: Check for any Symbol or wrapped objects that might cause toLowerCase errors
+      console.log('🔥 CHECKING FOR PROBLEMATIC VALUES:');
+      
+      // Check NetworkName specifically
+      console.log('🔥 NetworkName value check:', {
+        raw: networkName,
+        stringified: JSON.stringify(networkName),
+        toString: networkName?.toString?.(),
+        valueOf: networkName?.valueOf?.(),
+        isSymbol: typeof networkName === 'symbol',
+        symbolDescription: typeof networkName === 'symbol' ? networkName.description : 'N/A',
+        directValue: NetworkName.Arbitrum,
+        allNetworkNames: Object.entries(NetworkName)
+      });
+      
+      // Check if any recipient has problematic values
+      finalSafeErc20Recipients.forEach((r, i) => {
+        if (r.tokenAddress && typeof r.tokenAddress === 'object') {
+          console.error(`🔥 CRITICAL: Recipient[${i}].tokenAddress is an OBJECT:`, {
+            tokenAddress: r.tokenAddress,
+            keys: Object.keys(r.tokenAddress),
+            stringified: JSON.stringify(r.tokenAddress),
+            constructor: r.tokenAddress.constructor.name
+          });
+        }
+      });
+      
+      // Check relayer fee recipient
+      if (relayerFeeERC20AmountRecipient && typeof relayerFeeERC20AmountRecipient.tokenAddress === 'object') {
+        console.error('🔥 CRITICAL: relayerFeeERC20AmountRecipient.tokenAddress is an OBJECT:', {
+          tokenAddress: relayerFeeERC20AmountRecipient.tokenAddress,
+          keys: Object.keys(relayerFeeERC20AmountRecipient.tokenAddress),
+          stringified: JSON.stringify(relayerFeeERC20AmountRecipient.tokenAddress)
+        });
+      }
+      
+      // Create a wrapper to catch the exact error location
+      try {
+        console.log('🔥 CALLING gasEstimateForShield NOW...');
+        
+        // ✅ CRITICAL FIX: Remove extra parameters - gasEstimateForShield only needs 7 params, not 8!
+        // According to Railgun docs, fromAddress is NOT a parameter for gasEstimateForShield
+        gasEstimateResult = await gasEstimateForShield(
+          networkName,                          // 1. NetworkName (use enum value directly)
+          sanitizedShieldPrivateKey,            // 2. shieldPrivateKey (sanitized)
+          finalSafeErc20Recipients,             // 3. tokenAmountRecipients (with sanitized tokenAddress)
+          safeNftRecipients,                    // 4. nftAmountRecipients (empty [])
+          relayerFeeERC20AmountRecipient,       // 5. relayerFeeERC20AmountRecipient (undefined)
+          sendWithPublicWallet,                 // 6. sendWithPublicWallet (true)
+          overallBatchMinGasPrice               // 7. overallBatchMinGasPrice (undefined)
+        );
+        console.log('🔍 [RAILGUN:SUCCESS] gasEstimateForShield completed successfully with CORRECT parameters');
+        
+        console.log('🎉 [RAILGUN:SUCCESS] Gas estimation successful (official pattern):', gasEstimateResult);
+      } catch (innerError) {
+        console.error('🔥 INNER TRY-CATCH ERROR:', innerError);
+        throw innerError;
+      }
     } catch (sdkError) {
       console.error('[RailgunActions] ===== COMPREHENSIVE ERROR ANALYSIS =====');
       console.error('[RailgunActions] 🚨 FULL ERROR OBJECT INSPECTION:');
