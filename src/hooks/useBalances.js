@@ -277,7 +277,7 @@ const useBalances = () => {
     }
   }, []);
 
-  // Refresh private balances with conditional retry logic
+  // Refresh private balances - NO RETRIES AT ALL
   const refreshPrivateBalances = useCallback(async (isPostTransaction = false) => {
     // Enhanced early return checks
     if (!canUseRailgun || !railgunWalletId || !chainId) {
@@ -286,61 +286,32 @@ const useBalances = () => {
       return;
     }
 
-    const maxRetries = isPostTransaction ? 3 : 1;
-    const logPrefix = isPostTransaction ? 'Post-transaction' : 'Regular';
-    
-    console.log(`[useBalances] Starting ${logPrefix.toLowerCase()} private balance refresh (max ${maxRetries} attempts)`);
+    console.log('[useBalances] Starting private balance refresh - SINGLE ATTEMPT ONLY');
     setIsLoadingPrivate(true);
     setBalanceErrors(prev => ({ ...prev, private: null }));
 
-    let lastError = null;
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        console.log(`[useBalances] ${logPrefix} private balance refresh - Attempt ${attempt}/${maxRetries}`);
-        
-        // Wait for Railgun engine to be ready
-        await waitForRailgunReady();
-        
-        // Get the chain config for Railgun
-        const chainConfig = getNetworkFromChainId(chainId);
+    try {
+      // Wait for Railgun engine to be ready
+      await waitForRailgunReady();
+      
+      // Get the chain config for Railgun
+      const chainConfig = getNetworkFromChainId(chainId);
 
-        if (!chainConfig) {
-          throw new Error(`Unsupported chain ID: ${chainId}`);
-        }
-
-        console.log(`[useBalances] Refreshing private balances for chain: ${chainConfig.type} (attempt ${attempt})`);
-        
-        await refreshBalances(chainConfig, [railgunWalletId]);
-        console.log(`[useBalances] ${logPrefix} private balance refresh completed successfully on attempt ${attempt}`);
-        
-        // Success - clear any previous errors and exit
-        lastError = null;
-        break;
-        
-      } catch (error) {
-        lastError = error;
-        console.error(`[useBalances] ${logPrefix} private balance refresh failed on attempt ${attempt}/${maxRetries}:`, error);
-        
-        if (attempt === maxRetries) {
-          // Final attempt failed
-          console.error(`[useBalances] All ${maxRetries} attempts failed for ${logPrefix.toLowerCase()} private balance refresh`);
-          setBalanceErrors(prev => ({ ...prev, private: error.message }));
-        } else if (isPostTransaction) {
-          // Wait before retrying (only for post-transaction retries)
-          const delay = 1000 * attempt; // Progressive delay: 1s, 2s, 3s
-          console.log(`[useBalances] Waiting ${delay}ms before retry ${attempt + 1}/${maxRetries}`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
+      if (!chainConfig) {
+        throw new Error(`Unsupported chain ID: ${chainId}`);
       }
-    }
 
-    setIsLoadingPrivate(false);
-    
-    if (lastError) {
-      console.log(`[useBalances] ${logPrefix} balance refresh finished with errors after ${maxRetries} attempts`);
-    } else {
-      console.log(`[useBalances] ${logPrefix} balance refresh finished successfully`);
+      console.log(`[useBalances] Refreshing private balances for chain: ${chainConfig.type}`);
+      
+      await refreshBalances(chainConfig, [railgunWalletId]);
+      console.log('[useBalances] Private balance refresh completed successfully');
+      
+    } catch (error) {
+      console.error('[useBalances] Private balance refresh failed - NO RETRIES:', error);
+      setBalanceErrors(prev => ({ ...prev, private: error.message }));
+    } finally {
+      setIsLoadingPrivate(false);
+      console.log('[useBalances] Balance refresh finished');
     }
   }, [canUseRailgun, railgunWalletId, chainId, getNetworkFromChainId]);
 
@@ -447,9 +418,9 @@ const useBalances = () => {
     await Promise.allSettled(promises);
   }, [isConnected, canUseRailgun, railgunWalletId, fetchPublicBalances, refreshPrivateBalances]);
 
-  // Post-transaction balance refresh with retries
+  // Post-transaction balance refresh - NO RETRIES
   const refreshBalancesAfterTransaction = useCallback(async () => {
-    console.log('[useBalances] Refreshing balances after successful transaction');
+    console.log('[useBalances] Refreshing balances after successful transaction - NO RETRIES');
     const promises = [];
     
     if (isConnected) {
@@ -457,7 +428,7 @@ const useBalances = () => {
     }
     
     if (canUseRailgun && railgunWalletId) {
-      promises.push(refreshPrivateBalances(true)); // Post-transaction refresh - up to 3 retries
+      promises.push(refreshPrivateBalances(false)); // NO RETRIES EVER
     }
     
     const results = await Promise.allSettled(promises);
