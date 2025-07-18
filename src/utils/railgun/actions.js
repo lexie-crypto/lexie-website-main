@@ -462,10 +462,13 @@ export async function shieldTokens(
     console.log('[DEBUG] About to call gasEstimateForShield');
     console.log('[DEBUG] RAILGUN state check:', {
       hasArtifactStore: !!ArtifactStore.artifactStore,
+      artifactStoreType: typeof ArtifactStore.artifactStore,
+      windowArtifactStore: !!window.__RAILGUN_ARTIFACT_STORE__,
       isRailgunReady: isRailgunReady(),
       networkName,
       tokenAddress: erc20AmountRecipients[0]?.tokenAddress,
       amount: erc20AmountRecipients[0]?.amount?.toString(),
+      artifactStoreStaticMethods: Object.getOwnPropertyNames(ArtifactStore),
     });
     
     // 🛑 FINAL VALIDATION: Ensure it's still an array

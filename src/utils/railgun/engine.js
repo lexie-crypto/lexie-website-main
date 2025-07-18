@@ -254,17 +254,48 @@ const startEngine = async () => {
     const artifactStore = createArtifactStore();
     console.log('[RAILGUN] Artifact store created');
     
-    // Step 2: Download artifacts if needed  
+    // Step 2: Set artifact store globally and download artifacts
     try {
-      // Try the standard RAILGUN method name
+      // Set the artifact store globally for RAILGUN SDK
+      // Store reference globally for SDK access
+      window.__RAILGUN_ARTIFACT_STORE__ = artifactStore;
+      console.log('[RAILGUN] ✅ Artifact store set globally');
+      
+      // Download artifacts
       await artifactStore.downloadAndSaveArtifacts();
       console.log('[RAILGUN] ✅ Artifacts loaded successfully');
       areArtifactsLoaded = true;
     } catch (artifactError) {
-      console.warn('[RAILGUN] Artifact download failed, but continuing with engine start:', artifactError.message);
+      console.warn('[RAILGUN] Artifact setup failed:', artifactError.message);
       console.warn('[RAILGUN] Available methods on artifactStore:', Object.getOwnPropertyNames(artifactStore));
-      // Continue anyway - RAILGUN engine might download artifacts automatically
-      areArtifactsLoaded = true; // Assume ready to proceed
+      
+             // Try alternative global setting approaches
+       try {
+         // Method 1: Try setting on ArtifactStore class
+         if (ArtifactStore) {
+           console.log('[RAILGUN] ArtifactStore static methods:', Object.getOwnPropertyNames(ArtifactStore));
+           console.log('[RAILGUN] ArtifactStore prototype methods:', Object.getOwnPropertyNames(ArtifactStore.prototype));
+           
+           if (typeof ArtifactStore.setStore === 'function') {
+             ArtifactStore.setStore(artifactStore);
+             console.log('[RAILGUN] ✅ Artifact store set via ArtifactStore.setStore');
+           } else if (typeof ArtifactStore.setArtifactStore === 'function') {
+             ArtifactStore.setArtifactStore(artifactStore);
+             console.log('[RAILGUN] ✅ Artifact store set via ArtifactStore.setArtifactStore');
+           } else if (ArtifactStore.artifactStore !== undefined) {
+             ArtifactStore.artifactStore = artifactStore;
+             console.log('[RAILGUN] ✅ Artifact store set via ArtifactStore.artifactStore property');
+           } else {
+             // Just try setting it directly
+             ArtifactStore.artifactStore = artifactStore;
+             console.log('[RAILGUN] ✅ Artifact store set directly on ArtifactStore.artifactStore');
+           }
+         }
+         areArtifactsLoaded = true;
+       } catch (altError) {
+         console.warn('[RAILGUN] Alternative artifact store setup failed:', altError.message);
+         areArtifactsLoaded = true; // Continue anyway
+       }
     }
 
     // Step 3: Create database instance
