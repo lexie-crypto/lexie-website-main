@@ -413,13 +413,17 @@ export async function shieldTokens(
       isArray: Array.isArray(erc20AmountRecipients),
       length: erc20AmountRecipients.length,
       firstItem: erc20AmountRecipients[0],
-      stringified: JSON.stringify(erc20AmountRecipients)
+      stringified: JSON.stringify(erc20AmountRecipients, (_, value) =>
+        typeof value === 'bigint' ? value.toString() : value
+      )
     });
     console.log('[RailgunActions] Parameter 4 (nftAmountRecipients):', {
       type: typeof nftAmountRecipients,
       isArray: Array.isArray(nftAmountRecipients), 
       length: nftAmountRecipients.length,
-      stringified: JSON.stringify(nftAmountRecipients)
+      stringified: JSON.stringify(nftAmountRecipients, (_, value) =>
+        typeof value === 'bigint' ? value.toString() : value
+      )
     });
     console.log('[RailgunActions] Parameter 5 (fromAddress):', typeof fromAddress, fromAddress);
 
@@ -489,13 +493,17 @@ export async function shieldTokens(
       isArray: Array.isArray(erc20AmountRecipients),
       length: erc20AmountRecipients.length,
       firstItem: erc20AmountRecipients[0],
-      stringified: JSON.stringify(erc20AmountRecipients)
+      stringified: JSON.stringify(erc20AmountRecipients, (_, value) =>
+        typeof value === 'bigint' ? value.toString() : value
+      )
     });
     console.log('[RailgunActions] Parameter 4 (nftAmountRecipients):', {
       type: typeof nftAmountRecipients,
       isArray: Array.isArray(nftAmountRecipients),
       length: nftAmountRecipients.length,
-      stringified: JSON.stringify(nftAmountRecipients)
+      stringified: JSON.stringify(nftAmountRecipients, (_, value) =>
+        typeof value === 'bigint' ? value.toString() : value
+      )
     });
     console.log('[RailgunActions] Parameter 5 (transactionGasDetails):', typeof transactionGasDetails, transactionGasDetails);
 
