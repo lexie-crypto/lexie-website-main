@@ -23,10 +23,32 @@ import {
   generateUnshieldProof,
   populateProvedUnshield,
 } from '@railgun-community/wallet';
-import { keccak256, Wallet } from 'ethers';
+import { keccak256, Wallet, isAddress } from 'ethers';
+import { waitForRailgunReady } from './engine.js';
 
 /**
- * Shield ERC-20 tokens
+ * Network mapping to Railgun NetworkName enum values
+ */
+const RAILGUN_NETWORK_NAMES = {
+  1: NetworkName.Ethereum,
+  42161: NetworkName.Arbitrum,
+  137: NetworkName.Polygon,
+  56: NetworkName.BNBChain,
+};
+
+/**
+ * Get Railgun network name for a chain ID
+ */
+function getRailgunNetworkName(chainId) {
+  const networkName = RAILGUN_NETWORK_NAMES[chainId];
+  if (!networkName) {
+    throw new Error(`Unsupported chain ID: ${chainId}`);
+  }
+  return networkName;
+}
+
+/**
+ * Shield ERC-20 tokens (CORE FUNCTION - EXACT FROM DOCS)
  * Following: https://docs.railgun.org/developer-guide/wallet/transactions/shielding/shield-erc-20-tokens
  */
 export async function shieldERC20(
@@ -103,7 +125,7 @@ export async function shieldERC20(
 }
 
 /**
- * Unshield ERC-20 tokens
+ * Unshield ERC-20 tokens (CORE FUNCTION - EXACT FROM DOCS)
  * Following: https://docs.railgun.org/developer-guide/wallet/transactions/unshielding/unshield-erc-20-tokens
  */
 export async function unshieldERC20(
@@ -212,4 +234,137 @@ export async function unshieldERC20(
     gasEstimate,
     transactionGasDetails,
   };
-} 
+}
+
+// ============================================
+// COMPATIBILITY LAYER FOR EXISTING COMPONENTS
+// ============================================
+
+/**
+ * Shield tokens - wrapper for compatibility with existing components
+ */
+export async function shieldTokens(
+  railgunWalletID,
+  encryptionKey,
+  tokenAddress,
+  amount,
+  chain,
+  fromAddress,
+  railgunAddress,
+  walletProvider
+) {
+  await waitForRailgunReady();
+  
+  const networkName = getRailgunNetworkName(chain.id);
+  
+  // Create ERC20 amount recipient
+  const erc20AmountRecipients = [{
+    tokenAddress: tokenAddress === null ? undefined : tokenAddress,
+    amount: BigInt(amount),
+    recipientAddress: railgunAddress,
+  }];
+  
+  // Generate private key from wallet provider
+  const message = getShieldPrivateKeySignatureMessage();
+  const signature = await walletProvider.request({
+    method: 'personal_sign',
+    params: [message, fromAddress],
+  });
+  const privateKeyHash = keccak256(signature);
+  
+  // Create a temporary wallet with the derived key for signing
+  // Note: This is a workaround since docs expect a Wallet instance
+  const tempWallet = new Wallet(privateKeyHash);
+  
+  return await shieldERC20(
+    networkName,
+    tempWallet.privateKey,
+    erc20AmountRecipients,
+    [], // nftAmountRecipients
+    fromAddress
+  );
+}
+
+/**
+ * Unshield tokens - wrapper for compatibility with existing components
+ */
+export async function unshieldTokens(
+  railgunWalletID,
+  encryptionKey,
+  tokenAddress,
+  amount,
+  chain,
+  toAddress
+) {
+  await waitForRailgunReady();
+  
+  const networkName = getRailgunNetworkName(chain.id);
+  
+  // Create ERC20 amount recipient
+  const erc20AmountRecipients = [{
+    tokenAddress: tokenAddress === null ? undefined : tokenAddress,
+    amount: BigInt(amount),
+    recipientAddress: toAddress,
+  }];
+  
+  const sendWithPublicWallet = true; // Always true for direct unshield
+  
+  const result = await unshieldERC20(
+    networkName,
+    railgunWalletID,
+    encryptionKey,
+    erc20AmountRecipients,
+    [], // nftAmountRecipients
+    sendWithPublicWallet,
+    null, // selectedRelayer
+    null, // selectedTokenFeeAddress
+    null  // progressCallback
+  );
+  
+  return {
+    transaction: result.populateResponse.transaction,
+    gasEstimate: result.gasEstimate,
+  };
+}
+
+/**
+ * Validate Railgun address format
+ */
+export function isValidRailgunAddress(address) {
+  if (!address || typeof address !== 'string') {
+    return false;
+  }
+  return address.startsWith('0zk') && address.length >= 100;
+}
+
+/**
+ * Check if a token is supported by Railgun
+ */
+export function isTokenSupportedByRailgun(tokenAddress, chainId) {
+  try {
+    const supportedChains = Object.keys(RAILGUN_NETWORK_NAMES).map(Number);
+    if (!supportedChains.includes(chainId)) {
+      return false;
+    }
+    
+    // Native tokens are always supported
+    if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000') {
+      return true;
+    }
+    
+    // ERC20 tokens need valid address format
+    return isAddress(tokenAddress);
+  } catch (error) {
+    return false;
+  }
+}
+
+/**
+ * Get supported network IDs
+ */
+export function getSupportedChainIds() {
+  return Object.keys(RAILGUN_NETWORK_NAMES).map(Number);
+}
+
+// Re-export utility functions from balances
+export { parseTokenAmount, formatTokenAmount } from './balances.js'; 
