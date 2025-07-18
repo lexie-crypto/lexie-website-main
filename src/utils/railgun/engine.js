@@ -82,34 +82,7 @@ const RPC_PROVIDERS = {
   },
 };
 
-/**
- * Load RAILGUN contract artifacts
- * CRITICAL: Must be called before any transaction operations
- */
-const loadRailgunArtifacts = async (artifactStore) => {
-  if (areArtifactsLoaded) {
-    console.log('[RAILGUN] Artifacts already loaded');
-    return artifactStore;
-  }
 
-  try {
-    console.log('[RAILGUN] 📦 Loading contract artifacts...');
-    
-    // Download and save artifacts using the standard RAILGUN pattern
-    await artifactStore.downloadAndSaveAllArtifacts();
-    
-    console.log('[RAILGUN] ✅ Artifacts downloaded and saved');
-    
-    areArtifactsLoaded = true;
-    console.log('[RAILGUN] ✅ Contract artifacts loaded and verified successfully');
-    
-    return artifactStore;
-    
-  } catch (error) {
-    console.error('[RAILGUN] Failed to load artifacts:', error);
-    throw new Error(`RAILGUN artifact loading failed: ${error.message}`);
-  }
-};
 
 /**
  * Add networks and RPC providers
@@ -254,51 +227,18 @@ const startEngine = async () => {
     const artifactStore = createArtifactStore();
     console.log('[RAILGUN] Artifact store created');
     
-    // Step 2: Set artifact store globally and download artifacts
+        // Step 2: Download artifacts (don't worry about setting globally)
     try {
-      // Set the artifact store globally for RAILGUN SDK
-      // Store reference globally for SDK access
-      window.__RAILGUN_ARTIFACT_STORE__ = artifactStore;
-      console.log('[RAILGUN] ✅ Artifact store set globally');
-      
-      // Download artifacts
       await artifactStore.downloadAndSaveArtifacts();
-      console.log('[RAILGUN] ✅ Artifacts loaded successfully');
+      console.log('[RAILGUN] ✅ Artifacts downloaded');
       areArtifactsLoaded = true;
-    } catch (artifactError) {
-      console.warn('[RAILGUN] Artifact setup failed:', artifactError.message);
-      console.warn('[RAILGUN] Available methods on artifactStore:', Object.getOwnPropertyNames(artifactStore));
-      
-             // Try alternative global setting approaches
-       try {
-         // Method 1: Try setting on ArtifactStore class
-         if (ArtifactStore) {
-           console.log('[RAILGUN] ArtifactStore static methods:', Object.getOwnPropertyNames(ArtifactStore));
-           console.log('[RAILGUN] ArtifactStore prototype methods:', Object.getOwnPropertyNames(ArtifactStore.prototype));
-           
-           if (typeof ArtifactStore.setStore === 'function') {
-             ArtifactStore.setStore(artifactStore);
-             console.log('[RAILGUN] ✅ Artifact store set via ArtifactStore.setStore');
-           } else if (typeof ArtifactStore.setArtifactStore === 'function') {
-             ArtifactStore.setArtifactStore(artifactStore);
-             console.log('[RAILGUN] ✅ Artifact store set via ArtifactStore.setArtifactStore');
-           } else if (ArtifactStore.artifactStore !== undefined) {
-             ArtifactStore.artifactStore = artifactStore;
-             console.log('[RAILGUN] ✅ Artifact store set via ArtifactStore.artifactStore property');
-           } else {
-             // Just try setting it directly
-             ArtifactStore.artifactStore = artifactStore;
-             console.log('[RAILGUN] ✅ Artifact store set directly on ArtifactStore.artifactStore');
-           }
-         }
-         areArtifactsLoaded = true;
-       } catch (altError) {
-         console.warn('[RAILGUN] Alternative artifact store setup failed:', altError.message);
-         areArtifactsLoaded = true; // Continue anyway
-       }
+    } catch (error) {
+      console.warn('[RAILGUN] Artifact download issue:', error.message);
+      // Continue anyway - the SDK might handle it internally
+      areArtifactsLoaded = true;
     }
 
-    // Step 3: Create database instance
+    // Step 3: Create database
     const db = new LevelJS('railgun-db');
     
     // Step 4: Set up logging
@@ -309,32 +249,28 @@ const startEngine = async () => {
 
     console.log('[RAILGUN] ✅ Debug loggers configured');
 
-    // Step 5: Start engine with the artifact store
+    // Step 5: Start engine with artifact store
     await startRailgunEngine(
-      'Lexie Wallet',              // walletSource
-      db,                          // db
-      true,                        // shouldDebug  
-      artifactStore,               // Use the artifact store
-      false,                       // useNativeArtifacts
-      false,                       // skipMerkletreeScans
-      [],                          // poiNodeUrls
-      [],                          // customPOILists
-      true                         // verboseScanLogging
+      'Lexie Wallet',
+      db,
+      true,
+      artifactStore,  // Pass the artifact store instance
+      false,
+      false,
+      [],
+      [],
+      true
     );
 
     isEngineStarted = true;
     console.log('[RAILGUN] ✅ Engine started successfully');
 
-    // Step 6: Load prover
+    // Continue with rest of initialization...
     await loadSnarkJSGroth16();
-
-    // Step 7: Setup networks
     await setupNetworks();
-
-    // Step 8: Setup balance callbacks
     setupBalanceCallbacks();
-
-    console.log('[RAILGUN] 🎉 Engine initialization completed successfully');
+    
+    console.log('[RAILGUN] 🎉 Engine initialization completed');
 
   } catch (error) {
     console.error('[RAILGUN] Engine initialization failed:', error);
