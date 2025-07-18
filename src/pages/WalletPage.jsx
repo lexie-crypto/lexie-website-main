@@ -272,7 +272,8 @@ const WalletPage = () => {
   const handleNetworkSwitch = async (targetChainId) => {
     try {
       await switchNetwork(targetChainId);
-      toast.success(`Switched to ${getCurrentNetwork()?.name}`);
+      const targetNetwork = supportedNetworks.find(net => net.id === targetChainId);
+      toast.success(`Switched to ${targetNetwork?.name || `Chain ${targetChainId}`}`);
     } catch (error) {
       toast.error(`Failed to switch network: ${error.message}`);
     }
