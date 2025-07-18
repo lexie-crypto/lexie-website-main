@@ -28,7 +28,7 @@ import {
 import { 
   isTokenSupportedByRailgun,
   getShieldableTokens,
-} from '../utils/web3/balances';
+} from '../utils/railgun/balances';
 import { checkSufficientBalance } from '../utils/web3/balances';
 import { deriveEncryptionKey } from '../utils/railgun/wallet';
 
@@ -236,14 +236,8 @@ const WalletPage = () => {
       // Get encryption key
       const key = await getEncryptionKey();
 
-      // Import shieldAllTokens function
-      // const { shieldAllTokens } = await import('../utils/railgun/actions');
-
-      // Execute shield all operation
-      toast.loading(`Shielding ${tokensToShield.length} tokens...`);
-      
-      // Temporarily disabled - shieldAllTokens function removed
-      toast.error('Shield All functionality temporarily disabled');
+      // Shield All functionality temporarily disabled
+      toast.error('Shield All functionality not available in current version');
       return;
       
       // const result = await shieldAllTokens(

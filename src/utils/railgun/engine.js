@@ -1,470 +1,302 @@
 /**
- * Railgun Engine Initialization and Management
- * Handles starting the Railgun engine, loading network providers, and ZK prover setup
+ * RAILGUN Engine Setup
+ * Following official docs: https://docs.railgun.org/developer-guide/wallet/getting-started
+ * 
+ * Implements:
+ * - Step 1: Start the RAILGUN Privacy Engine
+ * - Step 2: Build a persistent store for artifact downloads (uses artifactStore.js)
+ * - Step 3: Load a Groth16 prover for browser platform
+ * - Step 4: Add networks and RPC providers (Alchemy)
+ * - Step 5: Set up a debug logger
  */
-
-// ✅ OFFICIAL RAILGUN DEBUG LOGGER SETUP
-import debug from 'debug';
-// Enable all Railgun debug logs
-debug.enabled = function(name) { return name.startsWith('railgun:'); };
-debug.log = console.log.bind(console);
-
-// Enable Railgun debug logging
-if (typeof window !== 'undefined') {
-  // Browser environment
-  localStorage.debug = 'railgun:*';
-  console.log('[RailgunEngine] 🔍 ENABLED OFFICIAL RAILGUN DEBUG LOGGING (Browser)');
-} else {
-  // Node environment
-  process.env.DEBUG = 'railgun:*';
-  console.log('[RailgunEngine] 🔍 ENABLED OFFICIAL RAILGUN DEBUG LOGGING (Node)');
-}
 
 import { 
-  startRailgunEngine, 
-  loadProvider, 
-  getProver, 
+  startRailgunEngine,
   setLoggers,
+  loadProvider,
+  getProver,
   setOnBalanceUpdateCallback,
-  setOnUTXOMerkletreeScanCallback,
-  setOnTXIDMerkletreeScanCallback,
+  setOnUTXOMerkletreeHistoryCallback,
+  refreshRailgunBalances,
 } from '@railgun-community/wallet';
-import { NetworkName, NETWORK_CONFIG } from '@railgun-community/shared-models';
-import { groth16 } from 'snarkjs';
-import LevelJS from 'level-js';
-
+import { 
+  NetworkName,
+  NETWORK_CONFIG,
+  isDefined,
+} from '@railgun-community/shared-models';
 import { createArtifactStore } from './artifactStore.js';
-import { RAILGUN_CONFIG, POI_CONFIG, RPC_URLS } from '../../config/environment.js';
 
 // Engine state
-let isEngineInitialized = false;
+let isEngineStarted = false;
 let isProverLoaded = false;
-let loadedNetworks = new Set();
+let enginePromise = null;
 
-// ✅ ADD GLOBAL FEE STORAGE
-let networkFees = new Map(); // Store fees by network name
-
-// Callbacks for engine events
-let balanceUpdateCallback = null;
-let scanProgressCallbacks = new Set();
-
-// ✅ ADD FEE MANAGEMENT FUNCTIONS
 /**
- * Store fees for a network
- * @param {string} networkName - Network name (e.g., 'Arbitrum')
- * @param {object} feesSerialized - Fees data from loadProvider
+ * Alchemy RPC Configuration
+ * Using official Alchemy RPC endpoints
  */
-export const storeFees = (networkName, feesSerialized) => {
-  networkFees.set(networkName, feesSerialized);
-  console.log(`[Railgun] Stored fees for ${networkName}:`, feesSerialized);
+const ALCHEMY_API_KEY = import.meta.env.VITE_ALCHEMY_API_KEY || 'demo'; // Use demo key as fallback
+
+const RPC_PROVIDERS = {
+  [NetworkName.Ethereum]: {
+    chainId: 1,
+    rpcUrl: `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+  },
+  [NetworkName.Arbitrum]: {
+    chainId: 42161, 
+    rpcUrl: `https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+  },
+  [NetworkName.Polygon]: {
+    chainId: 137,
+    rpcUrl: `https://polygon-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+  },
+  [NetworkName.BNBChain]: {
+    chainId: 56,
+    rpcUrl: 'https://bsc-dataseed.binance.org/', // BSC public RPC
+  },
 };
 
 /**
- * Get fees for a network
- * @param {string} networkName - Network name
- * @returns {object|null} Fees data or null if not found
+ * Debug logger setup
+ * Following Step 5 of the documentation
  */
-export const getFees = (networkName) => {
-  return networkFees.get(networkName) || null;
+const setupLogger = () => {
+  const logger = {
+    log: (message, data) => {
+      console.log(`[RAILGUN] ${message}`, data || '');
+    },
+    warn: (message, data) => {
+      console.warn(`[RAILGUN WARNING] ${message}`, data || '');
+    },
+    error: (message, data) => {
+      console.error(`[RAILGUN ERROR] ${message}`, data || '');
+    },
+  };
+
+  setLoggers(logger, logger, logger); // Set for all log levels
+  console.log('[RAILGUN] Debug logger configured');
 };
 
 /**
- * Get all stored fees
- * @returns {Map} All network fees
+ * Load Groth16 Prover for browser platform
+ * Following Step 3 of the documentation
  */
-export const getAllFees = () => {
-  return new Map(networkFees);
+const loadProver = async () => {
+  if (isProverLoaded) {
+    console.log('[RAILGUN] Prover already loaded');
+    return;
+  }
+
+  try {
+    console.log('[RAILGUN] Loading Groth16 prover for browser...');
+    
+    // Load the browser prover
+    const prover = await getProver();
+    if (!prover) {
+      throw new Error('Failed to get prover instance');
+    }
+
+    console.log('[RAILGUN] Groth16 prover loaded successfully');
+    isProverLoaded = true;
+  } catch (error) {
+    console.error('[RAILGUN] Failed to load prover:', error);
+    throw new Error(`Prover loading failed: ${error.message}`);
+  }
 };
 
 /**
- * Wait for Railgun engine to be ready
- * Blocks all Railgun balance and transaction calls until engine is initialized
+ * Add networks and RPC providers
+ * Following Step 4 of the documentation
+ */
+const setupNetworks = async () => {
+  try {
+    console.log('[RAILGUN] Setting up networks and RPC providers...');
+
+    // Load providers for each supported network
+    for (const [networkName, config] of Object.entries(RPC_PROVIDERS)) {
+      try {
+        console.log(`[RAILGUN] Loading provider for ${networkName}...`);
+        
+        await loadProvider(
+          config.rpcUrl,
+          networkName,
+          config.chainId
+        );
+        
+        console.log(`[RAILGUN] Provider loaded for ${networkName}: ${config.rpcUrl}`);
+      } catch (error) {
+        console.error(`[RAILGUN] Failed to load provider for ${networkName}:`, error);
+        // Continue with other networks even if one fails
+      }
+    }
+
+    console.log('[RAILGUN] Network setup completed');
+  } catch (error) {
+    console.error('[RAILGUN] Network setup failed:', error);
+    throw error;
+  }
+};
+
+/**
+ * Setup balance update callbacks
+ * Following the private balances documentation
+ */
+const setupBalanceCallbacks = () => {
+  // Balance update callback
+  setOnBalanceUpdateCallback((balanceUpdate) => {
+    console.log('[RAILGUN] Balance updated:', {
+      networkName: balanceUpdate.networkName,
+      walletID: balanceUpdate.walletID?.slice(0, 8) + '...',
+      balances: balanceUpdate.balancesByTokenAddress,
+    });
+    
+    // Dispatch custom event for UI to listen to
+    window.dispatchEvent(new CustomEvent('railgun-balance-update', {
+      detail: balanceUpdate
+    }));
+  });
+
+  // UTXO Merkletree history callback
+  setOnUTXOMerkletreeHistoryCallback((merkletreeUpdate) => {
+    console.log('[RAILGUN] Merkletree updated:', {
+      networkName: merkletreeUpdate.networkName,
+      treeNumber: merkletreeUpdate.treeNumber,
+      startPosition: merkletreeUpdate.startPosition,
+      endPosition: merkletreeUpdate.endPosition,
+    });
+    
+    // Dispatch custom event for UI to listen to
+    window.dispatchEvent(new CustomEvent('railgun-merkletree-update', {
+      detail: merkletreeUpdate
+    }));
+  });
+
+  console.log('[RAILGUN] Balance callbacks configured');
+};
+
+/**
+ * Start RAILGUN Engine
+ * Following Step 1 of the documentation
+ */
+const startEngine = async () => {
+  if (isEngineStarted) {
+    console.log('[RAILGUN] Engine already started');
+    return;
+  }
+
+  try {
+    console.log('[RAILGUN] Starting RAILGUN Privacy Engine...');
+
+    // Step 2: Create artifact store
+    const artifactStore = createArtifactStore();
+    console.log('[RAILGUN] Artifact store created');
+
+    // Step 5: Setup debug logger
+    setupLogger();
+
+    // Step 1: Start the engine
+    const walletSource = 'Lexie Wallet'; // Identify our wallet implementation
+    const shouldDebug = process.env.NODE_ENV === 'development';
+    
+    await startRailgunEngine(
+      walletSource,
+      artifactStore,
+      shouldDebug,
+      undefined, // skipMerkletreeScans - let it scan normally
+      undefined  // poiNodeInterface - not using POI initially
+    );
+
+    isEngineStarted = true;
+    console.log('[RAILGUN] Privacy Engine started successfully');
+
+    // Step 3: Load prover
+    await loadProver();
+
+    // Step 4: Setup networks
+    await setupNetworks();
+
+    // Setup balance callbacks
+    setupBalanceCallbacks();
+
+    console.log('[RAILGUN] Engine initialization completed successfully');
+
+  } catch (error) {
+    console.error('[RAILGUN] Engine initialization failed:', error);
+    isEngineStarted = false;
+    throw new Error(`RAILGUN Engine failed to start: ${error.message}`);
+  }
+};
+
+/**
+ * Initialize RAILGUN Engine (main entry point)
+ * Returns a promise that resolves when engine is ready
+ */
+export const initializeRailgun = async () => {
+  if (enginePromise) {
+    return enginePromise;
+  }
+
+  enginePromise = startEngine();
+  return enginePromise;
+};
+
+/**
+ * Wait for RAILGUN to be ready
+ * Utility function for other modules
  */
 export const waitForRailgunReady = async () => {
-  // NO RETRIES - Single check only to stop infinite polling
-  if (!getEngineStatus().isInitialized) {
-    throw new Error("Railgun engine did not initialize");
+  if (!isEngineStarted) {
+    await initializeRailgun();
   }
+  
+  if (!isProverLoaded) {
+    throw new Error('RAILGUN prover not loaded');
+  }
+  
+  return true;
 };
 
 /**
- * Initialize the Railgun engine
- * This must be called before any Railgun operations
+ * Check if RAILGUN engine is ready
  */
-export const initializeRailgunEngine = async () => {
-  if (isEngineInitialized) {
-    console.log('[RailgunEngine] Engine already initialized');
-    return true;
-  }
+export const isRailgunReady = () => {
+  return isEngineStarted && isProverLoaded;
+};
 
+/**
+ * Refresh balances for a specific wallet and network
+ */
+export const refreshBalances = async (walletID, networkName) => {
   try {
-    console.log('[RailgunEngine] 🚀 Initializing Railgun engine with FULL DEBUG LOGGING...');
-
-    // Create database instance
-    const db = new LevelJS(RAILGUN_CONFIG.dbName);
-    
-    // Create artifact store
-    const artifactStore = createArtifactStore();
-
-    // ✅ ENHANCED DEBUG LOGGING SETUP
-    const railgunLogger = debug('railgun:engine');
-    const railgunErrorLogger = debug('railgun:error');
-    
-    // Set up comprehensive Railgun logging
-    setLoggers(
-      (message) => {
-        console.log(`🔍 [RAILGUN:LOG] ${message}`);
-        railgunLogger(message);
-      },
-      (error) => {
-        console.error(`🚨 [RAILGUN:ERROR] ${error}`);
-        railgunErrorLogger(error);
-      }
-    );
-
-    console.log('[RailgunEngine] ✅ Debug loggers configured - all Railgun internals will be logged');
-
-    // Start the engine with debug enabled
-    await startRailgunEngine(
-      RAILGUN_CONFIG.walletSourceName,      // walletSource
-      db,                                   // db
-      true,                                 // shouldDebug - FORCE DEBUG ON
-      artifactStore,                        // artifactStore
-      RAILGUN_CONFIG.useNativeArtifacts,    // useNativeArtifacts
-      RAILGUN_CONFIG.skipMerkletreeScans,   // skipMerkletreeScans
-      POI_CONFIG.aggregatorUrls,            // poiNodeUrls
-      POI_CONFIG.customPOILists,           // customPOILists
-      true                                  // verboseScanLogging - FORCE VERBOSE ON
-    );
-
-    isEngineInitialized = true;
-    console.log('[RailgunEngine] 🎉 Engine initialized successfully with FULL DEBUG LOGGING ACTIVE');
-
-    // Load ZK prover
-    await loadSnarkJSGroth16();
-
-    return true;
+    await waitForRailgunReady();
+    await refreshRailgunBalances(networkName, walletID);
+    console.log('[RAILGUN] Balances refreshed for:', { walletID: walletID?.slice(0, 8) + '...', networkName });
   } catch (error) {
-    console.error('[RailgunEngine] ❌ Failed to initialize engine:', error);
-    isEngineInitialized = false;
+    console.error('[RAILGUN] Failed to refresh balances:', error);
     throw error;
   }
 };
 
 /**
- * Load and register the snarkJS Groth16 prover
+ * Get supported network names
  */
-export const loadSnarkJSGroth16 = async () => {
-  if (isProverLoaded) {
-    console.log('[Railgun] Prover already loaded');
-    return;
-  }
-
-  try {
-    console.log('[Railgun] Loading snarkJS Groth16 prover...');
-    
-    // Register the Groth16 prover with Railgun
-    getProver().setSnarkJSGroth16(groth16);
-    
-    isProverLoaded = true;
-    console.log('[Railgun] snarkJS Groth16 prover loaded successfully');
-  } catch (error) {
-    console.error('[Railgun] Failed to load prover:', error);
-    throw error;
-  }
+export const getSupportedNetworks = () => {
+  return Object.keys(RPC_PROVIDERS);
 };
 
 /**
- * Load a network provider for Railgun
- * @param {string} networkName - Network name from NetworkName enum
- * @param {number} chainId - Chain ID
- * @param {string} rpcUrl - RPC URL for the network
- * @param {number} pollingInterval - Polling interval in milliseconds (default: 5 minutes)
+ * Get network configuration
  */
-export const loadNetworkProvider = async (networkName, chainId, rpcUrl, pollingInterval = 5 * 60 * 1000) => {
-  if (!isEngineInitialized) {
-    throw new Error('Railgun engine must be initialized before loading providers');
-  }
-
-  if (loadedNetworks.has(networkName)) {
-    console.log(`[Railgun] Provider for ${networkName} already loaded`);
-    return;
-  }
-
-  try {
-    console.log(`[Railgun] Loading provider for ${networkName} (Chain ID: ${chainId})`);
-    console.log(`[Railgun] RPC URL: ${rpcUrl}`);
-
-    // Check if RPC URL is valid
-    if (!rpcUrl || rpcUrl.includes('undefined') || rpcUrl.includes('demo')) {
-      console.warn(`[Railgun] Skipping ${networkName} - invalid or demo RPC URL: ${rpcUrl}`);
-      return { success: false, error: 'Invalid RPC URL' };
-    }
-
-    // Chain-specific Ankr fallback endpoints with API key
-    const fallbackMap = {
-      1: 'https://rpc.ankr.com/eth/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
-      137: 'https://rpc.ankr.com/polygon/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
-      42161: 'https://rpc.ankr.com/arbitrum/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
-      // Note: Optimism temporarily disabled until Railgun SDK adds full support
-      // 10: 'https://rpc.ankr.com/optimism/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
-      56: 'https://rpc.ankr.com/bsc/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
-    };
-
-    const ankrFallbackUrl = fallbackMap[chainId];
-    
-    if (!ankrFallbackUrl) {
-      console.warn(`[Railgun] No Ankr fallback available for chain ${chainId}`);
-      return { success: false, error: `Unsupported chain ID: ${chainId}` };
-    }
-
-    const providerConfig = {
-      chainId,
-      providers: [
-        {
-          provider: rpcUrl,
-          priority: 1,
-          weight: 2,
-        },
-        {
-          provider: ankrFallbackUrl,
-          priority: 2,
-          weight: 1,
-        },
-      ],
-    };
-
-    console.log(`[Railgun] Provider config for ${networkName}:`, {
-      chainId,
-      primaryRPC: rpcUrl,
-      fallbackRPC: ankrFallbackUrl,
-      providerCount: providerConfig.providers.length,
-    });
-
-    // Validate configuration before attempting to load
-    if (!providerConfig.chainId || !providerConfig.providers || providerConfig.providers.length === 0) {
-      console.error(`[Railgun] Invalid provider config for ${networkName}:`, providerConfig);
-      return { success: false, error: 'Invalid provider configuration' };
-    }
-
-    console.log(`[Railgun] Attempting to load provider for ${networkName}...`);
-    
-    const { feesSerialized } = await loadProvider(
-      providerConfig,
-      networkName,
-      pollingInterval
-    );
-
-    // ✅ STORE FEES FOR GLOBAL ACCESS
-    storeFees(networkName, feesSerialized);
-
-    loadedNetworks.add(networkName);
-    
-    console.log(`[Railgun] ✅ Provider loaded successfully for ${networkName}`);
-    console.log(`[Railgun] Fees for ${networkName}:`, feesSerialized);
-
-    return { success: true, feesSerialized };
-  } catch (error) {
-    console.error(`[Railgun] ❌ Failed to load provider for ${networkName}:`, error);
-    console.error(`[Railgun] Error details:`, {
-      networkName,
-      chainId,
-      error: error.message,
-      stack: error.stack,
-    });
-    return { success: false, error: error.message };
-  }
+export const getNetworkConfig = (networkName) => {
+  return RPC_PROVIDERS[networkName];
 };
 
-/**
- * Load all supported network providers
- */
-export const loadAllNetworkProviders = async () => {
-  const networkConfigs = [
-    { name: NetworkName.Ethereum, chainId: 1, rpcUrl: RPC_URLS.ethereum },
-    { name: NetworkName.Polygon, chainId: 137, rpcUrl: RPC_URLS.polygon },
-    { name: NetworkName.Arbitrum, chainId: 42161, rpcUrl: RPC_URLS.arbitrum },
-    // Note: Optimism temporarily disabled until Railgun SDK adds full support
-    // { name: NetworkName.Optimism, chainId: 10, rpcUrl: RPC_URLS.optimism },
-    { name: NetworkName.BNBChain, chainId: 56, rpcUrl: RPC_URLS.bsc },
-  ];
-
-  const results = [];
-  let successCount = 0;
-  let failureCount = 0;
-  
-  console.log(`[Railgun] Loading ${networkConfigs.length} network providers...`);
-  
-  for (const config of networkConfigs) {
-    try {
-      console.log(`[Railgun] Loading ${config.name}...`);
-      const result = await loadNetworkProvider(config.name, config.chainId, config.rpcUrl);
-      
-      if (result.success) {
-        successCount++;
-        console.log(`[Railgun] ✅ ${config.name} loaded successfully`);
-      } else {
-        failureCount++;
-        console.warn(`[Railgun] ⚠️ ${config.name} failed to load: ${result.error}`);
-      }
-      
-      results.push({ 
-        ...config, 
-        success: result.success, 
-        error: result.error,
-        result: result.success ? result : null 
-      });
-    } catch (error) {
-      failureCount++;
-      console.error(`[Railgun] ❌ ${config.name} failed with exception:`, error.message);
-      results.push({ 
-        ...config, 
-        success: false, 
-        error: error.message,
-        result: null 
-      });
-    }
-  }
-
-  console.log(`[Railgun] Network provider loading complete:`, {
-    total: networkConfigs.length,
-    successful: successCount,
-    failed: failureCount,
-    successRate: `${Math.round((successCount / networkConfigs.length) * 100)}%`
-  });
-
-  // Log detailed results
-  results.forEach(result => {
-    const status = result.success ? '✅' : '❌';
-    console.log(`[Railgun] ${status} ${result.name} (Chain ${result.chainId}): ${result.success ? 'SUCCESS' : result.error}`);
-  });
-
-  return results;
-};
-
-/**
- * Set up balance update callback
- * @param {Function} callback - Callback function to handle balance updates
- */
-export const setBalanceUpdateCallback = (callback) => {
-  balanceUpdateCallback = callback;
-  
-  // Wrap the callback with enhanced logging
-  const wrappedCallback = (balanceEvent) => {
-    console.log('[RAILGUN] Private balance callback triggered:', balanceEvent);
-    console.log('[RAILGUN] Balance event details:', {
-      railgunWalletID: balanceEvent.railgunWalletID,
-      balanceBucket: balanceEvent.balanceBucket,
-      chain: balanceEvent.chain,
-      tokenCount: balanceEvent.erc20Amounts?.length || 0,
-      tokens: balanceEvent.erc20Amounts?.map(token => ({ 
-        address: token.tokenAddress, 
-        amount: token.amount.toString() 
-      })) || [],
-    });
-    
-    // Call the original callback
-    if (callback) {
-      try {
-        callback(balanceEvent);
-        console.log('[RAILGUN] Balance callback executed successfully');
-      } catch (error) {
-        console.error('[RAILGUN] Error in balance callback:', error);
-      }
-    } else {
-      console.warn('[RAILGUN] No balance callback function provided');
-    }
-  };
-  
-  setOnBalanceUpdateCallback(wrappedCallback);
-  console.log('[Railgun] Balance update callback registered with enhanced logging');
-};
-
-/**
- * Set up scan progress callbacks
- * @param {Function} utxoCallback - Callback for UTXO scan progress
- * @param {Function} txidCallback - Callback for TXID scan progress
- */
-export const setScanProgressCallbacks = (utxoCallback, txidCallback) => {
-  if (utxoCallback) {
-    setOnUTXOMerkletreeScanCallback(utxoCallback);
-    scanProgressCallbacks.add(utxoCallback);
-    console.log('[Railgun] UTXO scan progress callback registered');
-  }
-  
-  if (txidCallback) {
-    setOnTXIDMerkletreeScanCallback(txidCallback);
-    scanProgressCallbacks.add(txidCallback);
-    console.log('[Railgun] TXID scan progress callback registered');
-  }
-};
-
-/**
- * Get engine status
- */
-export const getEngineStatus = () => {
-  return {
-    isInitialized: isEngineInitialized,
-    isProverLoaded,
-    loadedNetworks: Array.from(loadedNetworks),
-    hasBalanceCallback: !!balanceUpdateCallback,
-    scanCallbackCount: scanProgressCallbacks.size,
-  };
-};
-
-/**
- * Reset engine state (for testing or re-initialization)
- */
-export const resetEngineState = () => {
-  isEngineInitialized = false;
-  isProverLoaded = false;
-  loadedNetworks.clear();
-  balanceUpdateCallback = null;
-  scanProgressCallbacks.clear();
-  console.log('[Railgun] Engine state reset');
-};
-
-/**
- * Utility to check if a network is supported and loaded
- * @param {string} networkName - Network name to check
- */
-export const isNetworkLoaded = (networkName) => {
-  return loadedNetworks.has(networkName);
-};
-
-/**
- * Get network name from chain ID
- * @param {number} chainId - Chain ID
- * @returns {string|null} Network name or null if not supported
- */
-export const getNetworkNameFromChainId = (chainId) => {
-  switch (chainId) {
-    case 1: return NetworkName.Ethereum;
-    case 137: return NetworkName.Polygon;
-    case 42161: return NetworkName.Arbitrum;
-    // Note: Optimism temporarily disabled until Railgun SDK adds full support
-    // case 10: return NetworkName.Optimism;
-    case 56: return NetworkName.BNBChain;
-    case 11155111: return NetworkName.EthereumSepolia_DEPRECATED;
-    default: return null;
-  }
-};
-
+// Export for use in other modules
 export default {
-  initializeRailgunEngine,
-  loadSnarkJSGroth16,
-  loadNetworkProvider,
-  loadAllNetworkProviders,
-  setBalanceUpdateCallback,
-  setScanProgressCallbacks,
-  getEngineStatus,
-  resetEngineState,
-  isNetworkLoaded,
-  getNetworkNameFromChainId,
+  initializeRailgun,
   waitForRailgunReady,
-  
-  // ✅ FEE MANAGEMENT EXPORTS
-  storeFees,
-  getFees,
-  getAllFees,
+  isRailgunReady,
+  refreshBalances,
+  getSupportedNetworks,
+  getNetworkConfig,
 }; 

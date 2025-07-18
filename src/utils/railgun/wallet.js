@@ -1,69 +1,65 @@
 /**
- * Railgun Wallet Management
- * Handles creating, loading, and managing Railgun wallets with encryption
+ * RAILGUN Wallet Management
+ * Following official docs: https://docs.railgun.org/developer-guide/wallet/private-wallets/railgun-wallets
+ * 
+ * Implements:
+ * - RAILGUN wallet creation and management
+ * - Encryption key derivation
+ * - View-only wallet support
+ * - Wallet import/export
  */
 
-import { 
-  createRailgunWallet, 
-  loadWalletByID,
+import {
+  createRailgunWallet,
+  loadRailgunWalletByID,
+  unloadRailgunWallet,
+  RailgunWallet,
+  validateRailgunAddress,
   getWalletMnemonic,
   getWalletAddress,
-  setSelectedRailgunWallet,
+  generateRailgunWalletShareableViewingKey,
+  loadRailgunWalletViewOnly,
 } from '@railgun-community/wallet';
 import { NetworkName } from '@railgun-community/shared-models';
-import { ethers } from 'ethers';
+import { waitForRailgunReady } from './engine.js';
+
+// Wallet storage
+let activeWallets = new Map();
+let currentWalletID = null;
 
 /**
- * Derive encryption key from user password using PBKDF2
- * @param {string} password - User password
- * @param {string} salt - Salt for key derivation (defaults to user's address)
- * @returns {string} 32-byte hex string encryption key (without 0x prefix)
+ * Generate encryption key from user signature
+ * Following encryption key documentation
+ * @param {string} signature - User's signature for key derivation
+ * @param {string} address - User's address for additional entropy
+ * @returns {string} Derived encryption key
  */
-export const deriveEncryptionKey = async (password, salt = 'lexie-wallet-salt') => {
-  if (!password) {
-    throw new Error('Password is required for key derivation');
-  }
-
+export const deriveEncryptionKey = (signature, address) => {
   try {
-    // Use PBKDF2 with SHA-256 for key derivation
+    // Create deterministic key from signature and address
     const encoder = new TextEncoder();
-    const passwordBuffer = encoder.encode(password);
-    const saltBuffer = encoder.encode(salt);
-
-    // Import password as key material
-    const keyMaterial = await crypto.subtle.importKey(
+    const signatureBytes = encoder.encode(signature);
+    const addressBytes = encoder.encode(address.toLowerCase());
+    
+    // Combine signature and address for entropy
+    const combined = new Uint8Array(signatureBytes.length + addressBytes.length);
+    combined.set(signatureBytes, 0);
+    combined.set(addressBytes, signatureBytes.length);
+    
+    // Use crypto.subtle to derive key (browser environment)
+    return crypto.subtle.importKey(
       'raw',
-      passwordBuffer,
-      { name: 'PBKDF2' },
+      combined,
+      { name: 'HMAC', hash: 'SHA-256' },
       false,
-      ['deriveBits']
-    );
-
-    // Derive 32 bytes using PBKDF2
-    const derivedBits = await crypto.subtle.deriveBits(
-      {
-        name: 'PBKDF2',
-        salt: saltBuffer,
-        iterations: 100000, // 100k iterations for security
-        hash: 'SHA-256',
-      },
-      keyMaterial,
-      256 // 32 bytes * 8 bits
-    );
-
-    // Convert to hex string (without 0x prefix for Railgun SDK)
-    const keyArray = new Uint8Array(derivedBits);
-    const keyHex = Array.from(keyArray)
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
-
-    // Validate key length
-    if (keyHex.length !== 64) {
-      throw new Error(`Invalid encryption key length: expected 64 characters, got ${keyHex.length}`);
-    }
-
-    console.log('[RailgunWallet] Generated encryption key length:', keyHex.length, 'characters (✅ correct)');
-    return keyHex; // Return without 0x prefix - exactly 32 bytes as hex
+      ['sign']
+    ).then(key => {
+      return crypto.subtle.sign('HMAC', key, combined);
+    }).then(signature => {
+      // Convert to hex string
+      const hashArray = Array.from(new Uint8Array(signature));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    });
   } catch (error) {
     console.error('[RailgunWallet] Failed to derive encryption key:', error);
     throw new Error('Failed to derive encryption key');
@@ -71,443 +67,309 @@ export const deriveEncryptionKey = async (password, salt = 'lexie-wallet-salt') 
 };
 
 /**
- * Generate a new mnemonic for Railgun wallet
- * @returns {string} 12-word mnemonic phrase
+ * Create a new RAILGUN wallet
+ * @param {string} encryptionKey - Encryption key for wallet
+ * @param {string} mnemonic - Optional mnemonic (generates new one if not provided)
+ * @param {number} creationBlockNumber - Optional creation block number
+ * @returns {Object} Wallet creation result
  */
-export const generateMnemonic = () => {
+export const createWallet = async (encryptionKey, mnemonic = null, creationBlockNumber = null) => {
   try {
-    const wallet = ethers.Wallet.createRandom();
-    return wallet.mnemonic.phrase;
+    await waitForRailgunReady();
+    
+    console.log('[RailgunWallet] Creating new RAILGUN wallet...');
+    
+    const result = await createRailgunWallet(
+      encryptionKey,
+      mnemonic,
+      creationBlockNumber
+    );
+    
+    const walletID = result.id;
+    const railgunAddress = result.railgunAddress;
+    
+    // Store wallet info
+    activeWallets.set(walletID, {
+      id: walletID,
+      railgunAddress,
+      encryptionKey,
+      createdAt: Date.now(),
+      isViewOnly: false,
+    });
+    
+    currentWalletID = walletID;
+    
+    console.log('[RailgunWallet] Wallet created:', {
+      walletID: walletID.slice(0, 8) + '...',
+      railgunAddress: railgunAddress.slice(0, 10) + '...',
+    });
+    
+    return {
+      walletID,
+      railgunAddress,
+      mnemonic: result.mnemonic,
+    };
+    
   } catch (error) {
-    console.error('[RailgunWallet] Failed to generate mnemonic:', error);
-    throw new Error('Failed to generate mnemonic');
+    console.error('[RailgunWallet] Failed to create wallet:', error);
+    throw new Error(`Wallet creation failed: ${error.message}`);
   }
 };
 
 /**
- * Validate mnemonic phrase
- * @param {string} mnemonic - Mnemonic phrase to validate
+ * Load existing RAILGUN wallet by ID
+ * @param {string} walletID - Wallet ID to load
+ * @param {string} encryptionKey - Encryption key for wallet
+ * @returns {Object} Loaded wallet info
+ */
+export const loadWallet = async (walletID, encryptionKey) => {
+  try {
+    await waitForRailgunReady();
+    
+    console.log('[RailgunWallet] Loading wallet:', walletID.slice(0, 8) + '...');
+    
+    const railgunWallet = await loadRailgunWalletByID(
+      encryptionKey,
+      walletID,
+      false // isViewOnlyWallet
+    );
+    
+    const railgunAddress = railgunWallet.getAddress();
+    
+    // Store wallet info
+    activeWallets.set(walletID, {
+      id: walletID,
+      railgunAddress,
+      encryptionKey,
+      loadedAt: Date.now(),
+      isViewOnly: false,
+    });
+    
+    currentWalletID = walletID;
+    
+    console.log('[RailgunWallet] Wallet loaded:', {
+      walletID: walletID.slice(0, 8) + '...',
+      railgunAddress: railgunAddress.slice(0, 10) + '...',
+    });
+    
+    return {
+      walletID,
+      railgunAddress,
+    };
+    
+  } catch (error) {
+    console.error('[RailgunWallet] Failed to load wallet:', error);
+    throw new Error(`Wallet loading failed: ${error.message}`);
+  }
+};
+
+/**
+ * Load view-only wallet using shareable viewing key
+ * @param {string} shareableViewingKey - Shareable viewing key
+ * @param {number} creationBlockNumber - Block number when wallet was created
+ * @returns {Object} View-only wallet info
+ */
+export const loadViewOnlyWallet = async (shareableViewingKey, creationBlockNumber) => {
+  try {
+    await waitForRailgunReady();
+    
+    console.log('[RailgunWallet] Loading view-only wallet...');
+    
+    const result = await loadRailgunWalletViewOnly(
+      shareableViewingKey,
+      creationBlockNumber
+    );
+    
+    const walletID = result.id;
+    const railgunAddress = result.railgunAddress;
+    
+    // Store wallet info
+    activeWallets.set(walletID, {
+      id: walletID,
+      railgunAddress,
+      creationBlockNumber,
+      loadedAt: Date.now(),
+      isViewOnly: true,
+    });
+    
+    console.log('[RailgunWallet] View-only wallet loaded:', {
+      walletID: walletID.slice(0, 8) + '...',
+      railgunAddress: railgunAddress.slice(0, 10) + '...',
+    });
+    
+    return {
+      walletID,
+      railgunAddress,
+    };
+    
+  } catch (error) {
+    console.error('[RailgunWallet] Failed to load view-only wallet:', error);
+    throw new Error(`View-only wallet loading failed: ${error.message}`);
+  }
+};
+
+/**
+ * Generate shareable viewing key for a wallet
+ * @param {string} walletID - Wallet ID
+ * @returns {string} Shareable viewing key
+ */
+export const generateViewingKey = async (walletID) => {
+  try {
+    await waitForRailgunReady();
+    
+    const shareableViewingKey = await generateRailgunWalletShareableViewingKey(walletID);
+    
+    console.log('[RailgunWallet] Generated viewing key for wallet:', walletID.slice(0, 8) + '...');
+    
+    return shareableViewingKey;
+    
+  } catch (error) {
+    console.error('[RailgunWallet] Failed to generate viewing key:', error);
+    throw new Error(`Viewing key generation failed: ${error.message}`);
+  }
+};
+
+/**
+ * Unload a RAILGUN wallet from memory
+ * @param {string} walletID - Wallet ID to unload
+ */
+export const unloadWallet = async (walletID) => {
+  try {
+    await unloadRailgunWallet(walletID);
+    activeWallets.delete(walletID);
+    
+    if (currentWalletID === walletID) {
+      currentWalletID = null;
+    }
+    
+    console.log('[RailgunWallet] Wallet unloaded:', walletID.slice(0, 8) + '...');
+    
+  } catch (error) {
+    console.error('[RailgunWallet] Failed to unload wallet:', error);
+    throw new Error(`Wallet unloading failed: ${error.message}`);
+  }
+};
+
+/**
+ * Validate a RAILGUN address
+ * @param {string} railgunAddress - Address to validate
  * @returns {boolean} True if valid
  */
-export const validateMnemonic = (mnemonic) => {
+export const isValidRailgunAddress = (railgunAddress) => {
   try {
-    ethers.Mnemonic.fromPhrase(mnemonic);
-    return true;
-  } catch {
+    return validateRailgunAddress(railgunAddress);
+  } catch (error) {
+    console.error('[RailgunWallet] Address validation failed:', error);
     return false;
   }
 };
 
 /**
- * Create a new Railgun wallet
- * @param {string} encryptionKey - 32-byte hex encryption key
- * @param {string} mnemonic - 12 or 24 word mnemonic phrase
- * @param {Object} creationBlockNumbers - Optional block numbers for faster scanning
- * @returns {Object} Wallet info with ID and address
+ * Get current active wallet ID
+ * @returns {string|null} Current wallet ID
  */
-export const createNewRailgunWallet = async (encryptionKey, mnemonic, creationBlockNumbers = {}) => {
-  if (!encryptionKey || !mnemonic) {
-    throw new Error('Encryption key and mnemonic are required');
+export const getCurrentWalletID = () => {
+  return currentWalletID;
+};
+
+/**
+ * Get current active wallet info
+ * @returns {Object|null} Current wallet info
+ */
+export const getCurrentWallet = () => {
+  if (!currentWalletID) {
+    return null;
   }
+  return activeWallets.get(currentWalletID) || null;
+};
 
-  if (!validateMnemonic(mnemonic)) {
-    throw new Error('Invalid mnemonic phrase');
-  }
-
-  try {
-    console.log('[RailgunWallet] Creating new Railgun wallet...');
-
-    // Default creation block numbers for faster scanning (converted to strings)
-    const defaultBlockNumbers = {
-      [NetworkName.Ethereum]: '18000000', // Convert BigInt to string
-      [NetworkName.Polygon]: '50000000',
-      [NetworkName.Arbitrum]: '150000000',
-      [NetworkName.BNBChain]: '35000000',
-      // Note: Optimism temporarily disabled until Railgun SDK adds full support
-      // [NetworkName.Optimism]: '115000000',
-      ...creationBlockNumbers,
-    };
-
-    // Ensure all values in creationBlockNumbers are strings
-    const stringifiedBlockNumbers = {};
-    Object.keys(defaultBlockNumbers).forEach(key => {
-      const value = defaultBlockNumbers[key];
-      stringifiedBlockNumbers[key] = typeof value === 'bigint' ? value.toString() : value.toString();
-    });
-
-    console.log('[RailgunWallet] Creation block numbers:', stringifiedBlockNumbers);
-
-    const walletInfo = await createRailgunWallet(
-      encryptionKey,
-      mnemonic,
-      stringifiedBlockNumbers
-    );
-
-    console.log('[RailgunWallet] Railgun wallet created successfully:', {
-      id: walletInfo.id,
-      address: walletInfo.railgunAddress,
-    });
-
-    // Set as selected wallet after creation
-    try {
-      await setSelectedRailgunWallet(walletInfo.id);
-      console.log('[RailgunWallet] Wallet set as selected:', walletInfo.id);
-    } catch (error) {
-      console.warn('[RailgunWallet] Failed to set wallet as selected (non-critical):', error.message);
-    }
-
-    return {
-      id: walletInfo.id,
-      address: walletInfo.railgunAddress,
-      mnemonic, // Return for backup purposes
-    };
-  } catch (error) {
-    console.error('[RailgunWallet] Failed to create Railgun wallet:', error);
-    throw new Error(`Failed to create Railgun wallet: ${error.message}`);
+/**
+ * Set current active wallet
+ * @param {string} walletID - Wallet ID to set as current
+ */
+export const setCurrentWallet = (walletID) => {
+  if (activeWallets.has(walletID)) {
+    currentWalletID = walletID;
+    console.log('[RailgunWallet] Set current wallet:', walletID.slice(0, 8) + '...');
+  } else {
+    throw new Error(`Wallet not found: ${walletID}`);
   }
 };
 
 /**
- * Load existing Railgun wallet by ID
- * @param {string} encryptionKey - 32-byte hex encryption key
- * @param {string} walletId - Wallet ID to load
- * @returns {Object} Wallet info with ID and address
+ * Get all loaded wallets
+ * @returns {Array} Array of wallet info objects
  */
-export const loadExistingRailgunWallet = async (encryptionKey, walletId) => {
-  if (!encryptionKey || !walletId) {
-    throw new Error('Encryption key and wallet ID are required');
-  }
-
-  try {
-    console.log('[RailgunWallet] Loading existing Railgun wallet:', walletId);
-
-    const walletInfo = await loadWalletByID(encryptionKey, walletId);
-
-    console.log('[RailgunWallet] Railgun wallet loaded successfully:', {
-      id: walletInfo.id,
-      address: walletInfo.railgunAddress,
-    });
-
-    // Set as selected wallet after loading
-    try {
-      await setSelectedRailgunWallet(walletInfo.id);
-      console.log('[RailgunWallet] Wallet set as selected:', walletInfo.id);
-    } catch (error) {
-      console.warn('[RailgunWallet] Failed to set wallet as selected (non-critical):', error.message);
-    }
-
-    return {
-      id: walletInfo.id,
-      address: walletInfo.railgunAddress,
-    };
-  } catch (error) {
-    console.error('[RailgunWallet] Failed to load Railgun wallet:', error);
-    
-    // Provide more specific error messages
-    if (error.message.includes('decrypt')) {
-      throw new Error('Invalid password - could not decrypt wallet');
-    } else if (error.message.includes('not found')) {
-      throw new Error('Wallet not found - it may have been deleted');
-    } else {
-      throw new Error(`Failed to load Railgun wallet: ${error.message}`);
-    }
-  }
+export const getAllWallets = () => {
+  return Array.from(activeWallets.values());
 };
 
 /**
- * Get wallet mnemonic (for backup/export)
- * @param {string} encryptionKey - 32-byte hex encryption key
- * @param {string} walletId - Wallet ID
- * @returns {string} Mnemonic phrase
- */
-export const getWalletMnemonicPhrase = async (encryptionKey, walletId) => {
-  if (!encryptionKey || !walletId) {
-    throw new Error('Encryption key and wallet ID are required');
-  }
-
-  try {
-    const mnemonic = await getWalletMnemonic(encryptionKey, walletId);
-    return mnemonic;
-  } catch (error) {
-    console.error('[RailgunWallet] Failed to get wallet mnemonic:', error);
-    throw new Error('Failed to retrieve wallet mnemonic');
-  }
-};
-
-/**
- * Get Railgun address for wallet
- * @param {string} walletId - Wallet ID
- * @returns {string} Railgun address (0zk...)
- */
-export const getRailgunAddress = async (walletId) => {
-  if (!walletId) {
-    throw new Error('Wallet ID is required');
-  }
-
-  try {
-    const address = await getWalletAddress(walletId);
-    return address;
-  } catch (error) {
-    console.error('[RailgunWallet] Failed to get Railgun address:', error);
-    throw new Error('Failed to get Railgun address');
-  }
-};
-
-/**
- * Storage utilities for wallet persistence
- */
-
-// Local storage keys
-const STORAGE_KEYS = {
-  WALLET_ID: 'lexie_railgun_wallet_id',
-  WALLET_ADDRESS: 'lexie_railgun_wallet_address',
-  WALLET_CREATED: 'lexie_railgun_wallet_created',
-};
-
-/**
- * Save wallet info to local storage
- * @param {string} walletId - Wallet ID
- * @param {string} address - Railgun address
- */
-export const saveWalletToStorage = (walletId, address) => {
-  try {
-    localStorage.setItem(STORAGE_KEYS.WALLET_ID, walletId);
-    localStorage.setItem(STORAGE_KEYS.WALLET_ADDRESS, address);
-    localStorage.setItem(STORAGE_KEYS.WALLET_CREATED, Date.now().toString());
-    console.log('[RailgunWallet] Wallet info saved to storage');
-  } catch (error) {
-    console.error('[RailgunWallet] Failed to save wallet to storage:', error);
-  }
-};
-
-/**
- * Load wallet info from local storage
+ * Get wallet info by ID
+ * @param {string} walletID - Wallet ID
  * @returns {Object|null} Wallet info or null if not found
  */
-export const loadWalletFromStorage = () => {
+export const getWalletInfo = (walletID) => {
+  return activeWallets.get(walletID) || null;
+};
+
+/**
+ * Get wallet mnemonic (for backup)
+ * @param {string} walletID - Wallet ID
+ * @param {string} encryptionKey - Encryption key
+ * @returns {string} Wallet mnemonic
+ */
+export const getWalletBackup = async (walletID, encryptionKey) => {
   try {
-    const walletId = localStorage.getItem(STORAGE_KEYS.WALLET_ID);
-    const address = localStorage.getItem(STORAGE_KEYS.WALLET_ADDRESS);
-    const created = localStorage.getItem(STORAGE_KEYS.WALLET_CREATED);
-
-    if (walletId && address) {
-      return {
-        id: walletId,
-        address,
-        created: created ? parseInt(created) : null,
-      };
-    }
-
-    return null;
+    await waitForRailgunReady();
+    
+    const mnemonic = await getWalletMnemonic(walletID, encryptionKey);
+    
+    console.log('[RailgunWallet] Retrieved wallet backup for:', walletID.slice(0, 8) + '...');
+    
+    return mnemonic;
+    
   } catch (error) {
-    console.error('[RailgunWallet] Failed to load wallet from storage:', error);
-    return null;
+    console.error('[RailgunWallet] Failed to get wallet backup:', error);
+    throw new Error(`Wallet backup failed: ${error.message}`);
   }
 };
 
 /**
- * Clear wallet info from local storage
+ * Clear all wallets (logout)
  */
-export const clearWalletFromStorage = () => {
+export const clearAllWallets = async () => {
   try {
-    localStorage.removeItem(STORAGE_KEYS.WALLET_ID);
-    localStorage.removeItem(STORAGE_KEYS.WALLET_ADDRESS);
-    localStorage.removeItem(STORAGE_KEYS.WALLET_CREATED);
-    console.log('[RailgunWallet] Wallet info cleared from storage');
-  } catch (error) {
-    console.error('[RailgunWallet] Failed to clear wallet from storage:', error);
-  }
-};
-
-/**
- * Check if wallet exists in storage
- * @returns {boolean} True if wallet exists in storage
- */
-export const hasWalletInStorage = () => {
-  const walletInfo = loadWalletFromStorage();
-  return !!walletInfo;
-};
-
-/**
- * Wallet setup workflow helper
- * @param {string} password - User password
- * @param {string} mnemonic - Mnemonic phrase (optional, generates new if not provided)
- * @param {boolean} saveToStorage - Whether to save to local storage
- * @returns {Object} Complete wallet setup result
- */
-export const setupRailgunWallet = async (password, mnemonic = null, saveToStorage = true) => {
-  try {
-    // Generate mnemonic if not provided
-    const walletMnemonic = mnemonic || generateMnemonic();
-    
-    // Derive encryption key from password
-    const encryptionKey = await deriveEncryptionKey(password);
-    
-    // Create wallet
-    const walletInfo = await createNewRailgunWallet(encryptionKey, walletMnemonic);
-    
-    // Save to storage if requested
-    if (saveToStorage) {
-      saveWalletToStorage(walletInfo.id, walletInfo.address);
+    // Unload all wallets
+    for (const walletID of activeWallets.keys()) {
+      await unloadWallet(walletID);
     }
     
-    return {
-      ...walletInfo,
-      encryptionKey, // Return for immediate use (don't store this)
-    };
+    activeWallets.clear();
+    currentWalletID = null;
+    
+    console.log('[RailgunWallet] All wallets cleared');
+    
   } catch (error) {
-    console.error('[RailgunWallet] Failed to setup Railgun wallet:', error);
+    console.error('[RailgunWallet] Failed to clear wallets:', error);
     throw error;
   }
 };
 
-/**
- * Derive a Railgun wallet from external wallet connection
- * Uses the user's address as a deterministic seed for the Railgun wallet
- * @param {string} userAddress - External wallet address
- * @param {number} chainId - Current chain ID
- * @returns {Object} Wallet info with ID and address
- */
-export const deriveRailgunWalletFromAddress = async (userAddress, chainId) => {
-  if (!userAddress || !chainId) {
-    throw new Error('User address and chain ID are required');
-  }
-
-  try {
-    console.log('[RailgunWallet] Deriving Railgun wallet for address:', userAddress);
-
-    // Use user's address as deterministic salt for key derivation
-    const salt = `lexie-railgun-${userAddress.toLowerCase()}-${chainId}`;
-    
-    // Derive encryption key using the address as password (deterministic)
-    const encryptionKey = await deriveEncryptionKey(userAddress.toLowerCase(), salt);
-    
-    // Check if we already have a cached wallet for this address
-    const cachedWalletId = localStorage.getItem(`railgun-wallet-${userAddress.toLowerCase()}`);
-    
-    if (cachedWalletId) {
-      try {
-        console.log('[RailgunWallet] Loading cached wallet:', cachedWalletId);
-        const walletInfo = await loadExistingRailgunWallet(encryptionKey, cachedWalletId);
-        return {
-          walletID: walletInfo.id,
-          railgunAddress: walletInfo.address,
-          isNewWallet: false,
-        };
-      } catch (error) {
-        console.warn('[RailgunWallet] Failed to load cached wallet, creating new one:', error.message);
-        // Remove invalid cached wallet ID
-        localStorage.removeItem(`railgun-wallet-${userAddress.toLowerCase()}`);
-      }
-    }
-
-    // Generate deterministic mnemonic from user address
-    const deterministicMnemonic = generateDeterministicMnemonic(userAddress, chainId);
-    
-    // Create new Railgun wallet
-    const walletInfo = await createNewRailgunWallet(encryptionKey, deterministicMnemonic);
-    
-    // Cache the wallet ID
-    localStorage.setItem(`railgun-wallet-${userAddress.toLowerCase()}`, walletInfo.id);
-    
-    console.log('[RailgunWallet] Railgun wallet derived and cached successfully');
-    
-    return {
-      walletID: walletInfo.id,
-      railgunAddress: walletInfo.address,
-      isNewWallet: true,
-    };
-  } catch (error) {
-    console.error('[RailgunWallet] Failed to derive Railgun wallet:', error);
-    throw new Error(`Failed to derive Railgun wallet: ${error.message}`);
-  }
-};
-
-/**
- * Generate deterministic mnemonic from user address
- * This creates a consistent mnemonic for the same address across sessions
- * @param {string} userAddress - External wallet address
- * @param {number} chainId - Current chain ID
- * @returns {string} Deterministic mnemonic phrase
- */
-const generateDeterministicMnemonic = (userAddress, chainId) => {
-  try {
-    // Create deterministic seed from user address and chain
-    const seed = `${userAddress.toLowerCase()}-${chainId}-lexie-railgun`;
-    
-    // Create a hash of the seed to use as entropy
-    const hash = ethers.id(seed);
-    
-    // Convert hash to bytes for entropy (32 bytes = 256 bits)
-    const entropy = ethers.getBytes(hash);
-    
-    // Generate mnemonic from entropy
-    const mnemonic = ethers.Mnemonic.fromEntropy(entropy);
-    
-    return mnemonic.phrase;
-  } catch (error) {
-    console.error('[RailgunWallet] Failed to generate deterministic mnemonic:', error);
-    throw new Error('Failed to generate deterministic mnemonic');
-  }
-};
-
-/**
- * Load cached Railgun wallet on app startup
- * @param {string} userAddress - External wallet address
- * @returns {Object|null} Wallet info or null if not found
- */
-export const loadCachedRailgunWallet = async (userAddress) => {
-  if (!userAddress) return null;
-
-  try {
-    const cachedWalletId = localStorage.getItem(`railgun-wallet-${userAddress.toLowerCase()}`);
-    if (!cachedWalletId) return null;
-
-    console.log('[RailgunWallet] Loading cached wallet for address:', userAddress);
-    
-    // Derive the same encryption key
-    const salt = `lexie-railgun-${userAddress.toLowerCase()}`;
-    const encryptionKey = await deriveEncryptionKey(userAddress.toLowerCase(), salt);
-    
-    const walletInfo = await loadExistingRailgunWallet(encryptionKey, cachedWalletId);
-    
-    return {
-      walletID: walletInfo.id,
-      railgunAddress: walletInfo.address,
-    };
-  } catch (error) {
-    console.warn('[RailgunWallet] Failed to load cached wallet:', error.message);
-    // Clean up invalid cache
-    localStorage.removeItem(`railgun-wallet-${userAddress.toLowerCase()}`);
-    return null;
-  }
-};
-
-/**
- * Clear cached Railgun wallet
- * @param {string} userAddress - External wallet address
- */
-export const clearCachedRailgunWallet = (userAddress) => {
-  if (userAddress) {
-    localStorage.removeItem(`railgun-wallet-${userAddress.toLowerCase()}`);
-    console.log('[RailgunWallet] Cached wallet cleared for address:', userAddress);
-  }
-};
-
+// Export for use in other modules
 export default {
   deriveEncryptionKey,
-  generateMnemonic,
-  validateMnemonic,
-  createNewRailgunWallet,
-  loadExistingRailgunWallet,
-  getWalletMnemonicPhrase,
-  getRailgunAddress,
-  saveWalletToStorage,
-  loadWalletFromStorage,
-  clearWalletFromStorage,
-  hasWalletInStorage,
-  setupRailgunWallet,
-  deriveRailgunWalletFromAddress,
-  loadCachedRailgunWallet,
-  clearCachedRailgunWallet,
+  createWallet,
+  loadWallet,
+  loadViewOnlyWallet,
+  generateViewingKey,
+  unloadWallet,
+  isValidRailgunAddress,
+  getCurrentWalletID,
+  getCurrentWallet,
+  setCurrentWallet,
+  getAllWallets,
+  getWalletInfo,
+  getWalletBackup,
+  clearAllWallets,
 }; 
