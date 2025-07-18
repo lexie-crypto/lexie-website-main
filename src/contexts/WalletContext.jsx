@@ -106,6 +106,14 @@ const WalletContextProvider = ({ children }) => {
   const { disconnect } = useDisconnect();
   const { switchChain } = useSwitchChain();
 
+  // Get current wallet provider for signing operations
+  const getCurrentWalletProvider = () => {
+    if (typeof window !== 'undefined' && window.ethereum) {
+      return window.ethereum;
+    }
+    return null;
+  };
+
   const connectWallet = async (connectorType = 'metamask') => {
     try {
       console.log('Available connectors:', connectors.map(c => ({ id: c.id, name: c.name })));
@@ -347,11 +355,13 @@ const WalletContextProvider = ({ children }) => {
     },
     supportedNetworks: { 1: true, 137: true, 42161: true, 56: true },
     walletProviders: { METAMASK: 'metamask', WALLETCONNECT: 'walletconnect' },
+    walletProvider: getCurrentWalletProvider(), // Add current wallet provider
     isWalletAvailable: (type) => {
       if (type === 'metamask') return !!window.ethereum?.isMetaMask;
       if (type === 'walletconnect') return true; // WalletConnect is always available
       return false;
     },
+    getCurrentWalletProvider,
   };
 
   return (
