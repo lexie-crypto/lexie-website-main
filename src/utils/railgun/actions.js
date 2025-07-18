@@ -400,12 +400,36 @@ function createERC20AmountRecipient(tokenAddress, amount, recipientAddress) {
 export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress, amount, chain, fromAddress, railgunAddress) => {
   const callId = `shield-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   try {
+    // 🔍 CRITICAL: Extract string address from potential token objects BEFORE any processing
+    console.log(`[RailgunActions:${callId}] RAW tokenAddress input validation:`, {
+      tokenAddress,
+      type: typeof tokenAddress,
+      isObject: typeof tokenAddress === 'object' && tokenAddress !== null,
+      hasAddressProperty: tokenAddress?.address !== undefined,
+      constructor: tokenAddress?.constructor?.name
+    });
+
+    // ✅ EXTRACT ADDRESS STRING FROM TOKEN OBJECTS
+    let processedTokenAddress = tokenAddress;
+    if (tokenAddress && typeof tokenAddress === 'object' && tokenAddress !== null) {
+      if (tokenAddress.address) {
+        console.log(`[RailgunActions:${callId}] 🔧 EXTRACTING address from token object:`, {
+          original: tokenAddress,
+          extracted: tokenAddress.address
+        });
+        processedTokenAddress = tokenAddress.address;
+      } else {
+        console.error(`[RailgunActions:${callId}] ❌ Token object missing address property:`, tokenAddress);
+        throw new Error('Token object must have an address property');
+      }
+    }
+
     console.log(`[RailgunActions:${callId}] Starting OFFICIAL shield operation with parameters:`, {
       railgunWalletID: railgunWalletID ? `${railgunWalletID.slice(0, 8)}...` : 'MISSING',
       hasEncryptionKey: !!encryptionKey,
       encryptionKeyLength: encryptionKey ? encryptionKey.length : 0,
-      tokenAddress,
-      tokenType: tokenAddress === null ? 'NATIVE' : 'ERC20',
+      tokenAddress: processedTokenAddress,
+      tokenType: processedTokenAddress === null ? 'NATIVE' : 'ERC20',
       amount,
       chainId: chain?.id,
       fromAddress,
@@ -426,12 +450,12 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
     }
 
     // ✅ ENHANCED TOKEN ADDRESS VALIDATION (ETHERS.JS)
-    if (tokenAddress !== null && tokenAddress !== undefined) {
-      if (!isAddress(tokenAddress)) {
-        console.error(`[Shield] Invalid or missing tokenAddress: ${tokenAddress}`);
+    if (processedTokenAddress !== null && processedTokenAddress !== undefined) {
+      if (!isAddress(processedTokenAddress)) {
+        console.error(`[Shield] Invalid or missing processedTokenAddress: ${processedTokenAddress}`);
         throw new Error("Invalid token address passed to shielding flow");
       }
-      tokenAddress = validateAndFormatAddress(tokenAddress, 'tokenAddress');
+      processedTokenAddress = validateAndFormatAddress(processedTokenAddress, 'tokenAddress');
     }
 
     if (!amount || typeof amount !== 'string') {
@@ -466,7 +490,7 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
     });
 
     // ✅ CREATE RECIPIENT FOR SHIELDING (should always be user's own Railgun address)
-    const erc20AmountRecipient = createERC20AmountRecipient(tokenAddress, amount, railgunAddress);
+    const erc20AmountRecipient = createERC20AmountRecipient(processedTokenAddress, amount, railgunAddress);
     
     // ✅ DEFENSIVE CHECK AFTER RECIPIENT CREATION
     if (!erc20AmountRecipient || typeof erc20AmountRecipient !== 'object') {
@@ -901,12 +925,36 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
  */
 export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddress, amount, chain, toAddress) => {
   try {
+    // 🔍 CRITICAL: Extract string address from potential token objects BEFORE any processing
+    console.log('[RailgunActions] RAW tokenAddress input validation for unshield:', {
+      tokenAddress,
+      type: typeof tokenAddress,
+      isObject: typeof tokenAddress === 'object' && tokenAddress !== null,
+      hasAddressProperty: tokenAddress?.address !== undefined,
+      constructor: tokenAddress?.constructor?.name
+    });
+
+    // ✅ EXTRACT ADDRESS STRING FROM TOKEN OBJECTS
+    let processedTokenAddress = tokenAddress;
+    if (tokenAddress && typeof tokenAddress === 'object' && tokenAddress !== null) {
+      if (tokenAddress.address) {
+        console.log('[RailgunActions] 🔧 EXTRACTING address from token object for unshield:', {
+          original: tokenAddress,
+          extracted: tokenAddress.address
+        });
+        processedTokenAddress = tokenAddress.address;
+      } else {
+        console.error('[RailgunActions] ❌ Token object missing address property for unshield:', tokenAddress);
+        throw new Error('Token object must have an address property');
+      }
+    }
+
     console.log('[RailgunActions] Starting unshield operation with parameters:', {
       railgunWalletID: railgunWalletID ? `${railgunWalletID.slice(0, 8)}...` : 'MISSING',
       hasEncryptionKey: !!encryptionKey,
       encryptionKeyLength: encryptionKey ? encryptionKey.length : 0,
-      tokenAddress,
-      tokenType: tokenAddress === null ? 'NATIVE' : 'ERC20',
+      tokenAddress: processedTokenAddress,
+      tokenType: processedTokenAddress === null ? 'NATIVE' : 'ERC20',
       amount,
       chainId: chain?.id,
       toAddress,
@@ -925,12 +973,12 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
     }
 
     // ✅ ENHANCED TOKEN ADDRESS VALIDATION (ETHERS.JS)
-    if (tokenAddress !== null && tokenAddress !== undefined) {
-      if (!isAddress(tokenAddress)) {
-        console.error(`[Unshield] Invalid or missing tokenAddress: ${tokenAddress}`);
+    if (processedTokenAddress !== null && processedTokenAddress !== undefined) {
+      if (!isAddress(processedTokenAddress)) {
+        console.error(`[Unshield] Invalid or missing processedTokenAddress: ${processedTokenAddress}`);
         throw new Error("Invalid token address passed to unshielding flow");
       }
-      tokenAddress = validateAndFormatAddress(tokenAddress, 'tokenAddress');
+      processedTokenAddress = validateAndFormatAddress(processedTokenAddress, 'tokenAddress');
     }
 
     if (!amount || typeof amount !== 'string') {
@@ -948,7 +996,7 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
     console.log('[RailgunActions] Using Railgun network:', networkName);
 
     // ✅ CREATE RECIPIENT FOR USER
-    const erc20AmountRecipient = createERC20AmountRecipient(tokenAddress, amount, toAddress);
+    const erc20AmountRecipient = createERC20AmountRecipient(processedTokenAddress, amount, toAddress);
     
     // ✅ DEFENSIVE CHECK AFTER RECIPIENT CREATION
     if (!erc20AmountRecipient || typeof erc20AmountRecipient !== 'object') {
@@ -1077,8 +1125,32 @@ export const unshieldTokens = async (railgunWalletID, encryptionKey, tokenAddres
  */
 export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunAddress, tokenAddress, amount, chain, memo = '') => {
   try {
-    console.log('[RailgunActions] Transferring tokens privately:', {
+    // 🔍 CRITICAL: Extract string address from potential token objects BEFORE any processing
+    console.log('[RailgunActions] RAW tokenAddress input validation for transfer:', {
       tokenAddress,
+      type: typeof tokenAddress,
+      isObject: typeof tokenAddress === 'object' && tokenAddress !== null,
+      hasAddressProperty: tokenAddress?.address !== undefined,
+      constructor: tokenAddress?.constructor?.name
+    });
+
+    // ✅ EXTRACT ADDRESS STRING FROM TOKEN OBJECTS
+    let processedTokenAddress = tokenAddress;
+    if (tokenAddress && typeof tokenAddress === 'object' && tokenAddress !== null) {
+      if (tokenAddress.address) {
+        console.log('[RailgunActions] 🔧 EXTRACTING address from token object for transfer:', {
+          original: tokenAddress,
+          extracted: tokenAddress.address
+        });
+        processedTokenAddress = tokenAddress.address;
+      } else {
+        console.error('[RailgunActions] ❌ Token object missing address property for transfer:', tokenAddress);
+        throw new Error('Token object must have an address property');
+      }
+    }
+
+    console.log('[RailgunActions] Transferring tokens privately:', {
+      tokenAddress: processedTokenAddress,
       amount,
       chain: chain.type,
       to: toRailgunAddress,
@@ -1086,7 +1158,7 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
     });
 
     // Validate required parameters
-    if (!railgunWalletID || !encryptionKey || !toRailgunAddress || !tokenAddress || !amount || !chain) {
+    if (!railgunWalletID || !encryptionKey || !toRailgunAddress || !processedTokenAddress || !amount || !chain) {
       throw new Error('Missing required parameters for transfer operation');
     }
 
@@ -1097,7 +1169,7 @@ export const transferPrivate = async (railgunWalletID, encryptionKey, toRailgunA
 
     // Prepare ERC20 amount recipient for private transfer
     const erc20AmountRecipient = {
-      tokenAddress: (tokenAddress === null || tokenAddress === '0x0000000000000000000000000000000000000000') ? undefined : tokenAddress,
+      tokenAddress: (processedTokenAddress === null || processedTokenAddress === '0x0000000000000000000000000000000000000000') ? undefined : processedTokenAddress,
       amount: amount.toString(), // Ensure amount is string
       recipientAddress: toRailgunAddress,
     };
