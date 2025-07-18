@@ -22,8 +22,9 @@ import {
   getEVMGasTypeForTransaction,
   RailgunERC20AmountRecipient,
   TransactionGasDetails,
+  ArtifactStore,
 } from '@railgun-community/shared-models';
-import { waitForRailgunReady } from './engine.js';
+import { waitForRailgunReady, isRailgunReady } from './engine.js';
 import { parseTokenAmount, formatTokenAmount } from './balances.js';
 
 /**
@@ -458,6 +459,14 @@ export async function shieldTokens(
 
     // 🛑 CRITICAL DEBUG: Log array status right before SDK call
     console.log('[DEBUG] erc20AmountRecipients:', Array.isArray(erc20AmountRecipients), erc20AmountRecipients);
+    console.log('[DEBUG] About to call gasEstimateForShield');
+    console.log('[DEBUG] RAILGUN state check:', {
+      hasArtifactStore: !!ArtifactStore.artifactStore,
+      isRailgunReady: isRailgunReady(),
+      networkName,
+      tokenAddress: erc20AmountRecipients[0]?.tokenAddress,
+      amount: erc20AmountRecipients[0]?.amount?.toString(),
+    });
     
     // 🛑 FINAL VALIDATION: Ensure it's still an array
     if (!Array.isArray(erc20AmountRecipients)) {

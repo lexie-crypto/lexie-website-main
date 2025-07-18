@@ -36,11 +36,13 @@ import {
   setOnUTXOMerkletreeScanCallback,
   setOnTXIDMerkletreeScanCallback,
   refreshRailgunBalances,
+  loadNetwork,
 } from '@railgun-community/wallet';
 import { 
   NetworkName,
   NETWORK_CONFIG,
   isDefined,
+  ArtifactStore,
 } from '@railgun-community/shared-models';
 import { groth16 } from 'snarkjs';
 import LevelJS from 'level-js';
@@ -49,6 +51,7 @@ import { createArtifactStore } from './artifactStore.js';
 // Engine state
 let isEngineStarted = false;
 let isProverLoaded = false;
+let areArtifactsLoaded = false;
 let enginePromise = null;
 
 /**
@@ -79,56 +82,97 @@ const RPC_PROVIDERS = {
   },
 };
 
+/**
+ * Load RAILGUN contract artifacts
+ * CRITICAL: Must be called before any transaction operations
+ */
+const loadRailgunArtifacts = async (artifactStore) => {
+  if (areArtifactsLoaded) {
+    console.log('[RAILGUN] Artifacts already loaded');
+    return artifactStore;
+  }
 
-
-
+  try {
+    console.log('[RAILGUN] 📦 Loading contract artifacts...');
+    
+    // Set the artifact store as the global store
+    ArtifactStore.setArtifactStore(artifactStore);
+    
+    // Download artifacts
+    await artifactStore.downloadAndSaveArtifacts();
+    
+    // Verify artifacts were loaded
+    const hasArtifacts = await artifactStore.hasArtifacts();
+    if (!hasArtifacts) {
+      throw new Error('Artifacts download completed but no artifacts found');
+    }
+    
+    areArtifactsLoaded = true;
+    console.log('[RAILGUN] ✅ Contract artifacts loaded and verified successfully');
+    
+    return artifactStore;
+    
+  } catch (error) {
+    console.error('[RAILGUN] Failed to load artifacts:', error);
+    throw new Error(`RAILGUN artifact loading failed: ${error.message}`);
+  }
+};
 
 /**
  * Add networks and RPC providers
- * Following the working implementation pattern
+ * Following the proper initialization sequence: loadNetwork THEN loadProvider
  */
 const setupNetworks = async () => {
   try {
-    console.log('[RAILGUN] Setting up networks and RPC providers...');
+    console.log('[RAILGUN] Setting up networks...');
 
-    // Load providers for each supported network
     for (const [networkName, config] of Object.entries(RPC_PROVIDERS)) {
       try {
-        console.log(`[RAILGUN] Loading provider for ${networkName}...`);
+        console.log(`[RAILGUN] Setting up ${networkName}...`);
         
-        // Create provider config in the format expected by loadProvider
+        // Step 1: Load the network configuration FIRST
+        const networkConfig = NETWORK_CONFIG[networkName];
+        if (networkConfig) {
+          console.log(`[RAILGUN] Loading network config for ${networkName}...`);
+          await loadNetwork(
+            networkName,
+            networkConfig.proxyContract,
+            networkConfig.relayAdapt,
+            networkConfig.deploymentBlock,
+            config.rpcUrl // Pass the RPC URL directly
+          );
+          console.log(`[RAILGUN] ✅ Network ${networkName} configuration loaded`);
+        } else {
+          console.warn(`[RAILGUN] No network config found for ${networkName}`);
+          continue;
+        }
+        
+        // Step 2: Then load the provider
         const providerConfig = {
           chainId: config.chainId,
-          providers: [
-            {
-              provider: config.rpcUrl,
-              priority: 1,
-              weight: 2,
-            }
-          ],
+          providers: [{
+            provider: config.rpcUrl,
+            priority: 1,
+            weight: 2,
+          }]
         };
-
-        console.log(`[RAILGUN] Provider config for ${networkName}:`, {
-          chainId: config.chainId,
-          primaryRPC: config.rpcUrl,
-        });
-
-        // Load provider with correct parameters: (providerConfig, networkName, pollingInterval)
+        
         const { feesSerialized } = await loadProvider(
           providerConfig,
           networkName,
           5 * 60 * 1000 // 5 minutes polling interval
         );
         
-        console.log(`[RAILGUN] ✅ Provider loaded successfully for ${networkName}`);
+        console.log(`[RAILGUN] ✅ Provider loaded for ${networkName}`);
         console.log(`[RAILGUN] Fees for ${networkName}:`, feesSerialized);
+        
       } catch (error) {
-        console.error(`[RAILGUN] ❌ Failed to load provider for ${networkName}:`, error);
+        console.error(`[RAILGUN] ❌ Failed to setup ${networkName}:`, error);
         // Continue with other networks even if one fails
       }
     }
 
-    console.log('[RAILGUN] Network setup completed');
+    console.log('[RAILGUN] ✅ All networks setup completed');
   } catch (error) {
     console.error('[RAILGUN] Network setup failed:', error);
     throw error;
@@ -211,42 +255,32 @@ const startEngine = async () => {
   }
 
   try {
-    console.log('[RAILGUN] 🚀 Initializing Railgun engine with FULL DEBUG LOGGING...');
+    console.log('[RAILGUN] 🚀 Initializing Railgun engine...');
 
-    // Create database instance (KEY FIX!)
-    const db = new LevelJS('railgun-db');
-    
-    // Create artifact store
+    // Step 1: Create artifact store FIRST
     const artifactStore = createArtifactStore();
     console.log('[RAILGUN] Artifact store created');
-
-    // ✅ ENHANCED DEBUG LOGGING SETUP
-    const railgunLogger = debug('railgun:engine');
-    const railgunErrorLogger = debug('railgun:error');
     
-    // Set up comprehensive Railgun logging
+    // Step 2: Set it as the global artifact store and load artifacts
+    const verifiedArtifactStore = await loadRailgunArtifacts(artifactStore);
+
+    // Step 3: Create database instance
+    const db = new LevelJS('railgun-db');
+    
+    // Step 4: Set up logging
     setLoggers(
-      (message) => {
-        console.log(`🔍 [RAILGUN:LOG] ${message}`);
-        railgunLogger(message);
-      },
-      (error) => {
-        console.error(`🚨 [RAILGUN:ERROR] ${error}`);
-        railgunErrorLogger(error);
-      }
+      (message) => console.log(`🔍 [RAILGUN:LOG] ${message}`),
+      (error) => console.error(`🚨 [RAILGUN:ERROR] ${error}`)
     );
 
-    console.log('[RAILGUN] ✅ Debug loggers configured - all Railgun internals will be logged');
+    console.log('[RAILGUN] ✅ Debug loggers configured');
 
-    // Start the engine with correct parameter order - PRODUCTION READY
-    const walletSource = 'Lexie Wallet';
-    const shouldDebug = import.meta.env.DEV;
-    
+    // Step 5: Start engine with the SAME artifact store
     await startRailgunEngine(
-      walletSource,                 // walletSource
-      db,                          // db (THIS WAS MISSING!)
-      shouldDebug,                 // shouldDebug  
-      artifactStore,               // artifactStore
+      'Lexie Wallet',              // walletSource
+      db,                          // db
+      true,                        // shouldDebug  
+      verifiedArtifactStore,       // Use the same instance!
       false,                       // useNativeArtifacts
       false,                       // skipMerkletreeScans
       [],                          // poiNodeUrls
@@ -255,18 +289,18 @@ const startEngine = async () => {
     );
 
     isEngineStarted = true;
-    console.log('[RAILGUN] 🎉 Engine initialized successfully with FULL DEBUG LOGGING ACTIVE');
+    console.log('[RAILGUN] ✅ Engine started successfully');
 
-    // Step 3: Load prover
+    // Step 6: Load prover
     await loadSnarkJSGroth16();
 
-    // Step 4: Setup networks
+    // Step 7: Setup networks
     await setupNetworks();
 
-    // Setup balance callbacks
+    // Step 8: Setup balance callbacks
     setupBalanceCallbacks();
 
-    console.log('[RAILGUN] Engine initialization completed successfully');
+    console.log('[RAILGUN] 🎉 Engine initialization completed successfully');
 
   } catch (error) {
     console.error('[RAILGUN] Engine initialization failed:', error);
@@ -299,6 +333,10 @@ export const waitForRailgunReady = async () => {
     await initializeRailgun();
   }
   
+  if (!areArtifactsLoaded) {
+    throw new Error('RAILGUN contract artifacts not loaded');
+  }
+  
   if (!isProverLoaded) {
     throw new Error('RAILGUN prover not loaded');
   }
@@ -310,7 +348,7 @@ export const waitForRailgunReady = async () => {
  * Check if RAILGUN engine is ready
  */
 export const isRailgunReady = () => {
-  return isEngineStarted && isProverLoaded;
+  return isEngineStarted && isProverLoaded && areArtifactsLoaded;
 };
 
 /**
