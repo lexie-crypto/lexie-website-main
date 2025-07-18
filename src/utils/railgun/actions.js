@@ -99,6 +99,38 @@ function ensureSafeArraysForSDK(erc20Recipients, nftRecipients, memoArray = null
   const safeNftRecipients = Array.isArray(nftRecipients) ? nftRecipients : [];
   const safeMemoArray = memoArray ? (Array.isArray(memoArray) ? memoArray : []) : [];
   
+  // ✅ VALIDATE ARRAY CONTENTS - ensure objects are properly formed
+  safeErc20Recipients.forEach((recipient, index) => {
+    if (!recipient || typeof recipient !== 'object') {
+      console.error(`[RailgunActions] ❌ CRITICAL: erc20Recipients[${index}] is not an object:`, {
+        recipient,
+        type: typeof recipient,
+        index
+      });
+    } else {
+      // Validate required properties
+      if (!('tokenAddress' in recipient) || !('amount' in recipient) || !('recipientAddress' in recipient)) {
+        console.error(`[RailgunActions] ❌ CRITICAL: erc20Recipients[${index}] missing required properties:`, {
+          recipient,
+          hasTokenAddress: 'tokenAddress' in recipient,
+          hasAmount: 'amount' in recipient,
+          hasRecipientAddress: 'recipientAddress' in recipient,
+          keys: Object.keys(recipient)
+        });
+      }
+    }
+  });
+  
+  safeNftRecipients.forEach((recipient, index) => {
+    if (!recipient || typeof recipient !== 'object') {
+      console.error(`[RailgunActions] ❌ CRITICAL: nftRecipients[${index}] is not an object:`, {
+        recipient,
+        type: typeof recipient,
+        index
+      });
+    }
+  });
+  
   console.log('[RailgunActions] ✅ Array validation for SDK:', {
     erc20Recipients: {
       original: erc20Recipients,
@@ -106,7 +138,8 @@ function ensureSafeArraysForSDK(erc20Recipients, nftRecipients, memoArray = null
       isArray: Array.isArray(erc20Recipients),
       safe: safeErc20Recipients,
       length: safeErc20Recipients.length,
-      fixed: !Array.isArray(erc20Recipients)
+      fixed: !Array.isArray(erc20Recipients),
+      contentsValid: safeErc20Recipients.every(r => r && typeof r === 'object' && 'tokenAddress' in r && 'amount' in r && 'recipientAddress' in r)
     },
     nftRecipients: {
       original: nftRecipients,
@@ -114,7 +147,8 @@ function ensureSafeArraysForSDK(erc20Recipients, nftRecipients, memoArray = null
       isArray: Array.isArray(nftRecipients),
       safe: safeNftRecipients,
       length: safeNftRecipients.length,
-      fixed: !Array.isArray(nftRecipients)
+      fixed: !Array.isArray(nftRecipients),
+      contentsValid: safeNftRecipients.every(r => !r || (typeof r === 'object'))
     },
     ...(memoArray && {
       memoArray: {
@@ -295,8 +329,9 @@ function createERC20AmountRecipient(tokenAddress, amount, recipientAddress) {
  * @returns {Object} Transaction result
  */
 export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress, amount, chain, fromAddress, railgunAddress) => {
+  const callId = `shield-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   try {
-    console.log('[RailgunActions] Starting OFFICIAL shield operation with parameters:', {
+    console.log(`[RailgunActions:${callId}] Starting OFFICIAL shield operation with parameters:`, {
       railgunWalletID: railgunWalletID ? `${railgunWalletID.slice(0, 8)}...` : 'MISSING',
       hasEncryptionKey: !!encryptionKey,
       encryptionKeyLength: encryptionKey ? encryptionKey.length : 0,
@@ -306,6 +341,7 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       chainId: chain?.id,
       fromAddress,
       railgunAddress,
+      callId
     });
 
     // Wait for Railgun to be ready
@@ -431,6 +467,30 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
 
     let gasEstimateResult;
     try {
+      // ✅ CRITICAL: Log exact array contents before SDK call
+      console.log('[RailgunActions] ===== CRITICAL DEBUG: EXACT ARRAYS BEFORE SDK CALL =====');
+      console.log('[RailgunActions] safeErc20Recipients:', {
+        value: safeErc20Recipients,
+        type: typeof safeErc20Recipients,
+        isArray: Array.isArray(safeErc20Recipients),
+        length: safeErc20Recipients?.length,
+        constructor: safeErc20Recipients?.constructor?.name,
+        firstElement: safeErc20Recipients[0],
+        stringified: JSON.stringify(safeErc20Recipients)
+      });
+      
+      console.log('[RailgunActions] safeNftRecipients:', {
+        value: safeNftRecipients,
+        type: typeof safeNftRecipients,
+        isArray: Array.isArray(safeNftRecipients),
+        length: safeNftRecipients?.length,
+        constructor: safeNftRecipients?.constructor?.name,
+        stringified: JSON.stringify(safeNftRecipients)
+      });
+
+      console.log('[RailgunActions] Call Stack Trace:', new Error().stack);
+      console.log('[RailgunActions] ===== END CRITICAL DEBUG =====');
+
       // ✅ OFFICIAL PATTERN: destructure { gasEstimate } from gasEstimateForShield
       gasEstimateResult = await gasEstimateForShield(
         networkName,
@@ -441,11 +501,19 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
       );
       console.log('[RailgunActions] Gas estimation successful (official pattern):', gasEstimateResult);
     } catch (sdkError) {
-      console.error('[RailgunActions] Gas estimation failed (official pattern):', {
+      console.error('[RailgunActions] ===== GAS ESTIMATION ERROR DEBUG =====');
+      console.error('[RailgunActions] Error occurred with these exact parameters:');
+      console.error('[RailgunActions] - networkName:', networkName, typeof networkName);
+      console.error('[RailgunActions] - shieldPrivateKey:', shieldPrivateKey ? 'PRESENT' : 'MISSING', typeof shieldPrivateKey);
+      console.error('[RailgunActions] - safeErc20Recipients:', safeErc20Recipients, Array.isArray(safeErc20Recipients));
+      console.error('[RailgunActions] - safeNftRecipients:', safeNftRecipients, Array.isArray(safeNftRecipients));
+      console.error('[RailgunActions] - fromAddress:', fromAddress, typeof fromAddress);
+      console.error('[RailgunActions] Original error details:', {
         error: sdkError,
         message: sdkError.message,
         stack: sdkError.stack
       });
+      console.error('[RailgunActions] ===== END ERROR DEBUG =====');
       throw new Error(`Gas estimation failed: ${sdkError.message}`);
     }
 
