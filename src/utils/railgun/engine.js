@@ -223,19 +223,29 @@ const startEngine = async () => {
   try {
     console.log('[RAILGUN] 🚀 Initializing Railgun engine...');
 
-    // Step 1: Create artifact store
+        // Step 1: Create artifact store
     const artifactStore = createArtifactStore();
-    console.log('[RAILGUN] Artifact store created');
+    console.log('[RAILGUN] Artifact store created:', {
+      hasDownloadMethod: typeof artifactStore.downloadAndSaveArtifacts === 'function',
+      storeMethods: Object.getOwnPropertyNames(artifactStore.__proto__),
+    });
     
-        // Step 2: Download artifacts (don't worry about setting globally)
+    // Step 2: Download artifacts - MUST succeed for RAILGUN to work
     try {
+      console.log('[RAILGUN] 📦 Starting artifact download from S3...');
+      console.log('[RAILGUN] Expected URLs: https://railgun-downloads.s3.us-east-2.amazonaws.com/artifacts/');
+      
+      // Monitor Network tab for these requests
       await artifactStore.downloadAndSaveArtifacts();
-      console.log('[RAILGUN] ✅ Artifacts downloaded');
+      
+      console.log('[RAILGUN] ✅ Artifacts downloaded successfully');
       areArtifactsLoaded = true;
-    } catch (error) {
-      console.warn('[RAILGUN] Artifact download issue:', error.message);
-      // Continue anyway - the SDK might handle it internally
-      areArtifactsLoaded = true;
+    } catch (artifactError) {
+      console.error('[RAILGUN] ❌ Artifact download failed:', artifactError.message);
+      console.error('[RAILGUN] ❌ Stack trace:', artifactError.stack);
+      console.error('[RAILGUN] ❌ This will cause "mm.map is not a function" errors in gas estimation');
+      areArtifactsLoaded = false;
+      throw artifactError;
     }
 
     // Step 3: Create database

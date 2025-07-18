@@ -5,7 +5,7 @@
  * Browser implementation using localforage for persistent storage
  */
 
-import { ArtifactStore } from '@railgun-community/wallet';
+import { ArtifactStore } from '@railgun-community/shared-models';
 import localforage from 'localforage';
 
 /**
@@ -38,9 +38,9 @@ export const createArtifactStore = () => {
     try {
       const fullPath = `${dir}/${path}`;
       await railgunStorage.setItem(fullPath, item);
-      console.log('[ArtifactStore] Stored artifact:', fullPath);
+      console.log('[ArtifactStore] ✅ Stored artifact:', fullPath, 'Size:', item?.length || 'unknown');
     } catch (error) {
-      console.error('[ArtifactStore] Failed to store file:', path, error);
+      console.error('[ArtifactStore] ❌ Failed to store file:', path, error);
       throw error;
     }
   };
