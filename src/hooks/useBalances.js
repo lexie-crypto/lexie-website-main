@@ -114,7 +114,6 @@ export function useBalances() {
 
       const formattedBalance = formatUnits(balance, nativeToken.decimals);
       const numericBalance = parseFloat(formattedBalance);
-      const balanceUSD = calculateUSDValue(numericBalance, nativeToken.symbol);
 
       return {
         address: undefined, // Native token has no address
@@ -124,7 +123,6 @@ export function useBalances() {
         balance: balance.toString(),
         formattedBalance: formattedBalance,
         numericBalance: numericBalance,
-        balanceUSD: balanceUSD,
         hasBalance: numericBalance > 0,
         chainId: targetChainId,
       };
@@ -132,7 +130,7 @@ export function useBalances() {
       console.error('[useBalances] Failed to fetch native balance:', error);
       return null;
     }
-  }, [getProvider, calculateUSDValue]);
+  }, [getProvider]);
 
   // Fetch ERC20 token balance
   const fetchTokenBalance = useCallback(async (userAddress, tokenInfo, targetChainId) => {
@@ -149,7 +147,6 @@ export function useBalances() {
 
       const formattedBalance = formatUnits(balance, decimals);
       const numericBalance = parseFloat(formattedBalance);
-      const balanceUSD = calculateUSDValue(numericBalance, symbol);
 
       return {
         address: tokenInfo.address,
@@ -159,7 +156,6 @@ export function useBalances() {
         balance: balance.toString(),
         formattedBalance: formattedBalance,
         numericBalance: numericBalance,
-        balanceUSD: balanceUSD,
         hasBalance: numericBalance > 0,
         chainId: targetChainId,
       };
@@ -167,7 +163,7 @@ export function useBalances() {
       console.error(`[useBalances] Failed to fetch balance for ${tokenInfo.symbol}:`, error);
       return null;
     }
-  }, [getProvider, calculateUSDValue]);
+  }, [getProvider]);
 
   // Fetch all public balances
   const fetchPublicBalances = useCallback(async () => {
@@ -253,8 +249,19 @@ export function useBalances() {
         fetchPrivateBalances(),
       ]);
 
-      setPublicBalances(publicBals);
-      setPrivateBalances(privateBals);
+      // Add USD values to balances after fetching
+      const publicWithUSD = publicBals.map(token => ({
+        ...token,
+        balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
+      }));
+
+      const privateWithUSD = privateBals.map(token => ({
+        ...token,
+        balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
+      }));
+
+      setPublicBalances(publicWithUSD);
+      setPrivateBalances(privateWithUSD);
       setLastUpdated(Date.now());
 
       console.log('[useBalances] Balances refreshed:', {
@@ -269,7 +276,7 @@ export function useBalances() {
     } finally {
       setLoading(false);
     }
-  }, [address, chainId, fetchPublicBalances, fetchPrivateBalances, fetchAndCachePrices]);
+  }, [address, chainId, fetchPublicBalances, fetchPrivateBalances]);
 
   // Refresh balances after transactions
   const refreshBalancesAfterTransaction = useCallback(async () => {
