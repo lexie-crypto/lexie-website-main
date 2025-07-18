@@ -78,6 +78,30 @@ function getRailgunNetworkName(chainId) {
  * @returns {Object} Safe arrays for SDK calls
  */
 function ensureSafeArraysForSDK(erc20Recipients, nftRecipients, memoArray = null) {
+  console.log('🔍 [ensureSafeArraysForSDK] FUNCTION ENTRY - Input analysis:');
+  console.log('🔍 Input erc20Recipients:', {
+    value: erc20Recipients,
+    type: typeof erc20Recipients,
+    isArray: Array.isArray(erc20Recipients),
+    length: erc20Recipients?.length,
+    constructor: erc20Recipients?.constructor?.name,
+    hasMapFunction: erc20Recipients?.map !== undefined
+  });
+  console.log('🔍 Input nftRecipients:', {
+    value: nftRecipients,
+    type: typeof nftRecipients,
+    isArray: Array.isArray(nftRecipients),
+    length: nftRecipients?.length,
+    constructor: nftRecipients?.constructor?.name,
+    hasMapFunction: nftRecipients?.map !== undefined
+  });
+  console.log('🔍 Input memoArray:', {
+    value: memoArray,
+    type: typeof memoArray,
+    isArray: Array.isArray(memoArray),
+    isNull: memoArray === null
+  });
+
   // Check for problematic types that cause "pn.map is not a function"
   if (typeof erc20Recipients === 'number' || typeof erc20Recipients === 'string') {
     console.error('[RailgunActions] ❌ CRITICAL: erc20Recipients is not an array!', {
@@ -98,6 +122,28 @@ function ensureSafeArraysForSDK(erc20Recipients, nftRecipients, memoArray = null
   const safeErc20Recipients = Array.isArray(erc20Recipients) ? erc20Recipients : [];
   const safeNftRecipients = Array.isArray(nftRecipients) ? nftRecipients : [];
   const safeMemoArray = memoArray ? (Array.isArray(memoArray) ? memoArray : []) : [];
+  
+  console.log('🔍 [ensureSafeArraysForSDK] After conversion - Safe arrays created:');
+  console.log('🔍 safeErc20Recipients:', {
+    value: safeErc20Recipients,
+    type: typeof safeErc20Recipients,
+    isArray: Array.isArray(safeErc20Recipients),
+    length: safeErc20Recipients?.length,
+    constructor: safeErc20Recipients?.constructor?.name,
+    hasMapFunction: safeErc20Recipients?.map !== undefined,
+    mapType: typeof safeErc20Recipients?.map,
+    prototype: Object.getPrototypeOf(safeErc20Recipients)?.constructor?.name
+  });
+  console.log('🔍 safeNftRecipients:', {
+    value: safeNftRecipients,
+    type: typeof safeNftRecipients,
+    isArray: Array.isArray(safeNftRecipients),
+    length: safeNftRecipients?.length,
+    constructor: safeNftRecipients?.constructor?.name,
+    hasMapFunction: safeNftRecipients?.map !== undefined,
+    mapType: typeof safeNftRecipients?.map,
+    prototype: Object.getPrototypeOf(safeNftRecipients)?.constructor?.name
+  });
   
   // ✅ VALIDATE ARRAY CONTENTS - ensure objects are properly formed
   safeErc20Recipients.forEach((recipient, index) => {
@@ -162,11 +208,34 @@ function ensureSafeArraysForSDK(erc20Recipients, nftRecipients, memoArray = null
     })
   });
   
-  return {
+  console.log('🔍 [ensureSafeArraysForSDK] FUNCTION EXIT - Returning:');
+  console.log('🔍 Returning safeErc20Recipients:', {
+    value: safeErc20Recipients,
+    type: typeof safeErc20Recipients,
+    isArray: Array.isArray(safeErc20Recipients),
+    length: safeErc20Recipients?.length,
+    constructor: safeErc20Recipients?.constructor?.name,
+    hasMapFunction: safeErc20Recipients?.map !== undefined,
+    mapType: typeof safeErc20Recipients?.map
+  });
+  console.log('🔍 Returning safeNftRecipients:', {
+    value: safeNftRecipients,
+    type: typeof safeNftRecipients,
+    isArray: Array.isArray(safeNftRecipients),
+    length: safeNftRecipients?.length,
+    constructor: safeNftRecipients?.constructor?.name,
+    hasMapFunction: safeNftRecipients?.map !== undefined,
+    mapType: typeof safeNftRecipients?.map
+  });
+
+  const returnObject = {
     safeErc20Recipients,
     safeNftRecipients,
     safeMemoArray
   };
+  
+  console.log('🔍 Final return object:', returnObject);
+  return returnObject;
 }
 
 /**
@@ -408,13 +477,47 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
     const nftAmountRecipients = []; // Always empty array for shield operations
 
     // ✅ CRITICAL: Ensure arrays are safe for SDK calls
+    console.log('🔍 [SHIELD] BEFORE ensureSafeArraysForSDK - Input validation:');
+    console.log('🔍 erc20AmountRecipients:', {
+      value: erc20AmountRecipients,
+      type: typeof erc20AmountRecipients,
+      isArray: Array.isArray(erc20AmountRecipients),
+      length: erc20AmountRecipients?.length,
+      constructor: erc20AmountRecipients?.constructor?.name,
+      firstElement: erc20AmountRecipients?.[0]
+    });
+    console.log('🔍 nftAmountRecipients:', {
+      value: nftAmountRecipients,
+      type: typeof nftAmountRecipients,
+      isArray: Array.isArray(nftAmountRecipients),
+      length: nftAmountRecipients?.length,
+      constructor: nftAmountRecipients?.constructor?.name
+    });
+    
     const { safeErc20Recipients } = ensureSafeArraysForSDK(
       erc20AmountRecipients, 
       nftAmountRecipients
     );
     
+    console.log('🔍 [SHIELD] AFTER ensureSafeArraysForSDK - Result validation:');
+    console.log('🔍 safeErc20Recipients from function:', {
+      value: safeErc20Recipients,
+      type: typeof safeErc20Recipients,
+      isArray: Array.isArray(safeErc20Recipients),
+      length: safeErc20Recipients?.length,
+      constructor: safeErc20Recipients?.constructor?.name,
+      hasMapFunction: safeErc20Recipients?.map !== undefined,
+      mapType: typeof safeErc20Recipients?.map,
+      prototype: Object.getPrototypeOf(safeErc20Recipients)?.constructor?.name,
+      stringified: JSON.stringify(safeErc20Recipients)
+    });
+    
     // 🔧 TEMPORARY: Force NFT recipients to empty array to isolate .map() errors
     const safeNftRecipients = [];
+    
+    console.log('🔍 [SHIELD] Final arrays before SDK call:');
+    console.log('🔍 safeErc20Recipients final:', safeErc20Recipients);
+    console.log('🔍 safeNftRecipients final:', safeNftRecipients);
 
     console.log('[RailgunActions] Created properly structured parameters:', {
       networkName,
@@ -506,15 +609,57 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
         fromAddress            // string: EOA address
       ];
       
-      console.log('🔍 [RAILGUN:PARAMS] SDK Parameters:', sdkParams.map((param, i) => ({
-        index: i,
-        value: param,
-        type: typeof param,
-        isArray: Array.isArray(param),
-        length: Array.isArray(param) ? param.length : 'N/A'
-      })));
+      console.log('🔍 [RAILGUN:PARAMS] SDK Parameters FULL DETAILED ANALYSIS:');
+      sdkParams.forEach((param, i) => {
+        console.log(`🔍 [RAILGUN:PARAM${i}]`, {
+          index: i,
+          value: param,
+          type: typeof param,
+          constructor: param?.constructor?.name,
+          isArray: Array.isArray(param),
+          length: Array.isArray(param) ? param.length : 'N/A',
+          isNull: param === null,
+          isUndefined: param === undefined,
+          stringified: JSON.stringify(param),
+          // Deep inspection for arrays
+          ...(Array.isArray(param) && {
+            arrayContents: param.map((item, idx) => ({
+              index: idx,
+              value: item,
+              type: typeof item,
+              constructor: item?.constructor?.name,
+              keys: typeof item === 'object' && item !== null ? Object.keys(item) : 'N/A'
+            }))
+          })
+        });
+      });
+
+      // Additional validation right before SDK call
+      console.log('🔍 [RAILGUN:VALIDATION] Final parameter validation before SDK call:');
+      console.log('🔍 networkName:', { value: networkName, type: typeof networkName, valid: typeof networkName === 'string' });
+      console.log('🔍 shieldPrivateKey:', { present: !!shieldPrivateKey, type: typeof shieldPrivateKey, valid: typeof shieldPrivateKey === 'string' });
+      console.log('🔍 safeErc20Recipients:', { 
+        value: safeErc20Recipients, 
+        type: typeof safeErc20Recipients,
+        isArray: Array.isArray(safeErc20Recipients),
+        length: safeErc20Recipients?.length,
+        hasMapFunction: safeErc20Recipients?.map !== undefined,
+        mapType: typeof safeErc20Recipients?.map,
+        valid: Array.isArray(safeErc20Recipients) && typeof safeErc20Recipients.map === 'function'
+      });
+      console.log('🔍 safeNftRecipients:', { 
+        value: safeNftRecipients, 
+        type: typeof safeNftRecipients,
+        isArray: Array.isArray(safeNftRecipients),
+        length: safeNftRecipients?.length,
+        hasMapFunction: safeNftRecipients?.map !== undefined,
+        mapType: typeof safeNftRecipients?.map,
+        valid: Array.isArray(safeNftRecipients) && typeof safeNftRecipients.map === 'function'
+      });
+      console.log('🔍 fromAddress:', { value: fromAddress, type: typeof fromAddress, valid: typeof fromAddress === 'string' });
 
       // ✅ OFFICIAL PATTERN: destructure { gasEstimate } from gasEstimateForShield
+      console.log('🔍 [RAILGUN:CALLING] gasEstimateForShield NOW...');
       gasEstimateResult = await gasEstimateForShield(
         networkName,
         shieldPrivateKey,
@@ -522,39 +667,109 @@ export const shieldTokens = async (railgunWalletID, encryptionKey, tokenAddress,
         safeNftRecipients,
         fromAddress
       );
+      console.log('🔍 [RAILGUN:SUCCESS] gasEstimateForShield completed successfully');
       
       console.log('🎉 [RAILGUN:SUCCESS] Gas estimation successful (official pattern):', gasEstimateResult);
     } catch (sdkError) {
-      console.error('[RailgunActions] ===== GAS ESTIMATION ERROR DEBUG =====');
-      console.error('[RailgunActions] Error occurred with these exact parameters:');
-      console.error('[RailgunActions] - networkName:', networkName, typeof networkName);
-      console.error('[RailgunActions] - shieldPrivateKey:', shieldPrivateKey ? 'PRESENT' : 'MISSING', typeof shieldPrivateKey);
-      console.error('[RailgunActions] - safeErc20Recipients:', safeErc20Recipients, Array.isArray(safeErc20Recipients));
-      console.error('[RailgunActions] - safeNftRecipients:', safeNftRecipients, Array.isArray(safeNftRecipients));
-      console.error('[RailgunActions] - fromAddress:', fromAddress, typeof fromAddress);
+      console.error('[RailgunActions] ===== COMPREHENSIVE ERROR ANALYSIS =====');
+      console.error('[RailgunActions] 🚨 FULL ERROR OBJECT INSPECTION:');
       
-      // ✅ ENHANCED ERROR ANALYSIS
-      console.error('🚨 [RAILGUN:ERROR] Detailed error analysis:');
-      console.error('- Error name:', sdkError.name);
-      console.error('- Error message:', sdkError.message);
-      console.error('- Error stack:', sdkError.stack);
-      console.error('- Error cause:', sdkError.cause);
-      console.error('- Full error object:', sdkError);
-      
-      // Check for specific "map" errors
-      if (sdkError.message.includes('.map is not a function')) {
-        console.error('🎯 [RAILGUN:MAP_ERROR] Map function error detected!');
-        console.error('- This usually means an array parameter is not actually an array');
-        console.error('- Checking all our arrays:');
-        console.error('  * safeErc20Recipients isArray:', Array.isArray(safeErc20Recipients));
-        console.error('  * safeNftRecipients isArray:', Array.isArray(safeNftRecipients));
-        console.error('- Full array contents:', {
-          erc20: safeErc20Recipients,
-          nft: safeNftRecipients
+      // Log every possible property of the error
+      console.error('🚨 ERROR PROPERTIES:', {
+        name: sdkError.name,
+        message: sdkError.message,
+        stack: sdkError.stack,
+        cause: sdkError.cause,
+        code: sdkError.code,
+        errno: sdkError.errno,
+        syscall: sdkError.syscall,
+        type: typeof sdkError,
+        constructor: sdkError.constructor?.name,
+        keys: Object.keys(sdkError),
+        ownPropertyNames: Object.getOwnPropertyNames(sdkError),
+        prototype: Object.getPrototypeOf(sdkError)?.constructor?.name
+      });
+
+      // Try to stringify the error to see hidden properties
+      try {
+        console.error('🚨 ERROR STRINGIFIED:', JSON.stringify(sdkError, null, 2));
+      } catch (stringifyError) {
+        console.error('🚨 Could not stringify error:', stringifyError.message);
+      }
+
+      // Log the exact line number and file from stack trace
+      if (sdkError.stack) {
+        console.error('🚨 STACK TRACE ANALYSIS:');
+        const stackLines = sdkError.stack.split('\n');
+        stackLines.forEach((line, index) => {
+          console.error(`🚨 Stack[${index}]:`, line.trim());
+          if (line.includes('main-DkrhSDP7.js:3847')) {
+            console.error('🎯 FOUND THE EXACT ERROR LINE! ^^^ This is line 3847');
+          }
         });
       }
+
+      console.error('[RailgunActions] 🚨 PARAMETER STATE AT ERROR TIME:');
+      console.error('- networkName:', {
+        value: networkName, 
+        type: typeof networkName,
+        valid: typeof networkName === 'string' && networkName.length > 0
+      });
+      console.error('- shieldPrivateKey:', {
+        present: !!shieldPrivateKey, 
+        type: typeof shieldPrivateKey,
+        length: shieldPrivateKey?.length,
+        valid: typeof shieldPrivateKey === 'string' && shieldPrivateKey.length > 0
+      });
+      console.error('- safeErc20Recipients:', {
+        value: safeErc20Recipients,
+        type: typeof safeErc20Recipients,
+        isArray: Array.isArray(safeErc20Recipients),
+        length: safeErc20Recipients?.length,
+        hasMapFunction: safeErc20Recipients?.map !== undefined,
+        mapType: typeof safeErc20Recipients?.map,
+        firstElement: safeErc20Recipients?.[0],
+        valid: Array.isArray(safeErc20Recipients) && typeof safeErc20Recipients.map === 'function'
+      });
+      console.error('- safeNftRecipients:', {
+        value: safeNftRecipients,
+        type: typeof safeNftRecipients,
+        isArray: Array.isArray(safeNftRecipients),
+        length: safeNftRecipients?.length,
+        hasMapFunction: safeNftRecipients?.map !== undefined,
+        mapType: typeof safeNftRecipients?.map,
+        valid: Array.isArray(safeNftRecipients) && typeof safeNftRecipients.map === 'function'
+      });
+      console.error('- fromAddress:', {
+        value: fromAddress,
+        type: typeof fromAddress,
+        length: fromAddress?.length,
+        valid: typeof fromAddress === 'string' && fromAddress.length > 0
+      });
       
-      console.error('[RailgunActions] ===== END ERROR DEBUG =====');
+      // Check for specific "map" errors with enhanced detection
+      if (sdkError.message && (sdkError.message.includes('.map is not a function') || sdkError.message.includes('pn.map'))) {
+        console.error('🎯 [RAILGUN:MAP_ERROR] DETECTED: pn.map is not a function!');
+        console.error('🎯 This means something called "pn" inside the SDK does not have a .map() method');
+        console.error('🎯 "pn" likely refers to one of our array parameters that is not actually an array');
+        console.error('🎯 DEEP ARRAY INSPECTION:');
+        
+        console.error('🎯 safeErc20Recipients deep analysis:');
+        console.error('  - Value:', safeErc20Recipients);
+        console.error('  - Type:', typeof safeErc20Recipients);
+        console.error('  - Constructor:', safeErc20Recipients?.constructor?.name);
+        console.error('  - Has .map:', 'map' in (safeErc20Recipients || {}));
+        console.error('  - Prototype:', Object.getPrototypeOf(safeErc20Recipients || {})?.constructor?.name);
+        
+        console.error('🎯 safeNftRecipients deep analysis:');
+        console.error('  - Value:', safeNftRecipients);
+        console.error('  - Type:', typeof safeNftRecipients);
+        console.error('  - Constructor:', safeNftRecipients?.constructor?.name);
+        console.error('  - Has .map:', 'map' in (safeNftRecipients || {}));
+        console.error('  - Prototype:', Object.getPrototypeOf(safeNftRecipients || {})?.constructor?.name);
+      }
+      
+      console.error('[RailgunActions] ===== END COMPREHENSIVE ERROR ANALYSIS =====');
       throw new Error(`Gas estimation failed: ${sdkError.message}`);
     }
 
