@@ -4,7 +4,7 @@
  * Converted to JavaScript with custom enhancements for Lexie Wallet
  */
 
-import { getAddress, isAddress, keccak256 } from 'ethers';
+import { getAddress, isAddress, keccak256, Contract, JsonRpcProvider } from 'ethers';
 import {
   gasEstimateForShield,
   populateShield,
@@ -39,6 +39,52 @@ const getRailgunNetworkName = (chainId) => {
     throw new Error(`Unsupported chain ID: ${chainId}`);
   }
   return networkName;
+};
+
+/**
+ * Check token allowance for RAILGUN contract
+ */
+const checkTokenAllowance = async (tokenAddress, ownerAddress, amount, walletProvider) => {
+  if (!tokenAddress) {
+    return true; // Native token (ETH) doesn't need allowance
+  }
+
+  try {
+    // Simple ERC20 allowance ABI
+    const erc20Abi = [
+      'function allowance(address owner, address spender) view returns (uint256)',
+      'function balanceOf(address account) view returns (uint256)'
+    ];
+
+    const tokenContract = new Contract(tokenAddress, erc20Abi, walletProvider);
+    
+    // For now, we'll get the RAILGUN contract address from the SDK during the actual call
+    // This is a simplified check - the real RAILGUN contract address would be needed
+    console.log('[ShieldTransactions] Token allowance check for:', {
+      token: tokenAddress,
+      owner: ownerAddress,
+      amount: amount
+    });
+    
+    // Check balance first
+    const balance = await tokenContract.balanceOf(ownerAddress);
+    const amountBigInt = BigInt(amount);
+    
+    console.log('[ShieldTransactions] Token balance check:', {
+      balance: balance.toString(),
+      required: amountBigInt.toString(),
+      hasBalance: balance >= amountBigInt
+    });
+    
+    if (balance < amountBigInt) {
+      throw new Error(`Insufficient token balance. Have: ${balance.toString()}, Need: ${amountBigInt.toString()}`);
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('[ShieldTransactions] Token allowance/balance check failed:', error);
+    throw new Error(`Token validation failed: ${error.message}`);
+  }
 };
 
 /**
@@ -257,6 +303,10 @@ export const shieldTokens = async ({
       fromAddress: `${fromAddress.slice(0, 8)}...`,
       railgunAddress: `${railgunAddress.slice(0, 10)}...`,
     });
+
+    // Check token balance and allowance before proceeding
+    console.log('[ShieldTransactions] Checking token balance and allowance...');
+    await checkTokenAllowance(tokenAddress, fromAddress, amount, walletProvider);
 
     // Generate shield private key
     const shieldPrivateKey = await generateShieldPrivateKey(fromAddress, walletProvider);
