@@ -193,6 +193,21 @@ export const getPrivateBalancesFromCache = (walletID, chainId) => {
       cacheAge: lastUpdate ? `${Math.round((Date.now() - lastUpdate) / 1000)}s ago` : 'Unknown'
     });
     
+    // DETAILED CACHE INSPECTION
+    console.log('[RailgunBalances] 🔍 DETAILED cache inspection:');
+    cachedBalances.forEach((balance, index) => {
+      console.log(`  [${index}] Token Details:`, {
+        symbol: balance.symbol,
+        name: balance.name,
+        tokenAddress: balance.tokenAddress,
+        decimals: balance.decimals,
+        rawBalance: balance.balance,
+        formattedBalance: balance.formattedBalance,
+        numericBalance: balance.numericBalance,
+        chainId: balance.chainId
+      });
+    });
+    
     return cachedBalances;
     
   } catch (error) {
@@ -479,6 +494,41 @@ export const clearBalanceCache = () => {
 };
 
 /**
+ * Clear stale cache and force fresh balance update
+ * Use this when cached data is incorrect or outdated
+ * @param {string} walletID - RAILGUN wallet ID
+ * @param {number} chainId - Chain ID
+ */
+export const clearStaleBalanceCacheAndRefresh = async (walletID, chainId) => {
+  try {
+    console.warn('[RailgunBalances] 🗑️ CLEARING STALE BALANCE CACHE AND FORCING REFRESH');
+    
+    // Clear the specific cache entry
+    const cacheKey = `${walletID}-${chainId}`;
+    const oldCache = balanceCache.get(cacheKey) || [];
+    
+    console.log('[RailgunBalances] OLD cached data being cleared:', {
+      cacheKey,
+      count: oldCache.length,
+      tokens: oldCache.map(b => `${b.symbol}: ${b.formattedBalance} (addr: ${b.tokenAddress})`)
+    });
+    
+    // Clear the cache for this wallet/chain
+    balanceCache.set(cacheKey, []);
+    
+    // Force a balance refresh to get fresh data
+    console.log('[RailgunBalances] 🔄 Forcing balance refresh to get fresh data...');
+    await refreshPrivateBalances(walletID, chainId);
+    
+    console.log('[RailgunBalances] ✅ Stale cache cleared and refresh triggered');
+    
+  } catch (error) {
+    console.error('[RailgunBalances] Failed to clear stale cache and refresh:', error);
+    throw error;
+  }
+};
+
+/**
  * Get balance for specific token
  * @param {string} walletID - RAILGUN wallet ID
  * @param {number} chainId - Chain ID
@@ -617,12 +667,14 @@ export const handleBalanceUpdateCallback = async (balancesEvent) => {
           // Get token information - Use hardcoded tokens FIRST for known tokens, then SDK fallback
           let tokenData = null;
           
-          console.log('[RailgunBalances] 🪙 Processing token from official callback:', {
-            tokenAddress: tokenAddress || 'NATIVE',
-            tokenAddressLowerCase: tokenAddress?.toLowerCase(),
-            amount: amount.toString(),
-            chainId
-          });
+                      console.log('[RailgunBalances] 🪙 Processing token from official callback:', {
+              rawTokenAddress: rawToken.tokenAddress,
+              normalizedTokenAddress: tokenAddress || 'NATIVE',
+              tokenAddressLowerCase: tokenAddress?.toLowerCase(),
+              amount: amount.toString(),
+              chainId,
+              tokenIndex: i
+            });
           
           // Primary: Check hardcoded tokens FIRST (like transactionHistory.js does)
           if (chainId === 42161 && tokenAddress) {
@@ -735,6 +787,21 @@ export const handleBalanceUpdateCallback = async (balancesEvent) => {
       tokens: formattedBalances.map(b => `${b.symbol}: ${b.formattedBalance}`),
     });
     
+    // DETAILED NEW BALANCE INSPECTION
+    console.log('[RailgunBalances] 🔍 DETAILED new balance inspection:');
+    formattedBalances.forEach((balance, index) => {
+      console.log(`  [${index}] New Token Details:`, {
+        symbol: balance.symbol,
+        name: balance.name,
+        tokenAddress: balance.tokenAddress,
+        decimals: balance.decimals,
+        rawBalance: balance.balance,
+        formattedBalance: balance.formattedBalance,
+        numericBalance: balance.numericBalance,
+        chainId: balance.chainId
+      });
+    });
+    
     // Dispatch event for UI updates AND directly update React state
     if (typeof window !== 'undefined') {
       console.log('[RailgunBalances] 🔄 Dispatching UI update events...');
@@ -831,6 +898,19 @@ export const forceCompleteRescan = async (chainId, walletID) => {
   }
 };
 
+// Expose debug functions to window for easy testing
+if (typeof window !== 'undefined') {
+  window.__LEXIE_DEBUG__ = window.__LEXIE_DEBUG__ || {};
+  window.__LEXIE_DEBUG__.clearStaleBalanceCache = clearStaleBalanceCacheAndRefresh;
+  window.__LEXIE_DEBUG__.clearAllBalanceCache = clearBalanceCache;
+  window.__LEXIE_DEBUG__.inspectBalanceCache = (walletID, chainId) => {
+    const cacheKey = `${walletID}-${chainId}`;
+    const cached = balanceCache.get(cacheKey) || [];
+    console.log('🔍 Current cache contents:', cached);
+    return cached;
+  };
+}
+
 // Export for use in other modules
 export default {
   getPrivateBalances,
@@ -845,6 +925,7 @@ export default {
   formatTokenAmount,
   parseTokenAmount,
   clearBalanceCache,
+  clearStaleBalanceCacheAndRefresh,
   getTokenBalance,
   isTokenSupportedByRailgun,
   getShieldableTokens,
