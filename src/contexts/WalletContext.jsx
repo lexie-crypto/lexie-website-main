@@ -223,10 +223,8 @@ const WalletContextProvider = ({ children }) => {
         useNativeArtifacts,
         skipMerkletreeScans,
         [
-          'https://railgun.poi.gd/poi-node',
-          'https://poi.railgun.community',
-          'https://poi-backup.railgun.community'
-        ], // poiNodeUrls - official POI node URLs
+          'https://ppoi.fdi.network/'
+        ], // poiNodeUrls - valid POI node URL from RAILGUN Discord
         [], // customPOILists - empty array
         true // verboseScanLogging
       );

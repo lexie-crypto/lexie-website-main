@@ -41,7 +41,7 @@ export const RAILGUN_CONFIG = {
 export const POI_CONFIG = {
   aggregatorUrls: import.meta.env.VITE_POI_AGGREGATOR_URL 
     ? [import.meta.env.VITE_POI_AGGREGATOR_URL] 
-    : [],
+    : ['https://ppoi.fdi.network/'], // Default to valid POI URL from RAILGUN Discord
   customPOILists: [], // Can be expanded later
 };
 

@@ -275,11 +275,9 @@ const startEngine = async () => {
     console.log('[RAILGUN] ✅ Debug loggers configured');
 
     // Step 4: Start engine with proper POI integration
-    // Using official POI node URLs from RAILGUN infrastructure
+    // Using valid POI node URL from RAILGUN Discord
     const poiNodeURLs = [
-      'https://railgun.poi.gd/poi-node',
-      'https://poi.railgun.community',
-      'https://poi-backup.railgun.community'
+      'https://ppoi.fdi.network/'
     ];
     
     console.log('[RAILGUN] 🔒 Initializing POI (Proof of Innocence) system with official nodes:', poiNodeURLs);
