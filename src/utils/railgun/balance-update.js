@@ -119,8 +119,16 @@ export const getNFTBalances = (balances) => {
  * @param {Object} chain - Chain configuration
  */
 export const onBalancesUpdate = async (txidVersion, wallet, chain) => {
+  console.log('[BalanceUpdate] 🔥 onBalancesUpdate called!', {
+    txidVersion,
+    chain: chain?.id,
+    walletID: wallet?.id?.slice(0, 8) + '...',
+    hasCallback: !!onBalanceUpdateCallback
+  });
+
   try {
     if (!onBalanceUpdateCallback) {
+      console.warn('[BalanceUpdate] ⚠️ No balance update callback set in onBalancesUpdate!');
       return;
     }
 
@@ -191,29 +199,55 @@ export const onBalancesUpdate = async (txidVersion, wallet, chain) => {
  * @param {Object} chain - Chain configuration
  */
 const getAllBalancesAsSpendable = async (txidVersion, wallet, chain) => {
+  console.log('[BalanceUpdate] getAllBalancesAsSpendable called', {
+    txidVersion,
+    chain: chain?.id,
+    walletID: wallet?.id?.slice(0, 8) + '...',
+    hasCallback: !!onBalanceUpdateCallback
+  });
+
   if (!onBalanceUpdateCallback) {
+    console.warn('[BalanceUpdate] No balance update callback set!');
     return;
   }
 
-  const tokenBalances = await wallet.getTokenBalances(
-    txidVersion,
-    chain,
-    false // onlySpendable = false to get all balances
-  );
+  try {
+    const tokenBalances = await wallet.getTokenBalances(
+      txidVersion,
+      chain,
+      false // onlySpendable = false to get all balances
+    );
 
-  const erc20Amounts = getSerializedERC20Balances(tokenBalances);
-  const nftAmounts = getNFTBalances(tokenBalances);
+    console.log('[BalanceUpdate] Retrieved token balances:', {
+      count: Object.keys(tokenBalances).length,
+      tokens: Object.keys(tokenBalances)
+    });
 
-  const balancesEvent = {
-    txidVersion,
-    chain,
-    erc20Amounts,
-    nftAmounts,
-    railgunWalletID: wallet.id,
-    balanceBucket: RailgunWalletBalanceBucket.Spendable,
-  };
+    const erc20Amounts = getSerializedERC20Balances(tokenBalances);
+    const nftAmounts = getNFTBalances(tokenBalances);
 
-  onBalanceUpdateCallback(balancesEvent);
+    console.log('[BalanceUpdate] Serialized balances:', {
+      erc20Count: erc20Amounts.length,
+      nftCount: nftAmounts.length,
+      erc20Amounts
+    });
+
+    const balancesEvent = {
+      txidVersion,
+      chain,
+      erc20Amounts,
+      nftAmounts,
+      railgunWalletID: wallet.id,
+      balanceBucket: RailgunWalletBalanceBucket.Spendable,
+    };
+
+    console.log('[BalanceUpdate] Calling balance update callback with event:', balancesEvent);
+    onBalanceUpdateCallback(balancesEvent);
+    console.log('[BalanceUpdate] Balance update callback completed');
+
+  } catch (error) {
+    console.error('[BalanceUpdate] Error in getAllBalancesAsSpendable:', error);
+  }
 };
 
 /**
@@ -223,13 +257,27 @@ const getAllBalancesAsSpendable = async (txidVersion, wallet, chain) => {
  */
 const checkPOIRequired = async (networkName) => {
   try {
-    // For now, POI is not required on testnets
-    // In production, this would check the actual POI requirements
-    const testnetNames = ['EthereumSepolia', 'PolygonMumbai', 'ArbitrumSepolia'];
-    return !testnetNames.includes(networkName);
+    // Use our proper POI service
+    const { isPOIRequiredForNetwork, handlePOIError } = await import('./poi-service.js');
+    
+    const isRequired = await isPOIRequiredForNetwork(networkName);
+    console.log(`[BalanceUpdate] ✅ POI required for ${networkName}: ${isRequired}`);
+    
+    return isRequired;
   } catch (error) {
-    console.warn('[BalanceUpdate] Error checking POI requirements:', error);
-    return false; // Default to not required if check fails
+    console.warn('[BalanceUpdate] POI check failed:', error);
+    
+    // Use POI error handler
+    const { handlePOIError } = await import('./poi-service.js');
+    const shouldContinue = handlePOIError(error, networkName);
+    
+    if (shouldContinue) {
+      console.log(`[BalanceUpdate] 🔄 Continuing with spendable balances for ${networkName}`);
+      return false; // Treat as not required so all balances are spendable
+    }
+    
+    // Fallback for other errors
+    return false;
   }
 };
 

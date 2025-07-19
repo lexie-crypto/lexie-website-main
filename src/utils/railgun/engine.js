@@ -143,12 +143,11 @@ const setupNetworks = async () => {
  * Following the private balances documentation
  */
 const setupBalanceCallbacks = async () => {
-  // Import our official SDK-based balance update handler
-  const { setOnBalanceUpdateCallback: setBalanceCallback } = await import('./balance-update.js');
+  console.log('[RAILGUN] 🔧 Setting up balance callbacks...');
   
-  // Set up the balance update callback using our adapted official implementation
-  setBalanceCallback(async (balanceUpdate) => {
-    console.log('[RAILGUN] Balance updated:', {
+  // Use the OFFICIAL RAILGUN SDK callback system
+  setOnBalanceUpdateCallback(async (balanceUpdate) => {
+    console.log('[RAILGUN] 🔥 OFFICIAL Balance callback triggered!', {
       txidVersion: balanceUpdate.txidVersion,
       chain: balanceUpdate.chain,
       railgunWalletID: balanceUpdate.railgunWalletID?.slice(0, 8) + '...',
@@ -173,6 +172,11 @@ const setupBalanceCallbacks = async () => {
   setOnUTXOMerkletreeScanCallback((scanData) => {
     console.log('[RAILGUN] UTXO Merkletree scan progress:', scanData);
     
+    // Check if scan is completed
+    if (scanData.progress >= 1.0 || scanData.scanStatus === 'Complete') {
+      console.log('[RAILGUN] 🎉 UTXO Merkletree scan COMPLETED! This should trigger balance updates.');
+    }
+    
     // Dispatch custom event for UI to listen to
     window.dispatchEvent(new CustomEvent('railgun-utxo-scan', {
       detail: scanData
@@ -182,6 +186,11 @@ const setupBalanceCallbacks = async () => {
   // TXID Merkletree scan callback  
   setOnTXIDMerkletreeScanCallback((scanData) => {
     console.log('[RAILGUN] TXID Merkletree scan progress:', scanData);
+    
+    // Check if scan is completed
+    if (scanData.progress >= 1.0 || scanData.scanStatus === 'Complete') {
+      console.log('[RAILGUN] 🎉 TXID Merkletree scan COMPLETED! This should trigger balance updates.');
+    }
     
     // Dispatch custom event for UI to listen to
     window.dispatchEvent(new CustomEvent('railgun-txid-scan', {
@@ -265,7 +274,15 @@ const startEngine = async () => {
 
     console.log('[RAILGUN] ✅ Debug loggers configured');
 
-    // Step 4: Start engine with artifact store
+    // Step 4: Start engine with artifact store and POI node URLs
+    const poiNodeURLs = [
+      'https://poi.railgun.org',
+      'https://poi-v2.railgun.org',
+      'https://backup-poi.railgun.org'
+    ];
+    
+    console.log('[RAILGUN] 🔒 Configuring POI (Proof of Innocence) nodes:', poiNodeURLs);
+    
     await startRailgunEngine(
       'Lexie Wallet',
       db,
@@ -273,8 +290,8 @@ const startEngine = async () => {
       artifactManager.store,  // Pass the actual ArtifactStore instance
       false,
       false,
-      [],
-      [],
+      poiNodeURLs,  // ✅ Add official POI node URLs
+      [],           // Custom POI lists (empty for now)
       true
     );
 
@@ -285,6 +302,21 @@ const startEngine = async () => {
     await loadSnarkJSGroth16();
     await setupNetworks();
     await setupBalanceCallbacks();
+    
+    // Initialize POI system
+    try {
+      const { initializePOI, validatePOIConfiguration } = await import('./poi-service.js');
+      await initializePOI();
+      
+      const isValidPOI = await validatePOIConfiguration();
+      if (isValidPOI) {
+        console.log('[RAILGUN] ✅ POI system validated and ready');
+      } else {
+        console.warn('[RAILGUN] ⚠️ POI system may need attention');
+      }
+    } catch (poiError) {
+      console.warn('[RAILGUN] ⚠️ POI initialization failed, continuing without POI:', poiError);
+    }
     
     console.log('[RAILGUN] 🎉 Engine initialization completed');
 

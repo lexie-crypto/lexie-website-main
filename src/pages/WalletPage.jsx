@@ -217,47 +217,49 @@ const WalletPage = () => {
       // Clear the amount for this token
       setShieldAmounts(prev => ({ ...prev, [token.symbol]: '' }));
       
-      // IMPORTANT: Trigger a rescan to detect the new shielded funds
+      // IMPORTANT: Balance updates will now happen through official RAILGUN callbacks
       toast.loading('Scanning for shielded funds...');
-      console.log('[WalletPage] Triggering balance rescan after shield...');
+      console.log('[WalletPage] Balance scan started - will update via callbacks...');
       
+      // Since we fixed the balance callbacks, just trigger a refresh and rely on callbacks
       try {
         // Wait a bit for the transaction to be indexed
         await new Promise(resolve => setTimeout(resolve, 3000));
         
-        // Use our enhanced force rescan that handles merkle tree errors
-        const { forceCompleteRescan } = await import('../utils/railgun/balances.js');
+        // Trigger a simple balance refresh - callbacks will handle the rest
+        const { refreshBalances } = await import('@railgun-community/wallet');
+        const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
         
-        console.log('[WalletPage] Using force complete rescan to handle merkle tree issues...');
+        const networkName = {
+          1: NetworkName.Ethereum,
+          42161: NetworkName.Arbitrum,
+          137: NetworkName.Polygon,
+          56: NetworkName.BNBChain,
+        }[chainConfig.id];
         
-        // Force rescan which will:
-        // 1. Use refreshBalances
-        // 2. Try fullRescanUTXOMerkletreesAndWalletsForNetwork if available
-        // 3. Fetch balances after scan
-        const updatedBalances = await forceCompleteRescan(chainConfig.id, railgunWalletId);
+        const { chain } = NETWORK_CONFIG[networkName];
+        console.log('[WalletPage] Triggering official balance refresh...');
         
-        console.log('[WalletPage] Force rescan completed, found balances:', updatedBalances?.length || 0);
+        // Use promise race to add timeout
+        const refreshPromise = refreshBalances(chain, [railgunWalletId]);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Balance refresh timeout')), 15000)
+        );
+        
+        await Promise.race([refreshPromise, timeoutPromise]);
+        
+        toast.dismiss();
+        toast.success('Shield successful! Private balance will update via callbacks.');
         
         // Also refresh UI balances
-        await refreshAllBalances();
+        setTimeout(() => {
+          refreshAllBalances();
+        }, 2000);
         
-        toast.dismiss();
-        
-        if (updatedBalances && updatedBalances.length > 0) {
-          toast.success('Private balance updated!');
-        } else {
-          toast.info('Shield successful! Balance scan in progress...');
-          
-          // Try again after a longer delay
-          setTimeout(async () => {
-            console.log('[WalletPage] Retrying balance refresh...');
-            await refreshAllBalances();
-          }, 10000); // 10 seconds
-        }
       } catch (scanError) {
-        console.error('[WalletPage] Rescan failed:', scanError);
+        console.error('[WalletPage] Balance refresh failed:', scanError);
         toast.dismiss();
-        toast.info('Shield successful! Private balance will update shortly.');
+        toast.success('Shield successful! Private balance will update automatically.');
         
         // Still try to refresh UI
         setTimeout(() => {
