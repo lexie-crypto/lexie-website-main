@@ -355,7 +355,7 @@ export const shieldTokens = async ({
 
     // First, create a dummy transaction to get the RAILGUN contract address
     console.log('[ShieldTransactions] Creating initial transaction to determine RAILGUN contract...');
-    const dummyGasDetails = createShieldGasDetails(networkName, { gasEstimate: BigInt(300000) });
+    const dummyGasDetails = createShieldGasDetails(networkName, BigInt(300000));
     const { transaction: dummyTx } = await createShieldTransaction(
       txidVersion,
       networkName,
