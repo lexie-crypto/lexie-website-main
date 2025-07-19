@@ -95,24 +95,30 @@ export const getTokenInfo = async (tokenAddress, chainId) => {
     
     const networkName = getRailgunNetworkName(chainId);
     
-    // Handle native token (undefined address)
-    if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000') {
-      return getNativeTokenInfo(chainId);
+    // Handle native token (null, undefined, or zero address)
+    if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000' || tokenAddress === null) {
+      const nativeInfo = getNativeTokenInfo(chainId);
+      console.log('[RailgunBalances] Resolved native token info:', nativeInfo);
+      return nativeInfo;
     }
     
     // Get ERC20 token data
+    console.log('[RailgunBalances] Looking up ERC20 token data for:', tokenAddress);
     const tokenData = await getTokenDataERC20(networkName, tokenAddress);
     
     if (tokenData) {
-      return {
+      const result = {
         address: tokenAddress,
         symbol: tokenData.symbol,
         name: tokenData.name,
         decimals: tokenData.decimals,
         isNative: false,
       };
+      console.log('[RailgunBalances] ✅ Resolved ERC20 token info:', result);
+      return result;
     }
     
+    console.warn('[RailgunBalances] ❌ Could not resolve ERC20 token data for:', tokenAddress);
     return null;
     
   } catch (error) {
@@ -449,19 +455,66 @@ export const handleBalanceUpdateCallback = async (balanceEvent) => {
     if (erc20Amounts) {
       for (const { tokenAddress, amount } of erc20Amounts) {
         try {
-          // Get token information
+          // Skip zero balances
+          if (!amount || amount.toString() === '0') {
+            continue;
+          }
+
+          // Get token information - handle both native tokens (null) and ERC20 tokens
           const tokenData = await getTokenInfo(tokenAddress, chainId);
           
-          if (tokenData && amount.toString() !== '0') {
-            const balance = {
-              tokenAddress,
+          console.log('[RailgunBalances] Processing private token:', {
+            tokenAddress,
+            amount: amount.toString(),
+            tokenData: tokenData ? {
               symbol: tokenData.symbol,
               name: tokenData.name,
-              decimals: tokenData.decimals,
+              decimals: tokenData.decimals
+            } : 'NOT_FOUND'
+          });
+          
+          if (tokenData) {
+            const formattedBalance = formatUnits(amount.toString(), tokenData.decimals);
+            const numericBalance = parseFloat(formattedBalance);
+            
+            const balance = {
+              tokenAddress: tokenAddress || null, // Ensure null for native tokens
+              symbol: tokenData.symbol || 'UNKNOWN',
+              name: tokenData.name || 'Unknown Token',
+              decimals: tokenData.decimals || 18,
               balance: amount.toString(),
-              formattedBalance: formatUnits(amount.toString(), tokenData.decimals),
-              numericBalance: parseFloat(formatUnits(amount.toString(), tokenData.decimals)),
-              hasBalance: amount.toString() !== '0',
+              formattedBalance,
+              numericBalance,
+              hasBalance: numericBalance > 0,
+              isPrivate: true,
+              chainId,
+              networkName,
+            };
+            
+            console.log('[RailgunBalances] ✅ Processed private token balance:', {
+              symbol: balance.symbol,
+              formattedBalance: balance.formattedBalance,
+              decimals: balance.decimals
+            });
+            
+            formattedBalances.push(balance);
+          } else {
+            console.warn('[RailgunBalances] ⚠️ Could not resolve token metadata for:', tokenAddress);
+            
+            // Fallback: create balance with unknown token info but correct formatting
+            const decimals = 18; // Default to 18 decimals if unknown
+            const formattedBalance = formatUnits(amount.toString(), decimals);
+            const numericBalance = parseFloat(formattedBalance);
+            
+            const balance = {
+              tokenAddress: tokenAddress || null,
+              symbol: 'UNKNOWN',
+              name: 'Unknown Token',
+              decimals,
+              balance: amount.toString(),
+              formattedBalance,
+              numericBalance,
+              hasBalance: numericBalance > 0,
               isPrivate: true,
               chainId,
               networkName,

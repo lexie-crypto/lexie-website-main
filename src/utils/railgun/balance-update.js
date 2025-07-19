@@ -78,11 +78,10 @@ export const getSerializedERC20Balances = (balances) => {
       );
       
       return {
-        tokenAddress: tokenAddress?.toLowerCase(),
+        tokenAddress: tokenAddress?.toLowerCase() || null, // Use null for native tokens instead of undefined
         amount: balances[railgunBalanceAddress].balance,
       };
-    })
-    .filter(item => item.tokenAddress !== undefined);
+    });
 };
 
 /**

@@ -816,7 +816,7 @@ const WalletPage = () => {
                               </div>
                               <div>
                                 <div className="text-white font-medium">{token.symbol}</div>
-                                <div className="text-gray-400 text-sm">Private • {token.name || 'Unknown Token'}</div>
+                                <div className="text-gray-400 text-sm">Private • {token.name || `${token.symbol} Token` || 'Unknown Token'}</div>
                               </div>
                             </div>
                             <div className="text-right">
