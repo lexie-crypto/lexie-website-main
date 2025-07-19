@@ -614,23 +614,18 @@ export const handleBalanceUpdateCallback = async (balancesEvent) => {
             continue;
           }
 
-          // Get token information - handle both native tokens (null) and ERC20 tokens
-          const tokenData = await getTokenInfo(tokenAddress, chainId);
+          // Get token information - Use hardcoded tokens FIRST for known tokens, then SDK fallback
+          let tokenData = null;
           
           console.log('[RailgunBalances] 🪙 Processing token from official callback:', {
             tokenAddress: tokenAddress || 'NATIVE',
             tokenAddressLowerCase: tokenAddress?.toLowerCase(),
             amount: amount.toString(),
-            chainId,
-            tokenData: tokenData ? {
-              symbol: tokenData.symbol,
-              name: tokenData.name,
-              decimals: tokenData.decimals
-            } : 'RESOLUTION_FAILED'
+            chainId
           });
           
-          // Special handling for known stablecoins on Arbitrum
-          if (chainId === 42161 && !tokenData && tokenAddress) {
+          // Primary: Check hardcoded tokens FIRST (like transactionHistory.js does)
+          if (chainId === 42161 && tokenAddress) {
             const knownTokens = {
               '0xaf88d065e77c8cc2239327c5edb3a432268e5831': { symbol: 'USDC', name: 'USD Coin', decimals: 6 },
               '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': { symbol: 'USDT', name: 'Tether USD', decimals: 6 },
@@ -638,7 +633,7 @@ export const handleBalanceUpdateCallback = async (balancesEvent) => {
             
             const tokenInfo = knownTokens[tokenAddress.toLowerCase()];
             if (tokenInfo) {
-              console.log('[RailgunBalances] 🎯 Using hardcoded token info for:', tokenInfo.symbol);
+              console.log('[RailgunBalances] 🎯 Using PRIORITY hardcoded token info for:', tokenInfo.symbol);
               const formattedBalance = formatUnits(amount.toString(), tokenInfo.decimals);
               const numericBalance = parseFloat(formattedBalance);
               
@@ -654,12 +649,24 @@ export const handleBalanceUpdateCallback = async (balancesEvent) => {
                 isPrivate: true,
                 chainId,
                 networkName,
-                balanceBucket,
               };
               
               formattedBalances.push(balance);
               continue;
             }
+          }
+          
+          // Secondary: Try SDK lookup for other tokens
+          try {
+            tokenData = await getTokenInfo(tokenAddress, chainId);
+            console.log('[RailgunBalances] 📡 SDK token resolution result:', tokenData ? {
+              symbol: tokenData.symbol,
+              name: tokenData.name,
+              decimals: tokenData.decimals
+            } : 'FAILED');
+          } catch (error) {
+            console.warn('[RailgunBalances] SDK token lookup failed:', error);
+            tokenData = null;
           }
           
           if (tokenData) {
