@@ -250,8 +250,27 @@ const PrivacyActions = () => {
       setAmount('');
       setSelectedToken(availableTokens[0] || null);
 
-      // Refresh balances
-      await refreshBalancesAfterTransaction();
+      // IMPORTANT: Trigger a rescan to detect the new shielded funds
+      toast.loading('Scanning for shielded funds...', { id: toastId });
+      console.log('[PrivacyActions] Triggering balance rescan after shield...');
+      
+      try {
+        // Wait a bit for the transaction to be indexed
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        // Import the rescan function
+        const { performFullRescan } = await import('../utils/railgun/balances');
+        await performFullRescan(chainConfig.id);
+        
+        // Refresh balances after rescan
+        await refreshBalancesAfterTransaction();
+        toast.dismiss(toastId);
+        toast.success('Private balance updated!');
+      } catch (scanError) {
+        console.error('[PrivacyActions] Rescan failed:', scanError);
+        toast.dismiss(toastId);
+        toast.info('Shield successful! Private balance will update shortly.');
+      }
 
     } catch (error) {
       console.error('[PrivacyActions] Shield operation failed:', error);

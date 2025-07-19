@@ -213,8 +213,27 @@ const WalletPage = () => {
       // Clear the amount for this token
       setShieldAmounts(prev => ({ ...prev, [token.symbol]: '' }));
       
-      // Refresh balances after successful transaction
-      await refreshBalancesAfterTransaction();
+      // IMPORTANT: Trigger a rescan to detect the new shielded funds
+      toast.loading('Scanning for shielded funds...');
+      console.log('[WalletPage] Triggering balance rescan after shield...');
+      
+      try {
+        // Wait a bit for the transaction to be indexed
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        
+        // Import the rescan function
+        const { performFullRescan } = await import('../utils/railgun/balances');
+        await performFullRescan(chain.id);
+        
+        // Refresh balances after rescan
+        await refreshBalancesAfterTransaction();
+        toast.dismiss();
+        toast.success('Private balance updated!');
+      } catch (scanError) {
+        console.error('[WalletPage] Rescan failed:', scanError);
+        toast.dismiss();
+        toast.info('Shield successful! Private balance will update shortly.');
+      }
       
     } catch (error) {
       console.error('[WalletPage] Shield failed:', error);
