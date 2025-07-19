@@ -221,12 +221,31 @@ const WalletPage = () => {
         // Wait a bit for the transaction to be indexed
         await new Promise(resolve => setTimeout(resolve, 3000));
         
-        // Import the rescan function
-        const { performFullRescan } = await import('../utils/railgun/balances');
-        await performFullRescan(chainConfig.id);
+        // Import the official refreshBalances function
+        const { refreshBalances } = await import('@railgun-community/wallet');
+        const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
         
-        // Refresh balances after rescan
-        await refreshBalancesAfterTransaction();
+        // Get the proper chain object as per documentation
+        const networkName = {
+          1: NetworkName.Ethereum,
+          42161: NetworkName.Arbitrum,
+          137: NetworkName.Polygon,
+          56: NetworkName.BNBChain,
+        }[chainConfig.id];
+        
+        const { chain } = NETWORK_CONFIG[networkName];
+        
+        // Optional filter to only scan the specific wallet
+        const walletIdFilter = [railgunWalletId];
+        
+        console.log('[WalletPage] Refreshing balances using official method...');
+        
+        // Use the official refreshBalances as per documentation
+        await refreshBalances(chain, walletIdFilter);
+        
+        // The callbacks (onMerkletreeScanCallback and onBalanceUpdateCallback) will trigger automatically
+        // This will update the UI through the existing event listeners
+        
         toast.dismiss();
         toast.success('Private balance updated!');
       } catch (scanError) {
