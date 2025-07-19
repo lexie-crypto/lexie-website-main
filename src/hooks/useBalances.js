@@ -7,7 +7,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { ethers, formatUnits, Contract } from 'ethers';
 import { useWallet } from '../contexts/WalletContext';
 import { getPrivateBalances, getPrivateBalancesFromCache, refreshPrivateBalances } from '../utils/railgun/balances';
-import { debugBalanceCache, testCachePersistence } from '../utils/railgun/cache-debug';
 import { fetchTokenPrices } from '../utils/pricing/coinGecko';
 import { RPC_URLS } from '../config/environment';
 
@@ -85,13 +84,6 @@ export function useBalances() {
     if (railgunWalletId && chainId) {
       console.log('[useBalances] 🚀 Loading cached private balances on mount...');
       
-      // Test cache persistence first
-      const persistenceTest = testCachePersistence();
-      console.log('[useBalances] Cache persistence test result:', persistenceTest);
-      
-      // Debug current cache state
-      debugBalanceCache('useBalances mount');
-      
       const cachedPrivateBalances = getPrivateBalancesFromCache(railgunWalletId, chainId);
       
       if (cachedPrivateBalances.length > 0) {
@@ -102,7 +94,6 @@ export function useBalances() {
         setPrivateBalances(cachedPrivateBalances);
       } else {
         console.log('[useBalances] No cached private balances found');
-        debugBalanceCache('after failed cache load');
       }
     }
   }, [railgunWalletId, chainId]); // Only run when wallet/chain changes
