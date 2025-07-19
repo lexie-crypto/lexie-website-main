@@ -224,9 +224,21 @@ const PrivacyActions = () => {
       
       console.log('[PrivacyActions] Sending shield transaction:', result.transaction);
       
+      // Convert BigInt values to hex strings for JSON serialization
+      const txForSending = {
+        ...result.transaction,
+        gasLimit: result.transaction.gasLimit ? '0x' + result.transaction.gasLimit.toString(16) : undefined,
+        gasPrice: result.transaction.gasPrice ? '0x' + result.transaction.gasPrice.toString(16) : undefined,
+        maxFeePerGas: result.transaction.maxFeePerGas ? '0x' + result.transaction.maxFeePerGas.toString(16) : undefined,
+        maxPriorityFeePerGas: result.transaction.maxPriorityFeePerGas ? '0x' + result.transaction.maxPriorityFeePerGas.toString(16) : undefined,
+        value: result.transaction.value ? '0x' + result.transaction.value.toString(16) : '0x0',
+      };
+      
+      console.log('[PrivacyActions] Formatted transaction for sending:', txForSending);
+      
       const txResponse = await walletProvider.request({
         method: 'eth_sendTransaction',
-        params: [result.transaction],
+        params: [txForSending],
       });
       
       console.log('[PrivacyActions] Transaction sent:', txResponse);
