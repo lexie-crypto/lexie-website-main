@@ -127,78 +127,9 @@ export const resetFullTXIDMerkletreesV2 = async (chainId) => {
   }
 };
 
-// Persistent balance cache using localStorage (restored working version)
-const BALANCE_CACHE_KEY = 'railgun-private-balances';
-const BALANCE_UPDATE_KEY = 'railgun-balance-updates';
-
-/**
- * Persistent cache implementation using localStorage
- */
-const createPersistentCache = () => {
-  const getCache = () => {
-    try {
-      const cached = localStorage.getItem(BALANCE_CACHE_KEY);
-      return cached ? JSON.parse(cached) : {};
-    } catch (error) {
-      console.warn('[RailgunBalances] Failed to read cache from localStorage:', error);
-      return {};
-    }
-  };
-
-  const setCache = (cache) => {
-    try {
-      localStorage.setItem(BALANCE_CACHE_KEY, JSON.stringify(cache));
-    } catch (error) {
-      console.warn('[RailgunBalances] Failed to save cache to localStorage:', error);
-    }
-  };
-
-  const getLastUpdates = () => {
-    try {
-      const cached = localStorage.getItem(BALANCE_UPDATE_KEY);
-      return cached ? JSON.parse(cached) : {};
-    } catch (error) {
-      console.warn('[RailgunBalances] Failed to read updates from localStorage:', error);
-      return {};
-    }
-  };
-
-  const setLastUpdates = (updates) => {
-    try {
-      localStorage.setItem(BALANCE_UPDATE_KEY, JSON.stringify(updates));
-    } catch (error) {
-      console.warn('[RailgunBalances] Failed to save updates to localStorage:', error);
-    }
-  };
-
-  return {
-    get: (key) => getCache()[key] || [],
-    set: (key, value) => {
-      const cache = getCache();
-      cache[key] = value;
-      setCache(cache);
-      
-      // Also update the last update timestamp
-      const updates = getLastUpdates();
-      updates[key] = Date.now();
-      setLastUpdates(updates);
-      
-      console.log('[RailgunBalances] 💾 Saved private balances to persistent cache:', {
-        key,
-        count: value.length,
-        tokens: value.map(b => `${b.symbol}: ${b.formattedBalance}`)
-      });
-    },
-    clear: () => {
-      localStorage.removeItem(BALANCE_CACHE_KEY);
-      localStorage.removeItem(BALANCE_UPDATE_KEY);
-    },
-    getLastUpdate: (key) => getLastUpdates()[key] || 0
-  };
-};
-
-// Initialize persistent cache
-const balanceCache = createPersistentCache();
+// Persistent balance cache for UI compatibility
+const balanceCache = new Map();
+const balanceUpdateListeners = new Set();
 
 /**
  * Get private balances from cache
@@ -207,28 +138,18 @@ const balanceCache = createPersistentCache();
  * @returns {Array} Cached private balances
  */
 export const getPrivateBalances = async (walletID, chainId) => {
-  try {
-    console.log('[RailgunBalances] Getting private balances from persistent cache:', {
-      walletID: walletID?.slice(0, 8) + '...',
-      chainId,
-    });
-    
-    // Return cached balances from persistent storage
-    const cacheKey = `${walletID}-${chainId}`;
-    const cachedBalances = balanceCache.get(cacheKey) || [];
-    
-    console.log('[RailgunBalances] 📱 Retrieved private balances from persistent cache:', {
-      count: cachedBalances.length,
-      tokens: cachedBalances.map(b => `${b.symbol}: ${b.formattedBalance}`),
-      lastUpdate: balanceCache.getLastUpdate(cacheKey)
-    });
-    
-    return cachedBalances;
-    
-  } catch (error) {
-    console.error('[RailgunBalances] Failed to get private balances:', error);
-    return [];
-  }
+  if (!walletID || !chainId) return [];
+  
+  const cacheKey = `${walletID}-${chainId}`;
+  const cached = balanceCache.get(cacheKey) || [];
+  
+  console.log('[RailgunBalances] Retrieved cached private balances:', {
+    walletID: walletID?.slice(0, 8) + '...',
+    chainId,
+    count: cached.length
+  });
+  
+  return cached;
 };
 
 /**
@@ -238,30 +159,10 @@ export const getPrivateBalances = async (walletID, chainId) => {
  * @returns {Array} Cached balance array
  */
 export const getPrivateBalancesFromCache = (walletID, chainId) => {
-  try {
-    if (!walletID || !chainId) {
-      return [];
-    }
-
-    const cacheKey = `${walletID}-${chainId}`;
-    const cachedBalances = balanceCache.get(cacheKey) || [];
-    const lastUpdate = balanceCache.getLastUpdate(cacheKey);
-    
-    console.log('[RailgunBalances] 🚀 Loading private balances from cache on init:', {
-      walletID: walletID?.slice(0, 8) + '...',
-      chainId,
-      count: cachedBalances.length,
-      tokens: cachedBalances.map(b => `${b.symbol}: ${b.formattedBalance}`),
-      lastUpdate: lastUpdate ? new Date(lastUpdate).toLocaleString() : 'Never',
-      cacheAge: lastUpdate ? `${Math.round((Date.now() - lastUpdate) / 1000)}s ago` : 'Unknown'
-    });
-    
-    return cachedBalances;
-    
-  } catch (error) {
-    console.error('[RailgunBalances] Failed to get cached balances:', error);
-    return [];
-  }
+  if (!walletID || !chainId) return [];
+  
+  const cacheKey = `${walletID}-${chainId}`;
+  return balanceCache.get(cacheKey) || [];
 };
 
 /**
@@ -335,46 +236,40 @@ export const handleBalanceUpdateCallback = async (balancesEvent) => {
     const cacheKey = `${railgunWalletID}-${chain.id}`;
     balanceCache.set(cacheKey, formattedBalances);
     
-    console.log('[RailgunBalances] Cache updated with callback data:', {
+    console.log('[RailgunBalances] 💾 Updated balance cache:', {
       cacheKey,
       count: formattedBalances.length,
-      tokens: formattedBalances.map(b => `${b.symbol}: ${b.formattedBalance}`),
+      tokens: formattedBalances.map(b => `${b.symbol}: ${b.formattedBalance}`)
     });
     
-    // Dispatch event for UI updates AND directly update React state
+    // Notify listeners
+    balanceUpdateListeners.forEach(listener => {
+      try {
+        listener(formattedBalances, chain.id, railgunWalletID);
+      } catch (error) {
+        console.error('[RailgunBalances] Listener error:', error);
+      }
+    });
+    
+    // Dispatch UI event
     if (typeof window !== 'undefined') {
-      console.log('[RailgunBalances] 🔄 Dispatching UI update events...');
-      
-      // Dispatch custom event
       window.dispatchEvent(new CustomEvent('railgun-balance-update', {
         detail: {
           railgunWalletID,
           chainId: chain.id,
-          balances: formattedBalances,
-                     networkName: getRailgunNetworkNameForEvent(chain.id),
-          timestamp: Date.now()
+          balances: formattedBalances
         }
       }));
-
-      // Direct update to ensure immediate UI sync
+      
+      // Direct UI update
       if (window.__LEXIE_HOOKS__?.setPrivateBalances) {
-        console.log('[RailgunBalances] ⚡ Direct UI update via global hook reference');
         window.__LEXIE_HOOKS__.setPrivateBalances(formattedBalances);
-      } else {
-        console.warn('[RailgunBalances] ⚠️ Global hook reference not available for direct UI update');
       }
     }
     
   } catch (error) {
     console.error('[RailgunBalances] Balance callback error:', error);
   }
-};
-
-/**
- * Get railgun network name from chain ID (helper for events)
- */
-const getRailgunNetworkNameForEvent = (chainId) => {
-  return NETWORK_MAPPING[chainId] || `Chain${chainId}`;
 };
 
 /**
@@ -455,50 +350,6 @@ export const parseTokenAmount = (amount, decimals) => {
   }
 };
 
-/**
- * Check if a token is supported by Railgun
- * @param {string} tokenAddress - Token contract address
- * @param {number} chainId - Chain ID
- * @returns {boolean} True if supported
- */
-export const isTokenSupportedByRailgun = (tokenAddress, chainId) => {
-  try {
-    // Check if network is supported
-    const supportedChains = Object.keys(NETWORK_MAPPING).map(Number);
-    if (!supportedChains.includes(chainId)) {
-      return false;
-    }
-
-    // Native tokens are always supported on supported networks
-    if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000') {
-      return true;
-    }
-
-    // For now, assume all ERC20 tokens with valid addresses are supported
-    const { isAddress } = require('ethers');
-    return isAddress(tokenAddress);
-  } catch (error) {
-    console.error('[RailgunBalances] Error checking token support:', error);
-    return false;
-  }
-};
-
-/**
- * Get tokens with shieldable balances (placeholder implementation)
- * @param {string} address - EOA address
- * @param {number} chainId - Chain ID
- * @returns {Array} Array of tokens that can be shielded
- */
-export const getShieldableTokens = async (address, chainId) => {
-  try {
-    console.log('[RailgunBalances] getShieldableTokens called - feature not implemented');
-    return [];
-  } catch (error) {
-    console.error('[RailgunBalances] Failed to get shieldable tokens:', error);
-    return [];
-  }
-};
-
 // Export for compatibility
 export default {
   refreshBalances,
@@ -509,6 +360,4 @@ export default {
   refreshPrivateBalances,
   handleBalanceUpdateCallback,
   parseTokenAmount,
-  isTokenSupportedByRailgun,
-  getShieldableTokens,
 }; 
