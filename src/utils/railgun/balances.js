@@ -638,15 +638,33 @@ export const handleBalanceUpdateCallback = async (balanceEvent) => {
     // Timestamp is automatically updated when balanceCache.set() is called
     
     console.log('[RailgunBalances] Cache updated with callback data:', {
+      cacheKey,
       count: formattedBalances.length,
       tokens: formattedBalances.map(b => `${b.symbol}: ${b.formattedBalance}`),
     });
     
-    // Dispatch custom event for UI to listen to
+    // Dispatch event for UI updates AND directly update React state
     if (typeof window !== 'undefined') {
+      console.log('[RailgunBalances] 🔄 Dispatching UI update events...');
+      
+      // Dispatch custom event
       window.dispatchEvent(new CustomEvent('railgun-balance-update', {
-        detail: { railgunWalletID, chainId, balances: formattedBalances }
+        detail: {
+          railgunWalletID,
+          chainId,
+          balances: formattedBalances,
+          networkName,
+          timestamp: Date.now()
+        }
       }));
+
+      // Direct update to ensure immediate UI sync
+      if (window.__LEXIE_HOOKS__?.setPrivateBalances) {
+        console.log('[RailgunBalances] ⚡ Direct UI update via global hook reference');
+        window.__LEXIE_HOOKS__.setPrivateBalances(formattedBalances);
+      } else {
+        console.warn('[RailgunBalances] ⚠️ Global hook reference not available for direct UI update');
+      }
     }
     
   } catch (error) {

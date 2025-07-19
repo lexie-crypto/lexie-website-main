@@ -61,6 +61,25 @@ export function useBalances() {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [tokenPrices, setTokenPrices] = useState({});
 
+  // Register global hook reference for direct UI updates from balance callbacks
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      console.log('[useBalances] 🔗 Registering global hook reference for direct UI updates');
+      window.__LEXIE_HOOKS__ = {
+        ...window.__LEXIE_HOOKS__,
+        setPrivateBalances,
+      };
+      
+      // Cleanup on unmount
+      return () => {
+        if (window.__LEXIE_HOOKS__?.setPrivateBalances === setPrivateBalances) {
+          delete window.__LEXIE_HOOKS__.setPrivateBalances;
+          console.log('[useBalances] 🔗 Cleaned up global hook reference');
+        }
+      };
+    }
+  }, [setPrivateBalances]);
+
   // Load cached private balances immediately on mount
   useEffect(() => {
     if (railgunWalletId && chainId) {
@@ -382,12 +401,48 @@ export function useBalances() {
   // Listen for Railgun balance updates
   useEffect(() => {
     const handleBalanceUpdate = (event) => {
-      console.log('[useBalances] Received Railgun balance update');
-      if (railgunWalletId) {
-        // Refresh private balances when Railgun notifies of updates
-        fetchPrivateBalances().then(balances => {
-          setPrivateBalances(balances);
-        });
+      console.log('[useBalances] 📡 Received Railgun balance update event:', {
+        railgunWalletId: event.detail?.railgunWalletID?.slice(0, 8) + '...',
+        chainId: event.detail?.chainId,
+        balanceCount: event.detail?.balances?.length,
+        timestamp: event.detail?.timestamp,
+        currentWalletId: railgunWalletId?.slice(0, 8) + '...',
+        currentChainId: chainId
+      });
+      
+      // Check if this update is for the current wallet/chain
+      if (railgunWalletId && 
+          event.detail?.railgunWalletID === railgunWalletId && 
+          event.detail?.chainId === chainId) {
+        
+        console.log('[useBalances] ✅ Balance update matches current wallet/chain, applying immediately');
+        
+                 // Use the balances from the event detail if available (already formatted)
+         if (event.detail?.balances && Array.isArray(event.detail.balances)) {
+           // Add USD values to the balances
+           const balancesWithUSD = event.detail.balances.map(token => ({
+             ...token,
+             balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
+           }));
+           
+           setPrivateBalances(balancesWithUSD);
+           console.log('[useBalances] 🚀 Applied balances from event detail with USD values:', {
+             count: balancesWithUSD.length,
+             tokens: balancesWithUSD.map(b => `${b.symbol}: ${b.formattedBalance} ($${b.balanceUSD})`)
+           });
+         } else {
+           // Fallback: fetch from cache
+           console.log('[useBalances] 📦 Fallback: fetching from cache...');
+           fetchPrivateBalances().then(balances => {
+             const balancesWithUSD = balances.map(token => ({
+               ...token,
+               balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
+             }));
+             setPrivateBalances(balancesWithUSD);
+           });
+         }
+      } else {
+        console.log('[useBalances] ⏭️ Balance update for different wallet/chain, ignoring');
       }
     };
 
@@ -395,7 +450,7 @@ export function useBalances() {
     return () => {
       window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
     };
-  }, [railgunWalletId, fetchPrivateBalances]);
+  }, [railgunWalletId, chainId, fetchPrivateBalances, calculateUSDValue]);
 
   return {
     // Balance data
