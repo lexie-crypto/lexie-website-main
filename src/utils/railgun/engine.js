@@ -287,7 +287,7 @@ const startEngine = async () => {
       artifactManager.store,  // Pass the actual ArtifactStore instance
       false,
       false,
-      undefined,    // ⚠️ NO POI URLs - TEMPORARY for testing
+      [],           // ⚠️ Empty POI URLs array - TEMPORARY for testing
       [],           // Custom POI lists (empty)
       true
     );

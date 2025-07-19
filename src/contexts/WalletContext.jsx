@@ -222,7 +222,7 @@ const WalletContextProvider = ({ children }) => {
         customArtifactGetter,
         useNativeArtifacts,
         skipMerkletreeScans,
-        undefined, // ⚠️ POI DISABLED FOR TESTING - MUST RE-ENABLE FOR PRODUCTION
+        [], // ⚠️ POI DISABLED FOR TESTING - MUST RE-ENABLE FOR PRODUCTION
         [], // customPOILists - empty array
         true // verboseScanLogging
       );
