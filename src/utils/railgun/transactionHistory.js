@@ -10,6 +10,8 @@
  */
 
 import { getWalletTransactionHistory } from '@railgun-community/wallet';
+import { formatUnits } from 'ethers';
+import { NETWORK_CONFIG } from '@railgun-community/shared-models';
 import { waitForRailgunReady } from './engine.js';
 import { getCurrentWalletID } from './wallet.js';
 
@@ -38,7 +40,6 @@ const getRailgunNetworkName = (chainId) => {
  * Get chain configuration for network
  */
 const getChainConfig = (networkName) => {
-  const { NETWORK_CONFIG } = require('@railgun-community/shared-models');
   return NETWORK_CONFIG[networkName];
 };
 
@@ -191,7 +192,6 @@ const formatTokenAmount = (amount, decimals) => {
   try {
     if (!amount || amount === '0') return '0';
     
-    const { formatUnits } = require('ethers');
     const formatted = formatUnits(amount, decimals);
     const num = parseFloat(formatted);
     
