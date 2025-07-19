@@ -42,31 +42,38 @@ const getRailgunNetworkName = (chainId) => {
 };
 
 /**
- * Check token allowance for RAILGUN contract
+ * Check and ensure token approval for RAILGUN contract
  */
-const checkTokenAllowance = async (tokenAddress, ownerAddress, amount, walletProvider) => {
+const ensureTokenApproval = async (tokenAddress, ownerAddress, amount, walletProvider, transaction) => {
   if (!tokenAddress) {
     return true; // Native token (ETH) doesn't need allowance
   }
 
   try {
-    // Simple ERC20 allowance ABI
+    // Get the RAILGUN contract address from the transaction
+    const railgunContractAddress = transaction.to;
+    if (!railgunContractAddress) {
+      throw new Error('Could not determine RAILGUN contract address from transaction');
+    }
+
+    console.log('[ShieldTransactions] Checking token approval for RAILGUN contract:', {
+      token: tokenAddress,
+      owner: ownerAddress,
+      spender: railgunContractAddress,
+      amount: amount
+    });
+
+    // Simple ERC20 ABI for balance and allowance
     const erc20Abi = [
       'function allowance(address owner, address spender) view returns (uint256)',
-      'function balanceOf(address account) view returns (uint256)'
+      'function balanceOf(address account) view returns (uint256)',
+      'function approve(address spender, uint256 amount) returns (bool)'
     ];
 
     // Properly wrap the wallet provider with ethers BrowserProvider
     const provider = new BrowserProvider(walletProvider);
-    const tokenContract = new Contract(tokenAddress, erc20Abi, provider);
-    
-    // For now, we'll get the RAILGUN contract address from the SDK during the actual call
-    // This is a simplified check - the real RAILGUN contract address would be needed
-    console.log('[ShieldTransactions] Token allowance check for:', {
-      token: tokenAddress,
-      owner: ownerAddress,
-      amount: amount
-    });
+    const signer = await provider.getSigner();
+    const tokenContract = new Contract(tokenAddress, erc20Abi, signer);
     
     // Check balance first
     const balance = await tokenContract.balanceOf(ownerAddress);
@@ -82,10 +89,42 @@ const checkTokenAllowance = async (tokenAddress, ownerAddress, amount, walletPro
       throw new Error(`Insufficient token balance. Have: ${balance.toString()}, Need: ${amountBigInt.toString()}`);
     }
     
+    // Check current allowance
+    const currentAllowance = await tokenContract.allowance(ownerAddress, railgunContractAddress);
+    
+    console.log('[ShieldTransactions] Current allowance:', {
+      current: currentAllowance.toString(),
+      required: amountBigInt.toString(),
+      needsApproval: currentAllowance < amountBigInt
+    });
+    
+    // If allowance is insufficient, request approval
+    if (currentAllowance < amountBigInt) {
+      console.log('[ShieldTransactions] Requesting token approval...');
+      
+      const approveTx = await tokenContract.approve(railgunContractAddress, amountBigInt);
+      console.log('[ShieldTransactions] Approval transaction sent:', approveTx.hash);
+      
+      // Wait for approval confirmation
+      const receipt = await approveTx.wait();
+      console.log('[ShieldTransactions] Approval confirmed:', {
+        transactionHash: receipt.hash,
+        blockNumber: receipt.blockNumber,
+        gasUsed: receipt.gasUsed.toString()
+      });
+      
+      return true;
+    }
+    
+    console.log('[ShieldTransactions] Token already approved, no action needed');
     return true;
+    
   } catch (error) {
-    console.error('[ShieldTransactions] Token allowance/balance check failed:', error);
-    throw new Error(`Token validation failed: ${error.message}`);
+    console.error('[ShieldTransactions] Token approval failed:', error);
+    if (error.code === 4001 || error.message.includes('rejected')) {
+      throw new Error('Token approval required. Please approve the transaction in your wallet.');
+    }
+    throw new Error(`Token approval failed: ${error.message}`);
   }
 };
 
@@ -306,10 +345,6 @@ export const shieldTokens = async ({
       railgunAddress: `${railgunAddress.slice(0, 10)}...`,
     });
 
-    // Check token balance and allowance before proceeding
-    console.log('[ShieldTransactions] Checking token balance and allowance...');
-    await checkTokenAllowance(tokenAddress, fromAddress, amount, walletProvider);
-
     // Generate shield private key
     const shieldPrivateKey = await generateShieldPrivateKey(fromAddress, walletProvider);
 
@@ -318,7 +353,23 @@ export const shieldTokens = async ({
     const erc20AmountRecipients = [erc20AmountRecipient];
     const nftAmountRecipients = []; // Always empty for ERC20 shield
 
-    // Direct gas estimation for shield (no broadcaster needed for public wallet operations)
+    // First, create a dummy transaction to get the RAILGUN contract address
+    console.log('[ShieldTransactions] Creating initial transaction to determine RAILGUN contract...');
+    const dummyGasDetails = createShieldGasDetails(networkName, { gasEstimate: BigInt(300000) });
+    const { transaction: dummyTx } = await createShieldTransaction(
+      txidVersion,
+      networkName,
+      shieldPrivateKey,
+      erc20AmountRecipients,
+      nftAmountRecipients,
+      dummyGasDetails
+    );
+
+    // Now ensure token approval using the contract address from the transaction
+    console.log('[ShieldTransactions] Ensuring token approval...');
+    await ensureTokenApproval(tokenAddress, fromAddress, amount, walletProvider, dummyTx);
+
+    // Now do the real gas estimation after approval is confirmed
     console.log('[ShieldTransactions] Estimating gas for shield operation...');
     const gasEstimate = await gasEstimateForShield(
       txidVersion,
@@ -329,7 +380,7 @@ export const shieldTokens = async ({
       fromAddress
     );
 
-    // Create simple gas details for shield operation
+    // Create real gas details for shield operation
     const gasDetails = createShieldGasDetails(networkName, gasEstimate);
     
     const broadcasterFeeInfo = null; // No broadcaster for shield
@@ -342,8 +393,8 @@ export const shieldTokens = async ({
       hasBroadcasterFee: !!broadcasterFeeInfo,
     });
 
-    // Create transaction
-    console.log('[ShieldTransactions] Creating transaction...');
+    // Create final transaction with proper gas
+    console.log('[ShieldTransactions] Creating final transaction...');
     const { transaction } = await createShieldTransaction(
       txidVersion,
       networkName,
