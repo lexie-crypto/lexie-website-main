@@ -4,7 +4,7 @@
  * Converted to JavaScript with custom enhancements for Lexie Wallet
  */
 
-import { getAddress, isAddress, keccak256, Contract, JsonRpcProvider } from 'ethers';
+import { getAddress, isAddress, keccak256, Contract, BrowserProvider } from 'ethers';
 import {
   gasEstimateForShield,
   populateShield,
@@ -56,7 +56,9 @@ const checkTokenAllowance = async (tokenAddress, ownerAddress, amount, walletPro
       'function balanceOf(address account) view returns (uint256)'
     ];
 
-    const tokenContract = new Contract(tokenAddress, erc20Abi, walletProvider);
+    // Properly wrap the wallet provider with ethers BrowserProvider
+    const provider = new BrowserProvider(walletProvider);
+    const tokenContract = new Contract(tokenAddress, erc20Abi, provider);
     
     // For now, we'll get the RAILGUN contract address from the SDK during the actual call
     // This is a simplified check - the real RAILGUN contract address would be needed
