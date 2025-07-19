@@ -218,8 +218,21 @@ const PrivacyActions = () => {
         walletProvider: walletProvider
       });
 
+      // Send the transaction to the blockchain
       toast.dismiss(toastId);
-      toast.success(`Successfully shielded ${amount} ${selectedToken.symbol}!`);
+      toast.loading('Sending shield transaction...', { id: toastId });
+      
+      console.log('[PrivacyActions] Sending shield transaction:', result.transaction);
+      
+      const txResponse = await walletProvider.request({
+        method: 'eth_sendTransaction',
+        params: [result.transaction],
+      });
+      
+      console.log('[PrivacyActions] Transaction sent:', txResponse);
+      
+      toast.dismiss(toastId);
+      toast.success(`Successfully shielded ${amount} ${selectedToken.symbol}! TX: ${txResponse}`);
 
       // Reset form
       setAmount('');
