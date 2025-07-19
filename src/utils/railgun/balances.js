@@ -22,9 +22,23 @@ import {
   NETWORK_CONFIG,
 } from '@railgun-community/shared-models';
 import { formatUnits, parseUnits, isAddress } from 'ethers';
+import { ByteUtils, ByteLength } from '@railgun-community/engine';
 import { waitForRailgunReady } from './engine.js';
 import { getCurrentWalletID } from './wallet.js';
 import { refreshBalances } from '@railgun-community/wallet';
+
+// Helper to parse RAILGUN token addresses (matching official SDK)
+const parseRailgunTokenAddress = (tokenAddress) => {
+  if (!tokenAddress || tokenAddress === '0x00') {
+    return undefined; // Native token
+  }
+  try {
+    return ByteUtils.formatToByteLength(tokenAddress, ByteLength.Address, true);
+  } catch (error) {
+    console.warn('[RailgunBalances] Failed to parse token address:', tokenAddress, error);
+    return tokenAddress; // Return as-is if parsing fails
+  }
+};
 
 // Persistent balance cache using localStorage
 const BALANCE_CACHE_KEY = 'railgun-private-balances';
@@ -564,14 +578,38 @@ export const handleBalanceUpdateCallback = async (balancesEvent) => {
       balanceBucket,
     });
     
+    // Debug: Log all token addresses and amounts
+    if (erc20Amounts && Array.isArray(erc20Amounts)) {
+      console.log('[RailgunBalances] 🔍 Raw ERC20 amounts from callback:', erc20Amounts.length);
+      erc20Amounts.forEach((token, index) => {
+        console.log(`  [${index}] Raw Token Address: ${token.tokenAddress || 'NULL/NATIVE'}`);
+        console.log(`       Parsed Token Address: ${parseRailgunTokenAddress(token.tokenAddress) || 'NATIVE'}`);
+        console.log(`       Amount: ${token.amount?.toString() || '0'}`);
+        console.log(`       Amount type: ${typeof token.amount}`);
+      });
+    } else {
+      console.log('[RailgunBalances] ⚠️ No erc20Amounts in callback!', { erc20Amounts });
+    }
+    
     // Process token balances
     const formattedBalances = [];
     
-    if (erc20Amounts) {
-      for (const { tokenAddress, amount } of erc20Amounts) {
+    if (erc20Amounts && Array.isArray(erc20Amounts)) {
+      for (let i = 0; i < erc20Amounts.length; i++) {
+        const rawToken = erc20Amounts[i];
+        const tokenAddress = parseRailgunTokenAddress(rawToken.tokenAddress);
+        const amount = rawToken.amount;
+        
+        console.log(`[RailgunBalances] 📋 Processing token [${i}]:`, {
+          raw: rawToken.tokenAddress,
+          parsed: tokenAddress,
+          amount: amount?.toString()
+        });
+        
         try {
           // Skip zero balances
           if (!amount || amount.toString() === '0') {
+            console.log(`[RailgunBalances] ⏭️ Skipping zero balance for token ${i}`);
             continue;
           }
 
@@ -580,13 +618,48 @@ export const handleBalanceUpdateCallback = async (balancesEvent) => {
           
           console.log('[RailgunBalances] 🪙 Processing token from official callback:', {
             tokenAddress: tokenAddress || 'NATIVE',
+            tokenAddressLowerCase: tokenAddress?.toLowerCase(),
             amount: amount.toString(),
+            chainId,
             tokenData: tokenData ? {
               symbol: tokenData.symbol,
               name: tokenData.name,
               decimals: tokenData.decimals
             } : 'RESOLUTION_FAILED'
           });
+          
+          // Special handling for known stablecoins on Arbitrum
+          if (chainId === 42161 && !tokenData && tokenAddress) {
+            const knownTokens = {
+              '0xaf88d065e77c8cc2239327c5edb3a432268e5831': { symbol: 'USDC', name: 'USD Coin', decimals: 6 },
+              '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': { symbol: 'USDT', name: 'Tether USD', decimals: 6 },
+            };
+            
+            const tokenInfo = knownTokens[tokenAddress.toLowerCase()];
+            if (tokenInfo) {
+              console.log('[RailgunBalances] 🎯 Using hardcoded token info for:', tokenInfo.symbol);
+              const formattedBalance = formatUnits(amount.toString(), tokenInfo.decimals);
+              const numericBalance = parseFloat(formattedBalance);
+              
+              const balance = {
+                tokenAddress: tokenAddress,
+                symbol: tokenInfo.symbol,
+                name: tokenInfo.name,
+                decimals: tokenInfo.decimals,
+                balance: amount.toString(),
+                formattedBalance,
+                numericBalance,
+                hasBalance: numericBalance > 0,
+                isPrivate: true,
+                chainId,
+                networkName,
+                balanceBucket,
+              };
+              
+              formattedBalances.push(balance);
+              continue;
+            }
+          }
           
           if (tokenData) {
             const formattedBalance = formatUnits(amount.toString(), tokenData.decimals);
