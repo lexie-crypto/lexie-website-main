@@ -22,7 +22,7 @@ export const isPOIRequiredForNetwork = async (networkName) => {
     
     // Use the official POI system from the wallet SDK
     // This checks against network config and current block number
-    const { POIRequired } = await import('@railgun-community/wallet/dist/index.js');
+    const { POIRequired } = await import('@railgun-community/wallet');
     
     const isRequired = await POIRequired.isRequiredForNetwork(networkName);
     console.log(`[POIService] ✅ Official POI check for ${networkName}: ${isRequired}`);
