@@ -142,9 +142,9 @@ const setupNetworks = async () => {
  * Setup balance update callbacks
  * Following the private balances documentation
  */
-const setupBalanceCallbacks = () => {
+const setupBalanceCallbacks = async () => {
   // Import our official SDK-based balance update handler
-  const { setOnBalanceUpdateCallback: setBalanceCallback } = require('./balance-update.js');
+  const { setOnBalanceUpdateCallback: setBalanceCallback } = await import('./balance-update.js');
   
   // Set up the balance update callback using our adapted official implementation
   setBalanceCallback(async (balanceUpdate) => {
@@ -284,7 +284,7 @@ const startEngine = async () => {
     // Continue with rest of initialization...
     await loadSnarkJSGroth16();
     await setupNetworks();
-    setupBalanceCallbacks();
+    await setupBalanceCallbacks();
     
     console.log('[RAILGUN] 🎉 Engine initialization completed');
 
