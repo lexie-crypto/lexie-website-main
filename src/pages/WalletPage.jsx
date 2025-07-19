@@ -223,7 +223,7 @@ const WalletPage = () => {
         
         // Import the rescan function
         const { performFullRescan } = await import('../utils/railgun/balances');
-        await performFullRescan(chain.id);
+        await performFullRescan(chainConfig.id);
         
         // Refresh balances after rescan
         await refreshBalancesAfterTransaction();
