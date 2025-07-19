@@ -350,6 +350,50 @@ export const parseTokenAmount = (amount, decimals) => {
   }
 };
 
+/**
+ * Check if a token is supported by Railgun
+ * @param {string} tokenAddress - Token contract address
+ * @param {number} chainId - Chain ID
+ * @returns {boolean} True if supported
+ */
+export const isTokenSupportedByRailgun = (tokenAddress, chainId) => {
+  try {
+    // Check if network is supported
+    const supportedChains = Object.keys(NETWORK_MAPPING).map(Number);
+    if (!supportedChains.includes(chainId)) {
+      return false;
+    }
+
+    // Native tokens are always supported on supported networks
+    if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000') {
+      return true;
+    }
+
+    // For now, assume all ERC20 tokens with valid addresses are supported
+    const { isAddress } = require('ethers');
+    return isAddress(tokenAddress);
+  } catch (error) {
+    console.error('[RailgunBalances] Error checking token support:', error);
+    return false;
+  }
+};
+
+/**
+ * Get tokens with shieldable balances (placeholder implementation)
+ * @param {string} address - EOA address
+ * @param {number} chainId - Chain ID
+ * @returns {Array} Array of tokens that can be shielded
+ */
+export const getShieldableTokens = async (address, chainId) => {
+  try {
+    console.log('[RailgunBalances] getShieldableTokens called - feature not implemented');
+    return [];
+  } catch (error) {
+    console.error('[RailgunBalances] Failed to get shieldable tokens:', error);
+    return [];
+  }
+};
+
 // Export for compatibility
 export default {
   refreshBalances,
@@ -360,4 +404,6 @@ export default {
   refreshPrivateBalances,
   handleBalanceUpdateCallback,
   parseTokenAmount,
+  isTokenSupportedByRailgun,
+  getShieldableTokens,
 }; 
