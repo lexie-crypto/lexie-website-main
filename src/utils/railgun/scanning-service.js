@@ -88,13 +88,7 @@ export const getMerkletreeHistoryVersions = async (networkName) => {
     await waitForRailgunReady();
     
     const utxoVersion = await getUTXOMerkletreeHistoryVersion(networkName);
-    let txidVersion = await getTXIDMerkletreeHistoryVersion(networkName);
-    
-    // Fallback to default TXIDVersion if null (common for new networks or fresh setups)
-    if (!txidVersion) {
-      console.warn(`[ScanningService] No TXID version found for ${networkName}, using default V2_PoseidonMerkle`);
-      txidVersion = TXIDVersion.V2_PoseidonMerkle;
-    }
+    const txidVersion = await getTXIDMerkletreeHistoryVersion(networkName);
     
     const versions = {
       utxo: utxoVersion,

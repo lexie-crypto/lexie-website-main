@@ -222,7 +222,11 @@ const WalletContextProvider = ({ children }) => {
         customArtifactGetter,
         useNativeArtifacts,
         skipMerkletreeScans,
-        [], // ⚠️ POI DISABLED FOR TESTING - MUST RE-ENABLE FOR PRODUCTION
+        [
+          'https://railgun.poi.gd/poi-node',
+          'https://poi.railgun.community',
+          'https://poi-backup.railgun.community'
+        ], // poiNodeUrls - official POI node URLs
         [], // customPOILists - empty array
         true // verboseScanLogging
       );

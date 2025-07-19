@@ -274,11 +274,22 @@ const startEngine = async () => {
 
     console.log('[RAILGUN] ✅ Debug loggers configured');
 
-    // Step 4: Start engine WITHOUT POI (TEMPORARY FOR TESTING)
-    // ⚠️ WARNING: POI DISABLED FOR DEBUGGING - MUST RE-ENABLE FOR PRODUCTION ⚠️
-    console.log('[RAILGUN] 🚨 TEMPORARY: Starting engine WITHOUT POI for testing');
-    console.log('[RAILGUN] ⚠️  POI is DISABLED - this is for debugging only!');
-    console.log('[RAILGUN] ⚠️  MUST re-enable POI before production use!');
+    // Step 4: Start engine with proper POI integration
+    // Using official POI node URLs from RAILGUN infrastructure
+    const poiNodeURLs = [
+      'https://railgun.poi.gd/poi-node',
+      'https://poi.railgun.community',
+      'https://poi-backup.railgun.community'
+    ];
+    
+    console.log('[RAILGUN] 🔒 Initializing POI (Proof of Innocence) system with official nodes:', poiNodeURLs);
+    console.log('[RAILGUN] 🔍 POI URLs type:', typeof poiNodeURLs, 'length:', poiNodeURLs?.length);
+    
+    // Validate POI URLs before passing
+    if (!Array.isArray(poiNodeURLs) || poiNodeURLs.length === 0) {
+      console.error('[RAILGUN] ❌ POI URLs validation failed!', poiNodeURLs);
+      throw new Error('POI URLs must be a non-empty array');
+    }
     
     await startRailgunEngine(
       'Lexie Wallet',
@@ -287,8 +298,8 @@ const startEngine = async () => {
       artifactManager.store,  // Pass the actual ArtifactStore instance
       false,
       false,
-      [],           // ⚠️ Empty POI URLs array - TEMPORARY for testing
-      [],           // Custom POI lists (empty)
+      poiNodeURLs,  // ✅ Official POI node URLs
+      [],           // Custom POI lists (empty for now)
       true
     );
 
