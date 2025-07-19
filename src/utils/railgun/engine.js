@@ -82,7 +82,6 @@ const RPC_PROVIDERS = {
 };
 
 
-
 /**
  * Add networks and RPC providers
  * Networks are automatically configured by startRailgunEngine
@@ -380,3 +379,4 @@ export const isProviderLoaded = async (chainId) => {
     return false;
   }
 }; 
+
