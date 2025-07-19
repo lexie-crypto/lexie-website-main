@@ -145,28 +145,9 @@ const setupNetworks = async () => {
 const setupBalanceCallbacks = async () => {
   console.log('[RAILGUN] 🔧 Setting up balance callbacks...');
   
-  // Use the OFFICIAL RAILGUN SDK callback system
-  setOnBalanceUpdateCallback(async (balanceUpdate) => {
-    console.log('[RAILGUN] 🔥 OFFICIAL Balance callback triggered!', {
-      txidVersion: balanceUpdate.txidVersion,
-      chain: balanceUpdate.chain,
-      railgunWalletID: balanceUpdate.railgunWalletID?.slice(0, 8) + '...',
-      balanceBucket: balanceUpdate.balanceBucket,
-      erc20Count: balanceUpdate.erc20Amounts?.length || 0,
-    });
-    
-    // Process the balance update through our balance handler
-    const { handleBalanceUpdateCallback } = await import('./balances.js');
-    await handleBalanceUpdateCallback({
-      networkName: balanceUpdate.chain.type === 'custom' ? 
-        `${balanceUpdate.chain.type}:${balanceUpdate.chain.id}` : 
-        getNetworkNameFromChain(balanceUpdate.chain),
-      railgunWalletID: balanceUpdate.railgunWalletID,
-      erc20Amounts: balanceUpdate.erc20Amounts,
-      nftAmounts: balanceUpdate.nftAmounts,
-      balanceBucket: balanceUpdate.balanceBucket,
-    });
-  });
+  // Use the OFFICIAL RAILGUN SDK callback system - pass through directly
+  const { handleBalanceUpdateCallback } = await import('./balances.js');
+  setOnBalanceUpdateCallback(handleBalanceUpdateCallback);
 
   // UTXO Merkletree scan callback
   setOnUTXOMerkletreeScanCallback((scanData) => {

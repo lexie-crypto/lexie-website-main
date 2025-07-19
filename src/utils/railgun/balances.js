@@ -524,33 +524,44 @@ export const getShieldableTokens = async (address, chainId) => {
 };
 
 /**
- * Handle Railgun balance update callback (like the old working code)
- * @param {Object} balanceEvent - Balance update event from Railgun
+ * Handle Railgun balance update callback (official RailgunBalancesEvent structure)
+ * @param {Object} balancesEvent - Official RailgunBalancesEvent from SDK
  */
-export const handleBalanceUpdateCallback = async (balanceEvent) => {
+export const handleBalanceUpdateCallback = async (balancesEvent) => {
   try {
-    console.log('[RailgunBalances] Balance callback triggered:', balanceEvent);
+    console.log('[RailgunBalances] 🎯 Official RAILGUN balance callback triggered:', {
+      txidVersion: balancesEvent.txidVersion,
+      chainId: balancesEvent.chain?.id,
+      chainType: balancesEvent.chain?.type,
+      railgunWalletID: balancesEvent.railgunWalletID?.slice(0, 8) + '...',
+      balanceBucket: balancesEvent.balanceBucket,
+      erc20Count: balancesEvent.erc20Amounts?.length || 0,
+    });
     
-    const { networkName, railgunWalletID, erc20Amounts, balanceBucket } = balanceEvent;
+    const { 
+      txidVersion, 
+      chain, 
+      erc20Amounts, 
+      nftAmounts, 
+      railgunWalletID, 
+      balanceBucket 
+    } = balancesEvent;
     
-    // Only process spendable balances
+    // Only process spendable balances for the UI
     if (balanceBucket !== 'Spendable') {
-      console.log(`[RailgunBalances] Ignoring non-spendable balance bucket: ${balanceBucket}`);
+      console.log(`[RailgunBalances] ⏭️ Ignoring non-spendable balance bucket: ${balanceBucket}`);
       return;
     }
     
-    // Get chain ID from network name
-    const chainId = getChainIdFromNetworkName(networkName);
-    if (!chainId) {
-      console.warn('[RailgunBalances] Unknown network name:', networkName);
-      return;
-    }
+    const chainId = chain.id;
+    const networkName = chain.type === 'custom' ? `${chain.type}:${chain.id}` : NETWORK_MAPPING[chain.id];
     
-    console.log('[RailgunBalances] Processing balance update for:', {
+    console.log('[RailgunBalances] 📦 Processing official balance update:', {
       networkName,
       chainId,
       walletID: railgunWalletID?.slice(0, 8) + '...',
       tokenCount: erc20Amounts?.length || 0,
+      balanceBucket,
     });
     
     // Process token balances
@@ -567,14 +578,14 @@ export const handleBalanceUpdateCallback = async (balanceEvent) => {
           // Get token information - handle both native tokens (null) and ERC20 tokens
           const tokenData = await getTokenInfo(tokenAddress, chainId);
           
-          console.log('[RailgunBalances] Processing private token:', {
-            tokenAddress,
+          console.log('[RailgunBalances] 🪙 Processing token from official callback:', {
+            tokenAddress: tokenAddress || 'NATIVE',
             amount: amount.toString(),
             tokenData: tokenData ? {
               symbol: tokenData.symbol,
               name: tokenData.name,
               decimals: tokenData.decimals
-            } : 'NOT_FOUND'
+            } : 'RESOLUTION_FAILED'
           });
           
           if (tokenData) {
