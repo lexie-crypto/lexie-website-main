@@ -36,6 +36,7 @@ import {
   calculateBroadcasterFee,
 } from './tx-gas-broadcaster-fee-estimator.js';
 import { waitForRailgunReady } from './engine.js';
+import { parseTokenAmount } from './balances.js';
 
 /**
  * Network mapping to Railgun NetworkName enum values
@@ -89,52 +90,9 @@ const createERC20AmountRecipient = (tokenAddress, amount, recipientAddress) => {
   };
 };
 
-/**
- * SHIELD: Move tokens from public wallet to private Railgun wallet
- * Clean API using shieldTransactions.js
- */
-export const shieldTokens = async ({
-  tokenAddress,
-  amount,
-  chain,
-  fromAddress,
-  railgunAddress,
-  walletProvider,
-}) => {
-  try {
-    console.log('[RailgunActions] Shield operation requested:', {
-      tokenAddress,
-      amount,
-      chainId: chain.id,
-      fromAddress: fromAddress?.slice(0, 8) + '...',
-      railgunAddress: railgunAddress?.slice(0, 10) + '...',
-    });
-
-    // Use the clean shield implementation
-    const result = await import('./shieldTransactions.js').then(module => 
-      module.shieldTokens({
-        tokenAddress,
-        amount,
-        chain,
-        fromAddress,
-        railgunAddress,
-        walletProvider,
-      })
-    );
-
-    console.log('[RailgunActions] Shield completed successfully');
-    return {
-      ...result,
-      transactionType: TransactionType.SHIELD,
-      networkName: getRailgunNetworkName(chain.id),
-      estimatedCost: calculateTransactionCost(result.gasDetails),
-    };
-
-  } catch (error) {
-    console.error('[RailgunActions] Shield operation failed:', error);
-    throw new Error(`Shield operation failed: ${error.message}`);
-  }
-};
+// Re-export functions as named exports
+export { shieldTokens };
+export { parseTokenAmount };
 
 /**
  * UNSHIELD: Move tokens from private Railgun wallet to public wallet
