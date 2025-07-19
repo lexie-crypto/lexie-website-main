@@ -494,5 +494,5 @@ export default {
   
   // Transaction types
   TransactionType,
-}; 
+};
 

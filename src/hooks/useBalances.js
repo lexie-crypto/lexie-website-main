@@ -343,13 +343,37 @@ export function useBalances() {
 
   // Refresh balances after transactions
   const refreshBalancesAfterTransaction = useCallback(async () => {
-    console.log('[useBalances] Refreshing balances after transaction...');
+    console.log('[useBalances] 🔄 Enhanced post-transaction balance refresh...');
     
-    // Add delay to allow blockchain to process
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    // Multiple refresh attempts to catch new transactions
+    const maxAttempts = 3;
+    const delays = [5000, 10000, 15000]; // 5s, 10s, 15s
     
-    await refreshAllBalances();
-  }, [refreshAllBalances]);
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      console.log(`[useBalances] 🔄 Refresh attempt ${attempt + 1}/${maxAttempts}`);
+      
+      // Wait progressively longer
+      await new Promise(resolve => setTimeout(resolve, delays[attempt]));
+      
+      // Force a complete rescan for private balances if we have Railgun wallet
+      if (railgunWalletId && chainId) {
+        try {
+          console.log('[useBalances] 🎯 Forcing complete RAILGUN rescan...');
+          const { clearStaleBalanceCacheAndRefresh } = await import('../utils/railgun/balances');
+          await clearStaleBalanceCacheAndRefresh(railgunWalletId, chainId);
+        } catch (error) {
+          console.warn('[useBalances] Rescan failed, falling back to regular refresh:', error);
+        }
+      }
+      
+      // Regular balance refresh
+      await refreshAllBalances();
+      
+      console.log(`[useBalances] ✅ Refresh attempt ${attempt + 1} completed`);
+    }
+    
+    console.log('[useBalances] 🎉 Enhanced post-transaction refresh completed');
+  }, [refreshAllBalances, railgunWalletId, chainId]);
 
   // Format balance for display
   const formatBalance = useCallback((balance, decimals = 2) => {
@@ -446,11 +470,32 @@ export function useBalances() {
       }
     };
 
+    // Handle transaction confirmation events from Graph monitoring
+    const handleTransactionConfirmed = (event) => {
+      console.log('[useBalances] 🎯 Transaction confirmed via Graph monitoring:', {
+        txHash: event.detail?.txHash,
+        chainId: event.detail?.chainId,
+        transactionType: event.detail?.transactionType,
+        timestamp: event.detail?.timestamp
+      });
+      
+      // If this is for our current wallet/chain, refresh balances immediately
+      if (event.detail?.chainId === chainId) {
+        console.log('[useBalances] ⚡ Immediate balance refresh triggered by transaction confirmation');
+        // Small delay to ensure the balance callback has processed
+        setTimeout(() => {
+          refreshAllBalances();
+        }, 1000);
+      }
+    };
+
     window.addEventListener('railgun-balance-update', handleBalanceUpdate);
+    window.addEventListener('railgun-transaction-confirmed', handleTransactionConfirmed);
     return () => {
       window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
+      window.removeEventListener('railgun-transaction-confirmed', handleTransactionConfirmed);
     };
-  }, [railgunWalletId, chainId, fetchPrivateBalances, calculateUSDValue]);
+  }, [railgunWalletId, chainId, fetchPrivateBalances, calculateUSDValue, refreshAllBalances]);
 
   return {
     // Balance data

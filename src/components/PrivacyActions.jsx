@@ -250,26 +250,49 @@ const PrivacyActions = () => {
       setAmount('');
       setSelectedToken(availableTokens[0] || null);
 
-      // IMPORTANT: Trigger a rescan to detect the new shielded funds
-      toast.loading('Scanning for shielded funds...', { id: toastId });
-      console.log('[PrivacyActions] Triggering balance rescan after shield...');
+      // SMART: Monitor Graph API for transaction indexing
+      toast.loading('Monitoring for shield confirmation...', { id: toastId });
+      console.log('[PrivacyActions] Starting Graph-based transaction monitoring...');
       
       try {
-        // Wait a bit for the transaction to be indexed
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        // Import the transaction monitor
+        const { monitorShieldTransaction } = await import('../utils/railgun/transactionMonitor');
         
-        // Import the rescan function
-        const { performFullRescan } = await import('../utils/railgun/balances');
-        await performFullRescan(chainConfig.id);
+        // Start monitoring in background (don't await - let it run async)
+        monitorShieldTransaction(txResponse, chainConfig.id, railgunWalletId)
+          .then((result) => {
+            if (result.found) {
+              toast.success(`Shield confirmed! Balance updated in ${result.elapsedTime/1000}s`);
+            } else {
+              toast.info('Shield successful! Balance will update automatically.');
+            }
+          })
+          .catch((error) => {
+            console.error('[PrivacyActions] Graph monitoring failed:', error);
+            // Fallback to regular balance refresh
+            setTimeout(() => refreshBalancesAfterTransaction(), 10000);
+          });
         
-        // Refresh balances after rescan
-        await refreshBalancesAfterTransaction();
+        // Immediate feedback
         toast.dismiss(toastId);
-        toast.success('Private balance updated!');
-      } catch (scanError) {
-        console.error('[PrivacyActions] Rescan failed:', scanError);
+        toast.success('Shield transaction sent! Monitoring for confirmation...');
+        
+      } catch (monitorError) {
+        console.error('[PrivacyActions] Failed to start transaction monitoring:', monitorError);
+        
+        // Fallback to the old method
         toast.dismiss(toastId);
-        toast.info('Shield successful! Private balance will update shortly.');
+        toast.loading('Scanning for shielded funds...', { id: toastId });
+        
+        try {
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          await refreshBalancesAfterTransaction();
+          toast.dismiss(toastId);
+          toast.success('Shield successful! Balance should update shortly.');
+        } catch (fallbackError) {
+          toast.dismiss(toastId);
+          toast.info('Shield successful! Private balance will update automatically.');
+        }
       }
 
     } catch (error) {
@@ -332,8 +355,28 @@ const PrivacyActions = () => {
       setRecipientAddress('');
       setSelectedToken(availableTokens[0] || null);
 
-      // Refresh balances
-      await refreshBalancesAfterTransaction();
+      // SMART: Monitor Graph API for unshield confirmation  
+      try {
+        const { monitorUnshieldTransaction } = await import('../utils/railgun/transactionMonitor');
+        
+        // Start monitoring in background
+        monitorUnshieldTransaction(result.transactionHash, chainConfig.id, railgunWalletId)
+          .then((monitorResult) => {
+            if (monitorResult.found) {
+              toast.success(`Unshield confirmed! Balance updated in ${monitorResult.elapsedTime/1000}s`);
+            }
+          })
+          .catch((error) => {
+            console.error('[PrivacyActions] Unshield monitoring failed:', error);
+            // Fallback refresh
+            setTimeout(() => refreshBalancesAfterTransaction(), 10000);
+          });
+          
+      } catch (error) {
+        console.error('[PrivacyActions] Failed to start unshield monitoring:', error);
+        // Fallback to regular refresh
+        await refreshBalancesAfterTransaction();
+      }
 
     } catch (error) {
       console.error('[PrivacyActions] Unshield operation failed:', error);

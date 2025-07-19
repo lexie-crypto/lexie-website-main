@@ -909,6 +909,15 @@ if (typeof window !== 'undefined') {
     console.log('🔍 Current cache contents:', cached);
     return cached;
   };
+  window.__LEXIE_DEBUG__.monitorTransaction = async (txHash, chainId, type = 'shield') => {
+    const { monitorTransactionInGraph } = await import('./transactionMonitor.js');
+    return await monitorTransactionInGraph({
+      txHash,
+      chainId,
+      transactionType: type,
+      onFound: (event) => console.log('🎉 Transaction found in Graph!', event)
+    });
+  };
 }
 
 // Export for use in other modules

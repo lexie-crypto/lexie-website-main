@@ -629,6 +629,24 @@ const WalletPage = () => {
                 >
                   {isLoading ? 'Refreshing...' : 'Refresh All'}
                 </button>
+                {canUseRailgun && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        console.log('[WalletPage] 🔄 Manual force refresh triggered');
+                        const { clearStaleBalanceCacheAndRefresh } = await import('../utils/railgun/balances');
+                        await clearStaleBalanceCacheAndRefresh(railgunWalletId, chainId);
+                        await refreshAllBalances();
+                      } catch (error) {
+                        console.error('[WalletPage] Force refresh failed:', error);
+                      }
+                    }}
+                    disabled={isLoading}
+                    className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                  >
+                    Force Refresh
+                  </button>
+                )}
               </div>
             </div>
 
