@@ -6,7 +6,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ethers, formatUnits, Contract } from 'ethers';
 import { useWallet } from '../contexts/WalletContext';
-import { getPrivateBalances, refreshPrivateBalances } from '../utils/railgun/balances';
+import { getPrivateBalances, getPrivateBalancesFromCache, refreshPrivateBalances } from '../utils/railgun/balances';
+import { debugBalanceCache, testCachePersistence } from '../utils/railgun/cache-debug';
 import { fetchTokenPrices } from '../utils/pricing/coinGecko';
 import { RPC_URLS } from '../config/environment';
 
@@ -59,6 +60,33 @@ export function useBalances() {
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [tokenPrices, setTokenPrices] = useState({});
+
+  // Load cached private balances immediately on mount
+  useEffect(() => {
+    if (railgunWalletId && chainId) {
+      console.log('[useBalances] 🚀 Loading cached private balances on mount...');
+      
+      // Test cache persistence first
+      const persistenceTest = testCachePersistence();
+      console.log('[useBalances] Cache persistence test result:', persistenceTest);
+      
+      // Debug current cache state
+      debugBalanceCache('useBalances mount');
+      
+      const cachedPrivateBalances = getPrivateBalancesFromCache(railgunWalletId, chainId);
+      
+      if (cachedPrivateBalances.length > 0) {
+        console.log('[useBalances] ✅ Found cached private balances, loading immediately:', {
+          count: cachedPrivateBalances.length,
+          tokens: cachedPrivateBalances.map(b => `${b.symbol}: ${b.formattedBalance}`)
+        });
+        setPrivateBalances(cachedPrivateBalances);
+      } else {
+        console.log('[useBalances] No cached private balances found');
+        debugBalanceCache('after failed cache load');
+      }
+    }
+  }, [railgunWalletId, chainId]); // Only run when wallet/chain changes
 
   // Fetch and cache token prices
   const fetchAndCachePrices = useCallback(async (symbols) => {

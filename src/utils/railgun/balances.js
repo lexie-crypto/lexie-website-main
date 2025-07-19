@@ -26,9 +26,78 @@ import { waitForRailgunReady } from './engine.js';
 import { getCurrentWalletID } from './wallet.js';
 import { refreshBalances } from '@railgun-community/wallet';
 
-// Balance cache
-let balanceCache = new Map();
-let lastBalanceUpdate = new Map();
+// Persistent balance cache using localStorage
+const BALANCE_CACHE_KEY = 'railgun-private-balances';
+const BALANCE_UPDATE_KEY = 'railgun-balance-updates';
+
+/**
+ * Persistent cache implementation using localStorage
+ */
+const createPersistentCache = () => {
+  const getCache = () => {
+    try {
+      const cached = localStorage.getItem(BALANCE_CACHE_KEY);
+      return cached ? JSON.parse(cached) : {};
+    } catch (error) {
+      console.warn('[RailgunBalances] Failed to read cache from localStorage:', error);
+      return {};
+    }
+  };
+
+  const setCache = (cache) => {
+    try {
+      localStorage.setItem(BALANCE_CACHE_KEY, JSON.stringify(cache));
+    } catch (error) {
+      console.warn('[RailgunBalances] Failed to save cache to localStorage:', error);
+    }
+  };
+
+  const getLastUpdates = () => {
+    try {
+      const cached = localStorage.getItem(BALANCE_UPDATE_KEY);
+      return cached ? JSON.parse(cached) : {};
+    } catch (error) {
+      console.warn('[RailgunBalances] Failed to read updates from localStorage:', error);
+      return {};
+    }
+  };
+
+  const setLastUpdates = (updates) => {
+    try {
+      localStorage.setItem(BALANCE_UPDATE_KEY, JSON.stringify(updates));
+    } catch (error) {
+      console.warn('[RailgunBalances] Failed to save updates to localStorage:', error);
+    }
+  };
+
+  return {
+    get: (key) => getCache()[key] || [],
+    set: (key, value) => {
+      const cache = getCache();
+      cache[key] = value;
+      setCache(cache);
+      
+      // Also update the last update timestamp
+      const updates = getLastUpdates();
+      updates[key] = Date.now();
+      setLastUpdates(updates);
+      
+      console.log('[RailgunBalances] 💾 Saved private balances to persistent cache:', {
+        key,
+        count: value.length,
+        tokens: value.map(b => `${b.symbol}: ${b.formattedBalance}`)
+      });
+    },
+    clear: () => {
+      localStorage.removeItem(BALANCE_CACHE_KEY);
+      localStorage.removeItem(BALANCE_UPDATE_KEY);
+    },
+    getLastUpdate: (key) => getLastUpdates()[key] || 0
+  };
+};
+
+// Initialize persistent cache
+const balanceCache = createPersistentCache();
 
 /**
  * Network mapping for Railgun
@@ -61,24 +130,58 @@ const getRailgunNetworkName = (chainId) => {
  */
 export const getPrivateBalances = async (walletID, chainId) => {
   try {
-    console.log('[RailgunBalances] Getting private balances from cache:', {
+    console.log('[RailgunBalances] Getting private balances from persistent cache:', {
       walletID: walletID?.slice(0, 8) + '...',
       chainId,
     });
     
-    // Return cached balances - the real balances come through callbacks
+    // Return cached balances from persistent storage
     const cacheKey = `${walletID}-${chainId}`;
     const cachedBalances = balanceCache.get(cacheKey) || [];
     
-    console.log('[RailgunBalances] Retrieved private balances from cache:', {
+    console.log('[RailgunBalances] 📱 Retrieved private balances from persistent cache:', {
       count: cachedBalances.length,
       tokens: cachedBalances.map(b => `${b.symbol}: ${b.formattedBalance}`),
+      lastUpdate: balanceCache.getLastUpdate(cacheKey)
     });
     
     return cachedBalances;
     
   } catch (error) {
     console.error('[RailgunBalances] Failed to get private balances:', error);
+    return [];
+  }
+};
+
+/**
+ * Get private balances from cache immediately (for initial load)
+ * @param {string} walletID - RAILGUN wallet ID
+ * @param {number} chainId - Chain ID
+ * @returns {Array} Cached balance array or empty array
+ */
+export const getPrivateBalancesFromCache = (walletID, chainId) => {
+  try {
+    if (!walletID || !chainId) {
+      return [];
+    }
+
+    const cacheKey = `${walletID}-${chainId}`;
+    const cachedBalances = balanceCache.get(cacheKey) || [];
+    const lastUpdate = balanceCache.getLastUpdate(cacheKey);
+    
+    console.log('[RailgunBalances] 🚀 Loading private balances from cache on init:', {
+      walletID: walletID?.slice(0, 8) + '...',
+      chainId,
+      count: cachedBalances.length,
+      tokens: cachedBalances.map(b => `${b.symbol}: ${b.formattedBalance}`),
+      lastUpdate: lastUpdate ? new Date(lastUpdate).toLocaleString() : 'Never',
+      cacheAge: lastUpdate ? `${Math.round((Date.now() - lastUpdate) / 1000)}s ago` : 'Unknown'
+    });
+    
+    return cachedBalances;
+    
+  } catch (error) {
+    console.error('[RailgunBalances] Failed to get cached balances:', error);
     return [];
   }
 };
@@ -286,7 +389,7 @@ export const getCachedBalances = (walletID, chainId) => {
  */
 export const isCacheFresh = (walletID, chainId) => {
   const cacheKey = `${walletID}-${chainId}`;
-  const lastUpdate = lastBalanceUpdate.get(cacheKey);
+      const lastUpdate = balanceCache.getLastUpdate(cacheKey);
   
   if (!lastUpdate) {
     return false;
@@ -354,8 +457,9 @@ export const parseTokenAmount = (amount, decimals) => {
  * Clear balance cache
  */
 export const clearBalanceCache = () => {
+  console.warn('[RailgunBalances] 🗑️ BALANCE CACHE CLEARED - this should only happen intentionally!');
+  console.trace('[RailgunBalances] Cache clear stack trace:');
   balanceCache.clear();
-  lastBalanceUpdate.clear();
   console.log('[RailgunBalances] Balance cache cleared');
 };
 
@@ -531,7 +635,7 @@ export const handleBalanceUpdateCallback = async (balanceEvent) => {
     // Update cache
     const cacheKey = `${railgunWalletID}-${chainId}`;
     balanceCache.set(cacheKey, formattedBalances);
-    lastBalanceUpdate.set(cacheKey, Date.now());
+    // Timestamp is automatically updated when balanceCache.set() is called
     
     console.log('[RailgunBalances] Cache updated with callback data:', {
       count: formattedBalances.length,
@@ -620,6 +724,7 @@ export const forceCompleteRescan = async (chainId, walletID) => {
 // Export for use in other modules
 export default {
   getPrivateBalances,
+  getPrivateBalancesFromCache,
   getTokenInfo,
   refreshPrivateBalances,
   performFullRescan,
