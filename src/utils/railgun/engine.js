@@ -36,7 +36,6 @@ import {
   setOnUTXOMerkletreeScanCallback,
   setOnTXIDMerkletreeScanCallback,
   refreshRailgunBalances,
-  loadNetwork,
 } from '@railgun-community/wallet';
 import { 
   NetworkName,
