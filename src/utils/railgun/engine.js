@@ -50,6 +50,7 @@ import { createEnhancedArtifactStore } from './artifactStore.js';
 // Engine state
 let isEngineStarted = false;
 let isProverLoaded = false;
+let areArtifactsLoaded = false;
 let enginePromise = null;
 
 /**
@@ -79,6 +80,7 @@ const RPC_PROVIDERS = {
     rpcUrl: 'https://bsc-dataseed.binance.org/', // BSC public RPC
   },
 };
+
 
 
 /**
@@ -219,9 +221,16 @@ const startEngine = async () => {
     const artifactManager = await createEnhancedArtifactStore(false); // false = web/WASM
     console.log('[RAILGUN] Enhanced artifact store created with downloader');
     
-    // Cryptographic artifacts will be downloaded on-demand by SDK when needed
-    console.log('[RAILGUN] Artifact store ready - crypto artifacts will download on-demand');
-    // Note: Contract artifacts (ABIs) are handled internally by startRailgunEngine
+    // Download common artifacts needed for operations
+    console.log('[RAILGUN] Downloading essential artifacts...');
+    try {
+      await artifactManager.setupCommonArtifacts();
+      console.log('[RAILGUN] ✅ Essential artifacts downloaded and ready');
+      areArtifactsLoaded = true;
+    } catch (artifactError) {
+      console.warn('[RAILGUN] ⚠️ Artifact download failed, will try on-demand:', artifactError);
+      areArtifactsLoaded = false; // Will download on-demand during operations
+    }
 
     // Step 2: Create database
     const db = new LevelJS('railgun-db');
@@ -288,12 +297,14 @@ export const waitForRailgunReady = async () => {
     await initializeRailgun();
   }
   
+  if (!areArtifactsLoaded) {
+    throw new Error('RAILGUN contract artifacts not loaded');
+  }
+  
   if (!isProverLoaded) {
     throw new Error('RAILGUN prover not loaded');
   }
   
-  // Contract artifacts are handled internally by the RAILGUN SDK
-  // The SDK is ready when engine is started and prover is loaded
   return true;
 };
 
@@ -301,7 +312,7 @@ export const waitForRailgunReady = async () => {
  * Check if RAILGUN engine is ready
  */
 export const isRailgunReady = () => {
-  return isEngineStarted && isProverLoaded;
+  return isEngineStarted && isProverLoaded && areArtifactsLoaded;
 };
 
 /**
@@ -369,4 +380,3 @@ export const isProviderLoaded = async (chainId) => {
     return false;
   }
 }; 
-
