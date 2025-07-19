@@ -45,7 +45,7 @@ import {
 } from '@railgun-community/shared-models';
 import { groth16 } from 'snarkjs';
 import LevelJS from 'level-js';
-import { createArtifactStore } from './artifactStore.js';
+import { createEnhancedArtifactStore } from './artifactStore.js';
 
 // Engine state
 let isEngineStarted = false;
@@ -85,7 +85,7 @@ const RPC_PROVIDERS = {
 
 /**
  * Add networks and RPC providers
- * Following the proper initialization sequence: loadNetwork THEN loadProvider
+ * Networks are automatically configured by startRailgunEngine
  */
 const setupNetworks = async () => {
   try {
@@ -95,18 +95,13 @@ const setupNetworks = async () => {
       try {
         console.log(`[RAILGUN] Setting up ${networkName}...`);
         
-        // Step 1: Load the network configuration FIRST
+        // Step 1: Network configuration (handled by SDK)
         const networkConfig = NETWORK_CONFIG[networkName];
         if (networkConfig) {
-          console.log(`[RAILGUN] Loading network config for ${networkName}...`);
-          await loadNetwork(
-            networkName,
-            networkConfig.proxyContract,
-            networkConfig.relayAdapt,
-            networkConfig.deploymentBlock,
-            config.rpcUrl // Pass the RPC URL directly
-          );
-          console.log(`[RAILGUN] ✅ Network ${networkName} configuration loaded`);
+          console.log(`[RAILGUN] Network config available for ${networkName}`);
+          // Note: Network configuration is handled automatically by startRailgunEngine
+          // No need to manually call loadNetwork in this SDK version
+          console.log(`[RAILGUN] ✅ Network ${networkName} configuration ready`);
         } else {
           console.warn(`[RAILGUN] No network config found for ${networkName}`);
           continue;
@@ -222,20 +217,20 @@ const startEngine = async () => {
   try {
     console.log('[RAILGUN] 🚀 Initializing Railgun engine...');
 
-    // Step 1: Create artifact store
-    const artifactStore = await createArtifactStore();
-    console.log('[RAILGUN] Artifact store created:', {
-      hasDownloadMethod: typeof artifactStore.downloadAndSaveArtifacts === 'function',
-      storeMethods: Object.getOwnPropertyNames(Object.getPrototypeOf(artifactStore)),
-      hasGet: typeof artifactStore.get === 'function',
-      hasSet: typeof artifactStore.set === 'function', 
-      hasExists: typeof artifactStore.exists === 'function',
-      instanceType: typeof artifactStore,
-    });
-    console.log('[RAILGUN] SDK will handle artifact downloads on demand');
+    // Step 1: Create enhanced artifact store with downloader
+    const artifactManager = await createEnhancedArtifactStore(false); // false = web/WASM
+    console.log('[RAILGUN] Enhanced artifact store created with downloader');
     
-    // Set artifacts as ready since SDK handles them internally
-    areArtifactsLoaded = true;
+    // Download common artifacts needed for operations
+    console.log('[RAILGUN] Downloading essential artifacts...');
+    try {
+      await artifactManager.setupCommonArtifacts();
+      console.log('[RAILGUN] ✅ Essential artifacts downloaded and ready');
+      areArtifactsLoaded = true;
+    } catch (artifactError) {
+      console.warn('[RAILGUN] ⚠️ Artifact download failed, will try on-demand:', artifactError);
+      areArtifactsLoaded = false; // Will download on-demand during operations
+    }
 
     // Step 2: Create database
     const db = new LevelJS('railgun-db');
@@ -253,7 +248,7 @@ const startEngine = async () => {
       'Lexie Wallet',
       db,
       true,
-      artifactStore,  // Pass the artifact store instance
+      artifactManager.store,  // Pass the actual ArtifactStore instance
       false,
       false,
       [],
