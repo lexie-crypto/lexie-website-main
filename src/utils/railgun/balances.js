@@ -10,7 +10,6 @@
  */
 
 import {
-  refreshRailgunBalances,
   rescanFullUTXOMerkletreesAndWallets,
   fullRescanUTXOMerkletreesAndWalletsForNetwork,
   getTokenDataERC20,
@@ -23,8 +22,9 @@ import {
   NETWORK_CONFIG,
 } from '@railgun-community/shared-models';
 import { formatUnits, parseUnits, isAddress } from 'ethers';
-import { waitForRailgunReady, refreshBalances } from './engine.js';
+import { waitForRailgunReady } from './engine.js';
 import { getCurrentWalletID } from './wallet.js';
+import { refreshBalances } from '@railgun-community/wallet';
 
 // Balance cache
 let balanceCache = new Map();
@@ -162,8 +162,11 @@ export const refreshPrivateBalances = async (walletID, chainId) => {
     
     console.log('[RailgunBalances] Triggering private balance refresh...');
     
+    // Get the chain configuration
+    const { chain } = NETWORK_CONFIG[networkName];
+    
     // Trigger RAILGUN balance refresh - this will cause callbacks to fire
-    await refreshBalances(networkName, walletID);
+    await refreshBalances(chain, [walletID]);
     
     console.log('[RailgunBalances] Private balance refresh triggered - waiting for callbacks');
     
