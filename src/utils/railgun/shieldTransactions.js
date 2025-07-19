@@ -210,15 +210,34 @@ export const shieldTokens = async ({
   walletProvider
 }) => {
   try {
-    // Basic validation
-    if (!amount || typeof amount !== 'string') {
-      throw new Error('Amount must be a non-empty string');
+    // Enhanced validation with better error handling
+    console.log('[ShieldTransactions] Input validation:', {
+      amount: amount,
+      amountType: typeof amount,
+      tokenAddress,
+      fromAddress: fromAddress?.slice(0, 8) + '...',
+      railgunAddress: railgunAddress?.slice(0, 10) + '...',
+    });
+
+    // Convert amount to string if it's a number
+    if (typeof amount === 'number') {
+      amount = amount.toString();
+    }
+    
+    if (!amount || typeof amount !== 'string' || amount.trim() === '') {
+      throw new Error(`Invalid amount: received ${typeof amount} "${amount}", expected non-empty string`);
     }
     if (!chain?.id) {
-      throw new Error('Chain must have an id property');
+      throw new Error(`Invalid chain: received ${JSON.stringify(chain)}, expected object with id property`);
     }
-    if (!railgunAddress?.startsWith('0zk')) {
-      throw new Error('Invalid Railgun address');
+    if (!railgunAddress || typeof railgunAddress !== 'string' || !railgunAddress.startsWith('0zk')) {
+      throw new Error(`Invalid Railgun address: received ${typeof railgunAddress} "${railgunAddress}", expected string starting with "0zk"`);
+    }
+    if (!fromAddress || typeof fromAddress !== 'string') {
+      throw new Error(`Invalid fromAddress: received ${typeof fromAddress} "${fromAddress}", expected non-empty string`);
+    }
+    if (!walletProvider) {
+      throw new Error('Wallet provider is required for shield operations');
     }
 
     // Validate addresses
