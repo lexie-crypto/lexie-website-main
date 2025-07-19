@@ -20,6 +20,7 @@ import {
   NetworkName,
   formatToLocaleWithMinDecimals,
   RailgunERC20Amount,
+  NETWORK_CONFIG,
 } from '@railgun-community/shared-models';
 import { formatUnits, parseUnits, isAddress } from 'ethers';
 import { waitForRailgunReady, refreshBalances } from './engine.js';
@@ -548,7 +549,7 @@ export const forceCompleteRescan = async (chainId, walletID) => {
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     // After rescan, trigger a manual balance fetch to ensure UI updates
-    const balances = await fetchPrivateBalances(walletID, chainId);
+    const balances = await getPrivateBalances(walletID, chainId);
     console.log('[RailgunBalances] Fetched balances after rescan:', balances);
     
     return balances;
@@ -556,7 +557,7 @@ export const forceCompleteRescan = async (chainId, walletID) => {
   } catch (error) {
     console.error('[RailgunBalances] Force rescan failed:', error);
     // Don't throw, just return current balances
-    return await fetchPrivateBalances(walletID, chainId);
+    return await getPrivateBalances(walletID, chainId);
   }
 };
 
@@ -577,4 +578,5 @@ export default {
   isTokenSupportedByRailgun,
   getShieldableTokens,
   handleBalanceUpdateCallback,
+  forceCompleteRescan,
 }; 
