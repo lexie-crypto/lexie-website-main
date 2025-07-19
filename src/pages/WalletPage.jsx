@@ -182,13 +182,17 @@ const WalletPage = () => {
       console.log('[WalletPage] Sending shield transaction:', result.transaction);
       
       // Convert BigInt values to hex strings for JSON serialization
+      // CRITICAL: Keep all transaction fields, especially 'data' which contains the contract call
       const txForSending = {
-        ...result.transaction,
+        to: result.transaction.to,
+        from: result.transaction.from,
+        data: result.transaction.data, // CRITICAL: This contains the shield contract call!
         gasLimit: result.transaction.gasLimit ? '0x' + result.transaction.gasLimit.toString(16) : undefined,
         gasPrice: result.transaction.gasPrice ? '0x' + result.transaction.gasPrice.toString(16) : undefined,
         maxFeePerGas: result.transaction.maxFeePerGas ? '0x' + result.transaction.maxFeePerGas.toString(16) : undefined,
         maxPriorityFeePerGas: result.transaction.maxPriorityFeePerGas ? '0x' + result.transaction.maxPriorityFeePerGas.toString(16) : undefined,
         value: result.transaction.value ? '0x' + result.transaction.value.toString(16) : '0x0',
+        chainId: result.transaction.chainId,
       };
       
       console.log('[WalletPage] Formatted transaction for sending:', txForSending);
