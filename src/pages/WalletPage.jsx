@@ -166,16 +166,14 @@ const WalletPage = () => {
 
       toast.loading(`Shielding ${amount} ${token.symbol}...`);
       
-      const result = await shieldTokens(
-        railgunWalletId,
-        key,
-        token.address,
-        amountInUnits,
-        chainConfig,
-        address,
-        railgunAddress,
-        walletProvider // Pass walletProvider
-      );
+      const result = await shieldTokens({
+        tokenAddress: token.address,
+        amount: amountInUnits,
+        chain: chainConfig,
+        fromAddress: address,
+        railgunAddress: railgunAddress,
+        walletProvider: walletProvider
+      });
 
       toast.dismiss();
       toast.success(`Successfully shielded ${amount} ${token.symbol}!`);

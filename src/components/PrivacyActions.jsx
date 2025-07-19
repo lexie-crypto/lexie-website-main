@@ -209,16 +209,14 @@ const PrivacyActions = () => {
       toast.loading('Shielding tokens into private balance...', { id: toastId });
 
       // Execute shield operation
-      const result = await shieldTokens(
-        railgunWalletId,
-        encryptionKey,
-        selectedToken.address,
-        amountInUnits,
-        chainConfig,
-        address,
-        railgunAddress,
-        walletProvider
-      );
+      const result = await shieldTokens({
+        tokenAddress: selectedToken.address,
+        amount: amountInUnits,
+        chain: chainConfig,
+        fromAddress: address,
+        railgunAddress: railgunAddress,
+        walletProvider: walletProvider
+      });
 
       toast.dismiss(toastId);
       toast.success(`Successfully shielded ${amount} ${selectedToken.symbol}!`);
