@@ -283,6 +283,13 @@ const startEngine = async () => {
     ];
     
     console.log('[RAILGUN] 🔒 Initializing POI (Proof of Innocence) system with official nodes:', poiNodeURLs);
+    console.log('[RAILGUN] 🔍 POI URLs type:', typeof poiNodeURLs, 'length:', poiNodeURLs?.length);
+    
+    // Validate POI URLs before passing
+    if (!Array.isArray(poiNodeURLs) || poiNodeURLs.length === 0) {
+      console.error('[RAILGUN] ❌ POI URLs validation failed!', poiNodeURLs);
+      throw new Error('POI URLs must be a non-empty array');
+    }
     
     await startRailgunEngine(
       'Lexie Wallet',

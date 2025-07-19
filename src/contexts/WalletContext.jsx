@@ -222,12 +222,13 @@ const WalletContextProvider = ({ children }) => {
         customArtifactGetter,
         useNativeArtifacts,
         skipMerkletreeScans,
-        [], // poiNodeUrls - empty array for default
+        [
+          'https://railgun.poi.gd/poi-node',
+          'https://poi.railgun.community',
+          'https://poi-backup.railgun.community'
+        ], // poiNodeUrls - official POI node URLs
         [], // customPOILists - empty array
-        true, // verboseScanLogging
-        {
-          poiNodeURL: 'https://railgun.poi.gd/poi-node',
-        }
+        true // verboseScanLogging
       );
       console.log('✅ RAILGUN engine started successfully');
 

@@ -27,6 +27,14 @@ export const isPOIRequiredForNetwork = async (networkName) => {
     const isRequired = await POIRequired.isRequiredForNetwork(networkName);
     console.log(`[POIService] ✅ Official POI check for ${networkName}: ${isRequired}`);
     
+    // Debug: Check if POI system is properly initialized
+    try {
+      const { WalletPOI } = await import('@railgun-community/wallet');
+      console.log('[POIService] 🔍 WalletPOI.started:', WalletPOI.started);
+    } catch (e) {
+      console.warn('[POIService] ⚠️ Could not check WalletPOI status:', e);
+    }
+    
     return isRequired;
   } catch (error) {
     console.warn('[POIService] ⚠️ Official POI check failed, using network-based fallback:', error);
