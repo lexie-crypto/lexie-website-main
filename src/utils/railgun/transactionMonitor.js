@@ -399,7 +399,7 @@ const getRpcUrl = (chainId) => {
 };
 
 /**
- * Monitor shield transaction and auto-refresh balances when found
+ * Monitor shield transaction and use balance callback instead of forced refresh
  */
 export const monitorShieldTransaction = async (txHash, chainId, walletID) => {
   console.log('[TransactionMonitor] 🛡️ Monitoring shield transaction:', txHash);
@@ -409,14 +409,32 @@ export const monitorShieldTransaction = async (txHash, chainId, walletID) => {
     chainId,
     transactionType: 'shield',
     onFound: async (event) => {
-      console.log('[TransactionMonitor] 🎯 Shield transaction indexed! Triggering balance refresh...');
+      console.log('[TransactionMonitor] 🎯 Shield transaction indexed! Waiting for balance callback...');
       
       try {
-        // Import and trigger balance refresh
-        const { clearStaleBalanceCacheAndRefresh } = await import('./balances.js');
-        await clearStaleBalanceCacheAndRefresh(walletID, chainId);
+        // OPTIMIZATION: Don't force cache reload - let the balance callback handle it
+        // The SDK will automatically trigger balance callback when it detects the new transaction
         
-        // Also dispatch event for immediate UI update
+        // Set up a listener for the balance callback (with timeout)
+        const balanceUpdatePromise = new Promise((resolve) => {
+          const handleBalanceUpdate = (e) => {
+            if (e.detail?.chainId === chainId && e.detail?.source === 'fresh-callback') {
+              console.log('[TransactionMonitor] ✅ Balance callback triggered after shield detection');
+              window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
+              resolve(true);
+            }
+          };
+          
+          window.addEventListener('railgun-balance-update', handleBalanceUpdate);
+          
+          // Timeout after 10 seconds
+          setTimeout(() => {
+            window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
+            resolve(false);
+          }, 10000);
+        });
+        
+        // Dispatch immediate confirmation event
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
             detail: {
@@ -429,9 +447,29 @@ export const monitorShieldTransaction = async (txHash, chainId, walletID) => {
           }));
         }
         
-        console.log('[TransactionMonitor] ✅ Balance refresh completed after shield detection');
+        // Wait for balance callback or timeout
+        const callbackReceived = await balanceUpdatePromise;
+        
+        if (callbackReceived) {
+          console.log('[TransactionMonitor] ✅ Shield detection complete - balance updated via callback');
+        } else {
+          console.warn('[TransactionMonitor] ⏰ Balance callback timeout - falling back to manual refresh');
+          
+          // Fallback: Only if balance callback doesn't fire, manually refresh
+          const { clearStaleBalanceCacheAndRefresh } = await import('./balances.js');
+          await clearStaleBalanceCacheAndRefresh(walletID, chainId);
+        }
+        
       } catch (error) {
-        console.error('[TransactionMonitor] ❌ Balance refresh failed after shield detection:', error);
+        console.error('[TransactionMonitor] ❌ Shield monitoring failed:', error);
+        
+        // Error fallback: Force refresh as last resort
+        try {
+          const { clearStaleBalanceCacheAndRefresh } = await import('./balances.js');
+          await clearStaleBalanceCacheAndRefresh(walletID, chainId);
+        } catch (fallbackError) {
+          console.error('[TransactionMonitor] Fallback refresh also failed:', fallbackError);
+        }
       }
     }
   });
@@ -440,7 +478,7 @@ export const monitorShieldTransaction = async (txHash, chainId, walletID) => {
 };
 
 /**
- * Monitor unshield transaction and auto-refresh balances when found
+ * Monitor unshield transaction and use balance callback instead of forced refresh
  */
 export const monitorUnshieldTransaction = async (txHash, chainId, walletID) => {
   console.log('[TransactionMonitor] 🔓 Monitoring unshield transaction:', txHash);
@@ -450,12 +488,31 @@ export const monitorUnshieldTransaction = async (txHash, chainId, walletID) => {
     chainId,
     transactionType: 'unshield',
     onFound: async (event) => {
-      console.log('[TransactionMonitor] 🎯 Unshield transaction indexed! Triggering balance refresh...');
+      console.log('[TransactionMonitor] 🎯 Unshield transaction indexed! Waiting for balance callback...');
       
       try {
-        const { clearStaleBalanceCacheAndRefresh } = await import('./balances.js');
-        await clearStaleBalanceCacheAndRefresh(walletID, chainId);
+        // OPTIMIZATION: Don't force cache reload - let the balance callback handle it
         
+        // Set up a listener for the balance callback (with timeout)
+        const balanceUpdatePromise = new Promise((resolve) => {
+          const handleBalanceUpdate = (e) => {
+            if (e.detail?.chainId === chainId && e.detail?.source === 'fresh-callback') {
+              console.log('[TransactionMonitor] ✅ Balance callback triggered after unshield detection');
+              window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
+              resolve(true);
+            }
+          };
+          
+          window.addEventListener('railgun-balance-update', handleBalanceUpdate);
+          
+          // Timeout after 10 seconds
+          setTimeout(() => {
+            window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
+            resolve(false);
+          }, 10000);
+        });
+        
+        // Dispatch immediate confirmation event
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
             detail: {
@@ -468,9 +525,29 @@ export const monitorUnshieldTransaction = async (txHash, chainId, walletID) => {
           }));
         }
         
-        console.log('[TransactionMonitor] ✅ Balance refresh completed after unshield detection');
+        // Wait for balance callback or timeout
+        const callbackReceived = await balanceUpdatePromise;
+        
+        if (callbackReceived) {
+          console.log('[TransactionMonitor] ✅ Unshield detection complete - balance updated via callback');
+        } else {
+          console.warn('[TransactionMonitor] ⏰ Balance callback timeout - falling back to manual refresh');
+          
+          // Fallback: Only if balance callback doesn't fire, manually refresh
+          const { clearStaleBalanceCacheAndRefresh } = await import('./balances.js');
+          await clearStaleBalanceCacheAndRefresh(walletID, chainId);
+        }
+        
       } catch (error) {
-        console.error('[TransactionMonitor] ❌ Balance refresh failed after unshield detection:', error);
+        console.error('[TransactionMonitor] ❌ Unshield monitoring failed:', error);
+        
+        // Error fallback: Force refresh as last resort
+        try {
+          const { clearStaleBalanceCacheAndRefresh } = await import('./balances.js');
+          await clearStaleBalanceCacheAndRefresh(walletID, chainId);
+        } catch (fallbackError) {
+          console.error('[TransactionMonitor] Fallback refresh also failed:', fallbackError);
+        }
       }
     }
   });

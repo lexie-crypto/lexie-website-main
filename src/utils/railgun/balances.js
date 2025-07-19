@@ -590,6 +590,7 @@ export const getShieldableTokens = async (address, chainId) => {
 
 /**
  * Handle Railgun balance update callback (official RailgunBalancesEvent structure)
+ * OPTIMIZED: Use fresh callback data directly, save to cache, dispatch to UI immediately
  * @param {Object} balancesEvent - Official RailgunBalancesEvent from SDK
  */
 export const handleBalanceUpdateCallback = async (balancesEvent) => {
@@ -621,7 +622,7 @@ export const handleBalanceUpdateCallback = async (balancesEvent) => {
     const chainId = chain.id;
     const networkName = chain.type === 'custom' ? `${chain.type}:${chain.id}` : NETWORK_MAPPING[chain.id];
     
-    console.log('[RailgunBalances] 📦 Processing official balance update:', {
+    console.log('[RailgunBalances] ⚡ Processing FRESH balance data from callback:', {
       networkName,
       chainId,
       walletID: railgunWalletID?.slice(0, 8) + '...',
@@ -642,7 +643,7 @@ export const handleBalanceUpdateCallback = async (balancesEvent) => {
       console.log('[RailgunBalances] ⚠️ No erc20Amounts in callback!', { erc20Amounts });
     }
     
-    // Process token balances
+    // Process token balances from FRESH callback data
     const formattedBalances = [];
     
     if (erc20Amounts && Array.isArray(erc20Amounts)) {
@@ -667,167 +668,178 @@ export const handleBalanceUpdateCallback = async (balancesEvent) => {
           // Get token information - Use hardcoded tokens FIRST for known tokens, then SDK fallback
           let tokenData = null;
           
-                      console.log('[RailgunBalances] 🪙 Processing token from official callback:', {
-              rawTokenAddress: rawToken.tokenAddress,
-              normalizedTokenAddress: tokenAddress || 'NATIVE',
-              tokenAddressLowerCase: tokenAddress?.toLowerCase(),
-              amount: amount.toString(),
-              chainId,
-              tokenIndex: i
-            });
+          console.log('[RailgunBalances] 🪙 Processing token from official callback:', {
+            rawTokenAddress: rawToken.tokenAddress,
+            normalizedTokenAddress: tokenAddress || 'NATIVE',
+            tokenAddressLowerCase: tokenAddress?.toLowerCase(),
+            amount: amount.toString(),
+            chainId,
+            tokenIndex: i
+          });
           
           // Primary: Check hardcoded tokens FIRST (like transactionHistory.js does)
           if (chainId === 42161 && tokenAddress) {
+            // Known tokens on Arbitrum
             const knownTokens = {
-              '0xaf88d065e77c8cc2239327c5edb3a432268e5831': { symbol: 'USDC', name: 'USD Coin', decimals: 6 },
-              '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': { symbol: 'USDT', name: 'Tether USD', decimals: 6 },
+              '0xaf88d065e77c8cc2239327c5edb3a432268e5831': { // USDC
+                symbol: 'USDC',
+                decimals: 6,
+                name: 'USD Coin'
+              },
+              '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': { // USDT
+                symbol: 'USDT', 
+                decimals: 6,
+                name: 'Tether USD'
+              }
             };
             
-            const tokenInfo = knownTokens[tokenAddress.toLowerCase()];
-            if (tokenInfo) {
-              console.log('[RailgunBalances] 🎯 Using PRIORITY hardcoded token info for:', tokenInfo.symbol);
-              const formattedBalance = formatUnits(amount.toString(), tokenInfo.decimals);
-              const numericBalance = parseFloat(formattedBalance);
-              
-              const balance = {
-                tokenAddress: tokenAddress,
-                symbol: tokenInfo.symbol,
-                name: tokenInfo.name,
-                decimals: tokenInfo.decimals,
-                balance: amount.toString(),
-                formattedBalance,
-                numericBalance,
-                hasBalance: numericBalance > 0,
-                isPrivate: true,
-                chainId,
-                networkName,
+            const knownToken = knownTokens[tokenAddress.toLowerCase()];
+            if (knownToken) {
+              tokenData = {
+                address: tokenAddress,
+                ...knownToken
               };
-              
-              formattedBalances.push(balance);
-              continue;
+              console.log('[RailgunBalances] ✅ Using hardcoded token data:', tokenData);
             }
           }
           
-          // Secondary: Try SDK lookup for other tokens
-          try {
-            tokenData = await getTokenInfo(tokenAddress, chainId);
-            console.log('[RailgunBalances] 📡 SDK token resolution result:', tokenData ? {
-              symbol: tokenData.symbol,
-              name: tokenData.name,
-              decimals: tokenData.decimals
-            } : 'FAILED');
-          } catch (error) {
-            console.warn('[RailgunBalances] SDK token lookup failed:', error);
-            tokenData = null;
+          // Fallback: Use SDK token lookup if not in hardcoded list
+          if (!tokenData) {
+            console.log('[RailgunBalances] 🔍 Token not in hardcoded list, using SDK lookup...');
+            try {
+              const { getERC20TokenInfo } = await import('@railgun-community/wallet');
+              const result = await getERC20TokenInfo(
+                new NetworkName(),
+                tokenAddress,
+                chainId
+              );
+              
+              if (result && result.symbol) {
+                tokenData = {
+                  address: tokenAddress,
+                  symbol: result.symbol,
+                  decimals: result.decimals || 18,
+                  name: result.name || result.symbol
+                };
+                console.log('[RailgunBalances] ✅ SDK token lookup successful:', tokenData);
+              }
+            } catch (sdkError) {
+              console.warn('[RailgunBalances] SDK token lookup failed:', sdkError);
+            }
           }
           
-          if (tokenData) {
-            const formattedBalance = formatUnits(amount.toString(), tokenData.decimals);
-            const numericBalance = parseFloat(formattedBalance);
-            
-            const balance = {
-              tokenAddress: tokenAddress || null, // Ensure null for native tokens
-              symbol: tokenData.symbol || 'UNKNOWN',
-              name: tokenData.name || 'Unknown Token',
-              decimals: tokenData.decimals || 18,
-              balance: amount.toString(),
-              formattedBalance,
-              numericBalance,
-              hasBalance: numericBalance > 0,
-              isPrivate: true,
-              chainId,
-              networkName,
-            };
-            
-            console.log('[RailgunBalances] ✅ Processed private token balance:', {
-              symbol: balance.symbol,
-              formattedBalance: balance.formattedBalance,
-              decimals: balance.decimals
-            });
-            
-            formattedBalances.push(balance);
-          } else {
-            console.warn('[RailgunBalances] ⚠️ Could not resolve token metadata for:', tokenAddress);
-            
-            // Fallback: create balance with unknown token info but correct formatting
-            const decimals = 18; // Default to 18 decimals if unknown
-            const formattedBalance = formatUnits(amount.toString(), decimals);
-            const numericBalance = parseFloat(formattedBalance);
-            
-            const balance = {
-              tokenAddress: tokenAddress || null,
+          // Final fallback: Create placeholder token
+          if (!tokenData) {
+            console.log('[RailgunBalances] ⚠️ Creating placeholder token data');
+            tokenData = {
+              address: tokenAddress,
               symbol: 'UNKNOWN',
-              name: 'Unknown Token',
-              decimals,
-              balance: amount.toString(),
-              formattedBalance,
-              numericBalance,
-              hasBalance: numericBalance > 0,
-              isPrivate: true,
-              chainId,
-              networkName,
+              decimals: 18,
+              name: 'Unknown Token'
             };
-            
-            formattedBalances.push(balance);
           }
-        } catch (error) {
-          console.warn('[RailgunBalances] Failed to process token in callback:', tokenAddress, error);
+          
+          // Format balance using proper decimals
+          const numericBalance = Number(formatUnits(amount.toString(), tokenData.decimals));
+          const formattedBalance = numericBalance.toFixed(4).replace(/\.?0+$/, '');
+          
+          console.log('[RailgunBalances] 💰 Formatted balance:', {
+            symbol: tokenData.symbol,
+            rawAmount: amount.toString(),
+            decimals: tokenData.decimals,
+            numericBalance,
+            formattedBalance
+          });
+          
+          formattedBalances.push({
+            address: tokenData.address,
+            symbol: tokenData.symbol,
+            decimals: tokenData.decimals,
+            name: tokenData.name,
+            rawBalance: amount.toString(),
+            numericBalance,
+            formattedBalance
+          });
+          
+        } catch (tokenError) {
+          console.error(`[RailgunBalances] Failed to process token ${i}:`, tokenError);
+          console.error('Token data:', rawToken);
         }
       }
     }
     
-    // Update cache
+    console.log('[RailgunBalances] 🚀 FRESH balance processing complete:', {
+      totalTokens: formattedBalances.length,
+      tokens: formattedBalances.map(t => `${t.symbol}: ${t.formattedBalance}`)
+    });
+    
+    // OPTIMIZATION: Save fresh data to cache immediately
     const cacheKey = `${railgunWalletID}-${chainId}`;
     balanceCache.set(cacheKey, formattedBalances);
-    // Timestamp is automatically updated when balanceCache.set() is called
     
-    console.log('[RailgunBalances] Cache updated with callback data:', {
-      cacheKey,
-      count: formattedBalances.length,
-      tokens: formattedBalances.map(b => `${b.symbol}: ${b.formattedBalance}`),
-    });
+    // Save to localStorage for persistence
+    try {
+      localStorage.setItem(
+        `railgun_balances_${cacheKey}`, 
+        JSON.stringify({
+          balances: formattedBalances,
+          timestamp: Date.now(),
+          chainId,
+          walletID: railgunWalletID
+        })
+      );
+      console.log('[RailgunBalances] 💾 Fresh balances saved to persistent cache');
+    } catch (storageError) {
+      console.warn('[RailgunBalances] Failed to save to localStorage:', storageError);
+    }
     
-    // DETAILED NEW BALANCE INSPECTION
-    console.log('[RailgunBalances] 🔍 DETAILED new balance inspection:');
-    formattedBalances.forEach((balance, index) => {
-      console.log(`  [${index}] New Token Details:`, {
-        symbol: balance.symbol,
-        name: balance.name,
-        tokenAddress: balance.tokenAddress,
-        decimals: balance.decimals,
-        rawBalance: balance.balance,
-        formattedBalance: balance.formattedBalance,
-        numericBalance: balance.numericBalance,
-        chainId: balance.chainId
-      });
-    });
-    
-    // Dispatch event for UI updates AND directly update React state
+    // OPTIMIZATION: Dispatch fresh data directly to UI (no cache reload needed!)
     if (typeof window !== 'undefined') {
-      console.log('[RailgunBalances] 🔄 Dispatching UI update events...');
-      
-      // Dispatch custom event
       window.dispatchEvent(new CustomEvent('railgun-balance-update', {
         detail: {
           railgunWalletID,
           chainId,
-          balances: formattedBalances,
-          networkName,
-          timestamp: Date.now()
+          balances: formattedBalances, // Fresh data from callback!
+          timestamp: Date.now(),
+          source: 'fresh-callback', // Indicates this is real-time data
+          txidVersion,
         }
       }));
-
-      // Direct update to ensure immediate UI sync
-      if (window.__LEXIE_HOOKS__?.setPrivateBalances) {
-        console.log('[RailgunBalances] ⚡ Direct UI update via global hook reference');
-        window.__LEXIE_HOOKS__.setPrivateBalances(formattedBalances);
-      } else {
-        console.warn('[RailgunBalances] ⚠️ Global hook reference not available for direct UI update');
-      }
+      
+      console.log('[RailgunBalances] 📡 Fresh balance data dispatched to UI:', {
+        eventType: 'railgun-balance-update',
+        walletID: railgunWalletID?.slice(0, 8) + '...',
+        chainId,
+        tokenCount: formattedBalances.length,
+        source: 'fresh-callback'
+      });
     }
     
   } catch (error) {
-    console.error('[RailgunBalances] Error in balance callback:', error);
+    console.error('[RailgunBalances] 💥 Balance callback processing failed:', error);
+    
+    // Fallback: Try to load from cache if callback processing fails
+    try {
+      console.log('[RailgunBalances] 🔄 Falling back to cache after callback error...');
+      const cacheKey = `${balancesEvent.railgunWalletID}-${balancesEvent.chain.id}`;
+             const cachedBalances = getBalancesFromCache(cacheKey);
+      
+      if (cachedBalances && cachedBalances.length > 0) {
+        window.dispatchEvent(new CustomEvent('railgun-balance-update', {
+          detail: {
+            railgunWalletID: balancesEvent.railgunWalletID,
+            chainId: balancesEvent.chain.id,
+            balances: cachedBalances,
+            timestamp: Date.now(),
+            source: 'cache-fallback',
+            txidVersion: balancesEvent.txidVersion,
+          }
+        }));
+        console.log('[RailgunBalances] 📦 Fallback cache data dispatched to UI');
+      }
+    } catch (fallbackError) {
+      console.error('[RailgunBalances] Cache fallback also failed:', fallbackError);
+    }
   }
 };
 

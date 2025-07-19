@@ -11,6 +11,14 @@ import { debugBalanceCache, testCachePersistence } from '../utils/railgun/cache-
 import { fetchTokenPrices } from '../utils/pricing/coinGecko';
 import { RPC_URLS } from '../config/environment';
 
+// Network mapping for UI display  
+const NETWORK_MAPPING = {
+  1: 'Ethereum',
+  42161: 'Arbitrum',
+  137: 'Polygon',
+  56: 'BNBChain',
+};
+
 // ERC20 ABI for balance checking
 const ERC20_ABI = [
   'function balanceOf(address owner) view returns (uint256)',
@@ -430,41 +438,78 @@ export function useBalances() {
         chainId: event.detail?.chainId,
         balanceCount: event.detail?.balances?.length,
         timestamp: event.detail?.timestamp,
+        source: event.detail?.source, // NEW: Track data source
         currentWalletId: railgunWalletId?.slice(0, 8) + '...',
         currentChainId: chainId
       });
-      
-      // Check if this update is for the current wallet/chain
-      if (railgunWalletId && 
-          event.detail?.railgunWalletID === railgunWalletId && 
+
+      // Check if this update is for the current wallet and chain
+      if (event.detail?.railgunWalletID === railgunWalletId && 
           event.detail?.chainId === chainId) {
         
         console.log('[useBalances] ✅ Balance update matches current wallet/chain, applying immediately');
         
-                 // Use the balances from the event detail if available (already formatted)
-         if (event.detail?.balances && Array.isArray(event.detail.balances)) {
-           // Add USD values to the balances
-           const balancesWithUSD = event.detail.balances.map(token => ({
-             ...token,
-             balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
-           }));
-           
-           setPrivateBalances(balancesWithUSD);
-           console.log('[useBalances] 🚀 Applied balances from event detail with USD values:', {
-             count: balancesWithUSD.length,
-             tokens: balancesWithUSD.map(b => `${b.symbol}: ${b.formattedBalance} ($${b.balanceUSD})`)
-           });
-         } else {
-           // Fallback: fetch from cache
-           console.log('[useBalances] 📦 Fallback: fetching from cache...');
-           fetchPrivateBalances().then(balances => {
-             const balancesWithUSD = balances.map(token => ({
-               ...token,
-               balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
-             }));
-             setPrivateBalances(balancesWithUSD);
-           });
-         }
+        // OPTIMIZATION: Use fresh callback data directly (no cache reload needed!)
+        if (event.detail?.source === 'fresh-callback' && event.detail?.balances && Array.isArray(event.detail.balances)) {
+          console.log('[useBalances] ⚡ Using FRESH balance data from callback (no cache reload):', {
+            count: event.detail.balances.length,
+            tokens: event.detail.balances.map(b => `${b.symbol}: ${b.formattedBalance}`)
+          });
+          
+          // Add USD values to the fresh balances
+          const balancesWithUSD = event.detail.balances.map(token => ({
+            // Convert to legacy format for UI compatibility
+            tokenAddress: token.address,
+            symbol: token.symbol,
+            name: token.name,
+            decimals: token.decimals,
+            balance: token.rawBalance,
+            formattedBalance: token.formattedBalance,
+            numericBalance: token.numericBalance,
+            hasBalance: token.numericBalance > 0,
+            isPrivate: true,
+            chainId,
+            networkName: NETWORK_MAPPING[chainId] || `Chain ${chainId}`,
+            // Add USD value calculation
+            balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
+          }));
+          
+          setPrivateBalances(balancesWithUSD);
+          console.log('[useBalances] 🚀 Applied FRESH balances from callback with USD values:', {
+            count: balancesWithUSD.length,
+            tokens: balancesWithUSD.map(b => `${b.symbol}: ${b.formattedBalance} ($${b.balanceUSD})`)
+          });
+          
+        } else if (event.detail?.balances && Array.isArray(event.detail.balances)) {
+          // Fallback: Handle legacy cache-sourced data
+          console.log('[useBalances] 📦 Using cache-sourced balance data:', {
+            source: event.detail?.source || 'unknown',
+            count: event.detail.balances.length
+          });
+          
+          // Use the balances from the event detail if available (already formatted)
+          const balancesWithUSD = event.detail.balances.map(token => ({
+            ...token,
+            balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
+          }));
+          
+          setPrivateBalances(balancesWithUSD);
+          console.log('[useBalances] 🚀 Applied cache balances with USD values:', {
+            count: balancesWithUSD.length,
+            tokens: balancesWithUSD.map(b => `${b.symbol}: ${b.formattedBalance} ($${b.balanceUSD})`)
+          });
+          
+        } else {
+          // Final fallback: fetch from cache if no balance data in event
+          console.log('[useBalances] 📦 No balance data in event, fetching from cache...');
+          fetchPrivateBalances().then(balances => {
+            const balancesWithUSD = balances.map(token => ({
+              ...token,
+              balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
+            }));
+            setPrivateBalances(balancesWithUSD);
+          });
+        }
       } else {
         console.log('[useBalances] ⏭️ Balance update for different wallet/chain, ignoring');
       }
