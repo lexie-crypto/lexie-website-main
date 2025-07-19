@@ -143,18 +143,30 @@ const setupNetworks = async () => {
  * Following the private balances documentation
  */
 const setupBalanceCallbacks = () => {
-  // Balance update callback
-  setOnBalanceUpdateCallback((balanceUpdate) => {
+  // Import our official SDK-based balance update handler
+  const { setOnBalanceUpdateCallback: setBalanceCallback } = require('./balance-update.js');
+  
+  // Set up the balance update callback using our adapted official implementation
+  setBalanceCallback(async (balanceUpdate) => {
     console.log('[RAILGUN] Balance updated:', {
-      networkName: balanceUpdate.networkName,
-      walletID: balanceUpdate.walletID?.slice(0, 8) + '...',
-      balances: balanceUpdate.balancesByTokenAddress,
+      txidVersion: balanceUpdate.txidVersion,
+      chain: balanceUpdate.chain,
+      railgunWalletID: balanceUpdate.railgunWalletID?.slice(0, 8) + '...',
+      balanceBucket: balanceUpdate.balanceBucket,
+      erc20Count: balanceUpdate.erc20Amounts?.length || 0,
     });
     
-    // Dispatch custom event for UI to listen to
-    window.dispatchEvent(new CustomEvent('railgun-balance-update', {
-      detail: balanceUpdate
-    }));
+    // Process the balance update through our balance handler
+    const { handleBalanceUpdateCallback } = await import('./balances.js');
+    await handleBalanceUpdateCallback({
+      networkName: balanceUpdate.chain.type === 'custom' ? 
+        `${balanceUpdate.chain.type}:${balanceUpdate.chain.id}` : 
+        getNetworkNameFromChain(balanceUpdate.chain),
+      railgunWalletID: balanceUpdate.railgunWalletID,
+      erc20Amounts: balanceUpdate.erc20Amounts,
+      nftAmounts: balanceUpdate.nftAmounts,
+      balanceBucket: balanceUpdate.balanceBucket,
+    });
   });
 
   // UTXO Merkletree scan callback
@@ -178,6 +190,17 @@ const setupBalanceCallbacks = () => {
   });
 
   console.log('[RAILGUN] Balance callbacks configured');
+};
+
+// Helper to get network name from chain
+const getNetworkNameFromChain = (chain) => {
+  const networkMap = {
+    1: 'Ethereum',
+    42161: 'Arbitrum',
+    137: 'Polygon',
+    56: 'BNBChain',
+  };
+  return networkMap[chain.id] || `Chain${chain.id}`;
 };
 
 /**

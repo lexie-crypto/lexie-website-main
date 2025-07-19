@@ -508,6 +508,58 @@ const getChainIdFromNetworkName = (networkName) => {
   return networkMapping[networkName] || null;
 };
 
+/**
+ * Force a complete rescan of the merkle tree and wallets
+ * This is more aggressive than refreshBalances and should fix balance update issues
+ * @param {number} chainId - Chain ID
+ * @param {string} walletID - Wallet ID to rescan
+ */
+export const forceCompleteRescan = async (chainId, walletID) => {
+  try {
+    console.log('[RailgunBalances] Starting FORCE COMPLETE rescan...');
+    
+    await waitForRailgunReady();
+    
+    // Get network configuration
+    const networkName = getRailgunNetworkName(chainId);
+    const { chain } = NETWORK_CONFIG[networkName];
+    
+    console.log('[RailgunBalances] Force rescanning for:', {
+      networkName,
+      chainId,
+      walletID: walletID?.slice(0, 8) + '...'
+    });
+    
+    // First, try the standard refresh
+    await refreshBalances(chain, [walletID]);
+    
+    // If we have fullRescanUTXOMerkletreesAndWalletsForNetwork available, use it
+    if (fullRescanUTXOMerkletreesAndWalletsForNetwork) {
+      console.log('[RailgunBalances] Performing full UTXO merkle tree rescan...');
+      await fullRescanUTXOMerkletreesAndWalletsForNetwork(
+        networkName,
+        [walletID]
+      );
+    }
+    
+    console.log('[RailgunBalances] Force rescan completed');
+    
+    // Wait a bit for the scan to process
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // After rescan, trigger a manual balance fetch to ensure UI updates
+    const balances = await fetchPrivateBalances(walletID, chainId);
+    console.log('[RailgunBalances] Fetched balances after rescan:', balances);
+    
+    return balances;
+    
+  } catch (error) {
+    console.error('[RailgunBalances] Force rescan failed:', error);
+    // Don't throw, just return current balances
+    return await fetchPrivateBalances(walletID, chainId);
+  }
+};
+
 // Export for use in other modules
 export default {
   getPrivateBalances,

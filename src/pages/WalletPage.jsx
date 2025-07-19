@@ -225,37 +225,44 @@ const WalletPage = () => {
         // Wait a bit for the transaction to be indexed
         await new Promise(resolve => setTimeout(resolve, 3000));
         
-        // Import the official refreshBalances function
-        const { refreshBalances } = await import('@railgun-community/wallet');
-        const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
+        // Use our enhanced force rescan that handles merkle tree errors
+        const { forceCompleteRescan } = await import('../utils/railgun/balances.js');
         
-        // Get the proper chain object as per documentation
-        const networkName = {
-          1: NetworkName.Ethereum,
-          42161: NetworkName.Arbitrum,
-          137: NetworkName.Polygon,
-          56: NetworkName.BNBChain,
-        }[chainConfig.id];
+        console.log('[WalletPage] Using force complete rescan to handle merkle tree issues...');
         
-        const { chain } = NETWORK_CONFIG[networkName];
+        // Force rescan which will:
+        // 1. Use refreshBalances
+        // 2. Try fullRescanUTXOMerkletreesAndWalletsForNetwork if available
+        // 3. Fetch balances after scan
+        const updatedBalances = await forceCompleteRescan(chainConfig.id, railgunWalletId);
         
-        // Optional filter to only scan the specific wallet
-        const walletIdFilter = [railgunWalletId];
+        console.log('[WalletPage] Force rescan completed, found balances:', updatedBalances?.length || 0);
         
-        console.log('[WalletPage] Refreshing balances using official method...');
-        
-        // Use the official refreshBalances as per documentation
-        await refreshBalances(chain, walletIdFilter);
-        
-        // The callbacks (onMerkletreeScanCallback and onBalanceUpdateCallback) will trigger automatically
-        // This will update the UI through the existing event listeners
+        // Also refresh UI balances
+        await refreshAllBalances();
         
         toast.dismiss();
-        toast.success('Private balance updated!');
+        
+        if (updatedBalances && updatedBalances.length > 0) {
+          toast.success('Private balance updated!');
+        } else {
+          toast.info('Shield successful! Balance scan in progress...');
+          
+          // Try again after a longer delay
+          setTimeout(async () => {
+            console.log('[WalletPage] Retrying balance refresh...');
+            await refreshAllBalances();
+          }, 10000); // 10 seconds
+        }
       } catch (scanError) {
         console.error('[WalletPage] Rescan failed:', scanError);
         toast.dismiss();
         toast.info('Shield successful! Private balance will update shortly.');
+        
+        // Still try to refresh UI
+        setTimeout(() => {
+          refreshAllBalances();
+        }, 5000);
       }
       
     } catch (error) {
