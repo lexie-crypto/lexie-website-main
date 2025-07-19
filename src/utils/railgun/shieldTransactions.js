@@ -266,19 +266,22 @@ export const shieldTokens = async ({
     const erc20AmountRecipients = [erc20AmountRecipient];
     const nftAmountRecipients = []; // Always empty for ERC20 shield
 
-    // Enhanced gas estimation with broadcaster fee support
-    console.log('[ShieldTransactions] Estimating gas with comprehensive fee calculation...');
-    const gasEstimationResult = await estimateShieldGasWithFees(
+    // Direct gas estimation for shield (no broadcaster needed for public wallet operations)
+    console.log('[ShieldTransactions] Estimating gas for shield operation...');
+    const gasEstimate = await gasEstimateForShield(
       txidVersion,
       networkName,
       shieldPrivateKey,
       erc20AmountRecipients,
       nftAmountRecipients,
-      fromAddress,
-      null // No broadcaster for shield transactions (always public wallet)
+      fromAddress
     );
 
-    const { gasDetails, broadcasterFeeInfo, iterations } = gasEstimationResult;
+    // Create simple gas details for shield operation
+    const gasDetails = createShieldGasDetails(networkName, gasEstimate);
+    
+    const broadcasterFeeInfo = null; // No broadcaster for shield
+    const iterations = 1; // Direct estimation
     
     console.log('[ShieldTransactions] Gas estimation completed:', {
       gasEstimate: gasDetails.gasEstimate.toString(),
