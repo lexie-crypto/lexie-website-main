@@ -21,22 +21,23 @@ import {
   RailgunERC20Amount,
   NETWORK_CONFIG,
 } from '@railgun-community/shared-models';
-import { formatUnits, parseUnits, isAddress } from 'ethers';
-import { ByteUtils, ByteLength } from '@railgun-community/engine';
+import { formatUnits, parseUnits, isAddress, getAddress } from 'ethers';
 import { waitForRailgunReady } from './engine.js';
 import { getCurrentWalletID } from './wallet.js';
 import { refreshBalances } from '@railgun-community/wallet';
 
-// Helper to parse RAILGUN token addresses (matching official SDK)
-const parseRailgunTokenAddress = (tokenAddress) => {
-  if (!tokenAddress || tokenAddress === '0x00') {
+// Helper to normalize token addresses (following official V2 pattern)
+const normalizeTokenAddress = (tokenAddress) => {
+  if (!tokenAddress || tokenAddress === '0x00' || tokenAddress === '0x0000000000000000000000000000000000000000') {
     return undefined; // Native token
   }
+  
   try {
-    return ByteUtils.formatToByteLength(tokenAddress, ByteLength.Address, true);
+    // Use ethers.js getAddress() to normalize and checksum the address (like V2 formatters)
+    return getAddress(tokenAddress);
   } catch (error) {
-    console.warn('[RailgunBalances] Failed to parse token address:', tokenAddress, error);
-    return tokenAddress; // Return as-is if parsing fails
+    console.warn('[RailgunBalances] Invalid token address:', tokenAddress, error);
+    return tokenAddress; // Return as-is if normalization fails
   }
 };
 
@@ -583,7 +584,7 @@ export const handleBalanceUpdateCallback = async (balancesEvent) => {
       console.log('[RailgunBalances] 🔍 Raw ERC20 amounts from callback:', erc20Amounts.length);
       erc20Amounts.forEach((token, index) => {
         console.log(`  [${index}] Raw Token Address: ${token.tokenAddress || 'NULL/NATIVE'}`);
-        console.log(`       Parsed Token Address: ${parseRailgunTokenAddress(token.tokenAddress) || 'NATIVE'}`);
+        console.log(`       Normalized Token Address: ${normalizeTokenAddress(token.tokenAddress) || 'NATIVE'}`);
         console.log(`       Amount: ${token.amount?.toString() || '0'}`);
         console.log(`       Amount type: ${typeof token.amount}`);
       });
@@ -597,12 +598,12 @@ export const handleBalanceUpdateCallback = async (balancesEvent) => {
     if (erc20Amounts && Array.isArray(erc20Amounts)) {
       for (let i = 0; i < erc20Amounts.length; i++) {
         const rawToken = erc20Amounts[i];
-        const tokenAddress = parseRailgunTokenAddress(rawToken.tokenAddress);
+        const tokenAddress = normalizeTokenAddress(rawToken.tokenAddress);
         const amount = rawToken.amount;
         
         console.log(`[RailgunBalances] 📋 Processing token [${i}]:`, {
           raw: rawToken.tokenAddress,
-          parsed: tokenAddress,
+          normalized: tokenAddress,
           amount: amount?.toString()
         });
         
