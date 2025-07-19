@@ -371,7 +371,7 @@ export const shieldTokens = async ({
 
     // Now do the real gas estimation after approval is confirmed
     console.log('[ShieldTransactions] Estimating gas for shield operation...');
-    const gasEstimate = await gasEstimateForShield(
+    const gasEstimateResponse = await gasEstimateForShield(
       txidVersion,
       networkName,
       shieldPrivateKey,
@@ -379,6 +379,13 @@ export const shieldTokens = async ({
       nftAmountRecipients,
       fromAddress
     );
+
+    // Extract the gas estimate value from the response
+    const gasEstimate = gasEstimateResponse.gasEstimate || gasEstimateResponse;
+    console.log('[ShieldTransactions] Gas estimate response:', {
+      gasEstimate: gasEstimate.toString(),
+      type: typeof gasEstimate
+    });
 
     // Create real gas details for shield operation
     const gasDetails = createShieldGasDetails(networkName, gasEstimate);
