@@ -21,6 +21,7 @@ import {
 import { useWallet } from '../contexts/WalletContext';
 import useBalances from '../hooks/useBalances';
 import PrivacyActions from '../components/PrivacyActions';
+import TransactionHistory from '../components/TransactionHistory';
 import {
   shieldTokens,
   parseTokenAmount,
@@ -64,7 +65,7 @@ const WalletPage = () => {
   } = useBalances();
 
   const [showPrivateMode, setShowPrivateMode] = useState(false);
-  const [selectedView, setSelectedView] = useState('balances'); // 'balances' or 'privacy'
+  const [selectedView, setSelectedView] = useState('balances'); // 'balances', 'privacy', or 'history'
   const [showPrivateBalances, setShowPrivateBalances] = useState(false);
   const [isShielding, setIsShielding] = useState(false);
   const [shieldingTokens, setShieldingTokens] = useState(new Set());
@@ -546,6 +547,17 @@ const WalletPage = () => {
               >
                 Privacy Actions
               </button>
+              <button
+                onClick={() => setSelectedView('history')}
+                disabled={!canUseRailgun}
+                className={`py-4 px-6 text-sm font-medium border-b-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
+                  selectedView === 'history'
+                    ? 'border-purple-500 text-purple-400'
+                    : 'border-transparent text-gray-400 hover:text-gray-200 hover:border-gray-300'
+                }`}
+              >
+                🕐 History
+              </button>
             </nav>
           </div>
         </div>
@@ -888,6 +900,10 @@ const WalletPage = () => {
 
         {selectedView === 'privacy' && (
           <PrivacyActions />
+        )}
+
+        {selectedView === 'history' && (
+          <TransactionHistory />
         )}
 
         {/* Error Messages */}
