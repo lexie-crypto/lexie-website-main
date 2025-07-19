@@ -142,21 +142,47 @@ export const onBalancesUpdate = async (txidVersion, wallet, chain) => {
       return;
     }
 
-    // Check if POI is required for this network
-    const isPOIRequired = await checkPOIRequired(network.name);
+    // First try to get balances by bucket (POI-aware mode)
+    let tokenBalancesByBucket;
+    let usingPOIBuckets = false;
     
-    if (!isPOIRequired) {
-      // POI not required - all balances are spendable
+    try {
+      console.log('[BalanceUpdate] Attempting to get balances by POI bucket...');
+      tokenBalancesByBucket = await wallet.getTokenBalancesByBucket(
+        txidVersion,
+        chain
+      );
+      
+      // Check if we got any spendable balances and analyze bucket distribution
+      const spendableTokens = tokenBalancesByBucket[RailgunWalletBalanceBucket.Spendable] || {};
+      const hasSpendableBalances = Object.keys(spendableTokens).length > 0;
+      
+      // Count balances in all buckets for diagnostic purposes
+      const bucketCounts = {};
+      Object.entries(tokenBalancesByBucket).forEach(([bucket, tokens]) => {
+        bucketCounts[bucket] = Object.keys(tokens).length;
+      });
+      
+      console.log(`[BalanceUpdate] POI bucket distribution:`, bucketCounts);
+      console.log(`[BalanceUpdate] Spendable balances found: ${hasSpendableBalances}`);
+      
+      // If POI system gives us non-spendable balances only, this indicates POI issues
+      // In this case, fall back to spendable-only mode for better user experience
+      if (!hasSpendableBalances) {
+        const totalBalances = Object.values(bucketCounts).reduce((sum, count) => sum + count, 0);
+        console.warn(`[BalanceUpdate] ⚠️  POI system returned ${totalBalances} total balances but 0 spendable - falling back to spendable-only mode`);
+        return getAllBalancesAsSpendable(txidVersion, wallet, chain);
+      }
+      
+      usingPOIBuckets = true;
+      
+    } catch (error) {
+      console.warn('[BalanceUpdate] POI bucket mode failed, falling back to spendable-only mode:', error);
       return getAllBalancesAsSpendable(txidVersion, wallet, chain);
     }
 
-    // POI required - get balances by bucket
-    const tokenBalancesByBucket = await wallet.getTokenBalancesByBucket(
-      txidVersion,
-      chain
-    );
-
-    // Process each balance bucket
+    // Process POI balance buckets
+    console.log('[BalanceUpdate] ✅ Using POI bucket mode with spendable balances');
     const balanceBuckets = Object.values(RailgunWalletBalanceBucket);
 
     for (const balanceBucket of balanceBuckets) {

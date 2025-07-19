@@ -20,17 +20,18 @@ export const isPOIRequiredForNetwork = async (networkName) => {
   try {
     console.log(`[POIService] Checking POI requirement for ${networkName}...`);
     
-    // Import the official POI required checker
-    const { POIRequired } = await import('@railgun-community/wallet');
+    // Use the official POI system from the wallet SDK
+    // This checks against network config and current block number
+    const { POIRequired } = await import('@railgun-community/wallet/dist/index.js');
     
     const isRequired = await POIRequired.isRequiredForNetwork(networkName);
-    console.log(`[POIService] ✅ POI required for ${networkName}: ${isRequired}`);
+    console.log(`[POIService] ✅ Official POI check for ${networkName}: ${isRequired}`);
     
     return isRequired;
   } catch (error) {
-    console.warn('[POIService] ⚠️ Official POI check failed, using fallback:', error);
+    console.warn('[POIService] ⚠️ Official POI check failed, using network-based fallback:', error);
     
-    // Fallback: Check based on network type
+    // Fallback: Check if it's a mainnet network that typically requires POI
     const mainnetNetworks = [
       NetworkName.Ethereum,
       NetworkName.Arbitrum, 

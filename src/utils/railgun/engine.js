@@ -274,14 +274,15 @@ const startEngine = async () => {
 
     console.log('[RAILGUN] ✅ Debug loggers configured');
 
-    // Step 4: Start engine with artifact store and POI node URLs
+    // Step 4: Start engine with proper POI integration
+    // Using official POI node URLs from RAILGUN infrastructure
     const poiNodeURLs = [
-      'https://poi.railgun.org',
-      'https://poi-v2.railgun.org',
-      'https://backup-poi.railgun.org'
+      'https://railgun.poi.gd/poi-node',
+      'https://poi.railgun.community',
+      'https://poi-backup.railgun.community'
     ];
     
-    console.log('[RAILGUN] 🔒 Configuring POI (Proof of Innocence) nodes:', poiNodeURLs);
+    console.log('[RAILGUN] 🔒 Initializing POI (Proof of Innocence) system with official nodes:', poiNodeURLs);
     
     await startRailgunEngine(
       'Lexie Wallet',
@@ -290,7 +291,7 @@ const startEngine = async () => {
       artifactManager.store,  // Pass the actual ArtifactStore instance
       false,
       false,
-      poiNodeURLs,  // ✅ Add official POI node URLs
+      poiNodeURLs,  // ✅ Official POI node URLs
       [],           // Custom POI lists (empty for now)
       true
     );
@@ -303,19 +304,17 @@ const startEngine = async () => {
     await setupNetworks();
     await setupBalanceCallbacks();
     
-    // Initialize POI system
+    // Validate POI system (POI is already initialized via startRailgunEngine)
     try {
-      const { initializePOI, validatePOIConfiguration } = await import('./poi-service.js');
-      await initializePOI();
-      
+      const { validatePOIConfiguration } = await import('./poi-service.js');
       const isValidPOI = await validatePOIConfiguration();
       if (isValidPOI) {
         console.log('[RAILGUN] ✅ POI system validated and ready');
       } else {
-        console.warn('[RAILGUN] ⚠️ POI system may need attention');
+        console.warn('[RAILGUN] ⚠️ POI system validation failed, but continuing with fallback handling');
       }
     } catch (poiError) {
-      console.warn('[RAILGUN] ⚠️ POI initialization failed, continuing without POI:', poiError);
+      console.warn('[RAILGUN] ⚠️ POI validation failed, but engine will handle POI errors gracefully:', poiError);
     }
     
     console.log('[RAILGUN] 🎉 Engine initialization completed');
