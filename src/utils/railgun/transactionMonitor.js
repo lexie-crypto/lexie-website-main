@@ -110,26 +110,59 @@ const queryNullifiers = async (chainId, fromBlock, txHash = null) => {
       ...(txHash && { txHash: txHash.toLowerCase() })
     };
 
+    const requestBody = { 
+      chainId,
+      query, 
+      variables
+    };
+
+    console.log('[TransactionMonitor] 📤 NULLIFIERS API CALL DEBUG:');
+    console.log('[TransactionMonitor] - Endpoint:', endpoint);
+    console.log('[TransactionMonitor] - Is Proxy:', isProxy);
+    console.log('[TransactionMonitor] - Chain ID:', chainId);
+    console.log('[TransactionMonitor] - Query length:', query.length);
+    console.log('[TransactionMonitor] - Variables:', JSON.stringify(variables, null, 2));
+    console.log('[TransactionMonitor] - Full request body:', JSON.stringify(requestBody, null, 2));
+
     let response;
     
     if (isProxy) {
       // Production: Use Vercel API proxy
+      console.log('[TransactionMonitor] 🚀 Making proxy request to:', endpoint);
       response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          chainId,
-          query, 
-          variables
-        }),
+        body: JSON.stringify(requestBody),
       });
+      console.log('[TransactionMonitor] 📡 Proxy response status:', response.status, response.statusText);
     } 
 
     if (!response.ok) {
+      console.error('[TransactionMonitor] ❌ NULLIFIERS request failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        endpoint,
+        requestBody
+      });
+      
+      // Try to get error response body
+      try {
+        const errorText = await response.text();
+        console.error('[TransactionMonitor] ❌ Error response body:', errorText);
+      } catch (err) {
+        console.error('[TransactionMonitor] ❌ Could not read error response:', err);
+      }
+      
       throw new Error(`Graph request failed: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
+    console.log('[TransactionMonitor] 📥 NULLIFIERS response received:', {
+      hasData: !!data.data,
+      hasErrors: !!data.errors,
+      dataKeys: data.data ? Object.keys(data.data) : [],
+      resultCount: data.data?.nullifiers?.length || 0
+    });
     
     // Check for proxy-level errors (Vercel proxy)
     if (isProxy && data.error) {
@@ -190,27 +223,60 @@ const queryUnshields = async (chainId, fromBlock, txHash = null) => {
       ...(txHash && { txHash: txHash.toLowerCase() })
     };
 
+    const requestBody = { 
+      chainId,
+      query, 
+      variables
+    };
+
+    console.log('[TransactionMonitor] 📤 UNSHIELDS API CALL DEBUG:');
+    console.log('[TransactionMonitor] - Endpoint:', endpoint);
+    console.log('[TransactionMonitor] - Is Proxy:', isProxy);
+    console.log('[TransactionMonitor] - Chain ID:', chainId);
+    console.log('[TransactionMonitor] - Query length:', query.length);
+    console.log('[TransactionMonitor] - Variables:', JSON.stringify(variables, null, 2));
+    console.log('[TransactionMonitor] - Full request body:', JSON.stringify(requestBody, null, 2));
+
     let response;
     
     if (isProxy) {
       // Production: Use Vercel API proxy
+      console.log('[TransactionMonitor] 🚀 Making proxy request to:', endpoint);
       response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          chainId,
-          query, 
-          variables
-        }),
+        body: JSON.stringify(requestBody),
       });
+      console.log('[TransactionMonitor] 📡 Proxy response status:', response.status, response.statusText);
     } 
       
 
     if (!response.ok) {
+      console.error('[TransactionMonitor] ❌ UNSHIELDS request failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        endpoint,
+        requestBody
+      });
+      
+      // Try to get error response body
+      try {
+        const errorText = await response.text();
+        console.error('[TransactionMonitor] ❌ Error response body:', errorText);
+      } catch (err) {
+        console.error('[TransactionMonitor] ❌ Could not read error response:', err);
+      }
+      
       throw new Error(`Graph request failed: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
+    console.log('[TransactionMonitor] 📥 UNSHIELDS response received:', {
+      hasData: !!data.data,
+      hasErrors: !!data.errors,
+      dataKeys: data.data ? Object.keys(data.data) : [],
+      resultCount: data.data?.unshields?.length || 0
+    });
     
     // Check for proxy-level errors (Vercel proxy)
     if (isProxy && data.error) {
@@ -280,26 +346,59 @@ const queryCommitments = async (chainId, fromBlock, txHash = null) => {
       ...(txHash && { txHash: txHash.toLowerCase() })
     };
 
+    const requestBody = { 
+      chainId,
+      query, 
+      variables
+    };
+
+    console.log('[TransactionMonitor] 📤 COMMITMENTS API CALL DEBUG:');
+    console.log('[TransactionMonitor] - Endpoint:', endpoint);
+    console.log('[TransactionMonitor] - Is Proxy:', isProxy);
+    console.log('[TransactionMonitor] - Chain ID:', chainId);
+    console.log('[TransactionMonitor] - Query length:', query.length);
+    console.log('[TransactionMonitor] - Variables:', JSON.stringify(variables, null, 2));
+    console.log('[TransactionMonitor] - Full request body:', JSON.stringify(requestBody, null, 2));
+
     let response;
     
     if (isProxy) {
       // Production: Use Vercel API proxy
+      console.log('[TransactionMonitor] 🚀 Making proxy request to:', endpoint);
       response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          chainId,
-          query, 
-          variables
-        }),
+        body: JSON.stringify(requestBody),
       });
+      console.log('[TransactionMonitor] 📡 Proxy response status:', response.status, response.statusText);
     }
 
     if (!response.ok) {
+      console.error('[TransactionMonitor] ❌ COMMITMENTS request failed:', {
+        status: response.status,
+        statusText: response.statusText,
+        endpoint,
+        requestBody
+      });
+      
+      // Try to get error response body
+      try {
+        const errorText = await response.text();
+        console.error('[TransactionMonitor] ❌ Error response body:', errorText);
+      } catch (err) {
+        console.error('[TransactionMonitor] ❌ Could not read error response:', err);
+      }
+      
       throw new Error(`Graph request failed: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
+    console.log('[TransactionMonitor] 📥 COMMITMENTS response received:', {
+      hasData: !!data.data,
+      hasErrors: !!data.errors,
+      dataKeys: data.data ? Object.keys(data.data) : [],
+      resultCount: data.data?.commitments?.length || 0
+    });
     
     // Check for proxy-level errors (Vercel proxy)
     if (isProxy && data.error) {
@@ -378,11 +477,13 @@ export const monitorTransactionInGraph = async ({
       
       try {
         console.log(`[TransactionMonitor] 🔍 Polling attempt ${attempts}/${maxAttempts} for ${transactionType} events...`);
+        console.log(`[TransactionMonitor] 🔍 About to query with params:`, { chainId, fromBlock, txHash, transactionType });
 
         let events = [];
         
         if (transactionType === 'shield') {
           // Shield transactions create commitments
+          console.log('[TransactionMonitor] 🛡️ Querying commitments for shield transaction...');
           events = await queryCommitments(chainId, fromBlock, txHash);
         } else if (transactionType === 'unshield') {
           // Unshield transactions create nullifiers AND unshield events
