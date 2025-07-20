@@ -5,8 +5,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { useWallet } from '../contexts/WalletContext';
-import WalletInfo from '../components/WalletInfo';
-import NetworkSwitcher from '../components/NetworkSwitcher';
 import PrivacyActions from '../components/PrivacyActions';
 import TransactionHistory from '../components/TransactionHistory';
 
@@ -152,7 +150,20 @@ const WalletPage = () => {
 
           {/* Network Switcher */}
           <div className="bg-black/20 backdrop-blur-md border border-white/10 rounded-xl p-6">
-            <NetworkSwitcher />
+            <h3 className="text-lg font-semibold text-white mb-2">Network</h3>
+            <div className="space-y-3">
+              <div className="text-sm text-gray-300">Current: {getCurrentNetwork()?.name || 'Unknown'}</div>
+              <select
+                value={chainId || ''}
+                onChange={(e) => switchNetwork(parseInt(e.target.value))}
+                className="w-full bg-gray-700 text-white rounded px-3 py-2 border border-gray-600 focus:border-purple-500 focus:outline-none text-sm"
+              >
+                <option value={1}>Ethereum</option>
+                <option value={137}>Polygon</option>
+                <option value={42161}>Arbitrum</option>
+                <option value={56}>BSC</option>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -186,7 +197,33 @@ const WalletPage = () => {
           <div className="p-6">
             {activeTab === 'overview' && (
               <div className="space-y-6">
-                <WalletInfo />
+                {/* Wallet Info */}
+                <div className="bg-gray-800/50 rounded-xl p-6">
+                  <h3 className="text-xl font-semibold text-white mb-4">Wallet Information</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="text-gray-300 text-sm">Public Address</label>
+                      <div className="text-white font-mono bg-gray-700 rounded p-2 mt-1">
+                        {address}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-gray-300 text-sm">Network</label>
+                      <div className="text-white bg-gray-700 rounded p-2 mt-1">
+                        {getCurrentNetwork()?.name || 'Unknown'}
+                      </div>
+                    </div>
+                    {railgunAddress && (
+                      <div className="md:col-span-2">
+                        <label className="text-gray-300 text-sm">Railgun Privacy Address</label>
+                        <div className="text-purple-400 font-mono bg-gray-700 rounded p-2 mt-1">
+                          {railgunAddress}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
                 {canUseRailgun && (
                   <div className="bg-green-900/20 border border-green-500/30 rounded-xl p-4">
                     <h3 className="text-green-400 font-semibold mb-2">🎉 Privacy Ready!</h3>
