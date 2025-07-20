@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useWallet } from '../contexts/WalletContext';
+import useBalances from '../hooks/useBalances';
 import PrivacyActions from '../components/PrivacyActions';
 import TransactionHistory from '../components/TransactionHistory';
 
@@ -29,6 +30,14 @@ const WalletPage = () => {
     isWalletAvailable,
     getConnectionDebugInfo,
   } = useWallet();
+
+  const {
+    publicBalances,
+    privateBalances,
+    isLoading: isLoadingBalances,
+    refreshAllBalances,
+    formatBalance,
+  } = useBalances();
 
   const [showDebugInfo, setShowDebugInfo] = useState(false);
 
@@ -223,6 +232,105 @@ const WalletPage = () => {
                     )}
                   </div>
                 </div>
+
+                {/* Public Balances */}
+                <div className="bg-gray-800/50 rounded-xl p-6">
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-xl font-semibold text-white">Public Balances</h3>
+                    <button
+                      onClick={refreshAllBalances}
+                      disabled={isLoadingBalances}
+                      className="text-blue-400 hover:text-blue-300 text-sm disabled:opacity-50"
+                    >
+                      {isLoadingBalances ? '🔄 Refreshing...' : '🔄 Refresh'}
+                    </button>
+                  </div>
+                  
+                  {isLoadingBalances ? (
+                    <div className="flex justify-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-400"></div>
+                    </div>
+                  ) : publicBalances && publicBalances.length > 0 ? (
+                    <div className="space-y-3">
+                      {publicBalances.map((token, index) => (
+                        <div key={index} className="flex justify-between items-center p-3 bg-gray-700/50 rounded-lg">
+                          <div className="flex items-center space-x-3">
+                            <div className="text-2xl">{token.symbol === 'ETH' ? '🚀' : '🪙'}</div>
+                            <div>
+                              <div className="text-white font-medium">{token.symbol}</div>
+                              <div className="text-gray-400 text-sm">{token.name}</div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-white font-medium">
+                              {formatBalance(token.balance, token.decimals)}
+                            </div>
+                            {token.usdValue && (
+                              <div className="text-gray-400 text-sm">
+                                ${token.usdValue.toFixed(2)}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 text-gray-400">
+                      No tokens found or balances not loaded
+                    </div>
+                  )}
+                </div>
+
+                {/* Private Balances (Railgun) */}
+                {canUseRailgun && (
+                  <div className="bg-gray-800/50 rounded-xl p-6">
+                    <div className="flex justify-between items-center mb-4">
+                      <h3 className="text-xl font-semibold text-white">Private Balances (Railgun)</h3>
+                      <button
+                        onClick={refreshAllBalances}
+                        disabled={isLoadingBalances}
+                        className="text-purple-400 hover:text-purple-300 text-sm disabled:opacity-50"
+                      >
+                        {isLoadingBalances ? '🔄 Refreshing...' : '🔄 Refresh'}
+                      </button>
+                    </div>
+                    
+                    {isLoadingBalances ? (
+                      <div className="flex justify-center py-8">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-400"></div>
+                      </div>
+                    ) : privateBalances && privateBalances.length > 0 ? (
+                      <div className="space-y-3">
+                        {privateBalances.map((token, index) => (
+                          <div key={index} className="flex justify-between items-center p-3 bg-purple-900/20 border border-purple-500/30 rounded-lg">
+                            <div className="flex items-center space-x-3">
+                              <div className="text-2xl">🔒</div>
+                              <div>
+                                <div className="text-white font-medium">{token.symbol}</div>
+                                <div className="text-gray-400 text-sm">Private • {token.name}</div>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-purple-400 font-medium">
+                                {formatBalance(token.balance, token.decimals)}
+                              </div>
+                              {token.usdValue && (
+                                <div className="text-gray-400 text-sm">
+                                  ${token.usdValue.toFixed(2)}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-6 text-gray-400">
+                        <div className="text-purple-400 mb-2">🔒 No private tokens yet</div>
+                        <p className="text-sm">Shield tokens from your public wallet to see private balances</p>
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {canUseRailgun && (
                   <div className="bg-green-900/20 border border-green-500/30 rounded-xl p-4">
