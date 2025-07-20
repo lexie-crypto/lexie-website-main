@@ -237,15 +237,13 @@ const WalletContextProvider = ({ children }) => {
         const nonce = crypto.getRandomValues(new Uint32Array(4)).join('');
         const signatureMessage = `RAILGUN Wallet Creation\nAddress: ${address}\nTimestamp: ${timestamp}\nNonce: ${nonce}\n\nSign this message to create your secure RAILGUN privacy wallet.`;
         
-        // Request signature from user using the proper wallet provider
-        const currentProvider = getCurrentWalletProvider();
-        if (currentProvider?.request) {
-          signature = await currentProvider.request({
-            method: 'personal_sign',
-            params: [signatureMessage, address],
+        // Request signature using wagmi (handles WalletConnect sessions properly)
+        if (signMessageAsync) {
+          signature = await signMessageAsync({ 
+            message: signatureMessage 
           });
         } else {
-          throw new Error('No wallet provider available for signature');
+          throw new Error('Wallet signing not available');
         }
         
         // PRODUCTION CRYPTO: Derive secure encryption key using proper cryptography
