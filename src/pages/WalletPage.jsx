@@ -853,7 +853,7 @@ const WalletPage = () => {
                       {/* Individual Private Token Balances */}
                       {(showPrivateBalances || privateBalances.length <= 3) && 
                         privateBalances.map((token) => (
-                          <div key={token.symbol} className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
+                          <div key={token._id || `${token.tokenAddress || 'native'}-${token.symbol}`} className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
                             <div className="flex items-center space-x-3">
                               <div className="bg-purple-600 rounded-full p-2">
                                 <EyeSlashIcon className="h-4 w-4 text-white" />

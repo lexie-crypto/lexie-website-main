@@ -303,6 +303,17 @@ const startEngine = async () => {
       console.warn('[RAILGUN] ⚠️ POI validation failed, but engine will handle POI errors gracefully:', poiError);
     }
     
+    // Step 7: Setup balance update callback
+    console.log('[RAILGUN] 🔄 Setting up balance update callbacks...');
+    try {
+      const { handleBalanceUpdateCallback } = await import('./balances.js');
+      setOnBalanceUpdateCallback(handleBalanceUpdateCallback);
+      console.log('[RAILGUN] ✅ Balance update callback registered successfully');
+    } catch (callbackError) {
+      console.warn('[RAILGUN] ⚠️ Failed to register balance update callback:', callbackError);
+      // Continue without callback - this is not critical for engine start
+    }
+    
     console.log('[RAILGUN] 🎉 Engine initialization completed');
 
   } catch (error) {
