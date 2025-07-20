@@ -673,7 +673,7 @@ export const handleBalanceUpdateCallback = async (balancesEvent) => {
             normalizedTokenAddress: tokenAddress || 'NATIVE',
             tokenAddressLowerCase: tokenAddress?.toLowerCase(),
             amount: amount.toString(),
-            chainId,
+              chainId,
             tokenIndex: i
           });
           
@@ -722,7 +722,7 @@ export const handleBalanceUpdateCallback = async (balancesEvent) => {
                   name: result.name || result.symbol
                 };
                 console.log('[RailgunBalances] ✅ SDK token lookup successful:', tokenData);
-              }
+          }
             } catch (sdkError) {
               console.warn('[RailgunBalances] SDK token lookup failed:', sdkError);
             }

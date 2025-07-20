@@ -242,7 +242,7 @@ const PrivacyActions = () => {
       });
       
       console.log('[PrivacyActions] Transaction sent:', txResponse);
-      
+
       toast.dismiss(toastId);
       toast.success(`Successfully shielded ${amount} ${selectedToken.symbol}! TX: ${txResponse}`);
 
