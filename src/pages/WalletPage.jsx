@@ -671,7 +671,10 @@ const WalletPage = () => {
                             <div className="text-right">
                               <div className="text-white font-medium">{token.formattedBalance || token.balance}</div>
                               <div className="text-gray-400 text-sm">
-                                ${(token.balanceUSD || (parseFloat(token.balance || '0') * (token.price || 1))).toFixed(2)}
+                                {(() => {
+                                  const balanceUSD = token.balanceUSD || (parseFloat(token.balance || '0') * (token.price || 1));
+                                  return isNaN(balanceUSD) ? '$0.00' : `$${balanceUSD.toFixed(2)}`;
+                                })()}
                               </div>
                             </div>
                           </div>
