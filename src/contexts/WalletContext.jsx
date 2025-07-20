@@ -656,6 +656,30 @@ const WalletContextProvider = ({ children }) => {
     }
   }, [address, isConnected, railgunAddress, isRailgunInitialized, initializeRailgun]);
 
+  // Get current wallet provider for PrivacyActions and other components
+  const getCurrentWalletProvider = () => {
+    // For WalletConnect, use the connector's provider directly
+    if (connectorClient?.connector?.provider && connector?.id === 'walletConnect') {
+      console.log('🌐 Providing WalletConnect provider for PrivacyActions');
+      return connectorClient.connector.provider;
+    }
+    
+    // For MetaMask and other injected wallets
+    if (connector?.id === 'metaMask' && typeof window !== 'undefined' && window.ethereum?.isMetaMask) {
+      console.log('🦊 Providing MetaMask provider for PrivacyActions');
+      return window.ethereum;
+    }
+    
+    // Generic window.ethereum as fallback
+    if (typeof window !== 'undefined' && window.ethereum) {
+      console.log('🔗 Providing generic ethereum provider for PrivacyActions');
+      return window.ethereum;
+    }
+    
+    console.error('❌ No wallet provider available for PrivacyActions');
+    return null;
+  };
+
   const value = {
     isConnected,
     address,
@@ -680,6 +704,10 @@ const WalletContextProvider = ({ children }) => {
     connectedWalletType: connector?.id,
     connectedWalletName: connector?.name,
     
+    // 🔑 Wallet provider for PrivacyActions and other components
+    walletProvider: getCurrentWalletProvider(),
+    getCurrentWalletProvider,
+    
     getCurrentNetwork: () => {
       const networkNames = { 1: 'Ethereum', 137: 'Polygon', 42161: 'Arbitrum', 56: 'BSC' };
       return { id: chainId, name: networkNames[chainId] || `Chain ${chainId}` };
@@ -701,6 +729,8 @@ const WalletContextProvider = ({ children }) => {
       railgunInitialized: isRailgunInitialized,
       railgunAddress,
       railgunWalletID: railgunWalletID?.slice(0, 8) + '...',
+      hasWalletProvider: !!getCurrentWalletProvider(),
+      walletProviderType: getCurrentWalletProvider()?.constructor?.name || 'none',
     }),
   };
 
