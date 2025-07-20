@@ -31,18 +31,37 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Debug: Log the entire request for troubleshooting
+    console.log('[Graph API] Request received:', {
+      method: req.method,
+      headers: req.headers,
+      bodyType: typeof req.body,
+      body: req.body
+    });
+
     // Extract chain ID from request
-    const { chainId, query, variables } = req.body;
+    const { chainId, query, variables } = req.body || {};
+    
+    if (!req.body) {
+      console.error('[Graph API] No request body received');
+      return res.status(400).json({ 
+        error: 'No request body received' 
+      });
+    }
     
     if (!chainId) {
+      console.error('[Graph API] Missing chainId in request body:', req.body);
       return res.status(400).json({ 
-        error: 'Missing chainId in request body' 
+        error: 'Missing chainId in request body',
+        received: req.body
       });
     }
 
     if (!query) {
+      console.error('[Graph API] Missing GraphQL query in request body:', req.body);
       return res.status(400).json({ 
-        error: 'Missing GraphQL query in request body' 
+        error: 'Missing GraphQL query in request body',
+        received: req.body
       });
     }
 

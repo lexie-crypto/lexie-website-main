@@ -54,19 +54,35 @@ const removeDuplicatesByID = (array) => {
 
 
 /**
- * Get Vercel API endpoint for Graph proxy (bypasses CORS)
+ * Get Graph API endpoint - Vercel proxy in production, direct in development
  */
-const getGraphProxyEndpoint = () => {
-  // Use Vercel API route for Graph queries (no CORS issues)
-  return '/api/graph';
+const getGraphEndpoint = (chainId) => {
+  // In production (Vercel), use the API proxy to bypass CORS
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    return { 
+      isProxy: true, 
+      endpoint: '/api/graph' 
+    };
+  }
+  
+  
+  const directEndpoint = endpoints[chainId];
+  if (!directEndpoint) {
+    throw new Error(`No Graph endpoint for chain ${chainId}`);
+  }
+  
+  return { 
+    isProxy: false, 
+    endpoint: directEndpoint 
+  };
 };
 
 /**
- * Query Graph API for nullifier events via Vercel proxy (no CORS issues)
+ * Query Graph API for nullifier events (production: Vercel proxy, dev: direct with CORS)
  */
 const queryNullifiers = async (chainId, fromBlock, txHash = null) => {
   try {
-    const endpoint = getGraphProxyEndpoint();
+    const { isProxy, endpoint } = getGraphEndpoint(chainId);
     
     // Official V2 Nullifiers query structure
     const query = `
@@ -89,29 +105,34 @@ const queryNullifiers = async (chainId, fromBlock, txHash = null) => {
       }
     `;
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ 
-        chainId,
-        query, 
-        variables: { 
-          blockNumber: fromBlock.toString(),
-          ...(txHash && { txHash: txHash.toLowerCase() })
-        }
-      }),
-    });
+    const variables = {
+      blockNumber: fromBlock.toString(),
+      ...(txHash && { txHash: txHash.toLowerCase() })
+    };
+
+    let response;
+    
+    if (isProxy) {
+      // Production: Use Vercel API proxy
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          chainId,
+          query, 
+          variables
+        }),
+      });
+    } 
 
     if (!response.ok) {
-      throw new Error(`Graph proxy request failed: ${response.status} ${response.statusText}`);
+      throw new Error(`Graph request failed: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
     
-    // Check for proxy-level errors
-    if (data.error) {
+    // Check for proxy-level errors (Vercel proxy)
+    if (isProxy && data.error) {
       throw new Error(`Graph proxy error: ${data.error}`);
     }
     
@@ -129,11 +150,11 @@ const queryNullifiers = async (chainId, fromBlock, txHash = null) => {
 };
 
 /**
- * Query Graph API for unshield events via Vercel proxy (no CORS issues) 
+ * Query Graph API for unshield events (production: Vercel proxy, dev: direct with CORS) 
  */
 const queryUnshields = async (chainId, fromBlock, txHash = null) => {
   try {
-    const endpoint = getGraphProxyEndpoint();
+    const { isProxy, endpoint } = getGraphEndpoint(chainId);
     
     // Official V2 Unshields query structure
     const query = `
@@ -164,29 +185,35 @@ const queryUnshields = async (chainId, fromBlock, txHash = null) => {
       }
     `;
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ 
-        chainId,
-        query, 
-        variables: { 
-          blockNumber: fromBlock.toString(),
-          ...(txHash && { txHash: txHash.toLowerCase() })
-        }
-      }),
-    });
+    const variables = {
+      blockNumber: fromBlock.toString(),
+      ...(txHash && { txHash: txHash.toLowerCase() })
+    };
+
+    let response;
+    
+    if (isProxy) {
+      // Production: Use Vercel API proxy
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          chainId,
+          query, 
+          variables
+        }),
+      });
+    } 
+      
 
     if (!response.ok) {
-      throw new Error(`Graph proxy request failed: ${response.status} ${response.statusText}`);
+      throw new Error(`Graph request failed: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
     
-    // Check for proxy-level errors
-    if (data.error) {
+    // Check for proxy-level errors (Vercel proxy)
+    if (isProxy && data.error) {
       throw new Error(`Graph proxy error: ${data.error}`);
     }
     
@@ -204,11 +231,11 @@ const queryUnshields = async (chainId, fromBlock, txHash = null) => {
 };
 
 /**
- * Query Graph API for commitments via Vercel proxy (no CORS issues)
+ * Query Graph API for commitments (production: Vercel proxy, dev: direct with CORS)
  */
 const queryCommitments = async (chainId, fromBlock, txHash = null) => {
   try {
-    const endpoint = getGraphProxyEndpoint();
+    const { isProxy, endpoint } = getGraphEndpoint(chainId);
     
     // Official V2 Commitments query structure (simplified for transaction monitoring)
     const query = `
@@ -248,29 +275,34 @@ const queryCommitments = async (chainId, fromBlock, txHash = null) => {
       }
     `;
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ 
-        chainId,
-        query, 
-        variables: { 
-          blockNumber: fromBlock.toString(),
-          ...(txHash && { txHash: txHash.toLowerCase() })
-        }
-      }),
-    });
+    const variables = {
+      blockNumber: fromBlock.toString(),
+      ...(txHash && { txHash: txHash.toLowerCase() })
+    };
+
+    let response;
+    
+    if (isProxy) {
+      // Production: Use Vercel API proxy
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          chainId,
+          query, 
+          variables
+        }),
+      });
+    }
 
     if (!response.ok) {
-      throw new Error(`Graph proxy request failed: ${response.status} ${response.statusText}`);
+      throw new Error(`Graph request failed: ${response.status} ${response.statusText}`);
     }
 
     const data = await response.json();
     
-    // Check for proxy-level errors
-    if (data.error) {
+    // Check for proxy-level errors (Vercel proxy)
+    if (isProxy && data.error) {
       throw new Error(`Graph proxy error: ${data.error}`);
     }
     
@@ -331,11 +363,13 @@ export const monitorTransactionInGraph = async ({
     let attempts = 0;
     const maxAttempts = Math.ceil(maxWaitTime / pollInterval);
 
+    const { isProxy, endpoint } = getGraphEndpoint(chainId);
     console.log('[TransactionMonitor] 🕒 Starting polling:', {
       fromBlock,
       pollInterval: `${pollInterval/1000}s`,
       maxAttempts,
-      graphProxy: getGraphProxyEndpoint(),
+      graphEndpoint: endpoint,
+      isProxy,
       chainId
     });
 
