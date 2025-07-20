@@ -125,6 +125,16 @@ const NETWORK_MAPPING = {
 };
 
 /**
+ * Network mapping for UI display
+ */
+const NETWORK_DISPLAY_MAPPING = {
+  1: 'Ethereum',
+  42161: 'Arbitrum',
+  137: 'Polygon',
+  56: 'BSC',
+};
+
+/**
  * Get Railgun network name from chain ID
  * @param {number} chainId - Chain ID
  * @returns {NetworkName} Railgun network name
@@ -217,17 +227,13 @@ export const getPrivateBalancesFromCache = (walletID, chainId) => {
 };
 
 /**
- * Get token information from Railgun
+ * Get token information using simple mapping (like transactionHistory.js)
  * @param {string} tokenAddress - Token contract address
  * @param {number} chainId - Chain ID
  * @returns {Object} Token information
  */
 export const getTokenInfo = async (tokenAddress, chainId) => {
   try {
-    await waitForRailgunReady();
-    
-    const networkName = getRailgunNetworkName(chainId);
-    
     // Handle native token (null, undefined, or zero address)
     if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000' || tokenAddress === null) {
       const nativeInfo = getNativeTokenInfo(chainId);
@@ -235,29 +241,134 @@ export const getTokenInfo = async (tokenAddress, chainId) => {
       return nativeInfo;
     }
     
-    // Get ERC20 token data
-    console.log('[RailgunBalances] Looking up ERC20 token data for:', tokenAddress);
-    const tokenData = await getTokenDataERC20(networkName, tokenAddress);
+    // Use simple token mapping
+    const symbol = getTokenSymbol(tokenAddress, chainId);
+    const decimals = getTokenDecimals(tokenAddress, chainId);
     
-    if (tokenData) {
-      const result = {
-        address: tokenAddress,
-        symbol: tokenData.symbol,
-        name: tokenData.name,
-        decimals: tokenData.decimals,
-        isNative: false,
-      };
-      console.log('[RailgunBalances] ✅ Resolved ERC20 token info:', result);
-      return result;
-    }
+    const result = {
+      address: tokenAddress,
+      symbol,
+      name: symbol,
+      decimals,
+      isNative: false,
+    };
     
-    console.warn('[RailgunBalances] ❌ Could not resolve ERC20 token data for:', tokenAddress);
-    return null;
+    console.log('[RailgunBalances] ✅ Resolved token info using simple mapping:', result);
+    return result;
     
   } catch (error) {
     console.error('[RailgunBalances] Failed to get token info:', error);
     return null;
   }
+};
+
+/**
+ * Get token symbol for display (copied from transactionHistory.js)
+ * @param {string} tokenAddress - Token address  
+ * @param {number} chainId - Chain ID
+ * @returns {string} Token symbol
+ */
+const getTokenSymbol = (tokenAddress, chainId) => {
+  if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000') {
+    const nativeSymbols = { 1: 'ETH', 42161: 'ETH', 137: 'MATIC', 56: 'BNB' };
+    return nativeSymbols[chainId] || 'ETH';
+  }
+  
+  // Known tokens on Ethereum
+  if (chainId === 1) {
+    const knownTokens = {
+      '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': 'USDC',
+      '0x6b175474e89094c44da98b954eedeac495271d0f': 'DAI',
+      '0xdac17f958d2ee523a2206206994597c13d831ec7': 'USDT',
+      '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2': 'WETH',
+    };
+    return knownTokens[tokenAddress.toLowerCase()] || 'UNKNOWN';
+  }
+  
+  // Known tokens on Arbitrum
+  if (chainId === 42161) {
+    const knownTokens = {
+      '0xaf88d065e77c8cc2239327c5edb3a432268e5831': 'USDC',
+      '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': 'USDT',
+      '0xda10009cbd5d07dd0cecc66161fc93d7c9000da1': 'DAI',
+    };
+    return knownTokens[tokenAddress.toLowerCase()] || 'UNKNOWN';
+  }
+  
+  // Known tokens on Polygon
+  if (chainId === 137) {
+    const knownTokens = {
+      '0x2791bca1f2de4661ed88a30c99a7a9449aa84174': 'USDC',
+      '0x8f3cf7ad23cd3cadbd9735aff958023239c6a063': 'DAI',
+      '0xc2132d05d31c914a87c6611c10748aeb04b58e8f': 'USDT',
+    };
+    return knownTokens[tokenAddress.toLowerCase()] || 'UNKNOWN';
+  }
+  
+  // Known tokens on BSC
+  if (chainId === 56) {
+    const knownTokens = {
+      '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': 'USDC',
+      '0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3': 'DAI',
+      '0x55d398326f99059ff775485246999027b3197955': 'USDT',
+    };
+    return knownTokens[tokenAddress.toLowerCase()] || 'UNKNOWN';
+  }
+  
+  return 'UNKNOWN';
+};
+
+/**
+ * Get token decimals (copied from transactionHistory.js)
+ * @param {string} tokenAddress - Token address
+ * @param {number} chainId - Chain ID  
+ * @returns {number} Token decimals
+ */
+const getTokenDecimals = (tokenAddress, chainId) => {
+  if (!tokenAddress) return 18; // Native tokens
+  
+  // Known tokens on Ethereum
+  if (chainId === 1) {
+    const knownTokens = {
+      '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': 6, // USDC
+      '0x6b175474e89094c44da98b954eedeac495271d0f': 18, // DAI
+      '0xdac17f958d2ee523a2206206994597c13d831ec7': 6, // USDT
+      '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2': 18, // WETH
+    };
+    return knownTokens[tokenAddress.toLowerCase()] || 18;
+  }
+  
+  // Known tokens on Arbitrum
+  if (chainId === 42161) {
+    const knownTokens = {
+      '0xaf88d065e77c8cc2239327c5edb3a432268e5831': 6, // USDC
+      '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': 6, // USDT
+      '0xda10009cbd5d07dd0cecc66161fc93d7c9000da1': 18, // DAI
+    };
+    return knownTokens[tokenAddress.toLowerCase()] || 18;
+  }
+  
+  // Known tokens on Polygon
+  if (chainId === 137) {
+    const knownTokens = {
+      '0x2791bca1f2de4661ed88a30c99a7a9449aa84174': 6, // USDC
+      '0x8f3cf7ad23cd3cadbd9735aff958023239c6a063': 18, // DAI
+      '0xc2132d05d31c914a87c6611c10748aeb04b58e8f': 6, // USDT
+    };
+    return knownTokens[tokenAddress.toLowerCase()] || 18;
+  }
+  
+  // Known tokens on BSC
+  if (chainId === 56) {
+    const knownTokens = {
+      '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': 18, // USDC
+      '0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3': 18, // DAI
+      '0x55d398326f99059ff775485246999027b3197955': 18, // USDT
+    };
+    return knownTokens[tokenAddress.toLowerCase()] || 18;
+  }
+  
+  return 18; // Default
 };
 
 /**
@@ -658,113 +769,66 @@ export const handleBalanceUpdateCallback = async (balancesEvent) => {
           amount: amount?.toString()
         });
         
-        try {
-          // Skip zero balances
-          if (!amount || amount.toString() === '0') {
-            console.log(`[RailgunBalances] ⏭️ Skipping zero balance for token ${i}`);
-            continue;
-          }
-
-          // Get token information - Use hardcoded tokens FIRST for known tokens, then SDK fallback
-          let tokenData = null;
-          
-          console.log('[RailgunBalances] 🪙 Processing token from official callback:', {
-            rawTokenAddress: rawToken.tokenAddress,
-            normalizedTokenAddress: tokenAddress || 'NATIVE',
-            tokenAddressLowerCase: tokenAddress?.toLowerCase(),
-            amount: amount.toString(),
-              chainId,
-            tokenIndex: i
-          });
-          
-          // Primary: Check hardcoded tokens FIRST (like transactionHistory.js does)
-          if (chainId === 42161 && tokenAddress) {
-            // Known tokens on Arbitrum
-            const knownTokens = {
-              '0xaf88d065e77c8cc2239327c5edb3a432268e5831': { // USDC
-                symbol: 'USDC',
-                decimals: 6,
-                name: 'USD Coin'
-              },
-              '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': { // USDT
-                symbol: 'USDT', 
-                decimals: 6,
-                name: 'Tether USD'
-              }
-            };
-            
-            const knownToken = knownTokens[tokenAddress.toLowerCase()];
-            if (knownToken) {
-              tokenData = {
-                address: tokenAddress,
-                ...knownToken
-              };
-              console.log('[RailgunBalances] ✅ Using hardcoded token data:', tokenData);
-            }
-          }
-          
-          // Fallback: Use SDK token lookup if not in hardcoded list
-          if (!tokenData) {
-            console.log('[RailgunBalances] 🔍 Token not in hardcoded list, using SDK lookup...');
-            try {
-              const { getERC20TokenInfo } = await import('@railgun-community/wallet');
-              const result = await getERC20TokenInfo(
-                new NetworkName(),
-                tokenAddress,
-                chainId
-              );
-              
-              if (result && result.symbol) {
-                tokenData = {
-                  address: tokenAddress,
-                  symbol: result.symbol,
-                  decimals: result.decimals || 18,
-                  name: result.name || result.symbol
-                };
-                console.log('[RailgunBalances] ✅ SDK token lookup successful:', tokenData);
-          }
-            } catch (sdkError) {
-              console.warn('[RailgunBalances] SDK token lookup failed:', sdkError);
-            }
-          }
-          
-          // Final fallback: Create placeholder token
-          if (!tokenData) {
-            console.log('[RailgunBalances] ⚠️ Creating placeholder token data');
-            tokenData = {
-              address: tokenAddress,
-              symbol: 'UNKNOWN',
-              decimals: 18,
-              name: 'Unknown Token'
-            };
-          }
-          
-          // Format balance using proper decimals
-          const numericBalance = Number(formatUnits(amount.toString(), tokenData.decimals));
-          const formattedBalance = numericBalance.toFixed(4).replace(/\.?0+$/, '');
-          
-          console.log('[RailgunBalances] 💰 Formatted balance:', {
-            symbol: tokenData.symbol,
-            rawAmount: amount.toString(),
-            decimals: tokenData.decimals,
-            numericBalance,
-            formattedBalance
-          });
-          
-          formattedBalances.push({
-            address: tokenData.address,
-            symbol: tokenData.symbol,
-            decimals: tokenData.decimals,
-            name: tokenData.name,
-            rawBalance: amount.toString(),
-            numericBalance,
-            formattedBalance
-          });
-          
-        } catch (tokenError) {
-          console.error(`[RailgunBalances] Failed to process token ${i}:`, tokenError);
-          console.error('Token data:', rawToken);
+        // Skip zero balances
+        if (!amount || amount.toString() === '0') {
+          console.log(`[RailgunBalances] ⏭️ Skipping zero balance for token ${i}`);
+          continue;
         }
+
+        console.log('[RailgunBalances] 🪙 Processing token from official callback:', {
+          rawTokenAddress: rawToken.tokenAddress,
+          normalizedTokenAddress: tokenAddress || 'NATIVE',
+          amount: amount.toString(),
+          chainId,
+          tokenIndex: i
+        });
+        
+        // Use the same simple token mapping as transactionHistory.js
+        let symbol, decimals, name;
+        
+        if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000') {
+          // Native tokens
+          const nativeTokens = { 1: 'ETH', 42161: 'ETH', 137: 'MATIC', 56: 'BNB' };
+          symbol = nativeTokens[chainId] || 'ETH';
+          decimals = 18;
+          name = symbol;
+        } else {
+          // ERC20 tokens - use same mapping as transactionHistory.js
+          symbol = getTokenSymbol(tokenAddress, chainId);
+          decimals = getTokenDecimals(tokenAddress, chainId);
+          name = symbol;
+        }
+        
+        console.log('[RailgunBalances] ✅ Using simple token mapping:', { symbol, decimals, name });
+        
+        // Format balance using proper decimals
+        const numericBalance = Number(formatUnits(amount.toString(), decimals));
+        const formattedBalance = numericBalance.toFixed(4).replace(/\.?0+$/, '');
+        
+        console.log('[RailgunBalances] 💰 Formatted balance:', {
+          symbol,
+          rawAmount: amount.toString(),
+          decimals,
+          numericBalance,
+          formattedBalance
+        });
+        
+        formattedBalances.push({
+          // Use UI-compatible structure
+          tokenAddress: tokenAddress,
+          address: tokenAddress, // Keep both for compatibility
+          symbol,
+          decimals,
+          name,
+          balance: amount.toString(), // UI expects 'balance' not 'rawBalance'
+          rawBalance: amount.toString(), // Keep for compatibility
+          numericBalance,
+          formattedBalance,
+          hasBalance: numericBalance > 0,
+          isPrivate: true,
+          chainId: chainId,
+          networkName: NETWORK_DISPLAY_MAPPING[chainId] || `Chain ${chainId}`
+        });
       }
     }
     
@@ -818,28 +882,28 @@ export const handleBalanceUpdateCallback = async (balancesEvent) => {
   } catch (error) {
     console.error('[RailgunBalances] 💥 Balance callback processing failed:', error);
     
-    // Fallback: Try to load from cache if callback processing fails
-    try {
-      console.log('[RailgunBalances] 🔄 Falling back to cache after callback error...');
-      const cacheKey = `${balancesEvent.railgunWalletID}-${balancesEvent.chain.id}`;
-             const cachedBalances = getBalancesFromCache(cacheKey);
-      
-      if (cachedBalances && cachedBalances.length > 0) {
-        window.dispatchEvent(new CustomEvent('railgun-balance-update', {
-          detail: {
-            railgunWalletID: balancesEvent.railgunWalletID,
-            chainId: balancesEvent.chain.id,
-            balances: cachedBalances,
-            timestamp: Date.now(),
-            source: 'cache-fallback',
-            txidVersion: balancesEvent.txidVersion,
-          }
-        }));
-        console.log('[RailgunBalances] 📦 Fallback cache data dispatched to UI');
+          // Fallback: Try to load from cache if callback processing fails
+      try {
+        console.log('[RailgunBalances] 🔄 Falling back to cache after callback error...');
+        const cacheKey = `${balancesEvent.railgunWalletID}-${balancesEvent.chain.id}`;
+        const cachedBalances = balanceCache.get(cacheKey) || [];
+        
+        if (cachedBalances && cachedBalances.length > 0) {
+          window.dispatchEvent(new CustomEvent('railgun-balance-update', {
+            detail: {
+              railgunWalletID: balancesEvent.railgunWalletID,
+              chainId: balancesEvent.chain.id,
+              balances: cachedBalances,
+              timestamp: Date.now(),
+              source: 'cache-fallback',
+              txidVersion: balancesEvent.txidVersion,
+            }
+          }));
+          console.log('[RailgunBalances] 📦 Fallback cache data dispatched to UI');
+        }
+      } catch (fallbackError) {
+        console.error('[RailgunBalances] Cache fallback also failed:', fallbackError);
       }
-    } catch (fallbackError) {
-      console.error('[RailgunBalances] Cache fallback also failed:', fallbackError);
-    }
   }
 };
 
