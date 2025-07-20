@@ -51,213 +51,240 @@ const removeDuplicatesByID = (array) => {
   });
 };
 
+
+
 /**
- * Network source mapping (from official V2 implementation)
+ * Get Vercel API endpoint for Graph proxy (bypasses CORS)
  */
-const getSourceNameForNetwork = (chainId) => {
-  const networkMapping = {
-    1: 'ethereum',        // Ethereum
-    56: 'bsc',           // BNB Chain
-    137: 'matic',        // Polygon
-    42161: 'arbitrum-one' // Arbitrum
-  };
-  
-  const sourceName = networkMapping[chainId];
-  if (!sourceName) {
-    throw new Error(`No Graph API hosted service for chain ${chainId}`);
-  }
-  return sourceName;
+const getGraphProxyEndpoint = () => {
+  // Use Vercel API route for Graph queries (no CORS issues)
+  return '/api/graph';
 };
 
 /**
- * Get Graph API endpoint for network (official V2 pattern)
- */
-const getGraphEndpoint = (chainId) => {
-  try {
-    const sourceName = getSourceNameForNetwork(chainId);
-    // Using the official RAILGUN V2 subgraph endpoints
-    return `https://api.thegraph.com/subgraphs/name/railgun-community/railgun-v2-${sourceName}`;
-  } catch (error) {
-    throw new Error(`No Graph endpoint for chain ${chainId}: ${error.message}`);
-  }
-};
-
-/**
- * Query Graph API for nullifier events (matches official V2 structure)
+ * Query Graph API for nullifier events via Vercel proxy (no CORS issues)
  */
 const queryNullifiers = async (chainId, fromBlock, txHash = null) => {
-  const endpoint = getGraphEndpoint(chainId);
-  
-  // Official V2 Nullifiers query structure
-  const query = `
-    query Nullifiers($blockNumber: BigInt = 0, $txHash: Bytes) {
-      nullifiers(
-        orderBy: [blockNumber_ASC, nullifier_DESC]
-        where: { 
-          blockNumber_gte: $blockNumber
-          ${txHash ? ', transactionHash: $txHash' : ''}
+  try {
+    const endpoint = getGraphProxyEndpoint();
+    
+    // Official V2 Nullifiers query structure
+    const query = `
+      query Nullifiers($blockNumber: BigInt = 0, $txHash: Bytes) {
+        nullifiers(
+          orderBy: [blockNumber_ASC, nullifier_DESC]
+          where: { 
+            blockNumber_gte: $blockNumber
+            ${txHash ? ', transactionHash: $txHash' : ''}
+          }
+          limit: 10000
+        ) {
+          id
+          blockNumber
+          nullifier
+          transactionHash
+          blockTimestamp
+          treeNumber
         }
-        limit: 10000
-      ) {
-        id
-        blockNumber
-        nullifier
-        transactionHash
-        blockTimestamp
-        treeNumber
       }
+    `;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ 
+        chainId,
+        query, 
+        variables: { 
+          blockNumber: fromBlock.toString(),
+          ...(txHash && { txHash: txHash.toLowerCase() })
+        }
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Graph proxy request failed: ${response.status} ${response.statusText}`);
     }
-  `;
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
-      query, 
-      variables: { 
-        blockNumber: fromBlock.toString(),
-        ...(txHash && { txHash: txHash.toLowerCase() })
-      }
-    }),
-  });
+    const data = await response.json();
+    
+    // Check for proxy-level errors
+    if (data.error) {
+      throw new Error(`Graph proxy error: ${data.error}`);
+    }
+    
+    // Check for GraphQL errors
+    if (data.errors) {
+      throw new Error(`GraphQL errors: ${JSON.stringify(data.errors)}`);
+    }
 
-  if (!response.ok) {
-    throw new Error(`Graph query failed: ${response.statusText}`);
+    return data.data?.nullifiers || [];
+    
+  } catch (error) {
+    console.warn('[TransactionMonitor] Nullifiers query failed, returning empty results:', error.message);
+    return [];
   }
-
-  const data = await response.json();
-  if (data.errors) {
-    throw new Error(`Graph query errors: ${JSON.stringify(data.errors)}`);
-  }
-
-  return data.data?.nullifiers || [];
 };
 
 /**
- * Query Graph API for unshield events (matches official V2 structure)  
+ * Query Graph API for unshield events via Vercel proxy (no CORS issues) 
  */
 const queryUnshields = async (chainId, fromBlock, txHash = null) => {
-  const endpoint = getGraphEndpoint(chainId);
-  
-  // Official V2 Unshields query structure
-  const query = `
-    query Unshields($blockNumber: BigInt = 0, $txHash: Bytes) {
-      unshields(
-        orderBy: [blockNumber_ASC, eventLogIndex_ASC]
-        where: { 
-          blockNumber_gte: $blockNumber
-          ${txHash ? ', transactionHash: $txHash' : ''}
-        }
-        limit: 10000
-      ) {
-        id
-        blockNumber
-        to
-        transactionHash
-        fee
-        blockTimestamp
-        amount
-        eventLogIndex
-        token {
+  try {
+    const endpoint = getGraphProxyEndpoint();
+    
+    // Official V2 Unshields query structure
+    const query = `
+      query Unshields($blockNumber: BigInt = 0, $txHash: Bytes) {
+        unshields(
+          orderBy: [blockNumber_ASC, eventLogIndex_ASC]
+          where: { 
+            blockNumber_gte: $blockNumber
+            ${txHash ? ', transactionHash: $txHash' : ''}
+          }
+          limit: 10000
+        ) {
           id
-          tokenType
-          tokenSubID
-          tokenAddress
+          blockNumber
+          to
+          transactionHash
+          fee
+          blockTimestamp
+          amount
+          eventLogIndex
+          token {
+            id
+            tokenType
+            tokenSubID
+            tokenAddress
+          }
         }
       }
+    `;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ 
+        chainId,
+        query, 
+        variables: { 
+          blockNumber: fromBlock.toString(),
+          ...(txHash && { txHash: txHash.toLowerCase() })
+        }
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Graph proxy request failed: ${response.status} ${response.statusText}`);
     }
-  `;
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
-      query, 
-      variables: { 
-        blockNumber: fromBlock.toString(),
-        ...(txHash && { txHash: txHash.toLowerCase() })
-      }
-    }),
-  });
+    const data = await response.json();
+    
+    // Check for proxy-level errors
+    if (data.error) {
+      throw new Error(`Graph proxy error: ${data.error}`);
+    }
+    
+    // Check for GraphQL errors
+    if (data.errors) {
+      throw new Error(`GraphQL errors: ${JSON.stringify(data.errors)}`);
+    }
 
-  if (!response.ok) {
-    throw new Error(`Graph query failed: ${response.statusText}`);
+    return data.data?.unshields || [];
+    
+  } catch (error) {
+    console.warn('[TransactionMonitor] Unshields query failed, returning empty results:', error.message);
+    return [];
   }
-
-  const data = await response.json();
-  if (data.errors) {
-    throw new Error(`Graph query errors: ${JSON.stringify(data.errors)}`);
-  }
-
-  return data.data?.unshields || [];
 };
 
 /**
- * Query Graph API for commitments (shield events - matches official V2 structure)
+ * Query Graph API for commitments via Vercel proxy (no CORS issues)
  */
 const queryCommitments = async (chainId, fromBlock, txHash = null) => {
-  const endpoint = getGraphEndpoint(chainId);
-  
-  // Official V2 Commitments query structure (simplified for transaction monitoring)
-  const query = `
-    query Commitments($blockNumber: BigInt = 0, $txHash: Bytes) {
-      commitments(
-        orderBy: [blockNumber_ASC, treePosition_ASC]
-        where: { 
-          blockNumber_gte: $blockNumber
-          ${txHash ? ', transactionHash: $txHash' : ''}
-        }
-        limit: 10000
-      ) {
-        id
-        treeNumber
-        batchStartTreePosition
-        treePosition
-        blockNumber
-        transactionHash
-        blockTimestamp
-        commitmentType
-        hash
-        ... on ShieldCommitment {
-          shieldKey
-          fee
-          encryptedBundle
-          preimage {
-            npk
-            value
-            token {
-              tokenAddress
-              tokenType
-              tokenSubID
+  try {
+    const endpoint = getGraphProxyEndpoint();
+    
+    // Official V2 Commitments query structure (simplified for transaction monitoring)
+    const query = `
+      query Commitments($blockNumber: BigInt = 0, $txHash: Bytes) {
+        commitments(
+          orderBy: [blockNumber_ASC, treePosition_ASC]
+          where: { 
+            blockNumber_gte: $blockNumber
+            ${txHash ? ', transactionHash: $txHash' : ''}
+          }
+          limit: 10000
+        ) {
+          id
+          treeNumber
+          batchStartTreePosition
+          treePosition
+          blockNumber
+          transactionHash
+          blockTimestamp
+          commitmentType
+          hash
+          ... on ShieldCommitment {
+            shieldKey
+            fee
+            encryptedBundle
+            preimage {
+              npk
+              value
+              token {
+                tokenAddress
+                tokenType
+                tokenSubID
+              }
             }
           }
         }
       }
+    `;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ 
+        chainId,
+        query, 
+        variables: { 
+          blockNumber: fromBlock.toString(),
+          ...(txHash && { txHash: txHash.toLowerCase() })
+        }
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Graph proxy request failed: ${response.status} ${response.statusText}`);
     }
-  `;
 
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ 
-      query, 
-      variables: { 
-        blockNumber: fromBlock.toString(),
-        ...(txHash && { txHash: txHash.toLowerCase() })
-      }
-    }),
-  });
+    const data = await response.json();
+    
+    // Check for proxy-level errors
+    if (data.error) {
+      throw new Error(`Graph proxy error: ${data.error}`);
+    }
+    
+    // Check for GraphQL errors
+    if (data.errors) {
+      throw new Error(`GraphQL errors: ${JSON.stringify(data.errors)}`);
+    }
 
-  if (!response.ok) {
-    throw new Error(`Graph query failed: ${response.statusText}`);
+    return data.data?.commitments || [];
+    
+  } catch (error) {
+    console.warn('[TransactionMonitor] Commitments query failed, returning empty results:', error.message);
+    return [];
   }
-
-  const data = await response.json();
-  if (data.errors) {
-    throw new Error(`Graph query errors: ${JSON.stringify(data.errors)}`);
-  }
-
-  return data.data?.commitments || [];
 };
 
 /**
@@ -289,7 +316,8 @@ export const monitorTransactionInGraph = async ({
     if (!fromBlock) {
       try {
         const { ethers } = await import('ethers');
-        const provider = new ethers.JsonRpcProvider(getRpcUrl(chainId));
+        const rpcUrl = await getRpcUrl(chainId);
+        const provider = new ethers.JsonRpcProvider(rpcUrl);
         fromBlock = await provider.getBlockNumber();
         console.log('[TransactionMonitor] 📦 Current block number:', fromBlock);
       } catch (error) {
@@ -307,7 +335,8 @@ export const monitorTransactionInGraph = async ({
       fromBlock,
       pollInterval: `${pollInterval/1000}s`,
       maxAttempts,
-      graphEndpoint: getGraphEndpoint(chainId)
+      graphProxy: getGraphProxyEndpoint(),
+      chainId
     });
 
     while (Date.now() - startTime < maxWaitTime) {
@@ -399,16 +428,31 @@ export const monitorTransactionInGraph = async ({
 };
 
 /**
- * Get RPC URL for chain
+ * Get RPC URL for chain using the existing Alchemy configuration
  */
-const getRpcUrl = (chainId) => {
-  const rpcUrls = {
-    1: 'https://eth.llamarpc.com',
-    42161: 'https://arbitrum.llamarpc.com',
-    137: 'https://polygon.llamarpc.com',
-    56: 'https://bsc.llamarpc.com',
-  };
-  return rpcUrls[chainId];
+const getRpcUrl = async (chainId) => {
+  try {
+    // Import the existing RPC configuration that actually works
+    const { RPC_URLS } = await import('../../config/environment.js');
+    
+    const chainMapping = {
+      1: RPC_URLS.ethereum,
+      42161: RPC_URLS.arbitrum,
+      137: RPC_URLS.polygon,
+      56: RPC_URLS.bsc,
+    };
+    
+    const rpcUrl = chainMapping[chainId];
+    if (!rpcUrl) {
+      throw new Error(`No RPC URL configured for chain ${chainId}`);
+    }
+    
+    console.log(`[TransactionMonitor] Using Alchemy RPC for chain ${chainId}:`, rpcUrl?.slice(0, 50) + '...');
+    return rpcUrl;
+  } catch (error) {
+    console.error('[TransactionMonitor] Failed to get RPC URL:', error);
+    throw new Error(`Failed to get RPC URL for chain ${chainId}: ${error.message}`);
+  }
 };
 
 /**

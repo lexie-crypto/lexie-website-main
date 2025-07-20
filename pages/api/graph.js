@@ -1,0 +1,111 @@
+/**
+ * Vercel Serverless Function - RAILGUN Graph API Proxy
+ * Bypasses CORS issues for The Graph API calls
+ * Supports dynamic subgraph endpoints per chain
+ */
+
+// RAILGUN Graph endpoints per chain
+const GRAPH_ENDPOINTS = {
+  1: 'https://api.thegraph.com/subgraphs/name/railgun-community/railgun-v2-ethereum',
+  42161: 'https://api.thegraph.com/subgraphs/name/railgun-community/railgun-v2-arbitrum-one',  
+  137: 'https://api.thegraph.com/subgraphs/name/railgun-community/railgun-v2-matic',
+  56: 'https://api.thegraph.com/subgraphs/name/railgun-community/railgun-v2-bsc',
+};
+
+export default async function handler(req, res) {
+  // Only allow POST requests
+  if (req.method !== 'POST') {
+    return res.status(405).json({ 
+      error: 'Method not allowed. Only POST requests are supported.' 
+    });
+  }
+
+  try {
+    // Extract chain ID from request
+    const { chainId, query, variables } = req.body;
+    
+    if (!chainId) {
+      return res.status(400).json({ 
+        error: 'Missing chainId in request body' 
+      });
+    }
+
+    if (!query) {
+      return res.status(400).json({ 
+        error: 'Missing GraphQL query in request body' 
+      });
+    }
+
+    // Get the appropriate Graph endpoint for the chain
+    const endpoint = GRAPH_ENDPOINTS[chainId];
+    if (!endpoint) {
+      return res.status(400).json({ 
+        error: `Unsupported chain ID: ${chainId}. Supported chains: ${Object.keys(GRAPH_ENDPOINTS).join(', ')}` 
+      });
+    }
+
+    console.log(`[Graph API] Proxying request for chain ${chainId} to:`, endpoint);
+
+    // Forward the request to The Graph
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'User-Agent': 'Lexie-RAILGUN-Client/1.0'
+      },
+      body: JSON.stringify({
+        query,
+        variables: variables || {}
+      }),
+    });
+
+    if (!response.ok) {
+      console.error(`[Graph API] Request failed:`, {
+        status: response.status,
+        statusText: response.statusText,
+        chainId,
+        endpoint
+      });
+      
+      return res.status(response.status).json({ 
+        error: `Graph API request failed: ${response.status} ${response.statusText}` 
+      });
+    }
+
+    const data = await response.json();
+    
+    // Check for GraphQL errors
+    if (data.errors && data.errors.length > 0) {
+      console.error(`[Graph API] GraphQL errors:`, data.errors);
+      return res.status(400).json({ 
+        error: 'GraphQL query errors',
+        details: data.errors 
+      });
+    }
+
+    console.log(`[Graph API] Success for chain ${chainId}:`, {
+      hasData: !!data.data,
+      resultKeys: data.data ? Object.keys(data.data) : []
+    });
+
+    // Return the raw Graph API response
+    return res.status(200).json(data);
+
+  } catch (error) {
+    console.error('[Graph API] Proxy error:', error);
+    
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      message: error.message 
+    });
+  }
+}
+
+// Export config for Vercel
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '10mb',
+    },
+  },
+}; 
