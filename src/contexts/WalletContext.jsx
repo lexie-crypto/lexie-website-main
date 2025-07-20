@@ -112,7 +112,28 @@ const WalletContextProvider = ({ children }) => {
   const getCurrentWalletProvider = () => {
     // For WalletConnect, use the connector's provider directly to avoid wagmi issues
     if (connectorClient?.connector?.provider) {
-      return connectorClient.connector.provider;
+      const provider = connectorClient.connector.provider;
+      
+      // Set up session request listener for WalletConnect
+      if (provider && typeof provider.on === 'function') {
+        // Remove any existing listeners to prevent duplicates
+        if (provider.listenerCount && provider.listenerCount('session_request') === 0) {
+          provider.on('session_request', async (event) => {
+            console.log('WalletConnect session_request received:', event);
+            // Auto-approve session requests for signing
+            if (event.params?.request?.method === 'personal_sign') {
+              try {
+                // The request will be handled by the provider's request method
+                console.log('Handling WalletConnect signing request');
+              } catch (error) {
+                console.error('Error handling WalletConnect session request:', error);
+              }
+            }
+          });
+        }
+      }
+      
+      return provider;
     }
     
     // For other wallets, use window.ethereum
