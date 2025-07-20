@@ -656,24 +656,6 @@ const WalletContextProvider = ({ children }) => {
     }
   }, [address, isConnected, railgunAddress, isRailgunInitialized, initializeRailgun]);
 
-  // Get current wallet provider for PrivacyActions - DIRECT provider, not wagmi abstraction
-  const getCurrentWalletProvider = () => {
-    // Always use window.ethereum directly for MetaMask and other injected wallets
-    if (typeof window !== 'undefined' && window.ethereum) {
-      console.log('🔗 Providing direct window.ethereum provider');
-      return window.ethereum;
-    }
-    
-    // For WalletConnect, get the actual provider from the connector
-    if (connectorClient?.connector?.provider && connector?.id === 'walletConnect') {
-      console.log('🌐 Providing WalletConnect provider');
-      return connectorClient.connector.provider;
-    }
-    
-    console.error('❌ No direct wallet provider available');
-    return null;
-  };
-
   const value = {
     isConnected,
     address,
@@ -698,10 +680,6 @@ const WalletContextProvider = ({ children }) => {
     connectedWalletType: connector?.id,
     connectedWalletName: connector?.name,
     
-    // 🔑 Wallet provider for PrivacyActions and other components
-    walletProvider: getCurrentWalletProvider(),
-    getCurrentWalletProvider,
-    
     getCurrentNetwork: () => {
       const networkNames = { 1: 'Ethereum', 137: 'Polygon', 42161: 'Arbitrum', 56: 'BSC' };
       return { id: chainId, name: networkNames[chainId] || `Chain ${chainId}` };
@@ -723,8 +701,6 @@ const WalletContextProvider = ({ children }) => {
       railgunInitialized: isRailgunInitialized,
       railgunAddress,
       railgunWalletID: railgunWalletID?.slice(0, 8) + '...',
-      hasWalletProvider: !!getCurrentWalletProvider(),
-      walletProviderType: getCurrentWalletProvider()?.constructor?.name || 'none',
     }),
   };
 

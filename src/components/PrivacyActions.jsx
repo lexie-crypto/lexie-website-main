@@ -29,7 +29,14 @@ import {
   parseTokenAmount,
   formatTokenAmount,
 } from '../utils/railgun/balances';
-// Removed unused wallet utility imports - using WalletContext directly
+import { 
+  createWallet,
+  loadWallet,
+  deriveEncryptionKey,
+  getCurrentWalletID,
+  getCurrentWallet,
+} from '../utils/railgun/wallet';
+import { initializeRailgun } from '../utils/railgun/engine';
 
 const PrivacyActions = () => {
   const {
@@ -58,7 +65,7 @@ const PrivacyActions = () => {
   const [amount, setAmount] = useState('');
   const [recipientAddress, setRecipientAddress] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  // Removed railgunSetupComplete - using canUseRailgun from WalletContext instead
+  const [railgunSetupComplete, setRailgunSetupComplete] = useState(false);
 
   // Available tabs
   const tabs = [
@@ -76,7 +83,24 @@ const PrivacyActions = () => {
     },
   ];
 
-  // Removed Railgun initialization useEffect - WalletContext handles this automatically
+  // Initialize Railgun on component mount
+  useEffect(() => {
+    const setupRailgun = async () => {
+      if (isConnected && address && !railgunSetupComplete) {
+        try {
+          console.log('[PrivacyActions] Initializing Railgun...');
+          await initializeRailgun();
+          setRailgunSetupComplete(true);
+          console.log('[PrivacyActions] Railgun initialized successfully');
+        } catch (error) {
+          console.error('[PrivacyActions] Failed to initialize Railgun:', error);
+          toast.error('Failed to initialize Railgun privacy system');
+        }
+      }
+    };
+
+    setupRailgun();
+  }, [isConnected, address, railgunSetupComplete]);
 
   // Get available tokens based on current tab
   const availableTokens = useMemo(() => {
@@ -128,47 +152,23 @@ const PrivacyActions = () => {
     }
   }, [amount, selectedToken]);
 
-  // Get encryption key for operations - Use stored signature for consistency
+  // Get encryption key for operations - PRODUCTION READY
   const getEncryptionKey = useCallback(async () => {
     try {
-      if (!address) {
-        throw new Error('No wallet address available');
+      if (!walletProvider) {
+        throw new Error('No wallet provider available');
       }
 
-      // Use the same approach as WalletContext - check for stored signature first
-      const signatureStorageKey = `railgun-signature-${address.toLowerCase()}`;
-      let signature = localStorage.getItem(signatureStorageKey);
+      // Request signature for encryption key derivation
+      const message = `Lexie Privacy Operation\n\nAuthorize privacy wallet access for this operation.\n\nAddress: ${address}\nTimestamp: ${Date.now()}\n\nThis signature enables access to your privacy wallet and never leaves your device.`;
       
-      if (!signature) {
-        // If no stored signature, request one (should only happen on first use)
-        if (!walletProvider) {
-          throw new Error('No wallet provider available');
-        }
-        
-        console.log('[PrivacyActions] No stored signature found, requesting new signature...');
-        const signatureMessage = `RAILGUN Wallet Creation\nAddress: ${address}\n\nSign this message to create your secure RAILGUN privacy wallet.`;
-        
-        signature = await walletProvider.request({
-          method: 'personal_sign',
-          params: [signatureMessage, address],
-        });
-        
-        // Store signature for future use
-        localStorage.setItem(signatureStorageKey, signature);
-        console.log('[PrivacyActions] Signature stored for future use');
-      } else {
-        console.log('[PrivacyActions] Using stored signature for encryption key');
-      }
+      const signature = await walletProvider.request({
+        method: 'personal_sign',
+        params: [message, address],
+      });
 
-      // Generate encryption key using same method as WalletContext
-      const { default: CryptoJS } = await import('crypto-js');
-      const addressBytes = address.toLowerCase().replace('0x', '');
-      const signatureBytes = signature.replace('0x', '');
-      const combined = signatureBytes + addressBytes;
-      const hash = CryptoJS.SHA256(combined);
-      const encryptionKey = hash.toString(CryptoJS.enc.Hex).slice(0, 64);
-      
-      return encryptionKey;
+      // Generate encryption key from real signature
+      return deriveEncryptionKey(signature, address);
     } catch (error) {
       console.error('[PrivacyActions] Failed to get encryption key:', error);
       if (error.code === 4001 || error.message.includes('rejected')) {
@@ -493,8 +493,8 @@ const PrivacyActions = () => {
     );
   }
 
-  // Show setup incomplete - using canUseRailgun from WalletContext
-  if (!canUseRailgun) {
+  // Show setup incomplete
+  if (!railgunSetupComplete) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
         <div className="text-center py-8">
