@@ -173,7 +173,7 @@ const WalletPage = () => {
         chain: chainConfig,
         fromAddress: address,
         railgunAddress: railgunAddress,
-        walletProvider: walletProvider
+        walletProvider: await walletProvider()
       });
 
       // Send the transaction to the blockchain
