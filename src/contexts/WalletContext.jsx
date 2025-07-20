@@ -255,14 +255,10 @@ const WalletContextProvider = ({ children }) => {
         const nonce = crypto.getRandomValues(new Uint32Array(4)).join('');
         const signatureMessage = `RAILGUN Wallet Creation\nAddress: ${address}\nTimestamp: ${timestamp}\nNonce: ${nonce}\n\nSign this message to create your secure RAILGUN privacy wallet.`;
         
-        // Request signature from user
-        if (walletProvider?.request) {
-          signature = await walletProvider.request({
-            method: 'personal_sign',
-            params: [signatureMessage, address],
-          });
-        } else if (typeof window !== 'undefined' && window.ethereum) {
-          signature = await window.ethereum.request({
+        // Request signature from user using the proper wallet provider
+        const currentProvider = getCurrentWalletProvider();
+        if (currentProvider?.request) {
+          signature = await currentProvider.request({
             method: 'personal_sign',
             params: [signatureMessage, address],
           });
