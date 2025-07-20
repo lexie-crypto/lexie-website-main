@@ -208,6 +208,9 @@ const PrivacyActions = () => {
 
       toast.loading('Shielding tokens into private balance...', { id: toastId });
 
+      // Get wallet signer (not provider to avoid re-wrapping)
+      const walletSigner = await walletProvider(); // This now returns a signer
+      
       // Execute shield operation
       const result = await shieldTokens({
         tokenAddress: selectedToken.address,
@@ -215,7 +218,7 @@ const PrivacyActions = () => {
         chain: chainConfig,
         fromAddress: address,
         railgunAddress: railgunAddress,
-        walletProvider: walletProvider
+        walletProvider: walletSigner // Pass signer directly
       });
 
       // Send the transaction to the blockchain
@@ -236,10 +239,8 @@ const PrivacyActions = () => {
       
       console.log('[PrivacyActions] Formatted transaction for sending:', txForSending);
       
-      const txResponse = await walletProvider.request({
-        method: 'eth_sendTransaction',
-        params: [txForSending],
-      });
+      // Use signer.sendTransaction instead of provider.request
+      const txResponse = await walletSigner.sendTransaction(txForSending);
       
       console.log('[PrivacyActions] Transaction sent:', txResponse);
 

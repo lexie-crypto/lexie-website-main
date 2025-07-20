@@ -4,7 +4,7 @@
  * Converted to JavaScript with custom enhancements for Lexie Wallet
  */
 
-import { getAddress, isAddress, keccak256, Contract, BrowserProvider } from 'ethers';
+import { getAddress, isAddress, keccak256, Contract } from 'ethers';
 import {
   gasEstimateForShield,
   populateShield,
@@ -43,6 +43,11 @@ const getRailgunNetworkName = (chainId) => {
 
 /**
  * Check and ensure token approval for RAILGUN contract
+ * @param {string} tokenAddress - Token contract address
+ * @param {string} ownerAddress - Token owner address
+ * @param {string} amount - Amount to approve
+ * @param {Signer} walletProvider - Ethers signer (not provider)
+ * @param {Object} transaction - Transaction object to get RAILGUN contract address
  */
 const ensureTokenApproval = async (tokenAddress, ownerAddress, amount, walletProvider, transaction) => {
   if (!tokenAddress) {
@@ -70,9 +75,8 @@ const ensureTokenApproval = async (tokenAddress, ownerAddress, amount, walletPro
       'function approve(address spender, uint256 amount) returns (bool)'
     ];
 
-    // Properly wrap the wallet provider with ethers BrowserProvider
-    const provider = new BrowserProvider(walletProvider);
-    const signer = await provider.getSigner();
+    // Use the signer directly (no re-wrapping needed)
+    const signer = walletProvider; // This is now a signer, not a provider
     const tokenContract = new Contract(tokenAddress, erc20Abi, signer);
     
     // Check balance first
@@ -145,19 +149,17 @@ const validateAddress = (address, paramName) => {
  * Generate shield private key from wallet signature
  * This is the key custom functionality to keep from the original implementation
  */
-const generateShieldPrivateKey = async (fromAddress, walletProvider) => {
+const generateShieldPrivateKey = async (fromAddress, walletSigner) => {
   try {
-    if (!walletProvider) {
-      throw new Error('Wallet provider required for shield private key generation');
+    if (!walletSigner) {
+      throw new Error('Wallet signer required for shield private key generation');
     }
 
     console.log('[ShieldTransactions] Requesting shield signature from wallet...');
     
     const message = getShieldPrivateKeySignatureMessage();
-    const signature = await walletProvider.request({
-      method: 'personal_sign',
-      params: [message, fromAddress],
-    });
+    // Use signer.signMessage instead of provider.request
+    const signature = await walletSigner.signMessage(message);
 
     console.log('[ShieldTransactions] Shield signature received');
     return keccak256(signature);
@@ -287,6 +289,12 @@ export const createShieldTransaction = async (
 
 /**
  * Complete shield operation - Clean, focused API
+ * @param {string} tokenAddress - Token contract address
+ * @param {string} amount - Amount to shield (in token units)
+ * @param {Object} chain - Chain configuration with id
+ * @param {string} fromAddress - User's wallet address
+ * @param {string} railgunAddress - Railgun privacy address
+ * @param {Signer} walletProvider - Ethers signer (not provider) - avoids re-wrapping
  */
 export const shieldTokens = async ({
   tokenAddress,

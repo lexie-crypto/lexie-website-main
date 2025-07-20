@@ -9,6 +9,7 @@ import { createConfig, custom } from 'wagmi';
 import { mainnet, polygon, arbitrum, bsc } from 'wagmi/chains';
 import { metaMask, walletConnect } from 'wagmi/connectors';
 import { WagmiProvider, useAccount, useConnect, useDisconnect, useSwitchChain, useConnectorClient, useSignMessage } from 'wagmi';
+import { getWalletClient } from 'wagmi/actions';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/environment';
 
@@ -114,6 +115,25 @@ const WalletContextProvider = ({ children }) => {
   const { switchChain } = useSwitchChain();
   const { data: connectorClient } = useConnectorClient();
   const { signMessageAsync } = useSignMessage();
+
+  // Get wallet signer for SDK operations using actual connected wallet
+  const getWalletSigner = async () => {
+    const walletClient = await getWalletClient(wagmiConfig);
+    if (!walletClient || !walletClient.transport) {
+      throw new Error('Wallet client not found or transport unavailable');
+    }
+
+    const { BrowserProvider } = await import('ethers');
+    const provider = new BrowserProvider(walletClient.transport);
+    const signer = await provider.getSigner();
+    
+    console.log('✅ Wallet signer created using actual connected provider:', {
+      connectorId: walletClient.connector?.id,
+      connectorName: walletClient.connector?.name,
+      address: await signer.getAddress()
+    });
+    return signer;
+  };
 
   // Simple wallet connection - UI layer only
   const connectWallet = async (connectorType = 'metamask') => {
@@ -680,8 +700,9 @@ const WalletContextProvider = ({ children }) => {
     connectedWalletType: connector?.id,
     connectedWalletName: connector?.name,
     
-    // 🔑 Wallet provider for SDK operations (needs request method)
-    walletProvider: typeof window !== 'undefined' ? window.ethereum : null,
+    // 🔑 Wallet signer for SDK operations (avoids re-wrapping in BrowserProvider)
+    getWalletSigner,
+    walletProvider: getWalletSigner, // Backwards compatibility - but this returns a signer now
     
     getCurrentNetwork: () => {
       const networkNames = { 1: 'Ethereum', 137: 'Polygon', 42161: 'Arbitrum', 56: 'BSC' };
