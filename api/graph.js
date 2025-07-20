@@ -4,6 +4,13 @@
  * Bypasses CORS issues for The Graph API calls
  */
 
+// Configure body parser for proper request handling
+export const config = {
+  api: {
+    bodyParser: true,
+  },
+};
+
 // RAILGUN Graph endpoints per chain
 const GRAPH_ENDPOINTS = {
   1: 'https://api.thegraph.com/subgraphs/name/railgun-community/railgun-v2-ethereum',
@@ -39,41 +46,43 @@ export default async function handler(req, res) {
       body: req.body
     });
 
-    // Extract chain ID from request
+    // Extract request data
     const { chainId, query, variables } = req.body || {};
     
+    // Validate request body exists
     if (!req.body) {
       console.error('[Graph API] No request body received');
       return res.status(400).json({ 
-        error: 'No request body received' 
+        error: 'No request body received. Expected JSON with chainId, query, and variables.' 
       });
     }
     
-    if (!chainId) {
-      console.error('[Graph API] Missing chainId in request body:', req.body);
-      return res.status(400).json({ 
-        error: 'Missing chainId in request body',
-        received: req.body
-      });
-    }
-
+    // Validate required GraphQL query
     if (!query) {
-      console.error('[Graph API] Missing GraphQL query in request body:', req.body);
+      console.error('[Graph API] Missing GraphQL query in request body:', {
+        receivedFields: Object.keys(req.body),
+        bodyType: typeof req.body
+      });
       return res.status(400).json({ 
         error: 'Missing GraphQL query in request body',
-        received: req.body
+        required: ['query'],
+        optional: ['chainId', 'variables'],
+        received: Object.keys(req.body)
       });
     }
+
+    // Use default chainId if not provided (Arbitrum One)
+    const targetChainId = chainId || 42161;
 
     // Get the appropriate Graph endpoint for the chain
-    const endpoint = GRAPH_ENDPOINTS[chainId];
+    const endpoint = GRAPH_ENDPOINTS[targetChainId];
     if (!endpoint) {
       return res.status(400).json({ 
-        error: `Unsupported chain ID: ${chainId}. Supported chains: ${Object.keys(GRAPH_ENDPOINTS).join(', ')}` 
+        error: `Unsupported chain ID: ${targetChainId}. Supported chains: ${Object.keys(GRAPH_ENDPOINTS).join(', ')}` 
       });
     }
 
-    console.log(`[Graph API] Proxying request for chain ${chainId} to:`, endpoint);
+    console.log(`[Graph API] Proxying request for chain ${targetChainId} to:`, endpoint);
 
     // Forward the request to The Graph
     const response = await fetch(endpoint, {
@@ -92,7 +101,7 @@ export default async function handler(req, res) {
       console.error(`[Graph API] Request failed:`, {
         status: response.status,
         statusText: response.statusText,
-        chainId,
+        chainId: targetChainId,
         endpoint
       });
       
@@ -112,7 +121,7 @@ export default async function handler(req, res) {
       });
     }
 
-    console.log(`[Graph API] Success for chain ${chainId}:`, {
+    console.log(`[Graph API] Success for chain ${targetChainId}:`, {
       hasData: !!data.data,
       resultKeys: data.data ? Object.keys(data.data) : []
     });
