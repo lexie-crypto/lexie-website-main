@@ -107,12 +107,8 @@ const setupNetworks = async () => {
         }
         
         // Step 2: Then load the provider
-        // Get the expected chain ID from NETWORK_CONFIG to ensure exact match
-        const expectedChainId = networkConfig.chain.id;
-        console.log(`[RAILGUN] Expected chain ID for ${networkName}: ${expectedChainId}, configured: ${config.chainId}`);
-        
         const providerConfig = {
-          chainId: expectedChainId, // Use the chain ID from NETWORK_CONFIG
+          chainId: config.chainId,
           providers: [{
             provider: config.rpcUrl,
             priority: 1,
