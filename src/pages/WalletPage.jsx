@@ -398,10 +398,10 @@ const WalletPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-violet-800 py-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="bg-gray-800 rounded-lg shadow-lg p-6 mb-8">
+        <div className="bg-black/20 backdrop-blur-md border border-white/10 rounded-2xl p-6 mb-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
               <div className="bg-purple-600 rounded-full p-3">
@@ -459,7 +459,7 @@ const WalletPage = () => {
         </div>
 
         {/* Railgun Status */}
-        <div className="bg-gray-800 rounded-lg shadow-lg p-6 mb-8">
+        <div className="bg-black/20 backdrop-blur-md border border-white/10 rounded-2xl p-6 mb-8">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <ShieldCheckIcon className="h-6 w-6 text-purple-500" />
@@ -505,7 +505,7 @@ const WalletPage = () => {
         </div>
 
         {/* View Selector */}
-        <div className="bg-gray-800 rounded-lg shadow-lg mb-8">
+        <div className="bg-black/20 backdrop-blur-md border border-white/10 rounded-2xl mb-8">
           <div className="border-b border-gray-700">
             <nav className="-mb-px flex">
               <button
@@ -634,7 +634,7 @@ const WalletPage = () => {
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Public Balances */}
-              <div className="bg-gray-800 rounded-lg shadow-lg">
+              <div className="bg-black/20 backdrop-blur-md border border-white/10 rounded-2xl">
                 <div className="p-6 border-b border-gray-700">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-medium text-white">Public Balances</h3>
@@ -658,8 +658,10 @@ const WalletPage = () => {
                         <div key={token.symbol} className="p-4 bg-gray-700 rounded-lg">
                           <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center space-x-3">
-                              <div className="bg-gray-600 rounded-full p-2">
-                                <CurrencyDollarIcon className="h-5 w-5 text-gray-300" />
+                              <div className="bg-gray-600 rounded-full p-2 w-10 h-10 flex items-center justify-center">
+                                <span className="text-white text-sm font-bold">
+                                  {token.symbol?.slice(0, 3).toUpperCase() || '?'}
+                                </span>
                               </div>
                               <div>
                                 <div className="text-white font-medium">{token.symbol}</div>
@@ -667,8 +669,10 @@ const WalletPage = () => {
                               </div>
                             </div>
                             <div className="text-right">
-                              <div className="text-white font-medium">{token.formattedBalance}</div>
-                              <div className="text-gray-400 text-sm">${token.balanceUSD}</div>
+                              <div className="text-white font-medium">{token.formattedBalance || token.balance}</div>
+                              <div className="text-gray-400 text-sm">
+                                ${(token.balanceUSD || (parseFloat(token.balance || '0') * (token.price || 1))).toFixed(2)}
+                              </div>
                             </div>
                           </div>
 
@@ -742,7 +746,7 @@ const WalletPage = () => {
               </div>
 
               {/* Private Balances */}
-              <div className="bg-gray-800 rounded-lg shadow-lg">
+              <div className="bg-black/20 backdrop-blur-md border border-white/10 rounded-2xl">
                 <div className="p-6 border-b border-gray-700">
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-medium text-white">Private Balances</h3>
@@ -821,21 +825,25 @@ const WalletPage = () => {
                       {/* Individual Private Token Balances */}
                       {(showPrivateBalances || privateBalances.length <= 3) && 
                         privateBalances.map((token) => (
-                          <div key={token.symbol} className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
-                            <div className="flex items-center space-x-3">
-                              <div className="bg-purple-600 rounded-full p-2">
-                                <EyeSlashIcon className="h-4 w-4 text-white" />
-                              </div>
-                              <div>
-                                <div className="text-white font-medium">{token.symbol}</div>
-                                <div className="text-gray-400 text-sm">Private • {token.name || `${token.symbol} Token` || 'Unknown Token'}</div>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-white font-medium">{token.formattedBalance}</div>
-                              <div className="text-gray-400 text-sm">${token.balanceUSD}</div>
-                            </div>
-                          </div>
+                                                     <div key={token.symbol} className="flex items-center justify-between p-4 bg-gray-700 rounded-lg">
+                             <div className="flex items-center space-x-3">
+                               <div className="bg-purple-600 rounded-full p-2 w-10 h-10 flex items-center justify-center">
+                                 <span className="text-white text-xs font-bold">
+                                   {token.symbol?.slice(0, 3).toUpperCase() || '🔒'}
+                                 </span>
+                               </div>
+                               <div>
+                                 <div className="text-white font-medium">{token.symbol}</div>
+                                 <div className="text-gray-400 text-sm">Private • {token.name || `${token.symbol} Token` || 'Unknown Token'}</div>
+                               </div>
+                             </div>
+                             <div className="text-right">
+                               <div className="text-white font-medium">{token.formattedBalance || token.balance}</div>
+                               <div className="text-gray-400 text-sm">
+                                 ${(token.balanceUSD || (parseFloat(token.balance || '0') * (token.price || 1))).toFixed(2)}
+                               </div>
+                             </div>
+                           </div>
                         ))
                       }
 
