@@ -443,9 +443,9 @@ export const monitorTransactionInGraph = async ({
     }
 
     const startTime = Date.now();
-    const pollInterval = 5000; // 5 seconds
+    const pollInterval = 30000; // 30 seconds
     let attempts = 0;
-    const maxAttempts = Math.ceil(maxWaitTime / pollInterval);
+    const maxAttempts = 40;
 
     const { isProxy, endpoint } = getGraphEndpoint(chainId);
     console.log('[TransactionMonitor] 🕒 Starting polling:', {
@@ -457,89 +457,68 @@ export const monitorTransactionInGraph = async ({
       chainId
     });
 
-    while (Date.now() - startTime < maxWaitTime) {
+    while (attempts < maxAttempts) {
       attempts++;
-      
-      try {
-        console.log(`[TransactionMonitor] 🔍 Polling attempt ${attempts}/${maxAttempts} for ${transactionType} events...`);
-        console.log(`[TransactionMonitor] 🔍 About to query with params:`, { chainId, fromBlock, txHash, transactionType });
+      console.log(`[TransactionMonitor] 🔍 Polling attempt ${attempts}/${maxAttempts} for ${transactionType} events...`);
+      console.log(`[TransactionMonitor] 🔍 About to query with params:`, { chainId, fromBlock, txHash, transactionType });
 
-        let events = [];
-        
-        if (transactionType === 'shield') {
-          // Shield transactions create commitments
-          console.log('[TransactionMonitor] 🛡️ Querying commitments for shield transaction...');
-          events = await queryCommitments(chainId, fromBlock, txHash);
-        } else if (transactionType === 'unshield') {
-          // Unshield transactions create nullifiers AND unshield events
-          const [nullifiers, unshields] = await Promise.all([
-            queryNullifiers(chainId, fromBlock, txHash),
-            queryUnshields(chainId, fromBlock, txHash)
-          ]);
-          events = [...nullifiers, ...unshields];
-        } else if (transactionType === 'transfer') {
-          // Transfer transactions create both commitments (for recipients) and nullifiers (for spenders)
-          const [nullifiers, commitments] = await Promise.all([
-            queryNullifiers(chainId, fromBlock, txHash),
-            queryCommitments(chainId, fromBlock, txHash)
-          ]);
-          events = [...nullifiers, ...commitments];
-        }
+      let events = [];
+      const startBlock = fromBlock - 1;
+      const endBlock = fromBlock + 5;
 
-        // Remove duplicates and filter by transaction hash
-        const filteredEvents = removeDuplicatesByID(events);
-        console.log(`[TransactionMonitor] 📊 Found ${filteredEvents.length} ${transactionType} events in this poll`);
-
-        // Check if our transaction is in the events
-        const targetEvent = filteredEvents.find(event => 
-          event.transactionHash?.toLowerCase() === txHash.toLowerCase()
-        );
-
-        if (targetEvent) {
-          const elapsed = Date.now() - startTime;
-          console.log('[TransactionMonitor] 🎉 Transaction found in RAILGUN events!', {
-            txHash,
-            blockNumber: targetEvent.blockNumber,
-            eventType: targetEvent.commitmentType || 'nullifier',
-            elapsedTime: `${elapsed/1000}s`,
-            attempts
-          });
-
-          // Call the listener if provided (NEW API)
-          if (listener && typeof listener === 'function') {
-            console.log('[TransactionMonitor] 📞 Calling listener callback...');
-            try {
-              await listener(targetEvent);
-            } catch (listenerError) {
-              console.error('[TransactionMonitor] ❌ Listener callback failed:', listenerError);
-            }
-          }
-
-          return {
-            found: true,
-            event: targetEvent,
-            elapsedTime: elapsed,
-            attempts
-          };
-        }
-
-        // Wait before next poll (with small delay like official implementation)
-        await new Promise(resolve => setTimeout(resolve, pollInterval));
-
-      } catch (error) {
-        console.error(`[TransactionMonitor] ❌ Poll attempt ${attempts} failed:`, error);
-        
-        // Wait a bit longer on error
-        await new Promise(resolve => setTimeout(resolve, pollInterval * 2));
+      if (transactionType === 'shield') {
+        console.log('[TransactionMonitor] 🛡️ Querying commitments for shield transaction...');
+        events = await queryCommitments(chainId, startBlock, txHash);
+      } else if (transactionType === 'unshield') {
+        const [nullifiers, unshields] = await Promise.all([
+          queryNullifiers(chainId, startBlock, txHash),
+          queryUnshields(chainId, startBlock, txHash)
+        ]);
+        events = [...nullifiers, ...unshields];
+      } else if (transactionType === 'transfer') {
+        const [nullifiers, commitments] = await Promise.all([
+          queryNullifiers(chainId, startBlock, txHash),
+          queryCommitments(chainId, startBlock, txHash)
+        ]);
+        events = [...nullifiers, ...commitments];
       }
+
+      const filteredEvents = removeDuplicatesByID(events);
+      console.log(`[TransactionMonitor] 📊 Found ${filteredEvents.length} ${transactionType} events in this poll`);
+
+      const targetEvent = filteredEvents.find(event => 
+        event.transactionHash?.toLowerCase() === txHash.toLowerCase()
+      );
+
+      if (targetEvent) {
+        const elapsed = Date.now() - startTime;
+        console.log('[TransactionMonitor] 🎉 Transaction found in RAILGUN events!', {
+          txHash,
+          blockNumber: targetEvent.blockNumber,
+          eventType: targetEvent.commitmentType || 'nullifier',
+          elapsedTime: `${elapsed/1000}s`,
+          attempts
+        });
+
+        if (listener && typeof listener === 'function') {
+          console.log('[TransactionMonitor] 📞 Calling listener callback...');
+          listener(targetEvent);
+        }
+        return { found: true, elapsedTime: elapsed };
+      }
+
+      if (listener && typeof listener === 'function') {
+        listener({ progress: `Checking... (${attempts}/${maxAttempts})` });
+      }
+
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
     }
 
-    console.log('[TransactionMonitor] ⏰ Monitoring timed out without finding transaction');
-    return {
-      found: false,
-      elapsedTime: maxWaitTime,
-      attempts
-    };
+    console.warn('[TransactionMonitor] ❌ Transaction confirmation timed out');
+    if (listener && typeof listener === 'function') {
+      listener({ timeout: true });
+    }
+    return { found: false, elapsedTime: Date.now() - startTime };
 
   } catch (error) {
     console.error('[TransactionMonitor] 💥 Transaction monitoring failed:', error);
