@@ -673,7 +673,8 @@ const WalletPage = () => {
                               <div className="text-gray-400 text-sm">
                                 {(() => {
                                   const balanceUSD = token.balanceUSD || (parseFloat(token.balance || '0') * (token.price || 1));
-                                  return isNaN(balanceUSD) ? '$0.00' : `$${balanceUSD.toFixed(2)}`;
+                                  const formattedBalanceUSD = !isNaN(balanceUSD) && typeof balanceUSD === 'number' ? balanceUSD.toFixed(2) : '0.00';
+                                  return `$${formattedBalanceUSD}`;
                                 })()}
                               </div>
                             </div>
