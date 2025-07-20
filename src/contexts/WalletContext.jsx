@@ -656,27 +656,21 @@ const WalletContextProvider = ({ children }) => {
     }
   }, [address, isConnected, railgunAddress, isRailgunInitialized, initializeRailgun]);
 
-  // Get current wallet provider for PrivacyActions and other components
+  // Get current wallet provider for PrivacyActions - DIRECT provider, not wagmi abstraction
   const getCurrentWalletProvider = () => {
-    // For WalletConnect, use the connector's provider directly
+    // Always use window.ethereum directly for MetaMask and other injected wallets
+    if (typeof window !== 'undefined' && window.ethereum) {
+      console.log('🔗 Providing direct window.ethereum provider');
+      return window.ethereum;
+    }
+    
+    // For WalletConnect, get the actual provider from the connector
     if (connectorClient?.connector?.provider && connector?.id === 'walletConnect') {
-      console.log('🌐 Providing WalletConnect provider for PrivacyActions');
+      console.log('🌐 Providing WalletConnect provider');
       return connectorClient.connector.provider;
     }
     
-    // For MetaMask and other injected wallets
-    if (connector?.id === 'metaMask' && typeof window !== 'undefined' && window.ethereum?.isMetaMask) {
-      console.log('🦊 Providing MetaMask provider for PrivacyActions');
-      return window.ethereum;
-    }
-    
-    // Generic window.ethereum as fallback
-    if (typeof window !== 'undefined' && window.ethereum) {
-      console.log('🔗 Providing generic ethereum provider for PrivacyActions');
-      return window.ethereum;
-    }
-    
-    console.error('❌ No wallet provider available for PrivacyActions');
+    console.error('❌ No direct wallet provider available');
     return null;
   };
 
