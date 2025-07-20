@@ -238,7 +238,7 @@ export function useBalances() {
       const [balance, decimals, symbol, name] = await Promise.all([
         contract.balanceOf(userAddress),
         contract.decimals().catch(() => tokenInfo.decimals),
-        contract.symbol().catch(() => tokenInfo.symbol),
+        Promise.resolve(tokenInfo.symbol),
         contract.name().catch(() => tokenInfo.name),
       ]);
 
