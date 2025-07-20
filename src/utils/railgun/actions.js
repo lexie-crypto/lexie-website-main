@@ -228,6 +228,7 @@ export const unshieldTokens = async ({
 /**
  * TRANSFER: Send tokens privately between Railgun wallets
  * Uses tx-generator.js for comprehensive transaction generation
+ * ✅ ENHANCED: Includes Graph monitoring integration
  */
 export const transferTokens = async ({
   networkName,
@@ -236,12 +237,16 @@ export const transferTokens = async ({
   recipients, // Array of {tokenAddress, amount, recipientAddress}
   selectedBroadcaster = null,
   txConfig = {},
+  chainId = null, // Required for Graph monitoring
+  walletProvider = null, // Required for transaction sending
+  enableGraphMonitoring = true, // Enable/disable Graph monitoring
 }) => {
   try {
     console.log('[RailgunActions] Starting private transfer:', {
       networkName,
       recipientCount: recipients?.length,
       hasBroadcaster: !!selectedBroadcaster,
+      enableGraphMonitoring,
     });
 
     // Create ERC20 amount recipients
@@ -269,9 +274,84 @@ export const transferTokens = async ({
       },
     });
 
-    console.log('[RailgunActions] Private transfer completed successfully');
+    console.log('[RailgunActions] Private transfer transaction generated successfully');
+
+    // If wallet provider is available, send the transaction and start monitoring
+    let txHash = null;
+    if (walletProvider && result.transaction) {
+      try {
+        console.log('[RailgunActions] Sending transfer transaction...');
+        
+        // Send transaction to the blockchain
+        txHash = await walletProvider.request({
+          method: 'eth_sendTransaction',
+          params: [result.transaction],
+        });
+        
+        console.log('[RailgunActions] Transfer transaction sent:', txHash);
+
+        // ✅ Start Graph monitoring if enabled
+        if (enableGraphMonitoring && chainId && txHash) {
+          console.log('[RailgunActions] Starting Graph monitoring for transfer...');
+          
+          try {
+            const { monitorTransactionInGraph } = await import('./transactionMonitor.js');
+            
+            // Start monitoring in background (don't await)
+            monitorTransactionInGraph({
+              txHash,
+              chainId,
+              transactionType: 'transfer',
+              listener: async (event) => {
+                console.log(`[RailgunActions] ✅ Transfer tx ${txHash} indexed on chain ${chainId}`);
+                
+                // Trigger balance refresh as specified
+                try {
+                  const { refreshBalances } = await import('@railgun-community/wallet');
+                  const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
+                  
+                  const networkName = {
+                    1: NetworkName.Ethereum,
+                    42161: NetworkName.Arbitrum,
+                    137: NetworkName.Polygon,
+                    56: NetworkName.BNBChain,
+                  }[chainId];
+                  
+                  if (networkName && NETWORK_CONFIG[networkName]) {
+                    const { chain } = NETWORK_CONFIG[networkName];
+                    await refreshBalances(chain, [railgunWalletID]);
+                    console.log('[RailgunActions] ✅ Balance refresh completed for transfer');
+                  }
+                } catch (refreshError) {
+                  console.error('[RailgunActions] Balance refresh failed after transfer:', refreshError);
+                }
+              }
+            })
+            .then((monitorResult) => {
+              if (monitorResult.found) {
+                console.log(`[RailgunActions] Transfer monitoring completed in ${monitorResult.elapsedTime/1000}s`);
+              } else {
+                console.warn('[RailgunActions] Transfer monitoring timed out');
+              }
+            })
+            .catch((error) => {
+              console.error('[RailgunActions] Transfer Graph monitoring failed:', error);
+            });
+            
+          } catch (monitorError) {
+            console.error('[RailgunActions] Failed to start transfer monitoring:', monitorError);
+          }
+        }
+        
+      } catch (sendError) {
+        console.error('[RailgunActions] Failed to send transfer transaction:', sendError);
+        throw new Error(`Failed to send transfer transaction: ${sendError.message}`);
+      }
+    }
+
     return {
       ...result,
+      txHash, // Include transaction hash in response
       networkName,
       estimatedCost: calculateTransactionCost(result.gasDetails),
       totals,

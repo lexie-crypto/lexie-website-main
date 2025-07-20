@@ -250,49 +250,63 @@ const PrivacyActions = () => {
       setAmount('');
       setSelectedToken(availableTokens[0] || null);
 
-      // SMART: Monitor Graph API for transaction indexing
-      toast.loading('Monitoring for shield confirmation...', { id: toastId });
-      console.log('[PrivacyActions] Starting Graph-based transaction monitoring...');
+      // ✅ ENHANCED: Graph-based transaction monitoring with new API
+      toast.dismiss(toastId);
+      toast.success('Shield transaction sent! Monitoring for confirmation...');
+      console.log('[PrivacyActions] Starting Graph-based shield monitoring...');
       
       try {
-        // Import the transaction monitor
-        const { monitorShieldTransaction } = await import('../utils/railgun/transactionMonitor');
+        // Import the enhanced transaction monitor
+        const { monitorTransactionInGraph } = await import('../utils/railgun/transactionMonitor');
         
-        // Start monitoring in background (don't await - let it run async)
-        monitorShieldTransaction(txResponse, chainConfig.id, railgunWalletId)
-          .then((result) => {
-            if (result.found) {
-              toast.success(`Shield confirmed! Balance updated in ${result.elapsedTime/1000}s`);
-            } else {
-              toast.info('Shield successful! Balance will update automatically.');
+        // Start monitoring in background with new API specification
+        monitorTransactionInGraph({
+          txHash: txResponse,
+          chainId: chainConfig.id,
+          transactionType: 'shield',
+          listener: async (event) => {
+            console.log(`[PrivacyActions] ✅ Shield tx ${txResponse} indexed on chain ${chainConfig.id}`);
+            
+            // Trigger balance refresh as specified
+            try {
+              const { refreshBalances } = await import('@railgun-community/wallet');
+              const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
+              
+              const networkName = {
+                1: NetworkName.Ethereum,
+                42161: NetworkName.Arbitrum,
+                137: NetworkName.Polygon,
+                56: NetworkName.BNBChain,
+              }[chainConfig.id];
+              
+              if (networkName && NETWORK_CONFIG[networkName]) {
+                const { chain } = NETWORK_CONFIG[networkName];
+                await refreshBalances(chain, [railgunWalletId]);
+                console.log('[PrivacyActions] ✅ Balance refresh completed for shield');
+                toast.success(`Shield confirmed and indexed! Balance updated.`);
+              }
+            } catch (refreshError) {
+              console.error('[PrivacyActions] Balance refresh failed:', refreshError);
+              toast.info('Shield confirmed! Balance will update via callback.');
             }
-          })
-          .catch((error) => {
-            console.error('[PrivacyActions] Graph monitoring failed:', error);
-            // Fallback to regular balance refresh
-            setTimeout(() => refreshBalancesAfterTransaction(), 10000);
-          });
-        
-        // Immediate feedback
-        toast.dismiss(toastId);
-        toast.success('Shield transaction sent! Monitoring for confirmation...');
+          }
+        })
+        .then((result) => {
+          if (result.found) {
+            console.log(`[PrivacyActions] Shield monitoring completed in ${result.elapsedTime/1000}s`);
+          } else {
+            console.warn('[PrivacyActions] Shield monitoring timed out');
+            toast.info('Shield successful! Balance will update automatically.');
+          }
+        })
+        .catch((error) => {
+          console.error('[PrivacyActions] Shield Graph monitoring failed:', error);
+          // Let balance callback handle the update
+        });
         
       } catch (monitorError) {
-        console.error('[PrivacyActions] Failed to start transaction monitoring:', monitorError);
-        
-        // Fallback to the old method
-        toast.dismiss(toastId);
-        toast.loading('Scanning for shielded funds...', { id: toastId });
-        
-        try {
-          await new Promise(resolve => setTimeout(resolve, 5000));
-          await refreshBalancesAfterTransaction();
-          toast.dismiss(toastId);
-          toast.success('Shield successful! Balance should update shortly.');
-        } catch (fallbackError) {
-          toast.dismiss(toastId);
-          toast.info('Shield successful! Private balance will update automatically.');
-        }
+        console.error('[PrivacyActions] Failed to start shield monitoring:', monitorError);
+        // Still rely on balance callback system
       }
 
     } catch (error) {
@@ -355,27 +369,59 @@ const PrivacyActions = () => {
       setRecipientAddress('');
       setSelectedToken(availableTokens[0] || null);
 
-      // SMART: Monitor Graph API for unshield confirmation  
+      // ✅ ENHANCED: Graph-based unshield monitoring with new API
+      console.log('[PrivacyActions] Starting Graph-based unshield monitoring...');
+      
       try {
-        const { monitorUnshieldTransaction } = await import('../utils/railgun/transactionMonitor');
+        const { monitorTransactionInGraph } = await import('../utils/railgun/transactionMonitor');
         
-        // Start monitoring in background
-        monitorUnshieldTransaction(result.transactionHash, chainConfig.id, railgunWalletId)
-          .then((monitorResult) => {
-            if (monitorResult.found) {
-              toast.success(`Unshield confirmed! Balance updated in ${monitorResult.elapsedTime/1000}s`);
+        // Start monitoring with new API specification
+        monitorTransactionInGraph({
+          txHash: result.transactionHash,
+          chainId: chainConfig.id,
+          transactionType: 'unshield',
+          listener: async (event) => {
+            console.log(`[PrivacyActions] ✅ Unshield tx ${result.transactionHash} indexed on chain ${chainConfig.id}`);
+            
+            // Trigger balance refresh as specified
+            try {
+              const { refreshBalances } = await import('@railgun-community/wallet');
+              const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
+              
+              const networkName = {
+                1: NetworkName.Ethereum,
+                42161: NetworkName.Arbitrum,
+                137: NetworkName.Polygon,
+                56: NetworkName.BNBChain,
+              }[chainConfig.id];
+              
+              if (networkName && NETWORK_CONFIG[networkName]) {
+                const { chain } = NETWORK_CONFIG[networkName];
+                await refreshBalances(chain, [railgunWalletId]);
+                console.log('[PrivacyActions] ✅ Balance refresh completed for unshield');
+                toast.success(`Unshield confirmed and indexed! Balance updated.`);
+              }
+            } catch (refreshError) {
+              console.error('[PrivacyActions] Balance refresh failed:', refreshError);
+              toast.info('Unshield confirmed! Balance will update via callback.');
             }
-          })
-          .catch((error) => {
-            console.error('[PrivacyActions] Unshield monitoring failed:', error);
-            // Fallback refresh
-            setTimeout(() => refreshBalancesAfterTransaction(), 10000);
-          });
+          }
+        })
+        .then((monitorResult) => {
+          if (monitorResult.found) {
+            console.log(`[PrivacyActions] Unshield monitoring completed in ${monitorResult.elapsedTime/1000}s`);
+          } else {
+            console.warn('[PrivacyActions] Unshield monitoring timed out');
+          }
+        })
+        .catch((error) => {
+          console.error('[PrivacyActions] Unshield Graph monitoring failed:', error);
+          // Let balance callback handle the update
+        });
           
       } catch (error) {
         console.error('[PrivacyActions] Failed to start unshield monitoring:', error);
-        // Fallback to regular refresh
-        await refreshBalancesAfterTransaction();
+        // Rely on balance callback system
       }
 
     } catch (error) {

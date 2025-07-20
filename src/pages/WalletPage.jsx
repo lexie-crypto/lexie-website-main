@@ -218,54 +218,68 @@ const WalletPage = () => {
       // Clear the amount for this token
       setShieldAmounts(prev => ({ ...prev, [token.symbol]: '' }));
       
-      // IMPORTANT: Balance updates will now happen through official RAILGUN callbacks
-      toast.loading('Scanning for shielded funds...');
-      console.log('[WalletPage] Balance scan started - will update via callbacks...');
+      // ✅ ENHANCED: Graph-based shield monitoring with new API specification  
+      toast.dismiss();
+      toast.success('Shield transaction sent! Monitoring for confirmation...');
+      console.log('[WalletPage] Starting Graph-based shield monitoring...');
       
-      // Since we fixed the balance callbacks, just trigger a refresh and rely on callbacks
       try {
-        // Wait a bit for the transaction to be indexed
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        // Import the enhanced transaction monitor
+        const { monitorTransactionInGraph } = await import('../utils/railgun/transactionMonitor');
         
-        // Trigger a simple balance refresh - callbacks will handle the rest
-        const { refreshBalances } = await import('@railgun-community/wallet');
-        const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
+        // Start monitoring with new API specification
+        monitorTransactionInGraph({
+          txHash: txResponse,
+          chainId: chainConfig.id,
+          transactionType: 'shield',
+          listener: async (event) => {
+            console.log(`[WalletPage] ✅ Shield tx ${txResponse} indexed on chain ${chainConfig.id}`);
+            
+            // Trigger balance refresh as specified
+            try {
+              const { refreshBalances } = await import('@railgun-community/wallet');
+              const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
+              
+              const networkName = {
+                1: NetworkName.Ethereum,
+                42161: NetworkName.Arbitrum,
+                137: NetworkName.Polygon,
+                56: NetworkName.BNBChain,
+              }[chainConfig.id];
+              
+              if (networkName && NETWORK_CONFIG[networkName]) {
+                const { chain } = NETWORK_CONFIG[networkName];
+                await refreshBalances(chain, [railgunWalletId]);
+                console.log('[WalletPage] ✅ Balance refresh completed for shield');
+                toast.success(`Shield confirmed and indexed! Balance updated.`);
+                
+                // Also refresh UI balances
+                setTimeout(() => {
+                  refreshAllBalances();
+                }, 1000);
+              }
+            } catch (refreshError) {
+              console.error('[WalletPage] Balance refresh failed:', refreshError);
+              toast.info('Shield confirmed! Balance will update via callback.');
+            }
+          }
+        })
+        .then((result) => {
+          if (result.found) {
+            console.log(`[WalletPage] Shield monitoring completed in ${result.elapsedTime/1000}s`);
+          } else {
+            console.warn('[WalletPage] Shield monitoring timed out');
+            toast.info('Shield successful! Balance will update automatically.');
+          }
+        })
+        .catch((error) => {
+          console.error('[WalletPage] Shield Graph monitoring failed:', error);
+          // Let balance callback handle the update
+        });
         
-        const networkName = {
-          1: NetworkName.Ethereum,
-          42161: NetworkName.Arbitrum,
-          137: NetworkName.Polygon,
-          56: NetworkName.BNBChain,
-        }[chainConfig.id];
-        
-        const { chain } = NETWORK_CONFIG[networkName];
-        console.log('[WalletPage] Triggering official balance refresh...');
-        
-        // Use promise race to add timeout
-        const refreshPromise = refreshBalances(chain, [railgunWalletId]);
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Balance refresh timeout')), 15000)
-        );
-        
-        await Promise.race([refreshPromise, timeoutPromise]);
-        
-        toast.dismiss();
-        toast.success('Shield successful! Private balance will update via callbacks.');
-        
-        // Also refresh UI balances
-        setTimeout(() => {
-          refreshAllBalances();
-        }, 2000);
-        
-      } catch (scanError) {
-        console.error('[WalletPage] Balance refresh failed:', scanError);
-        toast.dismiss();
-        toast.success('Shield successful! Private balance will update automatically.');
-        
-        // Still try to refresh UI
-        setTimeout(() => {
-          refreshAllBalances();
-        }, 5000);
+      } catch (monitorError) {
+        console.error('[WalletPage] Failed to start shield monitoring:', monitorError);
+        // Still rely on balance callback system
       }
       
     } catch (error) {

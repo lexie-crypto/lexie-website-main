@@ -262,14 +262,15 @@ const queryCommitments = async (chainId, fromBlock, txHash = null) => {
 
 /**
  * Monitor for a specific transaction to appear in RAILGUN events
+ * Updated API to match user specification
  */
 export const monitorTransactionInGraph = async ({
   txHash,
   chainId,
-  transactionType, // 'shield' | 'unshield'
+  transactionType, // 'shield' | 'unshield' | 'transfer'
+  listener = null, // Callback when transaction is detected
   currentBlockNumber = null,
   maxWaitTime = 120000, // 2 minutes
-  onFound = null
 }) => {
   try {
     console.log('[TransactionMonitor] 🔍 Starting Graph monitoring for transaction:', {
@@ -277,7 +278,8 @@ export const monitorTransactionInGraph = async ({
       chainId,
       transactionType,
       currentBlockNumber,
-      maxWaitTime: `${maxWaitTime/1000}s`
+      maxWaitTime: `${maxWaitTime/1000}s`,
+      hasListener: !!listener
     });
 
     await waitForRailgunReady();
@@ -326,6 +328,13 @@ export const monitorTransactionInGraph = async ({
             queryUnshields(chainId, fromBlock, txHash)
           ]);
           events = [...nullifiers, ...unshields];
+        } else if (transactionType === 'transfer') {
+          // Transfer transactions create both commitments (for recipients) and nullifiers (for spenders)
+          const [nullifiers, commitments] = await Promise.all([
+            queryNullifiers(chainId, fromBlock, txHash),
+            queryCommitments(chainId, fromBlock, txHash)
+          ]);
+          events = [...nullifiers, ...commitments];
         }
 
         // Remove duplicates and filter by transaction hash
@@ -347,10 +356,14 @@ export const monitorTransactionInGraph = async ({
             attempts
           });
 
-          // Call the callback if provided
-          if (onFound && typeof onFound === 'function') {
-            console.log('[TransactionMonitor] 📞 Calling onFound callback...');
-            await onFound(targetEvent);
+          // Call the listener if provided (NEW API)
+          if (listener && typeof listener === 'function') {
+            console.log('[TransactionMonitor] 📞 Calling listener callback...');
+            try {
+              await listener(targetEvent);
+            } catch (listenerError) {
+              console.error('[TransactionMonitor] ❌ Listener callback failed:', listenerError);
+            }
           }
 
           return {
@@ -399,160 +412,153 @@ const getRpcUrl = (chainId) => {
 };
 
 /**
- * Monitor shield transaction and use balance callback instead of forced refresh
+ * Monitor shield transaction with enhanced listener integration
  */
-export const monitorShieldTransaction = async (txHash, chainId, walletID) => {
+export const monitorShieldTransaction = async (txHash, chainId, railgunWalletId) => {
   console.log('[TransactionMonitor] 🛡️ Monitoring shield transaction:', txHash);
   
-  const result = await monitorTransactionInGraph({
+  return await monitorTransactionInGraph({
     txHash,
     chainId,
     transactionType: 'shield',
-    onFound: async (event) => {
-      console.log('[TransactionMonitor] 🎯 Shield transaction indexed! Waiting for balance callback...');
+    listener: async (event) => {
+      console.log(`[TransactionMonitor] ✅ Shield tx ${txHash} indexed on chain ${chainId}`);
       
+      // Trigger balance refresh
       try {
-        // OPTIMIZATION: Don't force cache reload - let the balance callback handle it
-        // The SDK will automatically trigger balance callback when it detects the new transaction
+        const { refreshBalances } = await import('@railgun-community/wallet');
+        const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
         
-        // Set up a listener for the balance callback (with timeout)
-        const balanceUpdatePromise = new Promise((resolve) => {
-          const handleBalanceUpdate = (e) => {
-            if (e.detail?.chainId === chainId && e.detail?.source === 'fresh-callback') {
-              console.log('[TransactionMonitor] ✅ Balance callback triggered after shield detection');
-              window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
-              resolve(true);
-            }
-          };
-          
-          window.addEventListener('railgun-balance-update', handleBalanceUpdate);
-          
-          // Timeout after 10 seconds
-          setTimeout(() => {
-            window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
-            resolve(false);
-          }, 10000);
-        });
+        const networkName = {
+          1: NetworkName.Ethereum,
+          42161: NetworkName.Arbitrum,
+          137: NetworkName.Polygon,
+          56: NetworkName.BNBChain,
+        }[chainId];
         
-        // Dispatch immediate confirmation event
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
-            detail: {
-              txHash,
-              chainId,
-              transactionType: 'shield',
-              event,
-              timestamp: Date.now()
-            }
-          }));
+        if (networkName && NETWORK_CONFIG[networkName]) {
+          const { chain } = NETWORK_CONFIG[networkName];
+          await refreshBalances(chain, [railgunWalletId]);
+          console.log('[TransactionMonitor] ✅ Balance refresh triggered for shield');
         }
-        
-        // Wait for balance callback or timeout
-        const callbackReceived = await balanceUpdatePromise;
-        
-        if (callbackReceived) {
-          console.log('[TransactionMonitor] ✅ Shield detection complete - balance updated via callback');
-        } else {
-          console.warn('[TransactionMonitor] ⏰ Balance callback timeout - falling back to manual refresh');
-          
-          // Fallback: Only if balance callback doesn't fire, manually refresh
-          const { clearStaleBalanceCacheAndRefresh } = await import('./balances.js');
-          await clearStaleBalanceCacheAndRefresh(walletID, chainId);
-        }
-        
       } catch (error) {
-        console.error('[TransactionMonitor] ❌ Shield monitoring failed:', error);
-        
-        // Error fallback: Force refresh as last resort
-        try {
-          const { clearStaleBalanceCacheAndRefresh } = await import('./balances.js');
-          await clearStaleBalanceCacheAndRefresh(walletID, chainId);
-        } catch (fallbackError) {
-          console.error('[TransactionMonitor] Fallback refresh also failed:', fallbackError);
-        }
+        console.error('[TransactionMonitor] ❌ Balance refresh failed after shield:', error);
+      }
+      
+      // Dispatch confirmation event
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
+          detail: {
+            txHash,
+            chainId,
+            transactionType: 'shield',
+            event,
+            timestamp: Date.now()
+          }
+        }));
       }
     }
   });
-
-  return result;
 };
 
 /**
- * Monitor unshield transaction and use balance callback instead of forced refresh
+ * Monitor unshield transaction with enhanced listener integration
  */
-export const monitorUnshieldTransaction = async (txHash, chainId, walletID) => {
+export const monitorUnshieldTransaction = async (txHash, chainId, railgunWalletId) => {
   console.log('[TransactionMonitor] 🔓 Monitoring unshield transaction:', txHash);
   
-  const result = await monitorTransactionInGraph({
+  return await monitorTransactionInGraph({
     txHash,
     chainId,
     transactionType: 'unshield',
-    onFound: async (event) => {
-      console.log('[TransactionMonitor] 🎯 Unshield transaction indexed! Waiting for balance callback...');
+    listener: async (event) => {
+      console.log(`[TransactionMonitor] ✅ Unshield tx ${txHash} indexed on chain ${chainId}`);
       
+      // Trigger balance refresh
       try {
-        // OPTIMIZATION: Don't force cache reload - let the balance callback handle it
+        const { refreshBalances } = await import('@railgun-community/wallet');
+        const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
         
-        // Set up a listener for the balance callback (with timeout)
-        const balanceUpdatePromise = new Promise((resolve) => {
-          const handleBalanceUpdate = (e) => {
-            if (e.detail?.chainId === chainId && e.detail?.source === 'fresh-callback') {
-              console.log('[TransactionMonitor] ✅ Balance callback triggered after unshield detection');
-              window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
-              resolve(true);
-            }
-          };
-          
-          window.addEventListener('railgun-balance-update', handleBalanceUpdate);
-          
-          // Timeout after 10 seconds
-          setTimeout(() => {
-            window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
-            resolve(false);
-          }, 10000);
-        });
+        const networkName = {
+          1: NetworkName.Ethereum,
+          42161: NetworkName.Arbitrum,
+          137: NetworkName.Polygon,
+          56: NetworkName.BNBChain,
+        }[chainId];
         
-        // Dispatch immediate confirmation event
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
-            detail: {
-              txHash,
-              chainId,
-              transactionType: 'unshield',
-              event,
-              timestamp: Date.now()
-            }
-          }));
+        if (networkName && NETWORK_CONFIG[networkName]) {
+          const { chain } = NETWORK_CONFIG[networkName];
+          await refreshBalances(chain, [railgunWalletId]);
+          console.log('[TransactionMonitor] ✅ Balance refresh triggered for unshield');
         }
-        
-        // Wait for balance callback or timeout
-        const callbackReceived = await balanceUpdatePromise;
-        
-        if (callbackReceived) {
-          console.log('[TransactionMonitor] ✅ Unshield detection complete - balance updated via callback');
-        } else {
-          console.warn('[TransactionMonitor] ⏰ Balance callback timeout - falling back to manual refresh');
-          
-          // Fallback: Only if balance callback doesn't fire, manually refresh
-          const { clearStaleBalanceCacheAndRefresh } = await import('./balances.js');
-          await clearStaleBalanceCacheAndRefresh(walletID, chainId);
-        }
-        
       } catch (error) {
-        console.error('[TransactionMonitor] ❌ Unshield monitoring failed:', error);
-        
-        // Error fallback: Force refresh as last resort
-        try {
-          const { clearStaleBalanceCacheAndRefresh } = await import('./balances.js');
-          await clearStaleBalanceCacheAndRefresh(walletID, chainId);
-        } catch (fallbackError) {
-          console.error('[TransactionMonitor] Fallback refresh also failed:', fallbackError);
-        }
+        console.error('[TransactionMonitor] ❌ Balance refresh failed after unshield:', error);
+      }
+      
+      // Dispatch confirmation event
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
+          detail: {
+            txHash,
+            chainId,
+            transactionType: 'unshield',
+            event,
+            timestamp: Date.now()
+          }
+        }));
       }
     }
   });
+};
 
-  return result;
+/**
+ * NEW: Monitor private transfer transaction
+ */
+export const monitorTransferTransaction = async (txHash, chainId, railgunWalletId) => {
+  console.log('[TransactionMonitor] 🔄 Monitoring transfer transaction:', txHash);
+  
+  return await monitorTransactionInGraph({
+    txHash,
+    chainId,
+    transactionType: 'transfer',
+    listener: async (event) => {
+      console.log(`[TransactionMonitor] ✅ Transfer tx ${txHash} indexed on chain ${chainId}`);
+      
+      // Trigger balance refresh
+      try {
+        const { refreshBalances } = await import('@railgun-community/wallet');
+        const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
+        
+        const networkName = {
+          1: NetworkName.Ethereum,
+          42161: NetworkName.Arbitrum,
+          137: NetworkName.Polygon,
+          56: NetworkName.BNBChain,
+        }[chainId];
+        
+        if (networkName && NETWORK_CONFIG[networkName]) {
+          const { chain } = NETWORK_CONFIG[networkName];
+          await refreshBalances(chain, [railgunWalletId]);
+          console.log('[TransactionMonitor] ✅ Balance refresh triggered for transfer');
+        }
+      } catch (error) {
+        console.error('[TransactionMonitor] ❌ Balance refresh failed after transfer:', error);
+      }
+      
+      // Dispatch confirmation event
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
+          detail: {
+            txHash,
+            chainId,
+            transactionType: 'transfer',
+            event,
+            timestamp: Date.now()
+          }
+        }));
+      }
+    }
+  });
 };
 
 // Export for use in other modules
@@ -560,4 +566,13 @@ export default {
   monitorTransactionInGraph,
   monitorShieldTransaction,
   monitorUnshieldTransaction,
+  monitorTransferTransaction,
+};
+
+// Named exports for direct import
+export {
+  monitorTransactionInGraph,
+  monitorShieldTransaction,
+  monitorUnshieldTransaction,
+  monitorTransferTransaction,
 }; 
