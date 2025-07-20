@@ -567,12 +567,4 @@ export default {
   monitorShieldTransaction,
   monitorUnshieldTransaction,
   monitorTransferTransaction,
-};
-
-// Named exports for direct import
-export {
-  monitorTransactionInGraph,
-  monitorShieldTransaction,
-  monitorUnshieldTransaction,
-  monitorTransferTransaction,
 }; 
