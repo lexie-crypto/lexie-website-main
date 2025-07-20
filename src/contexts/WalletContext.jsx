@@ -102,18 +102,45 @@ const WalletContextProvider = ({ children }) => {
   const [isInitializing, setIsInitializing] = useState(false);
   const [railgunError, setRailgunError] = useState(null);
 
-  const { address, isConnected, chainId } = useAccount();
+  const { address, isConnected, chainId, connector } = useAccount();
   const { connect, connectors, isPending: isConnecting } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChain } = useSwitchChain();
   const { data: connectorClient } = useConnectorClient();
   const { signMessageAsync } = useSignMessage();
 
+  // 💾 Persist connector information to fix wallet modal issue
+  useEffect(() => {
+    if (isConnected && connector) {
+      console.log('💾 Saving connected wallet:', { connectorId: connector.id, connectorName: connector.name });
+      localStorage.setItem('connected-wallet-type', connector.id);
+      localStorage.setItem('connected-wallet-name', connector.name);
+    }
+  }, [isConnected, connector]);
+
+  // 🔄 Auto-reconnect to previous wallet on page load
+  useEffect(() => {
+    const savedWalletType = localStorage.getItem('connected-wallet-type');
+    if (savedWalletType && !isConnected) {
+      console.log('🔄 Attempting to reconnect to:', savedWalletType);
+      const savedConnector = connectors.find(c => c.id === savedWalletType);
+      if (savedConnector) {
+        connect({ connector: savedConnector });
+      }
+    }
+  }, [connectors, isConnected, connect]);
+
   // Get current wallet provider for signing operations
   const getCurrentWalletProvider = () => {
-    // For WalletConnect, use the connector's provider directly to avoid wagmi issues
-    if (connectorClient?.connector?.provider) {
+    // 🔍 First check what type of wallet is actually connected
+    const savedWalletType = localStorage.getItem('connected-wallet-type');
+    console.log('🔍 Getting wallet provider for connected type:', savedWalletType);
+    
+    // 🛡️ For WalletConnect, use the connector's provider directly to avoid wagmi issues
+    if (connectorClient?.connector?.provider && 
+        (connector?.id === 'walletConnect' || savedWalletType === 'walletConnect')) {
       const provider = connectorClient.connector.provider;
+      console.log('🌐 Using WalletConnect provider');
       
       // Set up session request listener for WalletConnect
       if (provider && typeof provider.on === 'function') {
@@ -137,11 +164,29 @@ const WalletContextProvider = ({ children }) => {
       return provider;
     }
     
-    // For other wallets, use window.ethereum
+    // 🦊 For MetaMask and other injected wallets, use window.ethereum but be specific
+    if (connector?.id === 'metaMask' || savedWalletType === 'metaMask') {
+      if (typeof window !== 'undefined' && window.ethereum?.isMetaMask) {
+        console.log('🦊 Using MetaMask provider');
+        return window.ethereum;
+      }
+    }
+    
+    // 💀 Avoid generic window.ethereum fallback that causes modal issues
     if (typeof window !== 'undefined' && window.ethereum) {
+      // Only use as last resort and log warning
+      console.warn('⚠️ Using generic window.ethereum - this might cause wallet modal issues');
+      
+      // 🚫 Don't use if we know we should be using WalletConnect
+      if (savedWalletType === 'walletConnect') {
+        console.error('❌ Should use WalletConnect but falling back to injected - this will cause modal issues');
+        return null;
+      }
+      
       return window.ethereum;
     }
     
+    console.error('❌ No wallet provider available');
     return null;
   };
 
@@ -149,35 +194,47 @@ const WalletContextProvider = ({ children }) => {
     try {
       console.log('Available connectors:', connectors.map(c => ({ id: c.id, name: c.name })));
       
+      // 🔍 Check if already connected to the right wallet
+      if (isConnected && connector) {
+        const currentConnectorType = connector.id;
+        const requestedType = connectorType === 'metamask' ? 'metaMask' : 'walletConnect';
+        
+        if (currentConnectorType === requestedType) {
+          console.log('✅ Already connected to requested wallet type:', requestedType);
+          return;
+        } else {
+          console.log('🔄 Switching from', currentConnectorType, 'to', requestedType);
+          await disconnect(); // Disconnect current before connecting new
+        }
+      }
+      
       const connector = connectors.find(c => 
         connectorType === 'metamask' ? c.id === 'metaMask' : c.id === 'walletConnect'
       );
       
       if (connector) {
-        console.log('Connecting with connector:', connector.id);
+        console.log('🔌 Connecting with connector:', connector.id);
+        
+        // 🚫 Avoid fallback to window.ethereum for WalletConnect
+        if (connector.id === 'walletConnect') {
+          // Ensure WalletConnect doesn't fallback to injected wallet
+          console.log('🛡️ Using WalletConnect - ensuring no fallback to injected wallet');
+        }
+        
         await connect({ connector });
+        console.log('✅ Successfully connected via:', connector.id);
       } else {
-        console.error('Connector not found:', connectorType);
+        console.error('❌ Connector not found:', connectorType);
+        throw new Error(`${connectorType} connector not available`);
       }
     } catch (error) {
-      console.error('Failed to connect wallet:', error);
-    }
-  };
-
-  const disconnectWallet = async () => {
-    try {
-      await disconnect();
-      setIsRailgunInitialized(false);
-      setRailgunAddress(null);
-      setRailgunWalletID(null);
-      setRailgunError(null);
-      // Clear stored wallet ID when disconnecting
-      if (address) {
-        localStorage.removeItem(`railgun-walletID-${address}`);
-        localStorage.removeItem(`railgun-mnemonic-${address}`);
-      }
-    } catch (error) {
-      console.error('Failed to disconnect wallet:', error);
+      console.error('❌ Failed to connect wallet:', error);
+      
+      // 🧹 Clear any stale connection data on failed connection
+      localStorage.removeItem('connected-wallet-type');
+      localStorage.removeItem('connected-wallet-name');
+      
+      throw error; // Re-throw for UI handling
     }
   };
 
@@ -440,6 +497,16 @@ const WalletContextProvider = ({ children }) => {
         security: 'CRYPTOGRAPHICALLY_SECURE'
       });
 
+      // Set up wallet-specific balance callbacks (restored from original implementation)
+      console.log('🔔 Setting up wallet balance callbacks...');
+      const { setupWalletBalanceCallbacks } = await import('../utils/railgunUtils');
+      const callbacksSetup = await setupWalletBalanceCallbacks(walletID);
+      if (callbacksSetup) {
+        console.log('✅ RAILGUN wallet balance callbacks configured for user:', address);
+      } else {
+        console.warn('⚠️ Failed to set up wallet balance callbacks');
+      }
+
     } catch (error) {
       console.error('❌ Failed to initialize RAILGUN:', error);
       
@@ -449,6 +516,30 @@ const WalletContextProvider = ({ children }) => {
       setRailgunWalletID(null);
     } finally {
       setIsInitializing(false);
+    }
+  };
+
+  const disconnectWallet = async () => {
+    try {
+      await disconnect();
+      setIsRailgunInitialized(false);
+      setRailgunAddress(null);
+      setRailgunWalletID(null);
+      setRailgunError(null);
+      
+      // 🧹 Clear stored wallet connection info to fix modal issue
+      localStorage.removeItem('connected-wallet-type');
+      localStorage.removeItem('connected-wallet-name');
+      
+      // Clear stored wallet ID when disconnecting
+      if (address) {
+        localStorage.removeItem(`railgun-walletID-${address}`);
+        localStorage.removeItem(`railgun-mnemonic-${address}`);
+      }
+      
+      console.log('🧹 Cleared all wallet connection and RAILGUN data');
+    } catch (error) {
+      console.error('Failed to disconnect wallet:', error);
     }
   };
 
@@ -641,6 +732,11 @@ const WalletContextProvider = ({ children }) => {
     railgunError,
     canUseRailgun: isRailgunInitialized,
     railgunWalletId: railgunWalletID,
+    
+    // 🔍 Add connection state debugging
+    connectedWalletType: connector?.id || localStorage.getItem('connected-wallet-type'),
+    connectedWalletName: connector?.name || localStorage.getItem('connected-wallet-name'),
+    
     getCurrentNetwork: () => {
       const networkNames = {
         1: 'Ethereum',
@@ -656,11 +752,26 @@ const WalletContextProvider = ({ children }) => {
     supportedNetworks: { 1: true, 137: true, 42161: true, 56: true },
     walletProviders: { METAMASK: 'metamask', WALLETCONNECT: 'walletconnect' },
     walletProvider: getCurrentWalletProvider(), // Add current wallet provider
+    
+    // 🛡️ Enhanced wallet availability checking
     isWalletAvailable: (type) => {
       if (type === 'metamask') return !!window.ethereum?.isMetaMask;
       if (type === 'walletconnect') return true; // WalletConnect is always available
       return false;
     },
+    
+    // 🔍 Debugging utilities
+    getConnectionDebugInfo: () => ({
+      isConnected,
+      connectorId: connector?.id,
+      connectorName: connector?.name,
+      savedWalletType: localStorage.getItem('connected-wallet-type'),
+      savedWalletName: localStorage.getItem('connected-wallet-name'),
+      hasConnectorClient: !!connectorClient,
+      hasProvider: !!getCurrentWalletProvider(),
+      providerType: getCurrentWalletProvider()?.constructor?.name || 'unknown'
+    }),
+    
     getCurrentWalletProvider,
   };
 
