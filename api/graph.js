@@ -32,26 +32,35 @@ export default async function handler(req, res) {
 
   // Only allow POST requests
   if (req.method !== 'POST') {
+    console.error(`[GRAPH PROXY] ❌ Method not allowed: ${req.method}`);
     return res.status(405).json({ 
       error: 'Method not allowed. Only POST requests are supported.' 
     });
   }
 
   try {
-    // Debug: Log the entire request for troubleshooting
-    console.log('[Graph API] Request received:', {
-      method: req.method,
-      headers: req.headers,
-      bodyType: typeof req.body,
-      body: req.body
-    });
+    // COMPREHENSIVE LOGGING: Log everything about the incoming request
+    console.log('[GRAPH PROXY] 🔍 === REQUEST DEBUG START ===');
+    console.log('[GRAPH PROXY] Method:', req.method);
+    console.log('[GRAPH PROXY] Headers:', JSON.stringify(req.headers, null, 2));
+    console.log('[GRAPH PROXY] Raw req.body type:', typeof req.body);
+    console.log('[GRAPH PROXY] Raw req.body value:', JSON.stringify(req.body, null, 2));
+    console.log('[GRAPH PROXY] req.body keys:', req.body ? Object.keys(req.body) : 'NO KEYS');
+    console.log('[GRAPH PROXY] === REQUEST DEBUG END ===');
 
     // Extract request data
     const { chainId, query, variables } = req.body || {};
     
+    console.log('[GRAPH PROXY] 📝 Extracted values:');
+    console.log('[GRAPH PROXY] - chainId:', chainId);
+    console.log('[GRAPH PROXY] - query type:', typeof query);
+    console.log('[GRAPH PROXY] - query length:', query ? query.length : 'N/A');
+    console.log('[GRAPH PROXY] - variables type:', typeof variables);
+    console.log('[GRAPH PROXY] - variables keys:', variables ? Object.keys(variables) : 'N/A');
+    
     // Validate request body exists
     if (!req.body) {
-      console.error('[Graph API] No request body received');
+      console.error('[GRAPH PROXY] ❌ No request body received');
       return res.status(400).json({ 
         error: 'No request body received. Expected JSON with chainId, query, and variables.' 
       });
@@ -59,15 +68,16 @@ export default async function handler(req, res) {
     
     // Validate required GraphQL query
     if (!query) {
-      console.error('[Graph API] Missing GraphQL query in request body:', {
-        receivedFields: Object.keys(req.body),
-        bodyType: typeof req.body
-      });
+      console.error('[GRAPH PROXY] ❌ Missing GraphQL query in body:', JSON.stringify(req.body, null, 2));
+      console.error('[GRAPH PROXY] ❌ Body type:', typeof req.body);
+      console.error('[GRAPH PROXY] ❌ Body keys:', req.body ? Object.keys(req.body) : 'NONE');
       return res.status(400).json({ 
-        error: 'Missing GraphQL query in request body',
-        required: ['query'],
-        optional: ['chainId', 'variables'],
-        received: Object.keys(req.body)
+        error: 'Missing GraphQL query',
+        debug: {
+          bodyType: typeof req.body,
+          bodyKeys: req.body ? Object.keys(req.body) : [],
+          receivedBody: req.body
+        }
       });
     }
 
@@ -82,23 +92,31 @@ export default async function handler(req, res) {
       });
     }
 
-    console.log(`[Graph API] Proxying request for chain ${targetChainId} to:`, endpoint);
+    console.log(`[GRAPH PROXY] 🚀 Proxying request for chain ${targetChainId} to:`, endpoint);
+    console.log(`[GRAPH PROXY] 📤 Outgoing query length:`, query.length);
+    console.log(`[GRAPH PROXY] 📤 Outgoing variables:`, JSON.stringify(variables || {}, null, 2));
 
     // Forward the request to The Graph
+    const graphRequestBody = {
+      query,
+      variables: variables || {}
+    };
+    
+    console.log(`[GRAPH PROXY] 📦 Full request body to Graph API:`, JSON.stringify(graphRequestBody, null, 2));
+    
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { 
         'Content-Type': 'application/json',
         'User-Agent': 'Lexie-RAILGUN-Client/1.0'
       },
-      body: JSON.stringify({
-        query,
-        variables: variables || {}
-      }),
+      body: JSON.stringify(graphRequestBody),
     });
 
+    console.log(`[GRAPH PROXY] 📡 Graph API response status:`, response.status, response.statusText);
+
     if (!response.ok) {
-      console.error(`[Graph API] Request failed:`, {
+      console.error(`[GRAPH PROXY] ❌ Request failed:`, {
         status: response.status,
         statusText: response.statusText,
         chainId: targetChainId,
@@ -112,25 +130,31 @@ export default async function handler(req, res) {
 
     const data = await response.json();
     
+    console.log(`[GRAPH PROXY] 📥 Graph API response received:`, {
+      hasData: !!data.data,
+      hasErrors: !!data.errors,
+      dataKeys: data.data ? Object.keys(data.data) : [],
+      errorCount: data.errors ? data.errors.length : 0
+    });
+    
     // Check for GraphQL errors
     if (data.errors && data.errors.length > 0) {
-      console.error(`[Graph API] GraphQL errors:`, data.errors);
+      console.error(`[GRAPH PROXY] ❌ GraphQL errors:`, data.errors);
       return res.status(400).json({ 
         error: 'GraphQL query errors',
         details: data.errors 
       });
     }
 
-    console.log(`[Graph API] Success for chain ${targetChainId}:`, {
-      hasData: !!data.data,
-      resultKeys: data.data ? Object.keys(data.data) : []
-    });
+    console.log(`[GRAPH PROXY] ✅ Success for chain ${targetChainId}`);
+    console.log(`[GRAPH PROXY] 📊 Response data keys:`, data.data ? Object.keys(data.data) : []);
 
     // Return the raw Graph API response
     return res.status(200).json(data);
 
   } catch (error) {
-    console.error('[Graph API] Proxy error:', error);
+    console.error('[GRAPH PROXY] 💥 Proxy error:', error);
+    console.error('[GRAPH PROXY] 💥 Error stack:', error.stack);
     
     return res.status(500).json({ 
       error: 'Internal server error',
