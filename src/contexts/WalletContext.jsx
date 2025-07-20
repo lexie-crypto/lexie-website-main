@@ -110,19 +110,15 @@ const WalletContextProvider = ({ children }) => {
 
   // Get current wallet provider for signing operations
   const getCurrentWalletProvider = () => {
-    // If we have a connector client (connected wallet), use wagmi's signMessage
-    if (connectorClient && signMessageAsync) {
+    // Always prefer wagmi's signMessageAsync when available (works for all wallet types)
+    if (signMessageAsync) {
       return {
         request: async ({ method, params }) => {
           try {
             if (method === 'personal_sign') {
-              // Use wagmi's signMessageAsync for proper signing
+              // Use wagmi's signMessageAsync - this will prompt the correct wallet
               const [message, address] = params;
               return await signMessageAsync({ message });
-            }
-            // For other methods, delegate to the underlying provider
-            if (connectorClient.transport?.request) {
-              return await connectorClient.transport.request({ method, params });
             }
             throw new Error(`Unsupported method: ${method}`);
           } catch (error) {
@@ -133,7 +129,7 @@ const WalletContextProvider = ({ children }) => {
       };
     }
     
-    // Fallback to window.ethereum for MetaMask
+    // Only fallback to window.ethereum if wagmi signing is not available
     if (typeof window !== 'undefined' && window.ethereum) {
       return window.ethereum;
     }
