@@ -11,12 +11,12 @@ export const config = {
   },
 };
 
-// RAILGUN Graph endpoints per chain
+// RAILGUN Graph endpoints per chain - UPDATED TO NEW SQUID ENDPOINTS
 const GRAPH_ENDPOINTS = {
-  1: 'https://api.thegraph.com/subgraphs/name/railgun-community/railgun-v2-ethereum',
-  42161: 'https://api.thegraph.com/subgraphs/name/railgun-community/railgun-v2-arbitrum-one',  
-  137: 'https://api.thegraph.com/subgraphs/name/railgun-community/railgun-v2-matic',
-  56: 'https://api.thegraph.com/subgraphs/name/railgun-community/railgun-v2-bsc',
+  1: 'https://rail-squid.squids.live/squid-railgun-ethereum-v2/graphql',
+  42161: 'https://rail-squid.squids.live/squid-railgun-arbitrum-v2/graphql',  
+  137: 'https://rail-squid.squids.live/squid-railgun-polygon-v2/graphql',
+  56: 'https://rail-squid.squids.live/squid-railgun-bsc-v2/graphql',
 };
 
 export default async function handler(req, res) {

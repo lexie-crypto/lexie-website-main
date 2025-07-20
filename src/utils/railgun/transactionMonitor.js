@@ -54,26 +54,13 @@ const removeDuplicatesByID = (array) => {
 
 
 /**
- * Get Graph API endpoint - Vercel proxy in production, direct in development
+ * Get Graph API endpoint - Always use Vercel proxy with updated Squid endpoints
  */
 const getGraphEndpoint = (chainId) => {
-  // In production (Vercel), use the API proxy to bypass CORS
-  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-    return { 
-      isProxy: true, 
-      endpoint: '/api/graph' 
-    };
-  }
-  
-  
-  const directEndpoint = endpoints[chainId];
-  if (!directEndpoint) {
-    throw new Error(`No Graph endpoint for chain ${chainId}`);
-  }
-  
+  // Always use the API proxy since it now has the correct Squid endpoints
   return { 
-    isProxy: false, 
-    endpoint: directEndpoint 
+    isProxy: true, 
+    endpoint: '/api/graph' 
   };
 };
 
