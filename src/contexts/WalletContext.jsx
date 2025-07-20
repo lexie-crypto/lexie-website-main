@@ -426,50 +426,6 @@ const WalletContextProvider = ({ children }) => {
             storageKeys: { userStorageKey, mnemonicStorageKey }
           };
         },
-        
-        // Clear encrypted data for current user (for testing)
-        clearEncryptedData: () => {
-          if (!address) return { error: 'No wallet connected' };
-          
-          const userStorageKey = `railgun-walletID-${address.toLowerCase()}`;
-          const mnemonicStorageKey = `railgun-mnemonic-${address.toLowerCase()}`;
-          
-          const hadWalletID = !!localStorage.getItem(userStorageKey);
-          const hadMnemonic = !!localStorage.getItem(mnemonicStorageKey);
-          
-          localStorage.removeItem(userStorageKey);
-          localStorage.removeItem(mnemonicStorageKey);
-          
-          console.log('🗑️ Cleared encrypted Railgun data for user:', address);
-          
-          return {
-            userAddress: address,
-            clearedWalletID: hadWalletID,
-            clearedMnemonic: hadMnemonic,
-            message: 'Encrypted data cleared. Reconnect wallet to regenerate.'
-          };
-        },
-        
-        // Force re-initialization (useful for testing)
-        forceReinitialize: async () => {
-          if (!isConnected || !address) return { error: 'No wallet connected' };
-          
-          console.log('🔄 Force re-initializing Railgun...');
-          
-          // Reset React state
-          setIsRailgunInitialized(false);
-          setRailgunAddress(null);
-          setRailgunWalletID(null);
-          setRailgunError(null);
-          
-          // Trigger re-initialization
-          try {
-            await initializeRailgun();
-            return { success: true, message: 'Re-initialization completed' };
-          } catch (error) {
-            return { success: false, error: error.message };
-          }
-        }
       };
       
       console.log('🛠️ Railgun debug utilities available:');
