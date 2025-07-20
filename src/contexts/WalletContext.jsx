@@ -9,7 +9,6 @@ import { createConfig, custom } from 'wagmi';
 import { mainnet, polygon, arbitrum, bsc } from 'wagmi/chains';
 import { metaMask, walletConnect } from 'wagmi/connectors';
 import { WagmiProvider, useAccount, useConnect, useDisconnect, useSwitchChain, useConnectorClient, useSignMessage } from 'wagmi';
-import { getWalletClient } from 'wagmi/actions';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/environment';
 
@@ -118,19 +117,25 @@ const WalletContextProvider = ({ children }) => {
 
   // Get wallet signer for SDK operations using actual connected wallet
   const getWalletSigner = async () => {
-    const walletClient = await getWalletClient(wagmiConfig);
-    if (!walletClient || !walletClient.transport) {
-      throw new Error('Wallet client not found or transport unavailable');
+    if (!connector) {
+      throw new Error('No connector available');
+    }
+
+    // Get the actual EIP-1193 provider from the connector
+    const eip1193Provider = await connector.getProvider();
+    if (!eip1193Provider) {
+      throw new Error('Failed to get EIP-1193 provider from connector');
     }
 
     const { BrowserProvider } = await import('ethers');
-    const provider = new BrowserProvider(walletClient.transport);
+    const provider = new BrowserProvider(eip1193Provider);
     const signer = await provider.getSigner();
     
-    console.log('✅ Wallet signer created using actual connected provider:', {
-      connectorId: walletClient.connector?.id,
-      connectorName: walletClient.connector?.name,
-      address: await signer.getAddress()
+    console.log('✅ Wallet signer created using actual EIP-1193 provider:', {
+      connectorId: connector.id,
+      connectorName: connector.name,
+      address: await signer.getAddress(),
+      providerType: eip1193Provider.constructor?.name || 'EIP1193Provider'
     });
     return signer;
   };
@@ -242,7 +247,7 @@ const WalletContextProvider = ({ children }) => {
         const hash = CryptoJS.SHA256(combined);
         const encryptionKey = hash.toString(CryptoJS.enc.Hex).slice(0, 64);
         
-        // Ensure engine is started (minimal setup for fast path)
+                // Ensure engine is started (minimal setup for fast path)
         if (!engineExists) {
           console.log('🔧 Starting minimal Railgun engine for fast path...');
           const LevelJS = (await import('level-js')).default;
@@ -267,6 +272,52 @@ const WalletContextProvider = ({ children }) => {
             [],
             true
           );
+          
+          // Load providers with connected wallet for fast path too  
+          const { loadProvider } = await import('@railgun-community/wallet');
+          const { NetworkName } = await import('@railgun-community/shared-models');
+          
+          const networkConfigs = [
+            { networkName: NetworkName.Ethereum, rpcUrl: RPC_URLS.ethereum, chainId: 1 },
+            { networkName: NetworkName.Polygon, rpcUrl: RPC_URLS.polygon, chainId: 137 },
+            { networkName: NetworkName.Arbitrum, rpcUrl: RPC_URLS.arbitrum, chainId: 42161 },
+            { networkName: NetworkName.BNBChain, rpcUrl: RPC_URLS.bsc, chainId: 56 },
+          ];
+
+          for (const { networkName, rpcUrl, chainId: netChainId } of networkConfigs) {
+            try {
+              let primaryProvider = rpcUrl;
+              
+              if (connector && netChainId === chainId) {
+                try {
+                  const eip1193Provider = await connector.getProvider();
+                  if (eip1193Provider) {
+                    primaryProvider = eip1193Provider;
+                    console.log(`✅ Fast path: Connected wallet provider for ${networkName}`);
+                  }
+                } catch (providerError) {
+                  console.warn(`⚠️ Fast path: Using RPC fallback for ${networkName}`);
+                }
+              }
+              
+              const fallbackProviderConfig = {
+                chainId: netChainId,
+                providers: [{
+                  provider: primaryProvider,
+                  priority: 1,
+                  weight: 2,
+                }, {
+                  provider: rpcUrl,
+                  priority: 2,
+                  weight: 1,
+                }]
+              };
+
+              await loadProvider(fallbackProviderConfig, networkName, 15000);
+            } catch (error) {
+              console.warn(`⚠️ Fast path provider load failed for ${networkName}:`, error);
+            }
+          }
           
           // Set up balance callbacks for fast path too
           setOnBalanceUpdateCallback((balancesEvent) => {
@@ -370,7 +421,7 @@ const WalletContextProvider = ({ children }) => {
       );
       console.log('✅ Railgun engine started with official SDK');
 
-      // Step 2: Load providers using official SDK method
+      // Step 2: Load providers using connected wallet's provider when possible
       const networkConfigs = [
         { networkName: NetworkName.Ethereum, rpcUrl: RPC_URLS.ethereum, chainId: 1 },
         { networkName: NetworkName.Polygon, rpcUrl: RPC_URLS.polygon, chainId: 137 },
@@ -382,17 +433,40 @@ const WalletContextProvider = ({ children }) => {
         try {
           console.log(`📡 Loading provider for ${networkName}...`);
           
+          // Use connected wallet's provider for current chain, fallback to RPC for others
+          let primaryProvider = rpcUrl;
+          
+          if (connector && netChainId === chainId) {
+            try {
+              console.log(`🔗 Using connected wallet provider for ${networkName} (current chain)`);
+              const eip1193Provider = await connector.getProvider();
+              if (eip1193Provider) {
+                primaryProvider = eip1193Provider;
+                console.log(`✅ Connected wallet provider configured for ${networkName}`);
+              }
+            } catch (providerError) {
+              console.warn(`⚠️ Failed to get connected wallet provider for ${networkName}, using RPC fallback:`, providerError);
+            }
+          }
+          
           const fallbackProviderConfig = {
             chainId: netChainId,
             providers: [{
-              provider: rpcUrl,
+              provider: primaryProvider, // Use connected wallet provider for current chain
               priority: 1,
               weight: 2,
+            }, {
+              provider: rpcUrl, // Always include RPC as fallback
+              priority: 2,
+              weight: 1,
             }]
           };
 
           await loadProvider(fallbackProviderConfig, networkName, 15000);
-          console.log(`✅ Provider loaded for ${networkName}`);
+          console.log(`✅ Provider loaded for ${networkName}`, {
+            usingConnectedWallet: primaryProvider !== rpcUrl,
+            currentChain: netChainId === chainId
+          });
         } catch (error) {
           console.warn(`⚠️ Failed to load provider for ${networkName}:`, error);
         }
@@ -603,6 +677,67 @@ const WalletContextProvider = ({ children }) => {
       initializeRailgun();
     }
   }, [isConnected, address, isRailgunInitialized, isInitializing]);
+
+  // Update Railgun providers when chain or wallet changes
+  useEffect(() => {
+    const updateRailgunProviders = async () => {
+      if (!isRailgunInitialized || !connector || !chainId) {
+        return;
+      }
+
+      try {
+        console.log('🔄 Updating Railgun providers for chain change...', { chainId });
+        
+        const { loadProvider } = await import('@railgun-community/wallet');
+        const { NetworkName } = await import('@railgun-community/shared-models');
+        
+        const networkConfigs = [
+          { networkName: NetworkName.Ethereum, rpcUrl: RPC_URLS.ethereum, chainId: 1 },
+          { networkName: NetworkName.Polygon, rpcUrl: RPC_URLS.polygon, chainId: 137 },
+          { networkName: NetworkName.Arbitrum, rpcUrl: RPC_URLS.arbitrum, chainId: 42161 },
+          { networkName: NetworkName.BNBChain, rpcUrl: RPC_URLS.bsc, chainId: 56 },
+        ];
+
+        // Find the current network
+        const currentNetwork = networkConfigs.find(config => config.chainId === chainId);
+        if (!currentNetwork) {
+          console.warn('⚠️ Unsupported chain for Railgun provider update:', chainId);
+          return;
+        }
+
+        // Update provider for current chain with connected wallet
+        try {
+          const eip1193Provider = await connector.getProvider();
+          if (eip1193Provider) {
+            const fallbackProviderConfig = {
+              chainId: currentNetwork.chainId,
+              providers: [{
+                provider: eip1193Provider, // Connected wallet provider first
+                priority: 1,
+                weight: 2,
+              }, {
+                provider: currentNetwork.rpcUrl, // RPC fallback
+                priority: 2,
+                weight: 1,
+              }]
+            };
+
+            await loadProvider(fallbackProviderConfig, currentNetwork.networkName, 15000);
+            console.log(`✅ Updated Railgun provider for ${currentNetwork.networkName} with connected wallet`);
+          }
+        } catch (error) {
+          console.warn('⚠️ Failed to update Railgun provider with connected wallet:', error);
+        }
+
+      } catch (error) {
+        console.error('❌ Failed to update Railgun providers:', error);
+      }
+    };
+
+    // Debounce provider updates to avoid rapid chain switching issues
+    const timeoutId = setTimeout(updateRailgunProviders, 1000);
+    return () => clearTimeout(timeoutId);
+  }, [chainId, connector?.id, isRailgunInitialized]);
 
   // 🛠️ Debug utilities for encrypted data management
   useEffect(() => {

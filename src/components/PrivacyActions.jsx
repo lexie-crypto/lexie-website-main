@@ -152,23 +152,46 @@ const PrivacyActions = () => {
     }
   }, [amount, selectedToken]);
 
-  // Get encryption key for operations - PRODUCTION READY
+  // Get encryption key for operations - Use stored signature for consistency
   const getEncryptionKey = useCallback(async () => {
     try {
-      if (!walletProvider) {
-        throw new Error('No wallet provider available');
+      if (!address) {
+        throw new Error('No wallet address available');
       }
 
-      // Request signature for encryption key derivation
-      const message = `Lexie Privacy Operation\n\nAuthorize privacy wallet access for this operation.\n\nAddress: ${address}\nTimestamp: ${Date.now()}\n\nThis signature enables access to your privacy wallet and never leaves your device.`;
+      // Use the same approach as WalletContext - check for stored signature first
+      const signatureStorageKey = `railgun-signature-${address.toLowerCase()}`;
+      let signature = localStorage.getItem(signatureStorageKey);
       
-      const signature = await walletProvider.request({
-        method: 'personal_sign',
-        params: [message, address],
-      });
+      if (!signature) {
+        // If no stored signature, request one using signer (should only happen on first use)
+        if (!walletProvider) {
+          throw new Error('No wallet provider available');
+        }
+        
+        console.log('[PrivacyActions] No stored signature found, requesting new signature...');
+        const signatureMessage = `RAILGUN Wallet Creation\nAddress: ${address}\n\nSign this message to create your secure RAILGUN privacy wallet.`;
+        
+        // Get signer and use signMessage (not provider.request)
+        const signer = await walletProvider();
+        signature = await signer.signMessage(signatureMessage);
+        
+        // Store signature for future use
+        localStorage.setItem(signatureStorageKey, signature);
+        console.log('[PrivacyActions] Signature stored for future use');
+      } else {
+        console.log('[PrivacyActions] Using stored signature for encryption key');
+      }
 
-      // Generate encryption key from real signature
-      return deriveEncryptionKey(signature, address);
+      // Generate encryption key using same method as WalletContext
+      const { default: CryptoJS } = await import('crypto-js');
+      const addressBytes = address.toLowerCase().replace('0x', '');
+      const signatureBytes = signature.replace('0x', '');
+      const combined = signatureBytes + addressBytes;
+      const hash = CryptoJS.SHA256(combined);
+      const encryptionKey = hash.toString(CryptoJS.enc.Hex).slice(0, 64);
+      
+      return encryptionKey;
     } catch (error) {
       console.error('[PrivacyActions] Failed to get encryption key:', error);
       if (error.code === 4001 || error.message.includes('rejected')) {
