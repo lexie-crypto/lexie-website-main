@@ -71,14 +71,14 @@ const queryNullifiers = async (chainId, fromBlock, txHash = null) => {
   try {
     const { isProxy, endpoint } = getGraphEndpoint(chainId);
     
-    // Official V2 Nullifiers query structure
+    // Updated Squid V2 Nullifiers query structure
     const query = `
       query Nullifiers($blockNumber: BigInt = 0, $txHash: Bytes) {
         nullifiers(
-          orderBy: [blockNumber_ASC, nullifier_DESC]
+          orderBy: blockNumber_ASC
           where: { 
             blockNumber_gte: $blockNumber
-            ${txHash ? ', transactionHash: $txHash' : ''}
+            ${txHash ? ', transactionHash_eq: $txHash' : ''}
           }
           limit: 10000
         ) {
@@ -176,14 +176,14 @@ const queryUnshields = async (chainId, fromBlock, txHash = null) => {
   try {
     const { isProxy, endpoint } = getGraphEndpoint(chainId);
     
-    // Official V2 Unshields query structure
+    // Updated Squid V2 Unshields query structure
     const query = `
       query Unshields($blockNumber: BigInt = 0, $txHash: Bytes) {
         unshields(
-          orderBy: [blockNumber_ASC, eventLogIndex_ASC]
+          orderBy: blockNumber_ASC
           where: { 
             blockNumber_gte: $blockNumber
-            ${txHash ? ', transactionHash: $txHash' : ''}
+            ${txHash ? ', transactionHash_eq: $txHash' : ''}
           }
           limit: 10000
         ) {
@@ -290,14 +290,14 @@ const queryCommitments = async (chainId, fromBlock, txHash = null) => {
   try {
     const { isProxy, endpoint } = getGraphEndpoint(chainId);
     
-    // Official V2 Commitments query structure (simplified for transaction monitoring)
+    // Updated Squid V2 Shield Commitments query structure
     const query = `
-      query Commitments($blockNumber: BigInt = 0, $txHash: Bytes) {
-        commitments(
-          orderBy: [blockNumber_ASC, treePosition_ASC]
+      query ShieldCommitments($blockNumber: BigInt = 0, $txHash: Bytes) {
+        shieldCommitments(
+          orderBy: blockNumber_ASC
           where: { 
             blockNumber_gte: $blockNumber
-            ${txHash ? ', transactionHash: $txHash' : ''}
+            ${txHash ? ', transactionHash_eq: $txHash' : ''}
           }
           limit: 10000
         ) {
@@ -310,18 +310,16 @@ const queryCommitments = async (chainId, fromBlock, txHash = null) => {
           blockTimestamp
           commitmentType
           hash
-          ... on ShieldCommitment {
-            shieldKey
-            fee
-            encryptedBundle
-            preimage {
-              npk
-              value
-              token {
-                tokenAddress
-                tokenType
-                tokenSubID
-              }
+          shieldKey
+          fee
+          encryptedBundle
+          preimage {
+            npk
+            value
+            token {
+              tokenAddress
+              tokenType
+              tokenSubID
             }
           }
         }
@@ -339,7 +337,7 @@ const queryCommitments = async (chainId, fromBlock, txHash = null) => {
       variables
     };
 
-    console.log('[TransactionMonitor] 📤 COMMITMENTS API CALL DEBUG:');
+    console.log('[TransactionMonitor] 📤 SHIELD COMMITMENTS API CALL DEBUG:');
     console.log('[TransactionMonitor] - Endpoint:', endpoint);
     console.log('[TransactionMonitor] - Is Proxy:', isProxy);
     console.log('[TransactionMonitor] - Chain ID:', chainId);
@@ -361,7 +359,7 @@ const queryCommitments = async (chainId, fromBlock, txHash = null) => {
     }
 
     if (!response.ok) {
-      console.error('[TransactionMonitor] ❌ COMMITMENTS request failed:', {
+      console.error('[TransactionMonitor] ❌ SHIELD COMMITMENTS request failed:', {
         status: response.status,
         statusText: response.statusText,
         endpoint,
@@ -380,11 +378,11 @@ const queryCommitments = async (chainId, fromBlock, txHash = null) => {
     }
 
     const data = await response.json();
-    console.log('[TransactionMonitor] 📥 COMMITMENTS response received:', {
+    console.log('[TransactionMonitor] 📥 SHIELD COMMITMENTS response received:', {
       hasData: !!data.data,
       hasErrors: !!data.errors,
       dataKeys: data.data ? Object.keys(data.data) : [],
-      resultCount: data.data?.commitments?.length || 0
+      resultCount: data.data?.shieldCommitments?.length || 0
     });
     
     // Check for proxy-level errors (Vercel proxy)
@@ -397,10 +395,10 @@ const queryCommitments = async (chainId, fromBlock, txHash = null) => {
       throw new Error(`GraphQL errors: ${JSON.stringify(data.errors)}`);
     }
 
-    return data.data?.commitments || [];
+    return data.data?.shieldCommitments || [];
     
   } catch (error) {
-    console.warn('[TransactionMonitor] Commitments query failed, returning empty results:', error.message);
+    console.warn('[TransactionMonitor] Shield commitments query failed, returning empty results:', error.message);
     return [];
   }
 };
