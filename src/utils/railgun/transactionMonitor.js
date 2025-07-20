@@ -435,29 +435,26 @@ export const monitorTransactionInGraph = async ({
     const blockNumber = receipt?.blockNumber;
 
     if (blockNumber) {
-      const startBlock = blockNumber - 1;
-      const endBlock = blockNumber + 3;
+      console.log(`[TransactionMonitor] Querying Graph endpoint for ${transactionType} on block ${blockNumber}`);
 
-      console.log('[TransactionMonitor] 📦 Transaction mined, scanning narrow block range:', {
-        startBlock,
-        endBlock
+      const hasEvent = await monitorTransactionInGraph({
+        txHash,
+        chainId,
+        transactionType,
+        blockNumber,
       });
 
-      await scanRailgunTransactions({
-        startBlock,
-        endBlock,
-        txidFilter: [txHash],
-      });
+      if (hasEvent) {
+        console.log('[TransactionMonitor] 🎉 Event confirmed in Graph, proceeding with balance refresh');
 
-      console.log('[TransactionMonitor] 🎉 Transaction confirmed and scanned successfully');
+        // Trigger balance refresh and dispatch event
+        await refreshBalances(chain, [railgunWalletId]);
+        window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
+          detail: { txHash, chainId, transactionType }
+        }));
 
-      // Trigger balance refresh and dispatch event
-      await refreshBalances(chain, [railgunWalletId]);
-      window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
-        detail: { txHash, chainId, transactionType }
-      }));
-
-      return { found: true, elapsedTime: 0 };
+        return { found: true, elapsedTime: 0 };
+      }
     }
 
     console.log('[TransactionMonitor] ⏳ Transaction not mined yet, starting polling...');
@@ -486,29 +483,26 @@ export const monitorTransactionInGraph = async ({
       const blockNumber = receipt?.blockNumber;
 
       if (blockNumber) {
-        const startBlock = blockNumber - 1;
-        const endBlock = blockNumber + 3;
+        console.log(`[TransactionMonitor] Querying Graph endpoint for ${transactionType} on block ${blockNumber}`);
 
-        console.log('[TransactionMonitor] 📦 Transaction mined during polling, scanning narrow block range:', {
-          startBlock,
-          endBlock
+        const hasEvent = await monitorTransactionInGraph({
+          txHash,
+          chainId,
+          transactionType,
+          blockNumber,
         });
 
-        await scanRailgunTransactions({
-          startBlock,
-          endBlock,
-          txidFilter: [txHash],
-        });
+        if (hasEvent) {
+          console.log('[TransactionMonitor] 🎉 Event confirmed in Graph, proceeding with balance refresh');
 
-        console.log('[TransactionMonitor] 🎉 Transaction confirmed and scanned successfully');
+          // Trigger balance refresh and dispatch event
+          await refreshBalances(chain, [railgunWalletId]);
+          window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
+            detail: { txHash, chainId, transactionType }
+          }));
 
-        // Trigger balance refresh and dispatch event
-        await refreshBalances(chain, [railgunWalletId]);
-        window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
-          detail: { txHash, chainId, transactionType }
-        }));
-
-        return { found: true, elapsedTime: Date.now() - startTime };
+          return { found: true, elapsedTime: Date.now() - startTime };
+        }
       }
 
       if (listener && typeof listener === 'function') {
