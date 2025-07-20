@@ -427,21 +427,42 @@ export const monitorTransactionInGraph = async ({
 
     await waitForRailgunReady();
 
-    // Get current block if not provided
-    let fromBlock = currentBlockNumber;
-    if (!fromBlock) {
-      try {
-        const { ethers } = await import('ethers');
-        const rpcUrl = await getRpcUrl(chainId);
-        const provider = new ethers.JsonRpcProvider(rpcUrl);
-        fromBlock = await provider.getBlockNumber();
-        console.log('[TransactionMonitor] 📦 Current block number:', fromBlock);
-      } catch (error) {
-        console.warn('[TransactionMonitor] Failed to get current block, using recent estimate');
-        fromBlock = Math.floor(Date.now() / 15000); // Approximate recent block
-      }
+    // Get block number from transaction hash
+    const { ethers } = await import('ethers');
+    const rpcUrl = await getRpcUrl(chainId);
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const receipt = await provider.getTransactionReceipt(txHash);
+    const blockNumber = receipt?.blockNumber;
+
+    if (blockNumber) {
+      const startBlock = blockNumber - 1;
+      const endBlock = blockNumber + 3;
+
+      console.log('[TransactionMonitor] 📦 Transaction mined, scanning narrow block range:', {
+        startBlock,
+        endBlock
+      });
+
+      await scanRailgunTransactions({
+        startBlock,
+        endBlock,
+        txidFilter: [txHash],
+      });
+
+      console.log('[TransactionMonitor] 🎉 Transaction confirmed and scanned successfully');
+
+      // Trigger balance refresh and dispatch event
+      await refreshBalances(chain, [railgunWalletId]);
+      window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
+        detail: { txHash, chainId, transactionType }
+      }));
+
+      return { found: true, elapsedTime: 0 };
     }
 
+    console.log('[TransactionMonitor] ⏳ Transaction not mined yet, starting polling...');
+
+    // Fallback to polling if transaction is not mined
     const startTime = Date.now();
     const pollInterval = 30000; // 30 seconds
     let attempts = 0;
@@ -460,51 +481,34 @@ export const monitorTransactionInGraph = async ({
     while (attempts < maxAttempts) {
       attempts++;
       console.log(`[TransactionMonitor] 🔍 Polling attempt ${attempts}/${maxAttempts} for ${transactionType} events...`);
-      console.log(`[TransactionMonitor] 🔍 About to query with params:`, { chainId, fromBlock, txHash, transactionType });
 
-      let events = [];
-      const startBlock = fromBlock - 1;
-      const endBlock = fromBlock + 5;
+      const receipt = await provider.getTransactionReceipt(txHash);
+      const blockNumber = receipt?.blockNumber;
 
-      if (transactionType === 'shield') {
-        console.log('[TransactionMonitor] 🛡️ Querying commitments for shield transaction...');
-        events = await queryCommitments(chainId, startBlock, txHash);
-      } else if (transactionType === 'unshield') {
-        const [nullifiers, unshields] = await Promise.all([
-          queryNullifiers(chainId, startBlock, txHash),
-          queryUnshields(chainId, startBlock, txHash)
-        ]);
-        events = [...nullifiers, ...unshields];
-      } else if (transactionType === 'transfer') {
-        const [nullifiers, commitments] = await Promise.all([
-          queryNullifiers(chainId, startBlock, txHash),
-          queryCommitments(chainId, startBlock, txHash)
-        ]);
-        events = [...nullifiers, ...commitments];
-      }
+      if (blockNumber) {
+        const startBlock = blockNumber - 1;
+        const endBlock = blockNumber + 3;
 
-      const filteredEvents = removeDuplicatesByID(events);
-      console.log(`[TransactionMonitor] 📊 Found ${filteredEvents.length} ${transactionType} events in this poll`);
-
-      const targetEvent = filteredEvents.find(event => 
-        event.transactionHash?.toLowerCase() === txHash.toLowerCase()
-      );
-
-      if (targetEvent) {
-        const elapsed = Date.now() - startTime;
-        console.log('[TransactionMonitor] 🎉 Transaction found in RAILGUN events!', {
-          txHash,
-          blockNumber: targetEvent.blockNumber,
-          eventType: targetEvent.commitmentType || 'nullifier',
-          elapsedTime: `${elapsed/1000}s`,
-          attempts
+        console.log('[TransactionMonitor] 📦 Transaction mined during polling, scanning narrow block range:', {
+          startBlock,
+          endBlock
         });
 
-        if (listener && typeof listener === 'function') {
-          console.log('[TransactionMonitor] 📞 Calling listener callback...');
-          listener(targetEvent);
-        }
-        return { found: true, elapsedTime: elapsed };
+        await scanRailgunTransactions({
+          startBlock,
+          endBlock,
+          txidFilter: [txHash],
+        });
+
+        console.log('[TransactionMonitor] 🎉 Transaction confirmed and scanned successfully');
+
+        // Trigger balance refresh and dispatch event
+        await refreshBalances(chain, [railgunWalletId]);
+        window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
+          detail: { txHash, chainId, transactionType }
+        }));
+
+        return { found: true, elapsedTime: Date.now() - startTime };
       }
 
       if (listener && typeof listener === 'function') {
@@ -519,9 +523,8 @@ export const monitorTransactionInGraph = async ({
       listener({ timeout: true });
     }
     return { found: false, elapsedTime: Date.now() - startTime };
-
   } catch (error) {
-    console.error('[TransactionMonitor] 💥 Transaction monitoring failed:', error);
+    console.error('[TransactionMonitor] ❌ Error during transaction monitoring:', error);
     throw error;
   }
 };
