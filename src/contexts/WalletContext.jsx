@@ -300,12 +300,8 @@ const WalletContextProvider = ({ children }) => {
                 }
               }
               
-              // Get expected chain ID from NETWORK_CONFIG to ensure exact match
-              const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
-              const expectedChainId = NETWORK_CONFIG[networkName].chain.id;
-              
               const fallbackProviderConfig = {
-                chainId: expectedChainId, // Use chain ID from NETWORK_CONFIG
+                chainId: netChainId,
                 providers: [{
                   provider: primaryProvider,
                   priority: 1,
@@ -453,12 +449,8 @@ const WalletContextProvider = ({ children }) => {
             }
           }
           
-          // Get expected chain ID from NETWORK_CONFIG to ensure exact match
-          const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
-          const expectedChainId = NETWORK_CONFIG[networkName].chain.id;
-          
           const fallbackProviderConfig = {
-            chainId: expectedChainId, // Use chain ID from NETWORK_CONFIG
+            chainId: netChainId,
             providers: [{
               provider: primaryProvider, // Use connected wallet provider for current chain
               priority: 1,
@@ -717,12 +709,8 @@ const WalletContextProvider = ({ children }) => {
         try {
           const eip1193Provider = await connector.getProvider();
           if (eip1193Provider) {
-            // Get expected chain ID from NETWORK_CONFIG to ensure exact match
-            const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
-            const expectedChainId = NETWORK_CONFIG[currentNetwork.networkName].chain.id;
-            
             const fallbackProviderConfig = {
-              chainId: expectedChainId, // Use chain ID from NETWORK_CONFIG
+              chainId: currentNetwork.chainId,
               providers: [{
                 provider: eip1193Provider, // Connected wallet provider first
                 priority: 1,
