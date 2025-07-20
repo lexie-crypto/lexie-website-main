@@ -680,6 +680,9 @@ const WalletContextProvider = ({ children }) => {
     connectedWalletType: connector?.id,
     connectedWalletName: connector?.name,
     
+    // 🔑 Wallet provider for SDK operations (needs request method)
+    walletProvider: typeof window !== 'undefined' ? window.ethereum : null,
+    
     getCurrentNetwork: () => {
       const networkNames = { 1: 'Ethereum', 137: 'Polygon', 42161: 'Arbitrum', 56: 'BSC' };
       return { id: chainId, name: networkNames[chainId] || `Chain ${chainId}` };
