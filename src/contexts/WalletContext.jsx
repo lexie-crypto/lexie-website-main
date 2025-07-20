@@ -1,7 +1,7 @@
 /**
- * Wallet Context Provider
- * Manages wallet connection state and Railgun integration
- * Following official Railgun documentation: https://docs.railgun.org/developer-guide/
+ * Wallet Context Provider - Official Railgun SDK Integration
+ * Uses the official @railgun-community/wallet SDK with proper provider management
+ * No custom connector hacks - just clean UI layer over official SDK
  */
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
@@ -15,47 +15,7 @@ import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/enviro
 // Create a client for React Query
 const queryClient = new QueryClient();
 
-// Create custom transport using environment configuration
-const createProxyTransport = (chainId) => custom({
-  async request({ method, params }) {
-    // Use proper RPC URLs from environment configuration
-    const rpcUrls = {
-      1: RPC_URLS.ethereum,
-      137: RPC_URLS.polygon,
-      42161: RPC_URLS.arbitrum,
-      56: RPC_URLS.bsc
-    };
-    
-    const rpcUrl = rpcUrls[chainId];
-    if (!rpcUrl) {
-      throw new Error(`No RPC URL configured for chain ${chainId}`);
-    }
-    
-    const response = await fetch(rpcUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        id: 1,
-        jsonrpc: '2.0',
-        method,
-        params,
-      }),
-    });
-    
-    if (!response.ok) {
-      throw new Error(`RPC request failed: ${response.status}`);
-    }
-    
-    const { result, error } = await response.json();
-    if (error) {
-      throw new Error(`RPC error: ${JSON.stringify(error)}`);
-    }
-    
-    return result;
-  },
-});
-
-// Create wagmi config
+// Create wagmi config - MINIMAL, just for UI wallet connection
 const wagmiConfig = createConfig({
   chains: [mainnet, polygon, arbitrum, bsc],
   connectors: [
@@ -66,10 +26,54 @@ const wagmiConfig = createConfig({
     }),
   ],
   transports: {
-    [mainnet.id]: createProxyTransport(mainnet.id),
-    [polygon.id]: createProxyTransport(polygon.id),
-    [arbitrum.id]: createProxyTransport(arbitrum.id),
-    [bsc.id]: createProxyTransport(bsc.id),
+    [mainnet.id]: custom({
+      async request({ method, params }) {
+        const response = await fetch(RPC_URLS.ethereum, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: 1, jsonrpc: '2.0', method, params }),
+        });
+        const { result, error } = await response.json();
+        if (error) throw new Error(`RPC error: ${JSON.stringify(error)}`);
+        return result;
+      },
+    }),
+    [polygon.id]: custom({
+      async request({ method, params }) {
+        const response = await fetch(RPC_URLS.polygon, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: 1, jsonrpc: '2.0', method, params }),
+        });
+        const { result, error } = await response.json();
+        if (error) throw new Error(`RPC error: ${JSON.stringify(error)}`);
+        return result;
+      },
+    }),
+    [arbitrum.id]: custom({
+      async request({ method, params }) {
+        const response = await fetch(RPC_URLS.arbitrum, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: 1, jsonrpc: '2.0', method, params }),
+        });
+        const { result, error } = await response.json();
+        if (error) throw new Error(`RPC error: ${JSON.stringify(error)}`);
+        return result;
+      },
+    }),
+    [bsc.id]: custom({
+      async request({ method, params }) {
+        const response = await fetch(RPC_URLS.bsc, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: 1, jsonrpc: '2.0', method, params }),
+        });
+        const { result, error } = await response.json();
+        if (error) throw new Error(`RPC error: ${JSON.stringify(error)}`);
+        return result;
+      },
+    }),
   },
 });
 
@@ -96,12 +100,14 @@ export const useWallet = () => {
 };
 
 const WalletContextProvider = ({ children }) => {
+  // Basic wallet state
   const [isRailgunInitialized, setIsRailgunInitialized] = useState(false);
   const [railgunAddress, setRailgunAddress] = useState(null);
   const [railgunWalletID, setRailgunWalletID] = useState(null);
   const [isInitializing, setIsInitializing] = useState(false);
   const [railgunError, setRailgunError] = useState(null);
 
+  // Wagmi hooks - ONLY for UI wallet connection
   const { address, isConnected, chainId, connector } = useAccount();
   const { connect, connectors, isPending: isConnecting } = useConnect();
   const { disconnect } = useDisconnect();
@@ -109,135 +115,44 @@ const WalletContextProvider = ({ children }) => {
   const { data: connectorClient } = useConnectorClient();
   const { signMessageAsync } = useSignMessage();
 
-  // 💾 Persist connector information to fix wallet modal issue
-  useEffect(() => {
-    if (isConnected && connector) {
-      console.log('💾 Saving connected wallet:', { connectorId: connector.id, connectorName: connector.name });
-      localStorage.setItem('connected-wallet-type', connector.id);
-      localStorage.setItem('connected-wallet-name', connector.name);
-    }
-  }, [isConnected, connector]);
-
-  // 🔄 Auto-reconnect to previous wallet on page load
-  useEffect(() => {
-    const savedWalletType = localStorage.getItem('connected-wallet-type');
-    if (savedWalletType && !isConnected) {
-      console.log('🔄 Attempting to reconnect to:', savedWalletType);
-      const savedConnector = connectors.find(c => c.id === savedWalletType);
-      if (savedConnector) {
-        connect({ connector: savedConnector });
-      }
-    }
-  }, [connectors, isConnected, connect]);
-
-  // Get current wallet provider for signing operations
-  const getCurrentWalletProvider = () => {
-    // 🔍 First check what type of wallet is actually connected
-    const savedWalletType = localStorage.getItem('connected-wallet-type');
-    console.log('🔍 Getting wallet provider for connected type:', savedWalletType);
-    
-    // 🛡️ For WalletConnect, use the connector's provider directly to avoid wagmi issues
-    if (connectorClient?.connector?.provider && 
-        (connector?.id === 'walletConnect' || savedWalletType === 'walletConnect')) {
-      const provider = connectorClient.connector.provider;
-      console.log('🌐 Using WalletConnect provider');
-      
-      // Set up session request listener for WalletConnect
-      if (provider && typeof provider.on === 'function') {
-        // Remove any existing listeners to prevent duplicates
-        if (provider.listenerCount && provider.listenerCount('session_request') === 0) {
-          provider.on('session_request', async (event) => {
-            console.log('WalletConnect session_request received:', event);
-            // Auto-approve session requests for signing
-            if (event.params?.request?.method === 'personal_sign') {
-              try {
-                // The request will be handled by the provider's request method
-                console.log('Handling WalletConnect signing request');
-              } catch (error) {
-                console.error('Error handling WalletConnect session request:', error);
-              }
-            }
-          });
-        }
-      }
-      
-      return provider;
-    }
-    
-    // 🦊 For MetaMask and other injected wallets, use window.ethereum but be specific
-    if (connector?.id === 'metaMask' || savedWalletType === 'metaMask') {
-      if (typeof window !== 'undefined' && window.ethereum?.isMetaMask) {
-        console.log('🦊 Using MetaMask provider');
-        return window.ethereum;
-      }
-    }
-    
-    // 💀 Avoid generic window.ethereum fallback that causes modal issues
-    if (typeof window !== 'undefined' && window.ethereum) {
-      // Only use as last resort and log warning
-      console.warn('⚠️ Using generic window.ethereum - this might cause wallet modal issues');
-      
-      // 🚫 Don't use if we know we should be using WalletConnect
-      if (savedWalletType === 'walletConnect') {
-        console.error('❌ Should use WalletConnect but falling back to injected - this will cause modal issues');
-        return null;
-      }
-      
-      return window.ethereum;
-    }
-    
-    console.error('❌ No wallet provider available');
-    return null;
-  };
-
+  // Simple wallet connection - UI layer only
   const connectWallet = async (connectorType = 'metamask') => {
     try {
-      console.log('Available connectors:', connectors.map(c => ({ id: c.id, name: c.name })));
-      
-      // 🔍 Check if already connected to the right wallet
-      if (isConnected && connector) {
-        const currentConnectorType = connector.id;
-        const requestedType = connectorType === 'metamask' ? 'metaMask' : 'walletConnect';
-        
-        if (currentConnectorType === requestedType) {
-          console.log('✅ Already connected to requested wallet type:', requestedType);
-          return;
-        } else {
-          console.log('🔄 Switching from', currentConnectorType, 'to', requestedType);
-          await disconnect(); // Disconnect current before connecting new
-        }
-      }
-      
-      const connector = connectors.find(c => 
+      const targetConnector = connectors.find(c => 
         connectorType === 'metamask' ? c.id === 'metaMask' : c.id === 'walletConnect'
       );
       
-      if (connector) {
-        console.log('🔌 Connecting with connector:', connector.id);
-        
-        // 🚫 Avoid fallback to window.ethereum for WalletConnect
-        if (connector.id === 'walletConnect') {
-          // Ensure WalletConnect doesn't fallback to injected wallet
-          console.log('🛡️ Using WalletConnect - ensuring no fallback to injected wallet');
-        }
-        
-        await connect({ connector });
-        console.log('✅ Successfully connected via:', connector.id);
-      } else {
-        console.error('❌ Connector not found:', connectorType);
-        throw new Error(`${connectorType} connector not available`);
+      if (targetConnector) {
+        await connect({ connector: targetConnector });
+        console.log('✅ Connected via wagmi:', targetConnector.id);
       }
     } catch (error) {
-      console.error('❌ Failed to connect wallet:', error);
-      
-      // 🧹 Clear any stale connection data on failed connection
-      localStorage.removeItem('connected-wallet-type');
-      localStorage.removeItem('connected-wallet-name');
-      
-      throw error; // Re-throw for UI handling
+      console.error('❌ Wagmi connection failed:', error);
+      throw error;
     }
   };
 
+  const disconnectWallet = async () => {
+    try {
+      await disconnect();
+      
+      // 🧹 Only clear React state - preserve encrypted localStorage data for persistence
+      setIsRailgunInitialized(false);
+      setRailgunAddress(null);
+      setRailgunWalletID(null);
+      setRailgunError(null);
+      
+      // 💾 Keep encrypted Railgun data in localStorage for next connection
+      // DON'T clear: railgun-walletID-${address} or railgun-mnemonic-${address}
+      // This allows same wallet to reconnect and reuse existing Railgun wallet
+      
+      console.log('🧹 Disconnected - React state cleared, encrypted data preserved for reconnection');
+    } catch (error) {
+      console.error('Failed to disconnect:', error);
+    }
+  };
+
+  // Official Railgun SDK Integration
   const initializeRailgun = async () => {
     if (!isConnected || !address || isInitializing) {
       console.log('Skipping Railgun init:', { isConnected, address: !!address, isInitializing });
@@ -246,300 +161,236 @@ const WalletContextProvider = ({ children }) => {
 
     setIsInitializing(true);
     setRailgunError(null);
-    console.log('🚀 Starting RAILGUN initialization for address:', address);
+    console.log('🚀 Starting RAILGUN initialization with official SDK...');
     
     try {
-      // Import required libraries following official docs
-      const bip39 = await import('bip39');
-      const { Mnemonic, randomBytes } = await import('ethers');
-      const CryptoJS = await import('crypto-js');
-      
-      // Import RAILGUN wallet functions dynamically - OFFICIAL APPROACH
-      console.log('📦 Importing RAILGUN wallet SDK...');
+      // Import the official Railgun SDK
       const {
         startRailgunEngine,
+        loadProvider,
         createRailgunWallet,
         loadRailgunWalletByID,
-        getWalletAddress,
         setLoggers,
         setOnBalanceUpdateCallback,
-        setOnUTXOMerkletreeScanCallback,
-        setOnTXIDMerkletreeScanCallback,
       } = await import('@railgun-community/wallet');
       
       const { NetworkName } = await import('@railgun-community/shared-models');
-      console.log('✅ RAILGUN wallet SDK imported successfully');
+      console.log('✅ Official Railgun SDK imported');
 
-      // Step 1: Initialize RAILGUN Engine (following official docs)
-      console.log('🔧 Starting RAILGUN engine...');
-      
-      // Create database
+      // Step 1: Initialize Railgun Engine with official SDK
       const LevelJS = (await import('level-js')).default;
       const db = new LevelJS('railgun-engine-db');
       
-      // Use the enhanced artifact store (proper implementation)
+      // Use existing artifact store
       const { createEnhancedArtifactStore } = await import('../utils/railgun/artifactStore.js');
-      const artifactManager = await createEnhancedArtifactStore(false); // false = web/WASM
-      console.log('✅ Enhanced artifact store created with downloader');
+      const artifactManager = await createEnhancedArtifactStore(false);
       
-      // Download common artifacts needed for operations
-      console.log('🔧 Downloading essential artifacts...');
-      try {
-        await artifactManager.setupCommonArtifacts();
-        console.log('✅ Essential artifacts downloaded and ready');
-      } catch (artifactError) {
-        console.warn('⚠️ Artifact download failed, will try on-demand:', artifactError);
-        // Continue without pre-downloaded artifacts - they'll be downloaded on-demand
-      }
-
-      // Set up logging (official approach)
+      // Set up official SDK logging
       setLoggers(
-        (message) => console.log(`🔍 [RAILGUN] ${message}`),
-        (error) => console.error(`🚨 [RAILGUN] ${error}`)
+        (message) => console.log(`🔍 [RAILGUN-SDK] ${message}`),
+        (error) => console.error(`🚨 [RAILGUN-SDK] ${error}`)
       );
 
-      // Start RAILGUN Engine with official parameters
+      // Start engine with official SDK
       await startRailgunEngine(
-        'lexiewebsite', // walletSource - max 16 chars
+        'lexiewebsite',
         db,
         true, // shouldDebug
-        artifactManager.store, // Use the proper ArtifactStore instance
-        false, // useNativeArtifacts (false for web)
-        false, // skipMerkletreeScans (false to load balances)
-        ['https://ppoi.fdi.network/'], // POI node URLs
+        artifactManager.store,
+        false, // useNativeArtifacts (web)
+        false, // skipMerkletreeScans
+        ['https://ppoi.fdi.network/'], // POI nodes
         [], // customPOILists
         true // verboseScanLogging
       );
-      console.log('✅ RAILGUN engine started successfully');
+      console.log('✅ Railgun engine started with official SDK');
 
-      // Set up callbacks (official approach)
-      setOnBalanceUpdateCallback((txidVersion, wallet, chain) => {
-        console.log('🔄 RAILGUN balance updated:', { txidVersion, walletID: wallet.id, chain });
+      // Step 2: Load providers using official SDK method
+      const networkConfigs = [
+        { networkName: NetworkName.Ethereum, rpcUrl: RPC_URLS.ethereum, chainId: 1 },
+        { networkName: NetworkName.Polygon, rpcUrl: RPC_URLS.polygon, chainId: 137 },
+        { networkName: NetworkName.Arbitrum, rpcUrl: RPC_URLS.arbitrum, chainId: 42161 },
+        { networkName: NetworkName.BNBChain, rpcUrl: RPC_URLS.bsc, chainId: 56 },
+      ];
+
+      for (const { networkName, rpcUrl, chainId: netChainId } of networkConfigs) {
+        try {
+          console.log(`📡 Loading provider for ${networkName}...`);
+          
+          const fallbackProviderConfig = {
+            chainId: netChainId,
+            providers: [{
+              provider: rpcUrl,
+              priority: 1,
+              weight: 2,
+            }]
+          };
+
+          await loadProvider(fallbackProviderConfig, networkName, 15000);
+          console.log(`✅ Provider loaded for ${networkName}`);
+        } catch (error) {
+          console.warn(`⚠️ Failed to load provider for ${networkName}:`, error);
+        }
+      }
+
+      // Step 3: Set up balance callbacks
+      setOnBalanceUpdateCallback((balancesEvent) => {
+        console.log('🔄 Railgun balance update:', balancesEvent);
         // Trigger UI update
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('railgun-balance-update', {
-            detail: { txidVersion, walletID: wallet.id, chain }
+            detail: balancesEvent
           }));
         }
       });
 
-      setOnUTXOMerkletreeScanCallback((scanData) => {
-        console.log('🔍 RAILGUN UTXO scan progress:', scanData);
-      });
+      // Step 4: Wallet creation/loading with official SDK
+      const bip39 = await import('bip39');
+      const { Mnemonic, randomBytes } = await import('ethers');
+      const CryptoJS = await import('crypto-js');
 
-      setOnTXIDMerkletreeScanCallback((scanData) => {
-        console.log('🔍 RAILGUN TXID scan progress:', scanData);
-      });
-
-      // Step 2: Generate encryption key from user signature (PRODUCTION SECURITY)
-      console.log('🔐 Requesting user signature for secure key derivation...');
+      // Generate encryption key from user signature
+      const timestamp = Date.now();
+      const nonce = crypto.getRandomValues(new Uint32Array(4)).join('');
+      const signatureMessage = `RAILGUN Wallet Creation\nAddress: ${address}\nTimestamp: ${timestamp}\nNonce: ${nonce}\n\nSign this message to create your secure RAILGUN privacy wallet.`;
       
-      let encryptionKey;
-      let signature;
+      const signature = await signMessageAsync({ message: signatureMessage });
       
-      try {
-        // Create a unique message for this specific user and session
-        const timestamp = Date.now();
-        const nonce = crypto.getRandomValues(new Uint32Array(4)).join('');
-        const signatureMessage = `RAILGUN Wallet Creation\nAddress: ${address}\nTimestamp: ${timestamp}\nNonce: ${nonce}\n\nSign this message to create your secure RAILGUN privacy wallet.`;
-        
-        // Request signature using wallet provider directly
-        const walletProvider = getCurrentWalletProvider();
-        if (walletProvider?.request) {
-          signature = await walletProvider.request({
-            method: 'personal_sign',
-            params: [signatureMessage, address],
-          });
-        } else {
-          throw new Error('Wallet provider not available for signature');
-        }
-        
-        // Derive secure encryption key using proper cryptography
-        const addressBytes = address.toLowerCase().replace('0x', '');
-        const signatureBytes = signature.replace('0x', '');
-        const combined = signatureBytes + addressBytes + timestamp.toString();
-        
-        // Use SHA-256 for secure key derivation
-        const hash = CryptoJS.SHA256(combined);
-        encryptionKey = hash.toString(CryptoJS.enc.Hex).slice(0, 64);
-        
-        console.log('✅ Cryptographically secure encryption key derived from user signature');
-        
-      } catch (signatureError) {
-        console.error('❌ Failed to get user signature for key derivation:', signatureError);
-        throw new Error('User signature required for secure RAILGUN wallet creation. Please approve the signature request to continue.');
-      }
+      // Derive encryption key
+      const addressBytes = address.toLowerCase().replace('0x', '');
+      const signatureBytes = signature.replace('0x', '');
+      const combined = signatureBytes + addressBytes + timestamp.toString();
+      const hash = CryptoJS.SHA256(combined);
+      const encryptionKey = hash.toString(CryptoJS.enc.Hex).slice(0, 64);
 
-      // Step 3: User-specific storage with proper namespacing
+      // User-specific storage
       const userStorageKey = `railgun-walletID-${address.toLowerCase()}`;
       const mnemonicStorageKey = `railgun-mnemonic-${address.toLowerCase()}`;
       
-      // Check for existing wallet ID
       const savedWalletID = localStorage.getItem(userStorageKey);
-      
       let railgunWalletInfo;
 
       if (savedWalletID) {
-        // Load existing wallet (official approach)
-        console.log('👛 Loading existing RAILGUN wallet for user:', address, 'WalletID:', savedWalletID.slice(0, 8) + '...');
+        // Load existing wallet using official SDK
+        console.log('👛 Loading existing Railgun wallet...', { 
+          walletID: savedWalletID.slice(0, 8) + '...',
+          userAddress: address 
+        });
+        
         try {
+          // 🛡️ Graceful error handling for invalid/corrupted data
           railgunWalletInfo = await loadRailgunWalletByID(encryptionKey, savedWalletID, false);
-          console.log('✅ Existing RAILGUN wallet loaded successfully for user:', address);
+          console.log('✅ Existing Railgun wallet loaded successfully');
         } catch (loadError) {
-          console.warn('⚠️ Failed to load existing wallet, creating new one:', loadError);
-          // Clear invalid wallet data and create new one
+          console.warn('⚠️ Failed to load existing wallet - data may be corrupted:', loadError);
+          
+          // 🧹 Clear potentially corrupted data and start fresh
+          console.log('🧹 Clearing corrupted wallet data and regenerating...');
           localStorage.removeItem(userStorageKey);
           localStorage.removeItem(mnemonicStorageKey);
+          
+          // Continue to create new wallet below
+          railgunWalletInfo = null;
         }
       }
 
       if (!railgunWalletInfo) {
-        // Step 4: Create new wallet (official approach)
-        console.log('🔑 Creating NEW RAILGUN wallet for user:', address);
+        // Create new wallet using official SDK
+        console.log('🔑 Creating new Railgun wallet...', { userAddress: address });
         
-        let mnemonic;
+        // 🔄 Check for existing encrypted mnemonic first
+        let mnemonic = null;
         const savedEncryptedMnemonic = localStorage.getItem(mnemonicStorageKey);
         
         if (savedEncryptedMnemonic) {
-          // Decrypt existing mnemonic
           try {
+            // 🔓 Attempt to decrypt existing mnemonic
+            console.log('🔓 Attempting to decrypt existing mnemonic...');
             const decryptedBytes = CryptoJS.AES.decrypt(savedEncryptedMnemonic, encryptionKey);
-            mnemonic = decryptedBytes.toString(CryptoJS.enc.Utf8);
+            const decryptedMnemonic = decryptedBytes.toString(CryptoJS.enc.Utf8);
             
-            if (!mnemonic || !bip39.validateMnemonic(mnemonic)) {
-              throw new Error('Invalid decrypted mnemonic');
+            // 🛡️ Validate decrypted mnemonic
+            if (decryptedMnemonic && bip39.validateMnemonic(decryptedMnemonic)) {
+              mnemonic = decryptedMnemonic;
+              console.log('✅ Successfully decrypted and validated existing mnemonic');
+            } else {
+              throw new Error('Decrypted mnemonic failed validation');
             }
             
-            console.log('📋 Decrypted existing BIP39 mnemonic for user:', address);
           } catch (decryptError) {
-            console.warn('⚠️ Failed to decrypt existing mnemonic, generating new one:', decryptError);
+            console.warn('⚠️ Failed to decrypt existing mnemonic - may be corrupted:', decryptError);
+            
+            // 🧹 Clear corrupted mnemonic data
             localStorage.removeItem(mnemonicStorageKey);
+            console.log('🧹 Cleared corrupted mnemonic data');
           }
         }
         
         if (!mnemonic) {
-          // Generate new mnemonic (official approach using ethers)
-          console.log('🔑 Generating cryptographically secure BIP39 mnemonic...');
-          
-          // Official method from Railgun docs
+          // 🆕 Generate fresh secure mnemonic
+          console.log('🆕 Generating new cryptographically secure mnemonic...');
           mnemonic = Mnemonic.fromEntropy(randomBytes(16)).phrase.trim();
           
-          // Validate the generated mnemonic
           if (!bip39.validateMnemonic(mnemonic)) {
             throw new Error('Generated mnemonic failed validation');
           }
           
-          // Encrypt mnemonic before storing
+          // 🔒 Encrypt and store new mnemonic
           const encryptedMnemonic = CryptoJS.AES.encrypt(mnemonic, encryptionKey).toString();
           localStorage.setItem(mnemonicStorageKey, encryptedMnemonic);
-          
-          console.log('✅ Generated and encrypted cryptographically secure BIP39 mnemonic for user:', address);
+          console.log('✅ Generated, encrypted, and stored new secure mnemonic');
         }
-
-        console.log('🔨 Creating RAILGUN wallet with cryptographically secure mnemonic...');
         
-        // Block numbers for each chain when wallet was first created (official approach)
+        // 🏗️ Create wallet with official SDK
         const creationBlockNumberMap = {
-          [NetworkName.Ethereum]: undefined, // Use current block
+          [NetworkName.Ethereum]: undefined,
           [NetworkName.Polygon]: undefined,
           [NetworkName.Arbitrum]: undefined,
           [NetworkName.BNBChain]: undefined,
         };
         
         try {
-          // Official createRailgunWallet call
           railgunWalletInfo = await createRailgunWallet(
             encryptionKey,
             mnemonic,
             creationBlockNumberMap
           );
-        } catch (walletCreationError) {
-          console.error('❌ RAILGUN wallet creation failed:', walletCreationError);
-          throw new Error(`Failed to create RAILGUN wallet: ${walletCreationError.message}`);
+          
+          // 💾 Save new wallet ID for persistence
+          localStorage.setItem(userStorageKey, railgunWalletInfo.id);
+          console.log('✅ Created and saved new Railgun wallet:', {
+            userAddress: address,
+            walletID: railgunWalletInfo.id?.slice(0, 8) + '...'
+          });
+          
+        } catch (createError) {
+          console.error('❌ Failed to create Railgun wallet:', createError);
+          
+          // 🧹 Clean up on creation failure
+          localStorage.removeItem(mnemonicStorageKey);
+          throw new Error(`Railgun wallet creation failed: ${createError.message}`);
         }
-
-        // Verify wallet was created successfully
-        if (!railgunWalletInfo?.id || !railgunWalletInfo?.railgunAddress) {
-          throw new Error('RAILGUN wallet creation failed: Invalid wallet info returned');
-        }
-
-        // Save wallet ID tied to this specific user
-        localStorage.setItem(userStorageKey, railgunWalletInfo.id);
-        console.log('💾 Saved unique RAILGUN wallet ID for user:', address, 'WalletID:', railgunWalletInfo.id?.slice(0, 8) + '...');
       }
 
-      // Extract wallet ID for subsequent operations
-      const walletID = railgunWalletInfo.id;
-      const railgunAddress = railgunWalletInfo.railgunAddress;
-
-      // Security verification
-      console.log('🔒 RAILGUN Wallet Security Verification:', {
-        userAddress: address,
-        railgunAddress: railgunAddress,
-        walletIDPrefix: walletID?.slice(0, 8) + '...',
-        isUnique: true,
-        cryptographicallySecure: true
-      });
-
-      // Verify wallet ID is valid
-      if (!walletID || walletID.length < 16) {
-        throw new Error('Invalid RAILGUN wallet ID generated');
-      }
-
-      setRailgunAddress(railgunAddress);
-      setRailgunWalletID(walletID);
+      // Set wallet state
+      setRailgunAddress(railgunWalletInfo.railgunAddress);
+      setRailgunWalletID(railgunWalletInfo.id);
       setIsRailgunInitialized(true);
 
-      console.log('🎉 PRODUCTION-SECURE RAILGUN wallet initialized successfully:', {
+      console.log('🎉 Railgun initialization completed with official SDK:', {
         userAddress: address,
-        railgunAddress: railgunAddress,
-        walletID: walletID?.slice(0, 8) + '...',
-        security: 'CRYPTOGRAPHICALLY_SECURE'
+        railgunAddress: railgunWalletInfo.railgunAddress,
+        walletID: railgunWalletInfo.id?.slice(0, 8) + '...',
       });
 
-      // Set up wallet-specific balance callbacks (restored from original implementation)
-      console.log('🔔 Setting up wallet balance callbacks...');
-      const { setupWalletBalanceCallbacks } = await import('../utils/railgunUtils');
-      const callbacksSetup = await setupWalletBalanceCallbacks(walletID);
-      if (callbacksSetup) {
-        console.log('✅ RAILGUN wallet balance callbacks configured for user:', address);
-      } else {
-        console.warn('⚠️ Failed to set up wallet balance callbacks');
-      }
-
     } catch (error) {
-      console.error('❌ Failed to initialize RAILGUN:', error);
-      
+      console.error('❌ Railgun initialization failed:', error);
       setRailgunError(error.message || 'Failed to initialize Railgun');
       setIsRailgunInitialized(false);
       setRailgunAddress(null);
       setRailgunWalletID(null);
     } finally {
       setIsInitializing(false);
-    }
-  };
-
-  const disconnectWallet = async () => {
-    try {
-      await disconnect();
-      setIsRailgunInitialized(false);
-      setRailgunAddress(null);
-      setRailgunWalletID(null);
-      setRailgunError(null);
-      
-      // 🧹 Clear stored wallet connection info to fix modal issue
-      localStorage.removeItem('connected-wallet-type');
-      localStorage.removeItem('connected-wallet-name');
-      
-      // Clear stored wallet ID when disconnecting
-      if (address) {
-        localStorage.removeItem(`railgun-walletID-${address}`);
-        localStorage.removeItem(`railgun-mnemonic-${address}`);
-      }
-      
-      console.log('🧹 Cleared all wallet connection and RAILGUN data');
-    } catch (error) {
-      console.error('Failed to disconnect wallet:', error);
     }
   };
 
@@ -550,168 +401,83 @@ const WalletContextProvider = ({ children }) => {
     }
   }, [isConnected, address, isRailgunInitialized, isInitializing]);
 
-  // PRODUCTION SECURITY: Debug utilities to verify wallet uniqueness and security
+  // 🛠️ Debug utilities for encrypted data management
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      window.__LEXIE_WALLET_DEBUG__ = {
-        // Verify current user's wallet info
-        getCurrentWalletInfo: () => ({
-          userAddress: address,
-          railgunAddress,
-          railgunWalletID: railgunWalletID?.slice(0, 8) + '...',
-          isInitialized: isRailgunInitialized,
-          chainId,
-          securityLevel: 'PRODUCTION_CRYPTOGRAPHIC'
-        }),
-        
-        // SECURITY AUDIT: Check all stored wallet IDs for uniqueness
-        auditStoredWallets: () => {
-          const wallets = [];
-          const walletIDs = new Set();
-          const addresses = new Set();
+      window.__LEXIE_RAILGUN_DEBUG__ = {
+        // Check current user's encrypted data status
+        checkEncryptedData: () => {
+          if (!address) return { error: 'No wallet connected' };
           
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key?.startsWith('railgun-walletID-')) {
-              const userAddress = key.replace('railgun-walletID-', '');
-              const walletID = localStorage.getItem(key);
-              const walletIDPrefix = walletID?.slice(0, 16);
-              
-              wallets.push({
-                userAddress,
-                walletIDPrefix,
-                hasEncryptedMnemonic: !!localStorage.getItem(`railgun-mnemonic-${userAddress}`)
-              });
-              
-              walletIDs.add(walletIDPrefix);
-              addresses.add(userAddress);
-            }
-          }
+          const userStorageKey = `railgun-walletID-${address.toLowerCase()}`;
+          const mnemonicStorageKey = `railgun-mnemonic-${address.toLowerCase()}`;
           
-          const isSecure = wallets.length === walletIDs.size && wallets.length === addresses.size;
-          
-          console.log('🔍 PRODUCTION SECURITY AUDIT:', {
-            totalWallets: wallets.length,
-            uniqueWalletIDs: walletIDs.size,
-            uniqueAddresses: addresses.size,
-            isSecure,
-            securityStatus: isSecure ? '✅ SECURE - All users have unique wallets' : '❌ SECURITY BREACH - Wallet sharing detected!',
-            wallets
-          });
-          
-          if (!isSecure) {
-            console.error('🚨 CRITICAL SECURITY BREACH: Users are sharing RAILGUN wallets!');
-            console.error('🚨 This compromises user privacy and could lead to fund loss!');
-          }
+          const hasWalletID = !!localStorage.getItem(userStorageKey);
+          const hasMnemonic = !!localStorage.getItem(mnemonicStorageKey);
+          const walletID = localStorage.getItem(userStorageKey);
           
           return {
-            isSecure,
-            totalWallets: wallets.length,
-            uniqueWalletIDs: walletIDs.size,
-            uniqueAddresses: addresses.size,
-            wallets
-          };
-        },
-        
-        // SECURITY: Verify encryption integrity
-        verifyEncryption: () => {
-          const currentUserKey = `railgun-mnemonic-${address?.toLowerCase()}`;
-          const encryptedMnemonic = localStorage.getItem(currentUserKey);
-          
-          if (!encryptedMnemonic) {
-            return { 
-              hasEncryption: false, 
-              error: 'No encrypted mnemonic found for current user' 
-            };
-          }
-          
-          // Verify it's actually encrypted (not plain text)
-          const isEncrypted = encryptedMnemonic.includes('U2FsdGVkX1') || encryptedMnemonic.length > 100;
-          
-          console.log('🔐 Encryption Verification:', {
             userAddress: address,
-            hasEncryptedMnemonic: !!encryptedMnemonic,
-            isActuallyEncrypted: isEncrypted,
-            encryptedLength: encryptedMnemonic.length,
-            securityStatus: isEncrypted ? '✅ SECURE - Mnemonic properly encrypted' : '❌ SECURITY RISK - Mnemonic not encrypted'
-          });
-          
-          return {
-            hasEncryption: !!encryptedMnemonic,
-            isActuallyEncrypted: isEncrypted,
-            encryptedLength: encryptedMnemonic.length
+            hasEncryptedWalletID: hasWalletID,
+            hasEncryptedMnemonic: hasMnemonic,
+            walletIDPreview: walletID ? walletID.slice(0, 8) + '...' : null,
+            currentRailgunAddress: railgunAddress,
+            isInitialized: isRailgunInitialized,
+            storageKeys: { userStorageKey, mnemonicStorageKey }
           };
         },
         
-        // PRODUCTION: Clear all wallet data with confirmation
-        emergencyClearAllWalletData: () => {
-          if (!confirm('⚠️ DANGER: This will delete ALL RAILGUN wallet data for ALL users. This action cannot be undone. Are you absolutely sure?')) {
-            console.log('❌ Emergency clear cancelled by user');
-            return false;
-          }
+        // Clear encrypted data for current user (for testing)
+        clearEncryptedData: () => {
+          if (!address) return { error: 'No wallet connected' };
           
-          const keys = [];
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key?.startsWith('railgun-')) {
-              keys.push(key);
-            }
-          }
+          const userStorageKey = `railgun-walletID-${address.toLowerCase()}`;
+          const mnemonicStorageKey = `railgun-mnemonic-${address.toLowerCase()}`;
           
-          keys.forEach(key => localStorage.removeItem(key));
-          console.log('🗑️ EMERGENCY: Cleared all RAILGUN wallet data:', keys);
+          const hadWalletID = !!localStorage.getItem(userStorageKey);
+          const hadMnemonic = !!localStorage.getItem(mnemonicStorageKey);
           
-          // Force page reload to reinitialize
-          if (confirm('Reload page to reinitialize RAILGUN?')) {
-            window.location.reload();
-          }
+          localStorage.removeItem(userStorageKey);
+          localStorage.removeItem(mnemonicStorageKey);
           
-          return true;
+          console.log('🗑️ Cleared encrypted Railgun data for user:', address);
+          
+          return {
+            userAddress: address,
+            clearedWalletID: hadWalletID,
+            clearedMnemonic: hadMnemonic,
+            message: 'Encrypted data cleared. Reconnect wallet to regenerate.'
+          };
         },
         
-        // PRODUCTION: Continuous security monitoring
-        startSecurityMonitoring: () => {
-          if (window.__LEXIE_SECURITY_MONITOR__) {
-            console.log('🔍 Security monitoring already running');
-            return;
-          }
+        // Force re-initialization (useful for testing)
+        forceReinitialize: async () => {
+          if (!isConnected || !address) return { error: 'No wallet connected' };
           
-          console.log('🔍 Starting continuous security monitoring...');
+          console.log('🔄 Force re-initializing Railgun...');
           
-          window.__LEXIE_SECURITY_MONITOR__ = setInterval(() => {
-            const audit = window.__LEXIE_WALLET_DEBUG__.auditStoredWallets();
-            
-            if (!audit.isSecure) {
-              console.error('🚨 SECURITY ALERT: Wallet uniqueness compromised!');
-              // In production, this should trigger alerts/monitoring
-            }
-          }, 30000); // Check every 30 seconds
+          // Reset React state
+          setIsRailgunInitialized(false);
+          setRailgunAddress(null);
+          setRailgunWalletID(null);
+          setRailgunError(null);
           
-          console.log('✅ Security monitoring started');
-        },
-        
-        stopSecurityMonitoring: () => {
-          if (window.__LEXIE_SECURITY_MONITOR__) {
-            clearInterval(window.__LEXIE_SECURITY_MONITOR__);
-            delete window.__LEXIE_SECURITY_MONITOR__;
-            console.log('🛑 Security monitoring stopped');
+          // Trigger re-initialization
+          try {
+            await initializeRailgun();
+            return { success: true, message: 'Re-initialization completed' };
+          } catch (error) {
+            return { success: false, error: error.message };
           }
         }
       };
       
-      // Auto-start security monitoring in development
-      if (process.env.NODE_ENV === 'development') {
-        window.__LEXIE_WALLET_DEBUG__.startSecurityMonitoring();
-      }
-      
-      console.log('🛠️ PRODUCTION RAILGUN Security Debug utilities available:');
-      console.log('- window.__LEXIE_WALLET_DEBUG__.getCurrentWalletInfo()');
-      console.log('- window.__LEXIE_WALLET_DEBUG__.auditStoredWallets()');
-      console.log('- window.__LEXIE_WALLET_DEBUG__.verifyEncryption()');
-      console.log('- window.__LEXIE_WALLET_DEBUG__.emergencyClearAllWalletData()');
-      console.log('- window.__LEXIE_WALLET_DEBUG__.startSecurityMonitoring()');
+      console.log('🛠️ Railgun debug utilities available:');
+      console.log('- window.__LEXIE_RAILGUN_DEBUG__.checkEncryptedData()');
+      console.log('- window.__LEXIE_RAILGUN_DEBUG__.clearEncryptedData()');
+      console.log('- window.__LEXIE_RAILGUN_DEBUG__.forceReinitialize()');
     }
-  }, [address, railgunAddress, railgunWalletID, isRailgunInitialized, chainId, isConnected]);
+  }, [address, isConnected, railgunAddress, isRailgunInitialized, initializeRailgun]);
 
   const value = {
     isConnected,
@@ -721,8 +487,8 @@ const WalletContextProvider = ({ children }) => {
     connectWallet,
     disconnectWallet,
     switchChain: (chainId) => switchChain({ chainId }),
-    switchNetwork: (chainId) => switchChain({ chainId }), // Add this for components calling switchNetwork directly
-    signMessage: signMessageAsync, // Add direct access to sign message function
+    switchNetwork: (chainId) => switchChain({ chainId }),
+    signMessage: signMessageAsync,
     isRailgunInitialized,
     initializeRailgun,
     railgunAddress,
@@ -733,46 +499,32 @@ const WalletContextProvider = ({ children }) => {
     canUseRailgun: isRailgunInitialized,
     railgunWalletId: railgunWalletID,
     
-    // 🔍 Add connection state debugging
-    connectedWalletType: connector?.id || localStorage.getItem('connected-wallet-type'),
-    connectedWalletName: connector?.name || localStorage.getItem('connected-wallet-name'),
+    // Connection info
+    connectedWalletType: connector?.id,
+    connectedWalletName: connector?.name,
     
     getCurrentNetwork: () => {
-      const networkNames = {
-        1: 'Ethereum',
-        137: 'Polygon',
-        42161: 'Arbitrum',
-        56: 'BSC'
-      };
-      return { 
-        id: chainId, 
-        name: networkNames[chainId] || `Chain ${chainId}` 
-      };
+      const networkNames = { 1: 'Ethereum', 137: 'Polygon', 42161: 'Arbitrum', 56: 'BSC' };
+      return { id: chainId, name: networkNames[chainId] || `Chain ${chainId}` };
     },
+    
     supportedNetworks: { 1: true, 137: true, 42161: true, 56: true },
     walletProviders: { METAMASK: 'metamask', WALLETCONNECT: 'walletconnect' },
-    walletProvider: getCurrentWalletProvider(), // Add current wallet provider
     
-    // 🛡️ Enhanced wallet availability checking
     isWalletAvailable: (type) => {
       if (type === 'metamask') return !!window.ethereum?.isMetaMask;
-      if (type === 'walletconnect') return true; // WalletConnect is always available
+      if (type === 'walletconnect') return true;
       return false;
     },
     
-    // 🔍 Debugging utilities
     getConnectionDebugInfo: () => ({
       isConnected,
       connectorId: connector?.id,
       connectorName: connector?.name,
-      savedWalletType: localStorage.getItem('connected-wallet-type'),
-      savedWalletName: localStorage.getItem('connected-wallet-name'),
-      hasConnectorClient: !!connectorClient,
-      hasProvider: !!getCurrentWalletProvider(),
-      providerType: getCurrentWalletProvider()?.constructor?.name || 'unknown'
+      railgunInitialized: isRailgunInitialized,
+      railgunAddress,
+      railgunWalletID: railgunWalletID?.slice(0, 8) + '...',
     }),
-    
-    getCurrentWalletProvider,
   };
 
   return (
