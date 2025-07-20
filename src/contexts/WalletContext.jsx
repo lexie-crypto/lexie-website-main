@@ -112,8 +112,6 @@ const WalletContextProvider = ({ children }) => {
   const getCurrentWalletProvider = () => {
     // If we have a connector client (connected wallet), use wagmi's signMessage
     if (connectorClient && signMessageAsync) {
-      const walletName = connectorClient?.connector?.name || 'Connected Wallet';
-      console.log(`🔗 Using wallet provider: ${walletName}`);
       return {
         request: async ({ method, params }) => {
           try {
@@ -257,24 +255,15 @@ const WalletContextProvider = ({ children }) => {
         const nonce = crypto.getRandomValues(new Uint32Array(4)).join('');
         const signatureMessage = `RAILGUN Wallet Creation\nAddress: ${address}\nTimestamp: ${timestamp}\nNonce: ${nonce}\n\nSign this message to create your secure RAILGUN privacy wallet.`;
         
-        // Request signature from user using wagmi's signMessageAsync (works with all wallet types)
-        const connectorName = connectorClient?.connector?.name || 'Unknown Wallet';
-        console.log(`📝 Requesting signature from connected wallet: ${connectorName}...`);
-        
-        if (signMessageAsync) {
-          try {
-            signature = await signMessageAsync({ 
-              message: signatureMessage 
-            });
-            console.log(`✅ Signature received from ${connectorName}`);
-          } catch (signError) {
-            if (signError.message?.includes('User rejected') || signError.message?.includes('denied')) {
-              throw new Error(`User rejected signature request in ${connectorName}. Signature is required to create secure RAILGUN wallet.`);
-            }
-            throw new Error(`${connectorName} signature failed: ${signError.message}`);
-          }
+        // Request signature from user using the proper wallet provider
+        const currentProvider = getCurrentWalletProvider();
+        if (currentProvider?.request) {
+          signature = await currentProvider.request({
+            method: 'personal_sign',
+            params: [signatureMessage, address],
+          });
         } else {
-          throw new Error('Wallet signing not available. Please ensure your wallet is properly connected and try refreshing the page.');
+          throw new Error('No wallet provider available for signature');
         }
         
         // PRODUCTION CRYPTO: Derive secure encryption key using proper cryptography
@@ -465,9 +454,7 @@ const WalletContextProvider = ({ children }) => {
           railgunWalletID: railgunWalletID?.slice(0, 8) + '...',
           isInitialized: isRailgunInitialized,
           chainId,
-          securityLevel: 'PRODUCTION_CRYPTOGRAPHIC',
-          connectorName: connectorClient?.connector?.name || null,
-          connectorId: connectorClient?.connector?.id || null
+          securityLevel: 'PRODUCTION_CRYPTOGRAPHIC'
         }),
         
         // SECURITY AUDIT: Check all stored wallet IDs for uniqueness
@@ -617,7 +604,7 @@ const WalletContextProvider = ({ children }) => {
       console.log('- window.__LEXIE_WALLET_DEBUG__.emergencyClearAllWalletData()');
       console.log('- window.__LEXIE_WALLET_DEBUG__.startSecurityMonitoring()');
     }
-  }, [address, railgunAddress, railgunWalletID, isRailgunInitialized, chainId, isConnected, connectorClient, signMessageAsync]);
+  }, [address, railgunAddress, railgunWalletID, isRailgunInitialized, chainId, isConnected]);
 
   const value = {
     isConnected,
@@ -653,7 +640,6 @@ const WalletContextProvider = ({ children }) => {
     supportedNetworks: { 1: true, 137: true, 42161: true, 56: true },
     walletProviders: { METAMASK: 'metamask', WALLETCONNECT: 'walletconnect' },
     walletProvider: getCurrentWalletProvider(), // Add current wallet provider
-    connectorName: connectorClient?.connector?.name || null, // Current wallet name
     isWalletAvailable: (type) => {
       if (type === 'metamask') return !!window.ethereum?.isMetaMask;
       if (type === 'walletconnect') return true; // WalletConnect is always available
