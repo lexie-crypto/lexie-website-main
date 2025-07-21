@@ -25,8 +25,19 @@ import {
 import { waitForRailgunReady } from './engine.js';
 import { createGasDetails, validateGasDetails } from './tx-gas-details.js';
 import { estimateGasWithBroadcasterFee } from './tx-gas-broadcaster-fee-estimator.js';
-// Import the helper function
-import { getRailgunTxidVersionForNetwork } from '@railgun-community/engine';
+// Remove incorrect import and use the proper approach
+// import { getRailgunTxidVersionForNetwork } from '@railgun-community/engine';
+
+/**
+ * Get the appropriate TXID version for a network
+ * @param {NetworkName} networkName - The network name
+ * @returns {TXIDVersion} The TXID version to use
+ */
+const getTxidVersionForNetwork = (networkName) => {
+  // For now, use V2 for all networks - this can be updated based on network requirements
+  // In the future, this could check network configuration to determine if V3 is supported
+  return TXIDVersion.V2_PoseidonMerkle;
+};
 
 /**
  * Transaction types for different operations
@@ -198,7 +209,7 @@ export const generateTransferTransaction = async ({
     }
 
     // Dynamically retrieve txidVersion for the connected chain
-    const txidVersion = getRailgunTxidVersionForNetwork(networkName);
+    const txidVersion = getTxidVersionForNetwork(networkName);
 
     // Update transaction config with the correct txidVersion
     txConfig = {
@@ -345,7 +356,7 @@ export const generateCrossContractTransaction = async ({
     }
 
     // Dynamically retrieve txidVersion for the connected chain
-    const txidVersion = getRailgunTxidVersionForNetwork(networkName);
+    const txidVersion = getTxidVersionForNetwork(networkName);
 
     // Update transaction config with the correct txidVersion
     txConfig = {
