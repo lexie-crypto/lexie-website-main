@@ -378,18 +378,16 @@ export const isRailgunReady = () => {
   return isEngineStarted && isProverLoaded && areArtifactsLoaded;
 };
 
-let lastRefreshTime = 0;
-let isScanning = false;
+let lastCall = 0;
+let running = false;
 
 export const refreshBalances = async (walletID, networkName) => {
+  if (running || Date.now() - lastCall < 30000) {
+    console.log('[RAILGUN] Skipping refreshBalances due to throttling or ongoing scan');
+    return;
+  }
+  running = true;
   try {
-    const currentTime = Date.now();
-    if (isScanning || (currentTime - lastRefreshTime < 30000)) {
-      console.log('[RAILGUN] Skipping refreshBalances due to throttling or ongoing scan');
-      return;
-    }
-
-    isScanning = true;
     await waitForRailgunReady();
 
     const retryWithBackoff = async (fn, retries = 5, delay = 1000) => {
@@ -401,20 +399,38 @@ export const refreshBalances = async (walletID, networkName) => {
           await new Promise(resolve => setTimeout(resolve, delay));
           return retryWithBackoff(fn, retries - 1, delay * 2);
         }
+        if (error.message.includes('Invalid fallback provider config')) {
+          console.warn('[RAILGUN] Skipping scan: fallback provider invalid');
+          return;
+        }
         throw error;
       }
     };
 
     await retryWithBackoff(() => refreshRailgunBalances(networkName, walletID));
 
-    lastRefreshTime = Date.now();
+    lastCall = Date.now();
     console.log('[RAILGUN] Balances refreshed for:', { walletID: walletID?.slice(0, 8) + '...', networkName });
   } catch (error) {
     console.error('[RAILGUN] Failed to refresh balances:', error);
     throw error;
   } finally {
-    isScanning = false;
+    running = false;
   }
+};
+
+let alreadyStarted = false;
+
+export const initializeRailgunSingleton = async () => {
+  if (alreadyStarted) return;
+  alreadyStarted = true;
+  await startRailgunEngine();
+};
+
+export const setupRailgunProviders = async () => {
+  if (alreadyStarted) return;
+  alreadyStarted = true;
+  // Setup providers logic here
 };
 
 /**
@@ -468,4 +484,18 @@ export const isProviderLoaded = async (chainId) => {
     return false;
   }
 }; 
+
+let refreshTimer = null;
+
+export const scheduleBalanceRefresh = (walletID, networkName) => {
+  if (refreshTimer) return;
+  refreshTimer = setTimeout(() => {
+    refreshBalances(walletID, networkName);
+    refreshTimer = null;
+  }, 30000); // only once every 30s
+};
+
+// Replace direct calls to refreshBalances with scheduleBalanceRefresh
+// Example usage:
+// scheduleBalanceRefresh(walletID, networkName); 
 
