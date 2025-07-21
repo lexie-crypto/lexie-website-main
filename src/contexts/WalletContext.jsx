@@ -11,6 +11,7 @@ import { metaMask, walletConnect } from 'wagmi/connectors';
 import { WagmiProvider, useAccount, useConnect, useDisconnect, useSwitchChain, useConnectorClient, useSignMessage } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/environment';
+import { NetworkName } from '@railgun-community/shared-models';
 
 // Create a client for React Query
 const queryClient = new QueryClient();
@@ -432,8 +433,7 @@ const WalletContextProvider = ({ children }) => {
           );
           
           // Load providers with connected wallet for fast path too  
-          const { loadProvider } = await import('@railgun-community/wallet');
-          const { NetworkName } = await import('@railgun-community/shared-models');
+                  const { loadProvider } = await import('@railgun-community/wallet');
           
           // Check global rate limiter before loading providers
           resetRPCLimiter();
@@ -559,7 +559,6 @@ const WalletContextProvider = ({ children }) => {
         setOnBalanceUpdateCallback,
       } = await import('@railgun-community/wallet');
       
-      const { NetworkName } = await import('@railgun-community/shared-models');
       console.log('✅ Official Railgun SDK imported');
 
       // Step 1: Initialize Railgun Engine with official SDK
@@ -893,7 +892,6 @@ const WalletContextProvider = ({ children }) => {
         console.log('🔄 Updating Railgun providers for chain change...', { chainId });
         
         const { loadProvider } = await import('@railgun-community/wallet');
-        const { NetworkName } = await import('@railgun-community/shared-models');
         
         const networkConfigs = [
           { networkName: NetworkName.Ethereum, rpcUrl: RPC_URLS.ethereum, chainId: 1 },
