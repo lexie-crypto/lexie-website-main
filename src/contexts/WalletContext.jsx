@@ -115,6 +115,38 @@ const WalletContextProvider = ({ children }) => {
   const { data: connectorClient } = useConnectorClient();
   const { signMessageAsync } = useSignMessage();
 
+  // RPC Retry wrapper to limit consecutive calls to Alchemy
+  const withRPCRetryLimit = async (providerLoadFn, networkName, maxRetries = 3) => {
+    let lastError = null;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`[RPC-Retry] Attempt ${attempt}/${maxRetries} for ${networkName}`);
+        
+        const result = await providerLoadFn();
+        
+        console.log(`[RPC-Retry] ✅ Success on attempt ${attempt} for ${networkName}`);
+        return result;
+        
+      } catch (error) {
+        lastError = error;
+        console.warn(`[RPC-Retry] ❌ Attempt ${attempt}/${maxRetries} failed for ${networkName}:`, error.message);
+        
+        if (attempt === maxRetries) {
+          console.error(`[RPC-Retry] 🚫 All ${maxRetries} attempts failed for ${networkName}. Giving up.`);
+          throw new Error(`Failed to load provider for ${networkName} after ${maxRetries} attempts: ${error.message}`);
+        }
+        
+        // Wait before retry (exponential backoff)
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // 1s, 2s, 4s max
+        console.log(`[RPC-Retry] ⏳ Waiting ${delay}ms before retry ${attempt + 1} for ${networkName}`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    
+    throw lastError;
+  };
+
   // Get wallet signer for SDK operations using actual connected wallet
   const getWalletSigner = async () => {
     if (!connector) {
@@ -313,7 +345,11 @@ const WalletContextProvider = ({ children }) => {
                 }]
               };
 
-              await loadProvider(fallbackProviderConfig, networkName, 15000);
+              // Wrap loadProvider with retry limit
+              await withRPCRetryLimit(
+                () => loadProvider(fallbackProviderConfig, networkName, 15000),
+                networkName
+              );
             } catch (error) {
               console.warn(`⚠️ Fast path provider load failed for ${networkName}:`, error);
             }
@@ -462,7 +498,11 @@ const WalletContextProvider = ({ children }) => {
             }]
           };
 
-          await loadProvider(fallbackProviderConfig, networkName, 15000);
+          // Wrap loadProvider with retry limit
+          await withRPCRetryLimit(
+            () => loadProvider(fallbackProviderConfig, networkName, 15000),
+            networkName
+          );
           console.log(`✅ Provider loaded for ${networkName}`, {
             usingConnectedWallet: primaryProvider !== rpcUrl,
             currentChain: netChainId === chainId
@@ -722,7 +762,11 @@ const WalletContextProvider = ({ children }) => {
               }]
             };
 
-            await loadProvider(fallbackProviderConfig, currentNetwork.networkName, 15000);
+            // Wrap loadProvider with retry limit
+            await withRPCRetryLimit(
+              () => loadProvider(fallbackProviderConfig, currentNetwork.networkName, 15000),
+              currentNetwork.networkName
+            );
             console.log(`✅ Updated Railgun provider for ${currentNetwork.networkName} with connected wallet`);
           } else {
             console.warn('⚠️ No EIP-1193 provider available from connector');
