@@ -138,8 +138,48 @@ const WalletContextProvider = ({ children }) => {
           resetRPCLimiter();
           
           if (rpcLimiter.current.isBlocked) {
-            console.warn('[RPC-Interceptor] 🚫 Blocked RPC call to:', url);
-            throw new Error('RPC call blocked due to rate limiting');
+            // Parse the request body to check the method
+            let method = 'unknown';
+            try {
+              if (options?.body) {
+                const body = JSON.parse(options.body);
+                method = body.method || 'unknown';
+              }
+            } catch (e) {
+              // Failed to parse body, use default blocking
+            }
+            
+            // Block only balance/log polling methods that cause spam
+            const blockedMethods = [
+              'eth_getLogs',           // Balance polling
+              'eth_getBalance',        // Balance checks
+              'eth_call',              // Contract calls for balance checks
+              'eth_getTransactionReceipt', // Transaction receipt polling
+            ];
+            
+            // Allow essential methods for transactions
+            const allowedMethods = [
+              'eth_gasPrice',          // Gas price for transactions
+              'eth_estimateGas',       // Gas estimation
+              'eth_sendTransaction',   // Sending transactions  
+              'eth_getTransactionCount', // Nonce
+              'eth_chainId',           // Chain ID
+              'eth_blockNumber',       // Current block
+              'net_version',           // Network version
+            ];
+            
+            if (blockedMethods.includes(method)) {
+              console.warn(`[RPC-Interceptor] 🚫 Blocked ${method} call to:`, url);
+              throw new Error(`RPC call blocked due to rate limiting: ${method}`);
+            }
+            
+            if (allowedMethods.includes(method)) {
+              console.log(`[RPC-Interceptor] ✅ Allowing essential ${method} call for transactions`);
+              return originalFetch.apply(window, args);
+            }
+            
+            // For unknown methods when blocked, log and allow (conservative approach)
+            console.warn(`[RPC-Interceptor] ⚠️ Unknown method ${method} - allowing due to uncertainty`);
           }
         }
         
@@ -542,8 +582,50 @@ const WalletContextProvider = ({ children }) => {
       // Check global rate limiter before loading providers
       resetRPCLimiter();
       if (rpcLimiter.current.isBlocked) {
-        console.warn('[RPC-Limiter] 🚫 Global RPC limit reached. Skipping provider loading in full initialization.');
-        // Continue without provider loading - Railgun can still work with basic functionality
+        console.warn('[RPC-Limiter] 🚫 Global RPC limit reached. Limiting provider loading to current chain only.');
+        // Only load provider for current chain when rate limited - this is essential for transactions
+        const currentChainConfig = networkConfigs.find(config => config.chainId === chainId);
+        if (currentChainConfig) {
+          console.log('[RPC-Limiter] ⚡ Loading provider for current chain despite rate limit (essential for transactions)');
+          try {
+            let primaryProvider = currentChainConfig.rpcUrl;
+            
+            if (connector && currentChainConfig.chainId === chainId) {
+              try {
+                const eip1193Provider = await connector.getProvider();
+                if (eip1193Provider) {
+                  primaryProvider = eip1193Provider;
+                  console.log(`✅ Full init: Connected wallet provider for ${currentChainConfig.networkName} (current chain)`);
+                }
+              } catch (providerError) {
+                console.warn(`⚠️ Full init: Using RPC fallback for ${currentChainConfig.networkName}`);
+              }
+            }
+            
+            const fallbackProviderConfig = {
+              chainId: currentChainConfig.chainId,
+              providers: [{
+                provider: primaryProvider,
+                priority: 1,
+                weight: 2,
+              }, {
+                provider: currentChainConfig.rpcUrl,
+                priority: 2,
+                weight: 1,
+              }]
+            };
+
+            // Load provider for current chain only
+            await withRPCRetryLimit(
+              () => loadProvider(fallbackProviderConfig, currentChainConfig.networkName, 15000),
+              currentChainConfig.networkName,
+              1 // Reduced retries when rate limited
+            );
+            console.log(`✅ Provider loaded for current chain ${currentChainConfig.networkName} despite rate limit`);
+          } catch (error) {
+            console.warn(`⚠️ Failed to load provider for current chain ${currentChainConfig.networkName}:`, error);
+          }
+        }
       } else {
         for (const { networkName, rpcUrl, chainId: netChainId } of networkConfigs) {
           try {
