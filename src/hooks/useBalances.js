@@ -69,18 +69,18 @@ export function useBalances() {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [tokenPrices, setTokenPrices] = useState({});
   
-  // Force re-render counter to fix UI desync issues
+  // Force re-render counter to fix UI desync issues - FIXED: Make more stable
   const [, forceUpdate] = useState({});
   const forceRerender = useCallback(() => {
     console.log('[useBalances] 🔄 Force re-render triggered');
     forceUpdate({});
-  }, []);
+  }, []); // Empty dependency array to make it stable
   
   // Stable reference for setter functions
   const setPrivateBalancesRef = useRef(setPrivateBalances);
   setPrivateBalancesRef.current = setPrivateBalances;
 
-  // Enhanced balance setter with force re-render
+  // Enhanced balance setter with force re-render - FIXED: More stable dependencies
   const updatePrivateBalances = useCallback((newBalances) => {
     console.log('[useBalances] 🔄 Updating private balances with force re-render:', {
       count: newBalances?.length || 0,
@@ -102,9 +102,9 @@ export function useBalances() {
     
     // Force a re-render to ensure UI updates
     forceRerender();
-  }, [forceRerender]);
+  }, []); // Empty dependency array - use the stable forceRerender
 
-  // Register global hook reference for direct UI updates from balance callbacks
+  // Register global hook reference for direct UI updates from balance callbacks - FIXED: Remove function deps
   useEffect(() => {
     if (typeof window !== 'undefined') {
       console.log('[useBalances] 🔗 Registering enhanced global hook reference for direct UI updates');
@@ -123,7 +123,7 @@ export function useBalances() {
         }
       };
     }
-  }, [updatePrivateBalances, forceRerender]);
+  }, []); // FIXED: Empty dependency array to prevent infinite loops
 
   // Load cached private balances immediately on mount
   useEffect(() => {
@@ -158,7 +158,7 @@ export function useBalances() {
         }
       }
     }
-  }, [railgunWalletId, chainId, updatePrivateBalances]);
+  }, [railgunWalletId, chainId]); // FIXED: Removed updatePrivateBalances dependency
 
   // Fetch and cache token prices
   const fetchAndCachePrices = useCallback(async (symbols) => {
@@ -452,7 +452,7 @@ export function useBalances() {
     });
   }, []);
 
-  // Initial load when wallet connects
+  // Initial load when wallet connects - FIXED: Remove function dependency to prevent infinite loops
   useEffect(() => {
     if (address && chainId) {
       refreshAllBalances();
@@ -462,18 +462,18 @@ export function useBalances() {
       updatePrivateBalances([]);
       setLastUpdated(null);
     }
-  }, [address, chainId, refreshAllBalances]);
+  }, [address, chainId]); // Removed refreshAllBalances dependency
 
-  // Refresh private balances when Railgun wallet changes
+  // Refresh private balances when Railgun wallet changes - FIXED: Remove function dependency
   useEffect(() => {
-    if (railgunWalletId) {
+    if (railgunWalletId && chainId) {
       fetchPrivateBalances().then(balances => {
         updatePrivateBalances(balances);
       });
     } else {
       updatePrivateBalances([]);
     }
-  }, [railgunWalletId, fetchPrivateBalances]);
+  }, [railgunWalletId, chainId]); // Removed fetchPrivateBalances dependency, added chainId for safety
 
   // Create stable refs to avoid stale closures in event listeners
   const stableRefs = useRef({
