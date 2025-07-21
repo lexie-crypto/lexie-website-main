@@ -69,12 +69,46 @@ export function useBalances() {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [tokenPrices, setTokenPrices] = useState({});
   
+  // 🛑 CRITICAL: Add a disabled state to completely stop all balance operations when wallet disconnected
+  const [isBalanceSystemEnabled, setIsBalanceSystemEnabled] = useState(false);
+  
   // Force re-render counter to fix UI desync issues - FIXED: Make more stable
   const [, forceUpdate] = useState({});
   const forceRerender = useCallback(() => {
     console.log('[useBalances] 🔄 Force re-render triggered');
     forceUpdate({});
   }, []); // Empty dependency array to make it stable
+  
+  // 🛑 CRITICAL: Master switch to enable/disable balance system based on wallet connection
+  useEffect(() => {
+    const shouldBeEnabled = !!(address && chainId);
+    
+    if (shouldBeEnabled !== isBalanceSystemEnabled) {
+      if (shouldBeEnabled) {
+        console.log('[useBalances] 🟢 ENABLING balance system - wallet connected:', {
+          address: address?.slice(0, 8) + '...',
+          chainId
+        });
+        setIsBalanceSystemEnabled(true);
+      } else {
+        console.log('[useBalances] 🔴 DISABLING balance system - wallet disconnected');
+        setIsBalanceSystemEnabled(false);
+        
+        // 🧹 AGGRESSIVE CLEANUP when disabling
+        setPublicBalances([]);
+        setPrivateBalances([]);
+        setLastUpdated(null);
+        setError(null);
+        setLoading(false);
+        setTokenPrices({});
+        
+        // Clear global balance exposure
+        if (typeof window !== 'undefined') {
+          window.__LEXIE_BALANCES__ = [];
+        }
+      }
+    }
+  }, [address, chainId, isBalanceSystemEnabled]);
   
   // Stable reference for setter functions
   const setPrivateBalancesRef = useRef(setPrivateBalances);
@@ -104,34 +138,43 @@ export function useBalances() {
     forceRerender();
   }, []); // Empty dependency array - use the stable forceRerender
 
-  // Register global hook reference for direct UI updates from balance callbacks - FIXED: Remove function deps
+  // Register global hook reference for direct UI updates from balance callbacks - CRITICAL: Only when system enabled
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      console.log('[useBalances] 🔗 Registering enhanced global hook reference for direct UI updates');
-      window.__LEXIE_HOOKS__ = {
-        ...window.__LEXIE_HOOKS__,
-        setPrivateBalances: updatePrivateBalances,
-        forceRerender,
-      };
+      if (isBalanceSystemEnabled) {
+        console.log('[useBalances] 🔗 Registering enhanced global hook reference for direct UI updates');
+        window.__LEXIE_HOOKS__ = {
+          ...window.__LEXIE_HOOKS__,
+          setPrivateBalances: updatePrivateBalances,
+          forceRerender,
+        };
+      } else {
+        console.log('[useBalances] 🔗 Cleaning up global hook reference - system disabled');
+        if (window.__LEXIE_HOOKS__?.setPrivateBalances === updatePrivateBalances) {
+          delete window.__LEXIE_HOOKS__.setPrivateBalances;
+          delete window.__LEXIE_HOOKS__.forceRerender;
+        }
+      }
       
       // Cleanup on unmount
       return () => {
         if (window.__LEXIE_HOOKS__?.setPrivateBalances === updatePrivateBalances) {
           delete window.__LEXIE_HOOKS__.setPrivateBalances;
           delete window.__LEXIE_HOOKS__.forceRerender;
-          console.log('[useBalances] 🔗 Cleaned up enhanced global hook reference');
+          console.log('[useBalances] 🔗 Cleaned up enhanced global hook reference on unmount');
         }
       };
     }
-  }, []); // FIXED: Empty dependency array to prevent infinite loops
+  }, [isBalanceSystemEnabled, updatePrivateBalances, forceRerender]); // Added system enabled dependency
 
-  // Load cached private balances immediately on mount - CRITICAL: Only when wallet connected
+  // Load cached private balances immediately on mount - CRITICAL: Only when system enabled
   useEffect(() => {
-    // 🚫 CRITICAL: Only load cache when wallet is actually connected
-    if (railgunWalletId && chainId && address) {  // ← Added address check!
-      console.log('[useBalances] 🚀 Loading cached private balances on mount for connected wallet...', {
+    // 🛑 CRITICAL: Only load cache when balance system is enabled
+    if (isBalanceSystemEnabled && railgunWalletId && chainId && address) {
+      console.log('[useBalances] 🚀 Loading cached private balances for enabled system...', {
         address: address?.slice(0, 8) + '...',
-        walletId: railgunWalletId?.slice(0, 8) + '...'
+        walletId: railgunWalletId?.slice(0, 8) + '...',
+        systemEnabled: isBalanceSystemEnabled
       });
       
       // Test cache persistence first - only when we have a wallet
@@ -154,7 +197,7 @@ export function useBalances() {
         });
         updatePrivateBalances(cachedPrivateBalances);
       } else {
-        console.log('[useBalances] No cached private balances found for connected wallet');
+        console.log('[useBalances] No cached private balances found for enabled system');
         try {
           debugBalanceCache('after failed cache load');
         } catch (error) {
@@ -162,9 +205,14 @@ export function useBalances() {
         }
       }
     } else {
-      console.log('[useBalances] ⏸️ No wallet connected - skipping cache load to prevent RPC calls');
+      console.log('[useBalances] ⏸️ Cache load blocked:', {
+        systemEnabled: isBalanceSystemEnabled,
+        hasWallet: !!railgunWalletId,
+        hasChain: !!chainId,
+        hasAddress: !!address
+      });
     }
-  }, [railgunWalletId, chainId, address]); // Added address dependency to prevent calls without wallet
+  }, [isBalanceSystemEnabled, railgunWalletId, chainId, address, updatePrivateBalances]); // Added system enabled check
 
   // Fetch and cache token prices
   const fetchAndCachePrices = useCallback(async (symbols) => {
@@ -276,9 +324,11 @@ export function useBalances() {
     }
   }, [getProvider]);
 
-  // Fetch all public balances
+  // Fetch all public balances - CRITICAL: Check if balance system is enabled
   const fetchPublicBalances = useCallback(async () => {
-    if (!address || !chainId) {
+    // 🛑 CRITICAL: Prevent RPC calls when balance system is disabled
+    if (!isBalanceSystemEnabled || !address || !chainId) {
+      console.log('[useBalances] ⏸️ Public balance fetch blocked - system disabled or wallet disconnected');
       return [];
     }
 
@@ -313,13 +363,14 @@ export function useBalances() {
       setError(error.message);
       return [];
     }
-  }, [address, chainId, fetchNativeBalance, fetchTokenBalance]);
+  }, [isBalanceSystemEnabled, address, chainId, fetchNativeBalance, fetchTokenBalance]);
 
-  // Fetch private balances using Railgun - CRITICAL: Only when wallet connected
+  // Fetch private balances using Railgun - CRITICAL: Only when wallet connected AND system enabled
   const fetchPrivateBalances = useCallback(async () => {
-    // 🚫 CRITICAL: Prevent RAILGUN RPC calls when no wallet connected
-    if (!railgunWalletId || !chainId || !address) {
-      console.log('[useBalances] ⏸️ Skipping private balance fetch - missing:', {
+    // 🛑 CRITICAL: Prevent RAILGUN RPC calls when balance system disabled or wallet disconnected
+    if (!isBalanceSystemEnabled || !railgunWalletId || !chainId || !address) {
+      console.log('[useBalances] ⏸️ Private balance fetch blocked:', {
+        systemEnabled: isBalanceSystemEnabled,
         hasWalletId: !!railgunWalletId,
         hasChainId: !!chainId,
         hasAddress: !!address
@@ -339,11 +390,13 @@ export function useBalances() {
       setError(error.message);
       return [];
     }
-  }, [railgunWalletId, chainId]);
+  }, [isBalanceSystemEnabled, railgunWalletId, chainId, address]);
 
-  // Refresh all balances
+  // Refresh all balances - CRITICAL: Check if balance system is enabled
   const refreshAllBalances = useCallback(async () => {
-    if (!address) {
+    // 🛑 CRITICAL: Prevent all balance operations when system is disabled
+    if (!isBalanceSystemEnabled || !address) {
+      console.log('[useBalances] ⏸️ Balance refresh blocked - system disabled or no wallet');
       return;
     }
 
@@ -405,10 +458,16 @@ export function useBalances() {
     } finally {
       setLoading(false);
     }
-  }, [address, chainId]); // FIXED: Removed function dependencies to prevent infinite loops
+  }, [isBalanceSystemEnabled, address, chainId]); // Added isBalanceSystemEnabled to prevent calls when disabled
 
-  // Refresh balances after transactions
+  // Refresh balances after transactions - CRITICAL: Only when system enabled
   const refreshBalancesAfterTransaction = useCallback(async () => {
+    // 🛑 CRITICAL: Prevent post-transaction refresh when system is disabled
+    if (!isBalanceSystemEnabled) {
+      console.log('[useBalances] ⏸️ Post-transaction refresh blocked - balance system disabled');
+      return;
+    }
+    
     console.log('[useBalances] 🔄 Enhanced post-transaction balance refresh...');
     
     // Multiple refresh attempts to catch new transactions
@@ -439,7 +498,7 @@ export function useBalances() {
     }
     
     console.log('[useBalances] 🎉 Enhanced post-transaction refresh completed');
-  }, [railgunWalletId, chainId]); // FIXED: Removed refreshAllBalances dependency
+  }, [isBalanceSystemEnabled, railgunWalletId, chainId]); // Added system enabled check
 
   // Format balance for display
   const formatBalance = useCallback((balance, decimals = 2) => {
@@ -465,39 +524,51 @@ export function useBalances() {
     });
   }, []);
 
-  // Initial load when wallet connects - CRITICAL: Only when wallet is actually connected
+  // Initial load when wallet connects - CRITICAL: Only when system is enabled
   useEffect(() => {
-    // 🚫 CRITICAL: Prevent wasteful RPC calls when no wallet connected
-    if (address && chainId) {
-      console.log('[useBalances] 🚀 Wallet connected - fetching balances:', { address: address?.slice(0, 8) + '...', chainId });
+    // 🛑 CRITICAL: Only fetch when balance system is enabled AND wallet connected
+    if (isBalanceSystemEnabled && address && chainId) {
+      console.log('[useBalances] 🚀 Balance system enabled - fetching balances:', { 
+        address: address?.slice(0, 8) + '...', 
+        chainId,
+        systemEnabled: isBalanceSystemEnabled
+      });
       refreshAllBalances();
     } else {
-      console.log('[useBalances] ⏸️ No wallet connected - clearing balances and preventing RPC calls');
-      // Clear balances when disconnected
-      setPublicBalances([]);
-      updatePrivateBalances([]);
-      setLastUpdated(null);
-      setError(null);
+      console.log('[useBalances] ⏸️ Balance fetching blocked:', {
+        systemEnabled: isBalanceSystemEnabled,
+        hasAddress: !!address,
+        hasChainId: !!chainId
+      });
     }
-  }, [address, chainId]); // Only fetch when BOTH address AND chainId are available
+  }, [isBalanceSystemEnabled, address, chainId, refreshAllBalances]); // Added refreshAllBalances back since we need stable dependencies
 
-  // Refresh private balances when Railgun wallet changes - CRITICAL: Only when wallet connected
+  // Refresh private balances when Railgun wallet changes - CRITICAL: Only when system enabled
   useEffect(() => {
-    // 🚫 CRITICAL: Prevent RAILGUN RPC calls when no wallet connected
-    if (railgunWalletId && chainId && address) {  // ← Added address check!
+    // 🛑 CRITICAL: Only fetch when balance system is enabled
+    if (isBalanceSystemEnabled && railgunWalletId && chainId && address) {
       console.log('[useBalances] 🔐 RAILGUN wallet available - fetching private balances:', { 
         walletId: railgunWalletId?.slice(0, 8) + '...', 
         chainId, 
-        address: address?.slice(0, 8) + '...' 
+        address: address?.slice(0, 8) + '...',
+        systemEnabled: isBalanceSystemEnabled
       });
       fetchPrivateBalances().then(balances => {
         updatePrivateBalances(balances);
       });
     } else {
-      console.log('[useBalances] ⏸️ No RAILGUN wallet or address - preventing private balance RPC calls');
-      updatePrivateBalances([]);
+      console.log('[useBalances] ⏸️ Private balance fetch blocked:', {
+        systemEnabled: isBalanceSystemEnabled,
+        hasRailgunWallet: !!railgunWalletId,
+        hasChainId: !!chainId,
+        hasAddress: !!address
+      });
+      // Only clear if system is disabled (not just missing data)
+      if (!isBalanceSystemEnabled) {
+        updatePrivateBalances([]);
+      }
     }
-  }, [railgunWalletId, chainId, address]); // Added address dependency to prevent calls without wallet
+  }, [isBalanceSystemEnabled, railgunWalletId, chainId, address, fetchPrivateBalances, updatePrivateBalances]);
 
   // Create stable refs to avoid stale closures in event listeners
   const stableRefs = useRef({
@@ -521,8 +592,16 @@ export function useBalances() {
     };
   });
 
-  // Listen for Railgun balance updates with stable refs to avoid stale closures
+  // Listen for Railgun balance updates with stable refs to avoid stale closures - CRITICAL: Only when system enabled
   useEffect(() => {
+    // 🛑 CRITICAL: Only set up event listeners when balance system is enabled
+    if (!isBalanceSystemEnabled) {
+      console.log('[useBalances] ⏸️ Balance system disabled - skipping event listener setup');
+      return;
+    }
+    
+    console.log('[useBalances] 🎧 Setting up balance update event listeners');
+    
     const handleBalanceUpdate = (event) => {
       const {
         railgunWalletId: currentWalletId,
@@ -636,11 +715,13 @@ export function useBalances() {
 
     window.addEventListener('railgun-balance-update', handleBalanceUpdate);
     window.addEventListener('railgun-transaction-confirmed', handleTransactionConfirmed);
+    
     return () => {
+      console.log('[useBalances] 🎧 Cleaning up balance update event listeners');
       window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
       window.removeEventListener('railgun-transaction-confirmed', handleTransactionConfirmed);
     };
-  }, []); // Empty dependency array since we use stable refs
+  }, [isBalanceSystemEnabled]); // Only set up listeners when system is enabled
 
   return {
     // Balance data
