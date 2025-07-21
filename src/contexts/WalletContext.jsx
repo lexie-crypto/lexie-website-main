@@ -240,14 +240,28 @@ const WalletContextProvider = ({ children }) => {
           console.log('hasEngine not available, will attempt engine start');
         }
         
+        // Define retry function for handling RPC failures
+        const retryWithBackoff = async (fn, retries = 3, delay = 1000) => {
+          try {
+            await fn();
+          } catch (error) {
+            if (retries > 0) {
+              console.warn('Retrying due to error:', error);
+              await new Promise(resolve => setTimeout(resolve, delay));
+              return retryWithBackoff(fn, retries - 1, delay * 2);
+            }
+            throw error;
+          }
+        };
+
         // Derive encryption key from existing signature
         const addressBytes = address.toLowerCase().replace('0x', '');
         const signatureBytes = existingSignature.replace('0x', '');
         const combined = signatureBytes + addressBytes;
         const hash = CryptoJS.SHA256(combined);
         const encryptionKey = hash.toString(CryptoJS.enc.Hex).slice(0, 64);
-        
-                // Ensure engine is started (minimal setup for fast path)
+
+        // Ensure engine is started (minimal setup for fast path)
         if (!engineExists) {
           console.log('🔧 Starting minimal Railgun engine for fast path...');
           const LevelJS = (await import('level-js')).default;
@@ -428,6 +442,20 @@ const WalletContextProvider = ({ children }) => {
         { networkName: NetworkName.Arbitrum, rpcUrl: RPC_URLS.arbitrum, chainId: 42161 },
         { networkName: NetworkName.BNBChain, rpcUrl: RPC_URLS.bsc, chainId: 56 },
       ];
+
+      // Define retry function for handling RPC failures
+      const retryWithBackoff = async (fn, retries = 3, delay = 1000) => {
+        try {
+          await fn();
+        } catch (error) {
+          if (retries > 0) {
+            console.warn('Retrying due to error:', error);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            return retryWithBackoff(fn, retries - 1, delay * 2);
+          }
+          throw error;
+        }
+      };
 
       for (const { networkName, rpcUrl, chainId: netChainId } of networkConfigs) {
         try {
@@ -704,6 +732,20 @@ const WalletContextProvider = ({ children }) => {
           console.warn('⚠️ Unsupported chain for Railgun provider update:', chainId);
           return;
         }
+
+        // Define retry function for handling RPC failures
+        const retryWithBackoff = async (fn, retries = 3, delay = 1000) => {
+          try {
+            await fn();
+          } catch (error) {
+            if (retries > 0) {
+              console.warn('Retrying due to error:', error);
+              await new Promise(resolve => setTimeout(resolve, delay));
+              return retryWithBackoff(fn, retries - 1, delay * 2);
+            }
+            throw error;
+          }
+        };
 
         // Update provider for current chain with connected wallet
         try {

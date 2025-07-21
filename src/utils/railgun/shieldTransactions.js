@@ -269,6 +269,16 @@ export const createShieldTransaction = async (
   gasDetails
 ) => {
   try {
+    console.log('[ShieldTransactions] createShieldTransaction called with:', {
+      txidVersion,
+      txidVersionType: typeof txidVersion,
+      networkName,
+      hasShieldPrivateKey: !!shieldPrivateKey,
+      erc20RecipientsCount: erc20AmountRecipients?.length || 0,
+      nftRecipientsCount: nftAmountRecipients?.length || 0,
+      hasGasDetails: !!gasDetails
+    });
+
     const result = await populateShield(
       txidVersion,
       networkName,
@@ -283,6 +293,11 @@ export const createShieldTransaction = async (
       preTransactionPOIsPerTxidLeafPerList: result.preTransactionPOIsPerTxidLeafPerList || {},
     };
   } catch (error) {
+    console.error('[ShieldTransactions] createShieldTransaction error:', {
+      error: error.message,
+      txidVersion,
+      networkName
+    });
     throw new Error(`Shield transaction creation failed: ${error.message}`);
   }
 };
@@ -344,6 +359,25 @@ export const shieldTokens = async ({
     // Get network configuration
     const networkName = getRailgunNetworkName(chain.id);
 
+    // Validate that the network is supported
+    const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
+    if (!NETWORK_CONFIG[networkName]) {
+      throw new Error(`Network ${networkName} is not supported by Railgun`);
+    }
+
+    // Ensure the provider is loaded for this network
+    try {
+      const { getFallbackProviderForNetwork } = await import('@railgun-community/wallet');
+      const provider = getFallbackProviderForNetwork(networkName);
+      if (!provider) {
+        throw new Error(`Provider not loaded for network ${networkName}`);
+      }
+      console.log('[ShieldTransactions] Provider confirmed for network:', networkName);
+    } catch (providerError) {
+      console.error('[ShieldTransactions] Provider check failed:', providerError);
+      throw new Error(`Railgun provider not ready for network ${networkName}. Please ensure wallet is connected and network is initialized.`);
+    }
+
     // Get the appropriate TXID version for the network
     const getTxidVersionForNetwork = (networkName) => {
       // For now, use V2 for all networks - this can be updated based on network requirements
@@ -353,10 +387,19 @@ export const shieldTokens = async ({
 
     const txidVersion = getTxidVersionForNetwork(networkName);
 
+    console.log('[ShieldTransactions] Debug txidVersion:', {
+      networkName,
+      txidVersion,
+      txidVersionType: typeof txidVersion,
+      chainId: chain.id,
+      networkConfig: NETWORK_CONFIG[networkName] ? 'found' : 'missing'
+    });
+
     console.log('[ShieldTransactions] Starting shield operation:', {
       tokenAddress,
       amount,
       networkName,
+      txidVersion,
       fromAddress: `${fromAddress.slice(0, 8)}...`,
       railgunAddress: `${railgunAddress.slice(0, 10)}...`,
     });
