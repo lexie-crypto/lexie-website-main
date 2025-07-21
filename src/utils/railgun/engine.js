@@ -106,19 +106,6 @@ const setupNetworks = async () => {
           continue;
         }
         
-        // Check if provider is already loaded
-        const isLoaded = await isProviderLoaded(config.chainId);
-        if (isLoaded) {
-          console.log(`[RAILGUN] Provider already loaded for ${networkName}`);
-          continue;
-        }
-
-        // Ensure fallback provider is defined
-        if (!config.rpcUrl) {
-          console.error(`[RAILGUN] No fallback provider defined for ${networkName}`);
-          continue;
-        }
-
         // Step 2: Then load the provider
         const providerConfig = {
           chainId: config.chainId,
@@ -378,59 +365,18 @@ export const isRailgunReady = () => {
   return isEngineStarted && isProverLoaded && areArtifactsLoaded;
 };
 
-let lastCall = 0;
-let running = false;
-
+/**
+ * Refresh balances for a specific wallet and network
+ */
 export const refreshBalances = async (walletID, networkName) => {
-  if (running || Date.now() - lastCall < 30000) {
-    console.log('[RAILGUN] Skipping refreshBalances due to throttling or ongoing scan');
-    return;
-  }
-  running = true;
   try {
     await waitForRailgunReady();
-
-    const retryWithBackoff = async (fn, retries = 5, delay = 1000) => {
-      try {
-        await fn();
-      } catch (error) {
-        if (retries > 0 && error.code === -32005) {
-          console.warn('[RAILGUN] Rate limit hit, retrying with backoff...', { retries, delay });
-          await new Promise(resolve => setTimeout(resolve, delay));
-          return retryWithBackoff(fn, retries - 1, delay * 2);
-        }
-        if (error.message.includes('Invalid fallback provider config')) {
-          console.warn('[RAILGUN] Skipping scan: fallback provider invalid');
-          return;
-        }
-        throw error;
-      }
-    };
-
-    await retryWithBackoff(() => refreshRailgunBalances(networkName, walletID));
-
-    lastCall = Date.now();
+    await refreshRailgunBalances(networkName, walletID);
     console.log('[RAILGUN] Balances refreshed for:', { walletID: walletID?.slice(0, 8) + '...', networkName });
   } catch (error) {
     console.error('[RAILGUN] Failed to refresh balances:', error);
     throw error;
-  } finally {
-    running = false;
   }
-};
-
-let alreadyStarted = false;
-
-export const initializeRailgunSingleton = async () => {
-  if (alreadyStarted) return;
-  alreadyStarted = true;
-  await startRailgunEngine();
-};
-
-export const setupRailgunProviders = async () => {
-  if (alreadyStarted) return;
-  alreadyStarted = true;
-  // Setup providers logic here
 };
 
 /**
@@ -484,18 +430,4 @@ export const isProviderLoaded = async (chainId) => {
     return false;
   }
 }; 
-
-let refreshTimer = null;
-
-export const scheduleBalanceRefresh = (walletID, networkName) => {
-  if (refreshTimer) return;
-  refreshTimer = setTimeout(() => {
-    refreshBalances(walletID, networkName);
-    refreshTimer = null;
-  }, 30000); // only once every 30s
-};
-
-// Replace direct calls to refreshBalances with scheduleBalanceRefresh
-// Example usage:
-// scheduleBalanceRefresh(walletID, networkName); 
 
