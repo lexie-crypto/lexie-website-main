@@ -305,26 +305,8 @@ export const transferTokens = async ({
               listener: async (event) => {
                 console.log(`[RailgunActions] ✅ Transfer tx ${txHash} indexed on chain ${chainId}`);
                 
-                // Trigger balance refresh as specified
-                try {
-                  const { refreshBalances } = await import('@railgun-community/wallet');
-                  const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
-                  
-                  const networkName = {
-                    1: NetworkName.Ethereum,
-                    42161: NetworkName.Arbitrum,
-                    137: NetworkName.Polygon,
-                    56: NetworkName.BNBChain,
-                  }[chainId];
-                  
-                  if (networkName && NETWORK_CONFIG[networkName]) {
-                    const { chain } = NETWORK_CONFIG[networkName];
-                    await refreshBalances(chain, [railgunWalletID]);
-                    console.log('[RailgunActions] ✅ Balance refresh completed for transfer');
-                  }
-                } catch (refreshError) {
-                  console.error('[RailgunActions] Balance refresh failed after transfer:', refreshError);
-                }
+                // 🎯 FIXED: Just log - let useBalances hook handle refresh when appropriate
+                console.log('[RailgunActions] Transfer confirmed and indexed! Balance will update via event system.');
               }
             })
             .then((monitorResult) => {

@@ -291,28 +291,8 @@ const PrivacyActions = () => {
           listener: async (event) => {
             console.log(`[PrivacyActions] ✅ Shield tx ${txResponse} indexed on chain ${chainConfig.id}`);
             
-            // Trigger balance refresh as specified
-            try {
-              const { refreshBalances } = await import('@railgun-community/wallet');
-              const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
-              
-              const networkName = {
-                1: NetworkName.Ethereum,
-                42161: NetworkName.Arbitrum,
-                137: NetworkName.Polygon,
-                56: NetworkName.BNBChain,
-              }[chainConfig.id];
-              
-              if (networkName && NETWORK_CONFIG[networkName]) {
-                const { chain } = NETWORK_CONFIG[networkName];
-                await refreshBalances(chain, [railgunWalletId]);
-                console.log('[PrivacyActions] ✅ Balance refresh completed for shield');
-                toast.success(`Shield confirmed and indexed! Balance updated.`);
-              }
-            } catch (refreshError) {
-              console.error('[PrivacyActions] Balance refresh failed:', refreshError);
-              toast.info('Shield confirmed! Balance will update via callback.');
-            }
+            // 🎯 FIXED: Just show success message - let useBalances hook handle refresh when appropriate
+            toast.success(`Shield confirmed and indexed! Balance will update automatically.`);
           }
         })
         .then((result) => {
@@ -407,28 +387,8 @@ const PrivacyActions = () => {
           listener: async (event) => {
             console.log(`[PrivacyActions] ✅ Unshield tx ${result.transactionHash} indexed on chain ${chainConfig.id}`);
             
-            // Trigger balance refresh as specified
-            try {
-              const { refreshBalances } = await import('@railgun-community/wallet');
-              const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
-              
-              const networkName = {
-                1: NetworkName.Ethereum,
-                42161: NetworkName.Arbitrum,
-                137: NetworkName.Polygon,
-                56: NetworkName.BNBChain,
-              }[chainConfig.id];
-              
-              if (networkName && NETWORK_CONFIG[networkName]) {
-                const { chain } = NETWORK_CONFIG[networkName];
-                await refreshBalances(chain, [railgunWalletId]);
-                console.log('[PrivacyActions] ✅ Balance refresh completed for unshield');
-                toast.success(`Unshield confirmed and indexed! Balance updated.`);
-              }
-            } catch (refreshError) {
-              console.error('[PrivacyActions] Balance refresh failed:', refreshError);
-              toast.info('Unshield confirmed! Balance will update via callback.');
-            }
+            // 🎯 FIXED: Just show success message - let useBalances hook handle refresh when appropriate
+            toast.success(`Unshield confirmed and indexed! Balance will update automatically.`);
           }
         })
         .then((monitorResult) => {

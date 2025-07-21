@@ -476,10 +476,9 @@ export const monitorTransactionInGraph = async ({
       const hasEvent = events.length > 0;
 
       if (hasEvent) {
-        console.log('[TransactionMonitor] 🎉 Event confirmed in Graph, proceeding with balance refresh');
+        console.log('[TransactionMonitor] 🎉 Event confirmed in Graph, dispatching transaction confirmed event');
 
-        // Trigger balance refresh and dispatch event
-        await refreshBalances(chain, [railgunWalletId]);
+        // 🎯 FIXED: Just dispatch event - let useBalances hook handle refresh when appropriate
         window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
           detail: { txHash, chainId, transactionType }
         }));
@@ -546,28 +545,7 @@ export const monitorShieldTransaction = async (txHash, chainId, railgunWalletId)
     listener: async (event) => {
       console.log(`[TransactionMonitor] ✅ Shield tx ${txHash} indexed on chain ${chainId}`);
       
-      // Trigger balance refresh
-      try {
-        const { refreshBalances } = await import('@railgun-community/wallet');
-        const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
-        
-        const networkName = {
-          1: NetworkName.Ethereum,
-          42161: NetworkName.Arbitrum,
-          137: NetworkName.Polygon,
-          56: NetworkName.BNBChain,
-        }[chainId];
-        
-        if (networkName && NETWORK_CONFIG[networkName]) {
-          const { chain } = NETWORK_CONFIG[networkName];
-          await refreshBalances(chain, [railgunWalletId]);
-          console.log('[TransactionMonitor] ✅ Balance refresh triggered for shield');
-        }
-      } catch (error) {
-        console.error('[TransactionMonitor] ❌ Balance refresh failed after shield:', error);
-      }
-      
-      // Dispatch confirmation event
+      // 🎯 FIXED: Just dispatch event - let useBalances hook handle refresh when appropriate
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
           detail: {
@@ -596,28 +574,7 @@ export const monitorUnshieldTransaction = async (txHash, chainId, railgunWalletI
     listener: async (event) => {
       console.log(`[TransactionMonitor] ✅ Unshield tx ${txHash} indexed on chain ${chainId}`);
       
-      // Trigger balance refresh
-      try {
-        const { refreshBalances } = await import('@railgun-community/wallet');
-        const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
-        
-        const networkName = {
-          1: NetworkName.Ethereum,
-          42161: NetworkName.Arbitrum,
-          137: NetworkName.Polygon,
-          56: NetworkName.BNBChain,
-        }[chainId];
-        
-        if (networkName && NETWORK_CONFIG[networkName]) {
-          const { chain } = NETWORK_CONFIG[networkName];
-          await refreshBalances(chain, [railgunWalletId]);
-          console.log('[TransactionMonitor] ✅ Balance refresh triggered for unshield');
-        }
-      } catch (error) {
-        console.error('[TransactionMonitor] ❌ Balance refresh failed after unshield:', error);
-      }
-      
-      // Dispatch confirmation event
+      // 🎯 FIXED: Just dispatch event - let useBalances hook handle refresh when appropriate
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
           detail: {
@@ -646,28 +603,7 @@ export const monitorTransferTransaction = async (txHash, chainId, railgunWalletI
     listener: async (event) => {
       console.log(`[TransactionMonitor] ✅ Transfer tx ${txHash} indexed on chain ${chainId}`);
       
-      // Trigger balance refresh
-      try {
-        const { refreshBalances } = await import('@railgun-community/wallet');
-        const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
-        
-        const networkName = {
-          1: NetworkName.Ethereum,
-          42161: NetworkName.Arbitrum,
-          137: NetworkName.Polygon,
-          56: NetworkName.BNBChain,
-        }[chainId];
-        
-        if (networkName && NETWORK_CONFIG[networkName]) {
-          const { chain } = NETWORK_CONFIG[networkName];
-          await refreshBalances(chain, [railgunWalletId]);
-          console.log('[TransactionMonitor] ✅ Balance refresh triggered for transfer');
-        }
-      } catch (error) {
-        console.error('[TransactionMonitor] ❌ Balance refresh failed after transfer:', error);
-      }
-      
-      // Dispatch confirmation event
+      // 🎯 FIXED: Just dispatch event - let useBalances hook handle refresh when appropriate
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
           detail: {

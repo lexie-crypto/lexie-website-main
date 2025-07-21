@@ -220,33 +220,13 @@ const WalletPage = () => {
           listener: async (event) => {
             console.log(`[WalletPage] ✅ Shield tx ${txResponse.hash} indexed on chain ${chainConfig.id}`);
             
-            // Trigger balance refresh as specified
-            try {
-              const { refreshBalances } = await import('@railgun-community/wallet');
-              const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
-              
-              const networkName = {
-                1: NetworkName.Ethereum,
-                42161: NetworkName.Arbitrum,
-                137: NetworkName.Polygon,
-                56: NetworkName.BNBChain,
-              }[chainConfig.id];
-              
-              if (networkName && NETWORK_CONFIG[networkName]) {
-                const { chain } = NETWORK_CONFIG[networkName];
-                await refreshBalances(chain, [railgunWalletId]);
-                console.log('[WalletPage] ✅ Balance refresh completed for shield');
-                toast.success(`Shield confirmed and indexed! Balance updated.`);
+            // 🎯 FIXED: Just show success message - let useBalances hook handle refresh when appropriate
+            toast.success(`Shield confirmed and indexed! Balance will update automatically.`);
                 
-                // Also refresh UI balances
-                setTimeout(() => {
-                  refreshAllBalances();
-                }, 1000);
-              }
-            } catch (refreshError) {
-              console.error('[WalletPage] Balance refresh failed:', refreshError);
-              toast.info('Shield confirmed! Balance will update via callback.');
-            }
+            // Also refresh UI balances via the hook
+            setTimeout(() => {
+              refreshAllBalances();
+            }, 1000);
           }
         })
         .then((result) => {
