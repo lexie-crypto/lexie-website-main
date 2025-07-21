@@ -17,14 +17,13 @@ const buildAlchemyUrl = (baseUrl, apiKey = null) => {
 // Alchemy RPC URLs with proper API key integration
 export const RPC_URLS = {
   ethereum: import.meta.env.VITE_ALCHEMY_ETHEREUM_URL || 
-    buildAlchemyUrl('https://eth-mainnet.alchemyapi.io/v2/fake'),
+    buildAlchemyUrl('https://eth-mainnet.alchemyapi.io/v2/demo'),
   polygon: import.meta.env.VITE_ALCHEMY_POLYGON_URL || 
-    buildAlchemyUrl('https://polygon-mainnet.alchemyapi.io/v2/fake'), 
+    buildAlchemyUrl('https://polygon-mainnet.alchemyapi.io/v2/demo'), 
   arbitrum: import.meta.env.VITE_ALCHEMY_ARBITRUM_URL || 
-    buildAlchemyUrl('https://arb-mainnet.alchemyapi.io/v2/fake'),
-  optimism: import.meta.env.VITE_ALCHEMY_OPTIMISM_URL || 
-    buildAlchemyUrl('https://opt-mainnet.alchemyapi.io/v2/fake'),
-  bsc: import.meta.env.VITE_ALCHEMY_BSC_URL || 'https://bsc-dataseed.binance.org',
+    buildAlchemyUrl('https://arb-mainnet.alchemyapi.io/v2/demo'),
+  bsc: import.meta.env.VITE_ALCHEMY_BSC_URL || 
+    buildAlchemyUrl('https://bnb-mainnet.g.alchemy.com/v2/demo'),
 };
 
 // Railgun Configuration
