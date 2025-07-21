@@ -678,7 +678,7 @@ const WalletContextProvider = ({ children }) => {
     }
   }, [isConnected, address, isRailgunInitialized, isInitializing]);
 
-  // Update Railgun providers when chain or wallet changes
+  // Update Railgun providers when chain or wallet changes - FIXED: Prevent infinite loops
   useEffect(() => {
     const updateRailgunProviders = async () => {
       if (!isRailgunInitialized || !connector || !chainId) {
@@ -705,7 +705,7 @@ const WalletContextProvider = ({ children }) => {
           return;
         }
 
-        // Update provider for current chain with connected wallet
+        // Update provider for current chain with connected wallet - FIXED: Proper error handling
         try {
           const eip1193Provider = await connector.getProvider();
           if (eip1193Provider) {
@@ -724,20 +724,24 @@ const WalletContextProvider = ({ children }) => {
 
             await loadProvider(fallbackProviderConfig, currentNetwork.networkName, 15000);
             console.log(`✅ Updated Railgun provider for ${currentNetwork.networkName} with connected wallet`);
+          } else {
+            console.warn('⚠️ No EIP-1193 provider available from connector');
           }
-        } catch (error) {
-          console.warn('⚠️ Failed to update Railgun provider with connected wallet:', error);
+        } catch (providerError) {
+          console.warn('⚠️ Failed to update Railgun provider with connected wallet:', providerError);
+          // Don't throw - this is non-critical, RPC fallback will work
         }
 
       } catch (error) {
         console.error('❌ Failed to update Railgun providers:', error);
+        // Don't throw - prevent crashing the app
       }
     };
 
-    // Debounce provider updates to avoid rapid chain switching issues
-    const timeoutId = setTimeout(updateRailgunProviders, 1000);
+    // FIXED: More aggressive debouncing and prevent rapid successive calls
+    const timeoutId = setTimeout(updateRailgunProviders, 2000); // Increased delay
     return () => clearTimeout(timeoutId);
-  }, [chainId, connector?.id, isRailgunInitialized]);
+  }, [chainId, isRailgunInitialized]); // FIXED: Removed connector?.id dependency to reduce triggers
 
   // 🛠️ Debug utilities for encrypted data management
   useEffect(() => {

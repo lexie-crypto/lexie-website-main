@@ -339,46 +339,46 @@ export function useBalances() {
     try {
       console.log('[useBalances] Refreshing all balances...');
 
-              // Fetch prices first and get them directly
-        const allSymbols = [
-          ...new Set([
-            ...(TOKEN_LISTS[chainId] || []).map(t => t.symbol),
-            'ETH', 'MATIC', 'BNB', // Native tokens
-          ])
-        ];
-        const freshPrices = await fetchAndCachePrices(allSymbols);
+      // Fetch prices first and get them directly
+      const allSymbols = [
+        ...new Set([
+          ...(TOKEN_LISTS[chainId] || []).map(t => t.symbol),
+          'ETH', 'MATIC', 'BNB', // Native tokens
+        ])
+      ];
+      const freshPrices = await fetchAndCachePrices(allSymbols);
 
-        // Fetch public and private balances in parallel
-        const [publicBals, privateBals] = await Promise.all([
-          fetchPublicBalances(),
-          fetchPrivateBalances(),
-        ]);
+      // Fetch public and private balances in parallel
+      const [publicBals, privateBals] = await Promise.all([
+        fetchPublicBalances(),
+        fetchPrivateBalances(),
+      ]);
 
-        // Add USD values using fresh prices directly
-        const calculateUSD = (numericBalance, symbol) => {
-          const price = freshPrices[symbol] || tokenPrices[symbol];
-          if (price && typeof price === 'number' && numericBalance > 0) {
-            return (numericBalance * price).toFixed(2);
-          }
-          return '0.00';
-        };
+      // Add USD values using fresh prices directly
+      const calculateUSD = (numericBalance, symbol) => {
+        const price = freshPrices[symbol] || tokenPrices[symbol];
+        if (price && typeof price === 'number' && numericBalance > 0) {
+          return (numericBalance * price).toFixed(2);
+        }
+        return '0.00';
+      };
 
-        const publicWithUSD = publicBals.map(token => ({
-          ...token,
-          balanceUSD: calculateUSD(token.numericBalance, token.symbol)
-        }));
+      const publicWithUSD = publicBals.map(token => ({
+        ...token,
+        balanceUSD: calculateUSD(token.numericBalance, token.symbol)
+      }));
 
-        const privateWithUSD = privateBals.map(token => ({
-          ...token,
-          balanceUSD: calculateUSD(token.numericBalance, token.symbol)
-        }));
+      const privateWithUSD = privateBals.map(token => ({
+        ...token,
+        balanceUSD: calculateUSD(token.numericBalance, token.symbol)
+      }));
 
-              setPublicBalances(publicWithUSD);
-        updatePrivateBalances(privateWithUSD);
-        setLastUpdated(Date.now());
-        
-        // Expose balances globally for balance checking
-        window.__LEXIE_BALANCES__ = publicWithUSD;
+      setPublicBalances(publicWithUSD);
+      updatePrivateBalances(privateWithUSD);
+      setLastUpdated(Date.now());
+      
+      // Expose balances globally for balance checking
+      window.__LEXIE_BALANCES__ = publicWithUSD;
 
       console.log('[useBalances] Balances refreshed:', {
         public: publicBals.length,
@@ -389,10 +389,11 @@ export function useBalances() {
 
     } catch (error) {
       console.error('[useBalances] Failed to refresh balances:', error);
+      setError(error.message);
     } finally {
       setLoading(false);
     }
-  }, [address, chainId, fetchPublicBalances, fetchPrivateBalances]);
+  }, [address, chainId]); // FIXED: Removed function dependencies to prevent infinite loops
 
   // Refresh balances after transactions
   const refreshBalancesAfterTransaction = useCallback(async () => {
@@ -426,7 +427,7 @@ export function useBalances() {
     }
     
     console.log('[useBalances] 🎉 Enhanced post-transaction refresh completed');
-  }, [refreshAllBalances, railgunWalletId, chainId]);
+  }, [railgunWalletId, chainId]); // FIXED: Removed refreshAllBalances dependency
 
   // Format balance for display
   const formatBalance = useCallback((balance, decimals = 2) => {
@@ -462,7 +463,7 @@ export function useBalances() {
       updatePrivateBalances([]);
       setLastUpdated(null);
     }
-  }, [address, chainId]); // Removed refreshAllBalances dependency
+  }, [address, chainId]); // FIXED: Removed function dependencies to prevent infinite loops
 
   // Refresh private balances when Railgun wallet changes - FIXED: Remove function dependency
   useEffect(() => {
