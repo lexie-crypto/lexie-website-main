@@ -66,18 +66,22 @@ const RPC_PROVIDERS = {
   [NetworkName.Ethereum]: {
     chainId: 1,
     rpcUrl: `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+    ankrUrl: 'https://rpc.ankr.com/eth/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
   },
   [NetworkName.Arbitrum]: {
     chainId: 42161, 
     rpcUrl: `https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+    ankrUrl: 'https://rpc.ankr.com/arbitrum/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
   },
   [NetworkName.Polygon]: {
     chainId: 137,
     rpcUrl: `https://polygon-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
+    ankrUrl: 'https://rpc.ankr.com/polygon/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
   },
   [NetworkName.BNBChain]: {
     chainId: 56,
     rpcUrl: 'https://bsc-dataseed.binance.org/', // BSC public RPC
+    ankrUrl: 'https://rpc.ankr.com/bsc/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
   },
 };
 
@@ -106,14 +110,25 @@ const setupNetworks = async () => {
           continue;
         }
         
-        // Step 2: Then load the provider
+        // Step 2: Then load the provider - FIXED: Use official SDK format with Ankr fallback
         const providerConfig = {
           chainId: config.chainId,
-          providers: [{
-            provider: config.rpcUrl,
-            priority: 1,
-            weight: 2,
-          }]
+          providers: [
+            {
+              provider: config.rpcUrl,    // Primary: Alchemy
+              priority: 2,
+              weight: 1,
+              maxLogsPerBatch: 5,
+              stallTimeout: 2500,
+            },
+            {
+              provider: config.ankrUrl,   // Fallback: Ankr
+              priority: 1,
+              weight: 1,                  // Slightly lower weight for fallback
+              maxLogsPerBatch: 10,        // Higher batch size for Ankr
+              stallTimeout: 3000,         // Slightly higher timeout
+            }
+          ]
         };
         
         const { feesSerialized } = await loadProvider(

@@ -443,13 +443,33 @@ const WalletContextProvider = ({ children }) => {
           }
           
           const networkConfigs = [
-            { networkName: NetworkName.Ethereum, rpcUrl: RPC_URLS.ethereum, chainId: 1 },
-            { networkName: NetworkName.Polygon, rpcUrl: RPC_URLS.polygon, chainId: 137 },
-            { networkName: NetworkName.Arbitrum, rpcUrl: RPC_URLS.arbitrum, chainId: 42161 },
-            { networkName: NetworkName.BNBChain, rpcUrl: RPC_URLS.bsc, chainId: 56 },
+            { 
+              networkName: NetworkName.Ethereum, 
+              rpcUrl: RPC_URLS.ethereum, 
+              ankrUrl: 'https://rpc.ankr.com/eth/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+              chainId: 1 
+            },
+            { 
+              networkName: NetworkName.Polygon, 
+              rpcUrl: RPC_URLS.polygon, 
+              ankrUrl: 'https://rpc.ankr.com/polygon/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+              chainId: 137 
+            },
+            { 
+              networkName: NetworkName.Arbitrum, 
+              rpcUrl: RPC_URLS.arbitrum, 
+              ankrUrl: 'https://rpc.ankr.com/arbitrum/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+              chainId: 42161 
+            },
+            { 
+              networkName: NetworkName.BNBChain, 
+              rpcUrl: RPC_URLS.bsc, 
+              ankrUrl: 'https://rpc.ankr.com/bsc/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+              chainId: 56 
+            },
           ];
 
-          for (const { networkName, rpcUrl, chainId: netChainId } of networkConfigs) {
+          for (const { networkName, rpcUrl, ankrUrl, chainId: netChainId } of networkConfigs) {
             try {
               // FIXED: RAILGUN SDK requires string URLs only per official documentation
               // https://docs.railgun.org/developer-guide/wallet/getting-started/4.-add-networks-and-rpc-providers
@@ -467,11 +487,22 @@ const WalletContextProvider = ({ children }) => {
               
               const fallbackProviderConfig = {
                 chainId: netChainId,
-                providers: [{
-                  provider: rpcUrl, // Always use string URL as per official docs
-                  priority: 1,
-                  weight: 1,
-                }]
+                providers: [
+                  {
+                    provider: rpcUrl,     // Primary: Alchemy
+                    priority: 2,
+                    weight: 1,
+                    maxLogsPerBatch: 5,
+                    stallTimeout: 2500,
+                  },
+                  {
+                    provider: ankrUrl,    // Fallback: Ankr
+                    priority: 1,
+                    weight: 1,            // Slightly lower weight for fallback
+                    maxLogsPerBatch: 10,  // Higher batch size for Ankr
+                    stallTimeout: 3000,   // Slightly higher timeout
+                  }
+                ]
               };
               
               // DEBUG: Log the exact config being passed
@@ -590,12 +621,32 @@ const WalletContextProvider = ({ children }) => {
       console.log('✅ Railgun engine started with official SDK');
 
       // Step 2: Load providers using connected wallet's provider when possible
-      const networkConfigs = [
-        { networkName: NetworkName.Ethereum, rpcUrl: RPC_URLS.ethereum, chainId: 1 },
-        { networkName: NetworkName.Polygon, rpcUrl: RPC_URLS.polygon, chainId: 137 },
-        { networkName: NetworkName.Arbitrum, rpcUrl: RPC_URLS.arbitrum, chainId: 42161 },
-        { networkName: NetworkName.BNBChain, rpcUrl: RPC_URLS.bsc, chainId: 56 },
-      ];
+              const networkConfigs = [
+          { 
+            networkName: NetworkName.Ethereum, 
+            rpcUrl: RPC_URLS.ethereum, 
+            ankrUrl: 'https://rpc.ankr.com/eth/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+            chainId: 1 
+          },
+          { 
+            networkName: NetworkName.Polygon, 
+            rpcUrl: RPC_URLS.polygon, 
+            ankrUrl: 'https://rpc.ankr.com/polygon/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+            chainId: 137 
+          },
+          { 
+            networkName: NetworkName.Arbitrum, 
+            rpcUrl: RPC_URLS.arbitrum, 
+            ankrUrl: 'https://rpc.ankr.com/arbitrum/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+            chainId: 42161 
+          },
+          { 
+            networkName: NetworkName.BNBChain, 
+            rpcUrl: RPC_URLS.bsc, 
+            ankrUrl: 'https://rpc.ankr.com/bsc/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+            chainId: 56 
+          },
+        ];
 
       // Check global rate limiter before loading providers
       resetRPCLimiter();
@@ -606,14 +657,25 @@ const WalletContextProvider = ({ children }) => {
         if (currentChainConfig) {
           console.log('[RPC-Limiter] ⚡ Loading provider for current chain despite rate limit (essential for transactions)');
           try {
-            // FIXED: Use only string URL as per official RAILGUN SDK documentation
+            // FIXED: Use only string URL as per official RAILGUN SDK documentation with Ankr fallback
             const fallbackProviderConfig = {
               chainId: currentChainConfig.chainId,
-              providers: [{
-                provider: currentChainConfig.rpcUrl,
-                priority: 1,
-                weight: 1,
-              }]
+              providers: [
+                {
+                  provider: currentChainConfig.rpcUrl,  // Primary: Alchemy
+                  priority: 2,
+                  weight: 1,
+                  maxLogsPerBatch: 5,
+                  stallTimeout: 2500,
+                },
+                {
+                  provider: currentChainConfig.ankrUrl, // Fallback: Ankr
+                  priority: 1,
+                  weight: 1,                           // Slightly lower weight for fallback
+                  maxLogsPerBatch: 10,                 // Higher batch size for Ankr
+                  stallTimeout: 3000,                  // Slightly higher timeout
+                }
+              ]
             };
 
             // Load provider for current chain only
@@ -628,7 +690,7 @@ const WalletContextProvider = ({ children }) => {
           }
         }
       } else {
-        for (const { networkName, rpcUrl, chainId: netChainId } of networkConfigs) {
+        for (const { networkName, rpcUrl, ankrUrl, chainId: netChainId } of networkConfigs) {
           try {
             // FIXED: RAILGUN SDK requires string URLs only per official documentation
             // https://docs.railgun.org/developer-guide/wallet/getting-started/4.-add-networks-and-rpc-providers
@@ -646,11 +708,22 @@ const WalletContextProvider = ({ children }) => {
             
             const fallbackProviderConfig = {
               chainId: netChainId,
-              providers: [{
-                provider: rpcUrl, // Always use string URL as per official docs
-                priority: 1,
-                weight: 1,
-              }]
+              providers: [
+                {
+                  provider: rpcUrl,     // Primary: Alchemy
+                  priority: 2,
+                  weight: 1,
+                  maxLogsPerBatch: 5,
+                  stallTimeout: 2500,
+                },
+                {
+                  provider: ankrUrl,    // Fallback: Ankr
+                  priority: 1,
+                  weight: 1,            // Slightly lower weight for fallback
+                  maxLogsPerBatch: 10,  // Higher batch size for Ankr
+                  stallTimeout: 3000,   // Slightly higher timeout
+                }
+              ]
             };
             
             // DEBUG: Log the exact config being passed
@@ -894,10 +967,30 @@ const WalletContextProvider = ({ children }) => {
         const { loadProvider } = await import('@railgun-community/wallet');
         
         const networkConfigs = [
-          { networkName: NetworkName.Ethereum, rpcUrl: RPC_URLS.ethereum, chainId: 1 },
-          { networkName: NetworkName.Polygon, rpcUrl: RPC_URLS.polygon, chainId: 137 },
-          { networkName: NetworkName.Arbitrum, rpcUrl: RPC_URLS.arbitrum, chainId: 42161 },
-          { networkName: NetworkName.BNBChain, rpcUrl: RPC_URLS.bsc, chainId: 56 },
+          { 
+            networkName: NetworkName.Ethereum, 
+            rpcUrl: RPC_URLS.ethereum, 
+            ankrUrl: 'https://rpc.ankr.com/eth/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+            chainId: 1 
+          },
+          { 
+            networkName: NetworkName.Polygon, 
+            rpcUrl: RPC_URLS.polygon, 
+            ankrUrl: 'https://rpc.ankr.com/polygon/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+            chainId: 137 
+          },
+          { 
+            networkName: NetworkName.Arbitrum, 
+            rpcUrl: RPC_URLS.arbitrum, 
+            ankrUrl: 'https://rpc.ankr.com/arbitrum/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+            chainId: 42161 
+          },
+          { 
+            networkName: NetworkName.BNBChain, 
+            rpcUrl: RPC_URLS.bsc, 
+            ankrUrl: 'https://rpc.ankr.com/bsc/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+            chainId: 56 
+          },
         ];
 
         // Find the current network
@@ -907,15 +1000,26 @@ const WalletContextProvider = ({ children }) => {
           return;
         }
 
-        // Update provider for current chain - FIXED: Use string URL only per official docs
+        // Update provider for current chain - FIXED: Use string URL only per official docs with Ankr fallback
         try {
           const fallbackProviderConfig = {
             chainId: currentNetwork.chainId,
-            providers: [{
-              provider: currentNetwork.rpcUrl, // Always use string URL as per official docs
-              priority: 1,
-              weight: 1,
-            }]
+            providers: [
+              {
+                provider: currentNetwork.rpcUrl, // Primary: Alchemy
+                priority: 2,
+                weight: 1,
+                maxLogsPerBatch: 5,
+                stallTimeout: 2500,
+              },
+              {
+                provider: currentNetwork.ankrUrl, // Fallback: Ankr
+                priority: 1,
+                weight: 1,                        // Slightly lower weight for fallback
+                maxLogsPerBatch: 10,              // Higher batch size for Ankr
+                stallTimeout: 3000,               // Slightly higher timeout
+              }
+            ]
           };
 
           // Wrap loadProvider with retry limit
