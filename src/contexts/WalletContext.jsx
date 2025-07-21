@@ -318,6 +318,18 @@ const WalletContextProvider = ({ children }) => {
 
   const disconnectWallet = async () => {
     try {
+      // 🛑 CRITICAL: Stop all RAILGUN provider polling BEFORE disconnect
+      if (isRailgunInitialized) {
+        try {
+          console.log('⏸️ Stopping RAILGUN provider polling to prevent RPC calls...');
+          const { pauseAllPollingProviders } = await import('@railgun-community/wallet');
+          pauseAllPollingProviders(); // Stop all provider polling immediately
+          console.log('✅ RAILGUN provider polling stopped');
+        } catch (pauseError) {
+          console.warn('⚠️ Failed to pause RAILGUN providers:', pauseError);
+        }
+      }
+
       await disconnect();
       
       // 🧹 Only clear React state - preserve encrypted localStorage data for persistence
@@ -330,7 +342,7 @@ const WalletContextProvider = ({ children }) => {
       // DON'T clear: railgun-walletID-${address} or railgun-mnemonic-${address}
       // This allows same wallet to reconnect and reuse existing Railgun wallet
       
-      console.log('🧹 Disconnected - React state cleared, encrypted data preserved for reconnection');
+      console.log('🧹 Disconnected - RAILGUN stopped, React state cleared, encrypted data preserved');
     } catch (error) {
       console.error('Failed to disconnect:', error);
     }
@@ -528,6 +540,12 @@ const WalletContextProvider = ({ children }) => {
               }));
             }
           });
+
+          // 🛑 CRITICAL: Pause providers immediately after loading to prevent wasteful polling
+          console.log('⏸️ Pausing RAILGUN providers to prevent RPC polling until wallet connects...');
+          const { pauseAllPollingProviders } = await import('@railgun-community/wallet');
+          pauseAllPollingProviders(); // Stop polling until user actually needs it
+          console.log('✅ RAILGUN providers paused - will resume when needed');
         }
         
         // 🔑 Load existing wallet using stored walletID (SDK can restore from ID + encryption key)
@@ -752,6 +770,12 @@ const WalletContextProvider = ({ children }) => {
         }
       });
 
+      // 🛑 CRITICAL: Pause providers after full initialization to prevent wasteful polling
+      console.log('⏸️ Pausing RAILGUN providers after full init to prevent RPC polling...');
+      const { pauseAllPollingProviders } = await import('@railgun-community/wallet');
+      pauseAllPollingProviders(); // Stop polling until user actually needs it
+      console.log('✅ RAILGUN providers paused after full init - will resume when needed');
+
       // Step 4: Wallet creation/loading with official SDK
       const bip39 = await import('bip39');
       const { Mnemonic, randomBytes } = await import('ethers');
@@ -922,6 +946,30 @@ const WalletContextProvider = ({ children }) => {
         persisted: true
       });
 
+      // 🔄 CRITICAL: Resume provider for current network after successful initialization
+      if (isConnected && address && chainId) {
+        try {
+          console.log('🔄 Resuming RAILGUN provider for current network after init...');
+          const { resumeIsolatedPollingProviderForNetwork } = await import('@railgun-community/wallet');
+          const { NetworkName } = await import('@railgun-community/shared-models');
+          
+          const networkMapping = {
+            1: NetworkName.Ethereum,
+            137: NetworkName.Polygon,
+            42161: NetworkName.Arbitrum,
+            56: NetworkName.BNBChain,
+          };
+          
+          const currentNetwork = networkMapping[chainId];
+          if (currentNetwork) {
+            resumeIsolatedPollingProviderForNetwork(currentNetwork);
+            console.log(`✅ Resumed RAILGUN provider for ${currentNetwork} after init`);
+          }
+        } catch (resumeError) {
+          console.warn('⚠️ Failed to resume provider after init:', resumeError);
+        }
+      }
+
     } catch (error) {
       console.error('❌ Railgun initialization failed:', error);
       setRailgunError(error.message || 'Failed to initialize Railgun');
@@ -938,6 +986,34 @@ const WalletContextProvider = ({ children }) => {
     // 🛡️ Prevent force reinitialization if already initialized
     if (isRailgunInitialized) {
       console.log('✅ Railgun already initialized for:', address);
+      
+      // 🔄 CRITICAL: Resume providers when wallet connects (if they were paused)
+      if (isConnected && address) {
+        const resumeProviders = async () => {
+          try {
+            console.log('🔄 Resuming RAILGUN providers for connected wallet...');
+            const { resumeIsolatedPollingProviderForNetwork } = await import('@railgun-community/wallet');
+            const { NetworkName } = await import('@railgun-community/shared-models');
+            
+            // Resume provider for current chain
+            const networkMapping = {
+              1: NetworkName.Ethereum,
+              137: NetworkName.Polygon,
+              42161: NetworkName.Arbitrum,
+              56: NetworkName.BNBChain,
+            };
+            
+            const currentNetwork = networkMapping[chainId];
+            if (currentNetwork) {
+              resumeIsolatedPollingProviderForNetwork(currentNetwork);
+              console.log(`✅ Resumed RAILGUN provider for ${currentNetwork}`);
+            }
+          } catch (error) {
+            console.warn('⚠️ Failed to resume RAILGUN providers:', error);
+          }
+        };
+        resumeProviders();
+      }
       return;
     }
     
@@ -945,7 +1021,7 @@ const WalletContextProvider = ({ children }) => {
       console.log('🚀 Auto-initializing Railgun for connected wallet:', address);
       initializeRailgun();
     }
-  }, [isConnected, address, isRailgunInitialized, isInitializing]);
+  }, [isConnected, address, isRailgunInitialized, isInitializing, chainId]);
 
   // Update Railgun providers when chain or wallet changes - FIXED: Prevent infinite loops
   useEffect(() => {
@@ -1028,6 +1104,11 @@ const WalletContextProvider = ({ children }) => {
             currentNetwork.networkName
           );
           console.log(`✅ Updated Railgun provider for ${currentNetwork.networkName} using official format`);
+          
+          // 🔄 CRITICAL: Resume only the current network provider after update
+          const { resumeIsolatedPollingProviderForNetwork } = await import('@railgun-community/wallet');
+          resumeIsolatedPollingProviderForNetwork(currentNetwork.networkName);
+          console.log(`✅ Resumed polling for ${currentNetwork.networkName} only`);
         } catch (providerError) {
           console.warn('⚠️ Failed to update Railgun provider:', providerError);
           // Don't throw - this is non-critical, RPC fallback will work

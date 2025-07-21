@@ -605,8 +605,16 @@ const WalletPage = () => {
                   </button>
                 )}
                 <button
-                  onClick={refreshAllBalances}
-                  disabled={isLoading}
+                  onClick={() => {
+                    // 🛑 CRITICAL: Prevent refresh when wallet not connected
+                    if (!isConnected || !address) {
+                      console.log('[WalletPage] ⏸️ Refresh blocked - wallet not connected');
+                      toast.error('Wallet not connected');
+                      return;
+                    }
+                    refreshAllBalances();
+                  }}
+                  disabled={isLoading || !isConnected}
                   className="bg-gray-600 hover:bg-gray-700 disabled:bg-gray-800 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                 >
                   {isLoading ? 'Refreshing...' : 'Refresh All'}
@@ -614,6 +622,13 @@ const WalletPage = () => {
                 {canUseRailgun && (
                   <button
                     onClick={async () => {
+                      // 🛑 CRITICAL: Prevent force refresh when wallet not connected
+                      if (!isConnected || !address || !railgunWalletId) {
+                        console.log('[WalletPage] ⏸️ Force refresh blocked - wallet not connected');
+                        toast.error('Wallet not connected');
+                        return;
+                      }
+                      
                       try {
                         console.log('[WalletPage] 🔄 Manual force refresh triggered');
                         const { clearStaleBalanceCacheAndRefresh } = await import('../utils/railgun/balances');
@@ -621,9 +636,10 @@ const WalletPage = () => {
                         await refreshAllBalances();
                       } catch (error) {
                         console.error('[WalletPage] Force refresh failed:', error);
+                        toast.error('Force refresh failed');
                       }
                     }}
-                    disabled={isLoading}
+                    disabled={isLoading || !isConnected}
                     className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                   >
                     Force Refresh
@@ -639,8 +655,15 @@ const WalletPage = () => {
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-medium text-white">Public Balances</h3>
                     <button
-                      onClick={refreshAllBalances}
-                      disabled={isLoading}
+                      onClick={() => {
+                        // 🛑 CRITICAL: Prevent refresh when wallet not connected
+                        if (!isConnected || !address) {
+                          console.log('[WalletPage] ⏸️ Public balance refresh blocked - wallet not connected');
+                          return;
+                        }
+                        refreshAllBalances();
+                      }}
+                      disabled={isLoading || !isConnected}
                       className="text-purple-400 hover:text-purple-300 text-sm disabled:opacity-50"
                     >
                       {isLoading ? 'Refreshing...' : 'Refresh'}
