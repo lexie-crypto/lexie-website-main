@@ -451,29 +451,15 @@ const WalletContextProvider = ({ children }) => {
 
           for (const { networkName, rpcUrl, chainId: netChainId } of networkConfigs) {
             try {
-              let primaryProvider = rpcUrl;
-              
-              if (connector && netChainId === chainId) {
-                try {
-                  const eip1193Provider = await connector.getProvider();
-                  if (eip1193Provider) {
-                    primaryProvider = eip1193Provider;
-                    console.log(`✅ Fast path: Connected wallet provider for ${networkName}`);
-                  }
-                } catch (providerError) {
-                  console.warn(`⚠️ Fast path: Using RPC fallback for ${networkName}`);
-                }
-              }
+              // FIXED: RAILGUN SDK requires string URLs only per official documentation
+              // https://docs.railgun.org/developer-guide/wallet/getting-started/4.-add-networks-and-rpc-providers
+              console.log(`[RAILGUN] Loading provider for ${networkName} using official SDK format...`);
               
               const fallbackProviderConfig = {
                 chainId: netChainId,
                 providers: [{
-                  provider: primaryProvider,
+                  provider: rpcUrl, // Always use string URL as per official docs
                   priority: 1,
-                  weight: 2,
-                }, {
-                  provider: rpcUrl,
-                  priority: 2,
                   weight: 1,
                 }]
               };
@@ -607,29 +593,12 @@ const WalletContextProvider = ({ children }) => {
         if (currentChainConfig) {
           console.log('[RPC-Limiter] ⚡ Loading provider for current chain despite rate limit (essential for transactions)');
           try {
-            let primaryProvider = currentChainConfig.rpcUrl;
-            
-            if (connector && currentChainConfig.chainId === chainId) {
-              try {
-                const eip1193Provider = await connector.getProvider();
-                if (eip1193Provider) {
-                  primaryProvider = eip1193Provider;
-                  console.log(`✅ Full init: Connected wallet provider for ${currentChainConfig.networkName} (current chain)`);
-                }
-              } catch (providerError) {
-                console.warn(`⚠️ Full init: Using RPC fallback for ${currentChainConfig.networkName}`);
-              }
-            }
-            
+            // FIXED: Use only string URL as per official RAILGUN SDK documentation
             const fallbackProviderConfig = {
               chainId: currentChainConfig.chainId,
               providers: [{
-                provider: primaryProvider,
-                priority: 1,
-                weight: 2,
-              }, {
                 provider: currentChainConfig.rpcUrl,
-                priority: 2,
+                priority: 1,
                 weight: 1,
               }]
             };
@@ -648,33 +617,15 @@ const WalletContextProvider = ({ children }) => {
       } else {
         for (const { networkName, rpcUrl, chainId: netChainId } of networkConfigs) {
           try {
-            console.log(`📡 Loading provider for ${networkName}...`);
-            
-            // Use connected wallet's provider for current chain, fallback to RPC for others
-            let primaryProvider = rpcUrl;
-            
-            if (connector && netChainId === chainId) {
-              try {
-                console.log(`🔗 Using connected wallet provider for ${networkName} (current chain)`);
-                const eip1193Provider = await connector.getProvider();
-                if (eip1193Provider) {
-                  primaryProvider = eip1193Provider;
-                  console.log(`✅ Connected wallet provider configured for ${networkName}`);
-                }
-              } catch (providerError) {
-                console.warn(`⚠️ Failed to get connected wallet provider for ${networkName}, using RPC fallback:`, providerError);
-              }
-            }
+            // FIXED: RAILGUN SDK requires string URLs only per official documentation
+            // https://docs.railgun.org/developer-guide/wallet/getting-started/4.-add-networks-and-rpc-providers
+            console.log(`📡 Loading provider for ${networkName} using official SDK format...`);
             
             const fallbackProviderConfig = {
               chainId: netChainId,
               providers: [{
-                provider: primaryProvider, // Use connected wallet provider for current chain
+                provider: rpcUrl, // Always use string URL as per official docs
                 priority: 1,
-                weight: 2,
-              }, {
-                provider: rpcUrl, // Always include RPC as fallback
-                priority: 2,
                 weight: 1,
               }]
             };
@@ -684,10 +635,7 @@ const WalletContextProvider = ({ children }) => {
               () => loadProvider(fallbackProviderConfig, networkName, 15000),
               networkName
             );
-            console.log(`✅ Provider loaded for ${networkName}`, {
-              usingConnectedWallet: primaryProvider !== rpcUrl,
-              currentChain: netChainId === chainId
-            });
+            console.log(`✅ Provider loaded for ${networkName} using official SDK format`);
           } catch (error) {
             console.warn(`⚠️ Failed to load provider for ${networkName}:`, error);
           }
@@ -934,34 +882,25 @@ const WalletContextProvider = ({ children }) => {
           return;
         }
 
-        // Update provider for current chain with connected wallet - FIXED: Proper error handling
+        // Update provider for current chain - FIXED: Use string URL only per official docs
         try {
-          const eip1193Provider = await connector.getProvider();
-          if (eip1193Provider) {
-            const fallbackProviderConfig = {
-              chainId: currentNetwork.chainId,
-              providers: [{
-                provider: eip1193Provider, // Connected wallet provider first
-                priority: 1,
-                weight: 2,
-              }, {
-                provider: currentNetwork.rpcUrl, // RPC fallback
-                priority: 2,
-                weight: 1,
-              }]
-            };
+          const fallbackProviderConfig = {
+            chainId: currentNetwork.chainId,
+            providers: [{
+              provider: currentNetwork.rpcUrl, // Always use string URL as per official docs
+              priority: 1,
+              weight: 1,
+            }]
+          };
 
-            // Wrap loadProvider with retry limit
-            await withRPCRetryLimit(
-              () => loadProvider(fallbackProviderConfig, currentNetwork.networkName, 15000),
-              currentNetwork.networkName
-            );
-            console.log(`✅ Updated Railgun provider for ${currentNetwork.networkName} with connected wallet`);
-          } else {
-            console.warn('⚠️ No EIP-1193 provider available from connector');
-          }
+          // Wrap loadProvider with retry limit
+          await withRPCRetryLimit(
+            () => loadProvider(fallbackProviderConfig, currentNetwork.networkName, 15000),
+            currentNetwork.networkName
+          );
+          console.log(`✅ Updated Railgun provider for ${currentNetwork.networkName} using official format`);
         } catch (providerError) {
-          console.warn('⚠️ Failed to update Railgun provider with connected wallet:', providerError);
+          console.warn('⚠️ Failed to update Railgun provider:', providerError);
           // Don't throw - this is non-critical, RPC fallback will work
         }
 
