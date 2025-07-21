@@ -316,6 +316,7 @@ export function useBalances() {
       setError(null);
       
       const balances = await getPrivateBalances(railgunWalletId, chainId);
+      console.log('⛏ Private balances result:', { balances });
       return balances;
     } catch (error) {
       console.error('[useBalances] Failed to fetch private balances:', error);

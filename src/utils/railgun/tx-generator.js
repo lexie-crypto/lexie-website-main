@@ -25,6 +25,8 @@ import {
 import { waitForRailgunReady } from './engine.js';
 import { createGasDetails, validateGasDetails } from './tx-gas-details.js';
 import { estimateGasWithBroadcasterFee } from './tx-gas-broadcaster-fee-estimator.js';
+// Import the helper function
+import { getRailgunTxidVersionForNetwork } from '@railgun-community/engine';
 
 /**
  * Transaction types for different operations
@@ -195,6 +197,15 @@ export const generateTransferTransaction = async ({
       }
     }
 
+    // Dynamically retrieve txidVersion for the connected chain
+    const txidVersion = getRailgunTxidVersionForNetwork(networkName);
+
+    // Update transaction config with the correct txidVersion
+    txConfig = {
+      ...txConfig,
+      txidVersion,
+    };
+
     // Gas estimation if not provided
     let finalGasDetails = gasDetails;
     let gasEstimationResult = null;
@@ -332,6 +343,15 @@ export const generateCrossContractTransaction = async ({
         throw new Error('Cross-contract calls must be a non-empty array');
       }
     }
+
+    // Dynamically retrieve txidVersion for the connected chain
+    const txidVersion = getRailgunTxidVersionForNetwork(networkName);
+
+    // Update transaction config with the correct txidVersion
+    txConfig = {
+      ...txConfig,
+      txidVersion,
+    };
 
     // Gas estimation if not provided
     let finalGasDetails = gasDetails;
