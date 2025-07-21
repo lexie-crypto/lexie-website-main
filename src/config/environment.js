@@ -14,7 +14,18 @@ const buildAlchemyUrl = (baseUrl, apiKey = null) => {
   return baseUrl.replace('/v2/demo', `/v2/${finalKey}`);
 };
 
-
+// Alchemy RPC URLs with proper API key integration
+export const RPC_URLS = {
+  ethereum: import.meta.env.VITE_ALCHEMY_ETHEREUM_URL || 
+    buildAlchemyUrl('https://eth-mainnet.alchemyapi.io/v2/fake'),
+  polygon: import.meta.env.VITE_ALCHEMY_POLYGON_URL || 
+    buildAlchemyUrl('https://polygon-mainnet.alchemyapi.io/v2/fake'), 
+  arbitrum: import.meta.env.VITE_ALCHEMY_ARBITRUM_URL || 
+    buildAlchemyUrl('https://arb-mainnet.alchemyapi.io/v2/fake'),
+  optimism: import.meta.env.VITE_ALCHEMY_OPTIMISM_URL || 
+    buildAlchemyUrl('https://opt-mainnet.alchemyapi.io/v2/fake'),
+  bsc: import.meta.env.VITE_ALCHEMY_BSC_URL || 'https://bsc-dataseed.binance.org',
+};
 
 // Railgun Configuration
 export const RAILGUN_CONFIG = {
