@@ -378,17 +378,42 @@ export const isRailgunReady = () => {
   return isEngineStarted && isProverLoaded && areArtifactsLoaded;
 };
 
-/**
- * Refresh balances for a specific wallet and network
- */
+let lastRefreshTime = 0;
+let isScanning = false;
+
 export const refreshBalances = async (walletID, networkName) => {
   try {
+    const currentTime = Date.now();
+    if (isScanning || (currentTime - lastRefreshTime < 30000)) {
+      console.log('[RAILGUN] Skipping refreshBalances due to throttling or ongoing scan');
+      return;
+    }
+
+    isScanning = true;
     await waitForRailgunReady();
-    await refreshRailgunBalances(networkName, walletID);
+
+    const retryWithBackoff = async (fn, retries = 5, delay = 1000) => {
+      try {
+        await fn();
+      } catch (error) {
+        if (retries > 0 && error.code === -32005) {
+          console.warn('[RAILGUN] Rate limit hit, retrying with backoff...', { retries, delay });
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return retryWithBackoff(fn, retries - 1, delay * 2);
+        }
+        throw error;
+      }
+    };
+
+    await retryWithBackoff(() => refreshRailgunBalances(networkName, walletID));
+
+    lastRefreshTime = Date.now();
     console.log('[RAILGUN] Balances refreshed for:', { walletID: walletID?.slice(0, 8) + '...', networkName });
   } catch (error) {
     console.error('[RAILGUN] Failed to refresh balances:', error);
     throw error;
+  } finally {
+    isScanning = false;
   }
 };
 
