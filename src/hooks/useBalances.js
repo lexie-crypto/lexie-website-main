@@ -130,12 +130,16 @@ export function useBalances() {
     if (railgunWalletId && chainId) {
       console.log('[useBalances] 🚀 Loading cached private balances on mount...');
       
-      // Test cache persistence first
-      const persistenceTest = testCachePersistence();
-      console.log('[useBalances] Cache persistence test result:', persistenceTest);
-      
-      // Debug current cache state
-      debugBalanceCache('useBalances mount');
+      // Test cache persistence first - only when we have a wallet
+      try {
+        const persistenceTest = testCachePersistence();
+        console.log('[useBalances] Cache persistence test result:', persistenceTest);
+        
+        // Debug current cache state
+        debugBalanceCache('useBalances mount');
+      } catch (error) {
+        console.warn('[useBalances] Cache debug functions failed (non-critical):', error);
+      }
       
       const cachedPrivateBalances = getPrivateBalancesFromCache(railgunWalletId, chainId);
       
@@ -147,10 +151,14 @@ export function useBalances() {
         updatePrivateBalances(cachedPrivateBalances);
       } else {
         console.log('[useBalances] No cached private balances found');
-        debugBalanceCache('after failed cache load');
+        try {
+          debugBalanceCache('after failed cache load');
+        } catch (error) {
+          console.warn('[useBalances] Debug cache function failed (non-critical):', error);
+        }
       }
     }
-  }, [railgunWalletId, chainId, updatePrivateBalances]); // Include updatePrivateBalances in deps
+  }, [railgunWalletId, chainId, updatePrivateBalances]);
 
   // Fetch and cache token prices
   const fetchAndCachePrices = useCallback(async (symbols) => {
@@ -191,7 +199,7 @@ export function useBalances() {
       throw new Error(`No RPC URL configured for chain ${targetChainId}`);
     }
     return new ethers.JsonRpcProvider(rpcUrl);
-  }, [chainId]);
+  }, []); // Remove chainId dependency since it's not used in the function
 
   // Fetch native token balance
   const fetchNativeBalance = useCallback(async (userAddress, targetChainId) => {
