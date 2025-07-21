@@ -4,7 +4,7 @@
  * No custom connector hacks - just clean UI layer over official SDK
  */
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { createConfig, custom } from 'wagmi';
 import { mainnet, polygon, arbitrum, bsc } from 'wagmi/chains';
 import { metaMask, walletConnect } from 'wagmi/connectors';
@@ -115,13 +115,80 @@ const WalletContextProvider = ({ children }) => {
   const { data: connectorClient } = useConnectorClient();
   const { signMessageAsync } = useSignMessage();
 
-  // RPC Retry wrapper to limit consecutive calls to Alchemy
+  // Global RPC rate limiter to prevent excessive calls
+  const rpcLimiter = useRef({
+    totalAttempts: 0,
+    maxTotalAttempts: 9, // 3 networks × 3 attempts each = 9 max
+    isBlocked: false,
+    lastResetTime: Date.now()
+  });
+
+  // Global fetch interceptor to block RPC calls when rate limited
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Store original fetch
+      const originalFetch = window.fetch;
+      
+      // Intercept fetch calls
+      window.fetch = async (...args) => {
+        const [url, options] = args;
+        
+        // Check if this is an RPC call to Alchemy
+        if (typeof url === 'string' && url.includes('alchemy')) {
+          resetRPCLimiter();
+          
+          if (rpcLimiter.current.isBlocked) {
+            console.warn('[RPC-Interceptor] 🚫 Blocked RPC call to:', url);
+            throw new Error('RPC call blocked due to rate limiting');
+          }
+        }
+        
+        return originalFetch.apply(window, args);
+      };
+      
+      // Cleanup on unmount
+      return () => {
+        window.fetch = originalFetch;
+      };
+    }
+  }, []);
+
+  // Reset rate limiter after 5 minutes
+  const resetRPCLimiter = () => {
+    const now = Date.now();
+    if (now - rpcLimiter.current.lastResetTime > 5 * 60 * 1000) { // 5 minutes
+      console.log('[RPC-Limiter] 🔄 Resetting rate limiter after 5 minutes');
+      rpcLimiter.current.totalAttempts = 0;
+      rpcLimiter.current.isBlocked = false;
+      rpcLimiter.current.lastResetTime = now;
+    }
+  };
+
+  // RPC Retry wrapper with global rate limiting
   const withRPCRetryLimit = async (providerLoadFn, networkName, maxRetries = 3) => {
+    resetRPCLimiter();
+    
+    // Check global rate limit first
+    if (rpcLimiter.current.isBlocked) {
+      console.warn(`[RPC-Limiter] 🚫 Global RPC limit reached. Blocking all further attempts.`);
+      throw new Error(`Global RPC rate limit exceeded. Too many failed provider attempts.`);
+    }
+    
     let lastError = null;
     
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      // Check if we've hit the global limit
+      if (rpcLimiter.current.totalAttempts >= rpcLimiter.current.maxTotalAttempts) {
+        console.error(`[RPC-Limiter] 🚫 Global RPC limit (${rpcLimiter.current.maxTotalAttempts}) reached. Blocking all further attempts.`);
+        rpcLimiter.current.isBlocked = true;
+        throw new Error(`Global RPC rate limit exceeded. Blocked further attempts to prevent spam.`);
+      }
+      
       try {
-        console.log(`[RPC-Retry] Attempt ${attempt}/${maxRetries} for ${networkName}`);
+        console.log(`[RPC-Retry] Attempt ${attempt}/${maxRetries} for ${networkName} (Global: ${rpcLimiter.current.totalAttempts + 1}/${rpcLimiter.current.maxTotalAttempts})`);
+        
+        // Increment global counter before attempt
+        rpcLimiter.current.totalAttempts++;
         
         const result = await providerLoadFn();
         
@@ -133,7 +200,7 @@ const WalletContextProvider = ({ children }) => {
         console.warn(`[RPC-Retry] ❌ Attempt ${attempt}/${maxRetries} failed for ${networkName}:`, error.message);
         
         if (attempt === maxRetries) {
-          console.error(`[RPC-Retry] 🚫 All ${maxRetries} attempts failed for ${networkName}. Giving up.`);
+          console.error(`[RPC-Retry] 🚫 All ${maxRetries} attempts failed for ${networkName}.`);
           throw new Error(`Failed to load provider for ${networkName} after ${maxRetries} attempts: ${error.message}`);
         }
         
@@ -309,6 +376,13 @@ const WalletContextProvider = ({ children }) => {
           const { loadProvider } = await import('@railgun-community/wallet');
           const { NetworkName } = await import('@railgun-community/shared-models');
           
+          // Check global rate limiter before loading providers
+          resetRPCLimiter();
+          if (rpcLimiter.current.isBlocked) {
+            console.warn('[RPC-Limiter] 🚫 Global RPC limit reached. Skipping provider loading in fast path.');
+            throw new Error('RPC rate limit exceeded. Skipping provider setup.');
+          }
+          
           const networkConfigs = [
             { networkName: NetworkName.Ethereum, rpcUrl: RPC_URLS.ethereum, chainId: 1 },
             { networkName: NetworkName.Polygon, rpcUrl: RPC_URLS.polygon, chainId: 137 },
@@ -465,50 +539,57 @@ const WalletContextProvider = ({ children }) => {
         { networkName: NetworkName.BNBChain, rpcUrl: RPC_URLS.bsc, chainId: 56 },
       ];
 
-      for (const { networkName, rpcUrl, chainId: netChainId } of networkConfigs) {
-        try {
-          console.log(`📡 Loading provider for ${networkName}...`);
-          
-          // Use connected wallet's provider for current chain, fallback to RPC for others
-          let primaryProvider = rpcUrl;
-          
-          if (connector && netChainId === chainId) {
-            try {
-              console.log(`🔗 Using connected wallet provider for ${networkName} (current chain)`);
-              const eip1193Provider = await connector.getProvider();
-              if (eip1193Provider) {
-                primaryProvider = eip1193Provider;
-                console.log(`✅ Connected wallet provider configured for ${networkName}`);
+      // Check global rate limiter before loading providers
+      resetRPCLimiter();
+      if (rpcLimiter.current.isBlocked) {
+        console.warn('[RPC-Limiter] 🚫 Global RPC limit reached. Skipping provider loading in full initialization.');
+        // Continue without provider loading - Railgun can still work with basic functionality
+      } else {
+        for (const { networkName, rpcUrl, chainId: netChainId } of networkConfigs) {
+          try {
+            console.log(`📡 Loading provider for ${networkName}...`);
+            
+            // Use connected wallet's provider for current chain, fallback to RPC for others
+            let primaryProvider = rpcUrl;
+            
+            if (connector && netChainId === chainId) {
+              try {
+                console.log(`🔗 Using connected wallet provider for ${networkName} (current chain)`);
+                const eip1193Provider = await connector.getProvider();
+                if (eip1193Provider) {
+                  primaryProvider = eip1193Provider;
+                  console.log(`✅ Connected wallet provider configured for ${networkName}`);
+                }
+              } catch (providerError) {
+                console.warn(`⚠️ Failed to get connected wallet provider for ${networkName}, using RPC fallback:`, providerError);
               }
-            } catch (providerError) {
-              console.warn(`⚠️ Failed to get connected wallet provider for ${networkName}, using RPC fallback:`, providerError);
             }
-          }
-          
-          const fallbackProviderConfig = {
-            chainId: netChainId,
-            providers: [{
-              provider: primaryProvider, // Use connected wallet provider for current chain
-              priority: 1,
-              weight: 2,
-            }, {
-              provider: rpcUrl, // Always include RPC as fallback
-              priority: 2,
-              weight: 1,
-            }]
-          };
+            
+            const fallbackProviderConfig = {
+              chainId: netChainId,
+              providers: [{
+                provider: primaryProvider, // Use connected wallet provider for current chain
+                priority: 1,
+                weight: 2,
+              }, {
+                provider: rpcUrl, // Always include RPC as fallback
+                priority: 2,
+                weight: 1,
+              }]
+            };
 
-          // Wrap loadProvider with retry limit
-          await withRPCRetryLimit(
-            () => loadProvider(fallbackProviderConfig, networkName, 15000),
-            networkName
-          );
-          console.log(`✅ Provider loaded for ${networkName}`, {
-            usingConnectedWallet: primaryProvider !== rpcUrl,
-            currentChain: netChainId === chainId
-          });
-        } catch (error) {
-          console.warn(`⚠️ Failed to load provider for ${networkName}:`, error);
+            // Wrap loadProvider with retry limit
+            await withRPCRetryLimit(
+              () => loadProvider(fallbackProviderConfig, networkName, 15000),
+              networkName
+            );
+            console.log(`✅ Provider loaded for ${networkName}`, {
+              usingConnectedWallet: primaryProvider !== rpcUrl,
+              currentChain: netChainId === chainId
+            });
+          } catch (error) {
+            console.warn(`⚠️ Failed to load provider for ${networkName}:`, error);
+          }
         }
       }
 
@@ -725,6 +806,13 @@ const WalletContextProvider = ({ children }) => {
         return;
       }
 
+      // Check global rate limiter before attempting provider updates
+      resetRPCLimiter();
+      if (rpcLimiter.current.isBlocked) {
+        console.warn('[RPC-Limiter] 🚫 Global RPC limit reached. Skipping provider update.');
+        return;
+      }
+
       try {
         console.log('🔄 Updating Railgun providers for chain change...', { chainId });
         
@@ -832,6 +920,35 @@ const WalletContextProvider = ({ children }) => {
           };
         },
         
+        // Check RPC rate limiter status
+        checkRPCLimiter: () => {
+          resetRPCLimiter();
+          return {
+            totalAttempts: rpcLimiter.current.totalAttempts,
+            maxTotalAttempts: rpcLimiter.current.maxTotalAttempts,
+            isBlocked: rpcLimiter.current.isBlocked,
+            lastResetTime: new Date(rpcLimiter.current.lastResetTime).toISOString(),
+            minutesSinceReset: Math.floor((Date.now() - rpcLimiter.current.lastResetTime) / 60000),
+            status: rpcLimiter.current.isBlocked ? 
+              '🚫 BLOCKED - Too many failed RPC attempts' : 
+              `✅ ACTIVE - ${rpcLimiter.current.totalAttempts}/${rpcLimiter.current.maxTotalAttempts} attempts used`
+          };
+        },
+        
+        // Manually reset RPC rate limiter (for debugging)
+        resetRPCLimiter: () => {
+          const oldStatus = { ...rpcLimiter.current };
+          rpcLimiter.current.totalAttempts = 0;
+          rpcLimiter.current.isBlocked = false;
+          rpcLimiter.current.lastResetTime = Date.now();
+          console.log('[Debug] 🔄 Manually reset RPC rate limiter');
+          return {
+            message: 'RPC rate limiter manually reset',
+            oldStatus,
+            newStatus: { ...rpcLimiter.current }
+          };
+        },
+        
         // Clear ALL data for current user (TESTING ONLY - breaks persistence)
         clearAllData: () => {
           if (!address) return { error: 'No wallet connected' };
@@ -855,6 +972,8 @@ const WalletContextProvider = ({ children }) => {
       
       console.log('🛠️ Railgun debug utilities available:');
       console.log('- window.__LEXIE_RAILGUN_DEBUG__.checkEncryptedData() // Check persistence status');
+      console.log('- window.__LEXIE_RAILGUN_DEBUG__.checkRPCLimiter() // Check rate limiter status');  
+      console.log('- window.__LEXIE_RAILGUN_DEBUG__.resetRPCLimiter() // Reset rate limiter');
       console.log('- window.__LEXIE_RAILGUN_DEBUG__.clearAllData() // TESTING ONLY - breaks persistence');
     }
   }, [address, isConnected, railgunAddress, isRailgunInitialized, initializeRailgun]);
