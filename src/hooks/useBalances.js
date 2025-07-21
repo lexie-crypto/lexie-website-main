@@ -125,10 +125,14 @@ export function useBalances() {
     }
   }, []); // FIXED: Empty dependency array to prevent infinite loops
 
-  // Load cached private balances immediately on mount
+  // Load cached private balances immediately on mount - CRITICAL: Only when wallet connected
   useEffect(() => {
-    if (railgunWalletId && chainId) {
-      console.log('[useBalances] 🚀 Loading cached private balances on mount...');
+    // 🚫 CRITICAL: Only load cache when wallet is actually connected
+    if (railgunWalletId && chainId && address) {  // ← Added address check!
+      console.log('[useBalances] 🚀 Loading cached private balances on mount for connected wallet...', {
+        address: address?.slice(0, 8) + '...',
+        walletId: railgunWalletId?.slice(0, 8) + '...'
+      });
       
       // Test cache persistence first - only when we have a wallet
       try {
@@ -150,15 +154,17 @@ export function useBalances() {
         });
         updatePrivateBalances(cachedPrivateBalances);
       } else {
-        console.log('[useBalances] No cached private balances found');
+        console.log('[useBalances] No cached private balances found for connected wallet');
         try {
           debugBalanceCache('after failed cache load');
         } catch (error) {
           console.warn('[useBalances] Debug cache function failed (non-critical):', error);
         }
       }
+    } else {
+      console.log('[useBalances] ⏸️ No wallet connected - skipping cache load to prevent RPC calls');
     }
-  }, [railgunWalletId, chainId]); // FIXED: Removed updatePrivateBalances dependency
+  }, [railgunWalletId, chainId, address]); // Added address dependency to prevent calls without wallet
 
   // Fetch and cache token prices
   const fetchAndCachePrices = useCallback(async (symbols) => {
@@ -309,9 +315,15 @@ export function useBalances() {
     }
   }, [address, chainId, fetchNativeBalance, fetchTokenBalance]);
 
-  // Fetch private balances using Railgun
+  // Fetch private balances using Railgun - CRITICAL: Only when wallet connected
   const fetchPrivateBalances = useCallback(async () => {
-    if (!railgunWalletId || !chainId) {
+    // 🚫 CRITICAL: Prevent RAILGUN RPC calls when no wallet connected
+    if (!railgunWalletId || !chainId || !address) {
+      console.log('[useBalances] ⏸️ Skipping private balance fetch - missing:', {
+        hasWalletId: !!railgunWalletId,
+        hasChainId: !!chainId,
+        hasAddress: !!address
+      });
       return [];
     }
 
@@ -453,28 +465,39 @@ export function useBalances() {
     });
   }, []);
 
-  // Initial load when wallet connects - FIXED: Remove function dependency to prevent infinite loops
+  // Initial load when wallet connects - CRITICAL: Only when wallet is actually connected
   useEffect(() => {
+    // 🚫 CRITICAL: Prevent wasteful RPC calls when no wallet connected
     if (address && chainId) {
+      console.log('[useBalances] 🚀 Wallet connected - fetching balances:', { address: address?.slice(0, 8) + '...', chainId });
       refreshAllBalances();
     } else {
+      console.log('[useBalances] ⏸️ No wallet connected - clearing balances and preventing RPC calls');
       // Clear balances when disconnected
       setPublicBalances([]);
       updatePrivateBalances([]);
       setLastUpdated(null);
+      setError(null);
     }
-  }, [address, chainId]); // FIXED: Removed function dependencies to prevent infinite loops
+  }, [address, chainId]); // Only fetch when BOTH address AND chainId are available
 
-  // Refresh private balances when Railgun wallet changes - FIXED: Remove function dependency
+  // Refresh private balances when Railgun wallet changes - CRITICAL: Only when wallet connected
   useEffect(() => {
-    if (railgunWalletId && chainId) {
+    // 🚫 CRITICAL: Prevent RAILGUN RPC calls when no wallet connected
+    if (railgunWalletId && chainId && address) {  // ← Added address check!
+      console.log('[useBalances] 🔐 RAILGUN wallet available - fetching private balances:', { 
+        walletId: railgunWalletId?.slice(0, 8) + '...', 
+        chainId, 
+        address: address?.slice(0, 8) + '...' 
+      });
       fetchPrivateBalances().then(balances => {
         updatePrivateBalances(balances);
       });
     } else {
+      console.log('[useBalances] ⏸️ No RAILGUN wallet or address - preventing private balance RPC calls');
       updatePrivateBalances([]);
     }
-  }, [railgunWalletId, chainId]); // Removed fetchPrivateBalances dependency, added chainId for safety
+  }, [railgunWalletId, chainId, address]); // Added address dependency to prevent calls without wallet
 
   // Create stable refs to avoid stale closures in event listeners
   const stableRefs = useRef({
