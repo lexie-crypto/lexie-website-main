@@ -427,22 +427,53 @@ export const monitorTransactionInGraph = async ({
 
     await waitForRailgunReady();
 
-    // Get block number from transaction hash
+    // Cache block number after first Alchemy call
+    let blockNumber = null;
     const { ethers } = await import('ethers');
     const rpcUrl = await getRpcUrl(chainId);
     const provider = new ethers.JsonRpcProvider(rpcUrl);
-    const receipt = await provider.getTransactionReceipt(txHash);
-    const blockNumber = receipt?.blockNumber;
+
+    if (!blockNumber) {
+      const receipt = await provider.getTransactionReceipt(txHash);
+      blockNumber = receipt?.blockNumber;
+    }
 
     if (blockNumber) {
-      console.log(`[TransactionMonitor] Querying Graph endpoint for ${transactionType} on block ${blockNumber}`);
+      console.log(`[TransactionMonitor] Cached block number for ${txHash}: ${blockNumber}`);
+    }
 
-      const hasEvent = await monitorTransactionInGraph({
-        txHash,
-        chainId,
-        transactionType,
-        blockNumber,
-      });
+    console.log('[TransactionMonitor] ⏳ Starting Graph polling...');
+
+    // Poll the Graph endpoint
+    const startTime = Date.now();
+    const pollInterval = 30000; // 30 seconds
+    let attempts = 0;
+    const maxAttempts = 40;
+
+    const { isProxy, endpoint } = getGraphEndpoint(chainId);
+    console.log('[TransactionMonitor] 🕒 Starting polling:', {
+      blockNumber,
+      pollInterval: `${pollInterval/1000}s`,
+      maxAttempts,
+      graphEndpoint: endpoint,
+      isProxy,
+      chainId
+    });
+
+    while (attempts < maxAttempts) {
+      attempts++;
+      console.log(`[TransactionMonitor] 🔍 Polling attempt ${attempts}/${maxAttempts} for ${transactionType} events on block ${blockNumber} with txHash ${txHash}`);
+
+      let events = [];
+      if (transactionType === 'shield') {
+        events = await queryCommitments(chainId, blockNumber, txHash);
+      } else if (transactionType === 'unshield') {
+        events = await queryUnshields(chainId, blockNumber, txHash);
+      } else if (transactionType === 'transfer') {
+        events = await queryNullifiers(chainId, blockNumber, txHash);
+      }
+
+      const hasEvent = events.length > 0;
 
       if (hasEvent) {
         console.log('[TransactionMonitor] 🎉 Event confirmed in Graph, proceeding with balance refresh');
@@ -453,56 +484,7 @@ export const monitorTransactionInGraph = async ({
           detail: { txHash, chainId, transactionType }
         }));
 
-        return { found: true, elapsedTime: 0 };
-      }
-    }
-
-    console.log('[TransactionMonitor] ⏳ Transaction not mined yet, starting polling...');
-
-    // Fallback to polling if transaction is not mined
-    const startTime = Date.now();
-    const pollInterval = 30000; // 30 seconds
-    let attempts = 0;
-    const maxAttempts = 40;
-
-    const { isProxy, endpoint } = getGraphEndpoint(chainId);
-    console.log('[TransactionMonitor] 🕒 Starting polling:', {
-      fromBlock,
-      pollInterval: `${pollInterval/1000}s`,
-      maxAttempts,
-      graphEndpoint: endpoint,
-      isProxy,
-      chainId
-    });
-
-    while (attempts < maxAttempts) {
-      attempts++;
-      console.log(`[TransactionMonitor] 🔍 Polling attempt ${attempts}/${maxAttempts} for ${transactionType} events...`);
-
-      const receipt = await provider.getTransactionReceipt(txHash);
-      const blockNumber = receipt?.blockNumber;
-
-      if (blockNumber) {
-        console.log(`[TransactionMonitor] Querying Graph endpoint for ${transactionType} on block ${blockNumber}`);
-
-        const hasEvent = await monitorTransactionInGraph({
-          txHash,
-          chainId,
-          transactionType,
-          blockNumber,
-        });
-
-        if (hasEvent) {
-          console.log('[TransactionMonitor] 🎉 Event confirmed in Graph, proceeding with balance refresh');
-
-          // Trigger balance refresh and dispatch event
-          await refreshBalances(chain, [railgunWalletId]);
-          window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
-            detail: { txHash, chainId, transactionType }
-          }));
-
-          return { found: true, elapsedTime: Date.now() - startTime };
-        }
+        return { found: true, elapsedTime: Date.now() - startTime };
       }
 
       if (listener && typeof listener === 'function') {
@@ -512,7 +494,7 @@ export const monitorTransactionInGraph = async ({
       await new Promise(resolve => setTimeout(resolve, pollInterval));
     }
 
-    console.warn('[TransactionMonitor] ❌ Transaction confirmation timed out');
+    console.warn('[TransactionMonitor] ❌ Transaction confirmation timed out but tx was mined');
     if (listener && typeof listener === 'function') {
       listener({ timeout: true });
     }
