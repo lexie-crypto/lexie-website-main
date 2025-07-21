@@ -313,7 +313,7 @@ const WalletContextProvider = ({ children }) => {
                 }]
               };
 
-              await loadProvider(fallbackProviderConfig, networkName, 15000);
+              await retryWithBackoff(() => loadProvider(fallbackProviderConfig, networkName, 15000));
             } catch (error) {
               console.warn(`⚠️ Fast path provider load failed for ${networkName}:`, error);
             }
@@ -462,7 +462,7 @@ const WalletContextProvider = ({ children }) => {
             }]
           };
 
-          await loadProvider(fallbackProviderConfig, networkName, 15000);
+          await retryWithBackoff(() => loadProvider(fallbackProviderConfig, networkName, 15000));
           console.log(`✅ Provider loaded for ${networkName}`, {
             usingConnectedWallet: primaryProvider !== rpcUrl,
             currentChain: netChainId === chainId
@@ -722,7 +722,7 @@ const WalletContextProvider = ({ children }) => {
               }]
             };
 
-            await loadProvider(fallbackProviderConfig, currentNetwork.networkName, 15000);
+            await retryWithBackoff(() => loadProvider(fallbackProviderConfig, currentNetwork.networkName, 15000));
             console.log(`✅ Updated Railgun provider for ${currentNetwork.networkName} with connected wallet`);
           }
         } catch (error) {
