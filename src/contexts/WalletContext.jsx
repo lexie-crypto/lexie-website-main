@@ -455,6 +455,16 @@ const WalletContextProvider = ({ children }) => {
               // https://docs.railgun.org/developer-guide/wallet/getting-started/4.-add-networks-and-rpc-providers
               console.log(`[RAILGUN] Loading provider for ${networkName} using official SDK format...`);
               
+              // DEBUG: Log exact values being passed to RAILGUN SDK
+              console.log(`[RAILGUN-DEBUG] Values for ${networkName}:`, {
+                networkName: networkName,
+                networkNameType: typeof networkName,
+                rpcUrl: rpcUrl,
+                rpcUrlType: typeof rpcUrl,
+                chainId: netChainId,
+                chainIdType: typeof netChainId
+              });
+              
               const fallbackProviderConfig = {
                 chainId: netChainId,
                 providers: [{
@@ -463,12 +473,16 @@ const WalletContextProvider = ({ children }) => {
                   weight: 1,
                 }]
               };
+              
+              // DEBUG: Log the exact config being passed
+              console.log(`[RAILGUN-DEBUG] Config for ${networkName}:`, JSON.stringify(fallbackProviderConfig, null, 2));
 
               // Wrap loadProvider with retry limit
               await withRPCRetryLimit(
                 () => loadProvider(fallbackProviderConfig, networkName, 15000),
                 networkName
               );
+              console.log(`✅ Provider loaded for ${networkName} using official format`);
             } catch (error) {
               console.warn(`⚠️ Fast path provider load failed for ${networkName}:`, error);
             }
@@ -621,6 +635,16 @@ const WalletContextProvider = ({ children }) => {
             // https://docs.railgun.org/developer-guide/wallet/getting-started/4.-add-networks-and-rpc-providers
             console.log(`📡 Loading provider for ${networkName} using official SDK format...`);
             
+            // DEBUG: Log exact values being passed to RAILGUN SDK
+            console.log(`[RAILGUN-DEBUG] Full init values for ${networkName}:`, {
+              networkName: networkName,
+              networkNameType: typeof networkName,
+              rpcUrl: rpcUrl,
+              rpcUrlType: typeof rpcUrl,
+              chainId: netChainId,
+              chainIdType: typeof netChainId
+            });
+            
             const fallbackProviderConfig = {
               chainId: netChainId,
               providers: [{
@@ -629,6 +653,9 @@ const WalletContextProvider = ({ children }) => {
                 weight: 1,
               }]
             };
+            
+            // DEBUG: Log the exact config being passed
+            console.log(`[RAILGUN-DEBUG] Full init config for ${networkName}:`, JSON.stringify(fallbackProviderConfig, null, 2));
 
             // Wrap loadProvider with retry limit
             await withRPCRetryLimit(
