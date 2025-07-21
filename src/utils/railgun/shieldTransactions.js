@@ -343,7 +343,15 @@ export const shieldTokens = async ({
 
     // Get network configuration
     const networkName = getRailgunNetworkName(chain.id);
-    const txidVersion = TXIDVersion.V2_PoseidonMerkle;
+
+    // Get the appropriate TXID version for the network
+    const getTxidVersionForNetwork = (networkName) => {
+      // For now, use V2 for all networks - this can be updated based on network requirements
+      // In the future, this could check network configuration to determine if V3 is supported
+      return TXIDVersion.V2_PoseidonMerkle;
+    };
+
+    const txidVersion = getTxidVersionForNetwork(networkName);
 
     console.log('[ShieldTransactions] Starting shield operation:', {
       tokenAddress,
