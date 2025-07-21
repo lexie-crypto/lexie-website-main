@@ -120,8 +120,37 @@ const WalletContextProvider = ({ children }) => {
     totalAttempts: 0,
     maxTotalAttempts: 9, // 3 networks × 3 attempts each = 9 max
     isBlocked: false,
-    lastResetTime: Date.now()
+    blockedForSession: null // Track which wallet session caused the block
   });
+
+  // Reset rate limiter only on wallet disconnect/connect
+  const resetRPCLimiter = () => {
+    // Only reset if this is a different wallet session or user disconnected
+    const currentSession = isConnected ? address : null;
+    
+    if (!isConnected || rpcLimiter.current.blockedForSession !== currentSession) {
+      if (rpcLimiter.current.isBlocked) {
+        console.log('[RPC-Limiter] 🔄 Resetting rate limiter for new wallet session:', { 
+          previousSession: rpcLimiter.current.blockedForSession,
+          currentSession 
+        });
+      }
+      
+      rpcLimiter.current.totalAttempts = 0;
+      rpcLimiter.current.isBlocked = false;
+      rpcLimiter.current.blockedForSession = null;
+    }
+  };
+
+  // Reset rate limiter when wallet disconnects
+  useEffect(() => {
+    if (!isConnected) {
+      console.log('[RPC-Limiter] 🔄 Wallet disconnected - resetting rate limiter');
+      rpcLimiter.current.totalAttempts = 0;
+      rpcLimiter.current.isBlocked = false;
+      rpcLimiter.current.blockedForSession = null;
+    }
+  }, [isConnected]);
 
   // Global fetch interceptor to block RPC calls when rate limited
   useEffect(() => {
@@ -193,25 +222,14 @@ const WalletContextProvider = ({ children }) => {
     }
   }, []);
 
-  // Reset rate limiter after 5 minutes
-  const resetRPCLimiter = () => {
-    const now = Date.now();
-    if (now - rpcLimiter.current.lastResetTime > 5 * 60 * 1000) { // 5 minutes
-      console.log('[RPC-Limiter] 🔄 Resetting rate limiter after 5 minutes');
-      rpcLimiter.current.totalAttempts = 0;
-      rpcLimiter.current.isBlocked = false;
-      rpcLimiter.current.lastResetTime = now;
-    }
-  };
-
   // RPC Retry wrapper with global rate limiting
   const withRPCRetryLimit = async (providerLoadFn, networkName, maxRetries = 3) => {
     resetRPCLimiter();
     
     // Check global rate limit first
     if (rpcLimiter.current.isBlocked) {
-      console.warn(`[RPC-Limiter] 🚫 Global RPC limit reached. Blocking all further attempts.`);
-      throw new Error(`Global RPC rate limit exceeded. Too many failed provider attempts.`);
+      console.warn(`[RPC-Limiter] 🚫 Global RPC limit reached. Blocked for this wallet session.`);
+      throw new Error(`Global RPC rate limit exceeded. Blocked for this wallet session. Please disconnect and reconnect to reset.`);
     }
     
     let lastError = null;
@@ -219,9 +237,10 @@ const WalletContextProvider = ({ children }) => {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       // Check if we've hit the global limit
       if (rpcLimiter.current.totalAttempts >= rpcLimiter.current.maxTotalAttempts) {
-        console.error(`[RPC-Limiter] 🚫 Global RPC limit (${rpcLimiter.current.maxTotalAttempts}) reached. Blocking all further attempts.`);
+        console.error(`[RPC-Limiter] 🚫 Global RPC limit (${rpcLimiter.current.maxTotalAttempts}) reached. Blocking all further attempts for this session.`);
         rpcLimiter.current.isBlocked = true;
-        throw new Error(`Global RPC rate limit exceeded. Blocked further attempts to prevent spam.`);
+        rpcLimiter.current.blockedForSession = isConnected ? address : null;
+        throw new Error(`Global RPC rate limit exceeded. Blocked for this wallet session. Please disconnect and reconnect to reset.`);
       }
       
       try {
@@ -419,8 +438,8 @@ const WalletContextProvider = ({ children }) => {
           // Check global rate limiter before loading providers
           resetRPCLimiter();
           if (rpcLimiter.current.isBlocked) {
-            console.warn('[RPC-Limiter] 🚫 Global RPC limit reached. Skipping provider loading in fast path.');
-            throw new Error('RPC rate limit exceeded. Skipping provider setup.');
+            console.warn('[RPC-Limiter] 🚫 Global RPC limit reached. Skipping provider loading in fast path (permanent until disconnect).');
+            throw new Error('RPC rate limit exceeded. Blocked for this wallet session. Please disconnect and reconnect to reset.');
           }
           
           const networkConfigs = [
@@ -582,7 +601,7 @@ const WalletContextProvider = ({ children }) => {
       // Check global rate limiter before loading providers
       resetRPCLimiter();
       if (rpcLimiter.current.isBlocked) {
-        console.warn('[RPC-Limiter] 🚫 Global RPC limit reached. Limiting provider loading to current chain only.');
+        console.warn('[RPC-Limiter] 🚫 Global RPC limit reached. Limiting provider loading to current chain only (permanent until disconnect).');
         // Only load provider for current chain when rate limited - this is essential for transactions
         const currentChainConfig = networkConfigs.find(config => config.chainId === chainId);
         if (currentChainConfig) {
@@ -891,7 +910,7 @@ const WalletContextProvider = ({ children }) => {
       // Check global rate limiter before attempting provider updates
       resetRPCLimiter();
       if (rpcLimiter.current.isBlocked) {
-        console.warn('[RPC-Limiter] 🚫 Global RPC limit reached. Skipping provider update.');
+        console.warn('[RPC-Limiter] 🚫 Global RPC limit reached. Skipping provider update (permanent until disconnect).');
         return;
       }
 
@@ -1009,10 +1028,11 @@ const WalletContextProvider = ({ children }) => {
             totalAttempts: rpcLimiter.current.totalAttempts,
             maxTotalAttempts: rpcLimiter.current.maxTotalAttempts,
             isBlocked: rpcLimiter.current.isBlocked,
-            lastResetTime: new Date(rpcLimiter.current.lastResetTime).toISOString(),
-            minutesSinceReset: Math.floor((Date.now() - rpcLimiter.current.lastResetTime) / 60000),
+            blockedForSession: rpcLimiter.current.blockedForSession,
+            currentSession: isConnected ? address : null,
+            isBlockedForCurrentSession: rpcLimiter.current.isBlocked && rpcLimiter.current.blockedForSession === address,
             status: rpcLimiter.current.isBlocked ? 
-              '🚫 BLOCKED - Too many failed RPC attempts' : 
+              '🚫 BLOCKED - Too many failed RPC attempts. Disconnect and reconnect wallet to reset.' : 
               `✅ ACTIVE - ${rpcLimiter.current.totalAttempts}/${rpcLimiter.current.maxTotalAttempts} attempts used`
           };
         },
@@ -1022,10 +1042,10 @@ const WalletContextProvider = ({ children }) => {
           const oldStatus = { ...rpcLimiter.current };
           rpcLimiter.current.totalAttempts = 0;
           rpcLimiter.current.isBlocked = false;
-          rpcLimiter.current.lastResetTime = Date.now();
+          rpcLimiter.current.blockedForSession = null;
           console.log('[Debug] 🔄 Manually reset RPC rate limiter');
           return {
-            message: 'RPC rate limiter manually reset',
+            message: 'RPC rate limiter manually reset (debug only)',
             oldStatus,
             newStatus: { ...rpcLimiter.current }
           };
