@@ -106,6 +106,19 @@ const setupNetworks = async () => {
           continue;
         }
         
+        // Check if provider is already loaded
+        const isLoaded = await isProviderLoaded(config.chainId);
+        if (isLoaded) {
+          console.log(`[RAILGUN] Provider already loaded for ${networkName}`);
+          continue;
+        }
+
+        // Ensure fallback provider is defined
+        if (!config.rpcUrl) {
+          console.error(`[RAILGUN] No fallback provider defined for ${networkName}`);
+          continue;
+        }
+
         // Step 2: Then load the provider
         const providerConfig = {
           chainId: config.chainId,
