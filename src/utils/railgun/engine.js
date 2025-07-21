@@ -46,40 +46,6 @@ import {
 import { groth16 } from 'snarkjs';
 import LevelJS from 'level-js';
 import { createEnhancedArtifactStore } from './artifactStore.js';
-import { ethers } from 'ethers';
-
-let allowAlchemy = false;
-
-export const setAllowAlchemy = (value) => {
-  allowAlchemy = value;
-};
-
-export const createGuardedAlchemyProvider = (url) => {
-  const provider = new ethers.JsonRpcProvider(url);
-
-  return new Proxy(provider, {
-    get(target, prop) {
-      const value = target[prop];
-      if (typeof value === 'function') {
-        return (...args) => {
-          if (!allowAlchemy) {
-            console.warn(`[AlchemyGuard] Blocked call to ${String(prop)}`);
-            throw new Error(`Alchemy call to ${String(prop)} blocked`);
-          }
-          return value.apply(target, args);
-        };
-      }
-      return value;
-    }
-  });
-};
-
-// Replace existing Alchemy providers with the guarded one
-// Example usage:
-// const provider = createGuardedAlchemyProvider(`https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_KEY}`);
-// setAllowAlchemy(true);
-// await scanRailgunTransactions(...);
-// setAllowAlchemy(false);
 
 // Engine state
 let isEngineStarted = false;

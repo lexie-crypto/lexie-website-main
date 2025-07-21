@@ -127,28 +127,31 @@ export function useBalances() {
 
   // Load cached private balances immediately on mount
   useEffect(() => {
-    if (railgunWalletId && chainId) {
-      console.log('[useBalances] 🚀 Loading cached private balances on mount...');
-      
-      // Test cache persistence first
-      const persistenceTest = testCachePersistence();
-      console.log('[useBalances] Cache persistence test result:', persistenceTest);
-      
-      // Debug current cache state
-      debugBalanceCache('useBalances mount');
-      
-      const cachedPrivateBalances = getPrivateBalancesFromCache(railgunWalletId, chainId);
-      
-      if (cachedPrivateBalances.length > 0) {
-        console.log('[useBalances] ✅ Found cached private balances, loading immediately:', {
-          count: cachedPrivateBalances.length,
-          tokens: cachedPrivateBalances.map(b => `${b.symbol}: ${b.formattedBalance}`)
-        });
-        updatePrivateBalances(cachedPrivateBalances);
-      } else {
-        console.log('[useBalances] No cached private balances found');
-        debugBalanceCache('after failed cache load');
-      }
+    if (!railgunWalletId || !chainId) {
+      console.log('[useBalances] Wallet not connected or chainId missing, skipping balance load');
+      return;
+    }
+
+    console.log('[useBalances] 🚀 Loading cached private balances on mount...');
+    
+    // Test cache persistence first
+    const persistenceTest = testCachePersistence();
+    console.log('[useBalances] Cache persistence test result:', persistenceTest);
+    
+    // Debug current cache state
+    debugBalanceCache('useBalances mount');
+    
+    const cachedPrivateBalances = getPrivateBalancesFromCache(railgunWalletId, chainId);
+    
+    if (cachedPrivateBalances.length > 0) {
+      console.log('[useBalances] ✅ Found cached private balances, loading immediately:', {
+        count: cachedPrivateBalances.length,
+        tokens: cachedPrivateBalances.map(b => `${b.symbol}: ${b.formattedBalance}`)
+      });
+      updatePrivateBalances(cachedPrivateBalances);
+    } else {
+      console.log('[useBalances] No cached private balances found');
+      debugBalanceCache('after failed cache load');
     }
   }, [railgunWalletId, chainId, updatePrivateBalances]); // Include updatePrivateBalances in deps
 
