@@ -10,6 +10,7 @@ import { getPrivateBalances, getPrivateBalancesFromCache, refreshPrivateBalances
 import { debugBalanceCache, testCachePersistence } from '../utils/railgun/cache-debug';
 import { fetchTokenPrices } from '../utils/pricing/coinGecko';
 import { RPC_URLS } from '../config/environment';
+import { storeBalances } from '../utils/api/walletStorage';
 
 // Network mapping for UI display  
 const NETWORK_MAPPING = {
@@ -342,7 +343,7 @@ export function useBalances() {
     }
   }, [getProvider]);
 
-  // Fetch all public balances - CRITICAL: Check if balance system is enabled
+  // Fetch all public balances - ALWAYS FRESH + PERSIST TO REDIS
   const fetchPublicBalances = useCallback(async () => {
     // 🛑 CRITICAL: Prevent RPC calls when balance system is disabled
     if (!isBalanceSystemEnabled || !address || !chainId) {
@@ -351,7 +352,7 @@ export function useBalances() {
     }
 
     try {
-      console.log('[useBalances] Fetching public balances for chain:', chainId);
+      console.log('[useBalances] 🔥 ALWAYS FRESH: Fetching public balances from blockchain for chain:', chainId);
       
       // Clear previous error
       setError(null);
@@ -366,22 +367,23 @@ export function useBalances() {
 
       const results = await Promise.allSettled(balancePromises);
       
-      const balances = results
+      const freshBalances = results
         .filter(result => result.status === 'fulfilled' && result.value !== null)
         .map(result => result.value);
 
-      console.log('[useBalances] Fetched public balances:', {
-        total: balances.length,
-        withBalance: balances.filter(b => b.hasBalance).length,
+      console.log('[useBalances] ✅ Fetched FRESH public balances from blockchain:', {
+        total: freshBalances.length,
+        withBalance: freshBalances.filter(b => b.hasBalance).length,
+        source: 'blockchain (fresh)'
       });
 
-      return balances;
+      return freshBalances;
     } catch (error) {
-      console.error('[useBalances] Failed to fetch public balances:', error);
+      console.error('[useBalances] Failed to fetch fresh public balances:', error);
       setError(error.message);
       return [];
     }
-  }, [isBalanceSystemEnabled, address, chainId, fetchNativeBalance, fetchTokenBalance]);
+  }, [isBalanceSystemEnabled, address, chainId, railgunWalletId, fetchNativeBalance, fetchTokenBalance]);
 
   // Fetch private balances using Railgun - CRITICAL: Only when wallet connected AND system enabled
   const fetchPrivateBalances = useCallback(async () => {
@@ -463,7 +465,51 @@ export function useBalances() {
       updatePrivateBalances(privateWithUSD);
       setLastUpdated(Date.now());
       
-      // Expose balances globally for balance checking
+      // Store combined fresh balances to Redis (done here to avoid overwrites)
+      if (railgunWalletId && chainId) {
+        try {
+          const publicBalancesWithFlag = publicWithUSD
+            .filter(balance => balance.hasBalance && balance.numericBalance > 0)
+            .map(balance => ({
+              symbol: balance.symbol,
+              tokenAddress: balance.address,
+              formattedBalance: balance.formattedBalance,
+              numericBalance: balance.numericBalance,
+              decimals: balance.decimals,
+              chainId: chainId,
+              isPrivate: false
+            }));
+          
+          const privateBalancesWithFlag = privateWithUSD
+            .filter(balance => balance.numericBalance > 0)
+            .map(balance => ({
+              symbol: balance.symbol,
+              tokenAddress: balance.tokenAddress || balance.address,
+              formattedBalance: balance.formattedBalance,
+              numericBalance: balance.numericBalance,
+              decimals: balance.decimals,
+              chainId: chainId,
+              isPrivate: true
+            }));
+          
+          // Combine all fresh balances into single array for Redis persistence
+          const allFreshBalances = [...publicBalancesWithFlag, ...privateBalancesWithFlag];
+          
+          if (allFreshBalances.length > 0) {
+            await storeBalances(railgunWalletId, chainId, allFreshBalances);
+            console.log('[useBalances] 💾 Combined fresh balances persisted to Redis:', {
+              totalCount: allFreshBalances.length,
+              publicCount: publicBalancesWithFlag.length,
+              privateCount: privateBalancesWithFlag.length,
+              tokens: allFreshBalances.map(b => `${b.symbol}: ${b.formattedBalance} (${b.isPrivate ? 'private' : 'public'})`)
+            });
+          }
+        } catch (redisError) {
+          console.warn('[useBalances] Failed to persist combined balances to Redis (non-critical):', redisError);
+        }
+      }
+      
+      // Expose balances globally for balance checking (deprecated - components should use Redis)
       window.__LEXIE_BALANCES__ = publicWithUSD;
 
       console.log('[useBalances] Balances refreshed:', {
@@ -730,8 +776,12 @@ export function useBalances() {
     };
 
     // Handle transaction confirmation events from Graph monitoring
-    const handleTransactionConfirmed = (event) => {
-      const { chainId: currentChainId, refreshBalancesAfterTransaction: currentRefreshAfterTx } = stableRefs.current;
+    const handleTransactionConfirmed = async (event) => {
+      const { 
+        chainId: currentChainId, 
+        railgunWalletId: currentWalletId,
+        fetchPrivateBalances: currentFetchPrivate 
+      } = stableRefs.current;
       
       console.log('[useBalances] 🎯 Transaction confirmed via Graph monitoring:', {
         txHash: event.detail?.txHash,
@@ -740,13 +790,35 @@ export function useBalances() {
         timestamp: event.detail?.timestamp
       });
       
-      // If this is for our current wallet/chain, refresh balances with cache clearing
-      if (event.detail?.chainId === currentChainId) {
-        console.log('[useBalances] ⚡ Post-transaction refresh triggered by transaction confirmation (with cache clearing)');
-        // Small delay to ensure the balance callback has processed, then use the enhanced refresh
-        setTimeout(() => {
-          stableRefs.current.refreshBalancesAfterTransaction(stableRefs.current.railgunWalletId);
-        }, 1000);
+      // If this is for our current wallet/chain, trigger fresh balance fetch + persist
+      if (event.detail?.chainId === currentChainId && currentWalletId) {
+        const transactionType = event.detail?.transactionType;
+        
+                 // For shield transactions, immediately fetch fresh balances and persist
+         if (transactionType === 'shield') {
+           console.log('[useBalances] 🛡️ Shield transaction confirmed - triggering fresh balance refresh + persist to Redis');
+           try {
+             // Wait a moment for the UTXO to be indexed
+             await new Promise(resolve => setTimeout(resolve, 2000));
+             
+             // Trigger full refresh which will fetch both public/private and store combined to Redis
+             await stableRefs.current.refreshAllBalances();
+             
+             console.log('[useBalances] ✅ Fresh balances fetched and persisted after shield confirmation');
+           } catch (error) {
+             console.error('[useBalances] Failed to refresh balances after shield confirmation:', error);
+             // Fallback to regular refresh
+             setTimeout(() => {
+               stableRefs.current.refreshBalancesAfterTransaction(currentWalletId);
+             }, 1000);
+           }
+         } else {
+          // For other transaction types, use the enhanced refresh
+          console.log('[useBalances] ⚡ Post-transaction refresh triggered by transaction confirmation');
+          setTimeout(() => {
+            stableRefs.current.refreshBalancesAfterTransaction(currentWalletId);
+          }, 1000);
+        }
       }
     };
 

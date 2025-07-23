@@ -12,6 +12,7 @@ import { WagmiProvider, useAccount, useConnect, useDisconnect, useSwitchChain, u
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/environment';
 import { NetworkName } from '@railgun-community/shared-models';
+import { getWalletMetadata, storeWalletMetadata } from '../utils/api/walletStorage';
 
 // Create a client for React Query
 const queryClient = new QueryClient();
@@ -363,9 +364,49 @@ const WalletContextProvider = ({ children }) => {
     const userStorageKey = `railgun-walletID-${address.toLowerCase()}`;
     const mnemonicStorageKey = `railgun-mnemonic-${address.toLowerCase()}`;
     
-    const existingSignature = localStorage.getItem(signatureStorageKey);
-    const existingWalletID = localStorage.getItem(userStorageKey);
-    const existingMnemonic = localStorage.getItem(mnemonicStorageKey);
+    // 🚀 REDIS-FIRST: Check Redis for wallet metadata before localStorage
+    let existingSignature = null;
+    let existingWalletID = null;
+    let existingMnemonic = null;
+    let redisWalletData = null;
+    
+    try {
+      console.log('[WalletContext] 📥 Checking Redis for wallet metadata first...', { 
+        walletAddress: address?.slice(0, 8) + '...' 
+      });
+      redisWalletData = await getWalletMetadata(address);
+      
+      if (redisWalletData) {
+        console.log('[WalletContext] ✅ Found wallet metadata in Redis:', {
+          walletId: redisWalletData.walletId?.slice(0, 8) + '...',
+          walletAddress: redisWalletData.walletAddress?.slice(0, 8) + '...',
+          source: 'Redis'
+        });
+        existingWalletID = redisWalletData.walletId;
+        // Note: Redis doesn't store signature/mnemonic for security - will get from localStorage
+      } else {
+        console.log('[WalletContext] ℹ️ No wallet metadata found in Redis, checking localStorage...');
+      }
+    } catch (redisError) {
+      console.warn('[WalletContext] Redis wallet metadata check failed, falling back to localStorage:', redisError);
+    }
+    
+    // Fallback to localStorage for any missing data
+    if (!existingSignature) {
+      existingSignature = localStorage.getItem(signatureStorageKey);
+    }
+    if (!existingWalletID) {
+      existingWalletID = localStorage.getItem(userStorageKey);
+    }
+    if (!existingMnemonic) {
+      existingMnemonic = localStorage.getItem(mnemonicStorageKey);
+    }
+    
+    console.log('[WalletContext] 📊 Wallet data sources:', {
+      walletIdSource: redisWalletData ? 'Redis' : (localStorage.getItem(userStorageKey) ? 'localStorage' : 'none'),
+      signatureSource: localStorage.getItem(signatureStorageKey) ? 'localStorage' : 'none',
+      mnemonicSource: localStorage.getItem(mnemonicStorageKey) ? 'localStorage' : 'none'
+    });
     
     // 🛡️ PRIMARY GUARD: Check if wallet already exists and is initialized
     const walletAlreadyInitialized = (walletID) => {
@@ -912,10 +953,21 @@ const WalletContextProvider = ({ children }) => {
           
           // 💾 Save new wallet ID for persistence (ensure consistent storage key)
           localStorage.setItem(userStorageKey, railgunWalletInfo.id);
+          
+          // 🚀 REDIS: Store wallet metadata for sessionless persistence
+          try {
+            await storeWalletMetadata(railgunWalletInfo.railgunAddress, railgunWalletInfo.id);
+            console.log('✅ Stored wallet metadata to Redis for sessionless access');
+          } catch (redisError) {
+            console.warn('⚠️ Failed to store wallet metadata to Redis (non-critical):', redisError);
+          }
+          
           console.log('✅ Created and saved new Railgun wallet:', {
             userAddress: address,
             walletID: railgunWalletInfo.id?.slice(0, 8) + '...',
-            storageKey: userStorageKey
+            railgunAddress: railgunWalletInfo.railgunAddress?.slice(0, 8) + '...',
+            storageKey: userStorageKey,
+            redisStored: true
           });
           
         } catch (createError) {
