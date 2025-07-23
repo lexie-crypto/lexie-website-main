@@ -482,12 +482,21 @@ export function useBalances() {
   }, [isBalanceSystemEnabled, address, chainId]); // Added isBalanceSystemEnabled to prevent calls when disabled
 
   // Refresh balances after transactions - CRITICAL: Only when system enabled
-  const refreshBalancesAfterTransaction = useCallback(async () => {
+  const refreshBalancesAfterTransaction = useCallback(async (explicitRailgunWalletId = null) => {
     // 🛑 CRITICAL: Prevent post-transaction refresh when system is disabled
     if (!isBalanceSystemEnabled) {
       console.log('[useBalances] ⏸️ Post-transaction refresh blocked - balance system disabled');
       return;
     }
+    
+    // Use explicit wallet ID if provided, fallback to context value
+    const walletIdToUse = explicitRailgunWalletId || railgunWalletId;
+    
+    console.log('[useBalances] 🔍 Wallet ID resolution:', {
+      explicitRailgunWalletId: explicitRailgunWalletId?.slice(0, 8) + '...' || 'null',
+      contextRailgunWalletId: railgunWalletId?.slice(0, 8) + '...' || 'undefined',
+      walletIdToUse: walletIdToUse?.slice(0, 8) + '...' || 'undefined'
+    });
     
     console.log('[useBalances] 🔄 Enhanced post-transaction balance refresh...');
     
@@ -502,11 +511,11 @@ export function useBalances() {
       await new Promise(resolve => setTimeout(resolve, delays[attempt]));
       
       // 🔁 CRITICAL: Force complete RAILGUN rescan BEFORE each refresh attempt
-      if (railgunWalletId && chainId) {
+      if (walletIdToUse && chainId) {
         try {
           console.log('[useBalances] 🎯 Forcing complete RAILGUN rescan...');
           const { clearStaleBalanceCacheAndRefresh } = await import('../utils/railgun/balances');
-          await clearStaleBalanceCacheAndRefresh(railgunWalletId, chainId);
+          await clearStaleBalanceCacheAndRefresh(walletIdToUse, chainId);
         } catch (error) {
           console.warn('[useBalances] Rescan failed, falling back to regular refresh:', error);
         }
@@ -519,7 +528,7 @@ export function useBalances() {
     }
     
     console.log('[useBalances] 🎉 Enhanced post-transaction refresh completed');
-  }, [isBalanceSystemEnabled, railgunWalletId, chainId, refreshAllBalances]); // Added refreshAllBalances dependency
+  }, [isBalanceSystemEnabled, railgunWalletId, chainId, refreshAllBalances]); // Note: explicitRailgunWalletId is a parameter, not dependency
 
   // Format balance for display
   const formatBalance = useCallback((balance, decimals = 2) => {
@@ -736,7 +745,7 @@ export function useBalances() {
         console.log('[useBalances] ⚡ Post-transaction refresh triggered by transaction confirmation (with cache clearing)');
         // Small delay to ensure the balance callback has processed, then use the enhanced refresh
         setTimeout(() => {
-          stableRefs.current.refreshBalancesAfterTransaction();
+          stableRefs.current.refreshBalancesAfterTransaction(stableRefs.current.railgunWalletId);
         }, 1000);
       }
     };

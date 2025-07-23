@@ -304,7 +304,7 @@ const WalletPage = () => {
       return;
       
       // Refresh balances after successful transaction
-      await refreshBalancesAfterTransaction();
+      await refreshBalancesAfterTransaction(railgunWalletId);
       
     } catch (error) {
       console.error('[WalletPage] Shield All failed:', error);
@@ -605,7 +605,7 @@ const WalletPage = () => {
                       // 1. Clear private balance cache and refresh with enhanced logic (6-second one-time poll)
                       if (canUseRailgun && railgunWalletId && isRailgunInitialized) {
                         console.log('[WalletPage] 🔐 Refreshing private balances with cache clearing...');
-                        await refreshBalancesAfterTransaction();
+                        await refreshBalancesAfterTransaction(railgunWalletId); // Pass walletId explicitly
                       } else {
                         console.log('[WalletPage] ⏸️ Skipping private balance refresh - RAILGUN not ready:', {
                           canUseRailgun,
