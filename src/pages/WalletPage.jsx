@@ -585,46 +585,31 @@ const WalletPage = () => {
                   </button>
                 )}
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     // 🛑 CRITICAL: Prevent refresh when wallet not connected
                     if (!isConnected || !address) {
                       console.log('[WalletPage] ⏸️ Refresh blocked - wallet not connected');
                       toast.error('Wallet not connected');
                       return;
                     }
-                    refreshAllBalances();
+                    
+                    try {
+                      console.log('[WalletPage] 🔄 Enhanced refresh with cache clearing triggered...');
+                      
+                      // Use the same enhanced logic as refreshBalancesAfterTransaction
+                      await refreshBalancesAfterTransaction();
+                      
+                      console.log('[WalletPage] ✅ Enhanced refresh completed');
+                    } catch (error) {
+                      console.error('[WalletPage] Enhanced refresh failed:', error);
+                      toast.error('Refresh failed');
+                    }
                   }}
                   disabled={isLoading || !isConnected}
-                  className="bg-gray-600 hover:bg-gray-700 disabled:bg-gray-800 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                  className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                 >
-                  {isLoading ? 'Refreshing...' : 'Refresh All'}
+                  {isLoading ? 'Refreshing...' : 'Refresh'}
                 </button>
-                {canUseRailgun && (
-                  <button
-                    onClick={async () => {
-                      // 🛑 CRITICAL: Prevent force refresh when wallet not connected
-                      if (!isConnected || !address || !railgunWalletId) {
-                        console.log('[WalletPage] ⏸️ Force refresh blocked - wallet not connected');
-                        toast.error('Wallet not connected');
-                        return;
-                      }
-                      
-                      try {
-                        console.log('[WalletPage] 🔄 Manual force refresh triggered');
-                        const { clearStaleBalanceCacheAndRefresh } = await import('../utils/railgun/balances');
-                        await clearStaleBalanceCacheAndRefresh(railgunWalletId, chainId);
-                        await refreshAllBalances();
-                      } catch (error) {
-                        console.error('[WalletPage] Force refresh failed:', error);
-                        toast.error('Force refresh failed');
-                      }
-                    }}
-                    disabled={isLoading || !isConnected}
-                    className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 text-white px-4 py-2 rounded-lg font-medium transition-colors"
-                  >
-                    Force Refresh
-                  </button>
-                )}
               </div>
             </div>
 

@@ -299,15 +299,32 @@ export const refreshPrivateBalances = async (walletID, chainId) => {
     
     const networkName = getRailgunNetworkName(chainId);
     
-    console.log('[RailgunBalances] Triggering private balance refresh...');
+    console.log('[RailgunBalances] 🎯 ONE-TIME POLL: temporarily resuming provider for single refresh...');
     
-    // Get the chain configuration
-    const { chain } = NETWORK_CONFIG[networkName];
+    // 🎯 ONE-TIME POLL: Resume provider only for this single operation
+    const { resumeIsolatedPollingProviderForNetwork, pauseAllPollingProviders } = await import('@railgun-community/wallet');
     
-    // Trigger RAILGUN balance refresh - this will cause callbacks to fire
-    await refreshBalances(chain, [walletID]);
-    
-    console.log('[RailgunBalances] Private balance refresh triggered - waiting for callbacks');
+    try {
+      // Resume provider for this network temporarily
+      resumeIsolatedPollingProviderForNetwork(networkName);
+      console.log(`[RailgunBalances] ▶️ Temporarily resumed provider for ${networkName}`);
+      
+      // Get the chain configuration
+      const { chain } = NETWORK_CONFIG[networkName];
+      
+      // Trigger RAILGUN balance refresh - this will cause callbacks to fire
+      await refreshBalances(chain, [walletID]);
+      
+      console.log('[RailgunBalances] Private balance refresh triggered - waiting for callbacks');
+      
+      // Small delay to allow the refresh to process
+      await new Promise(resolve => setTimeout(resolve, 6000)); // 6 second delay
+      
+    } finally {
+      // 🛑 CRITICAL: Always pause providers again after ONE refresh
+      pauseAllPollingProviders();
+      console.log(`[RailgunBalances] ⏸️ Paused all providers after ONE-TIME refresh`);
+    }
     
     // Return current cached balances - real update comes through callbacks
     return getPrivateBalances(walletID, chainId);
