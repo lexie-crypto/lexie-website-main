@@ -501,7 +501,7 @@ export function useBalances() {
       // Wait progressively longer
       await new Promise(resolve => setTimeout(resolve, delays[attempt]));
       
-      // Force a complete rescan for private balances if we have Railgun wallet
+      // 🔁 CRITICAL: Force complete RAILGUN rescan BEFORE each refresh attempt
       if (railgunWalletId && chainId) {
         try {
           console.log('[useBalances] 🎯 Forcing complete RAILGUN rescan...');
@@ -512,14 +512,14 @@ export function useBalances() {
         }
       }
       
-      // Regular balance refresh
+      // Regular balance refresh (now with fresh UTXO data)
       await refreshAllBalances();
       
       console.log(`[useBalances] ✅ Refresh attempt ${attempt + 1} completed`);
     }
     
     console.log('[useBalances] 🎉 Enhanced post-transaction refresh completed');
-  }, [isBalanceSystemEnabled, railgunWalletId, chainId]); // Added system enabled check
+  }, [isBalanceSystemEnabled, railgunWalletId, chainId, refreshAllBalances]); // Added refreshAllBalances dependency
 
   // Format balance for display
   const formatBalance = useCallback((balance, decimals = 2) => {
