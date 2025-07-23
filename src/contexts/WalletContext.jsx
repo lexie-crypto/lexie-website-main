@@ -946,29 +946,8 @@ const WalletContextProvider = ({ children }) => {
         persisted: true
       });
 
-      // 🔄 CRITICAL: Resume provider for current network after successful initialization
-      if (isConnected && address && chainId) {
-        try {
-          console.log('🔄 Resuming RAILGUN provider for current network after init...');
-          const { resumeIsolatedPollingProviderForNetwork } = await import('@railgun-community/wallet');
-          const { NetworkName } = await import('@railgun-community/shared-models');
-          
-          const networkMapping = {
-            1: NetworkName.Ethereum,
-            137: NetworkName.Polygon,
-            42161: NetworkName.Arbitrum,
-            56: NetworkName.BNBChain,
-          };
-          
-          const currentNetwork = networkMapping[chainId];
-          if (currentNetwork) {
-            resumeIsolatedPollingProviderForNetwork(currentNetwork);
-            console.log(`✅ Resumed RAILGUN provider for ${currentNetwork} after init`);
-          }
-        } catch (resumeError) {
-          console.warn('⚠️ Failed to resume provider after init:', resumeError);
-        }
-      }
+      // 🎯 FIXED: Don't auto-resume polling after init - let useBalances hook control when to poll
+      console.log('⏸️ Providers remain paused after init - will resume only when balance refresh needed');
 
     } catch (error) {
       console.error('❌ Railgun initialization failed:', error);
@@ -987,33 +966,8 @@ const WalletContextProvider = ({ children }) => {
     if (isRailgunInitialized) {
       console.log('✅ Railgun already initialized for:', address);
       
-      // 🔄 CRITICAL: Resume providers when wallet connects (if they were paused)
-      if (isConnected && address) {
-        const resumeProviders = async () => {
-          try {
-            console.log('🔄 Resuming RAILGUN providers for connected wallet...');
-            const { resumeIsolatedPollingProviderForNetwork } = await import('@railgun-community/wallet');
-            const { NetworkName } = await import('@railgun-community/shared-models');
-            
-            // Resume provider for current chain
-            const networkMapping = {
-              1: NetworkName.Ethereum,
-              137: NetworkName.Polygon,
-              42161: NetworkName.Arbitrum,
-              56: NetworkName.BNBChain,
-            };
-            
-            const currentNetwork = networkMapping[chainId];
-            if (currentNetwork) {
-              resumeIsolatedPollingProviderForNetwork(currentNetwork);
-              console.log(`✅ Resumed RAILGUN provider for ${currentNetwork}`);
-            }
-          } catch (error) {
-            console.warn('⚠️ Failed to resume RAILGUN providers:', error);
-          }
-        };
-        resumeProviders();
-      }
+      // 🎯 FIXED: Don't auto-resume polling - let useBalances hook control when to poll
+      console.log('⏸️ Providers remain paused - will resume only when balance refresh needed');
       return;
     }
     
@@ -1105,10 +1059,8 @@ const WalletContextProvider = ({ children }) => {
           );
           console.log(`✅ Updated Railgun provider for ${currentNetwork.networkName} using official format`);
           
-          // 🔄 CRITICAL: Resume only the current network provider after update
-          const { resumeIsolatedPollingProviderForNetwork } = await import('@railgun-community/wallet');
-          resumeIsolatedPollingProviderForNetwork(currentNetwork.networkName);
-          console.log(`✅ Resumed polling for ${currentNetwork.networkName} only`);
+          // 🎯 FIXED: Don't auto-resume polling after provider update - let useBalances hook control when to poll
+          console.log(`⏸️ Provider updated but remains paused - will resume only when balance refresh needed`);
         } catch (providerError) {
           console.warn('⚠️ Failed to update Railgun provider:', providerError);
           // Don't throw - this is non-critical, RPC fallback will work
