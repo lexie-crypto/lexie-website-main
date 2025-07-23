@@ -773,7 +773,7 @@ export function useBalances() {
     
     // Functions
     refreshAllBalances,
-    refreshBalancesAfterTransaction: refreshAllBalances, // Alias for backward compatibility
+    refreshBalancesAfterTransaction, // Export the actual enhanced function, not the alias
     formatBalance,
     
     // Utilities
