@@ -596,10 +596,18 @@ const WalletPage = () => {
                     try {
                       console.log('[WalletPage] 🔄 Enhanced refresh with cache clearing triggered...');
                       
-                      // Use the same enhanced logic as refreshBalancesAfterTransaction
-                      await refreshBalancesAfterTransaction();
+                      // 1. Clear private balance cache and refresh with enhanced logic (6-second one-time poll)
+                      if (canUseRailgun && railgunWalletId) {
+                        console.log('[WalletPage] 🔐 Refreshing private balances with cache clearing...');
+                        await refreshBalancesAfterTransaction();
+                      }
                       
-                      console.log('[WalletPage] ✅ Enhanced refresh completed');
+                      // 2. Also refresh public balances normally
+                      console.log('[WalletPage] 💰 Refreshing public balances...');
+                      await refreshAllBalances();
+                      
+                      console.log('[WalletPage] ✅ Enhanced refresh completed (both public and private)');
+                      toast.success('Balances refreshed successfully');
                     } catch (error) {
                       console.error('[WalletPage] Enhanced refresh failed:', error);
                       toast.error('Refresh failed');
