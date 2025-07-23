@@ -603,7 +603,8 @@ export function useBalances() {
     updatePrivateBalances,
     calculateUSDValue,
     fetchPrivateBalances,
-    refreshAllBalances
+    refreshAllBalances,
+    refreshBalancesAfterTransaction
   });
   
   // Update refs on each render to avoid stale closures
@@ -614,7 +615,8 @@ export function useBalances() {
       updatePrivateBalances,
       calculateUSDValue,
       fetchPrivateBalances,
-      refreshAllBalances
+      refreshAllBalances,
+      refreshBalancesAfterTransaction
     };
   });
 
@@ -720,7 +722,7 @@ export function useBalances() {
 
     // Handle transaction confirmation events from Graph monitoring
     const handleTransactionConfirmed = (event) => {
-      const { chainId: currentChainId, refreshAllBalances: currentRefresh } = stableRefs.current;
+      const { chainId: currentChainId, refreshBalancesAfterTransaction: currentRefreshAfterTx } = stableRefs.current;
       
       console.log('[useBalances] 🎯 Transaction confirmed via Graph monitoring:', {
         txHash: event.detail?.txHash,
@@ -729,12 +731,12 @@ export function useBalances() {
         timestamp: event.detail?.timestamp
       });
       
-      // If this is for our current wallet/chain, refresh balances immediately
+      // If this is for our current wallet/chain, refresh balances with cache clearing
       if (event.detail?.chainId === currentChainId) {
-        console.log('[useBalances] ⚡ Immediate balance refresh triggered by transaction confirmation');
-        // Small delay to ensure the balance callback has processed
+        console.log('[useBalances] ⚡ Post-transaction refresh triggered by transaction confirmation (with cache clearing)');
+        // Small delay to ensure the balance callback has processed, then use the enhanced refresh
         setTimeout(() => {
-          stableRefs.current.refreshAllBalances();
+          stableRefs.current.refreshBalancesAfterTransaction();
         }, 1000);
       }
     };
