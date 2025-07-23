@@ -402,14 +402,21 @@ export function useBalances() {
     }
 
     try {
-      console.log('[useBalances] Fetching private balances...');
+      console.log('[useBalances] 🔥 FRESH RAILGUN SCAN: Fetching private balances (triggers fresh scan + Redis storage)...');
       // Clear previous error
       setError(null);
       
+      // getPrivateBalances always performs fresh RAILGUN scan + stores to Redis
       const balances = await getPrivateBalances(railgunWalletId, chainId);
+      
+      console.log('[useBalances] ✅ Private balances fetched via fresh RAILGUN scan + stored to Redis:', {
+        count: balances?.length || 0,
+        tokens: balances?.map(b => `${b.symbol}: ${b.formattedBalance}`)
+      });
+      
       return balances;
     } catch (error) {
-      console.error('[useBalances] Failed to fetch private balances:', error);
+      console.error('[useBalances] ❌ Failed to fetch private balances via RAILGUN scan:', error);
       setError(error.message);
       return [];
     }

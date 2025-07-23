@@ -21,12 +21,13 @@
     RailgunERC20Amount,
     NETWORK_CONFIG,
   } from '@railgun-community/shared-models';
-  import { formatUnits, parseUnits, isAddress, getAddress } from 'ethers';
-  import { waitForRailgunReady } from './engine.js';
-  import { getCurrentWalletID } from './wallet.js';
-  import { refreshBalances } from '@railgun-community/wallet';
+     import { formatUnits, parseUnits, isAddress, getAddress } from 'ethers';
+   import { waitForRailgunReady } from './engine.js';
+   import { getCurrentWalletID } from './wallet.js';
+   import { refreshBalances } from '@railgun-community/wallet';
+   import { storePrivateBalances, getPrivateBalances as getPrivateBalancesFromRedis } from '../api/walletStorage.js';
 
-  // Helper to normalize token addresses (following official V2 pattern)
+   // Helper to normalize token addresses (following official V2 pattern)
   const normalizeTokenAddress = (tokenAddress) => {
     if (!tokenAddress || tokenAddress === '0x00' || tokenAddress === '0x0000000000000000000000000000000000000000') {
       return undefined; // Native token
@@ -41,80 +42,7 @@
     }
   };
 
-  // Persistent balance cache using localStorage
-  const BALANCE_CACHE_KEY = 'railgun-private-balances';
-  const BALANCE_UPDATE_KEY = 'railgun-balance-updates';
-
-  /**
-   * Persistent cache implementation using localStorage
-   */
-  const createPersistentCache = () => {
-    const getCache = () => {
-      try {
-        const cached = localStorage.getItem(BALANCE_CACHE_KEY);
-        return cached ? JSON.parse(cached) : {};
-      } catch (error) {
-        console.warn('[RailgunBalances] Failed to read cache from localStorage:', error);
-        return {};
-      }
-    };
-
-    const setCache = (cache) => {
-      try {
-        localStorage.setItem(BALANCE_CACHE_KEY, JSON.stringify(cache));
-      } catch (error) {
-        console.warn('[RailgunBalances] Failed to save cache to localStorage:', error);
-      }
-    };
-
-    const getLastUpdates = () => {
-      try {
-        const cached = localStorage.getItem(BALANCE_UPDATE_KEY);
-        return cached ? JSON.parse(cached) : {};
-      } catch (error) {
-        console.warn('[RailgunBalances] Failed to read updates from localStorage:', error);
-        return {};
-      }
-    };
-
-    const setLastUpdates = (updates) => {
-      try {
-        localStorage.setItem(BALANCE_UPDATE_KEY, JSON.stringify(updates));
-      } catch (error) {
-        console.warn('[RailgunBalances] Failed to save updates to localStorage:', error);
-      }
-    };
-
-    return {
-      get: (key) => getCache()[key] || [],
-      set: (key, value) => {
-        const cache = getCache();
-        cache[key] = value;
-        setCache(cache);
-        
-        // Also update the last update timestamp
-        const updates = getLastUpdates();
-        updates[key] = Date.now();
-        setLastUpdates(updates);
-        
-        console.log('[RailgunBalances] 💾 Saved private balances to persistent cache:', {
-          key,
-          count: value.length,
-          tokens: value.map(b => `${b.symbol}: ${b.formattedBalance}`)
-        });
-      },
-      clear: () => {
-        localStorage.removeItem(BALANCE_CACHE_KEY);
-        localStorage.removeItem(BALANCE_UPDATE_KEY);
-      },
-      getLastUpdate: (key) => getLastUpdates()[key] || 0
-    };
-  };
-
-  // Initialize persistent cache
-  const balanceCache = createPersistentCache();
-
-  /**
+        /**
    * Network mapping for Railgun
    */
   const NETWORK_MAPPING = {
@@ -145,7 +73,7 @@
     */
    export const getPrivateBalances = async (walletID, chainId) => {
      try {
-       console.log('[RailgunBalances] 🔥 ALWAYS FRESH: Fetching private balances from RAILGUN engine:', {
+       console.log('[RailgunBalances] 🔥 FRESH FETCH + REDIS: Getting private balances from RAILGUN engine first:', {
          walletID: walletID?.slice(0, 8) + '...',
          chainId,
        });
@@ -155,68 +83,74 @@
        // Always trigger fresh balance refresh to get latest UTXO state
        await refreshPrivateBalances(walletID, chainId);
        
-       // Return fresh balances from localStorage cache (populated by refresh callback)
-       const cacheKey = `${walletID}-${chainId}`;
-       const freshBalances = balanceCache.get(cacheKey) || [];
+       // After refresh, get the updated balances from Redis (stored by handleBalanceUpdateCallback)
+       const redisData = await getPrivateBalancesFromRedis(walletID, chainId);
        
-       console.log('[RailgunBalances] ✅ Retrieved FRESH private balances from RAILGUN engine:', {
-         count: freshBalances.length,
-         tokens: freshBalances.map(b => `${b.symbol}: ${b.formattedBalance}`),
-         source: 'RAILGUN engine (fresh)'
-       });
+       if (redisData && redisData.balances && redisData.balances.length > 0) {
+         console.log('[RailgunBalances] ✅ Retrieved fresh private balances from Redis after RAILGUN refresh:', {
+           count: redisData.balances.length,
+           tokens: redisData.balances.map(b => `${b.symbol}: ${b.formattedBalance}`),
+           source: 'RAILGUN engine + Redis',
+           updatedAt: new Date(redisData.updatedAt).toISOString()
+         });
+         return redisData.balances;
+       }
        
-       return freshBalances;
+       console.log('[RailgunBalances] ⚠️ No private balances found after fresh RAILGUN scan');
+       return [];
        
      } catch (error) {
        console.error('[RailgunBalances] Failed to get fresh private balances:', error);
+       
+       // Fallback: try to get from Redis only if refresh failed
+       try {
+         const redisData = await getPrivateBalancesFromRedis(walletID, chainId);
+         if (redisData && redisData.balances) {
+           console.log('[RailgunBalances] 📦 Fallback: Using cached private balances from Redis');
+           return redisData.balances;
+         }
+       } catch (redisError) {
+         console.warn('[RailgunBalances] Redis fallback also failed:', redisError);
+       }
+       
        return [];
      }
    };
 
   /**
-   * Get private balances from cache immediately (for initial load)
+   * DEPRECATED: Get private balances from Redis cache (for fallback only)
+   * Use getPrivateBalances() for fresh data + Redis persistence
    * @param {string} walletID - RAILGUN wallet ID
    * @param {number} chainId - Chain ID
-   * @returns {Array} Cached balance array or empty array
+   * @returns {Promise<Array>} Cached balance array from Redis or empty array
    */
-  export const getPrivateBalancesFromCache = (walletID, chainId) => {
+  export const getPrivateBalancesFromCache = async (walletID, chainId) => {
     try {
       if (!walletID || !chainId) {
         return [];
       }
 
-      const cacheKey = `${walletID}-${chainId}`;
-      const cachedBalances = balanceCache.get(cacheKey) || [];
-      const lastUpdate = balanceCache.getLastUpdate(cacheKey);
-      
-      console.log('[RailgunBalances] 🚀 Loading private balances from cache on init:', {
+      console.log('[RailgunBalances] 📦 DEPRECATED: Getting private balances from Redis cache:', {
         walletID: walletID?.slice(0, 8) + '...',
-        chainId,
-        count: cachedBalances.length,
-        tokens: cachedBalances.map(b => `${b.symbol}: ${b.formattedBalance}`),
-        lastUpdate: lastUpdate ? new Date(lastUpdate).toLocaleString() : 'Never',
-        cacheAge: lastUpdate ? `${Math.round((Date.now() - lastUpdate) / 1000)}s ago` : 'Unknown'
+        chainId
       });
       
-      // DETAILED CACHE INSPECTION
-      console.log('[RailgunBalances] 🔍 DETAILED cache inspection:');
-      cachedBalances.forEach((balance, index) => {
-        console.log(`  [${index}] Token Details:`, {
-          symbol: balance.symbol,
-          name: balance.name,
-          tokenAddress: balance.tokenAddress,
-          decimals: balance.decimals,
-          rawBalance: balance.balance,
-          formattedBalance: balance.formattedBalance,
-          numericBalance: balance.numericBalance,
-          chainId: balance.chainId
+      const redisData = await getPrivateBalancesFromRedis(walletID, chainId);
+      
+      if (redisData && redisData.balances) {
+        console.log('[RailgunBalances] ✅ Found Redis cache data:', {
+          count: redisData.balances.length,
+          tokens: redisData.balances.map(b => `${b.symbol}: ${b.formattedBalance}`),
+          updatedAt: new Date(redisData.updatedAt).toISOString()
         });
-      });
+        return redisData.balances;
+      }
       
-      return cachedBalances;
+      console.log('[RailgunBalances] ℹ️ No Redis cache data found');
+      return [];
       
     } catch (error) {
-      console.error('[RailgunBalances] Failed to get cached balances:', error);
+      console.error('[RailgunBalances] Failed to get Redis cache data:', error);
       return [];
     }
   };
@@ -795,24 +729,20 @@
         tokens: formattedBalances.map(t => `${t.symbol}: ${t.formattedBalance}`)
       });
       
-      // OPTIMIZATION: Save fresh data to localStorage cache immediately
-      const cacheKey = `${railgunWalletID}-${chainId}`;
-      balanceCache.set(cacheKey, formattedBalances);
-      
-      // Save to localStorage for persistence (Redis storage handled by useBalances hook)
+      // REDIS PERSISTENCE: Store fresh balance data to Redis immediately 
       try {
-        localStorage.setItem(
-          `railgun_balances_${cacheKey}`, 
-          JSON.stringify({
-            balances: formattedBalances,
-            timestamp: Date.now(),
+        const success = await storePrivateBalances(railgunWalletID, chainId, formattedBalances);
+        if (success) {
+          console.log('[RailgunBalances] ✅ Fresh balances successfully stored to Redis:', {
+            walletID: railgunWalletID?.slice(0, 8) + '...',
             chainId,
-            walletID: railgunWalletID
-          })
-        );
-        console.log('[RailgunBalances] 💾 Fresh balances saved to localStorage cache');
-      } catch (storageError) {
-        console.warn('[RailgunBalances] Failed to save to localStorage:', storageError);
+            balanceCount: formattedBalances.length
+          });
+        } else {
+          console.warn('[RailgunBalances] ⚠️ Failed to store balances to Redis (non-critical)');
+        }
+      } catch (redisError) {
+        console.warn('[RailgunBalances] Redis storage error (non-critical):', redisError);
       }
       
       // OPTIMIZATION: Dispatch fresh data directly to UI (no cache reload needed!)
@@ -840,27 +770,29 @@
     } catch (error) {
       console.error('[RailgunBalances] 💥 Balance callback processing failed:', error);
       
-      // Fallback: Try to load from cache if callback processing fails
+      // Fallback: Try to load from Redis if callback processing fails
       try {
-        console.log('[RailgunBalances] 🔄 Falling back to cache after callback error...');
-        const cacheKey = `${balancesEvent.railgunWalletID}-${balancesEvent.chain.id}`;
-              const cachedBalances = getBalancesFromCache(cacheKey);
+        console.log('[RailgunBalances] 🔄 Falling back to Redis after callback error...');
+        const redisData = await getPrivateBalancesFromRedis(
+          balancesEvent.railgunWalletID, 
+          balancesEvent.chain.id
+        );
         
-        if (cachedBalances && cachedBalances.length > 0) {
+        if (redisData && redisData.balances && redisData.balances.length > 0) {
           window.dispatchEvent(new CustomEvent('railgun-balance-update', {
             detail: {
               railgunWalletID: balancesEvent.railgunWalletID,
               chainId: balancesEvent.chain.id,
-              balances: cachedBalances,
+              balances: redisData.balances,
               timestamp: Date.now(),
-              source: 'cache-fallback',
+              source: 'redis-fallback',
               txidVersion: balancesEvent.txidVersion,
             }
           }));
-          console.log('[RailgunBalances] 📦 Fallback cache data dispatched to UI');
+          console.log('[RailgunBalances] 📦 Fallback Redis data dispatched to UI');
         }
       } catch (fallbackError) {
-        console.error('[RailgunBalances] Cache fallback also failed:', fallbackError);
+        console.error('[RailgunBalances] Redis fallback also failed:', fallbackError);
       }
     }
   };

@@ -272,9 +272,118 @@ export async function getBalances(walletId, chainId) {
   }
 }
 
+/**
+ * Store private balances in Redis
+ * Key: private_balances:<walletId>-<chainId>
+ * @param {string} walletId - RAILGUN wallet ID
+ * @param {number} chainId - Chain ID
+ * @param {Array} balances - Array of private balance objects
+ * @returns {Promise<boolean>} Success status
+ */
+export async function storePrivateBalances(walletId, chainId, balances) {
+  console.log('[WalletStorage] 💾 Storing private balances:', {
+    walletId: walletId?.slice(0, 8) + '...',
+    chainId,
+    balanceCount: balances?.length || 0
+  });
+
+  try {
+    const method = 'POST';
+    const path = '/api/store-private-balances';
+    
+    const balanceData = {
+      walletId,
+      chainId,
+      balances: balances.filter(balance => 
+        balance && typeof balance.numericBalance === 'number' && balance.numericBalance > 0
+      )
+    };
+    
+    // Generate authentication headers
+    const headers = await generateAuthHeaders(method, path);
+    
+    // Make the API request
+    const response = await fetch(path, {
+      method,
+      headers,
+      body: JSON.stringify(balanceData),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      console.error('[WalletStorage] ❌ Store private balances API error:', result);
+      throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    console.log('[WalletStorage] ✅ Successfully stored private balances:', result);
+    return true;
+
+  } catch (error) {
+    console.error('[WalletStorage] ❌ Failed to store private balances:', error);
+    return false; // Return false instead of throwing - this is non-critical
+  }
+}
+
+/**
+ * Get private balances from Redis
+ * Key: private_balances:<walletId>-<chainId>
+ * @param {string} walletId - RAILGUN wallet ID
+ * @param {number} chainId - Chain ID
+ * @returns {Promise<Object|null>} Private balance data or null if not found
+ */
+export async function getPrivateBalances(walletId, chainId) {
+  console.log('[WalletStorage] 📥 Getting private balances from Redis:', {
+    walletId: walletId?.slice(0, 8) + '...',
+    chainId
+  });
+
+  try {
+    const method = 'GET';
+    const path = `/api/get-private-balances/${walletId}-${chainId}`;
+    
+    // Generate authentication headers
+    const headers = await generateAuthHeaders(method, path);
+    
+    // Make the API request
+    const response = await fetch(path, {
+      method,
+      headers,
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        console.log('[WalletStorage] ℹ️ No private balance data found in Redis');
+        return null;
+      }
+      
+      console.error('[WalletStorage] ❌ Get private balances API error:', result);
+      return null;
+    }
+
+    const { balances, updatedAt } = result.data;
+
+    console.log('[WalletStorage] ✅ Retrieved private balance data from Redis:', {
+      balanceCount: balances?.length || 0,
+      updatedAt: new Date(updatedAt).toISOString(),
+      source: 'Redis'
+    });
+
+    return { balances, updatedAt };
+
+  } catch (error) {
+    console.error('[WalletStorage] ❌ Failed to retrieve private balance data from Redis:', error);
+    return null;
+  }
+}
+
 export default {
   storeWalletMetadata,
   getWalletMetadata,
   storeBalances,
-  getBalances
+  getBalances,
+  storePrivateBalances,
+  getPrivateBalances
 }; 
