@@ -61,13 +61,25 @@ const CHAIN_RPC_MAPPING = {
 };
 
 export function useBalances() {
-  const { address, chainId, railgunWalletId } = useWallet();
+  const { address, chainId, railgunWalletId, isRailgunInitialized, railgunAddress } = useWallet();
   const [publicBalances, setPublicBalances] = useState([]);
   const [privateBalances, setPrivateBalances] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [tokenPrices, setTokenPrices] = useState({});
+  
+  // 🔍 DEBUG: Log wallet state changes to understand the issue
+  useEffect(() => {
+    console.log('[useBalances] 🔍 WALLET STATE DEBUG:', {
+      address: address?.slice(0, 8) + '...' || 'null',
+      chainId,
+      railgunWalletId: railgunWalletId?.slice(0, 8) + '...' || 'null',
+      isRailgunInitialized,
+      railgunAddress: railgunAddress?.slice(0, 8) + '...' || 'null',
+      timestamp: new Date().toISOString()
+    });
+  }, [address, chainId, railgunWalletId, isRailgunInitialized, railgunAddress]);
   
   // 🛑 CRITICAL: Add a disabled state to completely stop all balance operations when wallet disconnected
   const [isBalanceSystemEnabled, setIsBalanceSystemEnabled] = useState(false);
@@ -87,7 +99,8 @@ export function useBalances() {
       if (shouldBeEnabled) {
         console.log('[useBalances] 🟢 ENABLING balance system - wallet connected:', {
           address: address?.slice(0, 8) + '...',
-          chainId
+          chainId,
+          railgunReady: isRailgunInitialized && !!railgunWalletId
         });
         setIsBalanceSystemEnabled(true);
       } else {
@@ -108,7 +121,7 @@ export function useBalances() {
         }
       }
     }
-  }, [address, chainId, isBalanceSystemEnabled]);
+  }, [address, chainId, isBalanceSystemEnabled, isRailgunInitialized, railgunWalletId]);
   
   // Stable reference for setter functions
   const setPrivateBalancesRef = useRef(setPrivateBalances);
@@ -169,12 +182,14 @@ export function useBalances() {
 
   // Load cached private balances immediately on mount - CRITICAL: Only when system enabled
   useEffect(() => {
-    // 🛑 CRITICAL: Only load cache when balance system is enabled
-    if (isBalanceSystemEnabled && railgunWalletId && chainId && address) {
+    // 🛑 CRITICAL: Only load cache when balance system is enabled AND RAILGUN fully ready
+    if (isBalanceSystemEnabled && railgunWalletId && chainId && address && isRailgunInitialized) {
       console.log('[useBalances] 🚀 Loading cached private balances for enabled system...', {
         address: address?.slice(0, 8) + '...',
         walletId: railgunWalletId?.slice(0, 8) + '...',
-        systemEnabled: isBalanceSystemEnabled
+        systemEnabled: isBalanceSystemEnabled,
+        railgunInitialized: isRailgunInitialized,
+        railgunAddress: railgunAddress?.slice(0, 8) + '...' || 'null'
       });
       
       // Test cache persistence first - only when we have a wallet
@@ -205,14 +220,17 @@ export function useBalances() {
         }
       }
     } else {
-      console.log('[useBalances] ⏸️ Cache load blocked:', {
+      console.log('[useBalances] ⏸️ Cache load blocked - waiting for RAILGUN:', {
         systemEnabled: isBalanceSystemEnabled,
         hasWallet: !!railgunWalletId,
+        walletIdValue: railgunWalletId?.slice(0, 8) + '...' || 'null',
         hasChain: !!chainId,
-        hasAddress: !!address
+        hasAddress: !!address,
+        railgunInitialized: isRailgunInitialized,
+        railgunAddress: railgunAddress?.slice(0, 8) + '...' || 'null'
       });
     }
-  }, [isBalanceSystemEnabled, railgunWalletId, chainId, address, updatePrivateBalances]); // Added system enabled check
+  }, [isBalanceSystemEnabled, railgunWalletId, chainId, address, isRailgunInitialized, railgunAddress, updatePrivateBalances]); // Added system enabled check
 
   // Fetch and cache token prices
   const fetchAndCachePrices = useCallback(async (symbols) => {
@@ -368,12 +386,15 @@ export function useBalances() {
   // Fetch private balances using Railgun - CRITICAL: Only when wallet connected AND system enabled
   const fetchPrivateBalances = useCallback(async () => {
     // 🛑 CRITICAL: Prevent RAILGUN RPC calls when balance system disabled or wallet disconnected
-    if (!isBalanceSystemEnabled || !railgunWalletId || !chainId || !address) {
+    if (!isBalanceSystemEnabled || !railgunWalletId || !chainId || !address || !isRailgunInitialized) {
       console.log('[useBalances] ⏸️ Private balance fetch blocked:', {
         systemEnabled: isBalanceSystemEnabled,
         hasWalletId: !!railgunWalletId,
+        walletIdValue: railgunWalletId?.slice(0, 8) + '...' || 'null',
         hasChainId: !!chainId,
-        hasAddress: !!address
+        hasAddress: !!address,
+        railgunInitialized: isRailgunInitialized,
+        railgunAddress: railgunAddress?.slice(0, 8) + '...' || 'null'
       });
       return [];
     }
@@ -390,7 +411,7 @@ export function useBalances() {
       setError(error.message);
       return [];
     }
-  }, [isBalanceSystemEnabled, railgunWalletId, chainId, address]);
+  }, [isBalanceSystemEnabled, railgunWalletId, chainId, address, isRailgunInitialized, railgunAddress]);
 
   // Refresh all balances - CRITICAL: Check if balance system is enabled
   const refreshAllBalances = useCallback(async () => {
@@ -545,30 +566,35 @@ export function useBalances() {
 
   // Refresh private balances when Railgun wallet changes - CRITICAL: Only when system enabled
   useEffect(() => {
-    // 🛑 CRITICAL: Only fetch when balance system is enabled
-    if (isBalanceSystemEnabled && railgunWalletId && chainId && address) {
+    // 🛑 CRITICAL: Only fetch when balance system is enabled AND RAILGUN fully ready
+    if (isBalanceSystemEnabled && railgunWalletId && chainId && address && isRailgunInitialized) {
       console.log('[useBalances] 🔐 RAILGUN wallet available - fetching private balances:', { 
         walletId: railgunWalletId?.slice(0, 8) + '...', 
         chainId, 
         address: address?.slice(0, 8) + '...',
-        systemEnabled: isBalanceSystemEnabled
+        systemEnabled: isBalanceSystemEnabled,
+        railgunInitialized: isRailgunInitialized,
+        railgunAddress: railgunAddress?.slice(0, 8) + '...' || 'null'
       });
       fetchPrivateBalances().then(balances => {
         updatePrivateBalances(balances);
       });
     } else {
-      console.log('[useBalances] ⏸️ Private balance fetch blocked:', {
+      console.log('[useBalances] ⏸️ Private balance fetch blocked - waiting for RAILGUN:', {
         systemEnabled: isBalanceSystemEnabled,
         hasRailgunWallet: !!railgunWalletId,
+        walletIdValue: railgunWalletId?.slice(0, 8) + '...' || 'null',
         hasChainId: !!chainId,
-        hasAddress: !!address
+        hasAddress: !!address,
+        railgunInitialized: isRailgunInitialized,
+        railgunAddress: railgunAddress?.slice(0, 8) + '...' || 'null'
       });
       // Only clear if system is disabled (not just missing data)
       if (!isBalanceSystemEnabled) {
         updatePrivateBalances([]);
       }
     }
-  }, [isBalanceSystemEnabled, railgunWalletId, chainId, address, fetchPrivateBalances, updatePrivateBalances]);
+  }, [isBalanceSystemEnabled, railgunWalletId, chainId, address, isRailgunInitialized, railgunAddress, fetchPrivateBalances, updatePrivateBalances]);
 
   // Create stable refs to avoid stale closures in event listeners
   const stableRefs = useRef({
