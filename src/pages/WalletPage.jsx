@@ -595,11 +595,24 @@ const WalletPage = () => {
                     
                     try {
                       console.log('[WalletPage] 🔄 Enhanced refresh with cache clearing triggered...');
+                      console.log('[WalletPage] 🔍 RAILGUN State Check:', {
+                        canUseRailgun,
+                        railgunWalletId: railgunWalletId?.slice(0, 8) + '...' || 'undefined',
+                        isRailgunInitialized,
+                        hasRailgunAddress: !!railgunAddress
+                      });
                       
                       // 1. Clear private balance cache and refresh with enhanced logic (6-second one-time poll)
-                      if (canUseRailgun && railgunWalletId) {
+                      if (canUseRailgun && railgunWalletId && isRailgunInitialized) {
                         console.log('[WalletPage] 🔐 Refreshing private balances with cache clearing...');
                         await refreshBalancesAfterTransaction();
+                      } else {
+                        console.log('[WalletPage] ⏸️ Skipping private balance refresh - RAILGUN not ready:', {
+                          canUseRailgun,
+                          hasWalletId: !!railgunWalletId,
+                          walletIdValue: railgunWalletId?.slice(0, 8) + '...' || 'undefined',
+                          isRailgunInitialized
+                        });
                       }
                       
                       // 2. Also refresh public balances normally
