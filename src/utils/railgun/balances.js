@@ -124,7 +124,7 @@
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Get the freshly stored data from backend
-      const freshData = await WalletBalanceService.getPrivateBalances(walletID, chainId);
+      const freshData = await WalletService.getPrivateBalances(walletID, chainId);
       
       if (freshData && freshData.balances && freshData.balances.length > 0) {
         console.log('[RailgunBalances] ✅ Explicit refresh completed - fresh data stored to backend:', {
