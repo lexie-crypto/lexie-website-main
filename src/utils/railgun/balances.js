@@ -79,7 +79,7 @@
        });
        
        // Get cached balances from backend - NO automatic RAILGUN scans to prevent infinite loops
-       const backendData = await WalletBalanceService.getPrivateBalances(walletID, chainId);
+       const backendData = await WalletService.getPrivateBalances(walletID, chainId);
        
        if (backendData && backendData.balances && backendData.balances.length > 0) {
          console.log('[RailgunBalances] ✅ Retrieved private balances from backend cache:', {
@@ -144,7 +144,7 @@
       
       // Fallback to backend cache if refresh failed
       try {
-        const fallbackData = await WalletBalanceService.getPrivateBalances(walletID, chainId);
+        const fallbackData = await WalletService.getPrivateBalances(walletID, chainId);
         if (fallbackData && fallbackData.balances) {
           console.log('[RailgunBalances] 📦 Using backend cache after refresh failure');
           return fallbackData.balances;
@@ -175,7 +175,7 @@
         chainId
       });
       
-      const backendData = await WalletBalanceService.getPrivateBalances(walletID, chainId);
+      const backendData = await WalletService.getPrivateBalances(walletID, chainId);
       
       if (backendData && backendData.balances) {
         console.log('[RailgunBalances] ✅ Found backend cache data:', {
@@ -771,7 +771,7 @@
       
       // BACKEND PERSISTENCE: Store fresh balance data via secure backend immediately 
       try {
-        const success = await WalletBalanceService.storePrivateBalances(railgunWalletID, chainId, formattedBalances);
+        const success = await WalletService.storePrivateBalances(railgunWalletID, chainId, formattedBalances);
         if (success) {
           console.log('[RailgunBalances] ✅ Fresh balances successfully stored via backend:', {
             walletID: railgunWalletID?.slice(0, 8) + '...',
@@ -813,7 +813,7 @@
       // Fallback: Try to load from backend if callback processing fails
       try {
         console.log('[RailgunBalances] 🔄 Falling back to backend after callback error...');
-        const backendData = await WalletBalanceService.getPrivateBalances(
+        const backendData = await WalletService.getPrivateBalances(
           balancesEvent.railgunWalletID, 
           balancesEvent.chain.id
         );
