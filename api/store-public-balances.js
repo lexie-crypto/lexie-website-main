@@ -1,5 +1,5 @@
 /**
- * Private Balances Storage Endpoint
+ * Public Balances Storage Endpoint
  * Thin wrapper that uses the unified walletStorage.js handler
  */
 

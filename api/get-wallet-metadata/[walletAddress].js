@@ -1,105 +1,14 @@
 /**
- * Vercel Serverless Function - Get Wallet Metadata Proxy
- * Proxies requests to lexie-be backend with HMAC authentication
+ * Get Wallet Metadata Endpoint
+ * Thin wrapper that uses the unified walletStorage.js handler
  */
 
-import crypto from 'crypto';
+import walletStorageHandler from '../walletStorage.js';
 
-// Configure body parser for proper request handling
 export const config = {
   api: {
-    bodyParser: true,
+    bodyParser: false, // Let walletStorage.js handle body parsing
   },
 };
 
-/**
- * Generate HMAC authentication headers for backend calls
- */
-function generateBackendAuthHeaders(method = 'GET', path = '/api/get-wallet-metadata') {
-  const hmacSecret = process.env.LEXIE_HMAC_SECRET;
-  if (!hmacSecret) {
-    throw new Error('LEXIE_HMAC_SECRET environment variable is required for backend calls');
-  }
-
-  const timestamp = Date.now().toString();
-  
-  // Create the payload to sign: method:path:timestamp
-  const payload = `${method}:${path}:${timestamp}`;
-  
-  // Compute signature
-  const signature = 'sha256=' + crypto
-    .createHmac('sha256', hmacSecret)
-    .update(payload)
-    .digest('hex');
-
-  return {
-    'Content-Type': 'application/json',
-    'x-lexie-timestamp': timestamp,
-    'x-lexie-signature': signature
-  };
-}
-
-export default async function handler(req, res) {
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Origin');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'GET') {
-    return res.status(405).json({ 
-      success: false,
-      error: 'Method not allowed. Only GET requests are supported.' 
-    });
-  }
-
-  try {
-    console.log('[GET-WALLET-METADATA-PROXY] 🔄 Proxying request to lexie-be backend');
-
-    // Extract walletAddress from URL parameters
-    const { walletAddress } = req.query;
-
-    if (!walletAddress) {
-      return res.status(400).json({ 
-        success: false,
-        error: 'Missing walletAddress parameter' 
-      });
-    }
-
-    // Proxy request to lexie-be backend
-    const backendUrl = process.env.LEXIE_BACKEND_URL || 'https://api.lexiecrypto.com';
-    const backendPath = `/api/get-wallet-metadata/${walletAddress}`;
-    const endpoint = `${backendUrl}${backendPath}`;
-    
-    const headers = generateBackendAuthHeaders('GET', backendPath);
-    
-    console.log(`[GET-WALLET-METADATA-PROXY] 📡 Calling backend: ${endpoint}`);
-
-    const backendResponse = await fetch(endpoint, {
-      method: 'GET',
-      headers,
-    });
-
-    const result = await backendResponse.json();
-
-    if (!backendResponse.ok) {
-      console.error('[GET-WALLET-METADATA-PROXY] ❌ Backend error:', result);
-      return res.status(backendResponse.status).json(result);
-    }
-
-    console.log('[GET-WALLET-METADATA-PROXY] ✅ Successfully proxied to backend');
-    return res.status(200).json(result);
-
-  } catch (error) {
-    console.error('[GET-WALLET-METADATA-PROXY] ❌ Proxy error:', error);
-    
-    return res.status(500).json({ 
-      success: false,
-      error: 'Internal server error',
-      details: error.message 
-    });
-  }
-} 
+export default walletStorageHandler; 
