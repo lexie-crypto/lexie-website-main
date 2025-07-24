@@ -1,10 +1,12 @@
 /**
  * Wallet Balance API Proxy Service 
- * Secure communication with lexie-be backend for Redis storage
- * Backend handles all HMAC authentication and Redis TLS connections
+ * Calls Vercel serverless functions which proxy to lexie-be backend
+ * 
+ * Flow: Frontend → Vercel Functions → lexie-be Backend (with HMAC auth)
+ * This avoids CORS issues and keeps HMAC secrets server-side
  */
 
-// API configuration - using backend proxy endpoints for security
+// API configuration - using Vercel serverless functions as proxies
 const API_ENDPOINTS = {
   storePrivateBalances: '/api/store-private-balances',
   getPrivateBalances: '/api/get-private-balances',
@@ -15,25 +17,22 @@ const API_ENDPOINTS = {
 };
 
 /**
- * Get backend API base URL
- * Points to lexie-be backend where Redis operations happen securely
+ * Get Vercel serverless function base URL
+ * Uses local Vercel functions as proxies to lexie-be backend
  */
 function getBackendUrl() {
-  // Use environment variable or fallback based on hostname
+  // Always use current domain for Vercel serverless functions
   if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname;
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'http://localhost:3000'; // Local backend
-    }
+    return window.location.origin; // Uses current domain (lexiecrypto.com, localhost, etc.)
   }
   
-  // Production backend URL - adjust as needed
-  return process.env.VITE_BACKEND_URL || 'https://api.lexiecrypto.com';
+  // Fallback for SSR
+  return '';
 }
 
 /**
- * Generate basic headers for backend API requests
- * Backend handles all authentication, Redis, and HMAC signing
+ * Generate basic headers for Vercel serverless function calls
+ * Vercel functions handle backend communication with HMAC auth
  */
 function generateHeaders() {
   return {
@@ -44,7 +43,7 @@ function generateHeaders() {
 }
 
 /**
- * Wallet Balance Service - Proxies requests to secure backend
+ * Wallet Balance Service - Calls Vercel functions which proxy to backend
  */
 export class WalletBalanceService {
   
