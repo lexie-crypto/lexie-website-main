@@ -393,12 +393,6 @@ export default function LandingPage() {
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-4">
                 <a
-                  href="/wallet"
-                  className="px-8 py-4 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-300 shadow-lg hover:shadow-green-500/25 hover:scale-105 text-center"
-            >
-                  🚀 Launch Wallet
-            </a>
-                <a
                   href="https://t.me/lexie_crypto_bot"
               target="_blank"
               rel="noopener noreferrer"
