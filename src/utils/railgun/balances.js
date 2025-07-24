@@ -25,7 +25,7 @@
    import { waitForRailgunReady } from './engine.js';
    import { getCurrentWalletID } from './wallet.js';
    import { refreshBalances } from '@railgun-community/wallet';
-   import { WalletBalanceService } from '../api/walletStorage.js';
+   import { WalletService } from '../../lib/walletService';
 
    // Helper to normalize token addresses (following official V2 pattern)
   const normalizeTokenAddress = (tokenAddress) => {

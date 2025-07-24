@@ -10,7 +10,7 @@ import { getPrivateBalances, getPrivateBalancesFromCache, refreshPrivateBalances
 import { debugBalanceCache, testCachePersistence } from '../utils/railgun/cache-debug';
 import { fetchTokenPrices } from '../utils/pricing/coinGecko';
 import { RPC_URLS } from '../config/environment';
-import { storeBalances } from '../utils/api/walletStorage';
+import { storePrivateBalances } from '../lib/walletService';
 
 // Network mapping for UI display  
 const NETWORK_MAPPING = {

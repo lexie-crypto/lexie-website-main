@@ -12,7 +12,7 @@ import { WagmiProvider, useAccount, useConnect, useDisconnect, useSwitchChain, u
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/environment';
 import { NetworkName } from '@railgun-community/shared-models';
-import { getWalletMetadata, storeWalletMetadata } from '../utils/api/walletStorage';
+import { getWalletMetadata, storeWalletMetadata } from '../lib/walletService';
 
 // Create a client for React Query
 const queryClient = new QueryClient();
