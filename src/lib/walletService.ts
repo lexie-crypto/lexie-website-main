@@ -55,14 +55,16 @@ export class WalletService {
   /**
    * Store wallet metadata (wallet address to RAILGUN ID mapping)
    * @param walletAddress - Public wallet address (0x...)
-   * @param walletId - RAILGUN wallet ID
+   * @param walletId - RAILGUN wallet ID  
+   * @param railgunAddress - RAILGUN address
    * @returns Success status
    */
-  static async storeWalletMetadata(walletAddress: string, walletId: string): Promise<boolean> {
+  static async storeWalletMetadata(walletAddress: string, walletId: string, railgunAddress: string): Promise<boolean> {
     const requestId = generateRequestId();
     console.log(`[WALLET-METADATA-${requestId}] 💾 Starting store wallet metadata request:`, {
       walletAddress: walletAddress?.slice(0, 8) + '...',
-      walletId: walletId?.slice(0, 8) + '...'
+      walletId: walletId?.slice(0, 8) + '...',
+      railgunAddress: railgunAddress?.slice(0, 8) + '...'
     });
 
     try {
@@ -75,7 +77,8 @@ export class WalletService {
 
       const body = JSON.stringify({
         walletAddress,
-        walletId
+        walletId,
+        railgunAddress
       });
 
       console.log(`[WALLET-METADATA-${requestId}] 🚀 Calling proxy endpoint:`, {
@@ -470,6 +473,7 @@ export class WalletService {
    * Bulk operation to store both wallet metadata and balances
    * @param walletAddress - Public wallet address (0x...)
    * @param walletId - RAILGUN wallet ID
+   * @param railgunAddress - RAILGUN address
    * @param chainId - Blockchain chain ID
    * @param privateBalances - Array of private balance objects
    * @param publicBalances - Array of public balance objects
@@ -478,6 +482,7 @@ export class WalletService {
   static async storeBulkWalletData(
     walletAddress: string, 
     walletId: string, 
+    railgunAddress: string,
     chainId: number, 
     privateBalances: BalanceData[], 
     publicBalances: BalanceData[]
@@ -486,6 +491,7 @@ export class WalletService {
     console.log(`[WALLET-BULK-${requestId}] 💾 Starting bulk wallet data storage:`, {
       walletAddress: walletAddress?.slice(0, 8) + '...',
       walletId: walletId?.slice(0, 8) + '...',
+      railgunAddress: railgunAddress?.slice(0, 8) + '...',
       chainId,
       privateCount: privateBalances?.length || 0,
       publicCount: publicBalances?.length || 0
@@ -493,7 +499,7 @@ export class WalletService {
 
     // Execute all operations in parallel for better performance
     const [metadataStored, privateStored, publicStored] = await Promise.allSettled([
-      this.storeWalletMetadata(walletAddress, walletId),
+      this.storeWalletMetadata(walletAddress, walletId, railgunAddress),
       this.storePrivateBalances(walletId, chainId, privateBalances),
       this.storePublicBalances(walletAddress, chainId, publicBalances)
     ]);
@@ -509,9 +515,9 @@ export class WalletService {
   }
 }
 
-// Legacy function exports for backward compatibility
-export async function storeWalletMetadata(walletAddress: string, walletId: string): Promise<boolean> {
-  return WalletService.storeWalletMetadata(walletAddress, walletId);
+// Legacy function exports for backward compatibility  
+export async function storeWalletMetadata(walletAddress: string, walletId: string, railgunAddress: string): Promise<boolean> {
+  return WalletService.storeWalletMetadata(walletAddress, walletId, railgunAddress);
 }
 
 export async function getWalletMetadata(walletAddress: string): Promise<WalletMetadataResponse['data'] | null> {
