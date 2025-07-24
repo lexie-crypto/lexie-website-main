@@ -13,29 +13,26 @@ export const config = {
 };
 
 /**
- * Generate HMAC authentication headers for backend calls
+ * Generate HMAC authentication headers for backend calls (matching old working code pattern)
  */
-function generateBackendAuthHeaders(method = 'POST', path = '/api/store-private-balances') {
+function generateHmacSignature(method, path, timestamp, secret) {
+  const payload = `${method}:${path}:${timestamp}`;
+  return 'sha256=' + crypto.createHmac('sha256', secret).update(payload).digest('hex');
+}
+
+function generateBackendAuthHeaders(method, path) {
   const hmacSecret = process.env.LEXIE_HMAC_SECRET;
   if (!hmacSecret) {
     throw new Error('LEXIE_HMAC_SECRET environment variable is required for backend calls');
   }
 
   const timestamp = Date.now().toString();
-  
-  // Create the payload to sign: method:path:timestamp
-  const payload = `${method}:${path}:${timestamp}`;
-  
-  // Compute signature
-  const signature = 'sha256=' + crypto
-    .createHmac('sha256', hmacSecret)
-    .update(payload)
-    .digest('hex');
+  const signature = generateHmacSignature(method, path, timestamp, hmacSecret);
 
   return {
     'Content-Type': 'application/json',
-    'x-lexie-timestamp': timestamp,
-    'x-lexie-signature': signature
+    'X-Lexie-Timestamp': timestamp,
+    'X-Lexie-Signature': signature
   };
 }
 
@@ -79,9 +76,20 @@ export default async function handler(req, res) {
 
     // Proxy request to lexie-be backend
     const backendUrl = process.env.LEXIE_BACKEND_URL || 'https://api.lexiecrypto.com';
-    const endpoint = `${backendUrl}/api/store-private-balances`;
+    const apiPath = '/api/store-private-balances'; // Exact path that backend will receive
+    const endpoint = `${backendUrl}${apiPath}`;
     
-    const headers = generateBackendAuthHeaders('POST', '/api/store-private-balances');
+    const headers = generateBackendAuthHeaders('POST', apiPath);
+    
+    console.log(`[STORE-PRIVATE-BALANCES-PROXY] 🔐 HMAC Debug:`, {
+      method: 'POST',
+      path: apiPath,
+      timestamp: headers['X-Lexie-Timestamp'],
+      signature: headers['X-Lexie-Signature'],
+      payload: `POST:${apiPath}:${headers['X-Lexie-Timestamp']}`,
+      hasSecret: !!process.env.LEXIE_HMAC_SECRET,
+      secretLength: process.env.LEXIE_HMAC_SECRET?.length || 0
+    });
     
     console.log(`[STORE-PRIVATE-BALANCES-PROXY] 📡 Calling backend: ${endpoint}`);
 
