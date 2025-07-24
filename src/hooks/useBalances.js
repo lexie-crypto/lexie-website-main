@@ -6,7 +6,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ethers, formatUnits, Contract } from 'ethers';
 import { useWallet } from '../contexts/WalletContext';
-import { getPrivateBalances, getPrivateBalancesFromCache, refreshPrivateBalances } from '../utils/railgun/balances';
+import { getPrivateBalances, getPrivateBalancesFromCache, refreshPrivateBalances, refreshPrivateBalancesAndStore } from '../utils/railgun/balances';
 import { debugBalanceCache, testCachePersistence } from '../utils/railgun/cache-debug';
 import { fetchTokenPrices } from '../utils/pricing/coinGecko';
 import { RPC_URLS } from '../config/environment';
@@ -402,21 +402,21 @@ export function useBalances() {
     }
 
     try {
-      console.log('[useBalances] 🔥 FRESH RAILGUN SCAN: Fetching private balances (triggers fresh scan + Redis storage)...');
+      console.log('[useBalances] 🔥 EXPLICIT REFRESH: Triggering fresh RAILGUN scan + backend storage...');
       // Clear previous error
       setError(null);
       
-      // getPrivateBalances always performs fresh RAILGUN scan + stores to Redis
-      const balances = await getPrivateBalances(railgunWalletId, chainId);
+      // Use explicit refresh function that triggers fresh scan + backend storage
+      const balances = await refreshPrivateBalancesAndStore(railgunWalletId, chainId);
       
-      console.log('[useBalances] ✅ Private balances fetched via fresh RAILGUN scan + stored to Redis:', {
+      console.log('[useBalances] ✅ Private balances refreshed via explicit RAILGUN scan + stored to backend:', {
         count: balances?.length || 0,
         tokens: balances?.map(b => `${b.symbol}: ${b.formattedBalance}`)
       });
       
       return balances;
     } catch (error) {
-      console.error('[useBalances] ❌ Failed to fetch private balances via RAILGUN scan:', error);
+      console.error('[useBalances] ❌ Failed to explicitly refresh private balances:', error);
       setError(error.message);
       return [];
     }

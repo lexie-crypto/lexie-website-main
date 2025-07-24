@@ -1,385 +1,296 @@
 /**
- * Redis-Based Wallet Storage System
- * Sessionless storage using only walletAddress, walletId, and chainId as keys
- * No TTLs - data persists indefinitely until explicitly overwritten
+ * Wallet Balance API Proxy Service 
+ * Secure communication with lexie-be backend for Redis storage
+ * Backend handles all HMAC authentication and Redis TLS connections
  */
 
-// HMAC secret for authentication
-const HMAC_SECRET = import.meta.env.VITE_LEXIE_HMAC_SECRET;
+// API configuration - using backend proxy endpoints for security
+const API_ENDPOINTS = {
+  storePrivateBalances: '/api/store-private-balances',
+  getPrivateBalances: '/api/get-private-balances',
+  storeWalletMetadata: '/api/store-wallet-metadata',
+  getWalletMetadata: '/api/get-wallet-metadata',
+  storeBalances: '/api/store-balances',
+  getBalances: '/api/get-balances'
+};
 
 /**
- * Generate HMAC signature for API authentication
- * @param {string} method - HTTP method
- * @param {string} path - API path
- * @param {string} timestamp - Timestamp in milliseconds
- * @returns {string} Signature in format 'sha256=<hex>'
+ * Get backend API base URL
+ * Points to lexie-be backend where Redis operations happen securely
  */
-async function generateHmacSignature(method, path, timestamp) {
-  if (!HMAC_SECRET) {
-    throw new Error('VITE_LEXIE_HMAC_SECRET environment variable is required');
+function getBackendUrl() {
+  // Use environment variable or fallback based on hostname
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:3000'; // Local backend
+    }
   }
-
-  // Create the payload to sign: method:path:timestamp
-  const payload = `${method}:${path}:${timestamp}`;
   
-  // Use Web Crypto API for HMAC generation
-  const encoder = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(HMAC_SECRET),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  );
-  
-  const signature = await crypto.subtle.sign(
-    'HMAC',
-    key,
-    encoder.encode(payload)
-  );
-  
-  // Convert to hex string
-  const hashArray = Array.from(new Uint8Array(signature));
-  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-  
-  return `sha256=${hashHex}`;
+  // Production backend URL - adjust as needed
+  return process.env.VITE_BACKEND_URL || 'https://api.lexiecrypto.com';
 }
 
 /**
- * Generate authentication headers for API requests
- * @param {string} method - HTTP method (GET, POST, etc.)
- * @param {string} path - API endpoint path
- * @returns {Object} Headers object with timestamp and signature
+ * Generate basic headers for backend API requests
+ * Backend handles all authentication, Redis, and HMAC signing
  */
-async function generateAuthHeaders(method, path) {
-  const timestamp = Date.now().toString();
-  const signature = await generateHmacSignature(method, path, timestamp);
-  
+function generateHeaders() {
   return {
-    'X-Lexie-Timestamp': timestamp,
-    'X-Lexie-Signature': signature,
     'Content-Type': 'application/json',
+    'Accept': 'application/json',
     'Origin': window.location.origin,
-    'User-Agent': navigator.userAgent,
   };
 }
 
 /**
- * Store wallet metadata in Redis (called once on wallet creation)
- * Key: wallet_meta:<walletAddress>
- * @param {string} walletAddress - Wallet address (EOA or RAILGUN)
- * @param {string} walletId - RAILGUN wallet ID
- * @returns {Promise<boolean>} Success status
+ * Wallet Balance Service - Proxies requests to secure backend
  */
-export async function storeWalletMetadata(walletAddress, walletId) {
-  console.log('[WalletStorage] 💾 Storing wallet metadata:', {
-    walletAddress: walletAddress?.slice(0, 8) + '...',
-    walletId: walletId?.slice(0, 8) + '...'
-  });
-
-  try {
-    const method = 'POST';
-    const path = '/api/store-wallet-metadata';
-    
-    // Generate authentication headers
-    const headers = await generateAuthHeaders(method, path);
-    
-    const walletData = {
-      walletAddress,
-      walletId
-    };
-    
-    // Make the API request
-    const response = await fetch(path, {
-      method,
-      headers,
-      body: JSON.stringify(walletData),
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      console.error('[WalletStorage] ❌ Store metadata API error:', result);
-      throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    console.log('[WalletStorage] ✅ Successfully stored wallet metadata:', result);
-    return true;
-
-  } catch (error) {
-    console.error('[WalletStorage] ❌ Failed to store wallet metadata:', error);
-    return false; // Return false instead of throwing - this is non-critical for existing wallets
-  }
-}
-
-/**
- * Get wallet metadata from Redis (used in WalletContext to restore walletId)
- * Key: wallet_meta:<walletAddress>
- * @param {string} walletAddress - Wallet address
- * @returns {Promise<Object|null>} Wallet metadata or null if not found
- */
-export async function getWalletMetadata(walletAddress) {
-  console.log('[WalletStorage] 📥 Retrieving wallet metadata:', {
-    walletAddress: walletAddress?.slice(0, 8) + '...'
-  });
-
-  try {
-    const method = 'GET';
-    const path = `/api/get-wallet-metadata/${walletAddress}`;
-    
-    // Generate authentication headers
-    const headers = await generateAuthHeaders(method, path);
-    
-    // Make the API request
-    const response = await fetch(path, {
-      method,
-      headers,
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        console.log('[WalletStorage] ℹ️ No wallet metadata found in Redis');
-        return null;
-      }
-      
-      console.error('[WalletStorage] ❌ Get metadata API error:', result);
-      throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    console.log('[WalletStorage] ✅ Successfully retrieved wallet metadata:', {
-      walletAddress: result.data.walletAddress?.slice(0, 8) + '...',
-      walletId: result.data.walletId?.slice(0, 8) + '...',
-      createdAt: result.data.createdAt ? new Date(result.data.createdAt).toISOString() : 'Unknown'
-    });
-    
-    return result.data;
-
-  } catch (error) {
-    console.error('[WalletStorage] ❌ Failed to retrieve wallet metadata:', error);
-    return null; // Return null instead of throwing to allow fallback to localStorage
-  }
-}
-
-/**
- * Store balances in Redis (overwrites entire key with new result)
- * Key: wallet_balances:<walletId>-<chainId>
- * @param {string} walletId - RAILGUN wallet ID
- * @param {number} chainId - Chain ID
- * @param {Array} balances - Array of balance objects
- * @returns {Promise<boolean>} Success status
- */
-export async function storeBalances(walletId, chainId, balances) {
-  console.log('[WalletStorage] 💾 Storing balances:', {
-    walletId: walletId?.slice(0, 8) + '...',
-    chainId,
-    balanceCount: balances?.length || 0
-  });
-
-  try {
-    const method = 'POST';
-    const path = '/api/store-balances';
-    
-    const balanceData = {
-      walletId,
+export class WalletBalanceService {
+  
+  /**
+   * Store private balances via backend proxy
+   * @param {string} walletId - RAILGUN wallet ID
+   * @param {number} chainId - Chain ID
+   * @param {Array} balances - Array of private balance objects
+   * @returns {Promise<boolean>} Success status
+   */
+  static async storePrivateBalances(walletId, chainId, balances) {
+    console.log('[WalletBalanceService] 💾 Storing private balances via backend:', {
+      walletId: walletId?.slice(0, 8) + '...',
       chainId,
-      balances: balances.filter(balance => 
-        balance && typeof balance.numericBalance === 'number' && balance.numericBalance > 0
-      )
-    };
-    
-    // Generate authentication headers
-    const headers = await generateAuthHeaders(method, path);
-    
-    // Make the API request
-    const response = await fetch(path, {
-      method,
-      headers,
-      body: JSON.stringify(balanceData),
+      balanceCount: balances?.length || 0
     });
 
-    const result = await response.json();
+    try {
+      const backendUrl = getBackendUrl();
+      const endpoint = `${backendUrl}${API_ENDPOINTS.storePrivateBalances}`;
+      
+      const balanceData = {
+        walletId,
+        chainId,
+        balances: balances.filter(balance => 
+          balance && typeof balance.numericBalance === 'number' && balance.numericBalance > 0
+        )
+      };
+      
+      const headers = generateHeaders();
+      
+      console.log(`[WalletBalanceService] Calling backend endpoint:`, {
+        url: endpoint,
+        method: 'POST',
+        balanceCount: balanceData.balances.length
+      });
 
-    if (!response.ok) {
-      console.error('[WalletStorage] ❌ Store balances API error:', result);
-      throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`);
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(balanceData),
+        signal: AbortSignal.timeout(30000), // 30 second timeout
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error('[WalletBalanceService] ❌ Store private balances API error:', result);
+        throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      console.log('[WalletBalanceService] ✅ Successfully stored private balances via backend:', result);
+      return true;
+
+    } catch (error) {
+      console.error('[WalletBalanceService] ❌ Failed to store private balances:', error);
+      
+      // Return false instead of throwing - this is non-critical for UI
+      if (error.name === 'TimeoutError') {
+        console.warn('[WalletBalanceService] Store request timeout - continuing without storage');
+      }
+      return false;
     }
-
-    console.log('[WalletStorage] ✅ Successfully stored balances:', result);
-    return true;
-
-  } catch (error) {
-    console.error('[WalletStorage] ❌ Failed to store balances:', error);
-    return false; // Return false instead of throwing - this is non-critical
   }
-}
 
-/**
- * Get balances from Redis with freshness check
- * Key: wallet_balances:<walletId>-<chainId>
- * @param {string} walletId - RAILGUN wallet ID  
- * @param {number} chainId - Chain ID
- * @returns {Promise<Object|null>} Balance data with freshness info or null if not found
- */
-export async function getBalances(walletId, chainId) {
-  console.log('[WalletStorage] 📥 Checking Redis for balances:', {
-    walletId: walletId?.slice(0, 8) + '...',
-    chainId
-  });
-
-  try {
-    const method = 'GET';
-    const path = `/api/get-balances/${walletId}-${chainId}`;
-    
-    // Generate authentication headers
-    const headers = await generateAuthHeaders(method, path);
-    
-    // Make the API request
-    const response = await fetch(path, {
-      method,
-      headers,
+  /**
+   * Get private balances via backend proxy
+   * @param {string} walletId - RAILGUN wallet ID
+   * @param {number} chainId - Chain ID
+   * @returns {Promise<Object|null>} Private balance data or null if not found
+   */
+  static async getPrivateBalances(walletId, chainId) {
+    console.log('[WalletBalanceService] 📥 Getting private balances via backend:', {
+      walletId: walletId?.slice(0, 8) + '...',
+      chainId
     });
 
-    const result = await response.json();
+    try {
+      const backendUrl = getBackendUrl();
+      const endpoint = `${backendUrl}${API_ENDPOINTS.getPrivateBalances}/${walletId}-${chainId}`;
+      
+      const headers = generateHeaders();
+      
+      console.log(`[WalletBalanceService] Calling backend endpoint:`, {
+        url: endpoint,
+        method: 'GET'
+      });
 
-    if (!response.ok) {
-      if (response.status === 404) {
-        console.log('[WalletStorage] ℹ️ No balance data found in Redis');
+      const response = await fetch(endpoint, {
+        method: 'GET',
+        headers,
+        signal: AbortSignal.timeout(30000), // 30 second timeout
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.log('[WalletBalanceService] ℹ️ No private balance data found in backend');
+          return null;
+        }
+        
+        console.error('[WalletBalanceService] ❌ Get private balances API error:', result);
         return null;
       }
+
+      const { balances, updatedAt } = result.data;
+
+      console.log('[WalletBalanceService] ✅ Retrieved private balance data via backend:', {
+        balanceCount: balances?.length || 0,
+        updatedAt: new Date(updatedAt).toISOString(),
+        source: 'Backend Redis'
+      });
+
+      return { balances, updatedAt };
+
+    } catch (error) {
+      console.error('[WalletBalanceService] ❌ Failed to retrieve private balance data:', error);
       
-      console.error('[WalletStorage] ❌ Get balances API error:', result);
+      if (error.name === 'TimeoutError') {
+        console.warn('[WalletBalanceService] Get request timeout');
+      }
       return null;
     }
+  }
 
-    const { balances, updatedAt, isFresh } = result.data;
-    const age = Date.now() - updatedAt;
-
-    console.log('[WalletStorage] ✅ Retrieved balance data from Redis:', {
-      balanceCount: balances?.length || 0,
-      age: `${Math.round(age / 1000)}s`,
-      isFresh,
-      updatedAt: new Date(updatedAt).toISOString(),
-      source: isFresh ? 'Redis (fresh)' : 'Redis (stale)'
+  /**
+   * Store wallet metadata via backend proxy
+   * @param {string} walletAddress - Wallet address
+   * @param {string} walletId - RAILGUN wallet ID
+   * @returns {Promise<boolean>} Success status
+   */
+  static async storeWalletMetadata(walletAddress, walletId) {
+    console.log('[WalletBalanceService] 💾 Storing wallet metadata via backend:', {
+      walletAddress: walletAddress?.slice(0, 8) + '...',
+      walletId: walletId?.slice(0, 8) + '...'
     });
 
-    return { balances, updatedAt, isFresh };
+    try {
+      const backendUrl = getBackendUrl();
+      const endpoint = `${backendUrl}${API_ENDPOINTS.storeWalletMetadata}`;
+      
+      const metadataData = {
+        walletAddress,
+        walletId
+      };
+      
+      const headers = generateHeaders();
 
-  } catch (error) {
-    console.error('[WalletStorage] ❌ Failed to retrieve balance data from Redis:', error);
-    return null;
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(metadataData),
+        signal: AbortSignal.timeout(30000),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        console.error('[WalletBalanceService] ❌ Store wallet metadata API error:', result);
+        throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      console.log('[WalletBalanceService] ✅ Successfully stored wallet metadata via backend');
+      return true;
+
+    } catch (error) {
+      console.error('[WalletBalanceService] ❌ Failed to store wallet metadata:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get wallet metadata via backend proxy
+   * @param {string} walletAddress - Wallet address
+   * @returns {Promise<Object|null>} Wallet metadata or null if not found
+   */
+  static async getWalletMetadata(walletAddress) {
+    console.log('[WalletBalanceService] 📥 Getting wallet metadata via backend:', {
+      walletAddress: walletAddress?.slice(0, 8) + '...'
+    });
+
+    try {
+      const backendUrl = getBackendUrl();
+      const endpoint = `${backendUrl}${API_ENDPOINTS.getWalletMetadata}/${walletAddress}`;
+      
+      const headers = generateHeaders();
+
+      const response = await fetch(endpoint, {
+        method: 'GET',
+        headers,
+        signal: AbortSignal.timeout(30000),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          console.log('[WalletBalanceService] ℹ️ No wallet metadata found in backend');
+          return null;
+        }
+        
+        console.error('[WalletBalanceService] ❌ Get wallet metadata API error:', result);
+        return null;
+      }
+
+      console.log('[WalletBalanceService] ✅ Retrieved wallet metadata via backend');
+      return result.data;
+
+    } catch (error) {
+      console.error('[WalletBalanceService] ❌ Failed to retrieve wallet metadata:', error);
+      return null;
+    }
   }
 }
 
-/**
- * Store private balances in Redis
- * Key: private_balances:<walletId>-<chainId>
- * @param {string} walletId - RAILGUN wallet ID
- * @param {number} chainId - Chain ID
- * @param {Array} balances - Array of private balance objects
- * @returns {Promise<boolean>} Success status
- */
+// Legacy function exports for backward compatibility
 export async function storePrivateBalances(walletId, chainId, balances) {
-  console.log('[WalletStorage] 💾 Storing private balances:', {
-    walletId: walletId?.slice(0, 8) + '...',
-    chainId,
-    balanceCount: balances?.length || 0
-  });
-
-  try {
-    const method = 'POST';
-    const path = '/api/store-private-balances';
-    
-    const balanceData = {
-      walletId,
-      chainId,
-      balances: balances.filter(balance => 
-        balance && typeof balance.numericBalance === 'number' && balance.numericBalance > 0
-      )
-    };
-    
-    // Generate authentication headers
-    const headers = await generateAuthHeaders(method, path);
-    
-    // Make the API request
-    const response = await fetch(path, {
-      method,
-      headers,
-      body: JSON.stringify(balanceData),
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      console.error('[WalletStorage] ❌ Store private balances API error:', result);
-      throw new Error(result.error || `HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    console.log('[WalletStorage] ✅ Successfully stored private balances:', result);
-    return true;
-
-  } catch (error) {
-    console.error('[WalletStorage] ❌ Failed to store private balances:', error);
-    return false; // Return false instead of throwing - this is non-critical
-  }
+  return WalletBalanceService.storePrivateBalances(walletId, chainId, balances);
 }
 
-/**
- * Get private balances from Redis
- * Key: private_balances:<walletId>-<chainId>
- * @param {string} walletId - RAILGUN wallet ID
- * @param {number} chainId - Chain ID
- * @returns {Promise<Object|null>} Private balance data or null if not found
- */
 export async function getPrivateBalances(walletId, chainId) {
-  console.log('[WalletStorage] 📥 Getting private balances from Redis:', {
-    walletId: walletId?.slice(0, 8) + '...',
-    chainId
-  });
+  return WalletBalanceService.getPrivateBalances(walletId, chainId);
+}
 
-  try {
-    const method = 'GET';
-    const path = `/api/get-private-balances/${walletId}-${chainId}`;
-    
-    // Generate authentication headers
-    const headers = await generateAuthHeaders(method, path);
-    
-    // Make the API request
-    const response = await fetch(path, {
-      method,
-      headers,
-    });
+export async function storeWalletMetadata(walletAddress, walletId) {
+  return WalletBalanceService.storeWalletMetadata(walletAddress, walletId);
+}
 
-    const result = await response.json();
+export async function getWalletMetadata(walletAddress) {
+  return WalletBalanceService.getWalletMetadata(walletAddress);
+}
 
-    if (!response.ok) {
-      if (response.status === 404) {
-        console.log('[WalletStorage] ℹ️ No private balance data found in Redis');
-        return null;
-      }
-      
-      console.error('[WalletStorage] ❌ Get private balances API error:', result);
-      return null;
-    }
+// Legacy combined balance functions (keeping for compatibility)
+export async function storeBalances(walletId, chainId, balances) {
+  console.warn('[WalletBalanceService] DEPRECATED: storeBalances() - use storePrivateBalances() instead');
+  return WalletBalanceService.storePrivateBalances(walletId, chainId, balances);
+}
 
-    const { balances, updatedAt } = result.data;
-
-    console.log('[WalletStorage] ✅ Retrieved private balance data from Redis:', {
-      balanceCount: balances?.length || 0,
-      updatedAt: new Date(updatedAt).toISOString(),
-      source: 'Redis'
-    });
-
-    return { balances, updatedAt };
-
-  } catch (error) {
-    console.error('[WalletStorage] ❌ Failed to retrieve private balance data from Redis:', error);
-    return null;
-  }
+export async function getBalances(walletId, chainId) {
+  console.warn('[WalletBalanceService] DEPRECATED: getBalances() - use getPrivateBalances() instead');
+  return WalletBalanceService.getPrivateBalances(walletId, chainId);
 }
 
 export default {
+  WalletBalanceService,
   storeWalletMetadata,
   getWalletMetadata,
   storeBalances,
