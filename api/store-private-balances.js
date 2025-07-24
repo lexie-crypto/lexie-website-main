@@ -1,5 +1,5 @@
 /**
- * Vercel Serverless Function - Store Wallet Metadata Proxy
+ * Vercel Serverless Function - Store Private Balances Proxy
  * Proxies requests to lexie-be backend with HMAC authentication
  */
 
@@ -15,7 +15,7 @@ export const config = {
 /**
  * Generate HMAC authentication headers for backend calls
  */
-function generateBackendAuthHeaders(method = 'POST', path = '/api/store-wallet-metadata') {
+function generateBackendAuthHeaders(method = 'POST', path = '/api/store-private-balances') {
   const hmacSecret = process.env.LEXIE_HMAC_SECRET;
   if (!hmacSecret) {
     throw new Error('LEXIE_HMAC_SECRET environment variable is required for backend calls');
@@ -57,7 +57,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    console.log('[STORE-WALLET-METADATA-PROXY] 🔄 Proxying request to lexie-be backend');
+    console.log('[STORE-PRIVATE-BALANCES-PROXY] 🔄 Proxying request to lexie-be backend');
 
     // Validate request body
     if (!req.body) {
@@ -67,42 +67,42 @@ export default async function handler(req, res) {
       });
     }
 
-    const { walletAddress, walletId } = req.body;
+    const { walletId, chainId, balances } = req.body;
 
     // Basic validation
-    if (!walletAddress || !walletId) {
+    if (!walletId || !chainId || !Array.isArray(balances)) {
       return res.status(400).json({ 
         success: false,
-        error: 'Missing required fields: walletAddress, walletId' 
+        error: 'Missing required fields: walletId, chainId, balances' 
       });
     }
 
     // Proxy request to lexie-be backend
     const backendUrl = process.env.LEXIE_BACKEND_URL || 'https://api.lexiecrypto.com';
-    const endpoint = `${backendUrl}/api/store-wallet-metadata`;
+    const endpoint = `${backendUrl}/api/store-private-balances`;
     
-    const headers = generateBackendAuthHeaders('POST', '/api/store-wallet-metadata');
+    const headers = generateBackendAuthHeaders('POST', '/api/store-private-balances');
     
-    console.log(`[STORE-WALLET-METADATA-PROXY] 📡 Calling backend: ${endpoint}`);
+    console.log(`[STORE-PRIVATE-BALANCES-PROXY] 📡 Calling backend: ${endpoint}`);
 
     const backendResponse = await fetch(endpoint, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ walletAddress, walletId }),
+      body: JSON.stringify({ walletId, chainId, balances }),
     });
 
     const result = await backendResponse.json();
 
     if (!backendResponse.ok) {
-      console.error('[STORE-WALLET-METADATA-PROXY] ❌ Backend error:', result);
+      console.error('[STORE-PRIVATE-BALANCES-PROXY] ❌ Backend error:', result);
       return res.status(backendResponse.status).json(result);
     }
 
-    console.log('[STORE-WALLET-METADATA-PROXY] ✅ Successfully proxied to backend');
+    console.log('[STORE-PRIVATE-BALANCES-PROXY] ✅ Successfully proxied to backend');
     return res.status(200).json(result);
 
   } catch (error) {
-    console.error('[STORE-WALLET-METADATA-PROXY] ❌ Proxy error:', error);
+    console.error('[STORE-PRIVATE-BALANCES-PROXY] ❌ Proxy error:', error);
     
     return res.status(500).json({ 
       success: false,
