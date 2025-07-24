@@ -75,10 +75,15 @@ export class WalletBalanceService {
       
       const headers = generateHeaders();
       
-      console.log(`[WalletBalanceService] Calling backend endpoint:`, {
+      console.log(`[WalletBalanceService] 🚀 FRONTEND: Calling backend endpoint:`, {
         url: endpoint,
         method: 'POST',
-        balanceCount: balanceData.balances.length
+        backendUrl,
+        apiEndpoint: API_ENDPOINTS.storePrivateBalances,
+        fullEndpoint: endpoint,
+        balanceCount: balanceData.balances.length,
+        headers: Object.keys(headers),
+        timestamp: Date.now()
       });
 
       const response = await fetch(endpoint, {
@@ -192,6 +197,16 @@ export class WalletBalanceService {
       };
       
       const headers = generateHeaders();
+
+      console.log(`[WalletBalanceService] 🚀 FRONTEND: Calling wallet metadata endpoint:`, {
+        url: endpoint,
+        method: 'POST',
+        backendUrl,
+        apiEndpoint: API_ENDPOINTS.storeWalletMetadata,
+        fullEndpoint: endpoint,
+        headers: Object.keys(headers),
+        timestamp: Date.now()
+      });
 
       const response = await fetch(endpoint, {
         method: 'POST',
