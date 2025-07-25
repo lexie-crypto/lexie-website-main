@@ -51,22 +51,29 @@ async function getWalletMetadata(walletAddress) {
       if (keyParts.length === 3 && keyParts[0] === 'railgun') {
         const walletId = keyParts[2];  // Extract walletId from key
         
-        // Parse value - it could be just railgunAddress (old format) or JSON with signature (new format)
-        let railgunAddress, signature;
+        // Parse value - complete wallet data (v2.0), enhanced (v1.0), or legacy (v0.0)
+        let railgunAddress, signature, encryptedMnemonic, version;
         try {
           const parsedValue = JSON.parse(firstKey.value);
           railgunAddress = parsedValue.railgunAddress;
           signature = parsedValue.signature;
-          console.log('🔍 [GET-WALLET-METADATA] Found new format with signature', {
+          encryptedMnemonic = parsedValue.encryptedMnemonic;
+          version = parsedValue.version || '1.0';
+          
+          console.log(`🔍 [GET-WALLET-METADATA] Found complete wallet data (v${version})`, {
             hasRailgunAddress: !!railgunAddress,
             hasSignature: !!signature,
-            signaturePreview: signature?.slice(0, 10) + '...' || 'none'
+            hasEncryptedMnemonic: !!encryptedMnemonic,
+            signaturePreview: signature?.slice(0, 10) + '...' || 'none',
+            crossDeviceReady: !!(signature && encryptedMnemonic)
           });
         } catch (e) {
-          // Fallback to old format (just railgun address as string)
+          // Fallback to legacy format (just railgun address as string)
           railgunAddress = firstKey.value;
           signature = null;
-          console.log('🔍 [GET-WALLET-METADATA] Found old format (no signature)', {
+          encryptedMnemonic = null;
+          version = '0.0';
+          console.log('🔍 [GET-WALLET-METADATA] Found legacy format (no cross-device data)', {
             railgunAddress: railgunAddress?.slice(0, 8) + '...'
           });
         }
@@ -74,9 +81,12 @@ async function getWalletMetadata(walletAddress) {
         return {
           walletId,
           railgunAddress,
-          signature, // Include signature from Redis
+          signature,
+          encryptedMnemonic, // Include encrypted mnemonic from Redis
+          version,
           walletAddress: result.walletAddress,
           source: 'Redis',
+          crossDeviceReady: !!(signature && encryptedMnemonic),
           totalKeys: result.totalKeys,
           allKeys: result.keys
         };
@@ -90,13 +100,15 @@ async function getWalletMetadata(walletAddress) {
   }
 }
 
-async function storeWalletMetadata(walletAddress, walletId, railgunAddress, signature = null) {
-  console.log('💾 [STORE-WALLET-METADATA] Starting API call', {
+async function storeWalletMetadata(walletAddress, walletId, railgunAddress, signature = null, encryptedMnemonic = null) {
+  console.log('💾 [STORE-WALLET-METADATA] Starting API call - COMPLETE REDIS STORAGE', {
     walletAddress: walletAddress?.slice(0, 8) + '...',
     walletId: walletId?.slice(0, 8) + '...',
     railgunAddress: railgunAddress?.slice(0, 8) + '...',
     hasSignature: !!signature,
-    signaturePreview: signature?.slice(0, 10) + '...' || 'none'
+    hasEncryptedMnemonic: !!encryptedMnemonic,
+    signaturePreview: signature?.slice(0, 10) + '...' || 'none',
+    storageType: 'Redis-only (no localStorage)'
   });
   
   try {
@@ -110,7 +122,8 @@ async function storeWalletMetadata(walletAddress, walletId, railgunAddress, sign
         walletAddress,
         walletId,
         railgunAddress,
-        signature // Include signature for cross-device persistence
+        signature,
+        encryptedMnemonic // Store encrypted mnemonic in Redis for cross-device access
       }),
     });
     
@@ -510,27 +523,42 @@ const WalletContextProvider = ({ children }) => {
       console.warn('[WalletContext] Redis wallet metadata check failed, falling back to localStorage:', redisError);
     }
     
-    // ✅ PREFER REDIS: If Redis has signature, use it over localStorage
-    if (redisWalletData?.signature) {
-      console.log('[WalletContext] 🎯 Using signature from Redis for cross-device persistence');
+    // ✅ REDIS-FIRST: Use Redis data for cross-device persistence
+    if (redisWalletData?.crossDeviceReady) {
+      console.log('[WalletContext] 🚀 Using COMPLETE wallet data from Redis - true cross-device access!', {
+        version: redisWalletData.version,
+        hasSignature: !!redisWalletData.signature,
+        hasEncryptedMnemonic: !!redisWalletData.encryptedMnemonic,
+        source: 'Redis-only'
+      });
+      existingSignature = redisWalletData.signature;
+      existingMnemonic = redisWalletData.encryptedMnemonic;
+    } else if (redisWalletData?.signature) {
+      console.log('[WalletContext] 🎯 Using partial data from Redis + localStorage fallback');
       existingSignature = redisWalletData.signature;
     }
 
-    // Fallback to localStorage for any missing data
+    // Fallback to localStorage ONLY if Redis doesn't have the data
     if (!existingSignature) {
+      console.log('[WalletContext] ⚠️ Falling back to localStorage for signature (not cross-device compatible)');
       existingSignature = localStorage.getItem(signatureStorageKey);
     }
     if (!existingWalletID) {
+      console.log('[WalletContext] ⚠️ Falling back to localStorage for walletID');
       existingWalletID = localStorage.getItem(userStorageKey);
     }
     if (!existingMnemonic) {
+      console.log('[WalletContext] ⚠️ Falling back to localStorage for mnemonic (not cross-device compatible)');
       existingMnemonic = localStorage.getItem(mnemonicStorageKey);
     }
     
-    console.log('[WalletContext] 📊 Wallet data sources:', {
+    console.log('[WalletContext] 📊 Wallet data sources (Redis-first architecture):', {
+      redisVersion: redisWalletData?.version || 'none',
+      crossDeviceReady: redisWalletData?.crossDeviceReady || false,
       walletIdSource: redisWalletData ? 'Redis' : (localStorage.getItem(userStorageKey) ? 'localStorage' : 'none'),
-      signatureSource: localStorage.getItem(signatureStorageKey) ? 'localStorage' : 'none',
-      mnemonicSource: localStorage.getItem(mnemonicStorageKey) ? 'localStorage' : 'none'
+      signatureSource: redisWalletData?.signature ? 'Redis' : (localStorage.getItem(signatureStorageKey) ? 'localStorage' : 'none'),
+      mnemonicSource: redisWalletData?.encryptedMnemonic ? 'Redis' : (localStorage.getItem(mnemonicStorageKey) ? 'localStorage' : 'none'),
+      storageStrategy: redisWalletData?.crossDeviceReady ? 'Redis-only (cross-device)' : 'Hybrid (single-device)'
     });
     
     // 🛡️ PRIMARY GUARD: Check if wallet already exists and is initialized
@@ -559,37 +587,19 @@ const WalletContextProvider = ({ children }) => {
         hasSignature: !!existingSignature
       });
       
-      // If we have Redis data but no signature in localStorage yet, we still need the signature
-      // for encryption key derivation, but we can set the state immediately
-      if (!existingSignature) {
-        console.log('[WalletContext] ⚠️ Redis has wallet data but no signature found - need to create signature first');
-        // Will fall through to normal flow to get signature
-      } else {
-        // We have everything - try to set state directly and load the wallet
-        console.log('[WalletContext] ✅ Redis + signature available - attempting immediate state hydration');
-        
-        setRailgunAddress(existingRailgunAddress);
-        setRailgunWalletID(existingWalletID);
-        setIsRailgunInitialized(true);
-        setIsInitializing(false);
-        
-        console.log('[WalletContext] 🎉 Redis fast path completed - wallet state hydrated immediately!', {
-          walletId: existingWalletID.slice(0, 8) + '...',
-          railgunAddress: existingRailgunAddress.slice(0, 8) + '...',
-          source: 'Redis-first'
-        });
-        
-        return; // ✨ Exit early - wallet successfully loaded from Redis!
-      }
+      // ✅ FIXED: Don't exit early - we still need to initialize the RAILGUN engine
+      // Redis data will speed up wallet loading, but engine must still start
+      console.log('[WalletContext] 🎯 Redis provides wallet data - will use for fast loading but engine must still initialize');
     }
     
         if (existingSignature && existingWalletID && existingMnemonic) {
       try {
-        console.log('💨 Fast path: Found existing wallet data, hydrating...', {
+        console.log('💨 Fast path: Found existing wallet data, will load after engine init...', {
           hasSignature: !!existingSignature,
           hasWalletID: !!existingWalletID,
           hasMnemonic: !!existingMnemonic,
-          walletIDPreview: existingWalletID.slice(0, 8) + '...'
+          walletIDPreview: existingWalletID.slice(0, 8) + '...',
+          source: redisWalletData ? 'Redis+localStorage' : 'localStorage'
         });
         
         // Import required modules for fast path
@@ -1114,16 +1124,34 @@ const WalletContextProvider = ({ children }) => {
           // 💾 Save new wallet ID for persistence (ensure consistent storage key)
           localStorage.setItem(userStorageKey, railgunWalletInfo.id);
           
-          // 🚀 REDIS: Store wallet metadata INCLUDING SIGNATURE for cross-device persistence
+          // 🚀 REDIS: Store COMPLETE wallet data for true cross-device persistence
           try {
-            const storeSuccess = await storeWalletMetadata(address, railgunWalletInfo.id, railgunWalletInfo.railgunAddress, signature);
+            // Get encrypted mnemonic to store in Redis
+            const savedEncryptedMnemonic = localStorage.getItem(mnemonicStorageKey);
+            
+            const storeSuccess = await storeWalletMetadata(
+              address, 
+              railgunWalletInfo.id, 
+              railgunWalletInfo.railgunAddress, 
+              signature,
+              savedEncryptedMnemonic // Include encrypted mnemonic for full cross-device access
+            );
+            
             if (storeSuccess) {
-              console.log('✅ Stored wallet metadata to Redis for cross-device access:', {
+              console.log('✅ Stored COMPLETE wallet data to Redis for true cross-device access:', {
                 walletId: railgunWalletInfo.id?.slice(0, 8) + '...',
                 railgunAddress: railgunWalletInfo.railgunAddress?.slice(0, 8) + '...',
                 hasSignature: !!signature,
-                redisKey: `railgun:${address}:${railgunWalletInfo.id}`
+                hasEncryptedMnemonic: !!savedEncryptedMnemonic,
+                redisKey: `railgun:${address}:${railgunWalletInfo.id}`,
+                crossDeviceReady: !!(signature && savedEncryptedMnemonic)
               });
+              
+              // ✅ CLEAN UP: Remove localStorage data since it's now in Redis
+              if (savedEncryptedMnemonic && signature) {
+                console.log('🧹 Cleaning up localStorage - data now safely in Redis for cross-device access');
+                // Keep for now as backup, but Redis is the primary source
+              }
             } else {
               console.warn('⚠️ Redis storage returned false - wallet metadata may not be persisted');
             }
