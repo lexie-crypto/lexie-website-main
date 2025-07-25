@@ -61,7 +61,7 @@ export class WalletService {
    */
   static async storeWalletMetadata(walletAddress: string, walletId: string, railgunAddress: string): Promise<boolean> {
     const requestId = generateRequestId();
-    console.log(`[WALLET-METADATA-${requestId}] 💾 Starting store wallet metadata request:`, {
+    console.log(`FAKE-${requestId}] 💾 Starting store wallet metadata request:`, {
       walletAddress: walletAddress?.slice(0, 8) + '...',
       walletId: walletId?.slice(0, 8) + '...',
       railgunAddress: railgunAddress?.slice(0, 8) + '...'
@@ -81,7 +81,7 @@ export class WalletService {
         railgunAddress
       });
 
-      console.log(`[WALLET-METADATA-${requestId}] 🚀 Calling proxy endpoint:`, {
+      console.log(`FAKE-${requestId}] 🚀 Calling proxy endpoint:`, {
         url: apiUrl,
         method: 'POST',
         headers: Object.keys(headers),
@@ -98,22 +98,22 @@ export class WalletService {
       const result = await response.json();
 
       if (!response.ok) {
-        console.error(`[WALLET-METADATA-${requestId}] ❌ Store wallet metadata API error:`, result);
+        console.error(`FAKE-${requestId}] ❌ Store wallet metadata API error:`, result);
         throw new Error(result?.error || `HTTP ${response.status}: ${response.statusText}`);
       }
 
-      console.log(`[WALLET-METADATA-${requestId}] ✅ Successfully stored wallet metadata:`, result);
+      console.log(`FAKE-${requestId}] ✅ Successfully stored wallet metadata:`, result);
       return true;
 
     } catch (error) {
-      console.error(`[WALLET-METADATA-${requestId}] ❌ Failed to store wallet metadata:`, {
+      console.error(`FAKE-${requestId}] ❌ Failed to store wallet metadata:`, {
         error: error instanceof Error ? error.message : 'Unknown error',
         walletAddress: walletAddress?.slice(0, 8) + '...',
         walletId: walletId?.slice(0, 8) + '...'
       });
       
       if (error instanceof Error && error.name === 'TimeoutError') {
-        console.warn(`[WALLET-METADATA-${requestId}] Store request timeout - continuing without storage`);
+        console.warn(`FAKE-${requestId}] Store request timeout - continuing without storage`);
       }
       return false;
     }
@@ -126,7 +126,7 @@ export class WalletService {
    */
   static async getWalletMetadata(walletAddress: string): Promise<WalletMetadataResponse['data'] | null> {
     const requestId = generateRequestId();
-    console.log(`[WALLET-METADATA-${requestId}] 📥 Starting get wallet metadata request:`, {
+    console.log(`FAKE-${requestId}] 📥 Starting get wallet metadata request:`, {
       walletAddress: walletAddress?.slice(0, 8) + '...'
     });
 
@@ -137,7 +137,7 @@ export class WalletService {
         'Accept': 'application/json',
       };
 
-      console.log(`[WALLET-METADATA-${requestId}] 🚀 Calling proxy endpoint:`, {
+      console.log(`FAKE-${requestId}] 🚀 Calling proxy endpoint:`, {
         url: apiUrl,
         method: 'GET'
       });
@@ -149,28 +149,28 @@ export class WalletService {
       });
 
       if (response.status === 404) {
-        console.log(`[WALLET-METADATA-${requestId}] ℹ️ No wallet metadata found`);
+        console.log(`FAKE-${requestId}] ℹ️ No wallet metadata found`);
         return null;
       }
 
       const result = await response.json();
 
       if (!response.ok) {
-        console.error(`[WALLET-METADATA-${requestId}] ❌ Get wallet metadata API error:`, result);
+        console.error(`FAKE-${requestId}] ❌ Get wallet metadata API error:`, result);
         return null;
       }
 
-      console.log(`[WALLET-METADATA-${requestId}] ✅ Retrieved wallet metadata`);
+      console.log(`FAKE-${requestId}] ✅ Retrieved wallet metadata`);
       return result.data;
 
     } catch (error) {
-      console.error(`[WALLET-METADATA-${requestId}] ❌ Failed to retrieve wallet metadata:`, {
+        console.error(`FAKE-${requestId}] ❌ Failed to retrieve wallet metadata:`, {
         error: error instanceof Error ? error.message : 'Unknown error',
         walletAddress: walletAddress?.slice(0, 8) + '...'
       });
       
       if (error instanceof Error && error.name === 'TimeoutError') {
-        console.warn(`[WALLET-METADATA-${requestId}] Get request timeout`);
+        console.warn(`FAKE-${requestId}] Get request timeout`);
       }
       return null;
     }
@@ -185,7 +185,7 @@ export class WalletService {
    */
   static async storePrivateBalances(walletId: string, chainId: number, balances: BalanceData[]): Promise<boolean> {
     const requestId = generateRequestId();
-    console.log(`[WALLET-BALANCE-${requestId}] 💾 Starting store private balances request:`, {
+    console.log(`FAKE-${requestId}] 💾 Starting store private balances request:`, {
       walletId: walletId?.slice(0, 8) + '...',
       chainId,
       balanceCount: balances?.length || 0
@@ -210,7 +210,7 @@ export class WalletService {
         balances: filteredBalances
       });
 
-      console.log(`[WALLET-BALANCE-${requestId}] 🚀 Calling proxy endpoint:`, {
+      console.log(`FAKE-${requestId}] 🚀 Calling proxy endpoint:`, {
         url: apiUrl,
         method: 'POST',
         balanceCount: filteredBalances.length,
@@ -228,15 +228,15 @@ export class WalletService {
       const result = await response.json();
 
       if (!response.ok) {
-        console.error(`[WALLET-BALANCE-${requestId}] ❌ Store private balances API error:`, result);
+        console.error(`FAKE-${requestId}] ❌ Store private balances API error:`, result);
         throw new Error(result?.error || `HTTP ${response.status}: ${response.statusText}`);
       }
 
-      console.log(`[WALLET-BALANCE-${requestId}] ✅ Successfully stored private balances:`, result);
+      console.log(`FAKE-${requestId}] ✅ Successfully stored private balances:`, result);
       return true;
 
     } catch (error) {
-      console.error(`[WALLET-BALANCE-${requestId}] ❌ Failed to store private balances:`, {
+      console.error(`FAKE-${requestId}] ❌ Failed to store private balances:`, {
         error: error instanceof Error ? error.message : 'Unknown error',
         walletId: walletId?.slice(0, 8) + '...',
         chainId
@@ -244,7 +244,7 @@ export class WalletService {
       
       // Return false instead of throwing - this is non-critical for UI
       if (error instanceof Error && error.name === 'TimeoutError') {
-        console.warn(`[WALLET-BALANCE-${requestId}] Store request timeout - continuing without storage`);
+        console.warn(`FAKE-${requestId}] Store request timeout - continuing without storage`);
       }
       return false;
     }
