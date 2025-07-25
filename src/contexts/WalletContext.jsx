@@ -613,7 +613,11 @@ const WalletContextProvider = ({ children }) => {
         let engineExists = false;
         try {
           const { hasEngine } = await import('@railgun-community/wallet');
-          engineExists = hasEngine();
+          if (typeof hasEngine === 'function') {
+            engineExists = hasEngine();
+          } else {
+            console.log('hasEngine is not a function, will attempt engine start');
+          }
         } catch (e) {
           console.log('hasEngine not available, will attempt engine start');
         }
@@ -786,15 +790,21 @@ const WalletContextProvider = ({ children }) => {
           userAddress: address,
           railgunAddress: railgunWalletInfo.railgunAddress,
           walletID: railgunWalletInfo.id?.slice(0, 8) + '...',
-          storageKey: userStorageKey
+          storage: 'Redis-only'
         });
         
         setIsInitializing(false);
         return; // ✨ Exit early - wallet successfully loaded from storage
         
       } catch (hydrateError) {
-        console.warn('⚠️ Fast path failed, falling back to full initialization:', hydrateError);
-        // Don't clear localStorage here - let full init handle it
+        console.error('❌ Fast path failed, falling back to full initialization:', {
+          error: hydrateError.message,
+          stack: hydrateError.stack,
+          errorType: hydrateError.constructor.name,
+          walletID: existingWalletID?.slice(0, 8) + '...',
+          hasSignature: !!existingSignature,
+          hasMnemonic: !!existingMnemonic
+        });
       }
     }
     
@@ -1150,13 +1160,13 @@ const WalletContextProvider = ({ children }) => {
             console.warn('⚠️ Failed to store wallet metadata to Redis (non-critical):', redisError);
           }
           
-          console.log('✅ Created and saved new Railgun wallet:', {
-            userAddress: address,
-            walletID: railgunWalletInfo.id?.slice(0, 8) + '...',
-            railgunAddress: railgunWalletInfo.railgunAddress?.slice(0, 8) + '...',
-            storageKey: userStorageKey,
-            redisStored: true
-          });
+                  console.log('✅ Created and saved new Railgun wallet:', {
+          userAddress: address,
+          walletID: railgunWalletInfo.id?.slice(0, 8) + '...',
+          railgunAddress: railgunWalletInfo.railgunAddress?.slice(0, 8) + '...',
+          storage: 'Redis-only',
+          crossDevice: true
+        });
           
         } catch (createError) {
           console.error('❌ Failed to create Railgun wallet:', createError);
@@ -1314,44 +1324,29 @@ const WalletContextProvider = ({ children }) => {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       window.__LEXIE_RAILGUN_DEBUG__ = {
-        // Check current user's encrypted data status
-        checkEncryptedData: () => {
+        // Check current user's Redis wallet data status
+        checkWalletData: () => {
           if (!address) return { error: 'No wallet connected' };
-          
-          const userStorageKey = `railgun-walletID-${address.toLowerCase()}`;
-          const mnemonicStorageKey = `railgun-mnemonic-${address.toLowerCase()}`;
-          const signatureStorageKey = `railgun-signature-${address.toLowerCase()}`;
-          
-          const hasWalletID = !!localStorage.getItem(userStorageKey);
-          const hasMnemonic = !!localStorage.getItem(mnemonicStorageKey);
-          const hasSignature = !!localStorage.getItem(signatureStorageKey);
-          const walletID = localStorage.getItem(userStorageKey);
-          const signature = localStorage.getItem(signatureStorageKey);
-          
-          // Check if current React state matches stored data
-          const stateMatches = {
-            walletIDMatches: railgunWalletID === walletID,
-            hasRailgunAddress: !!railgunAddress,
-            isInitialized: isRailgunInitialized
-          };
           
           return {
             userAddress: address,
-            hasEncryptedWalletID: hasWalletID,
-            hasEncryptedMnemonic: hasMnemonic,
-            hasStoredSignature: hasSignature,
-            walletIDPreview: walletID ? walletID.slice(0, 8) + '...' : null,
-            signaturePreview: signature ? signature.slice(0, 10) + '...' : null,
             currentRailgunAddress: railgunAddress,
             currentWalletID: railgunWalletID?.slice(0, 8) + '...',
             isInitialized: isRailgunInitialized,
-            stateMatches,
-            storageKeys: { userStorageKey, mnemonicStorageKey, signatureStorageKey },
-            persistenceStatus: hasSignature && hasWalletID && hasMnemonic ? 
-              '✅ Complete wallet data - should load instantly' : 
-              hasSignature ? 'Partial data - may need regeneration' : 
-              'New wallet - signature needed',
-            fastPathEligible: hasSignature && hasWalletID && hasMnemonic
+            storageType: 'Redis-only',
+            redisData: redisWalletData ? {
+              version: redisWalletData.version,
+              crossDeviceReady: redisWalletData.crossDeviceReady,
+              hasSignature: !!redisWalletData.signature,
+              hasEncryptedMnemonic: !!redisWalletData.encryptedMnemonic,
+              hasRailgunAddress: !!redisWalletData.railgunAddress,
+              hasWalletId: !!redisWalletData.walletId
+            } : 'No Redis data found',
+            persistenceStatus: redisWalletData?.crossDeviceReady ? 
+              '✅ Complete cross-device wallet data in Redis' : 
+              redisWalletData ? 'Partial Redis data - needs migration' : 
+              'No wallet data - new wallet needed',
+            crossDeviceCompatible: redisWalletData?.crossDeviceReady || false
           };
         },
         
@@ -1385,32 +1380,25 @@ const WalletContextProvider = ({ children }) => {
           };
         },
         
-        // Clear ALL data for current user (TESTING ONLY - breaks persistence)
-        clearAllData: () => {
+        // NOTE: Redis data cannot be cleared from frontend for security reasons
+        clearLocalData: () => {
           if (!address) return { error: 'No wallet connected' };
           
-          const userStorageKey = `railgun-walletID-${address.toLowerCase()}`;
-          const mnemonicStorageKey = `railgun-mnemonic-${address.toLowerCase()}`;
-          const signatureStorageKey = `railgun-signature-${address.toLowerCase()}`;
-          
-          localStorage.removeItem(userStorageKey);
-          localStorage.removeItem(mnemonicStorageKey);
-          localStorage.removeItem(signatureStorageKey);
-          
-          console.log('🗑️ Cleared ALL Railgun data for user:', address);
+          console.log('ℹ️ Redis-only architecture: No local data to clear');
           
           return {
             userAddress: address,
-            message: 'All data cleared. Next connection will create new wallet.'
+            message: 'Redis-only architecture: All wallet data is stored in Redis for cross-device access.',
+            note: 'To reset wallet, contact support or use a different EOA address.'
           };
         },
       };
       
-      console.log('🛠️ Railgun debug utilities available:');
-      console.log('- window.__LEXIE_RAILGUN_DEBUG__.checkEncryptedData() // Check persistence status');
+      console.log('🛠️ Railgun debug utilities available (Redis-only architecture):');
+      console.log('- window.__LEXIE_RAILGUN_DEBUG__.checkWalletData() // Check Redis wallet status');
       console.log('- window.__LEXIE_RAILGUN_DEBUG__.checkRPCLimiter() // Check rate limiter status');  
       console.log('- window.__LEXIE_RAILGUN_DEBUG__.resetRPCLimiter() // Reset rate limiter');
-      console.log('- window.__LEXIE_RAILGUN_DEBUG__.clearAllData() // TESTING ONLY - breaks persistence');
+      console.log('- window.__LEXIE_RAILGUN_DEBUG__.clearLocalData() // Info about Redis-only storage');
     }
   }, [address, isConnected, railgunAddress, isRailgunInitialized, initializeRailgun]);
 
