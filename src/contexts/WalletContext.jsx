@@ -50,11 +50,31 @@ async function getWalletMetadata(walletAddress) {
       
       if (keyParts.length === 3 && keyParts[0] === 'railgun') {
         const walletId = keyParts[2];  // Extract walletId from key
-        const railgunAddress = firstKey.value;  // Railgun address is the value
+        
+        // Parse value - it could be just railgunAddress (old format) or JSON with signature (new format)
+        let railgunAddress, signature;
+        try {
+          const parsedValue = JSON.parse(firstKey.value);
+          railgunAddress = parsedValue.railgunAddress;
+          signature = parsedValue.signature;
+          console.log('🔍 [GET-WALLET-METADATA] Found new format with signature', {
+            hasRailgunAddress: !!railgunAddress,
+            hasSignature: !!signature,
+            signaturePreview: signature?.slice(0, 10) + '...' || 'none'
+          });
+        } catch (e) {
+          // Fallback to old format (just railgun address as string)
+          railgunAddress = firstKey.value;
+          signature = null;
+          console.log('🔍 [GET-WALLET-METADATA] Found old format (no signature)', {
+            railgunAddress: railgunAddress?.slice(0, 8) + '...'
+          });
+        }
         
         return {
           walletId,
           railgunAddress,
+          signature, // Include signature from Redis
           walletAddress: result.walletAddress,
           source: 'Redis',
           totalKeys: result.totalKeys,
@@ -70,7 +90,15 @@ async function getWalletMetadata(walletAddress) {
   }
 }
 
-async function storeWalletMetadata(walletAddress, walletId, railgunAddress) {
+async function storeWalletMetadata(walletAddress, walletId, railgunAddress, signature = null) {
+  console.log('💾 [STORE-WALLET-METADATA] Starting API call', {
+    walletAddress: walletAddress?.slice(0, 8) + '...',
+    walletId: walletId?.slice(0, 8) + '...',
+    railgunAddress: railgunAddress?.slice(0, 8) + '...',
+    hasSignature: !!signature,
+    signaturePreview: signature?.slice(0, 10) + '...' || 'none'
+  });
+  
   try {
     const response = await fetch('/api/wallet-metadata', {
       method: 'POST',
@@ -81,7 +109,8 @@ async function storeWalletMetadata(walletAddress, walletId, railgunAddress) {
       body: JSON.stringify({
         walletAddress,
         walletId,
-        railgunAddress
+        railgunAddress,
+        signature // Include signature for cross-device persistence
       }),
     });
     
@@ -474,7 +503,6 @@ const WalletContextProvider = ({ children }) => {
         // we can potentially skip wallet creation entirely!
         console.log('[WalletContext] 🎯 Redis provides complete wallet data - will attempt fast hydration');
         
-        // Note: Redis doesn't store signature/mnemonic for security - will get from localStorage
       } else {
         console.log('[WalletContext] ℹ️ No wallet metadata found in Redis, checking localStorage...');
       }
@@ -482,6 +510,12 @@ const WalletContextProvider = ({ children }) => {
       console.warn('[WalletContext] Redis wallet metadata check failed, falling back to localStorage:', redisError);
     }
     
+    // ✅ PREFER REDIS: If Redis has signature, use it over localStorage
+    if (redisWalletData?.signature) {
+      console.log('[WalletContext] 🎯 Using signature from Redis for cross-device persistence');
+      existingSignature = redisWalletData.signature;
+    }
+
     // Fallback to localStorage for any missing data
     if (!existingSignature) {
       existingSignature = localStorage.getItem(signatureStorageKey);
@@ -1080,13 +1114,14 @@ const WalletContextProvider = ({ children }) => {
           // 💾 Save new wallet ID for persistence (ensure consistent storage key)
           localStorage.setItem(userStorageKey, railgunWalletInfo.id);
           
-          // 🚀 REDIS: Store wallet metadata for sessionless persistence
+          // 🚀 REDIS: Store wallet metadata INCLUDING SIGNATURE for cross-device persistence
           try {
-            const storeSuccess = await storeWalletMetadata(address, railgunWalletInfo.id, railgunWalletInfo.railgunAddress);
+            const storeSuccess = await storeWalletMetadata(address, railgunWalletInfo.id, railgunWalletInfo.railgunAddress, signature);
             if (storeSuccess) {
-              console.log('✅ Stored wallet metadata to Redis for sessionless access:', {
+              console.log('✅ Stored wallet metadata to Redis for cross-device access:', {
                 walletId: railgunWalletInfo.id?.slice(0, 8) + '...',
                 railgunAddress: railgunWalletInfo.railgunAddress?.slice(0, 8) + '...',
+                hasSignature: !!signature,
                 redisKey: `railgun:${address}:${railgunWalletInfo.id}`
               });
             } else {
