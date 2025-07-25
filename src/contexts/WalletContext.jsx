@@ -15,8 +15,15 @@ import { NetworkName } from '@railgun-community/shared-models';
 
 // Inline wallet metadata API functions
 async function getWalletMetadata(walletAddress) {
+  console.log('🔍 [GET-WALLET-METADATA] Starting API call', {
+    walletAddress: walletAddress,
+    walletAddressPreview: walletAddress?.slice(0, 8) + '...',
+    url: `/api/wallet-metadata?walletAddress=${walletAddress}`,
+    timestamp: new Date().toISOString()
+  });
+  
   try {
-    const response = await fetch(`/api/get-wallet-metadata/${walletAddress}`, {
+    const response = await fetch(`/api/wallet-metadata?walletAddress=${walletAddress}`, {
       method: 'GET',
       headers: {
         'Accept': 'application/json',
@@ -65,7 +72,7 @@ async function getWalletMetadata(walletAddress) {
 
 async function storeWalletMetadata(walletAddress, walletId, railgunAddress) {
   try {
-    const response = await fetch('/api/store-wallet-metadata', {
+    const response = await fetch('/api/wallet-metadata', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
