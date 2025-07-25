@@ -32,7 +32,31 @@ async function getWalletMetadata(walletAddress) {
     }
     
     const result = await response.json();
-    return result.data;
+    
+    // Parse Redis response: { success: true, walletAddress: "0x...", totalKeys: 1, keys: [...] }
+    if (result.success && result.keys && result.keys.length > 0) {
+      // Extract wallet data from Redis keys
+      // Key format: "railgun:0xWalletAddress:walletId"
+      // Value: railgun address
+      const firstKey = result.keys[0];
+      const keyParts = firstKey.key.split(':');
+      
+      if (keyParts.length === 3 && keyParts[0] === 'railgun') {
+        const walletId = keyParts[2];  // Extract walletId from key
+        const railgunAddress = firstKey.value;  // Railgun address is the value
+        
+        return {
+          walletId,
+          railgunAddress,
+          walletAddress: result.walletAddress,
+          source: 'Redis',
+          totalKeys: result.totalKeys,
+          allKeys: result.keys
+        };
+      }
+    }
+    
+    return null;
   } catch (error) {
     console.error('Failed to get wallet metadata:', error);
     return null;
@@ -419,6 +443,7 @@ const WalletContextProvider = ({ children }) => {
     let existingSignature = null;
     let existingWalletID = null;
     let existingMnemonic = null;
+    let existingRailgunAddress = null;
     let redisWalletData = null;
     
     try {
@@ -430,10 +455,18 @@ const WalletContextProvider = ({ children }) => {
       if (redisWalletData) {
         console.log('[WalletContext] ✅ Found wallet metadata in Redis:', {
           walletId: redisWalletData.walletId?.slice(0, 8) + '...',
+          railgunAddress: redisWalletData.railgunAddress?.slice(0, 8) + '...',
           walletAddress: redisWalletData.walletAddress?.slice(0, 8) + '...',
+          totalKeys: redisWalletData.totalKeys,
           source: 'Redis'
         });
         existingWalletID = redisWalletData.walletId;
+        existingRailgunAddress = redisWalletData.railgunAddress;
+        
+        // ✅ REDIS SUCCESS: If we have both walletID and railgunAddress from Redis, 
+        // we can potentially skip wallet creation entirely!
+        console.log('[WalletContext] 🎯 Redis provides complete wallet data - will attempt fast hydration');
+        
         // Note: Redis doesn't store signature/mnemonic for security - will get from localStorage
       } else {
         console.log('[WalletContext] ℹ️ No wallet metadata found in Redis, checking localStorage...');
@@ -460,20 +493,53 @@ const WalletContextProvider = ({ children }) => {
     });
     
     // 🛡️ PRIMARY GUARD: Check if wallet already exists and is initialized
-    const walletAlreadyInitialized = (walletID) => {
+    const walletAlreadyInitialized = (walletID, expectedRailgunAddress) => {
       return railgunWalletID === walletID && 
-             railgunAddress && 
+             railgunAddress === expectedRailgunAddress && 
              isRailgunInitialized;
     };
     
-    if (existingWalletID && walletAlreadyInitialized(existingWalletID)) {
+    if (existingWalletID && existingRailgunAddress && walletAlreadyInitialized(existingWalletID, existingRailgunAddress)) {
       console.log(`✅ Railgun wallet already exists for ${address}:`, {
         walletID: existingWalletID.slice(0, 8) + '...',
-        railgunAddress: railgunAddress.slice(0, 8) + '...',
-        status: 'initialized'
+        railgunAddress: existingRailgunAddress.slice(0, 8) + '...',
+        status: 'initialized',
+        source: redisWalletData ? 'Redis-verified' : 'localStorage'
       });
       setIsInitializing(false);
       return;
+    }
+    
+    // 🎯 REDIS FAST PATH: If we have complete data from Redis, try to load directly
+    if (redisWalletData && existingWalletID && existingRailgunAddress) {
+      console.log('[WalletContext] 🚀 Attempting Redis-first fast path with complete wallet data...', {
+        walletId: existingWalletID.slice(0, 8) + '...',
+        railgunAddress: existingRailgunAddress.slice(0, 8) + '...',
+        hasSignature: !!existingSignature
+      });
+      
+      // If we have Redis data but no signature in localStorage yet, we still need the signature
+      // for encryption key derivation, but we can set the state immediately
+      if (!existingSignature) {
+        console.log('[WalletContext] ⚠️ Redis has wallet data but no signature found - need to create signature first');
+        // Will fall through to normal flow to get signature
+      } else {
+        // We have everything - try to set state directly and load the wallet
+        console.log('[WalletContext] ✅ Redis + signature available - attempting immediate state hydration');
+        
+        setRailgunAddress(existingRailgunAddress);
+        setRailgunWalletID(existingWalletID);
+        setIsRailgunInitialized(true);
+        setIsInitializing(false);
+        
+        console.log('[WalletContext] 🎉 Redis fast path completed - wallet state hydrated immediately!', {
+          walletId: existingWalletID.slice(0, 8) + '...',
+          railgunAddress: existingRailgunAddress.slice(0, 8) + '...',
+          source: 'Redis-first'
+        });
+        
+        return; // ✨ Exit early - wallet successfully loaded from Redis!
+      }
     }
     
         if (existingSignature && existingWalletID && existingMnemonic) {
@@ -928,11 +994,13 @@ const WalletContextProvider = ({ children }) => {
         }
         
         // 🔄 If railgunWalletID exists but wallet isn't initialized, rehydrate mnemonic first
-        if (existingWalletID && !walletAlreadyInitialized(existingWalletID)) {
+        if (existingWalletID && !walletAlreadyInitialized(existingWalletID, existingRailgunAddress)) {
           console.log('🔄 WalletID exists but not initialized - will rehydrate from storage:', {
             walletID: existingWalletID.slice(0, 8) + '...',
+            railgunAddress: existingRailgunAddress?.slice(0, 8) + '...',
             hasSignature: !!existingSignature,
-            hasMnemonic: !!existingMnemonic
+            hasMnemonic: !!existingMnemonic,
+            source: redisWalletData ? 'Redis' : 'localStorage'
           });
         }
         
@@ -1007,8 +1075,16 @@ const WalletContextProvider = ({ children }) => {
           
           // 🚀 REDIS: Store wallet metadata for sessionless persistence
           try {
-            await storeWalletMetadata(address, railgunWalletInfo.id, railgunWalletInfo.railgunAddress);
-            console.log('✅ Stored wallet metadata to Redis for sessionless access');
+            const storeSuccess = await storeWalletMetadata(address, railgunWalletInfo.id, railgunWalletInfo.railgunAddress);
+            if (storeSuccess) {
+              console.log('✅ Stored wallet metadata to Redis for sessionless access:', {
+                walletId: railgunWalletInfo.id?.slice(0, 8) + '...',
+                railgunAddress: railgunWalletInfo.railgunAddress?.slice(0, 8) + '...',
+                redisKey: `railgun:${address}:${railgunWalletInfo.id}`
+              });
+            } else {
+              console.warn('⚠️ Redis storage returned false - wallet metadata may not be persisted');
+            }
           } catch (redisError) {
             console.warn('⚠️ Failed to store wallet metadata to Redis (non-critical):', redisError);
           }

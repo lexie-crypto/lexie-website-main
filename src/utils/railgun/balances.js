@@ -3,11 +3,8 @@
  * Always fetches live from Railgun SDK - no caching
  */
 
-import { 
-  refreshBalances,
-  getWalletBalance,
-  getRailgunBalances 
-} from '@railgun-community/wallet';
+// ✅ REMOVED: getRailgunBalances doesn't exist - we use callback system now
+// refreshBalances will be imported dynamically when needed
 import { parseUnits } from 'ethers';
 import { waitForRailgunReady } from './engine.js';
 import { getCurrentWalletID } from './wallet.js';
@@ -32,64 +29,70 @@ const getRailgunNetworkName = (chainId) => {
 };
 
 /**
- * Get private RAILGUN balances - always live from SDK
+ * Get private RAILGUN balances - DEPRECATED: Use SDK callbacks instead
+ * This function now triggers a refresh and relies on callbacks for data
  */
 export const getPrivateBalances = async (walletID, chainId) => {
-  try {
-    console.log('[RailgunBalances] 🚀 Fetching live private balances from Railgun SDK:', {
-      walletID: walletID?.slice(0, 8) + '...',
-      chainId
-    });
-
-    await waitForRailgunReady();
-    
-    // Get fresh balances from Railgun SDK
-    const networkName = getRailgunNetworkName(chainId);
-    const balances = await getRailgunBalances(networkName, walletID);
-    
-    if (!balances || balances.length === 0) {
-      console.log('[RailgunBalances] No private balances found');
-      return [];
-    }
-
-    console.log('[RailgunBalances] ✅ Retrieved live private balances:', {
-      count: balances.length,
-      tokens: balances.map(b => `${b.tokenHash}: ${b.amount}`)
-    });
-
-    return balances;
-  } catch (error) {
-    console.error('[RailgunBalances] ❌ Failed to get private balances:', error);
-    return [];
-  }
+  console.warn('[RailgunBalances] ⚠️ getPrivateBalances is deprecated - use SDK callbacks instead');
+  
+  // Trigger a refresh but don't return data directly
+  // The actual data will come through the callback system
+  await refreshPrivateBalances(walletID, chainId);
+  
+  // Return empty array - data comes through callbacks
+  return [];
 };
 
 /**
- * Refresh private balances - triggers Railgun SDK refresh
+ * Refresh private balances - triggers Railgun SDK refresh with restrictions preserved
  */
 export const refreshPrivateBalances = async (walletID, chainId) => {
   try {
-    console.log('[RailgunBalances] 🔄 Refreshing private balances via Railgun SDK');
+    console.log('[RailgunBalances] 🔄 Triggering RAILGUN SDK refresh (callbacks will handle results)');
     
     await waitForRailgunReady();
     
-    const networkName = getRailgunNetworkName(chainId);
-    await refreshBalances(networkName, [walletID]);
+    // ✅ FIXED: Use correct SDK function that exists
+    const { refreshBalances } = await import('@railgun-community/wallet');
     
-    console.log('[RailgunBalances] ✅ Private balance refresh completed');
+    // Map chainId to proper Chain object (as expected by SDK)
+    const { NetworkName, NETWORK_CONFIG } = await import('@railgun-community/shared-models');
+    const networkName = getRailgunNetworkName(chainId);
+    const networkConfig = NETWORK_CONFIG[networkName];
+    
+    if (!networkConfig) {
+      throw new Error(`No network config found for ${networkName}`);
+    }
+    
+    // Use the chain object from network config
+    const chain = networkConfig.chain;
+    
+    // ✅ CORRECT: refreshBalances expects (chain, walletIdFilter)
+    await refreshBalances(chain, [walletID]);
+    
+    console.log('[RailgunBalances] ✅ SDK refresh triggered - results will come via callbacks');
     return true;
   } catch (error) {
-    console.error('[RailgunBalances] ❌ Failed to refresh private balances:', error);
+    console.error('[RailgunBalances] ❌ Failed to trigger SDK refresh:', error);
     return false;
   }
 };
 
 /**
- * Refresh and get fresh balances 
+ * Refresh and get fresh balances - UPDATED: Callback-based approach
  */
 export const refreshPrivateBalancesAndStore = async (walletID, chainId) => {
-  await refreshPrivateBalances(walletID, chainId);
-  return await getPrivateBalances(walletID, chainId);
+  console.log('[RailgunBalances] 🔄 Triggering refresh - data will come via callbacks');
+  
+  // Trigger the refresh - actual data comes through callback system
+  const success = await refreshPrivateBalances(walletID, chainId);
+  
+  if (success) {
+    console.log('[RailgunBalances] ✅ Refresh triggered successfully - waiting for callback data');
+  }
+  
+  // Return empty array - actual data comes through SDK callbacks to useBalances
+  return [];
 };
 
 /**
@@ -108,6 +111,9 @@ export const parseTokenAmount = (amount, decimals) => {
   }
 };
 
-// Backward compatibility exports
-export const getPrivateBalancesFromCache = getPrivateBalances; // No cache, just fetch live
+// Backward compatibility exports - UPDATED: All callback-based now
+export const getPrivateBalancesFromCache = () => {
+  console.warn('[RailgunBalances] ⚠️ getPrivateBalancesFromCache is deprecated - use SDK callbacks');
+  return []; // No cache, data comes from callbacks
+};
 export { getPrivateBalances as default }; 

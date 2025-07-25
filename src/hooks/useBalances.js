@@ -7,7 +7,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { ethers, formatUnits, Contract } from 'ethers';
 import { useWallet } from '../contexts/WalletContext';
 import { getPrivateBalances, getPrivateBalancesFromCache, refreshPrivateBalances, refreshPrivateBalancesAndStore } from '../utils/railgun/balances';
-import { debugBalanceCache, testCachePersistence } from '../utils/railgun/cache-debug';
+// ✅ REMOVED: Cache debug functions no longer needed - pure callback system now
 import { fetchTokenPrices } from '../utils/pricing/coinGecko';
 import { RPC_URLS } from '../config/environment';
 
@@ -180,47 +180,23 @@ export function useBalances() {
     }
   }, [isBalanceSystemEnabled, updatePrivateBalances, forceRerender]); // Added system enabled dependency
 
-  // Load cached private balances immediately on mount - CRITICAL: Only when system enabled
+  // ✅ REMOVED: No more localStorage cache loading - pure callback-based approach
   useEffect(() => {
-    // 🛑 CRITICAL: Only load cache when balance system is enabled AND RAILGUN fully ready
+    // 🛑 CRITICAL: Only initialize when balance system is enabled AND RAILGUN fully ready
     if (isBalanceSystemEnabled && railgunWalletId && chainId && address && isRailgunInitialized) {
-      console.log('[useBalances] 🚀 Loading cached private balances for enabled system...', {
+      console.log('[useBalances] 🎯 CALLBACK-ONLY: Balance system ready for SDK callbacks...', {
         address: address?.slice(0, 8) + '...',
         walletId: railgunWalletId?.slice(0, 8) + '...',
         systemEnabled: isBalanceSystemEnabled,
         railgunInitialized: isRailgunInitialized,
-        railgunAddress: railgunAddress?.slice(0, 8) + '...' || 'null'
+        railgunAddress: railgunAddress?.slice(0, 8) + '...' || 'null',
+        note: 'No cache loading - waiting for SDK callbacks'
       });
       
-      // Test cache persistence first - only when we have a wallet
-      try {
-        const persistenceTest = testCachePersistence();
-        console.log('[useBalances] Cache persistence test result:', persistenceTest);
-        
-        // Debug current cache state
-        debugBalanceCache('useBalances mount');
-      } catch (error) {
-        console.warn('[useBalances] Cache debug functions failed (non-critical):', error);
-      }
-      
-      const cachedPrivateBalances = getPrivateBalancesFromCache(railgunWalletId, chainId);
-      
-      if (cachedPrivateBalances.length > 0) {
-        console.log('[useBalances] ✅ Found cached private balances, loading immediately:', {
-          count: cachedPrivateBalances.length,
-          tokens: cachedPrivateBalances.map(b => `${b.symbol}: ${b.formattedBalance}`)
-        });
-        updatePrivateBalances(cachedPrivateBalances);
-      } else {
-        console.log('[useBalances] No cached private balances found for enabled system');
-        try {
-          debugBalanceCache('after failed cache load');
-        } catch (error) {
-          console.warn('[useBalances] Debug cache function failed (non-critical):', error);
-        }
-      }
+      // No cache loading - private balances will come through SDK callbacks only
+      console.log('[useBalances] ✅ Ready to receive SDK callback data');
     } else {
-      console.log('[useBalances] ⏸️ Cache load blocked - waiting for RAILGUN:', {
+      console.log('[useBalances] ⏸️ Waiting for RAILGUN initialization for callback system:', {
         systemEnabled: isBalanceSystemEnabled,
         hasWallet: !!railgunWalletId,
         walletIdValue: railgunWalletId?.slice(0, 8) + '...' || 'null',
@@ -230,7 +206,7 @@ export function useBalances() {
         railgunAddress: railgunAddress?.slice(0, 8) + '...' || 'null'
       });
     }
-  }, [isBalanceSystemEnabled, railgunWalletId, chainId, address, isRailgunInitialized, railgunAddress, updatePrivateBalances]); // Added system enabled check
+  }, [isBalanceSystemEnabled, railgunWalletId, chainId, address, isRailgunInitialized, railgunAddress, updatePrivateBalances]);
 
   // Fetch and cache token prices
   const fetchAndCachePrices = useCallback(async (symbols) => {
@@ -384,11 +360,11 @@ export function useBalances() {
     }
   }, [isBalanceSystemEnabled, address, chainId, railgunWalletId, fetchNativeBalance, fetchTokenBalance]);
 
-  // Fetch private balances using Railgun - CRITICAL: Only when wallet connected AND system enabled
+  // ✅ UPDATED: Trigger SDK refresh, data comes via callbacks (preserving all restrictions)
   const fetchPrivateBalances = useCallback(async () => {
-    // 🛑 CRITICAL: Prevent RAILGUN RPC calls when balance system disabled or wallet disconnected
+    // 🛑 CRITICAL: Preserve all existing restrictions to prevent infinite polling
     if (!isBalanceSystemEnabled || !railgunWalletId || !chainId || !address || !isRailgunInitialized) {
-      console.log('[useBalances] ⏸️ Private balance fetch blocked:', {
+      console.log('[useBalances] ⏸️ Private balance refresh blocked (restrictions preserved):', {
         systemEnabled: isBalanceSystemEnabled,
         hasWalletId: !!railgunWalletId,
         walletIdValue: railgunWalletId?.slice(0, 8) + '...' || 'null',
@@ -401,21 +377,19 @@ export function useBalances() {
     }
 
     try {
-      console.log('[useBalances] 🔥 EXPLICIT REFRESH: Triggering fresh RAILGUN scan + backend storage...');
+      console.log('[useBalances] 🔄 CALLBACK-BASED: Triggering SDK refresh (results via callbacks)...');
       // Clear previous error
       setError(null);
       
-      // Use explicit refresh function that triggers fresh scan + backend storage
-      const balances = await refreshPrivateBalancesAndStore(railgunWalletId, chainId);
+      // ✅ FIXED: Trigger refresh but don't expect data back - comes via callbacks
+      await refreshPrivateBalancesAndStore(railgunWalletId, chainId);
       
-      console.log('[useBalances] ✅ Private balances refreshed via explicit RAILGUN scan + stored to backend:', {
-        count: balances?.length || 0,
-        tokens: balances?.map(b => `${b.symbol}: ${b.formattedBalance}`)
-      });
+      console.log('[useBalances] ✅ SDK refresh triggered - private balance data will arrive via callbacks');
       
-      return balances;
+      // Return empty array - actual data comes through SDK callbacks
+      return [];
     } catch (error) {
-      console.error('[useBalances] ❌ Failed to explicitly refresh private balances:', error);
+      console.error('[useBalances] ❌ Failed to trigger SDK refresh:', error);
       setError(error.message);
       return [];
     }
@@ -442,11 +416,14 @@ export function useBalances() {
       ];
       const freshPrices = await fetchAndCachePrices(allSymbols);
 
-      // Fetch public and private balances in parallel
-      const [publicBals, privateBals] = await Promise.all([
-        fetchPublicBalances(),
-        fetchPrivateBalances(),
-      ]);
+      // ✅ UPDATED: Only fetch public balances directly, private comes via callbacks
+      const publicBals = await fetchPublicBalances();
+      
+      // Trigger private balance refresh (data comes via callbacks, not return value)
+      await fetchPrivateBalances();
+      
+      // Private balances will be updated via SDK callbacks, so use current state
+      const privateBals = privateBalances;
 
       // Add USD values using fresh prices directly
       const calculateUSD = (numericBalance, symbol) => {
