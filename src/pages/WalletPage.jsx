@@ -25,11 +25,8 @@ import TransactionHistory from '../components/TransactionHistory';
 import {
   shieldTokens,
   parseTokenAmount,
-} from '../utils/railgun/actions';
-import { 
   isTokenSupportedByRailgun,
-  getShieldableTokens,
-} from '../utils/railgun/balances';
+} from '../utils/railgun/actions';
 import { checkSufficientBalance } from '../utils/web3/balances';
 import { deriveEncryptionKey } from '../utils/railgun/wallet';
 
@@ -271,8 +268,10 @@ const WalletPage = () => {
     try {
       setIsShielding(true);
       
-      // Get shieldable tokens
-      const shieldableTokens = await getShieldableTokens(address, chainId);
+      // Get tokens that can be shielded from public balances
+      const shieldableTokens = publicBalances.filter(token => 
+        token.hasBalance && isTokenSupportedByRailgun(token.address, chainId)
+      );
       
       if (shieldableTokens.length === 0) {
         toast.error('No tokens available to shield');

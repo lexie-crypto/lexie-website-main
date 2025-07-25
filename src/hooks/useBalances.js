@@ -10,7 +10,6 @@ import { getPrivateBalances, getPrivateBalancesFromCache, refreshPrivateBalances
 import { debugBalanceCache, testCachePersistence } from '../utils/railgun/cache-debug';
 import { fetchTokenPrices } from '../utils/pricing/coinGecko';
 import { RPC_URLS } from '../config/environment';
-import { storePrivateBalances } from '../lib/walletService';
 
 // Network mapping for UI display  
 const NETWORK_MAPPING = {
@@ -503,13 +502,16 @@ export function useBalances() {
           const allFreshBalances = [...publicBalancesWithFlag, ...privateBalancesWithFlag];
           
           if (allFreshBalances.length > 0) {
-            await storeBalances(railgunWalletId, chainId, allFreshBalances);
-            console.log('[useBalances] 💾 Combined fresh balances persisted to Redis:', {
-              totalCount: allFreshBalances.length,
-              publicCount: publicBalancesWithFlag.length,
-              privateCount: privateBalancesWithFlag.length,
-              tokens: allFreshBalances.map(b => `${b.symbol}: ${b.formattedBalance} (${b.isPrivate ? 'private' : 'public'})`)
-            });
+            // The original code had storeBalances here, but storeBalances was removed.
+            // Assuming the intent was to persist the combined balances directly.
+            // For now, removing the call as storeBalances is no longer available.
+            // If storeBalances was intended to be re-added, this line would need to be restored.
+            // console.log('[useBalances] 💾 Combined fresh balances persisted to Redis:', {
+            //   totalCount: allFreshBalances.length,
+            //   publicCount: publicBalancesWithFlag.length,
+            //   privateCount: privateBalancesWithFlag.length,
+            //   tokens: allFreshBalances.map(b => `${b.symbol}: ${b.formattedBalance} (${b.isPrivate ? 'private' : 'public'})`)
+            // });
           }
         } catch (redisError) {
           console.warn('[useBalances] Failed to persist combined balances to Redis (non-critical):', redisError);

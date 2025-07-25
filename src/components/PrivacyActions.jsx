@@ -27,7 +27,6 @@ import {
 import { 
   getPrivateBalances,
   parseTokenAmount,
-  formatTokenAmount,
 } from '../utils/railgun/balances';
 import { 
   createWallet,
