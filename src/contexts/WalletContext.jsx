@@ -12,7 +12,58 @@ import { WagmiProvider, useAccount, useConnect, useDisconnect, useSwitchChain, u
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/environment';
 import { NetworkName } from '@railgun-community/shared-models';
-import { getWalletMetadata, storeWalletMetadata } from '../lib/walletService';
+
+// Inline wallet metadata API functions
+async function getWalletMetadata(walletAddress) {
+  try {
+    const response = await fetch(`/api/get-wallet-metadata/${walletAddress}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+    
+    if (response.status === 404) {
+      return null;
+    }
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const result = await response.json();
+    return result.data;
+  } catch (error) {
+    console.error('Failed to get wallet metadata:', error);
+    return null;
+  }
+}
+
+async function storeWalletMetadata(walletAddress, walletId, railgunAddress) {
+  try {
+    const response = await fetch('/api/store-wallet-metadata', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        walletAddress,
+        walletId,
+        railgunAddress
+      }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Failed to store wallet metadata:', error);
+    return false;
+  }
+}
 
 // Create a client for React Query
 const queryClient = new QueryClient();
@@ -956,7 +1007,7 @@ const WalletContextProvider = ({ children }) => {
           
           // 🚀 REDIS: Store wallet metadata for sessionless persistence
           try {
-            await storeWalletMetadata(railgunWalletInfo.railgunAddress, railgunWalletInfo.id);
+            await storeWalletMetadata(address, railgunWalletInfo.id, railgunWalletInfo.railgunAddress);
             console.log('✅ Stored wallet metadata to Redis for sessionless access');
           } catch (redisError) {
             console.warn('⚠️ Failed to store wallet metadata to Redis (non-critical):', redisError);
