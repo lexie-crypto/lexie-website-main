@@ -36,9 +36,7 @@ export const initializeRailgunSystem = async () => {
       }
     }
 
-    // Set up global balance update callback using the handler from balances.js
-    const { handleBalanceUpdateCallback } = await import('./railgun/balances.js');
-    setOnBalanceUpdateCallback(handleBalanceUpdateCallback);
+    // ✅ REDIS-ONLY: SDK balance callbacks disabled - private balances managed via Redis
 
     // Set up UTXO Merkletree scan callback
     setOnUTXOMerkletreeScanCallback((scanData) => {

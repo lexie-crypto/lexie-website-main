@@ -160,9 +160,7 @@ const setupNetworks = async () => {
 const setupBalanceCallbacks = async () => {
   console.log('[RAILGUN] 🔧 Setting up balance callbacks...');
   
-  // Use the OFFICIAL RAILGUN SDK callback system - pass through directly
-  const { handleBalanceUpdateCallback } = await import('./balances.js');
-  setOnBalanceUpdateCallback(handleBalanceUpdateCallback);
+  // ✅ REDIS-ONLY: SDK balance callbacks disabled - private balances managed via Redis
 
   // UTXO Merkletree scan callback
   setOnUTXOMerkletreeScanCallback((scanData) => {
@@ -320,14 +318,8 @@ const startEngine = async () => {
     
     // Step 7: Setup balance update callback
     console.log('[RAILGUN] 🔄 Setting up balance update callbacks...');
-    try {
-      const { handleBalanceUpdateCallback } = await import('./balances.js');
-      setOnBalanceUpdateCallback(handleBalanceUpdateCallback);
-      console.log('[RAILGUN] ✅ Balance update callback registered successfully');
-    } catch (callbackError) {
-      console.warn('[RAILGUN] ⚠️ Failed to register balance update callback:', callbackError);
-      // Continue without callback - this is not critical for engine start
-    }
+    // ✅ REDIS-ONLY: SDK balance callbacks disabled - private balances managed via Redis
+    console.log('[RAILGUN] ✅ Balance callbacks disabled (Redis-only mode)');
     
     console.log('[RAILGUN] 🎉 Engine initialization completed');
 
