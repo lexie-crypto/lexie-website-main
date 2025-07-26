@@ -605,14 +605,14 @@ const WalletContextProvider = ({ children }) => {
         const railgunWallet = await import('@railgun-community/wallet');
         const { 
           startRailgunEngine, 
-          loadRailgunWalletByID, 
+          loadWalletByID, 
           setLoggers,
           setOnBalanceUpdateCallback
         } = railgunWallet;
         
-        // Validate that loadRailgunWalletByID is actually a function
-        if (typeof loadRailgunWalletByID !== 'function') {
-          throw new Error(`loadRailgunWalletByID is not a function: ${typeof loadRailgunWalletByID}. Available functions: ${Object.keys(railgunWallet).filter(k => typeof railgunWallet[k] === 'function').join(', ')}`);
+        // Validate that loadWalletByID is actually a function
+        if (typeof loadWalletByID !== 'function') {
+          throw new Error(`loadWalletByID is not a function: ${typeof loadWalletByID}. Available functions: ${Object.keys(railgunWallet).filter(k => typeof railgunWallet[k] === 'function').join(', ')}`);
         }
         
         // Check if engine exists (fallback for older SDK versions)
@@ -773,7 +773,7 @@ const WalletContextProvider = ({ children }) => {
           walletIDLength: existingWalletID?.length
         });
         
-        // Validate parameters before calling loadRailgunWalletByID
+        // Validate parameters before calling loadWalletByID
         if (!encryptionKey || typeof encryptionKey !== 'string') {
           throw new Error(`Invalid encryptionKey: ${typeof encryptionKey}`);
         }
@@ -781,7 +781,7 @@ const WalletContextProvider = ({ children }) => {
           throw new Error(`Invalid existingWalletID: ${typeof existingWalletID}`);
         }
         
-        const railgunWalletInfo = await loadRailgunWalletByID(encryptionKey, existingWalletID, false);
+        const railgunWalletInfo = await loadWalletByID(encryptionKey, existingWalletID, false);
         
         // Verify wallet loaded correctly
         if (!railgunWalletInfo?.id || !railgunWalletInfo?.railgunAddress) {
@@ -836,7 +836,7 @@ const WalletContextProvider = ({ children }) => {
         startRailgunEngine,
         loadProvider,
         createRailgunWallet,
-        loadRailgunWalletByID,
+        loadWalletByID,
         setLoggers,
         setOnBalanceUpdateCallback,
       } = await import('@railgun-community/wallet');
@@ -1049,7 +1049,7 @@ const WalletContextProvider = ({ children }) => {
         
         try {
           // 🛡️ Graceful error handling for invalid/corrupted data
-          railgunWalletInfo = await loadRailgunWalletByID(encryptionKey, savedWalletID, false);
+          railgunWalletInfo = await loadWalletByID(encryptionKey, savedWalletID, false);
           console.log('✅ Existing Railgun wallet loaded successfully in full init');
         } catch (loadError) {
           console.warn('⚠️ Failed to load existing wallet - will regenerate from same signature and mnemonic:', loadError);

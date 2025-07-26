@@ -11,9 +11,9 @@ export {
   
   // Wallet management
   createRailgunWallet,
-  loadRailgunWalletByID,
-  unloadRailgunWalletByID,
-  deleteRailgunWalletByID,
+  loadWalletByID,
+  unloadWalletByID,
+  deleteWalletByID,
   
   // Transactions
   generateTransferProof,

@@ -11,7 +11,7 @@
 
 import {
   createRailgunWallet,
-  loadRailgunWalletByID,
+  loadWalletByID,
   unloadRailgunWallet,
   RailgunWallet,
   validateRailgunAddress,
@@ -154,7 +154,7 @@ export const loadWallet = async (walletID, encryptionKey) => {
     
     console.log('[RailgunWallet] Loading wallet:', walletID.slice(0, 8) + '...');
     
-    const railgunWallet = await loadRailgunWalletByID(
+    const railgunWallet = await loadWalletByID(
       encryptionKey,
       walletID,
       false // isViewOnlyWallet
