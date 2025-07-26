@@ -42,9 +42,25 @@ const getRailgunNetworkName = (chainId) => {
  * Create ERC20AmountRecipient object for unshield
  */
 const createERC20AmountRecipient = (tokenAddress, amount, recipientAddress) => {
+  // Step 1: Cast to string first
+  const amountString = String(amount);
+  
+  // Step 2: Throw if falsy or empty string
+  if (!amount || amountString === '' || amountString === 'undefined' || amountString === 'null' || amountString === 'NaN') {
+    throw new Error(`Invalid amount for ERC20AmountRecipient: "${amount}" - must be a valid number`);
+  }
+  
+  // Step 3: Only then call BigInt()
+  let amountBigInt;
+  try {
+    amountBigInt = BigInt(amountString);
+  } catch (error) {
+    throw new Error(`Cannot convert amount "${amountString}" to BigInt: ${error.message}`);
+  }
+  
   return {
     tokenAddress: tokenAddress || undefined, // undefined for native tokens
-    amount: BigInt(amount),
+    amount: amountBigInt,
     recipientAddress: recipientAddress,
   };
 };
@@ -112,8 +128,23 @@ export const unshieldTokens = async ({
     // Wait for Railgun readiness
     await waitForRailgunReady();
 
-    // Get network configuration
+    // Get network configuration with validation
+    if (!chain?.id) {
+      throw new Error(`Chain ID is required but got: ${JSON.stringify(chain)}`);
+    }
+    
     const networkName = getRailgunNetworkName(chain.id);
+    if (!networkName) {
+      throw new Error(`Could not determine network name for chain ID: ${chain.id}`);
+    }
+    
+    console.log('[UnshieldTransactions] Network configuration:', {
+      chainId: chain.id,
+      chainName: chain.name,
+      networkName,
+      isValidNetworkName: !!networkName,
+    });
+    
     const txidVersion = TXIDVersion.V2_PoseidonMerkle;
 
     // Create recipient
@@ -125,7 +156,17 @@ export const unshieldTokens = async ({
     console.log('[UnshieldTransactions] Estimating gas for unshield operation...');
     
     // Create minimal gas details for estimation (unshield needs this unlike shield)
-    const estimationGasDetails = createUnshieldGasDetails(networkName, true, BigInt(500000));
+    // Step 1: Cast to string first
+    const initialGasEstimate = 500000;
+    const gasString = String(initialGasEstimate);
+    
+    // Step 2: Throw if falsy or empty string
+    if (!initialGasEstimate || gasString === '' || gasString === 'undefined' || gasString === 'null' || gasString === 'NaN') {
+      throw new Error(`Invalid initial gas estimate: ${initialGasEstimate}`);
+    }
+    
+    // Step 3: Only then call BigInt()
+    const estimationGasDetails = createUnshieldGasDetails(networkName, true, BigInt(gasString));
     
     const gasEstimateResponse = await gasEstimateForUnprovenUnshield(
       txidVersion,
@@ -142,12 +183,49 @@ export const unshieldTokens = async ({
     // Extract the gas estimate value from the response (EXACT same as shield)
     const gasEstimate = gasEstimateResponse.gasEstimate || gasEstimateResponse;
     console.log('[UnshieldTransactions] Gas estimate response:', {
-      gasEstimate: gasEstimate.toString(),
-      type: typeof gasEstimate
+      gasEstimate: gasEstimate?.toString?.(),
+      type: typeof gasEstimate,
+      isValidBigInt: typeof gasEstimate === 'bigint',
+      isValidNumber: !isNaN(Number(gasEstimate)),
+      rawResponse: gasEstimateResponse,
     });
 
-    // Create real gas details for unshield operation (EXACT same pattern as shield)
-    const gasDetails = createUnshieldGasDetails(networkName, gasEstimate);
+    // CRITICAL: Validate gas estimate before creating gas details
+    if (!gasEstimate || gasEstimate === 'undefined' || gasEstimate === 'null') {
+      throw new Error(`Gas estimate is missing: ${gasEstimate}`);
+    }
+    
+    // Handle both BigInt and number/string gas estimates
+    let validatedGasEstimate;
+    if (typeof gasEstimate === 'bigint') {
+      validatedGasEstimate = gasEstimate;
+    } else {
+      // Step 1: Cast to string first
+      const gasEstimateString = String(gasEstimate);
+      
+      // Step 2: Throw if falsy or empty string
+      if (!gasEstimate || gasEstimateString === '' || gasEstimateString === 'undefined' || gasEstimateString === 'null' || gasEstimateString === 'NaN') {
+        throw new Error(`Gas estimate is falsy or invalid: "${gasEstimate}" (string: "${gasEstimateString}")`);
+      }
+      
+      // Additional validation - ensure it's a valid number
+      const gasNumber = Number(gasEstimateString);
+      if (!Number.isFinite(gasNumber) || gasNumber <= 0) {
+        throw new Error(`Invalid gas estimate value: ${gasEstimate} (string: "${gasEstimateString}", number: ${gasNumber})`);
+      }
+      
+      // Step 3: Only then call BigInt()
+      validatedGasEstimate = BigInt(gasEstimateString);
+    }
+
+    console.log('[UnshieldTransactions] Validated gas estimate:', {
+      original: gasEstimate,
+      validated: validatedGasEstimate.toString(),
+      type: typeof validatedGasEstimate,
+    });
+
+    // Create real gas details for unshield operation (SAFE with validated input)
+    const gasDetails = createUnshieldGasDetails(networkName, true, validatedGasEstimate);
     
     const broadcasterFeeInfo = null; // No broadcaster for unshield (same as shield)
     const iterations = 1; // Direct estimation (same as shield)
