@@ -475,12 +475,17 @@ export function useBalances() {
         balanceUSD: calculateUSD(token.numericBalance, token.symbol)
       }));
 
+      // ✅ Update USD values for existing private balances (no new data, just price updates)
       const privateWithUSD = privateBals.map(token => ({
         ...token,
         balanceUSD: calculateUSD(token.numericBalance, token.symbol)
       }));
 
       setPublicBalances(publicWithUSD);
+      // Only update UI with USD values, no Redis writes
+      if (privateWithUSD.length > 0) {
+        setPrivateBalances(privateWithUSD);
+      }
       setLastUpdated(Date.now());
       
       console.log('[useBalances] ✅ Public balances refreshed, private balances preserved from Redis');
@@ -588,9 +593,9 @@ export function useBalances() {
         railgunInitialized: isRailgunInitialized,
         railgunAddress: railgunAddress?.slice(0, 8) + '...' || 'null'
       });
-      // Only clear if system is disabled (not just missing data)
+      // ✅ REDIS-ONLY: Never write empty arrays to Redis - only clear UI state
       if (!isBalanceSystemEnabled) {
-        updatePrivateBalances([]);
+        setPrivateBalances([]); // Clear UI only, don't write to Redis
       }
     }
   }, [isBalanceSystemEnabled, railgunWalletId, chainId, address, isRailgunInitialized, railgunAddress, updatePrivateBalances]); // Removed fetchPrivateBalances
