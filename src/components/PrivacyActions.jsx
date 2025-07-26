@@ -151,36 +151,39 @@ const PrivacyActions = () => {
     }
   }, [amount, selectedToken]);
 
-  // Get encryption key for operations - Use stored signature for consistency
+  // Get encryption key for operations - Use same Redis source as WalletContext
   const getEncryptionKey = useCallback(async () => {
     try {
-      if (!address) {
-        throw new Error('No wallet address available');
+      if (!address || !railgunWalletId) {
+        throw new Error('No wallet address or Railgun wallet ID available');
       }
 
-      // Use the same approach as WalletContext - check for stored signature first
-      const signatureStorageKey = `railgun-signature-${address.toLowerCase()}`;
-      let signature = localStorage.getItem(signatureStorageKey);
+      // Get signature from Redis (same source as WalletContext)
+      console.log('[PrivacyActions] Getting signature from Redis to match WalletContext...');
       
-      if (!signature) {
-        // If no stored signature, request one using signer (should only happen on first use)
-        if (!walletProvider) {
-          throw new Error('No wallet provider available');
-        }
-        
-        console.log('[PrivacyActions] No stored signature found, requesting new signature...');
-        const signatureMessage = `RAILGUN Wallet Creation\nAddress: ${address}\n\nSign this message to create your secure RAILGUN privacy wallet.`;
-        
-        // Get signer and use signMessage (not provider.request)
-        const signer = await walletProvider();
-        signature = await signer.signMessage(signatureMessage);
-        
-        // Store signature for future use
-        localStorage.setItem(signatureStorageKey, signature);
-        console.log('[PrivacyActions] Signature stored for future use');
-      } else {
-        console.log('[PrivacyActions] Using stored signature for encryption key');
+      const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to get wallet metadata from Redis');
       }
+      
+      const result = await response.json();
+      if (!result.success || !result.keys || result.keys.length === 0) {
+        throw new Error('No wallet metadata found in Redis');
+      }
+      
+      // Find metadata for current wallet ID
+      const metadata = result.keys.find(k => k.walletId === railgunWalletId);
+      if (!metadata || !metadata.signature) {
+        throw new Error('No signature found in Redis for this wallet');
+      }
+      
+      const signature = metadata.signature;
+      console.log('[PrivacyActions] Using signature from Redis (matches WalletContext)');
+      
 
       // Generate encryption key using same method as WalletContext
       const { default: CryptoJS } = await import('crypto-js');
@@ -198,7 +201,7 @@ const PrivacyActions = () => {
       }
       throw new Error('Failed to get encryption key');
     }
-  }, [address, walletProvider]);
+  }, [address, railgunWalletId]);
 
   // Handle shield operation
   const handleShield = useCallback(async () => {
