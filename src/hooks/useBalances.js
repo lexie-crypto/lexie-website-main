@@ -311,21 +311,32 @@ export function useBalances() {
       }));
 
       // Add USD values to existing private balances (no new data)
-      const privateWithUSD = privateBalances.map(token => ({
-        ...token,
-        balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
-      }));
-
       setPublicBalances(publicWithUSD);
-      if (privateWithUSD.length > 0) {
-        setPrivateBalances(privateWithUSD);
-      }
       setLastUpdated(Date.now());
+      
+      // Update private balances with USD values only if we have balances
+      // Use functional update to access current state without adding to deps
+      setPrivateBalances(currentPrivateBalances => {
+        if (currentPrivateBalances.length === 0) {
+          return currentPrivateBalances;
+        }
+        
+        const updated = currentPrivateBalances.map(token => ({
+          ...token,
+          balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
+        }));
+
+        // Prevent unnecessary update with deep equality check
+        if (JSON.stringify(updated) !== JSON.stringify(currentPrivateBalances)) {
+          return updated;
+        }
+
+        return currentPrivateBalances;
+      });
 
       console.log('[useBalances] ✅ Balances refreshed:', {
         public: publicBals.length,
-        publicWithBalance: publicBals.filter(b => b.hasBalance).length,
-        private: privateBalances.length,
+        publicWithBalance: publicBals.filter(b => b.hasBalance).length
       });
 
     } catch (error) {
@@ -334,7 +345,7 @@ export function useBalances() {
     } finally {
       setLoading(false);
     }
-  }, [address, chainId, fetchAndCachePrices, fetchPublicBalances, calculateUSDValue, privateBalances]);
+  }, [address, chainId, fetchAndCachePrices, fetchPublicBalances, calculateUSDValue]);
 
   // ONLY write to Redis after confirmed transactions
   const persistPrivateBalancesToWalletMetadata = async (walletAddress, railgunWalletId, privateBalances, chainId) => {
@@ -562,7 +573,7 @@ export function useBalances() {
       console.log('[useBalances] 🔄 Wallet connected - auto-fetching public balances...');
       refreshAllBalances();
     }
-  }, [address, chainId, refreshAllBalances]);
+  }, [address, chainId]);
 
   // Load private balances from Redis when Railgun wallet is ready
   useEffect(() => {
