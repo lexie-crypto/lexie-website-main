@@ -602,12 +602,18 @@ const WalletContextProvider = ({ children }) => {
         
         // Import required modules for fast path
         const CryptoJS = await import('crypto-js');
+        const railgunWallet = await import('@railgun-community/wallet');
         const { 
           startRailgunEngine, 
           loadRailgunWalletByID, 
           setLoggers,
           setOnBalanceUpdateCallback
-        } = await import('@railgun-community/wallet');
+        } = railgunWallet;
+        
+        // Validate that loadRailgunWalletByID is actually a function
+        if (typeof loadRailgunWalletByID !== 'function') {
+          throw new Error(`loadRailgunWalletByID is not a function: ${typeof loadRailgunWalletByID}. Available functions: ${Object.keys(railgunWallet).filter(k => typeof railgunWallet[k] === 'function').join(', ')}`);
+        }
         
         // Check if engine exists (fallback for older SDK versions)
         let engineExists = false;
@@ -762,8 +768,18 @@ const WalletContextProvider = ({ children }) => {
         // 🔑 Load existing wallet using stored walletID (SDK can restore from ID + encryption key)
         console.log('🔑 Loading existing Railgun wallet with stored ID...', {
           walletIDPreview: existingWalletID.slice(0, 8) + '...',
-          hasEncryptionKey: !!encryptionKey
+          hasEncryptionKey: !!encryptionKey,
+          encryptionKeyLength: encryptionKey?.length,
+          walletIDLength: existingWalletID?.length
         });
+        
+        // Validate parameters before calling loadRailgunWalletByID
+        if (!encryptionKey || typeof encryptionKey !== 'string') {
+          throw new Error(`Invalid encryptionKey: ${typeof encryptionKey}`);
+        }
+        if (!existingWalletID || typeof existingWalletID !== 'string') {
+          throw new Error(`Invalid existingWalletID: ${typeof existingWalletID}`);
+        }
         
         const railgunWalletInfo = await loadRailgunWalletByID(encryptionKey, existingWalletID, false);
         
