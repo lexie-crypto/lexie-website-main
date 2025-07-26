@@ -826,7 +826,7 @@ export function useBalances() {
       }
     };
 
-    // Apply optimistic balance update for shield transactions and persist to wallet metadata
+    // Apply optimistic balance update for shield transactions with proper accumulation
     const applyOptimisticShieldUpdate = async (tokenAddress, tokenSymbol, shieldedAmount) => {
       const { 
         publicBalances: currentPublic,
@@ -849,6 +849,34 @@ export function useBalances() {
         actualPrivateAmount: actualPrivateAmount,
         feePercentage: `${RAILGUN_FEE_BPS / 100}%`
       });
+      
+      // CRITICAL: Load existing private balances from Redis to maintain running total
+      let existingPrivateBalances = [];
+      try {
+        console.log('[useBalances] 📥 Loading existing private balances from Redis for accumulation...');
+        const getResponse = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(currentAddress)}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          }
+        });
+        
+        if (getResponse.ok) {
+          const result = await getResponse.json();
+          if (result.success && result.keys && result.keys.length > 0) {
+            const metadata = result.keys.find(k => k.walletId === currentRailgunWalletId);
+            if (metadata && metadata.privateBalances) {
+              existingPrivateBalances = metadata.privateBalances;
+              console.log('[useBalances] ✅ Loaded existing private balances:', {
+                count: existingPrivateBalances.length,
+                tokens: existingPrivateBalances.map(b => `${b.symbol}: ${b.numericBalance}`)
+              });
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('[useBalances] Could not load existing private balances, starting fresh:', error);
+      }
       
       // Find the matching token (case-insensitive symbol matching)
       const findMatchingToken = (tokens, targetAddress, targetSymbol) => {
@@ -877,28 +905,44 @@ export function useBalances() {
         return token;
       });
       
-      // Update private balances (increase or create)
+      // Calculate accumulated private balance (current transaction + existing Redis balance)
+      const existingTokenBalance = existingPrivateBalances.find(token => {
+        const addressMatch = token.tokenAddress?.toLowerCase() === tokenAddress?.toLowerCase();
+        const symbolMatch = token.symbol?.toLowerCase() === tokenSymbol?.toLowerCase();
+        return addressMatch || symbolMatch;
+      });
+      
+      const existingBalance = existingTokenBalance ? existingTokenBalance.numericBalance : 0;
+      const accumulatedBalance = existingBalance + actualPrivateAmount;
+      
+      console.log('[useBalances] 📊 Balance accumulation calculation:', {
+        tokenSymbol,
+        existingBalance,
+        newAmount: actualPrivateAmount,
+        accumulatedTotal: accumulatedBalance
+      });
+      
+      // Update UI private balances with accumulated total
       let updatedPrivate = [...currentPrivate];
-      const existingPrivateIndex = updatedPrivate.findIndex(token => {
+      const currentUIIndex = updatedPrivate.findIndex(token => {
         const addressMatch = token.address?.toLowerCase() === tokenAddress?.toLowerCase();
         const symbolMatch = token.symbol?.toLowerCase() === tokenSymbol?.toLowerCase();
         return addressMatch || symbolMatch;
       });
       
-      if (existingPrivateIndex >= 0) {
-        // Update existing private balance (add the amount after RAILGUN fee)
-        const existingToken = updatedPrivate[existingPrivateIndex];
-        const newBalance = existingToken.numericBalance + actualPrivateAmount;
-        updatedPrivate[existingPrivateIndex] = {
+      if (currentUIIndex >= 0) {
+        // Update existing UI token with accumulated total
+        const existingToken = updatedPrivate[currentUIIndex];
+        updatedPrivate[currentUIIndex] = {
           ...existingToken,
-          numericBalance: newBalance,
+          numericBalance: accumulatedBalance,
           hasBalance: true,
-          balance: newBalance.toString(),
-          formattedBalance: newBalance.toFixed(6),
+          balance: accumulatedBalance.toString(),
+          formattedBalance: accumulatedBalance.toFixed(6),
           lastUpdated: new Date().toISOString()
         };
       } else {
-        // Create new private balance entry with actual amount after RAILGUN fee
+        // Create new UI token with accumulated total
         const publicToken = findMatchingToken(currentPublic, tokenAddress, tokenSymbol);
         
         if (publicToken) {
@@ -908,10 +952,10 @@ export function useBalances() {
             tokenAddress: publicToken.address,
             decimals: publicToken.decimals,
             name: publicToken.name,
-            // CRITICAL: Use actual amount after RAILGUN fee deduction
-            numericBalance: actualPrivateAmount,
-            balance: actualPrivateAmount.toString(),
-            formattedBalance: actualPrivateAmount.toFixed(6),
+            // CRITICAL: Use accumulated total (existing + new)
+            numericBalance: accumulatedBalance,
+            balance: accumulatedBalance.toString(),
+            formattedBalance: accumulatedBalance.toFixed(6),
             hasBalance: true,
             isPrivate: true,
             chainId: currentChainId,
@@ -925,11 +969,13 @@ export function useBalances() {
       setPrivateBalances(updatedPrivate);
       setLastUpdated(new Date().toISOString());
       
-      console.log('[useBalances] 🎯 Optimistic update applied with RAILGUN fee:', {
+      console.log('[useBalances] 🎯 Optimistic update applied with RAILGUN fee and accumulation:', {
         tokenSymbol,
         originalAmount: shieldedAmount,
         railgunFee: railgunFee.toFixed(6),
         actualPrivateAmount: actualPrivateAmount.toFixed(6),
+        existingBalance,
+        newAccumulatedBalance: accumulatedBalance,
         publicCount: updatedPublic.filter(t => t.hasBalance).length,
         privateCount: updatedPrivate.filter(t => t.hasBalance).length
       });
@@ -948,7 +994,7 @@ export function useBalances() {
       });
     };
     
-    // Persist private balances to the existing wallet metadata system
+    // Persist private balances to the existing wallet metadata system with proper accumulation
     const persistPrivateBalancesToWalletMetadata = async (walletAddress, railgunWalletId, privateBalances, chainId) => {
       if (!walletAddress || !railgunWalletId) {
         console.warn('[useBalances] Cannot persist - missing wallet info');
@@ -956,20 +1002,47 @@ export function useBalances() {
       }
       
       try {
-        // Filter private balances to only include those with balance > 0
+        // Get existing private balances from Redis first
+        let existingPrivateBalances = [];
+        try {
+          const getResponse = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(walletAddress)}`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            }
+          });
+          
+          if (getResponse.ok) {
+            const result = await getResponse.json();
+            if (result.success && result.keys && result.keys.length > 0) {
+              const metadata = result.keys.find(k => k.walletId === railgunWalletId);
+              if (metadata && metadata.privateBalances) {
+                existingPrivateBalances = metadata.privateBalances;
+                console.log('[useBalances] 📥 Loaded existing private balances for accumulation:', {
+                  existingCount: existingPrivateBalances.length,
+                  existingTokens: existingPrivateBalances.map(b => `${b.symbol}: ${b.numericBalance}`)
+                });
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('[useBalances] Could not retrieve existing private balances, starting fresh:', error);
+        }
+        
+        // Merge current UI balances with existing Redis balances (UI state is authoritative)
         const balancesToStore = privateBalances
           .filter(token => token.hasBalance && token.numericBalance > 0)
           .map(token => ({
             symbol: token.symbol,
             tokenAddress: token.address || token.tokenAddress,
-            numericBalance: token.numericBalance,
+            numericBalance: token.numericBalance, // UI state already has accumulated amounts
             decimals: token.decimals,
             chainId: chainId,
             isPrivate: true,
             lastUpdated: token.lastUpdated || new Date().toISOString()
           }));
         
-        // Get existing wallet metadata first
+        // Get existing wallet metadata (non-balance fields only)
         let existingMetadata = {};
         try {
           const getResponse = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(walletAddress)}`, {
@@ -989,6 +1062,7 @@ export function useBalances() {
                   railgunAddress: metadata.railgunAddress,
                   signature: metadata.signature,
                   encryptedMnemonic: metadata.encryptedMnemonic
+                  // NOTE: Not including privateBalances - they're accumulated in the optimistic update
                 };
               }
             }
@@ -1048,7 +1122,11 @@ export function useBalances() {
         txHash: event.detail?.txHash,
         chainId: event.detail?.chainId,
         transactionType: event.detail?.transactionType,
-        timestamp: event.detail?.timestamp
+        timestamp: event.detail?.timestamp,
+        amount: event.detail?.amount,
+        tokenAddress: event.detail?.tokenAddress,
+        tokenSymbol: event.detail?.tokenSymbol,
+        allEventDetails: event.detail
       });
       
       // If this is for our current wallet/chain, trigger fresh balance fetch + persist
@@ -1061,6 +1139,17 @@ export function useBalances() {
            try {
              // Get transaction details for optimistic update
              const { txHash, amount, tokenAddress, tokenSymbol } = event.detail;
+             
+             console.log('[useBalances] 🔍 DEBUG: Transaction details check:', {
+               amount: amount,
+               tokenAddress: tokenAddress,
+               tokenSymbol: tokenSymbol,
+               hasAmount: !!amount,
+               hasTokenAddress: !!tokenAddress,
+               hasTokenSymbol: !!tokenSymbol,
+               amountType: typeof amount,
+               willProceed: !!(amount && tokenAddress && tokenSymbol)
+             });
              
              if (amount && tokenAddress && tokenSymbol) {
                console.log('[useBalances] ⚡ Applying optimistic shield update:', {
@@ -1075,6 +1164,11 @@ export function useBalances() {
                console.log('[useBalances] ✅ Optimistic balance update applied - UI updated instantly!');
              } else {
                console.log('[useBalances] ⚠️ Missing transaction details for optimistic update, falling back to refresh');
+               console.log('[useBalances] 🔍 Missing details breakdown:', {
+                 missingAmount: !amount,
+                 missingTokenAddress: !tokenAddress,
+                 missingTokenSymbol: !tokenSymbol
+               });
                // Fallback to refresh if we don't have the details
                await stableRefs.current.refreshAllBalances();
              }

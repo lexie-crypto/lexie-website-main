@@ -480,13 +480,22 @@ export const monitorTransactionInGraph = async ({
         console.log('[TransactionMonitor] 🎉 Event confirmed in Graph, dispatching transaction confirmed event');
 
         // 🎯 FIXED: Dispatch event with transaction details for optimistic updates
+        const eventDetail = { 
+          txHash, 
+          chainId, 
+          transactionType,
+          ...transactionDetails // Spread transaction details (amount, tokenAddress, tokenSymbol)
+        };
+        
+        console.log('[TransactionMonitor] 📡 Dispatching transaction confirmed event with details:', {
+          eventDetail,
+          hasAmount: !!eventDetail.amount,
+          hasTokenAddress: !!eventDetail.tokenAddress,
+          hasTokenSymbol: !!eventDetail.tokenSymbol
+        });
+        
         window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
-          detail: { 
-            txHash, 
-            chainId, 
-            transactionType,
-            ...transactionDetails // Spread transaction details (amount, tokenAddress, tokenSymbol)
-          }
+          detail: eventDetail
         }));
 
         return { found: true, elapsedTime: Date.now() - startTime };
