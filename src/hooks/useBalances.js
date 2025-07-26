@@ -838,6 +838,18 @@ export function useBalances() {
       
       const shieldedNumeric = parseFloat(shieldedAmount);
       
+      // Calculate RAILGUN fee (25 basis points = 0.25%)
+      const RAILGUN_FEE_BPS = 25;
+      const railgunFee = shieldedNumeric * (RAILGUN_FEE_BPS / 10000);
+      const actualPrivateAmount = shieldedNumeric - railgunFee;
+      
+      console.log('[useBalances] 💰 RAILGUN fee calculation:', {
+        originalAmount: shieldedNumeric,
+        railgunFee: railgunFee,
+        actualPrivateAmount: actualPrivateAmount,
+        feePercentage: `${RAILGUN_FEE_BPS / 100}%`
+      });
+      
       // Find the matching token (case-insensitive symbol matching)
       const findMatchingToken = (tokens, targetAddress, targetSymbol) => {
         return tokens.find(token => {
@@ -874,9 +886,9 @@ export function useBalances() {
       });
       
       if (existingPrivateIndex >= 0) {
-        // Update existing private balance
+        // Update existing private balance (add the amount after RAILGUN fee)
         const existingToken = updatedPrivate[existingPrivateIndex];
-        const newBalance = existingToken.numericBalance + shieldedNumeric;
+        const newBalance = existingToken.numericBalance + actualPrivateAmount;
         updatedPrivate[existingPrivateIndex] = {
           ...existingToken,
           numericBalance: newBalance,
@@ -886,7 +898,7 @@ export function useBalances() {
           lastUpdated: new Date().toISOString()
         };
       } else {
-        // Create new private balance entry with ONLY the shielded amount
+        // Create new private balance entry with actual amount after RAILGUN fee
         const publicToken = findMatchingToken(currentPublic, tokenAddress, tokenSymbol);
         
         if (publicToken) {
@@ -896,10 +908,10 @@ export function useBalances() {
             tokenAddress: publicToken.address,
             decimals: publicToken.decimals,
             name: publicToken.name,
-            // CRITICAL: Use only the shielded amount, not the public balance
-            numericBalance: shieldedNumeric,
-            balance: shieldedNumeric.toString(),
-            formattedBalance: shieldedNumeric.toFixed(6),
+            // CRITICAL: Use actual amount after RAILGUN fee deduction
+            numericBalance: actualPrivateAmount,
+            balance: actualPrivateAmount.toString(),
+            formattedBalance: actualPrivateAmount.toFixed(6),
             hasBalance: true,
             isPrivate: true,
             chainId: currentChainId,
@@ -913,9 +925,11 @@ export function useBalances() {
       setPrivateBalances(updatedPrivate);
       setLastUpdated(new Date().toISOString());
       
-      console.log('[useBalances] 🎯 Optimistic update applied:', {
+      console.log('[useBalances] 🎯 Optimistic update applied with RAILGUN fee:', {
         tokenSymbol,
-        shieldedAmount,
+        originalAmount: shieldedAmount,
+        railgunFee: railgunFee.toFixed(6),
+        actualPrivateAmount: actualPrivateAmount.toFixed(6),
         publicCount: updatedPublic.filter(t => t.hasBalance).length,
         privateCount: updatedPrivate.filter(t => t.hasBalance).length
       });
@@ -993,7 +1007,7 @@ export function useBalances() {
           lastBalanceUpdate: new Date().toISOString()
         };
         
-        console.log('[useBalances] 💾 Storing private balances to wallet metadata:', {
+        console.log('[useBalances] 💾 Storing private balances to wallet metadata (after RAILGUN fees):', {
           walletAddress: walletAddress.slice(0, 8) + '...',
           walletId: railgunWalletId.slice(0, 8) + '...',
           balanceCount: balancesToStore.length,
