@@ -142,7 +142,7 @@ export const unshieldTokens = async ({
     const nftAmountRecipients = []; // Always empty for unshield
 
     // Create initial gas details for estimation
-    const originalGasDetails = createUnshieldGasDetails(networkName, BigInt(100000)); // Initial estimate
+    const originalGasDetails = createUnshieldGasDetails(networkName, false, BigInt(100000)); // false = sendWithPublicWallet, BigInt(100000) = gasEstimate
     
     // Enhanced gas estimation with broadcaster fee support
     const gasEstimateFunction = async (...params) => {
