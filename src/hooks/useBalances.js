@@ -256,8 +256,19 @@ export function useBalances() {
         return false;
       }
       
+      // Filter private balances by current chain ID
+      const balancesForCurrentChain = metadata.privateBalances.filter(balance => 
+        balance.chainId === chainId
+      );
+      
+      if (balancesForCurrentChain.length === 0) {
+        console.log(`[useBalances] No private balances found for chain ${chainId}`);
+        setPrivateBalances([]);
+        return false;
+      }
+      
       // Convert stored balances to UI format
-      const privateBalancesFromRedis = metadata.privateBalances.map(balance => ({
+      const privateBalancesFromRedis = balancesForCurrentChain.map(balance => ({
         symbol: balance.symbol,
         address: balance.tokenAddress,
         tokenAddress: balance.tokenAddress,
@@ -270,8 +281,10 @@ export function useBalances() {
         lastUpdated: balance.lastUpdated
       }));
       
-      console.log('[useBalances] ✅ Loaded private balances from Redis:', {
+      console.log('[useBalances] ✅ Loaded private balances from Redis for chain:', {
+        chainId,
         count: privateBalancesFromRedis.length,
+        totalInRedis: metadata.privateBalances.length,
         tokens: privateBalancesFromRedis.map(b => `${b.symbol}: ${b.numericBalance}`)
       });
       
@@ -282,7 +295,7 @@ export function useBalances() {
       console.error('[useBalances] Failed to load private balances from Redis:', error);
       return false;
     }
-  }, []);
+  }, [chainId]);
 
   // Refresh all balances
   const refreshAllBalances = useCallback(async () => {
@@ -601,7 +614,7 @@ export function useBalances() {
         }
       });
     }
-  }, [railgunWalletId, address, isRailgunInitialized, loadPrivateBalancesFromMetadata]);
+  }, [railgunWalletId, address, isRailgunInitialized, chainId, loadPrivateBalancesFromMetadata]);
 
   // Listen for transaction confirmations (auto-refresh UI after confirmed transactions)
   useEffect(() => {
