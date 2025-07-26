@@ -562,7 +562,7 @@ export function useBalances() {
       console.log('[useBalances] 🔄 Wallet connected - auto-fetching public balances...');
       refreshAllBalances();
     }
-  }, [address, chainId, refreshAllBalances]);
+  }, [address, chainId]); // Removed refreshAllBalances from deps to prevent infinite loop
 
   // Load private balances from Redis when Railgun wallet is ready
   useEffect(() => {
