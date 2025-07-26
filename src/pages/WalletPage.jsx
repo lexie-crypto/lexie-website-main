@@ -59,6 +59,7 @@ const WalletPage = () => {
     refreshAllBalances,
     refreshBalancesAfterTransaction,
     lastUpdateTime,
+    loadPrivateBalancesFromMetadata, // Add this for Redis-only refresh
   } = useBalances();
 
   const [showPrivateMode, setShowPrivateMode] = useState(false);
@@ -70,6 +71,30 @@ const WalletPage = () => {
   const [showSignatureGuide, setShowSignatureGuide] = useState(false);
 
   const network = getCurrentNetwork();
+
+  // Redis-only refresh function (no blockchain sync)
+  const refreshFromRedisOnly = useCallback(async () => {
+    try {
+      console.log('[WalletPage] 🛡️ REDIS-ONLY refresh - loading private balances from Redis...');
+      
+      if (canUseRailgun && railgunWalletId && address) {
+        const loadedSuccessfully = await loadPrivateBalancesFromMetadata(address, railgunWalletId);
+        if (loadedSuccessfully) {
+          console.log('[WalletPage] ✅ Successfully refreshed private balances from Redis');
+          toast.success('Private balances refreshed from storage');
+        } else {
+          console.log('[WalletPage] ℹ️ No private balances found in Redis storage');
+          toast.info('No private balance history found');
+        }
+      } else {
+        console.log('[WalletPage] ⏸️ Cannot refresh - RAILGUN wallet not ready');
+        toast.error('Wallet not ready for refresh');
+      }
+    } catch (error) {
+      console.error('[WalletPage] Redis-only refresh failed:', error);
+      toast.error('Failed to refresh from storage');
+    }
+  }, [canUseRailgun, railgunWalletId, address, loadPrivateBalancesFromMetadata]);
 
   // Auto-switch to privacy view when Railgun is ready
   useEffect(() => {
@@ -601,47 +626,7 @@ const WalletPage = () => {
                   </button>
                 )}
                 <button
-                  onClick={async () => {
-                    // 🛑 CRITICAL: Prevent refresh when wallet not connected
-                    if (!isConnected || !address) {
-                      console.log('[WalletPage] ⏸️ Refresh blocked - wallet not connected');
-                      toast.error('Wallet not connected');
-                      return;
-                    }
-                    
-                    try {
-                      console.log('[WalletPage] 🔄 Enhanced refresh with cache clearing triggered...');
-                      console.log('[WalletPage] 🔍 RAILGUN State Check:', {
-                        canUseRailgun,
-                        railgunWalletId: railgunWalletId?.slice(0, 8) + '...' || 'undefined',
-                        isRailgunInitialized,
-                        hasRailgunAddress: !!railgunAddress
-                      });
-                      
-                      // 1. Clear private balance cache and refresh with enhanced logic (6-second one-time poll)
-                      if (canUseRailgun && railgunWalletId && isRailgunInitialized) {
-                        console.log('[WalletPage] 🔐 Refreshing private balances with cache clearing...');
-                        await refreshBalancesAfterTransaction(railgunWalletId); // Pass walletId explicitly
-                      } else {
-                        console.log('[WalletPage] ⏸️ Skipping private balance refresh - RAILGUN not ready:', {
-                          canUseRailgun,
-                          hasWalletId: !!railgunWalletId,
-                          walletIdValue: railgunWalletId?.slice(0, 8) + '...' || 'undefined',
-                          isRailgunInitialized
-                        });
-                      }
-                      
-                      // 2. Also refresh public balances normally
-                      console.log('[WalletPage] 💰 Refreshing public balances...');
-                      await refreshAllBalances();
-                      
-                      console.log('[WalletPage] ✅ Enhanced refresh completed (both public and private)');
-                      toast.success('Balances refreshed successfully');
-                    } catch (error) {
-                      console.error('[WalletPage] Enhanced refresh failed:', error);
-                      toast.error('Refresh failed');
-                    }
-                  }}
+                  onClick={refreshFromRedisOnly}
                   disabled={isLoading || !isConnected}
                   className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                 >
@@ -657,14 +642,7 @@ const WalletPage = () => {
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-medium text-white">Public Balances</h3>
                     <button
-                      onClick={() => {
-                        // 🛑 CRITICAL: Prevent refresh when wallet not connected
-                        if (!isConnected || !address) {
-                          console.log('[WalletPage] ⏸️ Public balance refresh blocked - wallet not connected');
-                          return;
-                        }
-                        refreshAllBalances();
-                      }}
+                      onClick={refreshFromRedisOnly}
                       disabled={isLoading || !isConnected}
                       className="text-purple-400 hover:text-purple-300 text-sm disabled:opacity-50"
                     >

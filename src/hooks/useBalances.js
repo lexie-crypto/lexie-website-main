@@ -194,20 +194,20 @@ export function useBalances() {
       
       if (!response.ok) {
         console.log('[useBalances] No wallet metadata found, starting fresh');
-        return;
+        return false;
       }
       
       const result = await response.json();
       if (!result.success || !result.keys || result.keys.length === 0) {
         console.log('[useBalances] No wallet metadata keys found');
-        return;
+        return false;
       }
       
       // Find the metadata for our specific wallet ID
       const metadata = result.keys.find(k => k.walletId === railgunWalletId);
-      if (!metadata || !metadata.privateBalances) {
+      if (!metadata || !metadata.privateBalances || metadata.privateBalances.length === 0) {
         console.log('[useBalances] No private balances found in wallet metadata');
-        return;
+        return false;
       }
       
       // Convert stored balances back to UI format
@@ -230,12 +230,15 @@ export function useBalances() {
       });
       
       setPrivateBalances(privateBalancesFromStorage);
+      return true; // Successfully loaded private balances
       
     } catch (error) {
       console.error('[useBalances] Failed to load private balances from metadata:', error);
-      // Don't throw - this is optional data restoration
+      return false;
     }
   }, []);
+
+  // Removed hasLoadedPrivateBalancesFromRedis state - no longer needed with REDIS-ONLY approach
 
   // ✅ UPDATED: Load private balances from wallet metadata + callback-based approach
   useEffect(() => {
@@ -251,7 +254,13 @@ export function useBalances() {
       });
       
       // Load stored private balances from wallet metadata
-      loadPrivateBalancesFromMetadata(address, railgunWalletId);
+      loadPrivateBalancesFromMetadata(address, railgunWalletId).then((loadedSuccessfully) => {
+        if (loadedSuccessfully) {
+          console.log('[useBalances] 🛡️ Successfully loaded private balances from Redis');
+        } else {
+          console.log('[useBalances] ℹ️ No private balances found in Redis - starting fresh');
+        }
+      });
       
       console.log('[useBalances] ✅ Ready to receive SDK callback data');
     } else {
@@ -645,42 +654,49 @@ export function useBalances() {
     });
   }, []);
 
-  // Initial load when wallet connects - CRITICAL: Only when system is enabled
+  // Initial load when wallet connects - REDIS ONLY (no automatic blockchain refresh)
   useEffect(() => {
-    // 🛑 CRITICAL: Only fetch when balance system is enabled AND wallet connected
+    // 🛑 CRITICAL: Only initialize when balance system is enabled AND wallet connected
     if (isBalanceSystemEnabled && address && chainId) {
-      console.log('[useBalances] 🚀 Balance system enabled - fetching balances:', { 
+      console.log('[useBalances] 🛡️ Wallet connected - REDIS ONLY mode (no automatic blockchain refresh):', { 
         address: address?.slice(0, 8) + '...', 
         chainId,
-        systemEnabled: isBalanceSystemEnabled
+        systemEnabled: isBalanceSystemEnabled,
+        note: 'All balances loaded from Redis, manual refresh required for blockchain sync'
       });
-      refreshAllBalances();
+      
+      // NO AUTOMATIC REFRESH - balances come only from Redis or manual user action
+      // Private balances are loaded from Redis in the RAILGUN initialization effect
+      // Public balances can be manually refreshed by user if needed
+      
     } else {
-      console.log('[useBalances] ⏸️ Balance fetching blocked:', {
+      console.log('[useBalances] ⏸️ Balance system not ready:', {
         systemEnabled: isBalanceSystemEnabled,
         hasAddress: !!address,
         hasChainId: !!chainId
       });
     }
-  }, [isBalanceSystemEnabled, address, chainId, refreshAllBalances]); // Added refreshAllBalances back since we need stable dependencies
+  }, [isBalanceSystemEnabled, address, chainId]); // Removed automatic refresh dependencies
 
-  // Refresh private balances when Railgun wallet changes - CRITICAL: Only when system enabled
+  // RAILGUN wallet ready - REDIS ONLY (no automatic private balance refresh)
   useEffect(() => {
-    // 🛑 CRITICAL: Only fetch when balance system is enabled AND RAILGUN fully ready
+    // 🛑 CRITICAL: Only initialize when balance system is enabled AND RAILGUN fully ready
     if (isBalanceSystemEnabled && railgunWalletId && chainId && address && isRailgunInitialized) {
-      console.log('[useBalances] 🔐 RAILGUN wallet available - fetching private balances:', { 
+      console.log('[useBalances] 🔐 RAILGUN wallet ready - REDIS ONLY mode:', { 
         walletId: railgunWalletId?.slice(0, 8) + '...', 
         chainId, 
         address: address?.slice(0, 8) + '...',
         systemEnabled: isBalanceSystemEnabled,
         railgunInitialized: isRailgunInitialized,
-        railgunAddress: railgunAddress?.slice(0, 8) + '...' || 'null'
+        railgunAddress: railgunAddress?.slice(0, 8) + '...' || 'null',
+        note: 'No automatic refresh - private balances loaded from Redis only'
       });
-      fetchPrivateBalances().then(balances => {
-        updatePrivateBalances(balances);
-      });
+      
+      // NO AUTOMATIC PRIVATE BALANCE REFRESH
+      // Private balances come only from Redis or optimistic updates
+      
     } else {
-      console.log('[useBalances] ⏸️ Private balance fetch blocked - waiting for RAILGUN:', {
+      console.log('[useBalances] ⏸️ RAILGUN not ready - waiting:', {
         systemEnabled: isBalanceSystemEnabled,
         hasRailgunWallet: !!railgunWalletId,
         walletIdValue: railgunWalletId?.slice(0, 8) + '...' || 'null',
@@ -694,7 +710,7 @@ export function useBalances() {
         updatePrivateBalances([]);
       }
     }
-  }, [isBalanceSystemEnabled, railgunWalletId, chainId, address, isRailgunInitialized, railgunAddress, fetchPrivateBalances, updatePrivateBalances]);
+  }, [isBalanceSystemEnabled, railgunWalletId, chainId, address, isRailgunInitialized, railgunAddress, updatePrivateBalances]); // Removed fetchPrivateBalances
 
   // Create stable refs to avoid stale closures in event listeners
   const stableRefs = useRef({
@@ -1218,6 +1234,7 @@ export function useBalances() {
     // Functions
     refreshAllBalances,
     refreshBalancesAfterTransaction, // Export the actual enhanced function, not the alias
+    loadPrivateBalancesFromMetadata, // Export for Redis-only refresh
     formatBalance,
     
     // Utilities
