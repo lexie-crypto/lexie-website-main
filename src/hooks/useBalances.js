@@ -780,17 +780,42 @@ export function useBalances() {
       if (event.detail?.chainId === currentChainId && currentWalletId) {
         const transactionType = event.detail?.transactionType;
         
-                 // For shield transactions, immediately fetch fresh balances and persist
+                 // For shield transactions, wait longer and retry until private balances appear
          if (transactionType === 'shield') {
-           console.log('[useBalances] 🛡️ Shield transaction confirmed - triggering fresh balance refresh + persist to Redis');
+           console.log('[useBalances] 🛡️ Shield transaction confirmed - triggering fresh balance refresh with retry logic');
            try {
-             // Wait a moment for the UTXO to be indexed
-             await new Promise(resolve => setTimeout(resolve, 2000));
+             // Wait longer for UTXO to be fully indexed and scannable
+             await new Promise(resolve => setTimeout(resolve, 5000));
              
-             // Trigger full refresh which will fetch both public/private and store combined to Redis
-             await stableRefs.current.refreshAllBalances();
+             let retryCount = 0;
+             const maxRetries = 3;
              
-             console.log('[useBalances] ✅ Fresh balances fetched and persisted after shield confirmation');
+             while (retryCount < maxRetries) {
+               console.log(`[useBalances] 🔄 Balance refresh attempt ${retryCount + 1}/${maxRetries}`);
+               
+               // Trigger full refresh
+               await stableRefs.current.refreshAllBalances();
+               
+               // Check if we found private balances
+               const currentPrivateBalances = stableRefs.current.privateBalances || [];
+               const hasPrivateTokens = currentPrivateBalances.some(token => token.hasBalance);
+               
+               if (hasPrivateTokens) {
+                 console.log('[useBalances] ✅ Private balances found after shield confirmation!');
+                 break;
+               } else {
+                 console.log(`[useBalances] ⏳ No private balances found yet, waiting before retry ${retryCount + 1}/${maxRetries}`);
+                 retryCount++;
+                 if (retryCount < maxRetries) {
+                   await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10 seconds between retries
+                 }
+               }
+             }
+             
+             if (retryCount >= maxRetries) {
+               console.warn('[useBalances] ⚠️ Max retries reached, private balances may take longer to appear');
+             }
+             
            } catch (error) {
              console.error('[useBalances] Failed to refresh balances after shield confirmation:', error);
              // Fallback to regular refresh
