@@ -428,40 +428,11 @@ export function useBalances() {
     }
   }, [isBalanceSystemEnabled, address, chainId, railgunWalletId, fetchNativeBalance, fetchTokenBalance]);
 
-  // ✅ UPDATED: Trigger SDK refresh, data comes via callbacks (preserving all restrictions)
+  // ✅ DISABLED: No SDK calls - private balances come ONLY from Redis
   const fetchPrivateBalances = useCallback(async () => {
-    // 🛑 CRITICAL: Preserve all existing restrictions to prevent infinite polling
-    if (!isBalanceSystemEnabled || !railgunWalletId || !chainId || !address || !isRailgunInitialized) {
-      console.log('[useBalances] ⏸️ Private balance refresh blocked (restrictions preserved):', {
-        systemEnabled: isBalanceSystemEnabled,
-        hasWalletId: !!railgunWalletId,
-        walletIdValue: railgunWalletId?.slice(0, 8) + '...' || 'null',
-        hasChainId: !!chainId,
-        hasAddress: !!address,
-        railgunInitialized: isRailgunInitialized,
-        railgunAddress: railgunAddress?.slice(0, 8) + '...' || 'null'
-      });
-      return [];
-    }
-
-    try {
-      console.log('[useBalances] 🔄 CALLBACK-BASED: Triggering SDK refresh (results via callbacks)...');
-      // Clear previous error
-      setError(null);
-      
-      // ✅ FIXED: Trigger refresh but don't expect data back - comes via callbacks
-      await refreshPrivateBalancesAndStore(railgunWalletId, chainId);
-      
-      console.log('[useBalances] ✅ SDK refresh triggered - private balance data will arrive via callbacks');
-      
-      // Return empty array - actual data comes through SDK callbacks
-      return [];
-    } catch (error) {
-      console.error('[useBalances] ❌ Failed to trigger SDK refresh:', error);
-      setError(error.message);
-      return [];
-    }
-  }, [isBalanceSystemEnabled, railgunWalletId, chainId, address, isRailgunInitialized, railgunAddress]);
+    console.log('[useBalances] 🛡️ REDIS-ONLY: fetchPrivateBalances disabled - all private balance data comes from Redis');
+    return [];
+  }, []);
 
   // Refresh all balances - CRITICAL: Check if balance system is enabled
   const refreshAllBalances = useCallback(async () => {
@@ -484,13 +455,10 @@ export function useBalances() {
       ];
       const freshPrices = await fetchAndCachePrices(allSymbols);
 
-      // ✅ UPDATED: Only fetch public balances directly, private comes via callbacks
+      // ✅ UPDATED: Only fetch public balances directly, private comes ONLY from Redis
       const publicBals = await fetchPublicBalances();
       
-      // Trigger private balance refresh (data comes via callbacks, not return value)
-      await fetchPrivateBalances();
-      
-      // Private balances will be updated via SDK callbacks, so use current state
+      // ✅ REDIS-ONLY: Private balances come only from Redis (no SDK calls)
       const privateBals = privateBalances;
 
       // Add USD values using fresh prices directly
@@ -752,94 +720,13 @@ export function useBalances() {
     
     console.log('[useBalances] 🎧 Setting up balance update event listeners');
     
+    // ✅ DISABLED: RAILGUN SDK balance callbacks are disabled to prevent Redis overwrites
     const handleBalanceUpdate = (event) => {
-      const {
-        railgunWalletId: currentWalletId,
-        chainId: currentChainId,
-        updatePrivateBalances: currentUpdateFn,
-        calculateUSDValue: currentCalculateUSD
-      } = stableRefs.current;
-      
-      console.log('[useBalances] 📡 Received Railgun balance update event:', {
+      console.log('[useBalances] 🛑 RAILGUN SDK balance update IGNORED - Redis-only mode active:', {
         railgunWalletId: event.detail?.railgunWalletID?.slice(0, 8) + '...',
-        chainId: event.detail?.chainId,
-        balanceCount: event.detail?.balances?.length,
-        timestamp: event.detail?.timestamp,
-        source: event.detail?.source, // NEW: Track data source
-        currentWalletId: currentWalletId?.slice(0, 8) + '...',
-        currentChainId: currentChainId
+        reason: 'Preventing Redis balance overwrites'
       });
-
-      // Check if this update is for the current wallet and chain
-      if (event.detail?.railgunWalletID === currentWalletId && 
-          event.detail?.chainId === currentChainId) {
-        
-        console.log('[useBalances] ✅ Balance update matches current wallet/chain, applying immediately');
-        
-        // OPTIMIZATION: Use fresh callback data directly (no cache reload needed!)
-        if (event.detail?.source === 'fresh-callback' && event.detail?.balances && Array.isArray(event.detail.balances)) {
-          console.log('[useBalances] ⚡ Using FRESH balance data from callback (no cache reload):', {
-            count: event.detail.balances.length,
-            tokens: event.detail.balances.map(b => `${b.symbol}: ${b.formattedBalance}`)
-          });
-          
-          // Add USD values to the fresh balances
-          const balancesWithUSD = event.detail.balances.map(token => ({
-            // Convert to legacy format for UI compatibility
-            tokenAddress: token.address,
-            symbol: token.symbol,
-            name: token.name,
-            decimals: token.decimals,
-            balance: token.rawBalance,
-            formattedBalance: token.formattedBalance,
-            numericBalance: token.numericBalance,
-            hasBalance: token.numericBalance > 0,
-            isPrivate: true,
-            chainId: currentChainId,
-            networkName: NETWORK_MAPPING[currentChainId] || `Chain ${currentChainId}`,
-            // Add USD value calculation
-            balanceUSD: currentCalculateUSD(token.numericBalance, token.symbol)
-          }));
-          
-          currentUpdateFn(balancesWithUSD);
-          console.log('[useBalances] 🚀 Applied FRESH balances from callback with USD values:', {
-            count: balancesWithUSD.length,
-            tokens: balancesWithUSD.map(b => `${b.symbol}: ${b.formattedBalance} ($${b.balanceUSD})`)
-          });
-          
-        } else if (event.detail?.balances && Array.isArray(event.detail.balances)) {
-          // Fallback: Handle legacy cache-sourced data
-          console.log('[useBalances] 📦 Using cache-sourced balance data:', {
-            source: event.detail?.source || 'unknown',
-            count: event.detail.balances.length
-          });
-          
-          // Use the balances from the event detail if available (already formatted)
-          const balancesWithUSD = event.detail.balances.map(token => ({
-            ...token,
-            balanceUSD: currentCalculateUSD(token.numericBalance, token.symbol)
-          }));
-          
-          currentUpdateFn(balancesWithUSD);
-          console.log('[useBalances] 🚀 Applied cache balances with USD values:', {
-            count: balancesWithUSD.length,
-            tokens: balancesWithUSD.map(b => `${b.symbol}: ${b.formattedBalance} ($${b.balanceUSD})`)
-          });
-          
-        } else {
-          // Final fallback: fetch from cache if no balance data in event
-          console.log('[useBalances] 📦 No balance data in event, fetching from cache...');
-          stableRefs.current.fetchPrivateBalances().then(balances => {
-            const balancesWithUSD = balances.map(token => ({
-              ...token,
-              balanceUSD: stableRefs.current.calculateUSDValue(token.numericBalance, token.symbol)
-            }));
-            stableRefs.current.updatePrivateBalances(balancesWithUSD);
-          });
-        }
-      } else {
-        console.log('[useBalances] ⏭️ Balance update for different wallet/chain, ignoring');
-      }
+      // All private balance updates come from optimistic updates and Redis loading only
     };
 
     // Apply optimistic balance update for shield transactions with proper accumulation
