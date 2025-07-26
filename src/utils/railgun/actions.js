@@ -10,10 +10,8 @@
  */
 
 import { NetworkName, TXIDVersion } from '@railgun-community/shared-models';
-import {
-  gasEstimateForUnprovenUnshield,
-  populateProvedUnshield,
-} from '@railgun-community/wallet';
+// Import our custom unshield implementation
+import { unshieldTokens } from './tx-unshield.js';
 
 // Import our new modular utilities
 import { shieldTokens } from './shieldTransactions.js';
@@ -93,130 +91,8 @@ const createERC20AmountRecipient = (tokenAddress, amount, recipientAddress) => {
 export { shieldTokens };
 export { parseTokenAmount };
 
-/**
- * UNSHIELD: Move tokens from private Railgun wallet to public wallet
- * Enhanced with comprehensive gas estimation
- */
-export const unshieldTokens = async ({
-  railgunWalletID,
-  encryptionKey,
-  tokenAddress,
-  amount,
-  chain,
-  toAddress,
-  selectedBroadcaster = null,
-}) => {
-  try {
-    console.log('[RailgunActions] Starting unshield operation:', {
-      tokenAddress,
-      amount,
-      chainId: chain.id,
-      toAddress: toAddress?.slice(0, 8) + '...',
-      hasBroadcaster: !!selectedBroadcaster,
-    });
-
-    // Validate inputs
-    if (!railgunWalletID || typeof railgunWalletID !== 'string') {
-      throw new Error('Railgun wallet ID must be a non-empty string');
-    }
-    if (!encryptionKey || typeof encryptionKey !== 'string') {
-      throw new Error('Encryption key must be a non-empty string');
-    }
-    if (!amount || typeof amount !== 'string') {
-      throw new Error('Amount must be a non-empty string');
-    }
-    if (!chain?.id) {
-      throw new Error('Chain must have an id property');
-    }
-
-    // Wait for Railgun readiness
-    await waitForRailgunReady();
-
-    // Get network configuration
-    const networkName = getRailgunNetworkName(chain.id);
-    const txidVersion = TXIDVersion.V2_PoseidonMerkle;
-
-    // Create recipient
-    const erc20AmountRecipient = createERC20AmountRecipient(tokenAddress, amount, toAddress);
-    const erc20AmountRecipients = [erc20AmountRecipient];
-    const nftAmountRecipients = []; // Always empty for unshield
-
-    // Create initial gas details for estimation
-    const originalGasDetails = createUnshieldGasDetails(networkName, true, BigInt(100000)); // true = sendWithPublicWallet, BigInt(100000) = gasEstimate
-    
-    // Enhanced gas estimation with broadcaster fee support
-    const gasEstimateFunction = async (...params) => {
-      return await gasEstimateForUnprovenUnshield(...params);
-    };
-
-    const gasEstimateParams = [
-      txidVersion,
-      networkName,
-      railgunWalletID,
-      encryptionKey,
-      erc20AmountRecipients,
-      nftAmountRecipients,
-      originalGasDetails,
-      undefined,                // feeTokenDetails - not needed when sendWithPublicWallet=true
-      true,                     // sendWithPublicWallet - true for direct unshield to user's wallet
-    ];
-
-    console.log('[RailgunActions] Estimating gas for unshield...');
-    const gasEstimationResult = await estimateGasWithBroadcasterFee(
-      networkName,
-      gasEstimateFunction,
-      gasEstimateParams,
-      selectedBroadcaster,
-      TransactionType.UNSHIELD
-    );
-
-    const { gasDetails, broadcasterFeeInfo, iterations } = gasEstimationResult;
-
-    console.log('[RailgunActions] Gas estimation completed:', {
-      gasEstimate: gasDetails.gasEstimate.toString(),
-      evmGasType: gasDetails.evmGasType,
-      iterations,
-      hasBroadcasterFee: !!broadcasterFeeInfo,
-    });
-
-    // Populate proved unshield transaction (proof generation handled internally)
-    console.log('[RailgunActions] Populating unshield transaction...');
-    const populatedTransaction = await populateProvedUnshield(
-      txidVersion,
-      networkName,
-      railgunWalletID,
-      erc20AmountRecipients,
-      nftAmountRecipients,
-      undefined, // broadcasterFeeERC20AmountRecipient - not needed when sendWithPublicWallet=true
-      true, // sendWithPublicWallet - true for direct unshield to user's wallet
-      undefined, // overallBatchMinGasPrice
-      gasDetails
-    );
-
-    console.log('[RailgunActions] Unshield operation completed successfully');
-    return {
-      transaction: populatedTransaction.transaction,
-      gasDetails,
-      gasEstimate: gasDetails.gasEstimate,
-      nullifiers: populatedTransaction.nullifiers,
-      preTransactionPOIsPerTxidLeafPerList: populatedTransaction.preTransactionPOIsPerTxidLeafPerList,
-      broadcasterFeeInfo,
-      gasEstimationIterations: iterations,
-      transactionType: TransactionType.UNSHIELD,
-      networkName,
-      estimatedCost: calculateTransactionCost(gasDetails),
-      metadata: {
-        railgunWalletID,
-        erc20Recipients: erc20AmountRecipients.length,
-        nftRecipients: nftAmountRecipients.length,
-      },
-    };
-
-  } catch (error) {
-    console.error('[RailgunActions] Unshield operation failed:', error);
-    throw new Error(`Unshield operation failed: ${error.message}`);
-  }
-};
+// Re-export the custom unshield implementation
+export { unshieldTokens };
 
 /**
  * TRANSFER: Send tokens privately between Railgun wallets
