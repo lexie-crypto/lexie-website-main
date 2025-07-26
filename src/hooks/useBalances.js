@@ -481,55 +481,11 @@ export function useBalances() {
       }));
 
       setPublicBalances(publicWithUSD);
-      updatePrivateBalances(privateWithUSD);
       setLastUpdated(Date.now());
       
-      // Store combined fresh balances to Redis (done here to avoid overwrites)
-      if (railgunWalletId && chainId) {
-        try {
-          const publicBalancesWithFlag = publicWithUSD
-            .filter(balance => balance.hasBalance && balance.numericBalance > 0)
-            .map(balance => ({
-              symbol: balance.symbol,
-              tokenAddress: balance.address,
-              formattedBalance: balance.formattedBalance,
-              numericBalance: balance.numericBalance,
-              decimals: balance.decimals,
-              chainId: chainId,
-              isPrivate: false
-            }));
-          
-          const privateBalancesWithFlag = privateWithUSD
-            .filter(balance => balance.numericBalance > 0)
-            .map(balance => ({
-              symbol: balance.symbol,
-              tokenAddress: balance.tokenAddress || balance.address,
-              formattedBalance: balance.formattedBalance,
-              numericBalance: balance.numericBalance,
-              decimals: balance.decimals,
-              chainId: chainId,
-              isPrivate: true
-            }));
-          
-          // Combine all fresh balances into single array for Redis persistence
-          const allFreshBalances = [...publicBalancesWithFlag, ...privateBalancesWithFlag];
-          
-          if (allFreshBalances.length > 0) {
-            // The original code had storeBalances here, but storeBalances was removed.
-            // Assuming the intent was to persist the combined balances directly.
-            // For now, removing the call as storeBalances is no longer available.
-            // If storeBalances was intended to be re-added, this line would need to be restored.
-            // console.log('[useBalances] 💾 Combined fresh balances persisted to Redis:', {
-            //   totalCount: allFreshBalances.length,
-            //   publicCount: publicBalancesWithFlag.length,
-            //   privateCount: privateBalancesWithFlag.length,
-            //   tokens: allFreshBalances.map(b => `${b.symbol}: ${b.formattedBalance} (${b.isPrivate ? 'private' : 'public'})`)
-            // });
-          }
-        } catch (redisError) {
-          console.warn('[useBalances] Failed to persist combined balances to Redis (non-critical):', redisError);
-        }
-      }
+      console.log('[useBalances] ✅ Public balances refreshed, private balances preserved from Redis');
+      
+      // ✅ REDIS-ONLY: No Redis persistence during public refresh - private balances managed separately
       
       // Expose balances globally for balance checking (deprecated - components should use Redis)
       window.__LEXIE_BALANCES__ = publicWithUSD;
@@ -537,8 +493,8 @@ export function useBalances() {
       console.log('[useBalances] Balances refreshed:', {
         public: publicBals.length,
         publicWithBalance: publicBals.filter(b => b.hasBalance).length,
-        private: privateBals.length,
-        privateWithBalance: privateBals.filter(b => b.hasBalance).length,
+        private: 'preserved from Redis',
+        privateWithBalance: 'preserved from Redis',
       });
 
     } catch (error) {
@@ -549,54 +505,13 @@ export function useBalances() {
     }
   }, [isBalanceSystemEnabled, address, chainId]); // Added isBalanceSystemEnabled to prevent calls when disabled
 
-  // Refresh balances after transactions - CRITICAL: Only when system enabled
+  // ✅ DISABLED: Post-transaction refresh disabled to prevent Redis overwrites
   const refreshBalancesAfterTransaction = useCallback(async (explicitRailgunWalletId = null) => {
-    // 🛑 CRITICAL: Prevent post-transaction refresh when system is disabled
-    if (!isBalanceSystemEnabled) {
-      console.log('[useBalances] ⏸️ Post-transaction refresh blocked - balance system disabled');
-      return;
-    }
-    
-    // Use explicit wallet ID if provided, fallback to context value
-    const walletIdToUse = explicitRailgunWalletId || railgunWalletId;
-    
-    console.log('[useBalances] 🔍 Wallet ID resolution:', {
-      explicitRailgunWalletId: explicitRailgunWalletId?.slice(0, 8) + '...' || 'null',
-      contextRailgunWalletId: railgunWalletId?.slice(0, 8) + '...' || 'undefined',
-      walletIdToUse: walletIdToUse?.slice(0, 8) + '...' || 'undefined'
-    });
-    
-    console.log('[useBalances] 🔄 Enhanced post-transaction balance refresh...');
-    
-    // Multiple refresh attempts to catch new transactions
-    const maxAttempts = 3;
-    const delays = [5000, 10000, 15000]; // 5s, 10s, 15s
-    
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      console.log(`[useBalances] 🔄 Refresh attempt ${attempt + 1}/${maxAttempts}`);
-      
-      // Wait progressively longer
-      await new Promise(resolve => setTimeout(resolve, delays[attempt]));
-      
-      // 🔁 CRITICAL: Force complete RAILGUN rescan BEFORE each refresh attempt
-      if (walletIdToUse && chainId) {
-        try {
-          console.log('[useBalances] 🎯 Forcing complete RAILGUN rescan...');
-          const { clearStaleBalanceCacheAndRefresh } = await import('../utils/railgun/balances');
-          await clearStaleBalanceCacheAndRefresh(walletIdToUse, chainId);
-        } catch (error) {
-          console.warn('[useBalances] Rescan failed, falling back to regular refresh:', error);
-        }
-      }
-      
-      // Regular balance refresh (now with fresh UTXO data)
-      await refreshAllBalances();
-      
-      console.log(`[useBalances] ✅ Refresh attempt ${attempt + 1} completed`);
-    }
-    
-    console.log('[useBalances] 🎉 Enhanced post-transaction refresh completed');
-  }, [isBalanceSystemEnabled, railgunWalletId, chainId, refreshAllBalances]); // Note: explicitRailgunWalletId is a parameter, not dependency
+    console.log('[useBalances] 🛑 REDIS-ONLY: Post-transaction refresh DISABLED - optimistic updates handle private balances');
+    // Private balances are handled by optimistic updates + Redis
+    // Public balances can be manually refreshed if needed
+    return;
+  }, []); // Empty dependencies since it's disabled
 
   // Format balance for display
   const formatBalance = useCallback((balance, decimals = 2) => {
@@ -1082,17 +997,12 @@ export function useBalances() {
              
            } catch (error) {
              console.error('[useBalances] Failed optimistic update after shield confirmation:', error);
-             // Fallback to regular refresh
-             setTimeout(() => {
-               stableRefs.current.refreshBalancesAfterTransaction(currentWalletId);
-             }, 1000);
+             // ✅ REDIS-ONLY: No fallback refresh to prevent Redis overwrites
+             console.log('[useBalances] 🛑 Fallback refresh DISABLED - private balances preserved in Redis');
            }
          } else {
-          // For other transaction types, use the enhanced refresh
-          console.log('[useBalances] ⚡ Post-transaction refresh triggered by transaction confirmation');
-          setTimeout(() => {
-            stableRefs.current.refreshBalancesAfterTransaction(currentWalletId);
-          }, 1000);
+          // ✅ REDIS-ONLY: No post-transaction refresh to prevent Redis overwrites
+          console.log('[useBalances] 🛑 Post-transaction refresh DISABLED - private balances preserved in Redis');
         }
       }
     };
