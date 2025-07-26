@@ -605,7 +605,8 @@ const WalletContextProvider = ({ children }) => {
         const { 
           startRailgunEngine, 
           loadRailgunWalletByID, 
-          setLoggers
+          setLoggers,
+          setOnBalanceUpdateCallback
         } = await import('@railgun-community/wallet');
         
         // Check if engine exists (fallback for older SDK versions)
@@ -741,7 +742,15 @@ const WalletContextProvider = ({ children }) => {
             }
           }
           
-          // ✅ REDIS-ONLY: Balance callbacks disabled - useBalances.js manages all balance state
+          // Set up balance callbacks for fast path too
+          setOnBalanceUpdateCallback((balancesEvent) => {
+            console.log('🔄 Railgun balance update (fast path):', balancesEvent);
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('railgun-balance-update', {
+                detail: balancesEvent
+              }));
+            }
+          });
 
           // 🛑 CRITICAL: Pause providers immediately after loading to prevent wasteful polling
           console.log('⏸️ Pausing RAILGUN providers to prevent RPC polling until wallet connects...');
@@ -813,6 +822,7 @@ const WalletContextProvider = ({ children }) => {
         createRailgunWallet,
         loadRailgunWalletByID,
         setLoggers,
+        setOnBalanceUpdateCallback,
       } = await import('@railgun-community/wallet');
       
       console.log('✅ Official Railgun SDK imported');
@@ -967,7 +977,15 @@ const WalletContextProvider = ({ children }) => {
       }
 
       // Step 3: Set up balance callbacks
-      // ✅ REDIS-ONLY: Balance callbacks disabled - useBalances.js manages all balance state
+      setOnBalanceUpdateCallback((balancesEvent) => {
+        console.log('🔄 Railgun balance update:', balancesEvent);
+        // Trigger UI update
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('railgun-balance-update', {
+            detail: balancesEvent
+          }));
+        }
+      });
 
       // 🛑 CRITICAL: Pause providers after full initialization to prevent wasteful polling
       console.log('⏸️ Pausing RAILGUN providers after full init to prevent RPC polling...');

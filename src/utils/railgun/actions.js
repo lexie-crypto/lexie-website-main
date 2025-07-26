@@ -35,8 +35,8 @@ import {
   estimateGasWithBroadcasterFee,
   calculateBroadcasterFee,
 } from './tx-gas-broadcaster-fee-estimator.js';
-import { parseUnits } from 'ethers';
 import { waitForRailgunReady } from './engine.js';
+import { parseTokenAmount } from './balances.js';
 
 /**
  * Network mapping to Railgun NetworkName enum values
@@ -90,24 +90,9 @@ const createERC20AmountRecipient = (tokenAddress, amount, recipientAddress) => {
   };
 };
 
-/**
- * Parse token amount from decimal string to base units
- * @param {string} amount - Amount in decimal format
- * @param {number} decimals - Token decimals
- * @returns {string} Amount in base units
- */
-export const parseTokenAmount = (amount, decimals) => {
-  try {
-    if (!amount || amount === '0') return '0';
-    return parseUnits(amount, decimals).toString();
-  } catch (error) {
-    console.error('[RailgunActions] Failed to parse token amount:', error);
-    return '0';
-  }
-};
-
 // Re-export functions as named exports
 export { shieldTokens };
+export { parseTokenAmount };
 
 /**
  * UNSHIELD: Move tokens from private Railgun wallet to public wallet
