@@ -215,11 +215,11 @@ const compareERC20AmountRecipient = (recipient1, recipient2) => {
 };
 
 /**
- * Validate cached proved transaction against new parameters
+ * Validate cached proved transaction against new parameters (throws errors like official SDK)
  * @param {Object} params - Parameters to validate against
  * @param {string} walletID - Railgun wallet ID
  * @param {number|string} chainId - Chain ID
- * @returns {boolean} True if validation passes
+ * @throws {Error} If validation fails
  */
 export const validateCachedProvedTransaction = ({
   proofType,
@@ -239,53 +239,63 @@ export const validateCachedProvedTransaction = ({
       walletID: walletID?.slice(0, 8) + '...',
       networkName: getNetworkNameFromChainId(chainId),
     });
-    return false;
+    throw new Error('No proof found.');
   }
   
   if (isCachedProofExpired(walletID, chainId)) {
     console.log('[ProofCache] ❌ Cached proof is expired');
     clearCachedProvedTransaction(walletID, chainId);
-    return false;
+    throw new Error('Cached proof expired.');
   }
   
-  // Detailed validation logging
-  const validations = {
-    proofType: cached.proofType === proofType,
-    txidVersion: cached.txidVersion === txidVersion,
-    networkName: cached.networkName === networkName,
-    railgunWalletID: cached.railgunWalletID === railgunWalletID,
-    sendWithPublicWallet: cached.sendWithPublicWallet === sendWithPublicWallet,
-    overallBatchMinGasPrice: cached.overallBatchMinGasPrice === overallBatchMinGasPrice,
-    erc20AmountRecipients: compareERC20AmountRecipients(cached.erc20AmountRecipients, erc20AmountRecipients),
-    nftAmountRecipients: Array.isArray(cached.nftAmountRecipients) && Array.isArray(nftAmountRecipients) && 
-                        cached.nftAmountRecipients.length === nftAmountRecipients.length,
-    broadcasterFee: compareERC20AmountRecipient(cached.broadcasterFeeERC20AmountRecipient, broadcasterFeeERC20AmountRecipient),
-  };
-  
-  const allValid = Object.values(validations).every(v => v === true);
-  
-  console.log('[ProofCache] 🔍 Proof validation results:', {
-    overall: allValid ? '✅ VALID' : '❌ INVALID',
-    ...validations,
-    cachedTimestamp: new Date(cached.timestamp).toISOString(),
-  });
-  
-  if (!allValid) {
-    const failedValidations = Object.entries(validations)
-      .filter(([, valid]) => !valid)
-      .map(([key]) => key);
-    
-    console.log('[ProofCache] ❌ Failed validations:', {
-      walletID: walletID?.slice(0, 8) + '...',
-      networkName: getNetworkNameFromChainId(chainId),
-      failedValidations,
-    });
+  // Detailed validation with specific error messages (like official SDK)
+  if (cached.txidVersion !== txidVersion) {
     clearCachedProvedTransaction(walletID, chainId);
-    return false;
+    throw new Error('Mismatch: txidVersion.');
   }
   
-  console.log('[ProofCache] ✅ Cached proof validation passed');
-  return true;
+  if (cached.proofType !== proofType) {
+    clearCachedProvedTransaction(walletID, chainId);
+    throw new Error('Mismatch: proofType.');
+  }
+  
+  if (cached.networkName !== networkName) {
+    clearCachedProvedTransaction(walletID, chainId);
+    throw new Error('Mismatch: networkName.');
+  }
+  
+  if (cached.railgunWalletID !== railgunWalletID) {
+    clearCachedProvedTransaction(walletID, chainId);
+    throw new Error('Mismatch: railgunWalletID.');
+  }
+  
+  if (cached.sendWithPublicWallet !== sendWithPublicWallet) {
+    clearCachedProvedTransaction(walletID, chainId);
+    throw new Error('Mismatch: sendWithPublicWallet.');
+  }
+  
+  if (cached.overallBatchMinGasPrice !== overallBatchMinGasPrice) {
+    clearCachedProvedTransaction(walletID, chainId);
+    throw new Error('Mismatch: overallBatchMinGasPrice.');
+  }
+  
+  if (!compareERC20AmountRecipients(cached.erc20AmountRecipients, erc20AmountRecipients)) {
+    clearCachedProvedTransaction(walletID, chainId);
+    throw new Error('Mismatch: erc20AmountRecipients.');
+  }
+  
+  if (!(Array.isArray(cached.nftAmountRecipients) && Array.isArray(nftAmountRecipients) && 
+        cached.nftAmountRecipients.length === nftAmountRecipients.length)) {
+    clearCachedProvedTransaction(walletID, chainId);
+    throw new Error('Mismatch: nftAmountRecipients.');
+  }
+  
+  if (!compareERC20AmountRecipient(cached.broadcasterFeeERC20AmountRecipient, broadcasterFeeERC20AmountRecipient)) {
+    clearCachedProvedTransaction(walletID, chainId);
+    throw new Error('Mismatch: broadcasterFeeERC20AmountRecipient.');
+  }
+  
+  console.log('[ProofCache] ✅ Cached proof validation passed for wallet/network');
 };
 
 /**
@@ -316,6 +326,71 @@ export const populateCachedTransaction = (gasDetails, walletID, chainId) => {
     nullifiers: cached.nullifiers,
     preTransactionPOIsPerTxidLeafPerList: cached.preTransactionPOIsPerTxidLeafPerList,
   };
+};
+
+/**
+ * Populate proved transaction wrapper (like official SDK) - handles validation + population
+ * SCALABLE: Works with our cachedProofs[walletId][networkName] structure for thousands of users
+ * @param {string} txidVersion - Transaction ID version
+ * @param {string} networkName - Network name
+ * @param {string} proofType - Proof type
+ * @param {string} railgunWalletID - Railgun wallet ID
+ * @param {Array} erc20AmountRecipients - ERC20 recipients
+ * @param {Array} nftAmountRecipients - NFT recipients
+ * @param {Object} broadcasterFeeERC20AmountRecipient - Broadcaster fee
+ * @param {boolean} sendWithPublicWallet - Send with public wallet
+ * @param {bigint} overallBatchMinGasPrice - Overall batch min gas price
+ * @param {Object} gasDetails - Gas details for transaction
+ * @param {string} walletID - Railgun wallet ID (for our multi-user cache)
+ * @param {number|string} chainId - Chain ID (for our multi-user cache)
+ * @returns {Object} Transaction data from cache
+ */
+export const populateProvedTransaction = async (
+  txidVersion,
+  networkName,
+  proofType,
+  railgunWalletID,
+  erc20AmountRecipients,
+  nftAmountRecipients,
+  broadcasterFeeERC20AmountRecipient,
+  sendWithPublicWallet,
+  overallBatchMinGasPrice,
+  gasDetails,
+  walletID,
+  chainId
+) => {
+  try {
+    // Validate cached proof (throws errors if invalid) - scoped to walletID + chainId
+    validateCachedProvedTransaction({
+      proofType,
+      txidVersion,
+      networkName,
+      railgunWalletID,
+      erc20AmountRecipients,
+      nftAmountRecipients,
+      broadcasterFeeERC20AmountRecipient,
+      sendWithPublicWallet,
+      overallBatchMinGasPrice,
+    }, walletID, chainId);
+    
+    // Get cached transaction data from our scalable cache structure
+    const cached = getCachedProvedTransaction(walletID, chainId);
+    
+    console.log('[ProofCache] ✅ Using valid cached proof for wallet/network:', {
+      walletID: walletID?.slice(0, 8) + '...',
+      networkName: getNetworkNameFromChainId(chainId),
+      proofType: cached.proofType,
+    });
+    
+    return {
+      transaction: cached.transaction,
+      nullifiers: cached.nullifiers,
+      preTransactionPOIsPerTxidLeafPerList: cached.preTransactionPOIsPerTxidLeafPerList,
+    };
+    
+  } catch (cause) {
+    throw new Error(`Invalid proof for this transaction`, { cause });
+  }
 };
 
 export default {

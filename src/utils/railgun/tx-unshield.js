@@ -19,6 +19,7 @@ import { generateUnshieldProof } from './tx-proof-unshield.js';
 import {
   validateCachedProvedTransaction,
   populateCachedTransaction,
+  populateProvedTransaction,
   setCachedProvedTransaction,
   clearCachedProvedTransaction,
   CachedProvedTransaction,
@@ -244,10 +245,11 @@ export const unshieldTokens = async ({
       hasBroadcasterFee: !!broadcasterFeeInfo,
     });
 
-    // Step 2: Proof caching logic with proper flow validation
-    console.log('[UnshieldTransactions] 🔐 Checking proof cache for wallet/network...');
+    // Step 2: Official SDK pattern with scalable cache - Clear cache at start for this wallet/network
+    console.log('[UnshieldTransactions] 🧹 Clearing existing cache for wallet/network (like official SDK)...');
+    clearCachedProvedTransaction(railgunWalletID, chain.id);
     
-    // CRITICAL: Store these exact values to ensure they match during validation
+    // CRITICAL: Store exact values for consistent cache validation (SCALABLE: scoped per wallet/network)
     const proofParams = {
       proofType: 'unshield',
       txidVersion,
@@ -260,99 +262,90 @@ export const unshieldTokens = async ({
       overallBatchMinGasPrice: undefined, // Must be undefined for public wallet unshields
     };
     
-    console.log('[UnshieldTransactions] 🔍 Cache validation for:', {
+    console.log('[UnshieldTransactions] 🔍 Generating proof with params (scalable cache):', {
       walletID: railgunWalletID?.slice(0, 8) + '...',
       networkName,
       chainId: chain.id,
       proofType: proofParams.proofType,
+      txidVersion: proofParams.txidVersion,
+      overallBatchMinGasPrice: proofParams.overallBatchMinGasPrice,
       erc20Recipients: proofParams.erc20AmountRecipients.length,
       nftRecipients: proofParams.nftAmountRecipients.length,
-      hasBroadcasterFee: !!proofParams.broadcasterFeeERC20AmountRecipient,
       sendWithPublicWallet: proofParams.sendWithPublicWallet,
     });
     
-    // Step 2a: Check validateCachedProvedTransaction() before calling generateProofAndSend()
-    const isValidCachedProof = validateCachedProvedTransaction(proofParams, railgunWalletID, chain.id);
-    
     let populatedTransaction;
     
-    if (isValidCachedProof) {
-      console.log('[UnshieldTransactions] ✅ Valid cached proof found - using cache');
+    // Step 2a: Try to use existing cache first (like official SDK populateProvedTransaction)
+    try {
+      populatedTransaction = await populateProvedTransaction(
+        proofParams.txidVersion,
+        proofParams.networkName,
+        proofParams.proofType,
+        proofParams.railgunWalletID,
+        proofParams.erc20AmountRecipients,
+        proofParams.nftAmountRecipients,
+        proofParams.broadcasterFeeERC20AmountRecipient,
+        proofParams.sendWithPublicWallet,
+        proofParams.overallBatchMinGasPrice,
+        gasDetails,
+        railgunWalletID, // Our scalable cache keys
+        chain.id
+      );
       
-      try {
-        populatedTransaction = populateCachedTransaction(gasDetails, railgunWalletID, chain.id);
-        console.log('[UnshieldTransactions] ✅ Transaction populated from valid cache');
-      } catch (cacheError) {
-        console.error('[UnshieldTransactions] ❌ Cache population failed despite validation:', cacheError.message);
-        
-        // Clear invalid/corrupted cache as requested
-        console.log('[UnshieldTransactions] 🧹 Clearing invalid cached proof...');
-        clearCachedProvedTransaction(railgunWalletID, chain.id);
-        
-        // Fall through to generate new proof
-        populatedTransaction = null;
-      }
-    }
-    
-    // Step 2b: Generate new proof if cache is invalid, expired, or population failed
-    if (!isValidCachedProof || !populatedTransaction) {
-      const reason = !isValidCachedProof ? 'invalid/expired cache' : 'cache population failure';
-      console.log(`[UnshieldTransactions] 🔄 Generating new proof due to: ${reason}`);
+      console.log('[UnshieldTransactions] ✅ Used existing valid cached proof');
       
-      /**
-       * Generate proof and send transaction
-       */
-      const generateProofAndSend = async () => {
-        // Generate new proof
-        await generateUnshieldProof(
-          proofParams.txidVersion,
-          proofParams.networkName,
-          proofParams.railgunWalletID,
-          encryptionKey, // Not stored in proofParams for security
-          proofParams.erc20AmountRecipients,
-          proofParams.nftAmountRecipients,
-          proofParams.broadcasterFeeERC20AmountRecipient,
-          proofParams.sendWithPublicWallet,
-          proofParams.overallBatchMinGasPrice,
-          (progress) => {
-            console.log(`[UnshieldTransactions] Proof generation progress: ${Math.round(progress * 100)}%`);
-          }
-        );
-        
-        console.log('[UnshieldTransactions] ✅ New proof generation completed');
-        
-        // Populate transaction using SDK's internal proof cache
-        const newPopulatedTransaction = await populateProvedUnshield(
-          proofParams.txidVersion,
-          proofParams.networkName,
-          proofParams.railgunWalletID,
-          proofParams.erc20AmountRecipients,
-          proofParams.nftAmountRecipients,
-          proofParams.broadcasterFeeERC20AmountRecipient,
-          proofParams.sendWithPublicWallet,
-          proofParams.overallBatchMinGasPrice,
-          gasDetails
-        );
-        
-        return newPopulatedTransaction;
-      };
+    } catch (cacheError) {
+      console.log('[UnshieldTransactions] 🔄 No valid cache - generating new proof...', cacheError.message);
       
-      // Call generateProofAndSend() only after validateCachedProvedTransaction() check
-      populatedTransaction = await generateProofAndSend();
+      // Step 2b: Generate fresh proof (like official SDK)
+      await generateUnshieldProof(
+        proofParams.txidVersion,
+        proofParams.networkName,
+        proofParams.railgunWalletID,
+        encryptionKey, // Not stored in proofParams for security
+        proofParams.erc20AmountRecipients,
+        proofParams.nftAmountRecipients,
+        proofParams.broadcasterFeeERC20AmountRecipient,
+        proofParams.sendWithPublicWallet,
+        proofParams.overallBatchMinGasPrice,
+        (progress) => {
+          console.log(`[UnshieldTransactions] Proof generation progress: ${Math.round(progress * 100)}%`);
+        }
+      );
       
-      // Step 2c: Only call setCachedProvedTransaction() after successful proof generation
-      console.log('[UnshieldTransactions] 🔐 Caching successful proof for future use...');
+      console.log('[UnshieldTransactions] ✅ Proof generation completed');
       
+      // Step 2c: Cache proof IMMEDIATELY after generation (like official SDK)
       const cachedProof = new CachedProvedTransaction({
         ...proofParams,
-        transaction: populatedTransaction.transaction,
-        nullifiers: populatedTransaction.nullifiers,
-        preTransactionPOIsPerTxidLeafPerList: populatedTransaction.preTransactionPOIsPerTxidLeafPerList,
+        transaction: undefined, // Will be populated below
+        nullifiers: undefined,
+        preTransactionPOIsPerTxidLeafPerList: undefined,
       });
       
+      // Populate transaction using SDK's internal proof cache
+      populatedTransaction = await populateProvedUnshield(
+        proofParams.txidVersion,
+        proofParams.networkName,
+        proofParams.railgunWalletID,
+        proofParams.erc20AmountRecipients,
+        proofParams.nftAmountRecipients,
+        proofParams.broadcasterFeeERC20AmountRecipient,
+        proofParams.sendWithPublicWallet,
+        proofParams.overallBatchMinGasPrice,
+        gasDetails
+      );
+      
+      // Update cache with complete transaction data
+      cachedProof.transaction = populatedTransaction.transaction;
+      cachedProof.nullifiers = populatedTransaction.nullifiers;
+      cachedProof.preTransactionPOIsPerTxidLeafPerList = populatedTransaction.preTransactionPOIsPerTxidLeafPerList;
+      
+      // Cache the complete proof (SCALABLE: scoped to walletID + chainId)
       setCachedProvedTransaction(cachedProof, railgunWalletID, chain.id);
       
-      console.log('[UnshieldTransactions] ✅ New proof cached for wallet/network');
+      console.log('[UnshieldTransactions] ✅ Transaction populated and cached for wallet/network');
     }
 
     // Debug: Log the raw transaction from Railgun SDK
@@ -422,6 +415,8 @@ export const unshieldTokens = async ({
       console.error('[UnshieldTransactions] ❌ Missing or empty call data');
       throw new Error('Transaction missing call data');
     }
+    
+    // Note: Caching now happens immediately after proof generation (like official SDK)
     
     console.log('[UnshieldTransactions] 🔄 Sending transaction to wallet for signing...');
     
