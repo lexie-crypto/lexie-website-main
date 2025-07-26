@@ -183,27 +183,61 @@ export const unshieldTokens = async ({
     const walletSigner = await walletProvider();
     
     // Format transaction for sending (convert BigInt to hex strings)
+    // ⚠️ CRITICAL FIX: Let wallet estimate gas instead of forcing our gas limit
     const txForSending = {
       ...populatedTransaction.transaction,
-      gasLimit: populatedTransaction.transaction.gasLimit ? '0x' + populatedTransaction.transaction.gasLimit.toString(16) : undefined,
+      // Remove gasLimit - let wallet estimate gas naturally
+      // Note: We keep our estimated gas as fallback in gasDetails for reference
+      gasLimit: undefined,
       gasPrice: populatedTransaction.transaction.gasPrice ? '0x' + populatedTransaction.transaction.gasPrice.toString(16) : undefined,
       maxFeePerGas: populatedTransaction.transaction.maxFeePerGas ? '0x' + populatedTransaction.transaction.maxFeePerGas.toString(16) : undefined,
       maxPriorityFeePerGas: populatedTransaction.transaction.maxPriorityFeePerGas ? '0x' + populatedTransaction.transaction.maxPriorityFeePerGas.toString(16) : undefined,
       value: populatedTransaction.transaction.value ? '0x' + populatedTransaction.transaction.value.toString(16) : '0x0',
     };
     
+    console.log('[UnshieldTransactions] 💡 Gas estimation info:', {
+      ourEstimate: gasDetails.gasEstimate?.toString(),
+      evmGasType: gasDetails.evmGasType,
+      sendWithPublicWallet: true,
+      note: 'Letting wallet estimate gas to avoid estimation conflicts',
+    });
+    
+    // Clean up transaction object - remove undefined values that might confuse wallet
+    Object.keys(txForSending).forEach(key => {
+      if (txForSending[key] === undefined) {
+        delete txForSending[key];
+      }
+    });
+    
     console.log('[UnshieldTransactions] Formatted transaction for sending:', {
       to: txForSending.to,
+      data: txForSending.data ? txForSending.data.slice(0, 10) + '...' : 'undefined',
       value: txForSending.value,
-      gasLimit: txForSending.gasLimit,
+      gasLimit: txForSending.gasLimit || 'wallet-estimated',
       gasPrice: txForSending.gasPrice,
       maxFeePerGas: txForSending.maxFeePerGas,
       maxPriorityFeePerGas: txForSending.maxPriorityFeePerGas,
+      type: txForSending.type,
     });
     
-    // Send transaction and get receipt
-    const txResponse = await walletSigner.sendTransaction(txForSending);
-    const transactionHash = txResponse.hash || txResponse;
+    console.log('[UnshieldTransactions] 🔄 Sending transaction to wallet for signing...');
+    
+    let txResponse, transactionHash;
+    try {
+      // Send transaction and get receipt
+      txResponse = await walletSigner.sendTransaction(txForSending);
+      transactionHash = txResponse.hash || txResponse;
+      
+      console.log('[UnshieldTransactions] ✅ Transaction sent successfully:', transactionHash);
+    } catch (walletError) {
+      console.error('[UnshieldTransactions] ❌ Wallet transaction failed:', {
+        error: walletError.message,
+        code: walletError.code,
+        data: walletError.data,
+        transaction: txForSending,
+      });
+      throw new Error(`Wallet transaction failed: ${walletError.message}`);
+    }
     
     console.log('[UnshieldTransactions] ✅ Unshield operation completed successfully!');
     
