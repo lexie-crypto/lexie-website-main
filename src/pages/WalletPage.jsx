@@ -27,7 +27,7 @@ import {
   parseTokenAmount,
   isTokenSupportedByRailgun,
 } from '../utils/railgun/actions';
-import { checkSufficientBalance } from '../utils/web3/balances';
+// Removed deprecated checkSufficientBalance import
 import { deriveEncryptionKey } from '../utils/railgun/wallet';
 
 const WalletPage = () => {
@@ -134,17 +134,12 @@ const WalletPage = () => {
         throw new Error(`${token.symbol} is not supported by Railgun on this network`);
       }
 
-      // Check sufficient balance
-      const balanceCheck = await checkSufficientBalance(
-        address,
-        token.address,
-        amount,
-        chainId,
-        publicBalances
-      );
-
-      if (!balanceCheck.hasSufficient) {
-        throw new Error(`Insufficient balance. Available: ${balanceCheck.available} ${token.symbol}`);
+      // Check sufficient balance - using direct balance check instead of deprecated function
+      const requestedAmount = parseFloat(amount);
+      const availableAmount = token.numericBalance || 0;
+      
+      if (availableAmount < requestedAmount) {
+        throw new Error(`Insufficient balance. Available: ${availableAmount} ${token.symbol}`);
       }
 
       // Parse amount to smallest units
