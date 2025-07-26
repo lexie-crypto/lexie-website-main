@@ -101,6 +101,14 @@ const WalletPage = () => {
     }
   }, [isConnected, address, canUseRailgun, railgunWalletId, refreshAllBalances, loadPrivateBalancesFromMetadata]);
 
+  // Auto-refresh public balances when wallet connects
+  useEffect(() => {
+    if (isConnected && address && chainId) {
+      console.log('[WalletPage] 🔄 Wallet connected - auto-refreshing public balances...');
+      refreshAllBalances();
+    }
+  }, [isConnected, address, chainId, refreshAllBalances]);
+
   // Auto-switch to privacy view when Railgun is ready
   useEffect(() => {
     if (canUseRailgun && railgunWalletId) {
