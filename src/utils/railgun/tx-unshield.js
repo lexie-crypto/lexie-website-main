@@ -79,6 +79,19 @@ export const unshieldTokens = async ({
       hasBroadcaster: !!selectedBroadcaster,
     });
 
+    // Debug: Log detailed inputs for troubleshooting
+    console.log('[UnshieldTransactions] 🔍 Detailed operation parameters:', {
+      railgunWalletID: railgunWalletID?.slice(0, 8) + '...',
+      tokenAddress: tokenAddress || 'NATIVE_TOKEN',
+      amountString: amount,
+      amountBigInt: BigInt(amount).toString(),
+      chainName: chain.name,
+      chainId: chain.id,
+      toAddress: toAddress,
+      hasWalletProvider: typeof walletProvider === 'function',
+      selectedBroadcaster: selectedBroadcaster?.railgunAddress || 'none',
+    });
+
     // Validate inputs
     if (!railgunWalletID || typeof railgunWalletID !== 'string') {
       throw new Error('Railgun wallet ID must be a non-empty string');
@@ -108,35 +121,47 @@ export const unshieldTokens = async ({
     const erc20AmountRecipients = [erc20AmountRecipient];
     const nftAmountRecipients = []; // Always empty for unshield
 
-    // Step 1: Gas estimation
-    console.log('[UnshieldTransactions] Estimating gas...');
-    const originalGasDetails = createUnshieldGasDetails(networkName, true, BigInt(100000));
+    // Step 1: Gas estimation with proper parameters (check what unshield really needs)
+    console.log('[UnshieldTransactions] Estimating gas for unshield operation...');
     
-    const gasEstimateFunction = async (...params) => {
-      return await gasEstimateForUnprovenUnshield(...params);
-    };
-
-    const gasEstimateParams = [
+    // Create basic gas details for estimation (unshield needs this unlike shield)
+    const estimationGasDetails = createUnshieldGasDetails(networkName, BigInt(500000));
+    
+    console.log('[UnshieldTransactions] 🔍 Gas estimation parameters:', {
+      txidVersion,
+      networkName,
+      railgunWalletID: railgunWalletID?.slice(0, 8) + '...',
+      hasEncryptionKey: !!encryptionKey,
+      erc20Recipients: erc20AmountRecipients.length,
+      nftRecipients: nftAmountRecipients.length,
+      estimationGasDetails: {
+        gasEstimate: estimationGasDetails.gasEstimate?.toString(),
+        evmGasType: estimationGasDetails.evmGasType,
+      },
+    });
+    
+    const gasEstimateResponse = await gasEstimateForUnprovenUnshield(
       txidVersion,
       networkName,
       railgunWalletID,
       encryptionKey,
       erc20AmountRecipients,
       nftAmountRecipients,
-      originalGasDetails,
-      undefined, // feeTokenDetails
-      true, // sendWithPublicWallet
-    ];
-
-    const gasEstimationResult = await estimateGasWithBroadcasterFee(
-      networkName,
-      gasEstimateFunction,
-      gasEstimateParams,
-      selectedBroadcaster,
-      'unshield'
+      // Note: Shield doesn't pass gas details to estimation, so we don't either
     );
 
-    const { gasDetails, broadcasterFeeInfo, iterations } = gasEstimationResult;
+    // Extract the gas estimate value from the response (EXACT same as shield)
+    const gasEstimate = gasEstimateResponse.gasEstimate || gasEstimateResponse;
+    console.log('[UnshieldTransactions] Gas estimate response:', {
+      gasEstimate: gasEstimate.toString(),
+      type: typeof gasEstimate
+    });
+
+    // Create real gas details for unshield operation (matching shield pattern)
+    const gasDetails = createUnshieldGasDetails(networkName, gasEstimate);
+    
+    const broadcasterFeeInfo = null; // No broadcaster for unshield (same as shield)
+    const iterations = 1; // Direct estimation (same as shield)
 
     console.log('[UnshieldTransactions] Gas estimation completed:', {
       gasEstimate: gasDetails.gasEstimate.toString(),
@@ -176,6 +201,16 @@ export const unshieldTokens = async ({
       gasDetails
     );
 
+    // Debug: Log the raw transaction from Railgun SDK
+    console.log('[UnshieldTransactions] 🔍 Raw transaction from Railgun SDK:', {
+      transaction: populatedTransaction.transaction,
+      to: populatedTransaction.transaction.to,
+      data: populatedTransaction.transaction.data,
+      value: populatedTransaction.transaction.value?.toString(),
+      gasLimit: populatedTransaction.transaction.gasLimit?.toString(),
+      type: populatedTransaction.transaction.type,
+    });
+
     // Step 4: Send transaction on-chain
     console.log('[UnshieldTransactions] Sending transaction on-chain...');
     
@@ -212,13 +247,27 @@ export const unshieldTokens = async ({
     console.log('[UnshieldTransactions] Formatted transaction for sending:', {
       to: txForSending.to,
       data: txForSending.data ? txForSending.data.slice(0, 10) + '...' : 'undefined',
+      dataLength: txForSending.data ? txForSending.data.length : 0,
       value: txForSending.value,
       gasLimit: txForSending.gasLimit || 'wallet-estimated',
       gasPrice: txForSending.gasPrice,
       maxFeePerGas: txForSending.maxFeePerGas,
       maxPriorityFeePerGas: txForSending.maxPriorityFeePerGas,
       type: txForSending.type,
+      isValidAddress: txForSending.to && txForSending.to.startsWith('0x') && txForSending.to.length === 42,
+      hasCallData: !!txForSending.data && txForSending.data !== '0x',
     });
+
+    // Additional validation
+    if (!txForSending.to || !txForSending.to.startsWith('0x') || txForSending.to.length !== 42) {
+      console.error('[UnshieldTransactions] ❌ Invalid contract address:', txForSending.to);
+      throw new Error(`Invalid contract address: ${txForSending.to}`);
+    }
+
+    if (!txForSending.data || txForSending.data === '0x') {
+      console.error('[UnshieldTransactions] ❌ Missing or empty call data');
+      throw new Error('Transaction missing call data');
+    }
     
     console.log('[UnshieldTransactions] 🔄 Sending transaction to wallet for signing...');
     
@@ -271,7 +320,30 @@ export const unshieldTokens = async ({
     };
 
   } catch (error) {
-    console.error('[UnshieldTransactions] Unshield operation failed:', error);
+    console.error('[UnshieldTransactions] ❌ Unshield operation failed:', {
+      error: error.message,
+      stack: error.stack,
+      name: error.name,
+      code: error.code,
+      data: error.data,
+      networkName,
+      railgunWalletID,
+      step: 'Unknown - check logs above for specific step',
+    });
+    
+    // Enhanced error messages for common issues
+    if (error.message?.includes('gas estimation failed') || error.message?.includes('execution reverted')) {
+      throw new Error(`Gas estimation failed. This could be due to insufficient balance, wrong network, or contract issues. Original error: ${error.message}`);
+    }
+    
+    if (error.message?.includes('user rejected') || error.message?.includes('user denied')) {
+      throw new Error(`Transaction cancelled by user: ${error.message}`);
+    }
+    
+    if (error.message?.includes('Invalid contract address')) {
+      throw new Error(`Invalid Railgun contract address for network ${networkName}. Check if Railgun is supported on this network.`);
+    }
+    
     throw new Error(`Unshield operation failed: ${error.message}`);
   }
 };
