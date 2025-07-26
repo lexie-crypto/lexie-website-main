@@ -121,8 +121,12 @@ export const unshieldTokens = async ({
     const erc20AmountRecipients = [erc20AmountRecipient];
     const nftAmountRecipients = []; // Always empty for unshield
 
-    // Now do the real gas estimation (EXACT same pattern as working shield)
+    // Step 1: Gas estimation - Add back the parameters we need to solve "Must send with broadcaster or public wallet"
     console.log('[UnshieldTransactions] Estimating gas for unshield operation...');
+    
+    // Create minimal gas details for estimation (unshield needs this unlike shield)
+    const estimationGasDetails = createUnshieldGasDetails(networkName, true, BigInt(500000));
+    
     const gasEstimateResponse = await gasEstimateForUnprovenUnshield(
       txidVersion,
       networkName,
@@ -130,6 +134,9 @@ export const unshieldTokens = async ({
       encryptionKey,
       erc20AmountRecipients,
       nftAmountRecipients,
+      estimationGasDetails, // Unshield needs gas details for estimation
+      undefined, // feeTokenDetails
+      true, // sendWithPublicWallet - THIS was the fix for "Must send with broadcaster or public wallet"
     );
 
     // Extract the gas estimate value from the response (EXACT same as shield)
