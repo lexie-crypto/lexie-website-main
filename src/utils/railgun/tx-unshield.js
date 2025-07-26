@@ -121,8 +121,12 @@ export const unshieldTokens = async ({
     const erc20AmountRecipients = [erc20AmountRecipient];
     const nftAmountRecipients = []; // Always empty for unshield
 
-    // Step 1: Gas estimation - EXACT same as working shield (no gas details to estimation!)
+    // Step 1: Gas estimation - Add missing parameters that unshield needs (unlike shield)
     console.log('[UnshieldTransactions] Estimating gas for unshield operation...');
+    
+    // Create minimal gas details for estimation (unshield needs this unlike shield)
+    const estimationGasDetails = createUnshieldGasDetails(networkName, BigInt(500000));
+    
     const gasEstimateResponse = await gasEstimateForUnprovenUnshield(
       txidVersion,
       networkName,
@@ -130,7 +134,9 @@ export const unshieldTokens = async ({
       encryptionKey,
       erc20AmountRecipients,
       nftAmountRecipients,
-      // Note: Shield doesn't pass ANY gas details to estimation function!
+      estimationGasDetails, // Unshield needs gas details for estimation
+      undefined, // feeTokenDetails
+      true, // sendWithPublicWallet - THIS is what was missing!
     );
 
     // Extract the gas estimate value from the response (EXACT same as shield)
