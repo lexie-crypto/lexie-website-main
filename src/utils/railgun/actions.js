@@ -142,7 +142,7 @@ export const unshieldTokens = async ({
     const nftAmountRecipients = []; // Always empty for unshield
 
     // Create initial gas details for estimation
-    const originalGasDetails = createUnshieldGasDetails(networkName, false, BigInt(100000)); // false = sendWithPublicWallet, BigInt(100000) = gasEstimate
+    const originalGasDetails = createUnshieldGasDetails(networkName, true, BigInt(100000)); // true = sendWithPublicWallet, BigInt(100000) = gasEstimate
     
     // Enhanced gas estimation with broadcaster fee support
     const gasEstimateFunction = async (...params) => {
@@ -156,9 +156,9 @@ export const unshieldTokens = async ({
       encryptionKey,
       erc20AmountRecipients,
       nftAmountRecipients,
-      originalGasDetails,       // Missing parameter 1
-      undefined,                // feeTokenDetails - optional, can be undefined
-      false,                    // sendWithPublicWallet - false for private unshield
+      originalGasDetails,
+      undefined,                // feeTokenDetails - not needed when sendWithPublicWallet=true
+      true,                     // sendWithPublicWallet - true for direct unshield to user's wallet
     ];
 
     console.log('[RailgunActions] Estimating gas for unshield...');
@@ -187,8 +187,8 @@ export const unshieldTokens = async ({
       railgunWalletID,
       erc20AmountRecipients,
       nftAmountRecipients,
-      broadcasterFeeInfo?.broadcasterFeeERC20AmountRecipient || undefined, // broadcaster fee
-      false, // sendWithPublicWallet
+      undefined, // broadcasterFeeERC20AmountRecipient - not needed when sendWithPublicWallet=true
+      true, // sendWithPublicWallet - true for direct unshield to user's wallet
       undefined, // overallBatchMinGasPrice
       gasDetails
     );
