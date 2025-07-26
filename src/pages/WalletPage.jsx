@@ -225,21 +225,22 @@ const WalletPage = () => {
         // Import the enhanced transaction monitor
         const { monitorTransactionInGraph } = await import('../utils/railgun/transactionMonitor');
         
-        // Start monitoring with new API specification
+        // Start monitoring with transaction details for optimistic updates
         monitorTransactionInGraph({
           txHash: txResponse.hash,
           chainId: chainConfig.id,
           transactionType: 'shield',
+          // Pass transaction details for optimistic UI update
+          transactionDetails: {
+            amount: amount,
+            tokenAddress: token.address,
+            tokenSymbol: token.symbol
+          },
           listener: async (event) => {
             console.log(`[WalletPage] ✅ Shield tx ${txResponse.hash} indexed on chain ${chainConfig.id}`);
             
-            // 🎯 FIXED: Just show success message - let useBalances hook handle refresh when appropriate
-            toast.success(`Shield confirmed and indexed! Balance will update automatically.`);
-                
-            // Also refresh UI balances via the hook
-            setTimeout(() => {
-              refreshAllBalances();
-            }, 1000);
+            // The useBalances hook will handle optimistic update automatically
+            toast.success(`Shield confirmed! Your private balance has been updated.`);
           }
         })
         .then((result) => {

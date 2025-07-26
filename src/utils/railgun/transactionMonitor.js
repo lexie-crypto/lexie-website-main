@@ -411,6 +411,7 @@ export const monitorTransactionInGraph = async ({
   txHash,
   chainId,
   transactionType, // 'shield' | 'unshield' | 'transfer'
+  transactionDetails = null, // Additional transaction details for optimistic updates
   listener = null, // Callback when transaction is detected
   currentBlockNumber = null,
   maxWaitTime = 120000, // 2 minutes
@@ -478,9 +479,14 @@ export const monitorTransactionInGraph = async ({
       if (hasEvent) {
         console.log('[TransactionMonitor] 🎉 Event confirmed in Graph, dispatching transaction confirmed event');
 
-        // 🎯 FIXED: Just dispatch event - let useBalances hook handle refresh when appropriate
+        // 🎯 FIXED: Dispatch event with transaction details for optimistic updates
         window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
-          detail: { txHash, chainId, transactionType }
+          detail: { 
+            txHash, 
+            chainId, 
+            transactionType,
+            ...transactionDetails // Spread transaction details (amount, tokenAddress, tokenSymbol)
+          }
         }));
 
         return { found: true, elapsedTime: Date.now() - startTime };
