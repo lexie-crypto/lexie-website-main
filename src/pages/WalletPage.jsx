@@ -78,18 +78,24 @@ const WalletPage = () => {
     }
   }, [canUseRailgun, railgunWalletId]);
 
-  // Show signature guide when wallet is connected but Railgun needs initialization
+  // Show signature guide on first-time EOA connection
   useEffect(() => {
-    if (isConnected && !canUseRailgun && !isInitializingRailgun && address) {
-      // Add a small delay to ensure wallet connection is fully established
-      const timer = setTimeout(() => {
-        setShowSignatureGuide(true);
-      }, 1500);
-      return () => clearTimeout(timer);
-    } else {
-      setShowSignatureGuide(false);
+    if (isConnected && address && !canUseRailgun && !isInitializingRailgun) {
+      // Check if this address has seen the guide before
+      const seenGuideKey = `railgun-guide-seen-${address.toLowerCase()}`;
+      const hasSeenGuide = localStorage.getItem(seenGuideKey);
+      
+      if (!hasSeenGuide) {
+        // Add small delay to ensure connection is fully established
+        const timer = setTimeout(() => {
+          setShowSignatureGuide(true);
+          // Mark this address as having seen the guide
+          localStorage.setItem(seenGuideKey, 'true');
+        }, 1000);
+        return () => clearTimeout(timer);
+      }
     }
-  }, [isConnected, canUseRailgun, isInitializingRailgun, address]);
+  }, [isConnected, address, canUseRailgun, isInitializingRailgun]);
 
   // Get encryption key
   const getEncryptionKey = useCallback(async () => {
@@ -133,7 +139,8 @@ const WalletPage = () => {
         address,
         token.address,
         amount,
-        chainId
+        chainId,
+        publicBalances
       );
 
       if (!balanceCheck.hasSufficient) {
