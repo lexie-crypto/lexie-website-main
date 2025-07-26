@@ -838,16 +838,28 @@ export function useBalances() {
       
       const shieldedNumeric = parseFloat(shieldedAmount);
       
+      // Find the matching token (case-insensitive symbol matching)
+      const findMatchingToken = (tokens, targetAddress, targetSymbol) => {
+        return tokens.find(token => {
+          const addressMatch = token.address?.toLowerCase() === targetAddress?.toLowerCase();
+          const symbolMatch = token.symbol?.toLowerCase() === targetSymbol?.toLowerCase();
+          return addressMatch || symbolMatch;
+        });
+      };
+      
       // Update public balances (decrease)
       const updatedPublic = currentPublic.map(token => {
-        if (token.address?.toLowerCase() === tokenAddress?.toLowerCase() || 
-            token.symbol === tokenSymbol) {
+        const isMatch = (token.address?.toLowerCase() === tokenAddress?.toLowerCase()) || 
+                       (token.symbol?.toLowerCase() === tokenSymbol?.toLowerCase());
+        
+        if (isMatch) {
           const newBalance = Math.max(0, token.numericBalance - shieldedNumeric);
           return {
             ...token,
             numericBalance: newBalance,
             hasBalance: newBalance > 0,
-            balance: newBalance.toString()
+            balance: newBalance.toString(),
+            formattedBalance: newBalance.toFixed(6)
           };
         }
         return token;
@@ -855,10 +867,11 @@ export function useBalances() {
       
       // Update private balances (increase or create)
       let updatedPrivate = [...currentPrivate];
-      const existingPrivateIndex = updatedPrivate.findIndex(token => 
-        token.address?.toLowerCase() === tokenAddress?.toLowerCase() || 
-        token.symbol === tokenSymbol
-      );
+      const existingPrivateIndex = updatedPrivate.findIndex(token => {
+        const addressMatch = token.address?.toLowerCase() === tokenAddress?.toLowerCase();
+        const symbolMatch = token.symbol?.toLowerCase() === tokenSymbol?.toLowerCase();
+        return addressMatch || symbolMatch;
+      });
       
       if (existingPrivateIndex >= 0) {
         // Update existing private balance
@@ -869,22 +882,27 @@ export function useBalances() {
           numericBalance: newBalance,
           hasBalance: true,
           balance: newBalance.toString(),
+          formattedBalance: newBalance.toFixed(6),
           lastUpdated: new Date().toISOString()
         };
       } else {
-        // Create new private balance entry
-        const publicToken = currentPublic.find(token => 
-          token.address?.toLowerCase() === tokenAddress?.toLowerCase() || 
-          token.symbol === tokenSymbol
-        );
+        // Create new private balance entry with ONLY the shielded amount
+        const publicToken = findMatchingToken(currentPublic, tokenAddress, tokenSymbol);
         
         if (publicToken) {
           updatedPrivate.push({
-            ...publicToken,
+            symbol: publicToken.symbol,
+            address: publicToken.address,
+            tokenAddress: publicToken.address,
+            decimals: publicToken.decimals,
+            name: publicToken.name,
+            // CRITICAL: Use only the shielded amount, not the public balance
             numericBalance: shieldedNumeric,
-            hasBalance: true,
             balance: shieldedNumeric.toString(),
+            formattedBalance: shieldedNumeric.toFixed(6),
+            hasBalance: true,
             isPrivate: true,
+            chainId: currentChainId,
             lastUpdated: new Date().toISOString()
           });
         }
