@@ -121,56 +121,30 @@ export const unshieldTokens = async ({
     const erc20AmountRecipients = [erc20AmountRecipient];
     const nftAmountRecipients = []; // Always empty for unshield
 
-    // Step 1: Gas estimation - Use working wrapper approach with proper parameters
-    console.log('[UnshieldTransactions] Estimating gas with working wrapper approach...');
-    
-    // Create valid initial gas details (ensure we don't pass NaN)
-    const validGasEstimate = BigInt(500000); // Start with reasonable estimate
-    const originalGasDetails = createUnshieldGasDetails(networkName, validGasEstimate);
-    
-    console.log('[UnshieldTransactions] 🔍 Initial gas details:', {
-      gasEstimate: originalGasDetails.gasEstimate?.toString(),
-      evmGasType: originalGasDetails.evmGasType,
-      isValid: !!originalGasDetails.gasEstimate,
-    });
-    
-    const gasEstimateFunction = async (...params) => {
-      console.log('[UnshieldTransactions] Calling gasEstimateForUnprovenUnshield with params:', params.length);
-      return await gasEstimateForUnprovenUnshield(...params);
-    };
-
-    const gasEstimateParams = [
+    // Step 1: Gas estimation - EXACT same as working shield (no gas details to estimation!)
+    console.log('[UnshieldTransactions] Estimating gas for unshield operation...');
+    const gasEstimateResponse = await gasEstimateForUnprovenUnshield(
       txidVersion,
       networkName,
       railgunWalletID,
       encryptionKey,
       erc20AmountRecipients,
       nftAmountRecipients,
-      originalGasDetails, // Pass valid gas details
-      undefined, // feeTokenDetails
-      true, // sendWithPublicWallet
-    ];
-
-    console.log('[UnshieldTransactions] 🔍 Gas estimation parameters:', {
-      txidVersion,
-      networkName,
-      railgunWalletID: railgunWalletID?.slice(0, 8) + '...',
-      hasEncryptionKey: !!encryptionKey,
-      erc20Recipients: erc20AmountRecipients.length,
-      nftRecipients: nftAmountRecipients.length,
-      hasOriginalGasDetails: !!originalGasDetails,
-      sendWithPublicWallet: true,
-    });
-
-    const gasEstimationResult = await estimateGasWithBroadcasterFee(
-      networkName,
-      gasEstimateFunction,
-      gasEstimateParams,
-      selectedBroadcaster,
-      'unshield'
+      // Note: Shield doesn't pass ANY gas details to estimation function!
     );
 
-    const { gasDetails, broadcasterFeeInfo, iterations } = gasEstimationResult;
+    // Extract the gas estimate value from the response (EXACT same as shield)
+    const gasEstimate = gasEstimateResponse.gasEstimate || gasEstimateResponse;
+    console.log('[UnshieldTransactions] Gas estimate response:', {
+      gasEstimate: gasEstimate.toString(),
+      type: typeof gasEstimate
+    });
+
+    // Create real gas details for unshield operation (EXACT same pattern as shield)
+    const gasDetails = createUnshieldGasDetails(networkName, gasEstimate);
+    
+    const broadcasterFeeInfo = null; // No broadcaster for unshield (same as shield)
+    const iterations = 1; // Direct estimation (same as shield)
 
     console.log('[UnshieldTransactions] Gas estimation completed:', {
       gasEstimate: gasDetails.gasEstimate.toString(),
