@@ -1,23 +1,14 @@
 /**
- * useBalances Hook - PRODUCTION READY WITH UI SYNC FIX
- * Manages public and private token balances with real blockchain data
+ * useBalances Hook - Redis-Only Balance Management
+ * Public balances: Real-time from blockchain
+ * Private balances: Redis-only with optimistic updates
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ethers, formatUnits, Contract } from 'ethers';
 import { useWallet } from '../contexts/WalletContext';
-import { getPrivateBalances, getPrivateBalancesFromCache, refreshPrivateBalances, refreshPrivateBalancesAndStore } from '../utils/railgun/balances';
-// ✅ REMOVED: Cache debug functions no longer needed - pure callback system now
 import { fetchTokenPrices } from '../utils/pricing/coinGecko';
 import { RPC_URLS } from '../config/environment';
-
-// Network mapping for UI display  
-const NETWORK_MAPPING = {
-  1: 'Ethereum',
-  42161: 'Arbitrum',
-  137: 'Polygon',
-  56: 'BNBChain',
-};
 
 // ERC20 ABI for balance checking
 const ERC20_ABI = [
@@ -27,7 +18,7 @@ const ERC20_ABI = [
   'function name() view returns (string)',
 ];
 
-// Common token addresses by chain
+// Token lists by chain
 const TOKEN_LISTS = {
   1: [ // Ethereum
     { address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', symbol: 'USDC', name: 'USD Coin', decimals: 6 },
@@ -52,7 +43,7 @@ const TOKEN_LISTS = {
   ],
 };
 
-// Chain ID to RPC URL mapping using environment configuration
+// Chain ID to RPC URL mapping
 const CHAIN_RPC_MAPPING = {
   1: RPC_URLS.ethereum,
   42161: RPC_URLS.arbitrum,
@@ -61,233 +52,44 @@ const CHAIN_RPC_MAPPING = {
 };
 
 export function useBalances() {
-  const { address, chainId, railgunWalletId, isRailgunInitialized, railgunAddress } = useWallet();
+  const { address, chainId, railgunWalletId, isRailgunInitialized } = useWallet();
+  
+  // State
   const [publicBalances, setPublicBalances] = useState([]);
   const [privateBalances, setPrivateBalances] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [tokenPrices, setTokenPrices] = useState({});
-  
-  // 🔍 DEBUG: Log wallet state changes to understand the issue
+
+  // Stable refs for event listeners
+  const stableRefs = useRef({});
   useEffect(() => {
-    console.log('[useBalances] 🔍 WALLET STATE DEBUG:', {
-      address: address?.slice(0, 8) + '...' || 'null',
+    stableRefs.current = {
+      address,
       chainId,
-      railgunWalletId: railgunWalletId?.slice(0, 8) + '...' || 'null',
-      isRailgunInitialized,
-      railgunAddress: railgunAddress?.slice(0, 8) + '...' || 'null',
-      timestamp: new Date().toISOString()
-    });
-  }, [address, chainId, railgunWalletId, isRailgunInitialized, railgunAddress]);
-  
-  // 🛑 CRITICAL: Add a disabled state to completely stop all balance operations when wallet disconnected
-  const [isBalanceSystemEnabled, setIsBalanceSystemEnabled] = useState(false);
-  
-  // Force re-render counter to fix UI desync issues - FIXED: Make more stable
-  const [, forceUpdate] = useState({});
-  const forceRerender = useCallback(() => {
-    console.log('[useBalances] 🔄 Force re-render triggered');
-    forceUpdate({});
-  }, []); // Empty dependency array to make it stable
-  
-  // 🛑 CRITICAL: Master switch to enable/disable balance system based on wallet connection
-  useEffect(() => {
-    const shouldBeEnabled = !!(address && chainId);
-    
-    if (shouldBeEnabled !== isBalanceSystemEnabled) {
-      if (shouldBeEnabled) {
-        console.log('[useBalances] 🟢 ENABLING balance system - wallet connected:', {
-          address: address?.slice(0, 8) + '...',
-          chainId,
-          railgunReady: isRailgunInitialized && !!railgunWalletId
-        });
-        setIsBalanceSystemEnabled(true);
-      } else {
-        console.log('[useBalances] 🔴 DISABLING balance system - wallet disconnected');
-        setIsBalanceSystemEnabled(false);
-        
-        // 🧹 AGGRESSIVE CLEANUP when disabling
-        setPublicBalances([]);
-        setPrivateBalances([]);
-        setLastUpdated(null);
-        setError(null);
-        setLoading(false);
-        setTokenPrices({});
-        
-        // Clear global balance exposure
-        if (typeof window !== 'undefined') {
-          window.__LEXIE_BALANCES__ = [];
-        }
-      }
-    }
-  }, [address, chainId, isBalanceSystemEnabled, isRailgunInitialized, railgunWalletId]);
-  
-  // Stable reference for setter functions
-  const setPrivateBalancesRef = useRef(setPrivateBalances);
-  setPrivateBalancesRef.current = setPrivateBalances;
+      railgunWalletId,
+      publicBalances,
+      privateBalances,
+      tokenPrices
+    };
+  });
 
-  // Enhanced balance setter with force re-render - FIXED: More stable dependencies
-  const updatePrivateBalances = useCallback((newBalances) => {
-    console.log('[useBalances] 🔄 Updating private balances with force re-render:', {
-      count: newBalances?.length || 0,
-      tokens: newBalances?.map(b => `${b.symbol}: ${b.formattedBalance}`) || []
-    });
-    
-    // Ensure we create a completely new array to trigger React updates
-    const freshBalances = Array.isArray(newBalances) 
-      ? newBalances.map((balance, index) => ({
-          ...balance,
-          // Add unique ID for React keys to prevent rendering issues
-          _id: `${balance.tokenAddress || 'native'}-${balance.symbol}-${index}`,
-          _timestamp: Date.now()
-        }))
-      : [];
-    
-    setPrivateBalances(freshBalances);
-    setLastUpdated(Date.now());
-    
-    // Force a re-render to ensure UI updates
-    forceRerender();
-  }, []); // Empty dependency array - use the stable forceRerender
-
-  // Register global hook reference for direct UI updates from balance callbacks - CRITICAL: Only when system enabled
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      if (isBalanceSystemEnabled) {
-        console.log('[useBalances] 🔗 Registering enhanced global hook reference for direct UI updates');
-        window.__LEXIE_HOOKS__ = {
-          ...window.__LEXIE_HOOKS__,
-          setPrivateBalances: updatePrivateBalances,
-          forceRerender,
-        };
-      } else {
-        console.log('[useBalances] 🔗 Cleaning up global hook reference - system disabled');
-        if (window.__LEXIE_HOOKS__?.setPrivateBalances === updatePrivateBalances) {
-          delete window.__LEXIE_HOOKS__.setPrivateBalances;
-          delete window.__LEXIE_HOOKS__.forceRerender;
-        }
-      }
-      
-      // Cleanup on unmount
-      return () => {
-        if (window.__LEXIE_HOOKS__?.setPrivateBalances === updatePrivateBalances) {
-          delete window.__LEXIE_HOOKS__.setPrivateBalances;
-          delete window.__LEXIE_HOOKS__.forceRerender;
-          console.log('[useBalances] 🔗 Cleaned up enhanced global hook reference on unmount');
-        }
-      };
+  // Get RPC provider for specific chain
+  const getProvider = useCallback((targetChainId) => {
+    const rpcUrl = CHAIN_RPC_MAPPING[targetChainId];
+    if (!rpcUrl) {
+      throw new Error(`No RPC URL configured for chain ${targetChainId}`);
     }
-  }, [isBalanceSystemEnabled, updatePrivateBalances, forceRerender]); // Added system enabled dependency
-
-  // Load private balances from wallet metadata on startup
-  const loadPrivateBalancesFromMetadata = useCallback(async (walletAddress, railgunWalletId) => {
-    try {
-      console.log('[useBalances] 🔄 Loading private balances from wallet metadata...');
-      
-      const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(walletAddress)}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        }
-      });
-      
-      if (!response.ok) {
-        console.log('[useBalances] No wallet metadata found, starting fresh');
-        return false;
-      }
-      
-      const result = await response.json();
-      if (!result.success || !result.keys || result.keys.length === 0) {
-        console.log('[useBalances] No wallet metadata keys found');
-        return false;
-      }
-      
-      // Find the metadata for our specific wallet ID
-      const metadata = result.keys.find(k => k.walletId === railgunWalletId);
-      if (!metadata || !metadata.privateBalances || metadata.privateBalances.length === 0) {
-        console.log('[useBalances] No private balances found in wallet metadata');
-        return false;
-      }
-      
-      // Convert stored balances back to UI format
-      const privateBalancesFromStorage = metadata.privateBalances.map(balance => ({
-        symbol: balance.symbol,
-        address: balance.tokenAddress,
-        tokenAddress: balance.tokenAddress,
-        numericBalance: balance.numericBalance,
-        formattedBalance: balance.numericBalance.toFixed(6),
-        balance: balance.numericBalance.toString(),
-        decimals: balance.decimals,
-        hasBalance: balance.numericBalance > 0,
-        isPrivate: true,
-        lastUpdated: balance.lastUpdated
-      }));
-      
-      console.log('[useBalances] ✅ Loaded private balances from wallet metadata:', {
-        count: privateBalancesFromStorage.length,
-        tokens: privateBalancesFromStorage.map(b => `${b.symbol}: ${b.numericBalance}`)
-      });
-      
-      setPrivateBalances(privateBalancesFromStorage);
-      return true; // Successfully loaded private balances
-      
-    } catch (error) {
-      console.error('[useBalances] Failed to load private balances from metadata:', error);
-      return false;
-    }
+    return new ethers.JsonRpcProvider(rpcUrl);
   }, []);
-
-  // Removed hasLoadedPrivateBalancesFromRedis state - no longer needed with REDIS-ONLY approach
-
-  // ✅ UPDATED: Load private balances from wallet metadata + callback-based approach
-  useEffect(() => {
-    // 🛑 CRITICAL: Only initialize when balance system is enabled AND RAILGUN fully ready
-    if (isBalanceSystemEnabled && railgunWalletId && chainId && address && isRailgunInitialized) {
-      console.log('[useBalances] 🎯 Loading stored private balances + ready for SDK callbacks...', {
-        address: address?.slice(0, 8) + '...',
-        walletId: railgunWalletId?.slice(0, 8) + '...',
-        systemEnabled: isBalanceSystemEnabled,
-        railgunInitialized: isRailgunInitialized,
-        railgunAddress: railgunAddress?.slice(0, 8) + '...' || 'null',
-        note: 'Loading private balances from metadata + waiting for SDK callbacks'
-      });
-      
-      // Load stored private balances from wallet metadata
-      loadPrivateBalancesFromMetadata(address, railgunWalletId).then((loadedSuccessfully) => {
-        if (loadedSuccessfully) {
-          console.log('[useBalances] 🛡️ Successfully loaded private balances from Redis');
-        } else {
-          console.log('[useBalances] ℹ️ No private balances found in Redis - starting fresh');
-        }
-      });
-      
-      console.log('[useBalances] ✅ Ready to receive SDK callback data');
-    } else {
-      console.log('[useBalances] ⏸️ Waiting for RAILGUN initialization for callback system:', {
-        systemEnabled: isBalanceSystemEnabled,
-        hasWallet: !!railgunWalletId,
-        walletIdValue: railgunWalletId?.slice(0, 8) + '...' || 'null',
-        hasChain: !!chainId,
-        hasAddress: !!address,
-        railgunInitialized: isRailgunInitialized,
-        railgunAddress: railgunAddress?.slice(0, 8) + '...' || 'null'
-      });
-    }
-  }, [isBalanceSystemEnabled, railgunWalletId, chainId, address, isRailgunInitialized, railgunAddress, updatePrivateBalances, loadPrivateBalancesFromMetadata]);
 
   // Fetch and cache token prices
   const fetchAndCachePrices = useCallback(async (symbols) => {
     try {
       const uniqueSymbols = [...new Set(symbols)];
       const prices = await fetchTokenPrices(uniqueSymbols);
-      
-      setTokenPrices(prev => ({
-        ...prev,
-        ...prices
-      }));
-      
-      console.log('[useBalances] Fetched fresh prices:', prices);
+      setTokenPrices(prev => ({ ...prev, ...prices }));
       return prices;
     } catch (error) {
       console.error('[useBalances] Failed to fetch token prices:', error);
@@ -298,24 +100,23 @@ export function useBalances() {
   // Calculate USD value for a balance
   const calculateUSDValue = useCallback((numericBalance, symbol) => {
     const price = tokenPrices[symbol];
-    console.log(`[useBalances] Calculating USD for ${symbol}:`, { numericBalance, price, tokenPrices });
     if (price && typeof price === 'number' && numericBalance > 0) {
-      const usdValue = (numericBalance * price).toFixed(2);
-      console.log(`[useBalances] USD calculation result: ${symbol} = $${usdValue}`);
-      return usdValue;
+      return (numericBalance * price).toFixed(2);
     }
-    console.log(`[useBalances] USD calculation failed for ${symbol}: price=${price}, numericBalance=${numericBalance}`);
     return '0.00';
   }, [tokenPrices]);
 
-  // Get RPC provider for specific chain
-  const getProvider = useCallback((targetChainId) => {
-    const rpcUrl = CHAIN_RPC_MAPPING[targetChainId];
-    if (!rpcUrl) {
-      throw new Error(`No RPC URL configured for chain ${targetChainId}`);
-    }
-    return new ethers.JsonRpcProvider(rpcUrl);
-  }, []); // Remove chainId dependency since it's not used in the function
+  // Format balance for display
+  const formatBalance = useCallback((balance, decimals = 2) => {
+    if (typeof balance !== 'number') return '0.00';
+    if (balance === 0) return '0.00';
+    if (balance < 0.001) return '<0.001';
+    if (balance < 1) return balance.toFixed(Math.min(decimals + 2, 6));
+    return balance.toLocaleString(undefined, {
+      minimumFractionDigits: decimals,
+      maximumFractionDigits: decimals,
+    });
+  }, []);
 
   // Fetch native token balance
   const fetchNativeBalance = useCallback(async (userAddress, targetChainId) => {
@@ -386,18 +187,15 @@ export function useBalances() {
     }
   }, [getProvider]);
 
-  // Fetch all public balances - ALWAYS FRESH + PERSIST TO REDIS
+  // Fetch all public balances from blockchain
   const fetchPublicBalances = useCallback(async () => {
-    // 🛑 CRITICAL: Prevent RPC calls when balance system is disabled
-    if (!isBalanceSystemEnabled || !address || !chainId) {
-      console.log('[useBalances] ⏸️ Public balance fetch blocked - system disabled or wallet disconnected');
+    if (!address || !chainId) {
+      console.log('[useBalances] ⏸️ Public balance fetch blocked - no wallet connected');
       return [];
     }
 
     try {
-      console.log('[useBalances] 🔥 ALWAYS FRESH: Fetching public balances from blockchain for chain:', chainId);
-      
-      // Clear previous error
+      console.log('[useBalances] 🔄 Fetching public balances from blockchain...');
       setError(null);
 
       const tokenList = TOKEN_LISTS[chainId] || [];
@@ -410,43 +208,91 @@ export function useBalances() {
 
       const results = await Promise.allSettled(balancePromises);
       
-      const freshBalances = results
+      const balances = results
         .filter(result => result.status === 'fulfilled' && result.value !== null)
         .map(result => result.value);
 
-      console.log('[useBalances] ✅ Fetched FRESH public balances from blockchain:', {
-        total: freshBalances.length,
-        withBalance: freshBalances.filter(b => b.hasBalance).length,
-        source: 'blockchain (fresh)'
+      console.log('[useBalances] ✅ Fetched public balances:', {
+        total: balances.length,
+        withBalance: balances.filter(b => b.hasBalance).length
       });
 
-      return freshBalances;
+      return balances;
     } catch (error) {
-      console.error('[useBalances] Failed to fetch fresh public balances:', error);
+      console.error('[useBalances] Failed to fetch public balances:', error);
       setError(error.message);
       return [];
     }
-  }, [isBalanceSystemEnabled, address, chainId, railgunWalletId, fetchNativeBalance, fetchTokenBalance]);
+  }, [address, chainId, fetchNativeBalance, fetchTokenBalance]);
 
-  // ✅ DISABLED: No SDK calls - private balances come ONLY from Redis
-  const fetchPrivateBalances = useCallback(async () => {
-    console.log('[useBalances] 🛡️ REDIS-ONLY: fetchPrivateBalances disabled - all private balance data comes from Redis');
-    return [];
+  // Load private balances from Redis ONLY
+  const loadPrivateBalancesFromMetadata = useCallback(async (walletAddress, railgunWalletId) => {
+    try {
+      console.log('[useBalances] 🛡️ Loading private balances from Redis...');
+      
+      const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(walletAddress)}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (!response.ok) {
+        console.log('[useBalances] No wallet metadata found in Redis');
+        return false;
+      }
+      
+      const result = await response.json();
+      if (!result.success || !result.keys || result.keys.length === 0) {
+        console.log('[useBalances] No wallet metadata keys found');
+        return false;
+      }
+      
+      // Find metadata for specific wallet ID
+      const metadata = result.keys.find(k => k.walletId === railgunWalletId);
+      if (!metadata || !metadata.privateBalances || metadata.privateBalances.length === 0) {
+        console.log('[useBalances] No private balances found in Redis');
+        return false;
+      }
+      
+      // Convert stored balances to UI format
+      const privateBalancesFromRedis = metadata.privateBalances.map(balance => ({
+        symbol: balance.symbol,
+        address: balance.tokenAddress,
+        tokenAddress: balance.tokenAddress,
+        numericBalance: balance.numericBalance,
+        formattedBalance: balance.numericBalance.toFixed(6),
+        balance: balance.numericBalance.toString(),
+        decimals: balance.decimals,
+        hasBalance: balance.numericBalance > 0,
+        isPrivate: true,
+        lastUpdated: balance.lastUpdated
+      }));
+      
+      console.log('[useBalances] ✅ Loaded private balances from Redis:', {
+        count: privateBalancesFromRedis.length,
+        tokens: privateBalancesFromRedis.map(b => `${b.symbol}: ${b.numericBalance}`)
+      });
+      
+      setPrivateBalances(privateBalancesFromRedis);
+      return true;
+      
+    } catch (error) {
+      console.error('[useBalances] Failed to load private balances from Redis:', error);
+      return false;
+    }
   }, []);
 
-  // Refresh all balances - CRITICAL: Check if balance system is enabled
+  // Refresh all balances
   const refreshAllBalances = useCallback(async () => {
-    // 🛑 CRITICAL: Prevent all balance operations when system is disabled
-    if (!isBalanceSystemEnabled || !address) {
-      console.log('[useBalances] ⏸️ Balance refresh blocked - system disabled or no wallet');
+    if (!address) {
+      console.log('[useBalances] ⏸️ Balance refresh blocked - no wallet connected');
       return;
     }
 
     setLoading(true);
     try {
-      console.log('[useBalances] Refreshing all balances...');
+      console.log('[useBalances] 🔄 Refreshing balances...');
 
-      // Fetch prices first and get them directly
+      // Fetch prices
       const allSymbols = [
         ...new Set([
           ...(TOKEN_LISTS[chainId] || []).map(t => t.symbol),
@@ -455,51 +301,31 @@ export function useBalances() {
       ];
       const freshPrices = await fetchAndCachePrices(allSymbols);
 
-      // ✅ UPDATED: Only fetch public balances directly, private comes ONLY from Redis
+      // Fetch public balances from blockchain
       const publicBals = await fetchPublicBalances();
-      
-      // ✅ REDIS-ONLY: Private balances come only from Redis (no SDK calls)
-      const privateBals = privateBalances;
 
-      // Add USD values using fresh prices directly
-      const calculateUSD = (numericBalance, symbol) => {
-        const price = freshPrices[symbol] || tokenPrices[symbol];
-        if (price && typeof price === 'number' && numericBalance > 0) {
-          return (numericBalance * price).toFixed(2);
-        }
-        return '0.00';
-      };
-
+      // Add USD values to public balances
       const publicWithUSD = publicBals.map(token => ({
         ...token,
-        balanceUSD: calculateUSD(token.numericBalance, token.symbol)
+        balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
       }));
 
-      // ✅ Update USD values for existing private balances (no new data, just price updates)
-      const privateWithUSD = privateBals.map(token => ({
+      // Add USD values to existing private balances (no new data)
+      const privateWithUSD = privateBalances.map(token => ({
         ...token,
-        balanceUSD: calculateUSD(token.numericBalance, token.symbol)
+        balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
       }));
 
       setPublicBalances(publicWithUSD);
-      // Only update UI with USD values, no Redis writes
       if (privateWithUSD.length > 0) {
         setPrivateBalances(privateWithUSD);
       }
       setLastUpdated(Date.now());
-      
-      console.log('[useBalances] ✅ Public balances refreshed, private balances preserved from Redis');
-      
-      // ✅ REDIS-ONLY: No Redis persistence during public refresh - private balances managed separately
-      
-      // Expose balances globally for balance checking (deprecated - components should use Redis)
-      window.__LEXIE_BALANCES__ = publicWithUSD;
 
-      console.log('[useBalances] Balances refreshed:', {
+      console.log('[useBalances] ✅ Balances refreshed:', {
         public: publicBals.length,
         publicWithBalance: publicBals.filter(b => b.hasBalance).length,
-        private: 'preserved from Redis',
-        privateWithBalance: 'preserved from Redis',
+        private: privateBalances.length,
       });
 
     } catch (error) {
@@ -508,519 +334,285 @@ export function useBalances() {
     } finally {
       setLoading(false);
     }
-  }, [isBalanceSystemEnabled, address, chainId]); // Added isBalanceSystemEnabled to prevent calls when disabled
+  }, [address, chainId, fetchAndCachePrices, fetchPublicBalances, calculateUSDValue, privateBalances]);
 
-  // ✅ DISABLED: Post-transaction refresh disabled to prevent Redis overwrites
-  const refreshBalancesAfterTransaction = useCallback(async (explicitRailgunWalletId = null) => {
-    console.log('[useBalances] 🛑 REDIS-ONLY: Post-transaction refresh DISABLED - optimistic updates handle private balances');
-    // Private balances are handled by optimistic updates + Redis
-    // Public balances can be manually refreshed if needed
-    return;
-  }, []); // Empty dependencies since it's disabled
-
-  // Format balance for display
-  const formatBalance = useCallback((balance, decimals = 2) => {
-    if (typeof balance !== 'number') {
-      return '0.00';
-    }
-
-    if (balance === 0) {
-      return '0.00';
-    }
-
-    if (balance < 0.001) {
-      return '<0.001';
-    }
-
-    if (balance < 1) {
-      return balance.toFixed(Math.min(decimals + 2, 6));
-    }
-
-    return balance.toLocaleString(undefined, {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
-    });
-  }, []);
-
-  // Initial load when wallet connects - REDIS ONLY (no automatic blockchain refresh)
-  useEffect(() => {
-    // 🛑 CRITICAL: Only initialize when balance system is enabled AND wallet connected
-    if (isBalanceSystemEnabled && address && chainId) {
-      console.log('[useBalances] 🛡️ Wallet connected - REDIS ONLY mode (no automatic blockchain refresh):', { 
-        address: address?.slice(0, 8) + '...', 
-        chainId,
-        systemEnabled: isBalanceSystemEnabled,
-        note: 'All balances loaded from Redis, manual refresh required for blockchain sync'
-      });
-      
-      // NO AUTOMATIC REFRESH - balances come only from Redis or manual user action
-      // Private balances are loaded from Redis in the RAILGUN initialization effect
-      // Public balances can be manually refreshed by user if needed
-      
-    } else {
-      console.log('[useBalances] ⏸️ Balance system not ready:', {
-        systemEnabled: isBalanceSystemEnabled,
-        hasAddress: !!address,
-        hasChainId: !!chainId
-      });
-    }
-  }, [isBalanceSystemEnabled, address, chainId]); // Removed automatic refresh dependencies
-
-  // RAILGUN wallet ready - REDIS ONLY (no automatic private balance refresh)
-  useEffect(() => {
-    // 🛑 CRITICAL: Only initialize when balance system is enabled AND RAILGUN fully ready
-    if (isBalanceSystemEnabled && railgunWalletId && chainId && address && isRailgunInitialized) {
-      console.log('[useBalances] 🔐 RAILGUN wallet ready - REDIS ONLY mode:', { 
-        walletId: railgunWalletId?.slice(0, 8) + '...', 
-        chainId, 
-        address: address?.slice(0, 8) + '...',
-        systemEnabled: isBalanceSystemEnabled,
-        railgunInitialized: isRailgunInitialized,
-        railgunAddress: railgunAddress?.slice(0, 8) + '...' || 'null',
-        note: 'No automatic refresh - private balances loaded from Redis only'
-      });
-      
-      // NO AUTOMATIC PRIVATE BALANCE REFRESH
-      // Private balances come only from Redis or optimistic updates
-      
-    } else {
-      console.log('[useBalances] ⏸️ RAILGUN not ready - waiting:', {
-        systemEnabled: isBalanceSystemEnabled,
-        hasRailgunWallet: !!railgunWalletId,
-        walletIdValue: railgunWalletId?.slice(0, 8) + '...' || 'null',
-        hasChainId: !!chainId,
-        hasAddress: !!address,
-        railgunInitialized: isRailgunInitialized,
-        railgunAddress: railgunAddress?.slice(0, 8) + '...' || 'null'
-      });
-      // ✅ REDIS-ONLY: Never write empty arrays to Redis - only clear UI state
-      if (!isBalanceSystemEnabled) {
-        setPrivateBalances([]); // Clear UI only, don't write to Redis
-      }
-    }
-  }, [isBalanceSystemEnabled, railgunWalletId, chainId, address, isRailgunInitialized, railgunAddress, updatePrivateBalances]); // Removed fetchPrivateBalances
-
-  // Create stable refs to avoid stale closures in event listeners
-  const stableRefs = useRef({
-    railgunWalletId,
-    chainId,
-    address,
-    publicBalances,
-    privateBalances,
-    updatePrivateBalances,
-    calculateUSDValue,
-    fetchPrivateBalances,
-    refreshAllBalances,
-    refreshBalancesAfterTransaction
-  });
-  
-  // Update refs on each render to avoid stale closures
-  useEffect(() => {
-    stableRefs.current = {
-      railgunWalletId,
-      chainId,
-      address,
-      publicBalances,
-      privateBalances,
-      updatePrivateBalances,
-      calculateUSDValue,
-      fetchPrivateBalances,
-      refreshAllBalances,
-      refreshBalancesAfterTransaction
-    };
-  });
-
-  // Listen for Railgun balance updates with stable refs to avoid stale closures - CRITICAL: Only when system enabled
-  useEffect(() => {
-    // 🛑 CRITICAL: Only set up event listeners when balance system is enabled
-    if (!isBalanceSystemEnabled) {
-      console.log('[useBalances] ⏸️ Balance system disabled - skipping event listener setup');
+  // ONLY write to Redis after confirmed transactions
+  const persistPrivateBalancesToWalletMetadata = async (walletAddress, railgunWalletId, privateBalances, chainId) => {
+    if (!walletAddress || !railgunWalletId || !privateBalances.length) {
+      console.warn('[useBalances] Skipping Redis write - missing data or empty balances');
       return;
     }
     
-    console.log('[useBalances] 🎧 Setting up balance update event listeners');
-    
-    // ✅ DISABLED: RAILGUN SDK balance callbacks are disabled to prevent Redis overwrites
-    const handleBalanceUpdate = (event) => {
-      console.log('[useBalances] 🛑 RAILGUN SDK balance update IGNORED - Redis-only mode active:', {
-        railgunWalletId: event.detail?.railgunWalletID?.slice(0, 8) + '...',
-        reason: 'Preventing Redis balance overwrites'
-      });
-      // All private balance updates come from optimistic updates and Redis loading only
-    };
-
-    // Apply optimistic balance update for shield transactions with proper accumulation
-    const applyOptimisticShieldUpdate = async (tokenAddress, tokenSymbol, shieldedAmount) => {
-      const { 
-        publicBalances: currentPublic,
-        privateBalances: currentPrivate,
-        address: currentAddress,
-        railgunWalletId: currentRailgunWalletId,
-        chainId: currentChainId
-      } = stableRefs.current;
-      
-      const shieldedNumeric = parseFloat(shieldedAmount);
-      
-      // Calculate RAILGUN fee (25 basis points = 0.25%)
-      const RAILGUN_FEE_BPS = 25;
-      const railgunFee = shieldedNumeric * (RAILGUN_FEE_BPS / 10000);
-      const actualPrivateAmount = shieldedNumeric - railgunFee;
-      
-      console.log('[useBalances] 💰 RAILGUN fee calculation:', {
-        originalAmount: shieldedNumeric,
-        railgunFee: railgunFee,
-        actualPrivateAmount: actualPrivateAmount,
-        feePercentage: `${RAILGUN_FEE_BPS / 100}%`
-      });
-      
-      // CRITICAL: Load existing private balances from Redis to maintain running total
-      let existingPrivateBalances = [];
+    try {
+      // Get existing metadata to preserve non-balance fields
+      let existingMetadata = {};
       try {
-        console.log('[useBalances] 📥 Loading existing private balances from Redis for accumulation...');
-        const getResponse = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(currentAddress)}`, {
+        const getResponse = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(walletAddress)}`, {
           method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-          }
+          headers: { 'Content-Type': 'application/json' }
         });
         
         if (getResponse.ok) {
           const result = await getResponse.json();
           if (result.success && result.keys && result.keys.length > 0) {
-            const metadata = result.keys.find(k => k.walletId === currentRailgunWalletId);
-            if (metadata && metadata.privateBalances) {
-              existingPrivateBalances = metadata.privateBalances;
-              console.log('[useBalances] ✅ Loaded existing private balances:', {
-                count: existingPrivateBalances.length,
-                tokens: existingPrivateBalances.map(b => `${b.symbol}: ${b.numericBalance}`)
-              });
+            const metadata = result.keys.find(k => k.walletId === railgunWalletId);
+            if (metadata) {
+              existingMetadata = {
+                railgunAddress: metadata.railgunAddress,
+                signature: metadata.signature,
+                encryptedMnemonic: metadata.encryptedMnemonic
+              };
             }
           }
         }
       } catch (error) {
-        console.warn('[useBalances] Could not load existing private balances, starting fresh:', error);
+        console.warn('[useBalances] Could not retrieve existing metadata:', error);
       }
       
-      // Find the matching token (case-insensitive symbol matching)
-      const findMatchingToken = (tokens, targetAddress, targetSymbol) => {
-        return tokens.find(token => {
-          const addressMatch = token.address?.toLowerCase() === targetAddress?.toLowerCase();
-          const symbolMatch = token.symbol?.toLowerCase() === targetSymbol?.toLowerCase();
-          return addressMatch || symbolMatch;
-        });
+      // Prepare balances for storage
+      const balancesToStore = privateBalances
+        .filter(token => token.hasBalance && token.numericBalance > 0)
+        .map(token => ({
+          symbol: token.symbol,
+          tokenAddress: token.address || token.tokenAddress,
+          numericBalance: token.numericBalance,
+          decimals: token.decimals,
+          chainId: chainId,
+          isPrivate: true,
+          lastUpdated: token.lastUpdated || new Date().toISOString()
+        }));
+      
+      // Store updated metadata
+      const metadataToStore = {
+        walletAddress,
+        walletId: railgunWalletId,
+        ...existingMetadata,
+        privateBalances: balancesToStore,
+        lastBalanceUpdate: new Date().toISOString()
       };
       
-      // Update public balances (decrease)
-      const updatedPublic = currentPublic.map(token => {
-        const isMatch = (token.address?.toLowerCase() === tokenAddress?.toLowerCase()) || 
-                       (token.symbol?.toLowerCase() === tokenSymbol?.toLowerCase());
-        
-        if (isMatch) {
-          const newBalance = Math.max(0, token.numericBalance - shieldedNumeric);
-          return {
-            ...token,
-            numericBalance: newBalance,
-            hasBalance: newBalance > 0,
-            balance: newBalance.toString(),
-            formattedBalance: newBalance.toFixed(6)
-          };
+      console.log('[useBalances] 💾 Writing private balances to Redis:', {
+        walletAddress: walletAddress.slice(0, 8) + '...',
+        balanceCount: balancesToStore.length,
+        tokens: balancesToStore.map(b => `${b.symbol}: ${b.numericBalance}`)
+      });
+      
+      const response = await fetch('/api/wallet-metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(metadataToStore)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Redis write failed: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(`Redis write failed: ${result.error}`);
+      }
+      
+    } catch (error) {
+      console.error('[useBalances] Failed to write private balances to Redis:', error);
+      throw error;
+    }
+  };
+
+  // Apply optimistic update for shield transactions (ONLY place that writes to Redis)
+  const applyOptimisticShieldUpdate = async (tokenAddress, tokenSymbol, shieldedAmount) => {
+    const { address: currentAddress, railgunWalletId: currentRailgunWalletId, chainId: currentChainId } = stableRefs.current;
+    
+    const shieldedNumeric = parseFloat(shieldedAmount);
+    
+    // Calculate RAILGUN fee (25 basis points = 0.25%)
+    const RAILGUN_FEE_BPS = 25;
+    const railgunFee = shieldedNumeric * (RAILGUN_FEE_BPS / 10000);
+    const actualPrivateAmount = shieldedNumeric - railgunFee;
+    
+    console.log('[useBalances] 🛡️ Applying optimistic shield update:', {
+      tokenSymbol,
+      originalAmount: shieldedNumeric,
+      railgunFee: railgunFee.toFixed(6),
+      actualPrivateAmount: actualPrivateAmount.toFixed(6)
+    });
+    
+    // Load existing private balances from Redis for accumulation
+    let existingPrivateBalances = [];
+    try {
+      const getResponse = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(currentAddress)}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      
+      if (getResponse.ok) {
+        const result = await getResponse.json();
+        if (result.success && result.keys && result.keys.length > 0) {
+          const metadata = result.keys.find(k => k.walletId === currentRailgunWalletId);
+          if (metadata && metadata.privateBalances) {
+            existingPrivateBalances = metadata.privateBalances;
+          }
         }
-        return token;
-      });
+      }
+    } catch (error) {
+      console.warn('[useBalances] Could not load existing balances for accumulation:', error);
+    }
+    
+    // Find existing balance and calculate accumulated total
+    const existingTokenBalance = existingPrivateBalances.find(token => {
+      const addressMatch = token.tokenAddress?.toLowerCase() === tokenAddress?.toLowerCase();
+      const symbolMatch = token.symbol?.toLowerCase() === tokenSymbol?.toLowerCase();
+      return addressMatch || symbolMatch;
+    });
+    
+    const existingBalance = existingTokenBalance ? existingTokenBalance.numericBalance : 0;
+    const accumulatedBalance = existingBalance + actualPrivateAmount;
+    
+    console.log('[useBalances] 📊 Balance accumulation:', {
+      tokenSymbol,
+      existingBalance,
+      newAmount: actualPrivateAmount,
+      accumulatedTotal: accumulatedBalance
+    });
+    
+    // Update UI - public balances (decrease)
+    const updatedPublic = publicBalances.map(token => {
+      const isMatch = (token.address?.toLowerCase() === tokenAddress?.toLowerCase()) || 
+                     (token.symbol?.toLowerCase() === tokenSymbol?.toLowerCase());
       
-      // Calculate accumulated private balance (current transaction + existing Redis balance)
-      const existingTokenBalance = existingPrivateBalances.find(token => {
-        const addressMatch = token.tokenAddress?.toLowerCase() === tokenAddress?.toLowerCase();
-        const symbolMatch = token.symbol?.toLowerCase() === tokenSymbol?.toLowerCase();
-        return addressMatch || symbolMatch;
-      });
-      
-      const existingBalance = existingTokenBalance ? existingTokenBalance.numericBalance : 0;
-      const accumulatedBalance = existingBalance + actualPrivateAmount;
-      
-      console.log('[useBalances] 📊 Balance accumulation calculation:', {
-        tokenSymbol,
-        existingBalance,
-        newAmount: actualPrivateAmount,
-        accumulatedTotal: accumulatedBalance
-      });
-      
-      // Update UI private balances with accumulated total
-      let updatedPrivate = [...currentPrivate];
-      const currentUIIndex = updatedPrivate.findIndex(token => {
+      if (isMatch) {
+        const newBalance = Math.max(0, token.numericBalance - shieldedNumeric);
+        return {
+          ...token,
+          numericBalance: newBalance,
+          hasBalance: newBalance > 0,
+          balance: newBalance.toString(),
+          formattedBalance: newBalance.toFixed(6)
+        };
+      }
+      return token;
+    });
+    
+    // Update UI - private balances (accumulated total)
+    let updatedPrivate = [...privateBalances];
+    const currentUIIndex = updatedPrivate.findIndex(token => {
+      const addressMatch = token.address?.toLowerCase() === tokenAddress?.toLowerCase();
+      const symbolMatch = token.symbol?.toLowerCase() === tokenSymbol?.toLowerCase();
+      return addressMatch || symbolMatch;
+    });
+    
+    if (currentUIIndex >= 0) {
+      // Update existing token
+      updatedPrivate[currentUIIndex] = {
+        ...updatedPrivate[currentUIIndex],
+        numericBalance: accumulatedBalance,
+        hasBalance: true,
+        balance: accumulatedBalance.toString(),
+        formattedBalance: accumulatedBalance.toFixed(6),
+        lastUpdated: new Date().toISOString()
+      };
+    } else {
+      // Create new token entry
+      const publicToken = publicBalances.find(token => {
         const addressMatch = token.address?.toLowerCase() === tokenAddress?.toLowerCase();
         const symbolMatch = token.symbol?.toLowerCase() === tokenSymbol?.toLowerCase();
         return addressMatch || symbolMatch;
       });
       
-      if (currentUIIndex >= 0) {
-        // Update existing UI token with accumulated total
-        const existingToken = updatedPrivate[currentUIIndex];
-        updatedPrivate[currentUIIndex] = {
-          ...existingToken,
+      if (publicToken) {
+        updatedPrivate.push({
+          symbol: publicToken.symbol,
+          address: publicToken.address,
+          tokenAddress: publicToken.address,
+          decimals: publicToken.decimals,
+          name: publicToken.name,
           numericBalance: accumulatedBalance,
-          hasBalance: true,
           balance: accumulatedBalance.toString(),
           formattedBalance: accumulatedBalance.toFixed(6),
+          hasBalance: true,
+          isPrivate: true,
+          chainId: currentChainId,
           lastUpdated: new Date().toISOString()
-        };
-      } else {
-        // Create new UI token with accumulated total
-        const publicToken = findMatchingToken(currentPublic, tokenAddress, tokenSymbol);
-        
-        if (publicToken) {
-          updatedPrivate.push({
-            symbol: publicToken.symbol,
-            address: publicToken.address,
-            tokenAddress: publicToken.address,
-            decimals: publicToken.decimals,
-            name: publicToken.name,
-            // CRITICAL: Use accumulated total (existing + new)
-            numericBalance: accumulatedBalance,
-            balance: accumulatedBalance.toString(),
-            formattedBalance: accumulatedBalance.toFixed(6),
-            hasBalance: true,
-            isPrivate: true,
-            chainId: currentChainId,
-            lastUpdated: new Date().toISOString()
-          });
-        }
+        });
       }
-      
-      // Update state immediately
-      setPublicBalances(updatedPublic);
-      setPrivateBalances(updatedPrivate);
-      setLastUpdated(new Date().toISOString());
-      
-      console.log('[useBalances] 🎯 Optimistic update applied with RAILGUN fee and accumulation:', {
-        tokenSymbol,
-        originalAmount: shieldedAmount,
-        railgunFee: railgunFee.toFixed(6),
-        actualPrivateAmount: actualPrivateAmount.toFixed(6),
-        existingBalance,
-        newAccumulatedBalance: accumulatedBalance,
-        publicCount: updatedPublic.filter(t => t.hasBalance).length,
-        privateCount: updatedPrivate.filter(t => t.hasBalance).length
-      });
-      
-      // Persist private balances to wallet metadata system in background (non-blocking)
-      persistPrivateBalancesToWalletMetadata(
-        currentAddress, 
-        currentRailgunWalletId, 
-        updatedPrivate, 
-        currentChainId
-      ).then(() => {
-        console.log('[useBalances] ✅ Private balances persisted to wallet metadata (background)');
-      }).catch((error) => {
-        console.error('[useBalances] ❌ Failed to persist private balances (background):', error);
-        // Don't fail the optimistic update if persistence fails
-      });
-    };
+    }
     
-    // Persist private balances to the existing wallet metadata system with proper accumulation
-    const persistPrivateBalancesToWalletMetadata = async (walletAddress, railgunWalletId, privateBalances, chainId) => {
-      if (!walletAddress || !railgunWalletId) {
-        console.warn('[useBalances] Cannot persist - missing wallet info');
-        return;
-      }
-      
-      try {
-        // Get existing private balances from Redis first
-        let existingPrivateBalances = [];
-        try {
-          const getResponse = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(walletAddress)}`, {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-            }
-          });
-          
-          if (getResponse.ok) {
-            const result = await getResponse.json();
-            if (result.success && result.keys && result.keys.length > 0) {
-              const metadata = result.keys.find(k => k.walletId === railgunWalletId);
-              if (metadata && metadata.privateBalances) {
-                existingPrivateBalances = metadata.privateBalances;
-                console.log('[useBalances] 📥 Loaded existing private balances for accumulation:', {
-                  existingCount: existingPrivateBalances.length,
-                  existingTokens: existingPrivateBalances.map(b => `${b.symbol}: ${b.numericBalance}`)
-                });
-              }
-            }
-          }
-        } catch (error) {
-          console.warn('[useBalances] Could not retrieve existing private balances, starting fresh:', error);
-        }
-        
-        // Merge current UI balances with existing Redis balances (UI state is authoritative)
-        const balancesToStore = privateBalances
-          .filter(token => token.hasBalance && token.numericBalance > 0)
-          .map(token => ({
-            symbol: token.symbol,
-            tokenAddress: token.address || token.tokenAddress,
-            numericBalance: token.numericBalance, // UI state already has accumulated amounts
-            decimals: token.decimals,
-            chainId: chainId,
-            isPrivate: true,
-            lastUpdated: token.lastUpdated || new Date().toISOString()
-          }));
-        
-        // Get existing wallet metadata (non-balance fields only)
-        let existingMetadata = {};
-        try {
-          const getResponse = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(walletAddress)}`, {
-            method: 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-            }
-          });
-          
-          if (getResponse.ok) {
-            const result = await getResponse.json();
-            if (result.success && result.keys && result.keys.length > 0) {
-              // Find the metadata for our specific wallet ID
-              const metadata = result.keys.find(k => k.walletId === railgunWalletId);
-              if (metadata) {
-                existingMetadata = {
-                  railgunAddress: metadata.railgunAddress,
-                  signature: metadata.signature,
-                  encryptedMnemonic: metadata.encryptedMnemonic
-                  // NOTE: Not including privateBalances - they're accumulated in the optimistic update
-                };
-              }
-            }
-          }
-        } catch (error) {
-          console.warn('[useBalances] Could not retrieve existing metadata, will store new:', error);
-        }
-        
-        // Store updated metadata with private balances
-        const metadataToStore = {
-          walletAddress,
-          walletId: railgunWalletId,
-          ...existingMetadata, // Include existing railgunAddress, signature, etc.
-          privateBalances: balancesToStore, // Add private balances
-          lastBalanceUpdate: new Date().toISOString()
-        };
-        
-        console.log('[useBalances] 💾 Storing private balances to wallet metadata (after RAILGUN fees):', {
-          walletAddress: walletAddress.slice(0, 8) + '...',
-          walletId: railgunWalletId.slice(0, 8) + '...',
-          balanceCount: balancesToStore.length,
-          tokens: balancesToStore.map(b => `${b.symbol}: ${b.numericBalance}`)
-        });
-        
-        const response = await fetch('/api/wallet-metadata', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(metadataToStore)
-        });
-        
-        if (!response.ok) {
-          throw new Error(`Wallet metadata storage failed: ${response.status}`);
-        }
-        
-        const result = await response.json();
-        if (!result.success) {
-          throw new Error(`Wallet metadata storage failed: ${result.error}`);
-        }
-        
-      } catch (error) {
-        console.error('[useBalances] Failed to persist private balances to wallet metadata:', error);
-        throw error;
-      }
-    };
+    // Update UI immediately
+    setPublicBalances(updatedPublic);
+    setPrivateBalances(updatedPrivate);
+    setLastUpdated(new Date().toISOString());
+    
+    console.log('[useBalances] ⚡ Optimistic update applied to UI');
+    
+    // Write to Redis in background (ONLY place that writes to Redis)
+    persistPrivateBalancesToWalletMetadata(
+      currentAddress, 
+      currentRailgunWalletId, 
+      updatedPrivate, 
+      currentChainId
+    ).then(() => {
+      console.log('[useBalances] ✅ Private balances written to Redis (background)');
+    }).catch((error) => {
+      console.error('[useBalances] ❌ Failed to write private balances to Redis:', error);
+    });
+  };
 
-    // Handle transaction confirmation events from Graph monitoring
+  // Auto-fetch public balances on wallet connect
+  useEffect(() => {
+    if (address && chainId) {
+      console.log('[useBalances] 🔄 Wallet connected - auto-fetching public balances...');
+      refreshAllBalances();
+    }
+  }, [address, chainId, refreshAllBalances]);
+
+  // Load private balances from Redis when Railgun wallet is ready
+  useEffect(() => {
+    if (railgunWalletId && address && isRailgunInitialized) {
+      console.log('[useBalances] 🛡️ Railgun wallet ready - loading private balances from Redis...');
+      loadPrivateBalancesFromMetadata(address, railgunWalletId).then((loaded) => {
+        if (loaded) {
+          console.log('[useBalances] ✅ Private balances loaded from Redis');
+        } else {
+          console.log('[useBalances] ℹ️ No private balances found in Redis');
+        }
+      });
+    }
+  }, [railgunWalletId, address, isRailgunInitialized, loadPrivateBalancesFromMetadata]);
+
+  // Listen for transaction confirmations (auto-refresh UI after confirmed transactions)
+  useEffect(() => {
     const handleTransactionConfirmed = async (event) => {
-      const { 
-        chainId: currentChainId, 
-        railgunWalletId: currentWalletId,
-        fetchPrivateBalances: currentFetchPrivate 
-      } = stableRefs.current;
+      const { chainId: currentChainId, railgunWalletId: currentWalletId } = stableRefs.current;
       
-      console.log('[useBalances] 🎯 Transaction confirmed via Graph monitoring:', {
+      console.log('[useBalances] 🎯 Transaction confirmed:', {
         txHash: event.detail?.txHash,
         chainId: event.detail?.chainId,
         transactionType: event.detail?.transactionType,
-        timestamp: event.detail?.timestamp,
         amount: event.detail?.amount,
-        tokenAddress: event.detail?.tokenAddress,
-        tokenSymbol: event.detail?.tokenSymbol,
-        allEventDetails: event.detail
+        tokenSymbol: event.detail?.tokenSymbol
       });
       
-      // If this is for our current wallet/chain, trigger fresh balance fetch + persist
+      // Auto-refresh UI after confirmed transactions for good UX
       if (event.detail?.chainId === currentChainId && currentWalletId) {
-        const transactionType = event.detail?.transactionType;
+        const { transactionType, amount, tokenAddress, tokenSymbol } = event.detail;
         
-                 // For shield transactions, immediately update UI optimistically
-         if (transactionType === 'shield') {
-           console.log('[useBalances] 🛡️ Shield transaction confirmed - applying optimistic balance update');
-           try {
-             // Get transaction details for optimistic update
-             const { txHash, amount, tokenAddress, tokenSymbol } = event.detail;
-             
-             console.log('[useBalances] 🔍 DEBUG: Transaction details check:', {
-               amount: amount,
-               tokenAddress: tokenAddress,
-               tokenSymbol: tokenSymbol,
-               hasAmount: !!amount,
-               hasTokenAddress: !!tokenAddress,
-               hasTokenSymbol: !!tokenSymbol,
-               amountType: typeof amount,
-               willProceed: !!(amount && tokenAddress && tokenSymbol)
-             });
-             
-             if (amount && tokenAddress && tokenSymbol) {
-               console.log('[useBalances] ⚡ Applying optimistic shield update:', {
-                 tokenSymbol,
-                 amount,
-                 tokenAddress: tokenAddress?.slice(0, 8) + '...'
-               });
-               
-               // Apply optimistic update immediately
-               await applyOptimisticShieldUpdate(tokenAddress, tokenSymbol, amount);
-               
-               console.log('[useBalances] ✅ Optimistic balance update applied - UI updated instantly!');
-             } else {
-               console.log('[useBalances] ⚠️ Missing transaction details for optimistic update, falling back to refresh');
-               console.log('[useBalances] 🔍 Missing details breakdown:', {
-                 missingAmount: !amount,
-                 missingTokenAddress: !tokenAddress,
-                 missingTokenSymbol: !tokenSymbol
-               });
-               // Fallback to refresh if we don't have the details
-               await stableRefs.current.refreshAllBalances();
-             }
-             
-                           // ✅ DISABLED: No background refresh to prevent double counting with optimistic updates
-              // The optimistic update already applied the correct balance and persisted to wallet metadata
-              console.log('[useBalances] ✅ Optimistic update complete - SDK refresh disabled to prevent double counting');
-             
-           } catch (error) {
-             console.error('[useBalances] Failed optimistic update after shield confirmation:', error);
-             // ✅ REDIS-ONLY: No fallback refresh to prevent Redis overwrites
-             console.log('[useBalances] 🛑 Fallback refresh DISABLED - private balances preserved in Redis');
-           }
-         } else {
-          // ✅ REDIS-ONLY: No post-transaction refresh to prevent Redis overwrites
-          console.log('[useBalances] 🛑 Post-transaction refresh DISABLED - private balances preserved in Redis');
+        if (transactionType === 'shield' && amount && tokenAddress && tokenSymbol) {
+          console.log('[useBalances] 🛡️ Applying optimistic shield update...');
+          try {
+            await applyOptimisticShieldUpdate(tokenAddress, tokenSymbol, amount);
+            console.log('[useBalances] ✅ UI updated after shield confirmation');
+          } catch (error) {
+            console.error('[useBalances] Failed optimistic update after shield:', error);
+          }
         }
+        // Future: Handle unshield/private transfer confirmations here
       }
     };
 
-    window.addEventListener('railgun-balance-update', handleBalanceUpdate);
     window.addEventListener('railgun-transaction-confirmed', handleTransactionConfirmed);
-    
     return () => {
-      console.log('[useBalances] 🎧 Cleaning up balance update event listeners');
-      window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
       window.removeEventListener('railgun-transaction-confirmed', handleTransactionConfirmed);
     };
-  }, [isBalanceSystemEnabled]); // Only set up listeners when system is enabled
+  }, []);
 
   return {
     // Balance data
@@ -1030,13 +622,12 @@ export function useBalances() {
     // State
     loading,
     lastUpdated,
-    lastUpdateTime: lastUpdated, // Add alias for backward compatibility
+    lastUpdateTime: lastUpdated,
     error,
     
     // Functions
     refreshAllBalances,
-    refreshBalancesAfterTransaction, // Export the actual enhanced function, not the alias
-    loadPrivateBalancesFromMetadata, // Export for Redis-only refresh
+    loadPrivateBalancesFromMetadata,
     formatBalance,
     
     // Utilities
@@ -1045,6 +636,6 @@ export function useBalances() {
     totalPublicTokens: publicBalances.filter(token => token.hasBalance).length,
     totalPrivateTokens: privateBalances.filter(token => token.hasBalance).length,
   };
-};
+}
 
 export default useBalances; 
