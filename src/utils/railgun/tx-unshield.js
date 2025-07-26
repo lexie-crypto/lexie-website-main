@@ -153,9 +153,17 @@ export const unshieldTokens = async ({
     // Extract the gas estimate value from the response (EXACT same as shield)
     const gasEstimate = gasEstimateResponse.gasEstimate || gasEstimateResponse;
     console.log('[UnshieldTransactions] Gas estimate response:', {
-      gasEstimate: gasEstimate.toString(),
-      type: typeof gasEstimate
+      gasEstimate: gasEstimate?.toString(),
+      type: typeof gasEstimate,
+      isValid: typeof gasEstimate === 'bigint' || (typeof gasEstimate === 'string' && !isNaN(Number(gasEstimate))),
+      fullResponse: gasEstimateResponse,
     });
+
+    // Validate gas estimate before creating gas details
+    if (!gasEstimate || gasEstimate === 'NaN' || isNaN(Number(gasEstimate))) {
+      console.error('[UnshieldTransactions] ❌ Invalid gas estimate received:', gasEstimate);
+      throw new Error(`Invalid gas estimate received: ${gasEstimate}. This might be due to insufficient balance or network issues.`);
+    }
 
     // Create real gas details for unshield operation (matching shield pattern)
     const gasDetails = createUnshieldGasDetails(networkName, gasEstimate);
@@ -320,13 +328,16 @@ export const unshieldTokens = async ({
     };
 
   } catch (error) {
+    // Ensure networkName is available in error scope
+    const errorNetworkName = chain?.id ? getRailgunNetworkName(chain.id) : 'unknown';
+    
     console.error('[UnshieldTransactions] ❌ Unshield operation failed:', {
       error: error.message,
       stack: error.stack,
       name: error.name,
       code: error.code,
       data: error.data,
-      networkName,
+      networkName: errorNetworkName,
       railgunWalletID,
       step: 'Unknown - check logs above for specific step',
     });
@@ -341,7 +352,7 @@ export const unshieldTokens = async ({
     }
     
     if (error.message?.includes('Invalid contract address')) {
-      throw new Error(`Invalid Railgun contract address for network ${networkName}. Check if Railgun is supported on this network.`);
+      throw new Error(`Invalid Railgun contract address for network ${errorNetworkName}. Check if Railgun is supported on this network.`);
     }
     
     throw new Error(`Unshield operation failed: ${error.message}`);
