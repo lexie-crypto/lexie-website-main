@@ -434,7 +434,7 @@ export function useBalances() {
 
   // Apply optimistic update for shield transactions (ONLY place that writes to Redis)
   const applyOptimisticShieldUpdate = async (tokenAddress, tokenSymbol, shieldedAmount) => {
-    const { address: currentAddress, railgunWalletId: currentRailgunWalletId, chainId: currentChainId } = stableRefs.current;
+    const { address: currentAddress, railgunWalletId: currentRailgunWalletId, chainId: currentChainId, publicBalances: currentPublicBalances, privateBalances: currentPrivateBalances } = stableRefs.current;
     
     const shieldedNumeric = parseFloat(shieldedAmount);
     
@@ -447,7 +447,9 @@ export function useBalances() {
       tokenSymbol,
       originalAmount: shieldedNumeric,
       railgunFee: railgunFee.toFixed(6),
-      actualPrivateAmount: actualPrivateAmount.toFixed(6)
+      actualPrivateAmount: actualPrivateAmount.toFixed(6),
+      currentPublicCount: currentPublicBalances.length,
+      currentPrivateCount: currentPrivateBalances.length
     });
     
     // Load existing private balances from Redis for accumulation
@@ -488,8 +490,8 @@ export function useBalances() {
       accumulatedTotal: accumulatedBalance
     });
     
-    // Update UI - public balances (decrease)
-    const updatedPublic = publicBalances.map(token => {
+    // Update UI - public balances (decrease) using current values from stableRefs
+    const updatedPublic = currentPublicBalances.map(token => {
       const isMatch = (token.address?.toLowerCase() === tokenAddress?.toLowerCase()) || 
                      (token.symbol?.toLowerCase() === tokenSymbol?.toLowerCase());
       
@@ -506,8 +508,8 @@ export function useBalances() {
       return token;
     });
     
-    // Update UI - private balances (accumulated total)
-    let updatedPrivate = [...privateBalances];
+    // Update UI - private balances (accumulated total) using current values from stableRefs
+    let updatedPrivate = [...currentPrivateBalances];
     const currentUIIndex = updatedPrivate.findIndex(token => {
       const addressMatch = token.address?.toLowerCase() === tokenAddress?.toLowerCase();
       const symbolMatch = token.symbol?.toLowerCase() === tokenSymbol?.toLowerCase();
@@ -526,7 +528,7 @@ export function useBalances() {
       };
     } else {
       // Create new token entry
-      const publicToken = publicBalances.find(token => {
+      const publicToken = currentPublicBalances.find(token => {
         const addressMatch = token.address?.toLowerCase() === tokenAddress?.toLowerCase();
         const symbolMatch = token.symbol?.toLowerCase() === tokenSymbol?.toLowerCase();
         return addressMatch || symbolMatch;
@@ -555,7 +557,12 @@ export function useBalances() {
     setPrivateBalances(updatedPrivate);
     setLastUpdated(new Date().toISOString());
     
-    console.log('[useBalances] ⚡ Optimistic update applied to UI');
+    console.log('[useBalances] ⚡ Optimistic update applied to UI:', {
+      updatedPublicCount: updatedPublic.length,
+      updatedPrivateCount: updatedPrivate.length,
+      publicWithBalance: updatedPublic.filter(t => t.hasBalance).length,
+      privateWithBalance: updatedPrivate.filter(t => t.hasBalance).length
+    });
     
     // Write to Redis in background (ONLY place that writes to Redis)
     persistPrivateBalancesToWalletMetadata(
