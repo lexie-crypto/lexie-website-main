@@ -934,19 +934,18 @@ export function useBalances() {
         privateCount: updatedPrivate.filter(t => t.hasBalance).length
       });
       
-      // Persist private balances to wallet metadata system
-      try {
-        await persistPrivateBalancesToWalletMetadata(
-          currentAddress, 
-          currentRailgunWalletId, 
-          updatedPrivate, 
-          currentChainId
-        );
-        console.log('[useBalances] ✅ Private balances persisted to wallet metadata');
-      } catch (error) {
-        console.error('[useBalances] ❌ Failed to persist private balances:', error);
+      // Persist private balances to wallet metadata system in background (non-blocking)
+      persistPrivateBalancesToWalletMetadata(
+        currentAddress, 
+        currentRailgunWalletId, 
+        updatedPrivate, 
+        currentChainId
+      ).then(() => {
+        console.log('[useBalances] ✅ Private balances persisted to wallet metadata (background)');
+      }).catch((error) => {
+        console.error('[useBalances] ❌ Failed to persist private balances (background):', error);
         // Don't fail the optimistic update if persistence fails
-      }
+      });
     };
     
     // Persist private balances to the existing wallet metadata system
