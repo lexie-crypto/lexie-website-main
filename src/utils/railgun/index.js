@@ -18,7 +18,6 @@ export {
   // Transactions
   generateTransferProof,
   generateShieldProof,
-  generateUnshieldProof,
   populateProvedTransfer,
   populateProvedShield,
   populateProvedUnshield,

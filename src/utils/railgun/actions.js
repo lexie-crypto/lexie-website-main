@@ -12,7 +12,6 @@
 import { NetworkName, TXIDVersion } from '@railgun-community/shared-models';
 import {
   gasEstimateForUnprovenUnshield,
-  generateUnshieldProof,
   populateProvedUnshield,
 } from '@railgun-community/wallet';
 
@@ -180,25 +179,18 @@ export const unshieldTokens = async ({
       hasBroadcasterFee: !!broadcasterFeeInfo,
     });
 
-    // Generate unshield proof
-    console.log('[RailgunActions] Generating unshield proof...');
-    const proofResult = await generateUnshieldProof(
-      txidVersion,
-      networkName,
-      railgunWalletID,
-      encryptionKey,
-      erc20AmountRecipients,
-      nftAmountRecipients
-    );
-
-    // Populate proved unshield transaction
+    // Populate proved unshield transaction (proof generation handled internally)
     console.log('[RailgunActions] Populating unshield transaction...');
     const populatedTransaction = await populateProvedUnshield(
       txidVersion,
       networkName,
       railgunWalletID,
       erc20AmountRecipients,
-      nftAmountRecipients
+      nftAmountRecipients,
+      broadcasterFeeInfo?.broadcasterFeeERC20AmountRecipient || undefined, // broadcaster fee
+      false, // sendWithPublicWallet
+      undefined, // overallBatchMinGasPrice
+      gasDetails
     );
 
     console.log('[RailgunActions] Unshield operation completed successfully');
@@ -206,7 +198,8 @@ export const unshieldTokens = async ({
       transaction: populatedTransaction.transaction,
       gasDetails,
       gasEstimate: gasDetails.gasEstimate,
-      proofResult,
+      nullifiers: populatedTransaction.nullifiers,
+      preTransactionPOIsPerTxidLeafPerList: populatedTransaction.preTransactionPOIsPerTxidLeafPerList,
       broadcasterFeeInfo,
       gasEstimationIterations: iterations,
       transactionType: TransactionType.UNSHIELD,

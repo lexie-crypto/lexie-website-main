@@ -355,14 +355,14 @@ const PrivacyActions = () => {
       toast.loading('Generating proof and unshielding tokens...', { id: toastId });
 
       // Execute unshield operation
-      const result = await unshieldTokens(
-        railgunWalletId,
+      const result = await unshieldTokens({
+        railgunWalletID: railgunWalletId,
         encryptionKey,
-        selectedToken.tokenAddress,
-        amountInUnits,
-        chainConfig,
+        tokenAddress: selectedToken.tokenAddress,
+        amount: amountInUnits,
+        chain: chainConfig,
         toAddress
-      );
+      });
 
       toast.dismiss(toastId);
       toast.success(`Successfully unshielded ${amount} ${selectedToken.symbol}!`);
