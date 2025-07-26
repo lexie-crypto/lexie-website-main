@@ -64,6 +64,8 @@ export function useBalances() {
 
   // Stable refs for event listeners
   const stableRefs = useRef({});
+  const hasAutoRefreshed = useRef(false);
+  
   useEffect(() => {
     stableRefs.current = {
       address,
@@ -98,13 +100,14 @@ export function useBalances() {
   }, []);
 
   // Calculate USD value for a balance
-  const calculateUSDValue = useCallback((numericBalance, symbol) => {
-    const price = tokenPrices[symbol];
+  const calculateUSDValue = useCallback((numericBalance, symbol, pricesOverride = null) => {
+    const prices = pricesOverride || stableRefs.current.tokenPrices;
+    const price = prices[symbol];
     if (price && typeof price === 'number' && numericBalance > 0) {
       return (numericBalance * price).toFixed(2);
     }
     return '0.00';
-  }, [tokenPrices]);
+  }, []); // No dependencies - access prices via stableRefs
 
   // Format balance for display
   const formatBalance = useCallback((balance, decimals = 2) => {
@@ -307,7 +310,7 @@ export function useBalances() {
       // Add USD values to public balances
       const publicWithUSD = publicBals.map(token => ({
         ...token,
-        balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
+        balanceUSD: calculateUSDValue(token.numericBalance, token.symbol, freshPrices)
       }));
 
       // Add USD values to existing private balances (no new data)
@@ -323,7 +326,7 @@ export function useBalances() {
         
         const updated = currentPrivateBalances.map(token => ({
           ...token,
-          balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
+          balanceUSD: calculateUSDValue(token.numericBalance, token.symbol, freshPrices)
         }));
 
         // Prevent unnecessary update with deep equality check
@@ -345,7 +348,7 @@ export function useBalances() {
     } finally {
       setLoading(false);
     }
-  }, [address, chainId, fetchAndCachePrices, fetchPublicBalances, calculateUSDValue]);
+  }, [address, chainId, fetchAndCachePrices, fetchPublicBalances]);
 
   // ONLY write to Redis after confirmed transactions
   const persistPrivateBalancesToWalletMetadata = async (walletAddress, railgunWalletId, privateBalances, chainId) => {
@@ -567,11 +570,15 @@ export function useBalances() {
     });
   };
 
-  // Auto-fetch public balances on wallet connect
+  // Auto-fetch public balances on wallet connect (ONCE per connection)
   useEffect(() => {
-    if (address && chainId) {
-      console.log('[useBalances] 🔄 Wallet connected - auto-fetching public balances...');
+    if (address && chainId && !hasAutoRefreshed.current) {
+      hasAutoRefreshed.current = true;
+      console.log('[useBalances] ✅ Running public balance refresh ONCE after connect');
       refreshAllBalances();
+    } else if (!address) {
+      // Reset flag when wallet disconnects so new connections can auto-refresh
+      hasAutoRefreshed.current = false;
     }
   }, [address, chainId]);
 

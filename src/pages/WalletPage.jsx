@@ -99,7 +99,7 @@ const WalletPage = () => {
       console.error('[WalletPage] Hybrid refresh failed:', error);
       toast.error('Failed to refresh balances');
     }
-  }, [isConnected, address, canUseRailgun, railgunWalletId, refreshAllBalances, loadPrivateBalancesFromMetadata]);
+  }, [isConnected, address, canUseRailgun, railgunWalletId, loadPrivateBalancesFromMetadata]); // Removed refreshAllBalances to prevent infinite loop
 
   // Auto-refresh public balances when wallet connects
   useEffect(() => {
@@ -107,7 +107,7 @@ const WalletPage = () => {
       console.log('[WalletPage] 🔄 Wallet connected - auto-refreshing public balances...');
       refreshAllBalances();
     }
-  }, [isConnected, address, chainId, refreshAllBalances]);
+  }, [isConnected, address, chainId]); // Removed refreshAllBalances to prevent infinite loop
 
   // Auto-switch to privacy view when Railgun is ready
   useEffect(() => {
