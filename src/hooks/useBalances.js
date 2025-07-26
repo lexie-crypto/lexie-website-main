@@ -624,9 +624,20 @@ export function useBalances() {
           console.log('[useBalances] 🛡️ Applying optimistic shield update...');
           try {
             await applyOptimisticShieldUpdate(tokenAddress, tokenSymbol, amount);
-            console.log('[useBalances] ✅ UI updated after shield confirmation');
+            console.log('[useBalances] ✅ Private balances updated after shield confirmation');
+            
+            // Also refresh public balances from blockchain now that transaction is indexed
+            console.log('[useBalances] 🔄 Refreshing public balances from blockchain...');
+            const freshPublicBalances = await fetchPublicBalances();
+            const publicWithUSD = freshPublicBalances.map(token => ({
+              ...token,
+              balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
+            }));
+            setPublicBalances(publicWithUSD);
+            console.log('[useBalances] ✅ Public balances refreshed after transaction');
+            
           } catch (error) {
-            console.error('[useBalances] Failed optimistic update after shield:', error);
+            console.error('[useBalances] Failed to update balances after shield:', error);
           }
         }
         // Future: Handle unshield/private transfer confirmations here
