@@ -72,29 +72,34 @@ const WalletPage = () => {
 
   const network = getCurrentNetwork();
 
-  // Redis-only refresh function (no blockchain sync)
-  const refreshFromRedisOnly = useCallback(async () => {
+  // Hybrid refresh: Public from blockchain + Private from Redis  
+  const refreshBalances = useCallback(async () => {
     try {
-      console.log('[WalletPage] 🛡️ REDIS-ONLY refresh - loading private balances from Redis...');
+      console.log('[WalletPage] 🔄 Hybrid refresh - Public from blockchain + Private from Redis...');
       
+      // 1. Refresh public balances from blockchain (real-time)
+      if (isConnected && address) {
+        console.log('[WalletPage] 💰 Refreshing public balances from blockchain...');
+        await refreshAllBalances();
+      }
+      
+      // 2. Load private balances from Redis (accumulated)
       if (canUseRailgun && railgunWalletId && address) {
+        console.log('[WalletPage] 🛡️ Loading private balances from Redis...');
         const loadedSuccessfully = await loadPrivateBalancesFromMetadata(address, railgunWalletId);
         if (loadedSuccessfully) {
-          console.log('[WalletPage] ✅ Successfully refreshed private balances from Redis');
-          toast.success('Private balances refreshed from storage');
+          console.log('[WalletPage] ✅ Successfully loaded private balances from Redis');
         } else {
           console.log('[WalletPage] ℹ️ No private balances found in Redis storage');
-          toast.info('No private balance history found');
         }
-      } else {
-        console.log('[WalletPage] ⏸️ Cannot refresh - RAILGUN wallet not ready');
-        toast.error('Wallet not ready for refresh');
       }
+      
+      toast.success('Balances refreshed successfully');
     } catch (error) {
-      console.error('[WalletPage] Redis-only refresh failed:', error);
-      toast.error('Failed to refresh from storage');
+      console.error('[WalletPage] Hybrid refresh failed:', error);
+      toast.error('Failed to refresh balances');
     }
-  }, [canUseRailgun, railgunWalletId, address, loadPrivateBalancesFromMetadata]);
+  }, [isConnected, address, canUseRailgun, railgunWalletId, refreshAllBalances, loadPrivateBalancesFromMetadata]);
 
   // Auto-switch to privacy view when Railgun is ready
   useEffect(() => {
@@ -626,7 +631,7 @@ const WalletPage = () => {
                   </button>
                 )}
                 <button
-                  onClick={refreshFromRedisOnly}
+                  onClick={refreshBalances}
                   disabled={isLoading || !isConnected}
                   className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 text-white px-4 py-2 rounded-lg font-medium transition-colors"
                 >
@@ -642,7 +647,7 @@ const WalletPage = () => {
                   <div className="flex items-center justify-between">
                     <h3 className="text-lg font-medium text-white">Public Balances</h3>
                     <button
-                      onClick={refreshFromRedisOnly}
+                      onClick={refreshBalances}
                       disabled={isLoading || !isConnected}
                       className="text-purple-400 hover:text-purple-300 text-sm disabled:opacity-50"
                     >
