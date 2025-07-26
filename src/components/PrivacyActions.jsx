@@ -23,11 +23,8 @@ import {
   isValidRailgunAddress,
   isTokenSupportedByRailgun,
   getSupportedChainIds,
-} from '../utils/railgun/actions';
-import { 
-  getPrivateBalances,
   parseTokenAmount,
-} from '../utils/railgun/balances';
+} from '../utils/railgun/actions';
 import { 
   createWallet,
   loadWallet,
