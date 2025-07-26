@@ -57,6 +57,7 @@ const createERC20AmountRecipient = (tokenAddress, amount, recipientAddress) => {
  * @param {string} amount - Amount to unshield (in token units)
  * @param {Object} chain - Chain configuration with id
  * @param {string} toAddress - Recipient address
+ * @param {Function} walletProvider - Function that returns wallet signer
  * @param {Object} selectedBroadcaster - Broadcaster info (optional)
  */
 export const unshieldTokens = async ({
@@ -66,6 +67,7 @@ export const unshieldTokens = async ({
   amount,
   chain,
   toAddress,
+  walletProvider,
   selectedBroadcaster = null,
 }) => {
   try {
@@ -89,6 +91,9 @@ export const unshieldTokens = async ({
     }
     if (!chain?.id) {
       throw new Error('Chain must have an id property');
+    }
+    if (!walletProvider || typeof walletProvider !== 'function') {
+      throw new Error('walletProvider must be a function that returns a signer');
     }
 
     // Wait for Railgun readiness
@@ -171,21 +176,63 @@ export const unshieldTokens = async ({
       gasDetails
     );
 
-    console.log('[UnshieldTransactions] Unshield operation completed successfully');
+    // Step 4: Send transaction on-chain
+    console.log('[UnshieldTransactions] Sending transaction on-chain...');
+    
+    // Get wallet signer
+    const walletSigner = await walletProvider();
+    
+    // Format transaction for sending (convert BigInt to hex strings)
+    const txForSending = {
+      ...populatedTransaction.transaction,
+      gasLimit: populatedTransaction.transaction.gasLimit ? '0x' + populatedTransaction.transaction.gasLimit.toString(16) : undefined,
+      gasPrice: populatedTransaction.transaction.gasPrice ? '0x' + populatedTransaction.transaction.gasPrice.toString(16) : undefined,
+      maxFeePerGas: populatedTransaction.transaction.maxFeePerGas ? '0x' + populatedTransaction.transaction.maxFeePerGas.toString(16) : undefined,
+      maxPriorityFeePerGas: populatedTransaction.transaction.maxPriorityFeePerGas ? '0x' + populatedTransaction.transaction.maxPriorityFeePerGas.toString(16) : undefined,
+      value: populatedTransaction.transaction.value ? '0x' + populatedTransaction.transaction.value.toString(16) : '0x0',
+    };
+    
+    console.log('[UnshieldTransactions] Formatted transaction for sending:', {
+      to: txForSending.to,
+      value: txForSending.value,
+      gasLimit: txForSending.gasLimit,
+      gasPrice: txForSending.gasPrice,
+      maxFeePerGas: txForSending.maxFeePerGas,
+      maxPriorityFeePerGas: txForSending.maxPriorityFeePerGas,
+    });
+    
+    // Send transaction and get receipt
+    const txResponse = await walletSigner.sendTransaction(txForSending);
+    const transactionHash = txResponse.hash || txResponse;
+    
+    console.log('[UnshieldTransactions] ✅ Unshield operation completed successfully!');
+    
     return {
+      // Transaction details
       transaction: populatedTransaction.transaction,
+      transactionHash, // ✅ CRITICAL: Transaction hash for Graph monitoring
+      txResponse, // Full response from wallet
+      
+      // Gas information
       gasDetails,
       gasEstimate: gasDetails.gasEstimate,
+      
+      // Railgun-specific data
       nullifiers: populatedTransaction.nullifiers,
       preTransactionPOIsPerTxidLeafPerList: populatedTransaction.preTransactionPOIsPerTxidLeafPerList,
+      
+      // Fee information
       broadcasterFeeInfo,
       gasEstimationIterations: iterations,
+      
+      // Metadata
       transactionType: 'unshield',
       networkName,
       metadata: {
         railgunWalletID,
         erc20Recipients: erc20AmountRecipients.length,
         nftRecipients: nftAmountRecipients.length,
+        sentOnChain: true, // ✅ Indicates transaction was actually sent
       },
     };
 

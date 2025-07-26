@@ -364,7 +364,8 @@ const PrivacyActions = () => {
         tokenAddress: selectedToken.tokenAddress,
         amount: amountInUnits,
         chain: chainConfig,
-        toAddress
+        toAddress,
+        walletProvider // ✅ Pass wallet provider for transaction sending
       });
 
       toast.dismiss(toastId);
