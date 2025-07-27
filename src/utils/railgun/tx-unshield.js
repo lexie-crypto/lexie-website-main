@@ -18,9 +18,9 @@ import { estimateGasWithBroadcasterFee } from './tx-gas-broadcaster-fee-estimato
 import { generateUnshieldProof } from './tx-proof-unshield.js';
 // Official Relayer SDK imports
 import {
-  RailgunWakuRelayerClient,
+  WakuRelayerClient,
   RelayerTransaction,
-} from '@railgun-community/waku-relayer-client';
+} from '@railgun-community/waku-relayer-client-web';
 import {
   calculateMaximumGas,
   ChainType,
@@ -54,7 +54,7 @@ const findBestRelayerForUnshield = async (chain, tokenAddress) => {
     const useRelayAdapt = false;
     
     // Find best relayer using official SDK
-    const selectedRelayer = RailgunWakuRelayerClient.findBestRelayer(
+    const selectedRelayer = WakuRelayerClient.findBestRelayer(
       chainConfig,
       feeTokenAddress,
       useRelayAdapt
