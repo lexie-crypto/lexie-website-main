@@ -96,9 +96,12 @@ const initializeRelayerClient = async (chain) => {
   };
 
   try {
+    // Get the proper chain name from chain ID
+    const chainName = chain.name || getChainNameFromId(chain.id);
+    
     console.log('[UnshieldTransactions] 🚀 Initializing WakuRelayerClient...', {
       chainId: chain.id,
-      chainName: chain.name,
+      chainName: chainName,
       customWakuNode: 'waku.lexiecrypto.com:8000 (SSL)',
       directPeers: relayerOptions.additionalDirectPeers,
     });
@@ -417,6 +420,19 @@ const getRailgunNetworkName = (chainId) => {
     throw new Error(`Unsupported chain ID: ${chainId}`);
   }
   return networkName;
+};
+
+/**
+ * Get human-readable chain name for a chain ID
+ */
+const getChainNameFromId = (chainId) => {
+  const chainNames = {
+    1: 'Ethereum',
+    42161: 'Arbitrum',
+    137: 'Polygon',
+    56: 'BNB Chain',
+  };
+  return chainNames[chainId] || `Chain ${chainId}`;
 };
 
 /**
