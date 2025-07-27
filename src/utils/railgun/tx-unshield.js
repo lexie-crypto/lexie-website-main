@@ -87,7 +87,12 @@ const initializeRelayerClient = async (chain) => {
   // Define relayerOptions outside try block to avoid scope issues
   const relayerOptions = {
     pubSubTopic: undefined, // Use default
-    // ✅ Connect to your SSL-enabled Waku node with secure WebSocket (HTTPS required for browsers)
+    // 🚨 FORCE custom node only - disable fleet discovery
+    fleetNodes: [], // Disable default fleet nodes
+    bootstrapPeers: [], // Disable bootstrap peers
+    staticPeers: [
+      '/dns4/waku.lexiecrypto.com/tcp/8000/wss/p2p/16Uiu2HAmDJJXivjv8SBfkAE39rEX1xssJtkD7j4XnduXi3VeTyFk'
+    ],
     additionalDirectPeers: [
       '/dns4/waku.lexiecrypto.com/tcp/8000/wss/p2p/16Uiu2HAmDJJXivjv8SBfkAE39rEX1xssJtkD7j4XnduXi3VeTyFk'
     ],
@@ -116,6 +121,17 @@ const initializeRelayerClient = async (chain) => {
       peerDiscoveryTimeout: relayerOptions.peerDiscoveryTimeout,
       chainConfig,
     });
+
+    // 🔍 Log peer discovery configuration
+    console.log('[UnshieldTransactions] 🎯 Peer discovery configuration:', {
+      customNodeOnly: true,
+      fleetNodesDisabled: relayerOptions.fleetNodes?.length === 0,
+      staticPeers: relayerOptions.staticPeers,
+      additionalDirectPeers: relayerOptions.additionalDirectPeers,
+      totalPeersToTry: (relayerOptions.staticPeers?.length || 0) + (relayerOptions.additionalDirectPeers?.length || 0),
+    });
+
+    console.log('[UnshieldTransactions] 🔗 Will ONLY connect to custom Waku node - fleet nodes disabled');
 
     // Initialize WakuRelayerClient (following docs pattern)
     await WakuRelayerClient.start(
@@ -537,7 +553,7 @@ export const unshieldTokens = async ({
     
     console.log('[UnshieldTransactions] Network configuration:', {
       chainId: chain.id,
-      chainName: chain.name,
+      chainName: chain.name || getChainNameFromId(chain.id),
       networkName,
       isValidNetworkName: !!networkName,
     });
