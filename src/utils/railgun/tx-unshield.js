@@ -84,27 +84,29 @@ const initializeRelayerClient = async (chain) => {
     return true;
   }
 
+  // Define relayerOptions outside try block to avoid scope issues
+  const relayerOptions = {
+    pubSubTopic: undefined, // Use default
+          // ✅ Point to your DigitalOcean Waku node (now with proper network connectivity)
+      additionalDirectPeers: [
+        '/ip4/147.182.143.64/tcp/60000/p2p/16Uiu2HAmRtKdJ8GRPYH1g2fpGb6SvWoYoZGuFZvJuKMM5mLLngCG'
+      ],
+    peerDiscoveryTimeout: 120000, // 120 seconds (increased from 60s)
+    poiActiveListKeys: undefined, // Use default POI lists
+  };
+
   try {
     console.log('[UnshieldTransactions] 🚀 Initializing WakuRelayerClient...', {
       chainId: chain.id,
       chainName: chain.name,
+      customWakuNode: '147.182.143.64:60000',
+      directPeers: relayerOptions.additionalDirectPeers,
     });
 
     // Create chain object for relayer client
     const chainConfig = {
       type: ChainType.EVM,
       id: chain.id,
-    };
-
-    // Relayer options configuration - Connect to YOUR Waku node
-    const relayerOptions = {
-      pubSubTopic: undefined, // Use default
-      // ✅ Point to your DigitalOcean Waku node (now with external connectivity)
-      additionalDirectPeers: [
-        '/ip4/147.182.143.64/tcp/60000/p2p/16Uiu2HAmKccSj6jYynCjZnopnDZQJff7bJaoDwKUMNi3BsDpxEZ3'
-      ],
-      peerDiscoveryTimeout: 120000, // 120 seconds (increased from 60s)
-      poiActiveListKeys: undefined, // Use default POI lists
     };
 
     console.log('[UnshieldTransactions] 🔄 Starting WakuRelayerClient with extended timeout...', {
