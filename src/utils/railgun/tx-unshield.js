@@ -16,14 +16,198 @@ import { waitForRailgunReady } from './engine.js';
 import { createUnshieldGasDetails } from './tx-gas-details.js';
 import { estimateGasWithBroadcasterFee } from './tx-gas-broadcaster-fee-estimator.js';
 import { generateUnshieldProof } from './tx-proof-unshield.js';
+// Official Relayer SDK imports
 import {
-  validateCachedProvedTransaction,
-  populateCachedTransaction,
-  populateProvedTransaction,
-  setCachedProvedTransaction,
-  clearCachedProvedTransaction,
-  CachedProvedTransaction,
-} from './proof-cache.js';
+  RailgunWakuRelayerClient,
+  RelayerTransaction,
+} from '@railgun-community/waku-relayer-client';
+import {
+  calculateMaximumGas,
+  ChainType,
+} from '@railgun-community/shared-models';  
+
+/**
+ * Find best relayer for unshield transaction using official SDK
+ * @param {Object} chain - Chain configuration
+ * @param {string} tokenAddress - Token address for fee payment (null for native token)
+ * @returns {Object|null} Selected relayer or null if none available
+ */
+const findBestRelayerForUnshield = async (chain, tokenAddress) => {
+  try {
+    console.log('[UnshieldTransactions] 🔍 Searching for available relayers...', {
+      chainId: chain.id,
+      chainName: chain.name,
+      feeToken: tokenAddress ? tokenAddress.slice(0, 10) + '...' : 'native',
+    });
+    
+    // Create chain object for relayer client
+    const chainConfig = {
+      type: ChainType.EVM,
+      id: chain.id,
+    };
+    
+    // Use the fee token address for relayer selection
+    // For native tokens (ETH), use undefined or the wrapped token address
+    const feeTokenAddress = tokenAddress || undefined;
+    
+    // Only set to true if making a cross-contract call (false for standard unshield)
+    const useRelayAdapt = false;
+    
+    // Find best relayer using official SDK
+    const selectedRelayer = RailgunWakuRelayerClient.findBestRelayer(
+      chainConfig,
+      feeTokenAddress,
+      useRelayAdapt
+    );
+    
+    if (selectedRelayer) {
+      console.log('[UnshieldTransactions] ✅ Found available relayer:', {
+        relayerAddress: selectedRelayer.railgunAddress?.slice(0, 10) + '...',
+        feeToken: selectedRelayer.tokenFee?.tokenAddress?.slice(0, 10) + '...' || 'native',
+        feePerUnitGas: selectedRelayer.tokenFee?.feePerUnitGas?.toString(),
+        feesID: selectedRelayer.tokenFee?.feesID,
+      });
+    } else {
+      console.warn('[UnshieldTransactions] ⚠️ No relayer available for specified token - will use self-signing');
+    }
+    
+    return selectedRelayer;
+    
+  } catch (error) {
+    console.error('[UnshieldTransactions] ❌ Relayer discovery failed:', error.message);
+    console.warn('[UnshieldTransactions] 🔄 Falling back to self-signing due to relayer error');
+    return null;
+  }
+};
+
+/**
+ * Create relayer transaction using official SDK
+ * @param {string} to - Contract address  
+ * @param {string} data - Transaction data
+ * @param {string} relayerAddress - Relayer's RAILGUN address
+ * @param {string} feesID - Relayer's fee ID
+ * @param {Object} chain - Chain configuration
+ * @param {Array} nullifiers - Transaction nullifiers
+ * @param {bigint} overallBatchMinGasPrice - Minimum gas price
+ * @param {boolean} useRelayAdapt - Whether to use relay adapt
+ * @returns {Object} Relayer transaction object
+ */
+const createRelayerTransaction = async (to, data, relayerAddress, feesID, chain, nullifiers, overallBatchMinGasPrice, useRelayAdapt) => {
+  try {
+    console.log('[UnshieldTransactions] 🔧 Creating relayer transaction...', {
+      to: to?.slice(0, 10) + '...',
+      dataLength: data?.length || 0,
+      relayerAddress: relayerAddress?.slice(0, 10) + '...',
+      feesID,
+      chainId: chain.id,
+      nullifiersCount: nullifiers?.length || 0,
+      overallBatchMinGasPrice: overallBatchMinGasPrice?.toString(),
+      useRelayAdapt,
+    });
+    
+    // Create chain object for relayer transaction
+    const chainConfig = {
+      type: ChainType.EVM,
+      id: chain.id,
+    };
+    
+    // Create relayer transaction using official SDK
+    const relayerTransaction = await RelayerTransaction.create(
+      to,
+      data,
+      relayerAddress,
+      feesID,
+      chainConfig,
+      nullifiers,
+      overallBatchMinGasPrice,
+      useRelayAdapt
+    );
+    
+    console.log('[UnshieldTransactions] ✅ Relayer transaction created successfully');
+    
+    return relayerTransaction;
+    
+  } catch (error) {
+    console.error('[UnshieldTransactions] ❌ Relayer transaction creation failed:', error.message);
+    throw new Error(`Failed to create relayer transaction: ${error.message}`);
+  }
+};
+
+/**
+ * Submit transaction via relayer using official SDK
+ * @param {Object} relayerTransaction - Relayer transaction object
+ * @returns {string} Transaction hash
+ */
+const submitRelayerTransaction = async (relayerTransaction) => {
+  try {
+    console.log('[UnshieldTransactions] 📡 Submitting transaction via relayer...');
+    
+    // Submit transaction through relayer using official SDK
+    const transactionHash = await relayerTransaction.send();
+    
+    if (!transactionHash || typeof transactionHash !== 'string') {
+      throw new Error('Invalid transaction hash received from relayer');
+    }
+    
+    console.log('[UnshieldTransactions] ✅ Transaction submitted successfully via relayer:', {
+      transactionHash,
+      anonymousSubmission: true,
+    });
+    
+    return transactionHash;
+    
+  } catch (error) {
+    console.error('[UnshieldTransactions] ❌ Relayer submission failed:', error.message);
+    throw new Error(`Relayer submission failed: ${error.message}`);
+  }
+};
+
+/**
+ * Submit transaction via self-signing (Fallback)
+ * @param {Object} populatedTransaction - Transaction from populateProvedUnshield
+ * @param {Function} walletProvider - Wallet provider function
+ * @returns {Object} Transaction response
+ */
+const submitTransactionSelfSigned = async (populatedTransaction, walletProvider) => {
+  try {
+    // Get wallet signer
+    const walletSigner = await walletProvider();
+    
+    // Format transaction for self-signing (convert BigInt to hex strings)
+    const txForSending = {
+      ...populatedTransaction.transaction,
+      gasLimit: undefined, // Let wallet estimate gas
+      gasPrice: populatedTransaction.transaction.gasPrice ? '0x' + populatedTransaction.transaction.gasPrice.toString(16) : undefined,
+      maxFeePerGas: populatedTransaction.transaction.maxFeePerGas ? '0x' + populatedTransaction.transaction.maxFeePerGas.toString(16) : undefined,
+      maxPriorityFeePerGas: populatedTransaction.transaction.maxPriorityFeePerGas ? '0x' + populatedTransaction.transaction.maxPriorityFeePerGas.toString(16) : undefined,
+      value: populatedTransaction.transaction.value ? '0x' + populatedTransaction.transaction.value.toString(16) : '0x0',
+    };
+    
+    // Clean up undefined values
+    Object.keys(txForSending).forEach(key => {
+      if (txForSending[key] === undefined) {
+        delete txForSending[key];
+      }
+    });
+    
+    console.log('[UnshieldTransactions] 🔄 Self-signing transaction...', {
+      to: txForSending.to,
+      dataLength: txForSending.data?.length || 0,
+      value: txForSending.value,
+    });
+    
+    // Send transaction via wallet
+    const txResponse = await walletSigner.sendTransaction(txForSending);
+    
+    console.log('[UnshieldTransactions] ✅ Self-signed transaction sent');
+    
+    return txResponse;
+    
+  } catch (error) {
+    console.error('[UnshieldTransactions] ❌ Self-signing failed:', error.message);
+    throw new Error(`Self-signing failed: ${error.message}`);
+  }
+};
 
 /**
  * Network mapping to Railgun NetworkName enum values
@@ -160,281 +344,274 @@ export const unshieldTokens = async ({
     const erc20AmountRecipients = [erc20AmountRecipient];
     const nftAmountRecipients = []; // Always empty for unshield
 
-    // Step 1: Gas estimation - Add back the parameters we need to solve "Must send with broadcaster or public wallet"
-    console.log('[UnshieldTransactions] Estimating gas for unshield operation...');
+    // Step 1: Find and select best relayer for the transaction (needed for proper gas estimation)
+    console.log('[UnshieldTransactions] 🔍 Discovering available relayers...');
+    const selectedRelayer = await findBestRelayerForUnshield(chain, tokenAddress);
+    const sendWithPublicWallet = !selectedRelayer; // Use relayer if available, fallback to public wallet
     
-    // Create minimal gas details for estimation (unshield needs this unlike shield)
-    // Step 1: Cast to string first
+    if (selectedRelayer) {
+      console.log('[UnshieldTransactions] ✅ Selected relayer for private transaction:', {
+        relayerAddress: selectedRelayer.railgunAddress?.slice(0, 10) + '...',
+        feeToken: selectedRelayer.tokenFee?.tokenAddress?.slice(0, 10) + '...',
+        feePerUnitGas: selectedRelayer.tokenFee?.feePerUnitGas?.toString(),
+      });
+    } else {
+      console.warn('[UnshieldTransactions] ⚠️ No relayer available - will use self-signing (reduced privacy)');
+    }
+
+    // Step 2: Gas estimation using our broadcaster fee estimator (following official SDK pattern)
+    console.log('[UnshieldTransactions] Estimating gas with broadcaster fee consideration...');
+    
+    // Create minimal gas details for initial estimation
     const initialGasEstimate = 500000;
     const gasString = String(initialGasEstimate);
     
-    // Step 2: Throw if falsy or empty string
     if (!initialGasEstimate || gasString === '' || gasString === 'undefined' || gasString === 'null' || gasString === 'NaN') {
       throw new Error(`Invalid initial gas estimate: ${initialGasEstimate}`);
     }
     
-    // Step 3: Only then call BigInt()
-    const estimationGasDetails = createUnshieldGasDetails(networkName, true, BigInt(gasString));
+    const estimationGasDetails = createUnshieldGasDetails(networkName, sendWithPublicWallet, BigInt(gasString));
     
-    const gasEstimateResponse = await gasEstimateForUnprovenUnshield(
+    // Create gas estimation function for our broadcaster fee estimator
+    const gasEstimateFunction = async (...params) => {
+      return await gasEstimateForUnprovenUnshield(
+        txidVersion,
+        networkName,
+        railgunWalletID,
+        encryptionKey,
+        erc20AmountRecipients,
+        nftAmountRecipients,
+        estimationGasDetails,
+        undefined, // feeTokenDetails
+        sendWithPublicWallet, // Use the determined value
+      );
+    };
+    
+    // Parameters for gas estimation (empty array since gasEstimateForUnprovenUnshield has all params baked in)
+    const gasEstimateParams = [];
+    
+    // Use our broadcaster fee estimator with the selected relayer (follows official SDK iterative pattern)
+    const estimationResult = await estimateGasWithBroadcasterFee(
+      networkName,
+      gasEstimateFunction,
+      gasEstimateParams,
+      selectedRelayer, // Now we have the actual relayer selection
+      'unshield'
+    );
+    
+    // Extract gas details and broadcaster fee info from estimation
+    const gasDetails = estimationResult.gasDetails;
+    const broadcasterFeeInfo = estimationResult.broadcasterFeeInfo;
+    const iterations = estimationResult.iterations;
+
+    console.log('[UnshieldTransactions] Gas estimation completed using broadcaster fee estimator:', {
+      gasEstimate: gasDetails.gasEstimate.toString(),
+      evmGasType: gasDetails.evmGasType,
+      iterations,
+      hasBroadcasterFee: !!broadcasterFeeInfo,
+      broadcasterFeeAmount: broadcasterFeeInfo?.feeAmount?.toString() || 'none',
+      usesRelayer: !sendWithPublicWallet,
+    });
+
+    // Step 3: Official SDK Pattern - Relayer-based Unshielding (Private Transactions)
+    console.log('[UnshieldTransactions] 🔄 Starting relayer-based unshield transaction...');
+    
+    // Step 3a: Calculate relayer fee if using relayer (Official SDK Pattern)
+    let broadcasterFeeERC20AmountRecipient = null;
+    let overallBatchMinGasPrice = undefined;
+    
+    if (selectedRelayer) {
+      console.log('[UnshieldTransactions] 💰 Calculating relayer fee using official SDK...');
+      
+      // Use official SDK's calculateMaximumGas function
+      const maximumGas = calculateMaximumGas(gasDetails);
+      const oneUnitGas = 10n ** 18n;
+      const tokenFeePerUnitGas = BigInt(selectedRelayer.tokenFee.feePerUnitGas);
+      const relayerFeeAmount = (tokenFeePerUnitGas * maximumGas) / oneUnitGas;
+      
+      // Create broadcaster fee recipient (required for relayer transactions)
+      broadcasterFeeERC20AmountRecipient = {
+        tokenAddress: selectedRelayer.tokenFee.tokenAddress,
+        amount: relayerFeeAmount,
+        recipientAddress: selectedRelayer.railgunAddress,
+      };
+      
+      // Set minimum gas price for relayer (required for relayer transactions)
+      overallBatchMinGasPrice = gasDetails.gasPrice || gasDetails.maxFeePerGas || BigInt('1000000000'); // 1 gwei fallback
+      
+      console.log('[UnshieldTransactions] ✅ Relayer fee calculated:', {
+        feeAmount: relayerFeeAmount.toString(),
+        feeToken: selectedRelayer.tokenFee.tokenAddress?.slice(0, 10) + '...' || 'native',
+        maximumGas: maximumGas.toString(),
+        overallBatchMinGasPrice: overallBatchMinGasPrice.toString(),
+        feesID: selectedRelayer.tokenFee.feesID,
+      });
+    } else {
+      console.log('[UnshieldTransactions] ℹ️ No relayer selected - using direct self-signing');
+    }
+    
+    // Step 2c: Generate proof with correct relayer/self-signing parameters (Official SDK Pattern)
+    console.log('[UnshieldTransactions] 🔄 Generating proof for transaction...', {
+      usesRelayer: !sendWithPublicWallet,
+      sendWithPublicWallet,
+      hasBroadcasterFee: !!broadcasterFeeERC20AmountRecipient,
+      overallBatchMinGasPrice: overallBatchMinGasPrice?.toString() || 'undefined',
+    });
+    
+    await generateUnshieldProof(
       txidVersion,
       networkName,
       railgunWalletID,
       encryptionKey,
       erc20AmountRecipients,
       nftAmountRecipients,
-      estimationGasDetails, // Unshield needs gas details for estimation
-      undefined, // feeTokenDetails
-      true, // sendWithPublicWallet - THIS was the fix for "Must send with broadcaster or public wallet"
+      broadcasterFeeERC20AmountRecipient, // ✅ Correctly set for relayer or null for self-signing
+      sendWithPublicWallet, // ✅ False for relayer, true for self-signing
+      overallBatchMinGasPrice, // ✅ Set for relayer, undefined for self-signing
+      (progress) => {
+        console.log(`[UnshieldTransactions] Proof generation progress: ${Math.round(progress * 100)}%`);
+      }
     );
-
-    // Extract the gas estimate value from the response (EXACT same as shield)
-    const gasEstimate = gasEstimateResponse.gasEstimate || gasEstimateResponse;
-    console.log('[UnshieldTransactions] Gas estimate response:', {
-      gasEstimate: gasEstimate?.toString?.(),
-      type: typeof gasEstimate,
-      isValidBigInt: typeof gasEstimate === 'bigint',
-      isValidNumber: !isNaN(Number(gasEstimate)),
-      rawResponse: gasEstimateResponse,
-    });
-
-    // CRITICAL: Validate gas estimate before creating gas details
-    if (!gasEstimate || gasEstimate === 'undefined' || gasEstimate === 'null') {
-      throw new Error(`Gas estimate is missing: ${gasEstimate}`);
-    }
     
-    // Handle both BigInt and number/string gas estimates
-    let validatedGasEstimate;
-    if (typeof gasEstimate === 'bigint') {
-      validatedGasEstimate = gasEstimate;
-    } else {
-      // Step 1: Cast to string first
-      const gasEstimateString = String(gasEstimate);
-      
-      // Step 2: Throw if falsy or empty string
-      if (!gasEstimate || gasEstimateString === '' || gasEstimateString === 'undefined' || gasEstimateString === 'null' || gasEstimateString === 'NaN') {
-        throw new Error(`Gas estimate is falsy or invalid: "${gasEstimate}" (string: "${gasEstimateString}")`);
-      }
-      
-      // Additional validation - ensure it's a valid number
-      const gasNumber = Number(gasEstimateString);
-      if (!Number.isFinite(gasNumber) || gasNumber <= 0) {
-        throw new Error(`Invalid gas estimate value: ${gasEstimate} (string: "${gasEstimateString}", number: ${gasNumber})`);
-      }
-      
-      // Step 3: Only then call BigInt()
-      validatedGasEstimate = BigInt(gasEstimateString);
-    }
-
-    console.log('[UnshieldTransactions] Validated gas estimate:', {
-      original: gasEstimate,
-      validated: validatedGasEstimate.toString(),
-      type: typeof validatedGasEstimate,
-    });
-
-    // Create real gas details for unshield operation (SAFE with validated input)
-    const gasDetails = createUnshieldGasDetails(networkName, true, validatedGasEstimate);
+    console.log('[UnshieldTransactions] ✅ Proof generation completed');
     
-    const broadcasterFeeInfo = null; // No broadcaster for unshield (same as shield)
-    const iterations = 1; // Direct estimation (same as shield)
-
-    console.log('[UnshieldTransactions] Gas estimation completed:', {
-      gasEstimate: gasDetails.gasEstimate.toString(),
-      evmGasType: gasDetails.evmGasType,
-      iterations,
-      hasBroadcasterFee: !!broadcasterFeeInfo,
-    });
-
-    // Step 2: Official SDK pattern with scalable cache - Clear cache at start for this wallet/network
-    console.log('[UnshieldTransactions] 🧹 Clearing existing cache for wallet/network (like official SDK)...');
-    clearCachedProvedTransaction(railgunWalletID, chain.id);
-    
-    // CRITICAL: Store exact values for consistent cache validation (SCALABLE: scoped per wallet/network)
-    const proofParams = {
-      proofType: 'unshield',
+    // Step 2d: Populate transaction using SDK's internal cache (Official SDK Pattern)
+    const populatedTransaction = await populateProvedUnshield(
       txidVersion,
       networkName,
       railgunWalletID,
       erc20AmountRecipients,
       nftAmountRecipients,
-      broadcasterFeeERC20AmountRecipient: broadcasterFeeInfo?.broadcasterFeeERC20AmountRecipient,
-      sendWithPublicWallet: true,
-      overallBatchMinGasPrice: undefined, // Must be undefined for public wallet unshields
-    };
+      broadcasterFeeERC20AmountRecipient, // ✅ Must match proof generation exactly
+      sendWithPublicWallet, // ✅ Must match proof generation exactly
+      overallBatchMinGasPrice, // ✅ Must match proof generation exactly
+      gasDetails
+    );
     
-    console.log('[UnshieldTransactions] 🔍 Generating proof with params (scalable cache):', {
-      walletID: railgunWalletID?.slice(0, 8) + '...',
-      networkName,
-      chainId: chain.id,
-      proofType: proofParams.proofType,
-      txidVersion: proofParams.txidVersion,
-      overallBatchMinGasPrice: proofParams.overallBatchMinGasPrice,
-      erc20Recipients: proofParams.erc20AmountRecipients.length,
-      nftRecipients: proofParams.nftAmountRecipients.length,
-      sendWithPublicWallet: proofParams.sendWithPublicWallet,
+    console.log('[UnshieldTransactions] ✅ Transaction populated and ready for submission:', {
+      transactionTo: populatedTransaction.transaction?.to?.slice(0, 10) + '...',
+      hasNullifiers: !!populatedTransaction.nullifiers?.length,
+      nullifiersCount: populatedTransaction.nullifiers?.length || 0,
+      usesRelayer: !sendWithPublicWallet,
     });
-    
-    let populatedTransaction;
-    
-    // Step 2a: Try to use existing cache first (like official SDK populateProvedTransaction)
-    try {
-      populatedTransaction = await populateProvedTransaction(
-        proofParams.txidVersion,
-        proofParams.networkName,
-        proofParams.proofType,
-        proofParams.railgunWalletID,
-        proofParams.erc20AmountRecipients,
-        proofParams.nftAmountRecipients,
-        proofParams.broadcasterFeeERC20AmountRecipient,
-        proofParams.sendWithPublicWallet,
-        proofParams.overallBatchMinGasPrice,
-        gasDetails,
-        railgunWalletID, // Our scalable cache keys
-        chain.id
-      );
-      
-      console.log('[UnshieldTransactions] ✅ Used existing valid cached proof');
-      
-    } catch (cacheError) {
-      console.log('[UnshieldTransactions] 🔄 No valid cache - generating new proof...', cacheError.message);
-      
-      // Step 2b: Generate fresh proof (like official SDK)
-      await generateUnshieldProof(
-        proofParams.txidVersion,
-        proofParams.networkName,
-        proofParams.railgunWalletID,
-        encryptionKey, // Not stored in proofParams for security
-        proofParams.erc20AmountRecipients,
-        proofParams.nftAmountRecipients,
-        proofParams.broadcasterFeeERC20AmountRecipient,
-        proofParams.sendWithPublicWallet,
-        proofParams.overallBatchMinGasPrice,
-        (progress) => {
-          console.log(`[UnshieldTransactions] Proof generation progress: ${Math.round(progress * 100)}%`);
-        }
-      );
-      
-      console.log('[UnshieldTransactions] ✅ Proof generation completed');
-      
-      // Step 2c: Cache proof IMMEDIATELY after generation (like official SDK)
-      const cachedProof = new CachedProvedTransaction({
-        ...proofParams,
-        transaction: undefined, // Will be populated below
-        nullifiers: undefined,
-        preTransactionPOIsPerTxidLeafPerList: undefined,
-      });
-      
-      // Populate transaction using SDK's internal proof cache
-      populatedTransaction = await populateProvedUnshield(
-        proofParams.txidVersion,
-        proofParams.networkName,
-        proofParams.railgunWalletID,
-        proofParams.erc20AmountRecipients,
-        proofParams.nftAmountRecipients,
-        proofParams.broadcasterFeeERC20AmountRecipient,
-        proofParams.sendWithPublicWallet,
-        proofParams.overallBatchMinGasPrice,
-        gasDetails
-      );
-      
-      // Update cache with complete transaction data
-      cachedProof.transaction = populatedTransaction.transaction;
-      cachedProof.nullifiers = populatedTransaction.nullifiers;
-      cachedProof.preTransactionPOIsPerTxidLeafPerList = populatedTransaction.preTransactionPOIsPerTxidLeafPerList;
-      
-      // Cache the complete proof (SCALABLE: scoped to walletID + chainId)
-      setCachedProvedTransaction(cachedProof, railgunWalletID, chain.id);
-      
-      console.log('[UnshieldTransactions] ✅ Transaction populated and cached for wallet/network');
-    }
 
     // Debug: Log the raw transaction from Railgun SDK
     console.log('[UnshieldTransactions] 🔍 Raw transaction from Railgun SDK:', {
       transaction: populatedTransaction.transaction,
       to: populatedTransaction.transaction.to,
-      data: populatedTransaction.transaction.data,
+      data: populatedTransaction.transaction.data ? populatedTransaction.transaction.data.slice(0, 10) + '...' : 'undefined',
+      dataLength: populatedTransaction.transaction.data?.length || 0,
       value: populatedTransaction.transaction.value?.toString(),
-      gasLimit: populatedTransaction.transaction.gasLimit?.toString(),
-      type: populatedTransaction.transaction.type,
-    });
-
-    // Step 4: Send transaction on-chain
-    console.log('[UnshieldTransactions] Sending transaction on-chain...');
-    
-    // Get wallet signer
-    const walletSigner = await walletProvider();
-    
-    // Format transaction for sending (convert BigInt to hex strings)
-    // ⚠️ CRITICAL FIX: Let wallet estimate gas instead of forcing our gas limit
-    const txForSending = {
-      ...populatedTransaction.transaction,
-      // Remove gasLimit - let wallet estimate gas naturally
-      // Note: We keep our estimated gas as fallback in gasDetails for reference
-      gasLimit: undefined,
-      gasPrice: populatedTransaction.transaction.gasPrice ? '0x' + populatedTransaction.transaction.gasPrice.toString(16) : undefined,
-      maxFeePerGas: populatedTransaction.transaction.maxFeePerGas ? '0x' + populatedTransaction.transaction.maxFeePerGas.toString(16) : undefined,
-      maxPriorityFeePerGas: populatedTransaction.transaction.maxPriorityFeePerGas ? '0x' + populatedTransaction.transaction.maxPriorityFeePerGas.toString(16) : undefined,
-      value: populatedTransaction.transaction.value ? '0x' + populatedTransaction.transaction.value.toString(16) : '0x0',
-    };
-    
-    console.log('[UnshieldTransactions] 💡 Gas estimation info:', {
-      ourEstimate: gasDetails.gasEstimate?.toString(),
-      evmGasType: gasDetails.evmGasType,
-      sendWithPublicWallet: true,
-      note: 'Letting wallet estimate gas to avoid estimation conflicts',
+      nullifiers: populatedTransaction.nullifiers?.length || 0,
+      usedRelayer: selectedRelayer ? 'yes' : 'no (self-signing)',
     });
     
-    // Clean up transaction object - remove undefined values that might confuse wallet
-    Object.keys(txForSending).forEach(key => {
-      if (txForSending[key] === undefined) {
-        delete txForSending[key];
+    // Step 3: Submit transaction via relayer or fallback to self-signing (Official SDK Pattern)
+    let transactionHash, txResponse;
+    
+    if (selectedRelayer && !sendWithPublicWallet) {
+      console.log('[UnshieldTransactions] 📡 Attempting relayer submission (maximum privacy)...', {
+        relayerAddress: selectedRelayer.railgunAddress?.slice(0, 10) + '...',
+        feesID: selectedRelayer.tokenFee?.feesID,
+        hasValidParameters: !!(populatedTransaction.transaction.to && populatedTransaction.transaction.data),
+      });
+      
+      try {
+        // Ensure we have all required parameters for relayer submission
+        if (!populatedTransaction.transaction.to || !populatedTransaction.transaction.data) {
+          throw new Error('Invalid transaction data for relayer submission');
+        }
+        
+        if (!overallBatchMinGasPrice) {
+          throw new Error('overallBatchMinGasPrice is required for relayer transactions');
+        }
+        
+        // Submit via relayer using official SDK pattern
+        const nullifiers = populatedTransaction.nullifiers ?? [];
+        
+        const relayerTransaction = await createRelayerTransaction(
+          populatedTransaction.transaction.to,
+          populatedTransaction.transaction.data,
+          selectedRelayer.railgunAddress,
+          selectedRelayer.tokenFee.feesID,
+          chain,
+          nullifiers,
+          overallBatchMinGasPrice,
+          false // useRelayAdapt - false for standard unshield
+        );
+        
+        transactionHash = await submitRelayerTransaction(relayerTransaction);
+        
+        console.log('[UnshieldTransactions] ✅ Transaction submitted via relayer (maximum privacy):', {
+          transactionHash,
+          anonymousSubmission: true,
+          privacyLevel: 'high',
+        });
+        
+      } catch (relayerError) {
+        console.error('[UnshieldTransactions] ❌ Relayer submission failed:', relayerError.message);
+        console.warn('[UnshieldTransactions] 🔄 Falling back to self-signing (reduced privacy)...');
+        
+        // Important: Need to regenerate proof for self-signing since parameters differ
+        console.log('[UnshieldTransactions] 🔄 Regenerating proof for self-signing fallback...');
+        
+        // Regenerate proof with self-signing parameters
+        await generateUnshieldProof(
+          txidVersion,
+          networkName,
+          railgunWalletID,
+          encryptionKey,
+          erc20AmountRecipients,
+          nftAmountRecipients,
+          null, // No broadcaster fee for self-signing
+          true, // sendWithPublicWallet = true for self-signing
+          undefined, // No overallBatchMinGasPrice for self-signing
+          (progress) => {
+            console.log(`[UnshieldTransactions] Fallback proof generation: ${Math.round(progress * 100)}%`);
+          }
+        );
+        
+        // Repopulate transaction for self-signing
+        const selfSigningTransaction = await populateProvedUnshield(
+          txidVersion,
+          networkName,
+          railgunWalletID,
+          erc20AmountRecipients,
+          nftAmountRecipients,
+          null, // No broadcaster fee for self-signing
+          true, // sendWithPublicWallet = true for self-signing
+          undefined, // No overallBatchMinGasPrice for self-signing
+          gasDetails
+        );
+        
+        // Fallback to self-signing
+        txResponse = await submitTransactionSelfSigned(selfSigningTransaction, walletProvider);
+        transactionHash = txResponse.hash || txResponse;
+        
+        console.warn('[UnshieldTransactions] ⚠️ Used self-signing fallback (reduced privacy):', {
+          transactionHash,
+          privacyLevel: 'reduced',
+          reason: 'relayer_failed',
+        });
       }
-    });
-    
-    console.log('[UnshieldTransactions] Formatted transaction for sending:', {
-      to: txForSending.to,
-      data: txForSending.data ? txForSending.data.slice(0, 10) + '...' : 'undefined',
-      dataLength: txForSending.data ? txForSending.data.length : 0,
-      value: txForSending.value,
-      gasLimit: txForSending.gasLimit || 'wallet-estimated',
-      gasPrice: txForSending.gasPrice,
-      maxFeePerGas: txForSending.maxFeePerGas,
-      maxPriorityFeePerGas: txForSending.maxPriorityFeePerGas,
-      type: txForSending.type,
-      isValidAddress: txForSending.to && txForSending.to.startsWith('0x') && txForSending.to.length === 42,
-      hasCallData: !!txForSending.data && txForSending.data !== '0x',
-    });
-
-    // Additional validation
-    if (!txForSending.to || !txForSending.to.startsWith('0x') || txForSending.to.length !== 42) {
-      console.error('[UnshieldTransactions] ❌ Invalid contract address:', txForSending.to);
-      throw new Error(`Invalid contract address: ${txForSending.to}`);
-    }
-
-    if (!txForSending.data || txForSending.data === '0x') {
-      console.error('[UnshieldTransactions] ❌ Missing or empty call data');
-      throw new Error('Transaction missing call data');
-    }
-    
-    // Note: Caching now happens immediately after proof generation (like official SDK)
-    
-    console.log('[UnshieldTransactions] 🔄 Sending transaction to wallet for signing...');
-    
-    let txResponse, transactionHash;
-    try {
-      // Send transaction and get receipt
-      txResponse = await walletSigner.sendTransaction(txForSending);
+      
+    } else {
+      const reason = !selectedRelayer ? 'no_relayer_available' : 'relayer_configuration_error';
+      console.log('[UnshieldTransactions] 🔄 Self-signing transaction (no relayer)...', {
+        reason,
+        sendWithPublicWallet,
+        hasRelayer: !!selectedRelayer,
+      });
+      
+      // Self-sign transaction when no relayer available
+      txResponse = await submitTransactionSelfSigned(populatedTransaction, walletProvider);
       transactionHash = txResponse.hash || txResponse;
       
-      console.log('[UnshieldTransactions] ✅ Transaction sent successfully:', transactionHash);
-    } catch (walletError) {
-      console.error('[UnshieldTransactions] ❌ Wallet transaction failed:', {
-        error: walletError.message,
-        code: walletError.code,
-        data: walletError.data,
-        transaction: txForSending,
+      console.warn('[UnshieldTransactions] ⚠️ Self-signed transaction (reduced privacy):', {
+        transactionHash,
+        privacyLevel: 'reduced',
+        reason,
       });
-      throw new Error(`Wallet transaction failed: ${walletError.message}`);
     }
     
     console.log('[UnshieldTransactions] ✅ Unshield operation completed successfully!');
@@ -443,7 +620,7 @@ export const unshieldTokens = async ({
       // Transaction details
       transaction: populatedTransaction.transaction,
       transactionHash, // ✅ CRITICAL: Transaction hash for Graph monitoring
-      txResponse, // Full response from wallet
+      txResponse, // Full response from wallet (if self-signed)
       
       // Gas information
       gasDetails,
@@ -453,13 +630,16 @@ export const unshieldTokens = async ({
       nullifiers: populatedTransaction.nullifiers,
       preTransactionPOIsPerTxidLeafPerList: populatedTransaction.preTransactionPOIsPerTxidLeafPerList,
       
-      // Fee information
-      broadcasterFeeInfo,
-      gasEstimationIterations: iterations,
+      // Relayer information
+      usedRelayer: !sendWithPublicWallet,
+      selectedRelayer: selectedRelayer?.railgunAddress,
+      broadcasterFeeERC20AmountRecipient,
       
       // Metadata
       transactionType: 'unshield',
       networkName,
+      sendWithPublicWallet,
+      privacyLevel: selectedRelayer ? 'high' : 'reduced',
       metadata: {
         railgunWalletID,
         erc20Recipients: erc20AmountRecipients.length,

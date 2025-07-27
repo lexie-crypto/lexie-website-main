@@ -12,6 +12,7 @@
   "dependencies": {
     "@heroicons/react": "2.1.1",
     "@railgun-community/shared-models": "7.6.2",
+    "@railgun-community/waku-relayer-client-web": "6.2.13",
     "@railgun-community/wallet": "10.4.1",
     "@tanstack/react-query": "5.83.0",
     "@types/level-js": "4.0.5",
