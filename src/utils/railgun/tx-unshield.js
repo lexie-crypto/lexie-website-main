@@ -16,7 +16,7 @@ import { waitForRailgunReady } from './engine.js';
 import { createUnshieldGasDetails } from './tx-gas-details.js';
 import { estimateGasWithBroadcasterFee } from './tx-gas-broadcaster-fee-estimator.js';
 import { generateUnshieldProof } from './tx-proof-unshield.js';
-// Official Relayer SDK imports
+// Official Relayer SDK imports (following docs pattern)
 import {
   WakuRelayerClient,
   RelayerTransaction,
@@ -24,9 +24,43 @@ import {
 import {
   calculateMaximumGas,
   ChainType,
+  RelayerConnectionStatus,
 } from '@railgun-community/shared-models';
 
-// Relayer debugging setup
+// Status callback for connection updates (following docs pattern)
+const statusCallback = (chain, status) => {
+  console.log('[UnshieldTransactions] 📡 Relayer connection status:', {
+    chainId: chain.id,
+    chainName: chain.name || 'unknown',
+    status,
+    statusName: Object.keys(RelayerConnectionStatus).find(
+      key => RelayerConnectionStatus[key] === status
+    ) || 'unknown',
+  });
+  
+  // Handle specific connection status updates
+  switch (status) {
+    case RelayerConnectionStatus.Connected:
+      console.log('[UnshieldTransactions] ✅ Relayer connected successfully');
+      break;
+    case RelayerConnectionStatus.Connecting:
+      console.log('[UnshieldTransactions] 🔄 Connecting to relayers...');
+      break;
+    case RelayerConnectionStatus.Disconnected:
+      console.warn('[UnshieldTransactions] ⚠️ Relayer disconnected');
+      break;
+    case RelayerConnectionStatus.Error:
+      console.error('[UnshieldTransactions] ❌ Relayer connection error');
+      break;
+    case RelayerConnectionStatus.Searching:
+      console.log('[UnshieldTransactions] 🔍 Searching for relayers...');
+      break;
+    default:
+      console.log('[UnshieldTransactions] ℹ️ Unknown relayer status:', status);
+  }
+};
+
+// Relayer debugger setup (following docs pattern)
 const relayerDebugger = {
   log: (msg) => {
     console.log('[Relayer Debug]', msg);
@@ -34,6 +68,62 @@ const relayerDebugger = {
   error: (err) => {
     console.error('[Relayer Error]', err.message);
   },
+};
+
+// Singleton flag to ensure relayer client is only initialized once per app boot
+let relayerClientInitialized = false;
+
+/**
+ * Initialize WakuRelayerClient with proper configuration (following docs pattern)
+ * @param {Object} chain - Chain configuration
+ * @returns {Promise<boolean>} Success status
+ */
+const initializeRelayerClient = async (chain) => {
+  if (relayerClientInitialized) {
+    console.log('[UnshieldTransactions] ✅ Relayer client already initialized');
+    return true;
+  }
+
+  try {
+    console.log('[UnshieldTransactions] 🚀 Initializing WakuRelayerClient...', {
+      chainId: chain.id,
+      chainName: chain.name,
+    });
+
+    // Create chain object for relayer client
+    const chainConfig = {
+      type: ChainType.EVM,
+      id: chain.id,
+    };
+
+    // Relayer options configuration
+    const relayerOptions = {
+      pubSubTopic: undefined, // Use default
+      additionalDirectPeers: [], // Use default peers
+      peerDiscoveryTimeout: 60000, // 60 seconds
+      poiActiveListKeys: undefined, // Use default POI lists
+    };
+
+    // Initialize WakuRelayerClient (following docs pattern)
+    await WakuRelayerClient.start(
+      chainConfig,
+      relayerOptions,
+      statusCallback,
+      relayerDebugger
+    );
+
+    console.log('[UnshieldTransactions] ✅ WakuRelayerClient initialized successfully');
+    relayerClientInitialized = true;
+    return true;
+
+  } catch (error) {
+    console.error('[UnshieldTransactions] ❌ Failed to initialize WakuRelayerClient:', {
+      error: error.message,
+      name: error.name,
+      stack: error.stack,
+    });
+    return false;
+  }
 };
 
 // Initialize relayer debugging (if method exists)
@@ -418,7 +508,15 @@ export const unshieldTokens = async ({
     const erc20AmountRecipients = [erc20AmountRecipient];
     const nftAmountRecipients = []; // Always empty for unshield
 
-    // Step 1: Find and select best relayer for the transaction (needed for proper gas estimation)
+    // Step 1: Initialize relayer client (required before discovery)
+    console.log('[UnshieldTransactions] 🔧 Ensuring relayer client is initialized...');
+    const relayerInitialized = await initializeRelayerClient(chain);
+    
+    if (!relayerInitialized) {
+      console.warn('[UnshieldTransactions] ⚠️ Relayer client initialization failed - will use self-signing');
+    }
+
+    // Step 2: Find and select best relayer for the transaction (needed for proper gas estimation)
     console.log('[UnshieldTransactions] 🔍 Discovering available relayers...');
     const selectedRelayer = await findBestRelayerForUnshield(chain, tokenAddress);
     const sendWithPublicWallet = !selectedRelayer; // Use relayer if available, fallback to public wallet
@@ -433,7 +531,7 @@ export const unshieldTokens = async ({
       console.warn('[UnshieldTransactions] ⚠️ No relayer available - will use self-signing (reduced privacy)');
     }
 
-    // Step 2: Gas estimation using our broadcaster fee estimator (following official SDK pattern)
+    // Step 3: Gas estimation using our broadcaster fee estimator (following official SDK pattern)
     console.log('[UnshieldTransactions] Estimating gas with broadcaster fee consideration...');
     
     // Create minimal gas details for initial estimation
@@ -487,10 +585,10 @@ export const unshieldTokens = async ({
       usesRelayer: !sendWithPublicWallet,
     });
 
-    // Step 3: Official SDK Pattern - Relayer-based Unshielding (Private Transactions)
+    // Step 4: Official SDK Pattern - Relayer-based Unshielding (Private Transactions)
     console.log('[UnshieldTransactions] 🔄 Starting relayer-based unshield transaction...');
     
-    // Step 3a: Calculate relayer fee if using relayer (Official SDK Pattern)
+    // Step 4a: Calculate relayer fee if using relayer (Official SDK Pattern)
     let broadcasterFeeERC20AmountRecipient = null;
     let overallBatchMinGasPrice = undefined;
     
@@ -524,7 +622,7 @@ export const unshieldTokens = async ({
       console.log('[UnshieldTransactions] ℹ️ No relayer selected - using direct self-signing');
     }
     
-    // Step 2c: Generate proof with correct relayer/self-signing parameters (Official SDK Pattern)
+    // Step 4b: Generate proof with correct relayer/self-signing parameters (Official SDK Pattern)
     console.log('[UnshieldTransactions] 🔄 Generating proof for transaction...', {
       usesRelayer: !sendWithPublicWallet,
       sendWithPublicWallet,
@@ -549,7 +647,7 @@ export const unshieldTokens = async ({
     
     console.log('[UnshieldTransactions] ✅ Proof generation completed');
     
-    // Step 2d: Populate transaction using SDK's internal cache (Official SDK Pattern)
+    // Step 4c: Populate transaction using SDK's internal cache (Official SDK Pattern)
     const populatedTransaction = await populateProvedUnshield(
       txidVersion,
       networkName,
@@ -580,7 +678,7 @@ export const unshieldTokens = async ({
       usedRelayer: selectedRelayer ? 'yes' : 'no (self-signing)',
     });
     
-    // Step 3: Submit transaction via relayer or fallback to self-signing (Official SDK Pattern)
+    // Step 5: Submit transaction via relayer or fallback to self-signing (Official SDK Pattern)
     let transactionHash, txResponse;
     
     if (selectedRelayer && !sendWithPublicWallet) {
