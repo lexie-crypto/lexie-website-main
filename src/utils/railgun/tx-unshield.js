@@ -96,13 +96,21 @@ const initializeRelayerClient = async (chain) => {
       id: chain.id,
     };
 
-    // Relayer options configuration
+    // Relayer options configuration - Connect to YOUR Waku node
     const relayerOptions = {
       pubSubTopic: undefined, // Use default
-      additionalDirectPeers: [], // Use default peers
-      peerDiscoveryTimeout: 60000, // 60 seconds
+      // ✅ Point to your DigitalOcean Waku node (now with external connectivity)
+      additionalDirectPeers: [
+        '/ip4/147.182.143.64/tcp/60000/p2p/16Uiu2HAmKccSj6jYynCjZnopnDZQJff7bJaoDwKUMNi3BsDpxEZ3'
+      ],
+      peerDiscoveryTimeout: 120000, // 120 seconds (increased from 60s)
       poiActiveListKeys: undefined, // Use default POI lists
     };
+
+    console.log('[UnshieldTransactions] 🔄 Starting WakuRelayerClient with extended timeout...', {
+      peerDiscoveryTimeout: relayerOptions.peerDiscoveryTimeout,
+      chainConfig,
+    });
 
     // Initialize WakuRelayerClient (following docs pattern)
     await WakuRelayerClient.start(
@@ -120,8 +128,23 @@ const initializeRelayerClient = async (chain) => {
     console.error('[UnshieldTransactions] ❌ Failed to initialize WakuRelayerClient:', {
       error: error.message,
       name: error.name,
-      stack: error.stack,
+      errorType: error.constructor.name,
+      chainId: chain.id,
+      timeout: relayerOptions.peerDiscoveryTimeout,
     });
+    
+    // Log specific timeout errors
+    if (error.message.includes('Timed out') || error.message.includes('timeout')) {
+      console.warn('[UnshieldTransactions] ⏰ Relayer initialization timed out - this is common with network connectivity issues');
+      console.warn('[UnshieldTransactions] 💡 Suggestion: Check network connection or try again later');
+    }
+    
+    // Log network connectivity errors
+    if (error.message.includes('Cannot connect') || error.message.includes('network')) {
+      console.warn('[UnshieldTransactions] 🌐 Network connectivity issue detected');
+      console.warn('[UnshieldTransactions] 💡 Relayer network may be experiencing issues - falling back to self-signing');
+    }
+    
     return false;
   }
 };
@@ -514,6 +537,8 @@ export const unshieldTokens = async ({
     
     if (!relayerInitialized) {
       console.warn('[UnshieldTransactions] ⚠️ Relayer client initialization failed - will use self-signing');
+      console.warn('[UnshieldTransactions] 🔒 Privacy Note: Self-signing provides less privacy than relayer-based transactions');
+      console.warn('[UnshieldTransactions] 💡 The transaction will still work but will be submitted directly from your wallet');
     }
 
     // Step 2: Find and select best relayer for the transaction (needed for proper gas estimation)
