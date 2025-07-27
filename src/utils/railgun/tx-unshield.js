@@ -24,7 +24,29 @@ import {
 import {
   calculateMaximumGas,
   ChainType,
-} from '@railgun-community/shared-models';  
+} from '@railgun-community/shared-models';
+
+// Relayer debugging setup
+const relayerDebugger = {
+  log: (msg) => {
+    console.log('[Relayer Debug]', msg);
+  },
+  error: (err) => {
+    console.error('[Relayer Error]', err.message);
+  },
+};
+
+// Initialize relayer debugging (if method exists)
+try {
+  if (WakuRelayerClient.setDebugger) {
+    WakuRelayerClient.setDebugger(relayerDebugger);
+    console.log('[UnshieldTransactions] ✅ Relayer debugging enabled');
+  } else {
+    console.log('[UnshieldTransactions] ⚠️ Relayer debugging not available in this version');
+  }
+} catch (error) {
+  console.warn('[UnshieldTransactions] ⚠️ Could not set relayer debugger:', error.message);
+}  
 
 /**
  * Find best relayer for unshield transaction using official SDK
@@ -38,6 +60,7 @@ const findBestRelayerForUnshield = async (chain, tokenAddress) => {
       chainId: chain.id,
       chainName: chain.name,
       feeToken: tokenAddress ? tokenAddress.slice(0, 10) + '...' : 'native',
+      fullTokenAddress: tokenAddress,
     });
     
     // Create chain object for relayer client
@@ -46,12 +69,50 @@ const findBestRelayerForUnshield = async (chain, tokenAddress) => {
       id: chain.id,
     };
     
+    console.log('[UnshieldTransactions] 🔧 Chain configuration:', chainConfig);
+    
     // Use the fee token address for relayer selection
     // For native tokens (ETH), use undefined or the wrapped token address
     const feeTokenAddress = tokenAddress || undefined;
     
     // Only set to true if making a cross-contract call (false for standard unshield)
     const useRelayAdapt = false;
+    
+    console.log('[UnshieldTransactions] 🎯 Relayer search parameters:', {
+      feeTokenAddress,
+      useRelayAdapt,
+      hasWakuRelayerClient: !!WakuRelayerClient,
+      relayerClientStarted: WakuRelayerClient.isStarted ? WakuRelayerClient.isStarted() : 'unknown',
+    });
+    
+    // Check if WakuRelayerClient is started
+    if (WakuRelayerClient.isStarted && !WakuRelayerClient.isStarted()) {
+      console.error('[UnshieldTransactions] ❌ WakuRelayerClient is not started - cannot find relayers');
+      return null;
+    }
+    
+    // Check if there are any relayers for this chain first
+    if (WakuRelayerClient.findAllRelayersForChain) {
+      const allRelayers = WakuRelayerClient.findAllRelayersForChain(chainConfig, useRelayAdapt);
+      console.log('[UnshieldTransactions] 📊 All available relayers for chain:', {
+        chainId: chain.id,
+        relayerCount: allRelayers?.length || 0,
+        relayers: allRelayers?.map(r => ({
+          address: r.railgunAddress?.slice(0, 10) + '...',
+          feeToken: r.tokenFee?.tokenAddress?.slice(0, 10) + '...' || 'native',
+          feePerUnitGas: r.tokenFee?.feePerUnitGas?.toString(),
+        })) || [],
+      });
+    }
+    
+    // Check if the specific token is supported
+    if (WakuRelayerClient.supportsToken) {
+      const tokenSupported = WakuRelayerClient.supportsToken(chainConfig, feeTokenAddress, useRelayAdapt);
+      console.log('[UnshieldTransactions] 🎫 Token support check:', {
+        tokenAddress: feeTokenAddress,
+        isSupported: tokenSupported,
+      });
+    }
     
     // Find best relayer using official SDK
     const selectedRelayer = WakuRelayerClient.findBestRelayer(
@@ -66,15 +127,28 @@ const findBestRelayerForUnshield = async (chain, tokenAddress) => {
         feeToken: selectedRelayer.tokenFee?.tokenAddress?.slice(0, 10) + '...' || 'native',
         feePerUnitGas: selectedRelayer.tokenFee?.feePerUnitGas?.toString(),
         feesID: selectedRelayer.tokenFee?.feesID,
+        tokenFeeDetails: selectedRelayer.tokenFee,
       });
     } else {
       console.warn('[UnshieldTransactions] ⚠️ No relayer available for specified token - will use self-signing');
+      console.warn('[UnshieldTransactions] 🔍 Debug info:', {
+        searchedToken: feeTokenAddress,
+        chainId: chain.id,
+        useRelayAdapt,
+        wakuClientStarted: WakuRelayerClient.isStarted ? WakuRelayerClient.isStarted() : 'unknown',
+      });
     }
     
     return selectedRelayer;
     
   } catch (error) {
     console.error('[UnshieldTransactions] ❌ Relayer discovery failed:', error.message);
+    console.error('[UnshieldTransactions] 🔍 Error details:', {
+      name: error.name,
+      stack: error.stack,
+      chainId: chain?.id,
+      tokenAddress,
+    });
     console.warn('[UnshieldTransactions] 🔄 Falling back to self-signing due to relayer error');
     return null;
   }
