@@ -390,7 +390,8 @@ const submitTransactionSelfSigned = async (populatedTransaction, walletProvider)
     // Format transaction for self-signing (convert BigInt to hex strings)
     const txForSending = {
       ...populatedTransaction.transaction,
-      gasLimit: undefined, // Let wallet estimate gas
+      // CRITICAL: Use the gas limit from our proper gas estimation, don't override to undefined
+      gasLimit: populatedTransaction.transaction.gasLimit ? '0x' + populatedTransaction.transaction.gasLimit.toString(16) : undefined,
       gasPrice: populatedTransaction.transaction.gasPrice ? '0x' + populatedTransaction.transaction.gasPrice.toString(16) : undefined,
       maxFeePerGas: populatedTransaction.transaction.maxFeePerGas ? '0x' + populatedTransaction.transaction.maxFeePerGas.toString(16) : undefined,
       maxPriorityFeePerGas: populatedTransaction.transaction.maxPriorityFeePerGas ? '0x' + populatedTransaction.transaction.maxPriorityFeePerGas.toString(16) : undefined,
