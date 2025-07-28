@@ -677,13 +677,16 @@ export const unshieldTokens = async ({
       type: typeof gasEstimate
     });
     
-    // Create proper gas details with real estimate
-    const gasDetails = {
-      evmGasType: 2, // Type 2 for EIP-1559
-      gasEstimate: gasEstimate,
-      maxFeePerGas: BigInt('20000000000'), // 20 gwei
-      maxPriorityFeePerGas: BigInt('2000000000'), // 2 gwei
-    };
+    // Create proper gas details using the dedicated function (like shield transactions)
+    const networkName = chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum;
+    const gasDetails = createUnshieldGasDetails(networkName, sendWithPublicWallet, gasEstimate);
+    
+    console.log('📝 [UNSHIELD DEBUG] Gas details created:', {
+      evmGasType: gasDetails.evmGasType,
+      gasEstimate: gasDetails.gasEstimate.toString(),
+      hasGasPrice: !!gasDetails.gasPrice,
+      hasMaxFeePerGas: !!gasDetails.maxFeePerGas,
+    });
     
     // STEP 6: Populate Transaction with real gas details
     console.log('📝 [UNSHIELD DEBUG] Step 6: Populating transaction with real gas...');
@@ -804,12 +807,11 @@ export const unshieldTokens = async ({
         );
         
         const fallbackGasEstimate = fallbackGasEstimateResponse.gasEstimate || fallbackGasEstimateResponse;
-        const fallbackGasDetails = {
-          evmGasType: 2,
-          gasEstimate: fallbackGasEstimate,
-          maxFeePerGas: BigInt('20000000000'),
-          maxPriorityFeePerGas: BigInt('2000000000'),
-        };
+        const fallbackGasDetails = createUnshieldGasDetails(
+          chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
+          true, // sendWithPublicWallet for fallback
+          fallbackGasEstimate
+        );
 
         // Repopulate transaction for self-signing using internally stored proof
         const selfSignTx = await populateProvedUnshield(
