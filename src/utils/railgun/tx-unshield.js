@@ -499,8 +499,10 @@ export const unshieldTokens = async ({
 }) => {
   console.log('🚀 [UNSHIELD DEBUG] Starting unshield transaction with relayer support...', {
     railgunWalletID: railgunWalletID?.substring(0, 10) + '...',
+    encryptionKey: encryptionKey ? 'present' : 'missing',
     tokenAddress: tokenAddress?.substring(0, 10) + '...',
     amount,
+    toAddress: toAddress?.substring(0, 10) + '...',
     chainId: chain.id,
     chainName: chain.name,
     timestamp: new Date().toISOString(),
@@ -511,6 +513,19 @@ export const unshieldTokens = async ({
   let privacyLevel = 'self-signed';
 
   try {
+    // Validate required parameters
+    if (!encryptionKey) {
+      throw new Error('Encryption key is required for unshield operations');
+    }
+    if (!railgunWalletID) {
+      throw new Error('Railgun wallet ID is required');
+    }
+    if (!amount) {
+      throw new Error('Amount is required');
+    }
+    if (!toAddress) {
+      throw new Error('Recipient address is required');
+    }
     // STEP 1: Initialize Relayer Client
     console.log('🔧 [UNSHIELD DEBUG] Step 1: Initializing WakuRelayerClient...');
     const relayerInitialized = await initializeRelayerClient(chain);
@@ -557,20 +572,17 @@ export const unshieldTokens = async ({
         amount: selectedRelayer.tokenFee.feePerUnitGas,
       };
 
-      // Calculate gas price with relayer fee
-      try {
-                 const gasDetailsWithFee = await estimateGasWithBroadcasterFee({
-           txidVersion: TXIDVersion.V2_PoseidonMerkle,
-           networkName: chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
-           railgunWalletID,
-           memoText: undefined,
-           erc20AmountRecipients: [
-             {
-               tokenAddress,
-               recipientAddress: toAddress, // Fix: use toAddress parameter
-               amount: amount, // Fix: use amount parameter
-             },
-           ],
+              // Calculate gas price with relayer fee
+        try {
+          // Create properly formatted ERC20AmountRecipient for gas estimation
+          const gasEstimationRecipient = createERC20AmountRecipient(tokenAddress, amount, toAddress);
+          
+          const gasDetailsWithFee = await estimateGasWithBroadcasterFee({
+            txidVersion: TXIDVersion.V2_PoseidonMerkle,
+            networkName: chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
+            railgunWalletID,
+            memoText: undefined,
+            erc20AmountRecipients: [gasEstimationRecipient],
           nftAmountRecipients: [],
           broadcasterFeeERC20AmountRecipient,
           sendWithPublicWallet: false,
@@ -598,24 +610,28 @@ export const unshieldTokens = async ({
     console.log('🔮 [UNSHIELD DEBUG] Step 4: Generating unshield proof...');
     const proofStartTime = Date.now();
     
-         const { proofResponse } = await generateUnshieldProof(
-       TXIDVersion.V2_PoseidonMerkle,
-       chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
-       railgunWalletID,
-       undefined, // memoText
-       [
-         {
-           tokenAddress,
-           recipientAddress: toAddress, // Fix: use toAddress parameter
-           amount: amount, // Fix: use amount parameter
-         },
-       ],
-       [], // nftAmountRecipients
-       broadcasterFeeERC20AmountRecipient,
-       sendWithPublicWallet,
-       overallBatchMinGasPrice,
-       undefined, // minGasLimit
-     );
+    // Create properly formatted ERC20AmountRecipient with BigInt conversion
+    const erc20AmountRecipient = createERC20AmountRecipient(tokenAddress, amount, toAddress);
+    console.log('🔮 [UNSHIELD DEBUG] Created ERC20AmountRecipient:', {
+      tokenAddress: erc20AmountRecipient.tokenAddress,
+      amount: erc20AmountRecipient.amount.toString(),
+      recipientAddress: erc20AmountRecipient.recipientAddress,
+    });
+    
+        const { proofResponse } = await generateUnshieldProof(
+      TXIDVersion.V2_PoseidonMerkle,
+      chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
+      railgunWalletID,
+      encryptionKey, // Encryption key is required
+      [erc20AmountRecipient], // Use properly formatted recipient
+      [], // nftAmountRecipients
+      broadcasterFeeERC20AmountRecipient,
+      sendWithPublicWallet,
+      overallBatchMinGasPrice,
+      (progress) => {
+        console.log(`🔮 [UNSHIELD DEBUG] Proof generation progress: ${Math.round(progress * 100)}%`);
+      }
+    );
 
     const proofDuration = Date.now() - proofStartTime;
     console.log('🔮 [UNSHIELD DEBUG] Proof generation completed:', {
@@ -626,26 +642,17 @@ export const unshieldTokens = async ({
 
     // STEP 5: Populate Transaction
     console.log('📝 [UNSHIELD DEBUG] Step 5: Populating transaction...');
-         const populatedTransaction = await populateProvedUnshield(
-       TXIDVersion.V2_PoseidonMerkle,
-       chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
-       railgunWalletID,
-       undefined, // memoText
-       [
-         {
-           tokenAddress,
-           recipientAddress: toAddress, // Fix: use toAddress parameter
-           amount: amount, // Fix: use amount parameter
-         },
-       ],
+    const populatedTransaction = await populateProvedUnshield(
+      TXIDVersion.V2_PoseidonMerkle,
+      chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
+      railgunWalletID,
+      [erc20AmountRecipient], // Reuse the properly formatted recipient
        [], // nftAmountRecipients
        broadcasterFeeERC20AmountRecipient,
        sendWithPublicWallet,
-       overallBatchMinGasPrice,
-       proofResponse,
-       undefined, // minGasLimit
-       undefined, // gasEstimate
-     );
+             overallBatchMinGasPrice,
+      proofResponse
+    );
 
     console.log('📝 [UNSHIELD DEBUG] Transaction populated:', {
       to: populatedTransaction.transaction.to,
@@ -691,23 +698,23 @@ export const unshieldTokens = async ({
         
         // Regenerate proof for self-signing
         console.log('🔮 [UNSHIELD DEBUG] Regenerating proof for self-signing...');
+        
+        // Create new ERC20AmountRecipient for self-signing (reuse same values)
+        const selfSignRecipient = createERC20AmountRecipient(tokenAddress, amount, toAddress);
+        
         const selfSignProof = await generateUnshieldProof(
           TXIDVersion.V2_PoseidonMerkle,
           chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
           railgunWalletID,
-          undefined, // memoText
-          [
-            {
-              tokenAddress,
-              recipientAddress: toAddress, // Fix: use toAddress parameter
-              amount: amount, // Fix: use amount parameter
-            },
-          ],
+          encryptionKey, // Encryption key is required
+          [selfSignRecipient],
           [], // nftAmountRecipients
           null, // broadcasterFeeERC20AmountRecipient - No broadcaster fee for self-signing
           true, // sendWithPublicWallet
           '0x0', // overallBatchMinGasPrice
-          undefined, // minGasLimit
+          (progress) => {
+            console.log(`🔮 [UNSHIELD DEBUG] Fallback proof generation: ${Math.round(progress * 100)}%`);
+          }
         );
 
         // Repopulate transaction for self-signing
@@ -715,21 +722,12 @@ export const unshieldTokens = async ({
           TXIDVersion.V2_PoseidonMerkle,
           chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
           railgunWalletID,
-          undefined, // memoText
-          [
-            {
-              tokenAddress,
-              recipientAddress: toAddress, // Fix: use toAddress parameter
-              amount: amount, // Fix: use amount parameter
-            },
-          ],
+          [selfSignRecipient], // Reuse the properly formatted recipient
           [], // nftAmountRecipients
           null, // broadcasterFeeERC20AmountRecipient
           true, // sendWithPublicWallet
           '0x0', // overallBatchMinGasPrice
-          selfSignProof.proofResponse,
-          undefined, // minGasLimit
-          undefined, // gasEstimate
+          selfSignProof.proofResponse
         );
 
         // Submit self-signed transaction
