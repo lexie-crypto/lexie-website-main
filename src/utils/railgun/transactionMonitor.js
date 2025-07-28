@@ -143,7 +143,16 @@ const queryNullifiers = async (chainId, fromBlock, txHash = null) => {
       throw new Error(`Graph request failed: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json();
+    let data;
+    try {
+      data = await response.json();
+    } catch (parseError) {
+      console.error('[TransactionMonitor] ❌ Failed to parse NULLIFIERS response as JSON:', parseError.message);
+      const textResponse = await response.text();
+      console.error('[TransactionMonitor] ❌ Raw response was:', textResponse.substring(0, 500) + '...');
+      throw new Error(`Invalid JSON response from Graph API: ${parseError.message}`);
+    }
+    
     console.log('[TransactionMonitor] 📥 NULLIFIERS response received:', {
       hasData: !!data.data,
       hasErrors: !!data.errors,
@@ -257,7 +266,16 @@ const queryUnshields = async (chainId, fromBlock, txHash = null) => {
       throw new Error(`Graph request failed: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json();
+    let data;
+    try {
+      data = await response.json();
+    } catch (parseError) {
+      console.error('[TransactionMonitor] ❌ Failed to parse UNSHIELDS response as JSON:', parseError.message);
+      const textResponse = await response.text();
+      console.error('[TransactionMonitor] ❌ Raw response was:', textResponse.substring(0, 500) + '...');
+      throw new Error(`Invalid JSON response from Graph API: ${parseError.message}`);
+    }
+    
     console.log('[TransactionMonitor] 📥 UNSHIELDS response received:', {
       hasData: !!data.data,
       hasErrors: !!data.errors,
@@ -377,7 +395,16 @@ const queryCommitments = async (chainId, fromBlock, txHash = null) => {
       throw new Error(`Graph request failed: ${response.status} ${response.statusText}`);
     }
 
-    const data = await response.json();
+    let data;
+    try {
+      data = await response.json();
+    } catch (parseError) {
+      console.error('[TransactionMonitor] ❌ Failed to parse SHIELD COMMITMENTS response as JSON:', parseError.message);
+      const textResponse = await response.text();
+      console.error('[TransactionMonitor] ❌ Raw response was:', textResponse.substring(0, 500) + '...');
+      throw new Error(`Invalid JSON response from Graph API: ${parseError.message}`);
+    }
+    
     console.log('[TransactionMonitor] 📥 SHIELD COMMITMENTS response received:', {
       hasData: !!data.data,
       hasErrors: !!data.errors,

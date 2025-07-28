@@ -1009,6 +1009,34 @@ export const unshieldTokens = async ({
       timestamp: new Date().toISOString(),
     });
 
+    // Start transaction monitoring for balance updates
+    if (transactionHash && chain.id) {
+      console.log('🔍 [UNSHIELD DEBUG] Starting transaction monitoring for balance updates...');
+      try {
+        const { monitorTransactionInGraph } = await import('./transactionMonitor.js');
+        
+        // Start monitoring in background (don't await to avoid blocking the UI)
+        monitorTransactionInGraph({
+          txHash: transactionHash,
+          chainId: chain.id,
+          transactionType: 'unshield',
+          transactionDetails: {
+            amount: amount,
+            tokenAddress,
+            tokenSymbol: 'Token', // We don't have symbol readily available here
+            toAddress,
+          },
+          listener: (event) => {
+            console.log(`🎉 [UNSHIELD DEBUG] Transaction ${transactionHash} confirmed in Graph! Balance will update.`);
+          }
+        }).catch(monitorError => {
+          console.warn('⚠️ [UNSHIELD DEBUG] Transaction monitoring failed (transaction still succeeded):', monitorError.message);
+        });
+      } catch (importError) {
+        console.warn('⚠️ [UNSHIELD DEBUG] Could not start transaction monitoring:', importError.message);
+      }
+    }
+
     return {
       transactionHash,
       usedRelayer,
