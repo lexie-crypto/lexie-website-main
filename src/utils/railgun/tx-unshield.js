@@ -87,15 +87,9 @@ const initializeRelayerClient = async (chain) => {
   // Define relayerOptions outside try block to avoid scope issues
   const relayerOptions = {
     pubSubTopic: undefined, // Use default
-    // 🚨 FORCE custom node only - disable fleet discovery
-    fleetNodes: [], // Disable default fleet nodes
-    bootstrapPeers: [], // Disable bootstrap peers
-    staticPeers: [
-      '/dns4/waku.lexiecrypto.com/tcp/8000/wss/p2p/16Uiu2HAmDJJXivjv8SBfkAE39rEX1xssJtkD7j4XnduXi3VeTyFk'
-    ],
-    additionalDirectPeers: [
-      '/dns4/waku.lexiecrypto.com/tcp/8000/wss/p2p/16Uiu2HAmDJJXivjv8SBfkAE39rEX1xssJtkD7j4XnduXi3VeTyFk'
-    ],
+    // ✅ RESTORE: Let browser connect to public Waku fleet naturally
+    // The relayer (Railway) connects to our custom node via HTTP REST API
+    // But browsers should discover relayers through the public Waku network
     peerDiscoveryTimeout: 120000, // 120 seconds (increased from 60s)
     poiActiveListKeys: undefined, // Use default POI lists
   };
@@ -107,8 +101,8 @@ const initializeRelayerClient = async (chain) => {
     console.log('[UnshieldTransactions] 🚀 Initializing WakuRelayerClient...', {
       chainId: chain.id,
       chainName: chainName,
-      customWakuNode: 'waku.lexiecrypto.com:8000 (SSL)',
-      directPeers: relayerOptions.additionalDirectPeers,
+      discovery: 'Natural fleet discovery (browser)',
+      relayerDiscovery: 'Public Waku network',
     });
 
     // Create chain object for relayer client
@@ -124,14 +118,14 @@ const initializeRelayerClient = async (chain) => {
 
     // 🔍 Log peer discovery configuration
     console.log('[UnshieldTransactions] 🎯 Peer discovery configuration:', {
-      customNodeOnly: true,
-      fleetNodesDisabled: relayerOptions.fleetNodes?.length === 0,
-      staticPeers: relayerOptions.staticPeers,
-      additionalDirectPeers: relayerOptions.additionalDirectPeers,
-      totalPeersToTry: (relayerOptions.staticPeers?.length || 0) + (relayerOptions.additionalDirectPeers?.length || 0),
+      customNodeOnly: false, // Natural fleet discovery
+      fleetNodesDisabled: false, // Natural fleet discovery
+      staticPeers: [], // No static peers forced
+      additionalDirectPeers: [], // No additional direct peers forced
+      totalPeersToTry: 0, // No static/additional peers
     });
 
-    console.log('[UnshieldTransactions] 🔗 Will ONLY connect to custom Waku node - fleet nodes disabled');
+    console.log('[UnshieldTransactions] 🔗 Will use natural fleet discovery for browser');
 
     // Initialize WakuRelayerClient (following docs pattern)
     await WakuRelayerClient.start(
