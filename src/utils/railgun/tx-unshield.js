@@ -632,13 +632,35 @@ export const unshieldTokens = async ({
         console.log(`🔮 [UNSHIELD DEBUG] Proof generation progress: ${Math.round(progress * 100)}%`);
       }
     );
+    
+    console.log('🔮 [UNSHIELD DEBUG] Raw proof response received:', {
+      type: typeof proofResponse,
+      isNull: proofResponse === null,
+      isUndefined: proofResponse === undefined,
+      constructor: proofResponse?.constructor?.name,
+      stringified: proofResponse ? JSON.stringify(proofResponse, null, 2).substring(0, 500) + '...' : 'null/undefined'
+    });
 
     const proofDuration = Date.now() - proofStartTime;
     console.log('🔮 [UNSHIELD DEBUG] Proof generation completed:', {
       duration: `${proofDuration}ms`,
-      nullifiersCount: proofResponse.nullifiers?.length || 0,
-      preTransactionPOIsPerTxidLeafPerList: Object.keys(proofResponse.preTransactionPOIsPerTxidLeafPerList || {}).length,
+      proofResponseType: typeof proofResponse,
+      proofResponseKeys: proofResponse ? Object.keys(proofResponse) : 'null/undefined',
+      nullifiersCount: proofResponse?.nullifiers?.length || 0,
+      hasNullifiers: !!proofResponse?.nullifiers,
     });
+    
+         // Validate proof response
+     if (!proofResponse) {
+       throw new Error('Proof generation failed: No proof response received');
+     }
+     
+     // Note: Nullifiers might be in populatedTransaction instead of proofResponse
+     console.log('🔮 [UNSHIELD DEBUG] Proof response structure check:', {
+       hasProofResponse: !!proofResponse,
+       proofResponseHasNullifiers: !!proofResponse?.nullifiers,
+       willCheckPopulatedTxForNullifiers: true
+     });
 
     // STEP 5: Populate Transaction
     console.log('📝 [UNSHIELD DEBUG] Step 5: Populating transaction...');
@@ -658,10 +680,21 @@ export const unshieldTokens = async ({
       to: populatedTransaction.transaction.to,
       dataLength: populatedTransaction.transaction.data?.length || 0,
       gasLimit: populatedTransaction.transaction.gasLimit,
+      hasNullifiers: !!populatedTransaction.nullifiers,
+      nullifiersCount: populatedTransaction.nullifiers?.length || 0,
+      populatedTransactionKeys: Object.keys(populatedTransaction),
     });
 
     // STEP 6: Submit Transaction
     console.log('📡 [UNSHIELD DEBUG] Step 6: Submitting transaction...');
+    console.log('📡 [UNSHIELD DEBUG] Transaction submission decision:', {
+      hasSelectedRelayer: !!selectedRelayer,
+      usedRelayer,
+      selectedRelayerAddress: selectedRelayer?.railgunAddress?.substring(0, 20) + '...' || 'none',
+      willUseRelayer: !!(selectedRelayer && usedRelayer),
+      willSelfSign: !(selectedRelayer && usedRelayer),
+    });
+    
     let transactionHash = null;
 
     if (selectedRelayer && usedRelayer) {
@@ -669,13 +702,23 @@ export const unshieldTokens = async ({
       try {
         // Create relayer transaction
         console.log('🔧 [UNSHIELD DEBUG] Creating RelayerTransaction...');
+        
+        // Use nullifiers from populated transaction (more reliable than proof response)
+        const nullifiers = populatedTransaction.nullifiers || proofResponse?.nullifiers || [];
+        console.log('🔧 [UNSHIELD DEBUG] Nullifiers for relayer transaction:', {
+          fromPopulatedTx: !!populatedTransaction.nullifiers,
+          fromProofResponse: !!proofResponse?.nullifiers,
+          nullifiersCount: nullifiers.length,
+          nullifiersSource: populatedTransaction.nullifiers ? 'populatedTransaction' : 'proofResponse'
+        });
+        
         const relayerTransaction = await createRelayerTransaction(
           populatedTransaction.transaction.to,
           populatedTransaction.transaction.data,
           selectedRelayer.railgunAddress,
           selectedRelayer.tokenFee.feesID,
           chain,
-          proofResponse.nullifiers,
+          nullifiers,
           overallBatchMinGasPrice,
           false // useRelayAdapt
         );
