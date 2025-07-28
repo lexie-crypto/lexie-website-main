@@ -408,6 +408,19 @@ const submitTransactionSelfSigned = async (populatedTransaction, walletProvider)
       to: txForSending.to,
       dataLength: txForSending.data?.length || 0,
       value: txForSending.value,
+      gasLimit: txForSending.gasLimit,
+      gasPrice: txForSending.gasPrice,
+      hasData: !!txForSending.data,
+    });
+    
+    // Debug: Log transaction details for analysis
+    console.log('[UnshieldTransactions] 🔍 Transaction debug info:', {
+      originalTxKeys: Object.keys(populatedTransaction.transaction),
+      originalTo: populatedTransaction.transaction.to,
+      originalDataLength: populatedTransaction.transaction.data?.length || 0,
+      originalValue: populatedTransaction.transaction.value?.toString() || '0',
+      nullifiersPresent: !!populatedTransaction.nullifiers,
+      nullifiersCount: populatedTransaction.nullifiers?.length || 0,
     });
     
     // Send transaction via wallet
@@ -641,17 +654,40 @@ export const unshieldTokens = async ({
       note: 'Proof stored internally in SDK - nullifiers will come from populateProvedUnshield'
     });
 
-        // STEP 5: Populate Transaction
-    console.log('📝 [UNSHIELD DEBUG] Step 5: Populating transaction...');
-    console.log('📝 [UNSHIELD DEBUG] Using internally stored proof from SDK...');
+        // STEP 5: Gas Estimation (following shield pattern)
+    console.log('📝 [UNSHIELD DEBUG] Step 5: Estimating gas for unshield operation...');
     
-    // Create gas details for transaction population
+    console.log('📝 [UNSHIELD DEBUG] Performing real gas estimation...');
+    const gasEstimateResponse = await gasEstimateForUnprovenUnshield(
+      TXIDVersion.V2_PoseidonMerkle,
+      chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
+      railgunWalletID,
+      encryptionKey,
+      [erc20AmountRecipient],
+      [], // nftAmountRecipients
+      broadcasterFeeERC20AmountRecipient,
+      sendWithPublicWallet,
+      overallBatchMinGasPrice
+    );
+    
+    // Extract the gas estimate from response
+    const gasEstimate = gasEstimateResponse.gasEstimate || gasEstimateResponse;
+    console.log('📝 [UNSHIELD DEBUG] Gas estimation completed:', {
+      gasEstimate: gasEstimate.toString(),
+      type: typeof gasEstimate
+    });
+    
+    // Create proper gas details with real estimate
     const gasDetails = {
       evmGasType: 2, // Type 2 for EIP-1559
-      gasEstimate: BigInt('500000'), // Default estimate - will be overridden by wallet
+      gasEstimate: gasEstimate,
       maxFeePerGas: BigInt('20000000000'), // 20 gwei
       maxPriorityFeePerGas: BigInt('2000000000'), // 2 gwei
     };
+    
+    // STEP 6: Populate Transaction with real gas details
+    console.log('📝 [UNSHIELD DEBUG] Step 6: Populating transaction with real gas...');
+    console.log('📝 [UNSHIELD DEBUG] Using internally stored proof from SDK...');
     
     const populatedTransaction = await populateProvedUnshield(
       TXIDVersion.V2_PoseidonMerkle,
@@ -662,7 +698,7 @@ export const unshieldTokens = async ({
       broadcasterFeeERC20AmountRecipient,
       sendWithPublicWallet,
       overallBatchMinGasPrice,
-      gasDetails // CRITICAL: Missing gasDetails parameter was causing the error
+      gasDetails // Now using REAL gas estimation
     );
 
     console.log('📝 [UNSHIELD DEBUG] Transaction populated:', {
@@ -674,8 +710,8 @@ export const unshieldTokens = async ({
       populatedTransactionKeys: Object.keys(populatedTransaction),
     });
 
-    // STEP 6: Submit Transaction
-    console.log('📡 [UNSHIELD DEBUG] Step 6: Submitting transaction...');
+    // STEP 7: Submit Transaction
+    console.log('📡 [UNSHIELD DEBUG] Step 7: Submitting transaction...');
     console.log('📡 [UNSHIELD DEBUG] Transaction submission decision:', {
       hasSelectedRelayer: !!selectedRelayer,
       usedRelayer,
@@ -754,6 +790,27 @@ export const unshieldTokens = async ({
 
         console.log('🔮 [UNSHIELD DEBUG] Fallback proof result:', selfSignResult);
 
+        // Re-estimate gas for self-signing mode
+        const fallbackGasEstimateResponse = await gasEstimateForUnprovenUnshield(
+          TXIDVersion.V2_PoseidonMerkle,
+          chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
+          railgunWalletID,
+          encryptionKey,
+          [selfSignRecipient],
+          [], // nftAmountRecipients
+          null, // broadcasterFeeERC20AmountRecipient
+          true, // sendWithPublicWallet
+          '0x0' // overallBatchMinGasPrice
+        );
+        
+        const fallbackGasEstimate = fallbackGasEstimateResponse.gasEstimate || fallbackGasEstimateResponse;
+        const fallbackGasDetails = {
+          evmGasType: 2,
+          gasEstimate: fallbackGasEstimate,
+          maxFeePerGas: BigInt('20000000000'),
+          maxPriorityFeePerGas: BigInt('2000000000'),
+        };
+
         // Repopulate transaction for self-signing using internally stored proof
         const selfSignTx = await populateProvedUnshield(
           TXIDVersion.V2_PoseidonMerkle,
@@ -764,7 +821,7 @@ export const unshieldTokens = async ({
           null, // broadcasterFeeERC20AmountRecipient
           true, // sendWithPublicWallet
           '0x0', // overallBatchMinGasPrice
-          gasDetails // CRITICAL: Missing gasDetails parameter - same as main flow
+          fallbackGasDetails // Use fallback gas estimation
         );
 
         // Submit self-signed transaction
