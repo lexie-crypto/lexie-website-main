@@ -87,18 +87,13 @@ const initializeRelayerClient = async (chain) => {
   // Define relayerOptions outside try block to avoid scope issues
   const relayerOptions = {
     pubSubTopic: undefined, // Use default (/waku/2/rs/0/1)
-    // 🔗 DIRECT CONNECTION: Force frontend to connect to our custom Waku node
-    // This bypasses the public fleet and sends messages directly to our relayer
-    staticPeers: [], // Disable static peers to force custom node only
-    additionalDirectPeers: [], // No additional peers  
-    fleetNodes: [], // Disable fleet nodes completely
-    bootstrapPeers: [], // Disable bootstrap peers
-    // Custom Waku node configuration
-    wakuNode: {
-      url: 'wss://waku.lexiecrypto.com:8000', // Secure WebSocket to our custom node
-      protocol: 'wss',
-    },
-    peerDiscoveryTimeout: 120000, // 120 seconds (increased from 60s)
+    // 🔗 DIRECT CONNECTION: Force frontend to connect ONLY to our custom Waku node
+    // This completely bypasses the public fleet discovery
+    staticPeers: ['/dns4/waku.lexiecrypto.com/tcp/8000/wss'], // Direct peer connection
+    additionalDirectPeers: ['/dns4/waku.lexiecrypto.com/tcp/8000/wss'], // Additional direct connection
+    fleetNodes: false, // DISABLE fleet nodes completely
+    bootstrapPeers: false, // DISABLE bootstrap peers completely  
+    peerDiscoveryTimeout: 30000, // Reduced timeout since we're connecting to specific node
     poiActiveListKeys: undefined, // Use default POI lists
   };
 
@@ -109,8 +104,9 @@ const initializeRelayerClient = async (chain) => {
     console.log('[UnshieldTransactions] 🚀 Initializing WakuRelayerClient...', {
       chainId: chain.id,
       chainName: chainName,
-      discovery: 'Direct connection to custom Waku node',
-      relayerDiscovery: 'Custom Waku node (wss://waku.lexiecrypto.com:8000)',
+      discovery: 'FORCED DIRECT CONNECTION - Custom node ONLY',
+      customNode: '/dns4/waku.lexiecrypto.com/tcp/8000/wss',
+      fleetDisabled: true,
     });
 
     // Create chain object for relayer client
@@ -126,15 +122,15 @@ const initializeRelayerClient = async (chain) => {
 
     // 🔍 Log peer discovery configuration
     console.log('[UnshieldTransactions] 🎯 Peer discovery configuration:', {
-      customNodeOnly: true, // Direct connection to our custom node
-      fleetNodesDisabled: true, // Fleet nodes disabled
-      staticPeers: [], // No static peers
-      additionalDirectPeers: [], // No additional direct peers
-      customWakuNode: relayerOptions.wakuNode.url,
-      protocol: relayerOptions.wakuNode.protocol,
+      customNodeOnly: true, // ONLY our custom node
+      fleetNodesDisabled: relayerOptions.fleetNodes === false,
+      bootstrapDisabled: relayerOptions.bootstrapPeers === false,
+      staticPeers: relayerOptions.staticPeers,
+      additionalDirectPeers: relayerOptions.additionalDirectPeers,
+      timeout: relayerOptions.peerDiscoveryTimeout,
     });
 
-    console.log('[UnshieldTransactions] 🔗 Will connect directly to custom Waku node for maximum privacy');
+    console.log('[UnshieldTransactions] 🔗 FORCING connection to custom node ONLY - no fleet discovery!');
 
     // Initialize WakuRelayerClient (following docs pattern)
     await WakuRelayerClient.start(
@@ -325,9 +321,10 @@ const createRelayerTransaction = async (to, data, relayerAddress, feesID, chain,
     
     // Create relayer transaction using official SDK
     console.log('🚨🚨🚨 [WAKU DEBUG] CALLING RelayerTransaction.create() - THIS SENDS MESSAGE TO WAKU NODE! 🚨🚨🚨');
-    console.log('[WAKU DEBUG] Message will be sent to:', relayerOptions?.wakuNode?.url || 'unknown');
+    console.log('[WAKU DEBUG] Message will be sent via static peer:', '/dns4/waku.lexiecrypto.com/tcp/8000/wss');
     console.log('[WAKU DEBUG] Content topic will be: /railgun/v2/0-42161-transact/json');
     console.log('[WAKU DEBUG] PubSub topic will be: /waku/2/rs/0/1');
+    console.log('[WAKU DEBUG] Fleet nodes disabled:', true);
     
     const relayerTransaction = await RelayerTransaction.create(
       to,
@@ -562,18 +559,18 @@ export const unshieldTokens = async ({
 
       // Calculate gas price with relayer fee
       try {
-        const gasDetailsWithFee = await estimateGasWithBroadcasterFee({
-          txidVersion: TXIDVersion.V2_PoseidonMerkle,
-          networkName: chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
-          railgunWalletID,
-          memoText: undefined,
-          erc20AmountRecipients: [
-            {
-              tokenAddress,
-              recipientAddress,
-              amount: amountToUnshield,
-            },
-          ],
+                 const gasDetailsWithFee = await estimateGasWithBroadcasterFee({
+           txidVersion: TXIDVersion.V2_PoseidonMerkle,
+           networkName: chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
+           railgunWalletID,
+           memoText: undefined,
+           erc20AmountRecipients: [
+             {
+               tokenAddress,
+               recipientAddress: toAddress, // Fix: use toAddress parameter
+               amount: amount, // Fix: use amount parameter
+             },
+           ],
           nftAmountRecipients: [],
           broadcasterFeeERC20AmountRecipient,
           sendWithPublicWallet: false,
@@ -609,8 +606,8 @@ export const unshieldTokens = async ({
        [
          {
            tokenAddress,
-           recipientAddress,
-           amount: amountToUnshield,
+           recipientAddress: toAddress, // Fix: use toAddress parameter
+           amount: amount, // Fix: use amount parameter
          },
        ],
        [], // nftAmountRecipients
@@ -637,8 +634,8 @@ export const unshieldTokens = async ({
        [
          {
            tokenAddress,
-           recipientAddress,
-           amount: amountToUnshield,
+           recipientAddress: toAddress, // Fix: use toAddress parameter
+           amount: amount, // Fix: use amount parameter
          },
        ],
        [], // nftAmountRecipients
@@ -694,24 +691,24 @@ export const unshieldTokens = async ({
         
         // Regenerate proof for self-signing
         console.log('🔮 [UNSHIELD DEBUG] Regenerating proof for self-signing...');
-        const selfSignProof = await generateUnshieldProof({
-          txidVersion: TXIDVersion.V2_PoseidonMerkle,
-          networkName: chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
+        const selfSignProof = await generateUnshieldProof(
+          TXIDVersion.V2_PoseidonMerkle,
+          chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
           railgunWalletID,
-          memoText: undefined,
-          erc20AmountRecipients: [
+          undefined, // memoText
+          [
             {
               tokenAddress,
-              recipientAddress,
-              amount: amountToUnshield,
+              recipientAddress: toAddress, // Fix: use toAddress parameter
+              amount: amount, // Fix: use amount parameter
             },
           ],
-          nftAmountRecipients: [],
-          broadcasterFeeERC20AmountRecipient: null, // No broadcaster fee for self-signing
-          sendWithPublicWallet: true,
-          overallBatchMinGasPrice: '0x0',
-          minGasLimit: undefined,
-        });
+          [], // nftAmountRecipients
+          null, // broadcasterFeeERC20AmountRecipient - No broadcaster fee for self-signing
+          true, // sendWithPublicWallet
+          '0x0', // overallBatchMinGasPrice
+          undefined, // minGasLimit
+        );
 
         // Repopulate transaction for self-signing
         const selfSignTx = await populateProvedUnshield(
@@ -722,8 +719,8 @@ export const unshieldTokens = async ({
           [
             {
               tokenAddress,
-              recipientAddress,
-              amount: amountToUnshield,
+              recipientAddress: toAddress, // Fix: use toAddress parameter
+              amount: amount, // Fix: use amount parameter
             },
           ],
           [], // nftAmountRecipients
