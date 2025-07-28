@@ -645,6 +645,14 @@ export const unshieldTokens = async ({
     console.log('📝 [UNSHIELD DEBUG] Step 5: Populating transaction...');
     console.log('📝 [UNSHIELD DEBUG] Using internally stored proof from SDK...');
     
+    // Create gas details for transaction population
+    const gasDetails = {
+      evmGasType: 2, // Type 2 for EIP-1559
+      gasEstimate: BigInt('500000'), // Default estimate - will be overridden by wallet
+      maxFeePerGas: BigInt('20000000000'), // 20 gwei
+      maxPriorityFeePerGas: BigInt('2000000000'), // 2 gwei
+    };
+    
     const populatedTransaction = await populateProvedUnshield(
       TXIDVersion.V2_PoseidonMerkle,
       chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
@@ -653,8 +661,8 @@ export const unshieldTokens = async ({
       [], // nftAmountRecipients
       broadcasterFeeERC20AmountRecipient,
       sendWithPublicWallet,
-      overallBatchMinGasPrice
-      // Note: No proofResponse parameter needed - SDK uses internally stored proof
+      overallBatchMinGasPrice,
+      gasDetails // CRITICAL: Missing gasDetails parameter was causing the error
     );
 
     console.log('📝 [UNSHIELD DEBUG] Transaction populated:', {
@@ -755,8 +763,8 @@ export const unshieldTokens = async ({
           [], // nftAmountRecipients
           null, // broadcasterFeeERC20AmountRecipient
           true, // sendWithPublicWallet
-          '0x0' // overallBatchMinGasPrice
-          // Note: No proofResponse parameter - SDK uses internally stored proof
+          '0x0', // overallBatchMinGasPrice
+          gasDetails // CRITICAL: Missing gasDetails parameter - same as main flow
         );
 
         // Submit self-signed transaction
