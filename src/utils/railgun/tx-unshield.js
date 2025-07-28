@@ -11,6 +11,8 @@ import {
 import {
   NetworkName,
   TXIDVersion,
+  EVMGasType,
+  getEVMGasTypeForTransaction,
 } from '@railgun-community/shared-models';
 import { waitForRailgunReady } from './engine.js';
 import { createUnshieldGasDetails } from './tx-gas-details.js';
@@ -709,43 +711,96 @@ export const unshieldTokens = async ({
       note: 'Proof stored internally in SDK - nullifiers will come from populateProvedUnshield'
     });
 
-        // STEP 5: Gas Estimation (following shield pattern)
-    console.log('📝 [UNSHIELD DEBUG] Step 5: Estimating gas for unshield operation...');
+    // STEP 5: Gas Estimation (OFFICIAL SDK PATTERN)
+    console.log('📝 [UNSHIELD DEBUG] Step 5: Following OFFICIAL SDK gas estimation pattern...');
     
-    console.log('📝 [UNSHIELD DEBUG] Performing real gas estimation...');
+    const networkName = chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum;
+    
+    // OFFICIAL PATTERN: Determine EVM gas type based on wallet type
+    sendWithPublicWallet = true; // True for self-signing (we're not using relayer for this flow)
+    const evmGasType = getEVMGasTypeForTransaction(networkName, sendWithPublicWallet);
+    const originalGasEstimate = 0n; // Always start with 0 per official docs
+    
+    console.log('📝 [UNSHIELD DEBUG] Determined gas type (OFFICIAL):', {
+      networkName,
+      sendWithPublicWallet,
+      evmGasType,
+      gasTypeDescription: evmGasType === EVMGasType.Type0 ? 'Legacy (Type0)' : 
+                         evmGasType === EVMGasType.Type1 ? 'Legacy (Type1)' : 
+                         evmGasType === EVMGasType.Type2 ? 'EIP-1559 (Type2)' : 'Unknown'
+    });
+    
+    // OFFICIAL PATTERN: Create original gas details based on determined gas type
+    let originalGasDetails;
+    switch (evmGasType) {
+      case EVMGasType.Type0:
+      case EVMGasType.Type1:
+        originalGasDetails = {
+          evmGasType,
+          gasEstimate: originalGasEstimate,
+          gasPrice: BigInt('0x100000'), // Placeholder value per docs
+        };
+        break;
+      case EVMGasType.Type2:
+        originalGasDetails = {
+          evmGasType,
+          gasEstimate: originalGasEstimate,
+          maxFeePerGas: BigInt('0x100000'), // Placeholder value per docs
+          maxPriorityFeePerGas: BigInt('0x010000'), // Placeholder value per docs
+        };
+        break;
+      default:
+        throw new Error(`Unsupported EVM gas type: ${evmGasType}`);
+    }
+    
+    console.log('📝 [UNSHIELD DEBUG] Created original gas details:', {
+      evmGasType: originalGasDetails.evmGasType,
+      gasEstimate: originalGasDetails.gasEstimate.toString(),
+      hasGasPrice: !!originalGasDetails.gasPrice,
+      hasMaxFeePerGas: !!originalGasDetails.maxFeePerGas,
+    });
+
+    // OFFICIAL PATTERN: Call gas estimation with proper parameters
+    console.log('📝 [UNSHIELD DEBUG] Calling gasEstimateForUnprovenUnshield...');
     const gasEstimateResponse = await gasEstimateForUnprovenUnshield(
       TXIDVersion.V2_PoseidonMerkle,
-      chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
+      networkName,
       railgunWalletID,
       encryptionKey,
       [erc20AmountRecipient],
       [], // nftAmountRecipients
-      broadcasterFeeERC20AmountRecipient,
-      sendWithPublicWallet,
-      overallBatchMinGasPrice
+      originalGasDetails, // Pass the properly structured original gas details
+      null, // feeTokenDetails (null for self-signing)
+      sendWithPublicWallet
     );
     
-    // Extract the gas estimate from response
-    const gasEstimate = gasEstimateResponse.gasEstimate || gasEstimateResponse;
+    // Extract the final gas estimate
+    const finalGasEstimate = gasEstimateResponse.gasEstimate;
     console.log('📝 [UNSHIELD DEBUG] Gas estimation completed:', {
-      gasEstimate: gasEstimate.toString(),
-      type: typeof gasEstimate
+      finalGasEstimate: finalGasEstimate.toString(),
+      type: typeof finalGasEstimate
     });
-    
-    // Create proper gas details using the dedicated function (like shield transactions)
-    const networkName = chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum;
-    
-    // CRITICAL FIX: Use EXACT same pattern as working shield transactions
-    // Shield transactions use createShieldGasDetails(networkName, gasEstimate) - only 2 params
-    // They hardcode sendWithPublicWallet=true internally
-    const gasDetails = createUnshieldGasDetails(networkName, true, gasEstimate);
-    
-    console.log('📝 [UNSHIELD DEBUG] Using SHIELD-IDENTICAL gas pattern:', {
-      networkName,
-      sendWithPublicWallet: true, // Same as shield transactions
-      gasEstimate: gasEstimate.toString(),
-      reason: 'Use identical pattern to working shield transactions'
-    });
+
+    // OFFICIAL PATTERN: Create final transaction gas details with actual estimate
+    let gasDetails;
+    switch (evmGasType) {
+      case EVMGasType.Type0:
+      case EVMGasType.Type1:
+        gasDetails = {
+          evmGasType,
+          gasEstimate: finalGasEstimate,
+          gasPrice: originalGasDetails.gasPrice, // Keep the gas price from original
+        };
+        break;
+      case EVMGasType.Type2:
+        gasDetails = {
+          evmGasType,
+          gasEstimate: finalGasEstimate,
+          maxFeePerGas: originalGasDetails.maxFeePerGas, // Keep from original
+          maxPriorityFeePerGas: originalGasDetails.maxPriorityFeePerGas, // Keep from original
+        };
+        break;
+    }
     
     console.log('📝 [UNSHIELD DEBUG] Gas details created (SHIELD PATTERN):', {
       evmGasType: gasDetails.evmGasType,
@@ -862,22 +917,66 @@ export const unshieldTokens = async ({
         console.log('🔮 [UNSHIELD DEBUG] Fallback proof result:', selfSignResult);
 
         // Re-estimate gas for self-signing mode
+        // FALLBACK: Use same official SDK pattern for gas estimation
+        const fallbackNetworkName = chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum;
+        const fallbackSendWithPublicWallet = true; // Self-signing fallback
+        const fallbackEvmGasType = getEVMGasTypeForTransaction(fallbackNetworkName, fallbackSendWithPublicWallet);
+        
+        // Create fallback original gas details
+        let fallbackOriginalGasDetails;
+        switch (fallbackEvmGasType) {
+          case EVMGasType.Type0:
+          case EVMGasType.Type1:
+            fallbackOriginalGasDetails = {
+              evmGasType: fallbackEvmGasType,
+              gasEstimate: 0n,
+              gasPrice: BigInt('0x100000'),
+            };
+            break;
+          case EVMGasType.Type2:
+            fallbackOriginalGasDetails = {
+              evmGasType: fallbackEvmGasType,
+              gasEstimate: 0n,
+              maxFeePerGas: BigInt('0x100000'),
+              maxPriorityFeePerGas: BigInt('0x010000'),
+            };
+            break;
+        }
+
         const fallbackGasEstimateResponse = await gasEstimateForUnprovenUnshield(
           TXIDVersion.V2_PoseidonMerkle,
-          chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
+          fallbackNetworkName,
           railgunWalletID,
           encryptionKey,
           [selfSignRecipient],
           [], // nftAmountRecipients
-          null, // broadcasterFeeERC20AmountRecipient
-          true, // sendWithPublicWallet
-          '0x0' // overallBatchMinGasPrice
+          fallbackOriginalGasDetails, // Use structured gas details
+          null, // feeTokenDetails
+          fallbackSendWithPublicWallet
         );
         
-        const fallbackGasEstimate = fallbackGasEstimateResponse.gasEstimate || fallbackGasEstimateResponse;
-        // Use same pattern as working shield transactions for fallback too
-        const fallbackNetworkName = chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum;
-        const fallbackGasDetails = createUnshieldGasDetails(fallbackNetworkName, true, fallbackGasEstimate);
+        const fallbackGasEstimate = fallbackGasEstimateResponse.gasEstimate;
+        
+        // Create final fallback gas details
+        let fallbackGasDetails;
+        switch (fallbackEvmGasType) {
+          case EVMGasType.Type0:
+          case EVMGasType.Type1:
+            fallbackGasDetails = {
+              evmGasType: fallbackEvmGasType,
+              gasEstimate: fallbackGasEstimate,
+              gasPrice: fallbackOriginalGasDetails.gasPrice,
+            };
+            break;
+          case EVMGasType.Type2:
+            fallbackGasDetails = {
+              evmGasType: fallbackEvmGasType,
+              gasEstimate: fallbackGasEstimate,
+              maxFeePerGas: fallbackOriginalGasDetails.maxFeePerGas,
+              maxPriorityFeePerGas: fallbackOriginalGasDetails.maxPriorityFeePerGas,
+            };
+            break;
+        }
 
         // Repopulate transaction for self-signing using internally stored proof
         const selfSignTx = await populateProvedUnshield(
