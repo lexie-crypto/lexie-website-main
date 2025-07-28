@@ -64,7 +64,7 @@ export const generateUnshieldProof = async (
     };
 
     // Call the official SDK proof generation function
-    await generateUnshieldProofSDK(
+    const proofResponse = await generateUnshieldProofSDK(
       txidVersion,
       networkName,
       railgunWalletID,
@@ -78,6 +78,8 @@ export const generateUnshieldProof = async (
     );
 
     console.log('[UnshieldProof] ✅ Proof generation completed successfully');
+    
+    return proofResponse;
 
   } catch (error) {
     console.error('[UnshieldProof] ❌ Proof generation failed:', error);

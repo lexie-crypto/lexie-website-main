@@ -618,7 +618,7 @@ export const unshieldTokens = async ({
       recipientAddress: erc20AmountRecipient.recipientAddress,
     });
     
-        const { proofResponse } = await generateUnshieldProof(
+            const proofResponse = await generateUnshieldProof(
       TXIDVersion.V2_PoseidonMerkle,
       chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
       railgunWalletID,
@@ -702,7 +702,7 @@ export const unshieldTokens = async ({
         // Create new ERC20AmountRecipient for self-signing (reuse same values)
         const selfSignRecipient = createERC20AmountRecipient(tokenAddress, amount, toAddress);
         
-        const selfSignProof = await generateUnshieldProof(
+        const selfSignProofResponse = await generateUnshieldProof(
           TXIDVersion.V2_PoseidonMerkle,
           chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
           railgunWalletID,
@@ -727,7 +727,7 @@ export const unshieldTokens = async ({
           null, // broadcasterFeeERC20AmountRecipient
           true, // sendWithPublicWallet
           '0x0', // overallBatchMinGasPrice
-          selfSignProof.proofResponse
+          selfSignProofResponse
         );
 
         // Submit self-signed transaction
