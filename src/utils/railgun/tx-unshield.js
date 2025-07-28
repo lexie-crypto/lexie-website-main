@@ -397,6 +397,12 @@ const submitTransactionSelfSigned = async (populatedTransaction, walletProvider)
       maxPriorityFeePerGas: populatedTransaction.transaction.maxPriorityFeePerGas ? '0x' + populatedTransaction.transaction.maxPriorityFeePerGas.toString(16) : undefined,
       value: populatedTransaction.transaction.value ? '0x' + populatedTransaction.transaction.value.toString(16) : '0x0',
     };
+
+    // WALLET COMPATIBILITY FIX: For EIP-1559 transactions, some wallets expect gasPrice as fallback
+    if (!txForSending.gasPrice && txForSending.maxFeePerGas) {
+      console.log('[UnshieldTransactions] 🔧 Adding gasPrice fallback for wallet compatibility...');
+      txForSending.gasPrice = txForSending.maxFeePerGas; // Use maxFeePerGas as gasPrice fallback
+    }
     
     // Clean up undefined values
     Object.keys(txForSending).forEach(key => {
@@ -411,7 +417,15 @@ const submitTransactionSelfSigned = async (populatedTransaction, walletProvider)
       value: txForSending.value,
       gasLimit: txForSending.gasLimit,
       gasPrice: txForSending.gasPrice,
+      maxFeePerGas: txForSending.maxFeePerGas,
+      maxPriorityFeePerGas: txForSending.maxPriorityFeePerGas,
       hasData: !!txForSending.data,
+      allGasFields: {
+        gasLimit: txForSending.gasLimit || 'MISSING',
+        gasPrice: txForSending.gasPrice || 'MISSING', 
+        maxFeePerGas: txForSending.maxFeePerGas || 'MISSING',
+        maxPriorityFeePerGas: txForSending.maxPriorityFeePerGas || 'MISSING',
+      }
     });
     
     // Debug: Log transaction details for analysis
@@ -423,11 +437,51 @@ const submitTransactionSelfSigned = async (populatedTransaction, walletProvider)
       nullifiersPresent: !!populatedTransaction.nullifiers,
       nullifiersCount: populatedTransaction.nullifiers?.length || 0,
     });
+
+    // VALIDATION: Ensure transaction has required fields before sending to wallet
+    if (!txForSending.to) {
+      throw new Error('Transaction missing contract address (to field)');
+    }
+    if (!txForSending.data || txForSending.data.length < 10) {
+      throw new Error('Transaction missing or invalid call data');
+    }
+    if (!txForSending.gasLimit || txForSending.gasLimit === '0x0') {
+      throw new Error('Transaction missing valid gas limit');
+    }
+    if (!txForSending.gasPrice && !txForSending.maxFeePerGas) {
+      throw new Error('Transaction missing gas pricing (neither gasPrice nor maxFeePerGas)');
+    }
+
+    console.log('[UnshieldTransactions] ✅ Transaction validation passed, sending to wallet...');
     
-    // Send transaction via wallet
-    const txResponse = await walletSigner.sendTransaction(txForSending);
-    
-    console.log('[UnshieldTransactions] ✅ Self-signed transaction sent');
+    // Send transaction via wallet with retry logic for mobile wallet compatibility
+    let txResponse;
+    try {
+      txResponse = await walletSigner.sendTransaction(txForSending);
+      console.log('[UnshieldTransactions] ✅ Self-signed transaction sent');
+    } catch (walletError) {
+      console.warn('[UnshieldTransactions] 🔄 Primary transaction failed, trying simplified gas format...', walletError.message);
+      
+      // FALLBACK: Try with simplified gas format for mobile wallet compatibility
+      const simplifiedTx = {
+        to: txForSending.to,
+        data: txForSending.data,
+        value: txForSending.value,
+        gasLimit: txForSending.gasLimit,
+        // Use only gasPrice for maximum compatibility
+        gasPrice: txForSending.gasPrice || txForSending.maxFeePerGas,
+      };
+      
+      console.log('[UnshieldTransactions] 🔄 Retrying with simplified transaction format...', {
+        to: simplifiedTx.to?.slice(0, 10) + '...',
+        gasLimit: simplifiedTx.gasLimit,
+        gasPrice: simplifiedTx.gasPrice,
+        hasAllFields: !!(simplifiedTx.to && simplifiedTx.data && simplifiedTx.gasLimit && simplifiedTx.gasPrice),
+      });
+      
+      txResponse = await walletSigner.sendTransaction(simplifiedTx);
+      console.log('[UnshieldTransactions] ✅ Self-signed transaction sent (simplified format)');
+    }
     
     return txResponse;
     
@@ -680,7 +734,15 @@ export const unshieldTokens = async ({
     
     // Create proper gas details using the dedicated function (like shield transactions)
     const networkName = chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum;
-    const gasDetails = createUnshieldGasDetails(networkName, sendWithPublicWallet, gasEstimate);
+    // CRITICAL FIX: Use same pattern as working shield transactions (hardcode true)
+    const gasDetails = createUnshieldGasDetails(networkName, true, gasEstimate);
+    
+    console.log('📝 [UNSHIELD DEBUG] Using shield-compatible gas details pattern:', {
+      networkName,
+      sendWithPublicWalletForGas: true, // Always true like shield transactions
+      originalSendWithPublicWallet: sendWithPublicWallet,
+      reason: 'Match working shield transaction pattern'
+    });
     
     console.log('📝 [UNSHIELD DEBUG] Gas details created:', {
       evmGasType: gasDetails.evmGasType,
@@ -810,7 +872,7 @@ export const unshieldTokens = async ({
         const fallbackGasEstimate = fallbackGasEstimateResponse.gasEstimate || fallbackGasEstimateResponse;
         const fallbackGasDetails = createUnshieldGasDetails(
           chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
-          true, // sendWithPublicWallet for fallback
+          true, // SHIELD PATTERN: Always true for gas details (like working shield transactions)
           fallbackGasEstimate
         );
 
