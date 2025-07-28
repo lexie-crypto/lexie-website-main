@@ -68,21 +68,47 @@ export default async function handler(req, res) {
     let backendPath, backendUrl, headers;
     const timestamp = Date.now().toString();
 
+    // Detect request type based on query parameters
+    const { 
+      walletAddress, 
+      action, 
+      walletId,
+      tokenAddress,
+      requiredAmount 
+    } = req.query;
+
     if (req.method === 'GET') {
-      // Handle GET: retrieve wallet metadata
-      const { walletAddress } = req.query;
-      
-      if (!walletAddress) {
-        console.log(`❌ [WALLET-METADATA-PROXY-${requestId}] Missing walletAddress parameter for GET`);
-        return res.status(400).json({
-          success: false,
-          error: 'Missing walletAddress parameter'
-        });
+      if (action === 'balances') {
+        // Handle GET: wallet balances with notes
+        if (!walletAddress || !walletId) {
+          console.log(`❌ [WALLET-METADATA-PROXY-${requestId}] Missing walletAddress or walletId for balances`);
+          return res.status(400).json({
+            success: false,
+            error: 'Missing walletAddress or walletId parameters'
+          });
+        }
+
+        backendPath = `/api/wallet-notes/balances?walletAddress=${encodeURIComponent(walletAddress)}&walletId=${encodeURIComponent(walletId)}`;
+        backendUrl = `https://api.lexiecrypto.com${backendPath}`;
+        
+        console.log(`📊 [WALLET-METADATA-PROXY-${requestId}] GET balances for wallet ${walletAddress?.slice(0, 8)}...`);
+
+      } else {
+        // Handle GET: retrieve wallet metadata (original functionality)
+        if (!walletAddress) {
+          console.log(`❌ [WALLET-METADATA-PROXY-${requestId}] Missing walletAddress parameter for GET`);
+          return res.status(400).json({
+            success: false,
+            error: 'Missing walletAddress parameter'
+          });
+        }
+
+        backendPath = `/api/get-wallet-metadata/${walletAddress}`;
+        backendUrl = `https://api.lexiecrypto.com${backendPath}`;
+        
+        console.log(`🔍 [WALLET-METADATA-PROXY-${requestId}] GET request for wallet ${walletAddress?.slice(0, 8)}...`);
       }
 
-      backendPath = `/api/get-wallet-metadata/${walletAddress}`;
-      backendUrl = `https://api.lexiecrypto.com${backendPath}`;
-      
       const signature = generateHmacSignature('GET', backendPath, timestamp, hmacSecret);
       
       headers = {
@@ -93,11 +119,39 @@ export default async function handler(req, res) {
         'User-Agent': 'Lexie-Wallet-Proxy/1.0',
       };
 
-      console.log(`🔍 [WALLET-METADATA-PROXY-${requestId}] GET request for wallet ${walletAddress?.slice(0, 8)}...`);
-
     } else if (req.method === 'POST') {
-      // Handle POST: store wallet metadata
-      backendPath = '/api/store-wallet-metadata';
+      // Detect POST endpoint based on action parameter or body content
+      if (action === 'unspent') {
+        // Handle POST: get unspent notes for token
+        backendPath = '/api/wallet-notes/unspent';
+        console.log(`🔍 [WALLET-METADATA-PROXY-${requestId}] POST unspent notes request`);
+
+      } else if (action === 'capture-shield') {
+        // Handle POST: capture shield note
+        backendPath = '/api/wallet-notes/capture-shield';
+        console.log(`🛡️ [WALLET-METADATA-PROXY-${requestId}] POST capture shield note`);
+
+      } else if (action === 'capture-change') {
+        // Handle POST: capture change note
+        backendPath = '/api/wallet-notes/capture-change';
+        console.log(`🔄 [WALLET-METADATA-PROXY-${requestId}] POST capture change note`);
+
+      } else if (action === 'mark-spent') {
+        // Handle POST: mark note as spent
+        backendPath = '/api/wallet-notes/mark-spent';
+        console.log(`✅ [WALLET-METADATA-PROXY-${requestId}] POST mark note as spent`);
+
+      } else if (action === 'process-unshield') {
+        // Handle POST: atomic unshield operation (mark spent + capture change)
+        backendPath = '/api/wallet-notes/process-unshield';
+        console.log(`⚛️ [WALLET-METADATA-PROXY-${requestId}] POST atomic unshield operation`);
+
+      } else {
+        // Handle POST: store wallet metadata (original functionality)
+        backendPath = '/api/store-wallet-metadata';
+        console.log(`💾 [WALLET-METADATA-PROXY-${requestId}] POST store wallet metadata`);
+      }
+
       backendUrl = `https://api.lexiecrypto.com${backendPath}`;
       
       const signature = generateHmacSignature('POST', backendPath, timestamp, hmacSecret);
@@ -110,8 +164,6 @@ export default async function handler(req, res) {
         'Origin': 'https://lexiecrypto.com',
         'User-Agent': 'Lexie-Wallet-Proxy/1.0',
       };
-
-      console.log(`💾 [WALLET-METADATA-PROXY-${requestId}] POST request to store wallet metadata`);
     }
 
     console.log(`🔐 [WALLET-METADATA-PROXY-${requestId}] Generated HMAC headers`, {
@@ -148,6 +200,7 @@ export default async function handler(req, res) {
       method: req.method,
       error: error.message,
       stack: error.stack,
+      action: req.query.action || 'metadata',
       walletAddress: req.query.walletAddress?.slice(0, 8) + '...' || 'N/A'
     });
     

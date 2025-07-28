@@ -39,8 +39,30 @@ const TOKEN_LISTS = {
   56: [ // BSC
     { address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', symbol: 'USDC', name: 'USD Coin', decimals: 18 },
     { address: '0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3', symbol: 'DAI', name: 'Dai Token', decimals: 18 },
-    { address: '0x55d398326f99059fF775485246999027B3197955', symbol: 'USDT', name: 'Tether USD', decimals: 18 },
+    { address: '0x55d398326f99059fF775485246999027B3197955', symbol: 'USDT', name: 'Tether USD', decimals: 18 }, // BSC USDT uses 18 decimals
   ],
+};
+
+// Function to get token decimals by address and chain
+export const getTokenDecimals = (tokenAddress, chainId) => {
+  const tokenList = TOKEN_LISTS[chainId];
+  if (!tokenList) return 18; // Default fallback
+  
+  const token = tokenList.find(
+    t => t.address.toLowerCase() === tokenAddress.toLowerCase()
+  );
+  
+  return token ? token.decimals : 18;
+};
+
+// Function to get token info by address and chain
+export const getTokenInfo = (tokenAddress, chainId) => {
+  const tokenList = TOKEN_LISTS[chainId];
+  if (!tokenList) return null;
+  
+  return tokenList.find(
+    t => t.address.toLowerCase() === tokenAddress.toLowerCase()
+  );
 };
 
 // Chain ID to RPC URL mapping
@@ -632,6 +654,7 @@ export function useBalances() {
       // Auto-refresh UI after confirmed transactions for good UX
       if (event.detail?.chainId === currentChainId && currentWalletId) {
         const { transactionType, amount, tokenAddress, tokenSymbol } = event.detail;
+        const currentWalletAddress = stableRefs.current.address;
         
         if (transactionType === 'shield' && amount && tokenAddress && tokenSymbol) {
           console.log('[useBalances] 🛡️ Applying optimistic shield update...');
@@ -652,8 +675,47 @@ export function useBalances() {
           } catch (error) {
             console.error('[useBalances] Failed to update balances after shield:', error);
           }
+        } else if ((transactionType === 'unshield' || transactionType === 'transfer') && currentWalletId) {
+          console.log('[useBalances] 🔓 Handling unshield/transfer confirmation - refreshing private balances...');
+          try {
+            // Call the balances endpoint to get updated notes and balances
+            const response = await fetch(`/api/wallet-metadata?action=balances&walletAddress=${currentWalletAddress}&walletId=${currentWalletId}`);
+            if (response.ok) {
+              const result = await response.json();
+              if (result.success && result.balances) {
+                console.log('[useBalances] ✅ Updated private balances from note tracking:', {
+                  tokenCount: result.balances.balances?.length || 0,
+                  totalNotes: result.balances.balances?.reduce((sum, token) => sum + (token.notes?.length || 0), 0) || 0
+                });
+                
+                // Update private balances with note data
+                const privateWithUSD = result.balances.balances.map(token => ({
+                  ...token,
+                  balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
+                }));
+                setPrivateBalances(privateWithUSD);
+                
+                // Also refresh public balances
+                const freshPublicBalances = await fetchPublicBalances();
+                const publicWithUSD = freshPublicBalances.map(token => ({
+                  ...token,
+                  balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
+                }));
+                setPublicBalances(publicWithUSD);
+                
+                console.log('[useBalances] ✅ All balances refreshed after unshield/transfer confirmation');
+              }
+            } else {
+              const errorText = await response.text();
+              console.warn('[useBalances] ⚠️ Failed to fetch updated balances from note tracking:', {
+                status: response.status,
+                error: errorText
+              });
+            }
+          } catch (error) {
+            console.error('[useBalances] Failed to update balances after unshield/transfer:', error);
+          }
         }
-        // Future: Handle unshield/private transfer confirmations here
       }
     };
 

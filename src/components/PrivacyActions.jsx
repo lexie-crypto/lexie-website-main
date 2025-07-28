@@ -329,6 +329,12 @@ const PrivacyActions = () => {
     if (!selectedToken || !amount || !isValidAmount) {
       return;
     }
+    
+    // 🚨 CRITICAL: Validate tokenAddress to prevent USDT decimals miscalculation
+    if (!selectedToken.tokenAddress || typeof selectedToken.tokenAddress !== 'string') {
+      toast.error('Invalid token selected. Please select a valid token.');
+      return;
+    }
 
     setIsProcessing(true);
     let toastId;
@@ -350,23 +356,52 @@ const PrivacyActions = () => {
 
       console.log('[PrivacyActions] Starting unshield operation:', {
         token: selectedToken.symbol,
+        tokenAddress: selectedToken.tokenAddress,
         amount,
         amountInUnits,
         toAddress,
+        decimals: selectedToken.decimals,
+        chainId: chainId,
+        validationStatus: {
+          hasTokenAddress: !!selectedToken.tokenAddress,
+          tokenAddressLength: selectedToken.tokenAddress?.length || 0,
+          tokenAddressValid: selectedToken.tokenAddress?.startsWith('0x') && selectedToken.tokenAddress.length === 42
+        }
       });
 
       toast.loading('Generating proof and unshielding tokens...', { id: toastId });
 
-      // Execute unshield operation
-      const result = await unshieldTokens({
+      // 🔍 CRITICAL: Verify all parameters before unshield call
+      const unshieldParams = {
         railgunWalletID: railgunWalletId,
         encryptionKey,
         tokenAddress: selectedToken.tokenAddress,
         amount: amountInUnits,
         chain: chainConfig,
         toAddress,
+        walletAddress: address, // 🚨 CRITICAL: Add walletAddress for note retrieval
+        decimals: selectedToken.decimals, // 🚨 CRITICAL: Pass decimals from UI to prevent fallback lookups
         walletProvider // ✅ Pass wallet provider for transaction sending
+      };
+      
+      console.log('[PrivacyActions] 🔍 Unshield parameters validation:', {
+        hasRailgunWalletID: !!unshieldParams.railgunWalletID,
+        hasEncryptionKey: !!unshieldParams.encryptionKey,
+        hasTokenAddress: !!unshieldParams.tokenAddress,
+        tokenAddressValid: unshieldParams.tokenAddress?.startsWith('0x') && unshieldParams.tokenAddress.length === 42,
+        hasAmount: !!unshieldParams.amount,
+        hasToAddress: !!unshieldParams.toAddress,
+        hasWalletAddress: !!unshieldParams.walletAddress, // For note retrieval
+        hasDecimals: unshieldParams.decimals !== undefined && unshieldParams.decimals !== null, // 🚨 CRITICAL
+        decimalsValue: unshieldParams.decimals, // Show actual decimals value
+        isUSDT: selectedToken.symbol === 'USDT',
+        isCorrectUSDTDecimals: selectedToken.symbol === 'USDT' && (unshieldParams.decimals === 6 || (chainId === 56 && unshieldParams.decimals === 18)),
+        hasWalletProvider: !!unshieldParams.walletProvider,
+        chainId: unshieldParams.chain?.id
       });
+
+      // Execute unshield operation
+      const result = await unshieldTokens(unshieldParams);
 
       toast.dismiss(toastId);
       toast.success(`Successfully unshielded ${amount} ${selectedToken.symbol}!`);

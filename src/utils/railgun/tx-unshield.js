@@ -528,6 +528,55 @@ const getChainNameFromId = (chainId) => {
 };
 
 /**
+ * Emergency hardcoded token decimals for critical tokens to prevent miscalculations
+ * CRITICAL: This prevents USDT (6 decimals) from being treated as 18 decimals
+ */
+const getKnownTokenDecimals = (tokenAddress, chainId) => {
+  if (!tokenAddress) return null;
+  
+  const address = tokenAddress.toLowerCase();
+  
+  // Hardcoded token decimals by chain - CRITICAL for USDT and other non-18 decimal tokens
+  const knownTokens = {
+    // Ethereum Mainnet
+    1: {
+      '0xdac17f958d2ee523a2206206994597c13d831ec7': { decimals: 6, symbol: 'USDT' }, // USDT
+      '0xa0b86a33e6416a86f2016c97db4ad0a23a5b7b73': { decimals: 6, symbol: 'USDC' }, // USDC
+      '0x6b175474e89094c44da98b954eedeac495271d0f': { decimals: 18, symbol: 'DAI' }, // DAI
+      '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599': { decimals: 8, symbol: 'WBTC' }, // WBTC
+    },
+    // Arbitrum
+    42161: {
+      '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': { decimals: 6, symbol: 'USDT' }, // USDT
+      '0xaf88d065e77c8cc2239327c5edb3a432268e5831': { decimals: 6, symbol: 'USDC' }, // USDC Native
+      '0xff970a61a04b1ca14834a43f5de4533ebddb5cc8': { decimals: 6, symbol: 'USDC.e' }, // USDC Bridged
+      '0xda10009cbd5d07dd0cecc66161fc93d7c9000da1': { decimals: 18, symbol: 'DAI' }, // DAI
+      '0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f': { decimals: 8, symbol: 'WBTC' }, // WBTC
+    },
+    // Polygon
+    137: {
+      '0xc2132d05d31c914a87c6611c10748aeb04b58e8f': { decimals: 6, symbol: 'USDT' }, // USDT
+      '0x2791bca1f2de4661ed88a30c99a7a9449aa84174': { decimals: 6, symbol: 'USDC' }, // USDC
+      '0x8f3cf7ad23cd3cadbd9735aff958023239c6a063': { decimals: 18, symbol: 'DAI' }, // DAI
+      '0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6': { decimals: 8, symbol: 'WBTC' }, // WBTC
+    },
+    // BSC
+    56: {
+      '0x55d398326f99059ff775485246999027b3197955': { decimals: 18, symbol: 'USDT' }, // BSC USDT uses 18 decimals!
+      '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': { decimals: 18, symbol: 'USDC' }, // BSC USDC uses 18 decimals!
+      '0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3': { decimals: 18, symbol: 'DAI' }, // DAI
+      '0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c': { decimals: 18, symbol: 'BTCB' }, // BTCB
+    }
+  };
+  
+  const chainTokens = knownTokens[chainId];
+  if (!chainTokens) return null;
+  
+  const tokenInfo = chainTokens[address];
+  return tokenInfo || null;
+};
+
+/**
  * Get unspent notes for unshield operation using Redis/Graph data
  * This prevents "Note already spent" errors by using our fast Redis note tracking
  */
@@ -541,8 +590,8 @@ const getUnspentNotesForUnshield = async (walletAddress, railgunWalletID, tokenA
       timestamp: new Date().toISOString(),
     });
 
-    // Call backend to get unspent notes
-    const response = await fetch(`/api/wallet-notes/unspent`, {
+    // Call backend to get unspent notes via the proxy
+    const response = await fetch(`/api/wallet-metadata?action=unspent`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -616,6 +665,7 @@ export const unshieldTokens = async ({
   toAddress,
   walletProvider,
   walletAddress, // Add wallet address for note retrieval
+  decimals, // 🚨 CRITICAL: Decimals from UI to prevent fallback lookups
   selectedBroadcaster = null,
 }) => {
   console.log('🚀 [UNSHIELD DEBUG] Starting unshield transaction with relayer support...', {
@@ -624,6 +674,8 @@ export const unshieldTokens = async ({
     tokenAddress: tokenAddress?.substring(0, 10) + '...',
     amount,
     toAddress: toAddress?.substring(0, 10) + '...',
+    decimals: decimals, // 🚨 CRITICAL: Show decimals from UI
+    decimalsSource: decimals !== undefined && decimals !== null ? 'UI_PASSED' : 'WILL_LOOKUP',
     chainId: chain.id,
     chainName: chain.name,
     timestamp: new Date().toISOString(),
@@ -649,6 +701,25 @@ export const unshieldTokens = async ({
     }
     if (!walletAddress) {
       throw new Error('Wallet address is required for note retrieval');
+    }
+    
+    // 🚨 CRITICAL: Validate tokenAddress to prevent decimals miscalculation
+    if (!tokenAddress || typeof tokenAddress !== 'string' || tokenAddress.length < 10) {
+      throw new Error(`Invalid tokenAddress: "${tokenAddress}". TokenAddress is required for proper decimals detection and USDT balance calculations. Cannot proceed with unshield.`);
+    }
+    
+    // 🚨 CRITICAL: Validate decimals if passed from UI
+    if (decimals !== undefined && decimals !== null) {
+      if (typeof decimals !== 'number' || isNaN(decimals) || decimals < 0 || decimals > 30) {
+        throw new Error(`Invalid decimals: "${decimals}". Decimals must be a valid number between 0-30. Cannot proceed with unshield.`);
+      }
+      console.log('✅ [UNSHIELD DEBUG] Decimals validation passed - UI provided valid decimals:', {
+        decimals,
+        type: typeof decimals,
+        source: 'UI_VALIDATED'
+      });
+    } else {
+      console.warn('⚠️ [UNSHIELD DEBUG] No decimals passed from UI - will use fallback detection (less reliable)');
     }
 
     // STEP 0: Get and validate unspent notes from Redis
@@ -912,6 +983,12 @@ export const unshieldTokens = async ({
       hasNullifiers: !!populatedTransaction.nullifiers,
       nullifiersCount: populatedTransaction.nullifiers?.length || 0,
       populatedTransactionKeys: Object.keys(populatedTransaction),
+      // Debug: Check for change note information
+      hasCommitments: !!populatedTransaction.commitments,
+      hasGeneratedCommitments: !!populatedTransaction.generatedCommitments,
+      hasOutputCommitments: !!populatedTransaction.outputCommitments,
+      hasChangeCommitments: !!populatedTransaction.changeCommitments,
+      allProperties: Object.keys(populatedTransaction).filter(key => key !== 'transaction')
     });
 
     // STEP 7: Submit Transaction
@@ -1093,6 +1170,121 @@ export const unshieldTokens = async ({
       try {
         const { monitorTransactionInGraph } = await import('./transactionMonitor.js');
         
+        // 🚨 CRITICAL: Get proper token decimals - prioritize UI-passed decimals first!
+        let tokenDecimals = 18; // Final fallback default
+        let tokenSymbol = 'Unknown';
+        
+        // PRIORITY 1: Use decimals passed from UI (most reliable)
+        if (decimals !== undefined && decimals !== null) {
+          tokenDecimals = decimals;
+          console.log('✅ [UNSHIELD DEBUG] Using decimals from UI (highest priority):', {
+            tokenAddress: tokenAddress.slice(0, 10) + '...',
+            chainId: chain.id,
+            decimals: tokenDecimals,
+            source: 'UI_PASSED',
+            reliable: true
+          });
+          
+          // Try to get symbol for UI-passed decimals
+          try {
+            const { getTokenInfo } = await import('./../../hooks/useBalances.js');
+            const tokenInfo = getTokenInfo(tokenAddress, chain.id);
+            tokenSymbol = tokenInfo?.symbol || 'Unknown';
+          } catch (error) {
+            console.warn('[UNSHIELD DEBUG] Could not get symbol for UI-passed decimals:', error);
+          }
+        } else {
+          // PRIORITY 2: Fallback to dynamic lookup if UI didn't pass decimals
+          console.warn('⚠️ [UNSHIELD DEBUG] No decimals passed from UI - falling back to lookup (less reliable)');
+          
+          try {
+            const { getTokenDecimals, getTokenInfo } = await import('./../../hooks/useBalances.js');
+            
+            // Get decimals from dynamic lookup
+            const detectedDecimals = getTokenDecimals(tokenAddress, chain.id);
+            const tokenInfo = getTokenInfo(tokenAddress, chain.id);
+            
+            if (detectedDecimals !== null && detectedDecimals !== undefined) {
+              tokenDecimals = detectedDecimals;
+              tokenSymbol = tokenInfo?.symbol || 'Unknown';
+              
+              console.log('🔧 [UNSHIELD DEBUG] Retrieved token info via lookup (fallback):', {
+                tokenAddress: tokenAddress.slice(0, 10) + '...',
+                chainId: chain.id,
+                decimals: tokenDecimals,
+                symbol: tokenSymbol,
+                source: 'dynamic-lookup'
+              });
+            } else {
+              // PRIORITY 3: Hardcoded fallback for critical tokens like USDT
+              const knownTokenDecimals = getKnownTokenDecimals(tokenAddress, chain.id);
+              if (knownTokenDecimals !== null) {
+                tokenDecimals = knownTokenDecimals.decimals;
+                tokenSymbol = knownTokenDecimals.symbol;
+                console.log('🔧 [UNSHIELD DEBUG] Used hardcoded token info (emergency fallback):', {
+                  tokenAddress: tokenAddress.slice(0, 10) + '...',
+                  chainId: chain.id,
+                  decimals: tokenDecimals,
+                  symbol: tokenSymbol,
+                  source: 'hardcoded-fallback'
+                });
+              } else {
+                console.warn('⚠️ [UNSHIELD DEBUG] Token not found in any source, using default 18 decimals:', {
+                  tokenAddress: tokenAddress.slice(0, 10) + '...',
+                  chainId: chain.id,
+                  riskLevel: 'HIGH if this is USDT or other non-18-decimal token'
+                });
+              }
+            }
+          } catch (error) {
+            console.error('❌ [UNSHIELD DEBUG] Failed to get token info, trying hardcoded fallback:', error);
+            
+            // Emergency hardcoded fallback for critical tokens
+            const knownTokenDecimals = getKnownTokenDecimals(tokenAddress, chain.id);
+            if (knownTokenDecimals !== null) {
+              tokenDecimals = knownTokenDecimals.decimals;
+              tokenSymbol = knownTokenDecimals.symbol;
+              console.log('🚨 [UNSHIELD DEBUG] Used emergency hardcoded fallback:', {
+                tokenAddress: tokenAddress.slice(0, 10) + '...',
+                decimals: tokenDecimals,
+                symbol: tokenSymbol,
+                source: 'emergency-hardcoded'
+              });
+            } else {
+              console.error('🚨 [UNSHIELD DEBUG] CRITICAL: Using 18 decimals fallback - THIS COULD BREAK USDT!', {
+                tokenAddress: tokenAddress.slice(0, 10) + '...',
+                chainId: chain.id,
+                defaultUsed: 18,
+                riskLevel: 'CRITICAL if this is USDT or other non-18-decimal token'
+              });
+            }
+          }
+        }
+
+        // Detect change notes from populated transaction if available
+        let changeCommitment = null;
+        if (populatedTransaction.commitments) {
+          // Look for change commitments in the populated transaction
+          console.log('🔍 [UNSHIELD DEBUG] Checking for change notes in populated transaction:', {
+            commitmentsCount: populatedTransaction.commitments?.length || 0,
+            commitmentTypes: populatedTransaction.commitments?.map(c => c.type || 'unknown') || []
+          });
+          
+          // Change notes are typically the second commitment (first is the spent note)
+          // This is a heuristic - actual implementation may vary based on SDK version
+          const possibleChangeNote = populatedTransaction.commitments?.find(c => 
+            c.type === 'change' || (populatedTransaction.commitments.length > 1 && c !== populatedTransaction.commitments[0])
+          );
+          
+          if (possibleChangeNote) {
+            changeCommitment = possibleChangeNote;
+            console.log('🔄 [UNSHIELD DEBUG] Detected change note from transaction:', {
+              hash: changeCommitment.hash,
+              value: changeCommitment.value || changeCommitment.preimage?.value
+            });
+          }
+        }
+
         // Start monitoring in background (don't await to avoid blocking the UI)
         monitorTransactionInGraph({
           txHash: transactionHash,
@@ -1101,8 +1293,12 @@ export const unshieldTokens = async ({
           transactionDetails: {
             amount: amount,
             tokenAddress,
-            tokenSymbol: 'Token', // We don't have symbol readily available here
+            tokenSymbol: tokenSymbol, // Use detected symbol instead of hardcoded 'Token'
             toAddress,
+            walletAddress, // Add wallet details for note management
+            walletId: railgunWalletID,
+            decimals: tokenDecimals, // Use proper decimals instead of defaulting to 18
+            changeCommitment, // Pass detected change note if available
           },
           listener: (event) => {
             console.log(`🎉 [UNSHIELD DEBUG] Transaction ${transactionHash} confirmed in Graph! Balance will update.`);
@@ -1110,9 +1306,25 @@ export const unshieldTokens = async ({
         }).catch(monitorError => {
           console.warn('⚠️ [UNSHIELD DEBUG] Transaction monitoring failed (transaction still succeeded):', monitorError.message);
         });
-      } catch (importError) {
-        console.warn('⚠️ [UNSHIELD DEBUG] Could not start transaction monitoring:', importError.message);
-      }
+              } catch (importError) {
+          console.warn('⚠️ [UNSHIELD DEBUG] Could not start transaction monitoring:', importError.message);
+        }
+        
+                 // VERIFICATION: Log final decimals used for critical debugging
+         console.log('🎯 [UNSHIELD DEBUG] FINAL DECIMALS VERIFICATION:', {
+           tokenAddress: tokenAddress?.slice(0, 10) + '...',
+           chainId: chain.id,
+           finalDecimals: tokenDecimals,
+           finalSymbol: tokenSymbol,
+           decimalsSource: decimals !== undefined && decimals !== null ? 'UI_PASSED' : 'LOOKUP_FALLBACK',
+           isUSDT: tokenSymbol === 'USDT',
+           isCorrectUSDTDecimals: tokenSymbol === 'USDT' && (tokenDecimals === 6 || (chain.id === 56 && tokenDecimals === 18)),
+           riskLevel: tokenSymbol === 'USDT' && tokenDecimals === 18 && chain.id !== 56 ? 'CRITICAL_ERROR' : 'OK',
+           reliabilityLevel: decimals !== undefined && decimals !== null ? 'HIGH (UI passed)' : 'MEDIUM (lookup)',
+           message: tokenSymbol === 'USDT' && tokenDecimals === 18 && chain.id !== 56 ? 
+             '🚨 CRITICAL: USDT detected with 18 decimals on non-BSC chain - THIS WILL BREAK BALANCES!' : 
+             '✅ Decimals verification passed'
+         });
     }
 
     return {

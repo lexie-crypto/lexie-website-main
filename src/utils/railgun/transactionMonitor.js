@@ -431,6 +431,55 @@ const queryCommitments = async (chainId, fromBlock, txHash = null) => {
 };
 
 /**
+ * Emergency hardcoded token decimals for change note processing
+ * CRITICAL: Ensures USDT change notes get 6 decimals even if dynamic lookup fails
+ */
+const getKnownTokenDecimalsInMonitor = (tokenAddress, chainId) => {
+  if (!tokenAddress) return null;
+  
+  const address = tokenAddress.toLowerCase();
+  
+  // Same hardcoded decimals as tx-unshield.js for consistency
+  const knownTokens = {
+    // Ethereum Mainnet
+    1: {
+      '0xdac17f958d2ee523a2206206994597c13d831ec7': { decimals: 6, symbol: 'USDT' }, // USDT
+      '0xa0b86a33e6416a86f2016c97db4ad0a23a5b7b73': { decimals: 6, symbol: 'USDC' }, // USDC
+      '0x6b175474e89094c44da98b954eedeac495271d0f': { decimals: 18, symbol: 'DAI' }, // DAI
+      '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599': { decimals: 8, symbol: 'WBTC' }, // WBTC
+    },
+    // Arbitrum
+    42161: {
+      '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': { decimals: 6, symbol: 'USDT' }, // USDT
+      '0xaf88d065e77c8cc2239327c5edb3a432268e5831': { decimals: 6, symbol: 'USDC' }, // USDC Native
+      '0xff970a61a04b1ca14834a43f5de4533ebddb5cc8': { decimals: 6, symbol: 'USDC.e' }, // USDC Bridged
+      '0xda10009cbd5d07dd0cecc66161fc93d7c9000da1': { decimals: 18, symbol: 'DAI' }, // DAI
+      '0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f': { decimals: 8, symbol: 'WBTC' }, // WBTC
+    },
+    // Polygon
+    137: {
+      '0xc2132d05d31c914a87c6611c10748aeb04b58e8f': { decimals: 6, symbol: 'USDT' }, // USDT
+      '0x2791bca1f2de4661ed88a30c99a7a9449aa84174': { decimals: 6, symbol: 'USDC' }, // USDC
+      '0x8f3cf7ad23cd3cadbd9735aff958023239c6a063': { decimals: 18, symbol: 'DAI' }, // DAI
+      '0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6': { decimals: 8, symbol: 'WBTC' }, // WBTC
+    },
+    // BSC
+    56: {
+      '0x55d398326f99059ff775485246999027b3197955': { decimals: 18, symbol: 'USDT' }, // BSC USDT uses 18 decimals!
+      '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': { decimals: 18, symbol: 'USDC' }, // BSC USDC uses 18 decimals!
+      '0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3': { decimals: 18, symbol: 'DAI' }, // DAI
+      '0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c': { decimals: 18, symbol: 'BTCB' }, // BTCB
+    }
+  };
+  
+  const chainTokens = knownTokens[chainId];
+  if (!chainTokens) return null;
+  
+  const tokenInfo = chainTokens[address];
+  return tokenInfo || null;
+};
+
+/**
  * Monitor for a specific transaction to appear in RAILGUN events
  * Updated API to match user specification
  */
@@ -507,14 +556,180 @@ export const monitorTransactionInGraph = async ({
         console.log('[TransactionMonitor] 🎉 Event confirmed in Graph, dispatching transaction confirmed event');
 
         // 🎯 CAPTURE NOTES: Handle note capture/spending based on transaction type
-        if (transactionType === 'shield' && events.length > 0) {
-          console.log('[TransactionMonitor] 📝 Processing shield commitment for note capture');
-          // Shield commitments are captured automatically via the note capture system
-          // This will be handled by the backend when processing shield events
-        } else if (transactionType === 'unshield' && events.length > 0) {
-          console.log('[TransactionMonitor] 🔓 Processing unshield event for note spending');
-          // Unshield events mark notes as spent and capture change notes
-          // This will be handled by the backend when processing unshield events
+        try {
+          if (transactionType === 'shield' && events.length > 0) {
+            console.log('[TransactionMonitor] 📝 Processing shield commitment for note capture');
+            
+            // Process each shield commitment
+            for (const shieldCommitment of events) {
+              if (shieldCommitment.preimage?.value && shieldCommitment.preimage?.token?.tokenAddress) {
+                try {
+                  console.log('[TransactionMonitor] 🛡️ Capturing shield note:', {
+                    hash: shieldCommitment.hash,
+                    value: shieldCommitment.preimage.value,
+                    tokenAddress: shieldCommitment.preimage.token.tokenAddress
+                  });
+
+                  // Get wallet info from transactionDetails or current context
+                  const walletAddress = transactionDetails?.walletAddress;
+                  const walletId = transactionDetails?.walletId;
+                  const tokenSymbol = transactionDetails?.tokenSymbol || 'UNKNOWN';
+                  
+                  // Get proper decimals from token data or transaction details
+                  let decimals = transactionDetails?.decimals;
+                  if (!decimals) {
+                    // Try to get decimals from token info
+                    try {
+                      const { getTokenDecimals } = await import('../../hooks/useBalances.js');
+                      decimals = getTokenDecimals(shieldCommitment.preimage.token.tokenAddress, chainId);
+                      console.log('[TransactionMonitor] 🔍 Retrieved token decimals:', {
+                        tokenAddress: shieldCommitment.preimage.token.tokenAddress,
+                        chainId,
+                        decimals
+                      });
+                    } catch (error) {
+                      console.warn('[TransactionMonitor] ⚠️ Could not get token decimals, using default 18:', error);
+                      decimals = 18;
+                    }
+                  }
+
+                  if (walletAddress && walletId) {
+                    const response = await fetch('/api/wallet-metadata?action=capture-shield', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        walletAddress,
+                        walletId,
+                        shieldCommitment,
+                        tokenSymbol,
+                        decimals,
+                        chainId
+                      })
+                    });
+
+                    if (response.ok) {
+                      console.log('[TransactionMonitor] ✅ Shield note captured successfully');
+                    } else {
+                      console.error('[TransactionMonitor] ❌ Failed to capture shield note:', await response.text());
+                    }
+                  } else {
+                    console.warn('[TransactionMonitor] ⚠️ Missing wallet details for shield note capture');
+                  }
+                } catch (error) {
+                  console.error('[TransactionMonitor] ❌ Error capturing shield note:', error);
+                }
+              }
+            }
+          } else if (transactionType === 'unshield' && events.length > 0) {
+            console.log('[TransactionMonitor] 🔓 Processing unshield event for note spending');
+            
+            // Process each unshield event (nullifiers) using atomic operation
+            for (const nullifierEvent of events) {
+              try {
+                console.log('[TransactionMonitor] 🗑️ Processing unshield atomically:', {
+                  nullifier: nullifierEvent.nullifier,
+                  txHash: nullifierEvent.transactionHash,
+                  hasChangeNote: !!transactionDetails?.changeCommitment
+                });
+
+                // Get wallet info from transactionDetails
+                const walletAddress = transactionDetails?.walletAddress;
+                const walletId = transactionDetails?.walletId;
+                
+                // 🚨 CRITICAL: Get proper decimals - especially important for USDT change notes (6 decimals)
+                let decimals = transactionDetails?.decimals;
+                if (!decimals || decimals === 18) { // Even if 18 was passed, double-check for USDT
+                  console.log('[TransactionMonitor] 🔍 Decimals validation for change note processing:', {
+                    providedDecimals: transactionDetails?.decimals,
+                    tokenAddress: transactionDetails?.tokenAddress,
+                    needsLookup: !decimals || decimals === 18
+                  });
+                  
+                  // For unshield, we need to get decimals from the transaction details or token address
+                  // If we have a tokenAddress in transactionDetails, use it
+                  if (transactionDetails?.tokenAddress) {
+                    try {
+                      const { getTokenDecimals } = await import('../../hooks/useBalances.js');
+                      const detectedDecimals = getTokenDecimals(transactionDetails.tokenAddress, chainId);
+                      
+                      if (detectedDecimals !== null && detectedDecimals !== undefined) {
+                        decimals = detectedDecimals;
+                        console.log('[TransactionMonitor] ✅ Retrieved unshield token decimals:', {
+                          tokenAddress: transactionDetails.tokenAddress,
+                          chainId,
+                          decimals,
+                          source: 'dynamic-lookup'
+                        });
+                      } else {
+                        // Emergency hardcoded fallback for critical tokens like USDT
+                        const hardcodedDecimals = getKnownTokenDecimalsInMonitor(transactionDetails.tokenAddress, chainId);
+                        if (hardcodedDecimals !== null) {
+                          decimals = hardcodedDecimals.decimals;
+                          console.log('[TransactionMonitor] 🔧 Used hardcoded decimals for change note:', {
+                            tokenAddress: transactionDetails.tokenAddress,
+                            chainId,
+                            decimals,
+                            symbol: hardcodedDecimals.symbol,
+                            source: 'hardcoded-fallback'
+                          });
+                        } else {
+                          decimals = 18; // Last resort
+                          console.warn('[TransactionMonitor] ⚠️ Using 18 decimals fallback for change note processing - risk for USDT!');
+                        }
+                      }
+                    } catch (error) {
+                      console.error('[TransactionMonitor] ❌ Failed to get unshield token decimals, trying hardcoded fallback:', error);
+                      
+                      // Emergency hardcoded fallback
+                      const hardcodedDecimals = getKnownTokenDecimalsInMonitor(transactionDetails?.tokenAddress, chainId);
+                      if (hardcodedDecimals !== null) {
+                        decimals = hardcodedDecimals.decimals;
+                        console.log('[TransactionMonitor] 🚨 Used emergency hardcoded decimals:', {
+                          tokenAddress: transactionDetails?.tokenAddress,
+                          decimals,
+                          symbol: hardcodedDecimals.symbol,
+                          source: 'emergency-hardcoded'
+                        });
+                      } else {
+                        decimals = 18; // Final fallback
+                        console.error('[TransactionMonitor] 🚨 CRITICAL: Using 18 decimals fallback - THIS COULD BREAK USDT CHANGE NOTES!');
+                      }
+                    }
+                  } else {
+                    console.warn('[TransactionMonitor] ⚠️ No tokenAddress available for decimals lookup in change note processing');
+                    decimals = 18; // Fallback when no token address
+                  }
+                }
+
+                if (walletAddress && walletId) {
+                  const response = await fetch('/api/wallet-metadata?action=process-unshield', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      walletAddress,
+                      walletId,
+                      spentCommitmentHash: nullifierEvent.nullifier,
+                      spentTxHash: nullifierEvent.transactionHash,
+                      decimals,
+                      changeCommitment: transactionDetails?.changeCommitment // Optional
+                    })
+                  });
+
+                  if (response.ok) {
+                    console.log('[TransactionMonitor] ✅ Unshield processed atomically');
+                  } else {
+                    console.error('[TransactionMonitor] ❌ Failed to process unshield atomically:', await response.text());
+                  }
+                } else {
+                  console.warn('[TransactionMonitor] ⚠️ Missing wallet details for atomic unshield processing');
+                }
+              } catch (error) {
+                console.error('[TransactionMonitor] ❌ Error processing unshield atomically:', error);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('[TransactionMonitor] ❌ Error in note processing:', error);
         }
 
         // 🎯 FIXED: Dispatch event with transaction details for optimistic updates
@@ -590,13 +805,14 @@ const getRpcUrl = async (chainId) => {
 /**
  * Monitor shield transaction with enhanced listener integration
  */
-export const monitorShieldTransaction = async (txHash, chainId, railgunWalletId) => {
+export const monitorShieldTransaction = async (txHash, chainId, railgunWalletId, transactionDetails = null) => {
   console.log('[TransactionMonitor] 🛡️ Monitoring shield transaction:', txHash);
   
   return await monitorTransactionInGraph({
     txHash,
     chainId,
     transactionType: 'shield',
+    transactionDetails, // Pass transaction details for proper decimals handling
     listener: async (event) => {
       console.log(`[TransactionMonitor] ✅ Shield tx ${txHash} indexed on chain ${chainId}`);
       
@@ -619,13 +835,14 @@ export const monitorShieldTransaction = async (txHash, chainId, railgunWalletId)
 /**
  * Monitor unshield transaction with enhanced listener integration
  */
-export const monitorUnshieldTransaction = async (txHash, chainId, railgunWalletId) => {
+export const monitorUnshieldTransaction = async (txHash, chainId, railgunWalletId, transactionDetails = null) => {
   console.log('[TransactionMonitor] 🔓 Monitoring unshield transaction:', txHash);
   
   return await monitorTransactionInGraph({
     txHash,
     chainId,
     transactionType: 'unshield',
+    transactionDetails, // Pass transaction details for proper decimals and change note handling
     listener: async (event) => {
       console.log(`[TransactionMonitor] ✅ Unshield tx ${txHash} indexed on chain ${chainId}`);
       
