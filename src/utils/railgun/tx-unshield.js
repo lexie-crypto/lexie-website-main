@@ -735,29 +735,25 @@ export const unshieldTokens = async ({
     // Create proper gas details using the dedicated function (like shield transactions)
     const networkName = chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum;
     
-    // CRITICAL FIX: Force legacy gas type (Type 0/1) instead of EIP-1559 (Type 2)
-    // Create gas details manually to ensure gasPrice compatibility
-    const gasDetails = {
-      evmGasType: 1, // FORCE Type 1 (legacy gas) like working shield transactions
-      gasEstimate: gasEstimate,
-      gasPrice: networkName === NetworkName.Arbitrum ? BigInt('1000000000') : BigInt('20000000000'), // 1 gwei for Arbitrum, 20 gwei for Ethereum
-    };
+    // CRITICAL FIX: Use EXACT same pattern as working shield transactions
+    // Shield transactions use createShieldGasDetails(networkName, gasEstimate) - only 2 params
+    // They hardcode sendWithPublicWallet=true internally
+    const gasDetails = createUnshieldGasDetails(networkName, true, gasEstimate);
     
-    console.log('📝 [UNSHIELD DEBUG] FORCING legacy gas type for mobile wallet compatibility:', {
+    console.log('📝 [UNSHIELD DEBUG] Using SHIELD-IDENTICAL gas pattern:', {
       networkName,
-      evmGasType: gasDetails.evmGasType,
-      gasEstimate: gasDetails.gasEstimate.toString(),
-      gasPrice: gasDetails.gasPrice.toString(),
-      reason: 'Force Type 1 gas instead of EIP-1559 for mobile wallet compatibility'
+      sendWithPublicWallet: true, // Same as shield transactions
+      gasEstimate: gasEstimate.toString(),
+      reason: 'Use identical pattern to working shield transactions'
     });
     
-    console.log('📝 [UNSHIELD DEBUG] Gas details created (FORCED LEGACY):', {
+    console.log('📝 [UNSHIELD DEBUG] Gas details created (SHIELD PATTERN):', {
       evmGasType: gasDetails.evmGasType,
       gasEstimate: gasDetails.gasEstimate.toString(),
-      gasPrice: gasDetails.gasPrice.toString(),
-      hasGasPrice: !!gasDetails.gasPrice, // Should now be TRUE
-      hasMaxFeePerGas: !!gasDetails.maxFeePerGas, // Should now be FALSE/undefined
-      gasPriceInGwei: (Number(gasDetails.gasPrice) / 1000000000).toFixed(2),
+      hasGasPrice: !!gasDetails.gasPrice,
+      hasMaxFeePerGas: !!gasDetails.maxFeePerGas,
+      gasPrice: gasDetails.gasPrice ? gasDetails.gasPrice.toString() : 'undefined',
+      maxFeePerGas: gasDetails.maxFeePerGas ? gasDetails.maxFeePerGas.toString() : 'undefined',
     });
     
     // STEP 6: Populate Transaction with real gas details
@@ -879,13 +875,9 @@ export const unshieldTokens = async ({
         );
         
         const fallbackGasEstimate = fallbackGasEstimateResponse.gasEstimate || fallbackGasEstimateResponse;
-        // FORCE legacy gas type for fallback too
+        // Use same pattern as working shield transactions for fallback too
         const fallbackNetworkName = chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum;
-        const fallbackGasDetails = {
-          evmGasType: 1, // FORCE Type 1 (legacy gas)
-          gasEstimate: fallbackGasEstimate,
-          gasPrice: fallbackNetworkName === NetworkName.Arbitrum ? BigInt('1000000000') : BigInt('20000000000'),
-        };
+        const fallbackGasDetails = createUnshieldGasDetails(fallbackNetworkName, true, fallbackGasEstimate);
 
         // Repopulate transaction for self-signing using internally stored proof
         const selfSignTx = await populateProvedUnshield(
