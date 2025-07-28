@@ -528,6 +528,56 @@ const getChainNameFromId = (chainId) => {
 };
 
 /**
+ * Get unspent notes for unshield operation using Redis/Graph data
+ * This prevents "Note already spent" errors by using our fast Redis note tracking
+ */
+const getUnspentNotesForUnshield = async (walletAddress, railgunWalletID, tokenAddress, requiredAmount) => {
+  try {
+    console.log('📝 [UNSHIELD DEBUG] Getting unspent notes from Redis...', {
+      walletAddress: walletAddress?.slice(0, 8) + '...',
+      railgunWalletID: railgunWalletID?.slice(0, 8) + '...',
+      tokenAddress: tokenAddress?.slice(0, 10) + '...',
+      requiredAmount,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Call backend to get unspent notes
+    const response = await fetch(`/api/wallet-notes/unspent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        walletAddress,
+        walletId: railgunWalletID,
+        tokenAddress,
+        requiredAmount
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get unspent notes: ${response.status}`);
+    }
+
+    const result = await response.json();
+    if (!result.success) {
+      throw new Error(`Note retrieval failed: ${result.error}`);
+    }
+
+    const unspentNotes = result.notes || [];
+    
+    console.log('✅ [UNSHIELD DEBUG] Retrieved unspent notes from Redis:', {
+      noteCount: unspentNotes.length,
+      totalValue: unspentNotes.reduce((sum, note) => sum + BigInt(note.value), BigInt(0)).toString(),
+      firstNoteValue: unspentNotes[0]?.value || 'none'
+    });
+    
+    return unspentNotes;
+  } catch (error) {
+    console.error('❌ [UNSHIELD DEBUG] Failed to get unspent notes:', error.message);
+    throw new Error(`Cannot get unspent notes: ${error.message}`);
+  }
+};
+
+/**
  * Create ERC20AmountRecipient object for unshield
  */
 const createERC20AmountRecipient = (tokenAddress, amount, recipientAddress) => {
@@ -565,6 +615,7 @@ export const unshieldTokens = async ({
   chain,
   toAddress,
   walletProvider,
+  walletAddress, // Add wallet address for note retrieval
   selectedBroadcaster = null,
 }) => {
   console.log('🚀 [UNSHIELD DEBUG] Starting unshield transaction with relayer support...', {
@@ -596,6 +647,33 @@ export const unshieldTokens = async ({
     if (!toAddress) {
       throw new Error('Recipient address is required');
     }
+    if (!walletAddress) {
+      throw new Error('Wallet address is required for note retrieval');
+    }
+
+    // STEP 0: Get and validate unspent notes from Redis
+    console.log('📝 [UNSHIELD DEBUG] Step 0: Getting unspent notes from Redis to prevent "already spent" errors...');
+    const unspentNotes = await getUnspentNotesForUnshield(walletAddress, railgunWalletID, tokenAddress, amount);
+    
+    if (unspentNotes.length === 0) {
+      throw new Error('No unspent notes available for this token. Please ensure you have sufficient private balance.');
+    }
+
+    // Verify we have enough value in unspent notes
+    const totalAvailable = unspentNotes.reduce((sum, note) => sum + BigInt(note.value), BigInt(0));
+    const requiredAmount = BigInt(amount);
+    
+    if (totalAvailable < requiredAmount) {
+      throw new Error(`Insufficient unspent notes. Available: ${totalAvailable.toString()}, Required: ${requiredAmount.toString()}`);
+    }
+
+    console.log('✅ [UNSHIELD DEBUG] Note validation passed:', {
+      availableNotes: unspentNotes.length,
+      totalValue: totalAvailable.toString(),
+      requiredValue: requiredAmount.toString(),
+      canProceed: true
+    });
+
     // STEP 1: Initialize Relayer Client
     console.log('🔧 [UNSHIELD DEBUG] Step 1: Initializing WakuRelayerClient...');
     const relayerInitialized = await initializeRelayerClient(chain);

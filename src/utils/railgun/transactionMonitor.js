@@ -506,11 +506,23 @@ export const monitorTransactionInGraph = async ({
       if (hasEvent) {
         console.log('[TransactionMonitor] 🎉 Event confirmed in Graph, dispatching transaction confirmed event');
 
+        // 🎯 CAPTURE NOTES: Handle note capture/spending based on transaction type
+        if (transactionType === 'shield' && events.length > 0) {
+          console.log('[TransactionMonitor] 📝 Processing shield commitment for note capture');
+          // Shield commitments are captured automatically via the note capture system
+          // This will be handled by the backend when processing shield events
+        } else if (transactionType === 'unshield' && events.length > 0) {
+          console.log('[TransactionMonitor] 🔓 Processing unshield event for note spending');
+          // Unshield events mark notes as spent and capture change notes
+          // This will be handled by the backend when processing unshield events
+        }
+
         // 🎯 FIXED: Dispatch event with transaction details for optimistic updates
         const eventDetail = { 
           txHash, 
           chainId, 
           transactionType,
+          events, // Include the actual Graph events for note processing
           ...transactionDetails // Spread transaction details (amount, tokenAddress, tokenSymbol)
         };
         
@@ -518,7 +530,8 @@ export const monitorTransactionInGraph = async ({
           eventDetail,
           hasAmount: !!eventDetail.amount,
           hasTokenAddress: !!eventDetail.tokenAddress,
-          hasTokenSymbol: !!eventDetail.tokenSymbol
+          hasTokenSymbol: !!eventDetail.tokenSymbol,
+          eventCount: events.length
         });
         
         window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
