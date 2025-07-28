@@ -618,7 +618,7 @@ export const unshieldTokens = async ({
       recipientAddress: erc20AmountRecipient.recipientAddress,
     });
     
-            const proofResponse = await generateUnshieldProof(
+            const proofResult = await generateUnshieldProof(
       TXIDVersion.V2_PoseidonMerkle,
       chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
       railgunWalletID,
@@ -632,48 +632,29 @@ export const unshieldTokens = async ({
         console.log(`🔮 [UNSHIELD DEBUG] Proof generation progress: ${Math.round(progress * 100)}%`);
       }
     );
-    
-    console.log('🔮 [UNSHIELD DEBUG] Raw proof response received:', {
-      type: typeof proofResponse,
-      isNull: proofResponse === null,
-      isUndefined: proofResponse === undefined,
-      constructor: proofResponse?.constructor?.name,
-      stringified: proofResponse ? JSON.stringify(proofResponse, null, 2).substring(0, 500) + '...' : 'null/undefined'
-    });
 
     const proofDuration = Date.now() - proofStartTime;
     console.log('🔮 [UNSHIELD DEBUG] Proof generation completed:', {
       duration: `${proofDuration}ms`,
-      proofResponseType: typeof proofResponse,
-      proofResponseKeys: proofResponse ? Object.keys(proofResponse) : 'null/undefined',
-      nullifiersCount: proofResponse?.nullifiers?.length || 0,
-      hasNullifiers: !!proofResponse?.nullifiers,
+      success: proofResult?.success,
+      message: proofResult?.message,
+      note: 'Proof stored internally in SDK - nullifiers will come from populateProvedUnshield'
     });
-    
-         // Validate proof response
-     if (!proofResponse) {
-       throw new Error('Proof generation failed: No proof response received');
-     }
-     
-     // Note: Nullifiers might be in populatedTransaction instead of proofResponse
-     console.log('🔮 [UNSHIELD DEBUG] Proof response structure check:', {
-       hasProofResponse: !!proofResponse,
-       proofResponseHasNullifiers: !!proofResponse?.nullifiers,
-       willCheckPopulatedTxForNullifiers: true
-     });
 
-    // STEP 5: Populate Transaction
+        // STEP 5: Populate Transaction
     console.log('📝 [UNSHIELD DEBUG] Step 5: Populating transaction...');
+    console.log('📝 [UNSHIELD DEBUG] Using internally stored proof from SDK...');
+    
     const populatedTransaction = await populateProvedUnshield(
       TXIDVersion.V2_PoseidonMerkle,
       chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
       railgunWalletID,
       [erc20AmountRecipient], // Reuse the properly formatted recipient
-       [], // nftAmountRecipients
-       broadcasterFeeERC20AmountRecipient,
-       sendWithPublicWallet,
-             overallBatchMinGasPrice,
-      proofResponse
+      [], // nftAmountRecipients
+      broadcasterFeeERC20AmountRecipient,
+      sendWithPublicWallet,
+      overallBatchMinGasPrice
+      // Note: No proofResponse parameter needed - SDK uses internally stored proof
     );
 
     console.log('📝 [UNSHIELD DEBUG] Transaction populated:', {
@@ -703,14 +684,17 @@ export const unshieldTokens = async ({
         // Create relayer transaction
         console.log('🔧 [UNSHIELD DEBUG] Creating RelayerTransaction...');
         
-        // Use nullifiers from populated transaction (more reliable than proof response)
-        const nullifiers = populatedTransaction.nullifiers || proofResponse?.nullifiers || [];
+        // Get nullifiers from populated transaction (only source in new SDK pattern)
+        const nullifiers = populatedTransaction.nullifiers || [];
         console.log('🔧 [UNSHIELD DEBUG] Nullifiers for relayer transaction:', {
           fromPopulatedTx: !!populatedTransaction.nullifiers,
-          fromProofResponse: !!proofResponse?.nullifiers,
           nullifiersCount: nullifiers.length,
-          nullifiersSource: populatedTransaction.nullifiers ? 'populatedTransaction' : 'proofResponse'
+          nullifiersSource: 'populatedTransaction (SDK internal proof pattern)'
         });
+        
+        if (!nullifiers.length) {
+          throw new Error('No nullifiers found in populated transaction - proof generation may have failed');
+        }
         
         const relayerTransaction = await createRelayerTransaction(
           populatedTransaction.transaction.to,
@@ -745,7 +729,7 @@ export const unshieldTokens = async ({
         // Create new ERC20AmountRecipient for self-signing (reuse same values)
         const selfSignRecipient = createERC20AmountRecipient(tokenAddress, amount, toAddress);
         
-        const selfSignProofResponse = await generateUnshieldProof(
+        const selfSignResult = await generateUnshieldProof(
           TXIDVersion.V2_PoseidonMerkle,
           chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
           railgunWalletID,
@@ -760,7 +744,9 @@ export const unshieldTokens = async ({
           }
         );
 
-        // Repopulate transaction for self-signing
+        console.log('🔮 [UNSHIELD DEBUG] Fallback proof result:', selfSignResult);
+
+        // Repopulate transaction for self-signing using internally stored proof
         const selfSignTx = await populateProvedUnshield(
           TXIDVersion.V2_PoseidonMerkle,
           chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
@@ -769,8 +755,8 @@ export const unshieldTokens = async ({
           [], // nftAmountRecipients
           null, // broadcasterFeeERC20AmountRecipient
           true, // sendWithPublicWallet
-          '0x0', // overallBatchMinGasPrice
-          selfSignProofResponse
+          '0x0' // overallBatchMinGasPrice
+          // Note: No proofResponse parameter - SDK uses internally stored proof
         );
 
         // Submit self-signed transaction

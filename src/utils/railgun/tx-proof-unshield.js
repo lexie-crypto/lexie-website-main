@@ -64,7 +64,8 @@ export const generateUnshieldProof = async (
     };
 
     // Call the official SDK proof generation function
-    const proofResponse = await generateUnshieldProofSDK(
+    // Note: This function stores the proof internally, it doesn't return the proof response
+    await generateUnshieldProofSDK(
       txidVersion,
       networkName,
       railgunWalletID,
@@ -78,8 +79,10 @@ export const generateUnshieldProof = async (
     );
 
     console.log('[UnshieldProof] ✅ Proof generation completed successfully');
+    console.log('[UnshieldProof] ℹ️ Proof is stored internally in SDK - will be used by populateProvedUnshield');
     
-    return proofResponse;
+    // Return a success indicator - the actual proof is stored internally in the SDK
+    return { success: true, message: 'Proof generated and stored internally' };
 
   } catch (error) {
     console.error('[UnshieldProof] ❌ Proof generation failed:', error);
