@@ -42,53 +42,60 @@ async function getWalletMetadata(walletAddress) {
     
     // Parse Redis response: { success: true, walletAddress: "0x...", totalKeys: 1, keys: [...] }
     if (result.success && result.keys && result.keys.length > 0) {
-      // Extract wallet data from Redis keys
-      // Key format: "railgun:0xWalletAddress:walletId"
-      // Value: railgun address
-      const firstKey = result.keys[0];
-      const keyParts = firstKey.key.split(':');
+      // NEW FORMAT: Look for the new structure with :meta and :balances keys first
+      const metaKey = result.keys.find(keyObj => keyObj.format === 'new-structure');
       
-      if (keyParts.length === 3 && keyParts[0] === 'railgun') {
-        const walletId = keyParts[2];  // Extract walletId from key
-        
-        // Parse value - complete wallet data (v2.0), enhanced (v1.0), or legacy (v0.0)
-        let railgunAddress, signature, encryptedMnemonic, version;
-        try {
-          const parsedValue = JSON.parse(firstKey.value);
-          railgunAddress = parsedValue.railgunAddress;
-          signature = parsedValue.signature;
-          encryptedMnemonic = parsedValue.encryptedMnemonic;
-          version = parsedValue.version || '1.0';
-          
-          console.log(`🔍 [GET-WALLET-METADATA] Found complete wallet data (v${version})`, {
-            hasRailgunAddress: !!railgunAddress,
-            hasSignature: !!signature,
-            hasEncryptedMnemonic: !!encryptedMnemonic,
-            signaturePreview: signature?.slice(0, 10) + '...' || 'none',
-            crossDeviceReady: !!(signature && encryptedMnemonic)
-          });
-        } catch (e) {
-          // Fallback to legacy format (just railgun address as string)
-          railgunAddress = firstKey.value;
-          signature = null;
-          encryptedMnemonic = null;
-          version = '0.0';
-          console.log('🔍 [GET-WALLET-METADATA] Found legacy format (no cross-device data)', {
-            railgunAddress: railgunAddress?.slice(0, 8) + '...'
-          });
-        }
+      if (metaKey) {
+        // NEW FORMAT: Use the parsed data from backend
+        console.log('🔍 [GET-WALLET-METADATA] Found NEW format wallet data (v3.0+)', {
+          walletId: metaKey.walletId?.slice(0, 8) + '...',
+          hasRailgunAddress: !!metaKey.railgunAddress,
+          hasSignature: !!metaKey.signature,
+          hasEncryptedMnemonic: !!metaKey.hasEncryptedMnemonic,
+          crossDeviceReady: metaKey.notesSupported,
+          privateBalanceCount: metaKey.privateBalanceCount || 0,
+          version: metaKey.version
+        });
         
         return {
-          walletId,
-          railgunAddress,
-          signature,
-          encryptedMnemonic, // Include encrypted mnemonic from Redis
-          version,
+          walletId: metaKey.walletId,
+          railgunAddress: metaKey.railgunAddress,
+          signature: metaKey.signature,
+          encryptedMnemonic: metaKey.encryptedMnemonic,
+          version: metaKey.version,
           walletAddress: result.walletAddress,
           source: 'Redis',
-          crossDeviceReady: !!(signature && encryptedMnemonic),
+          crossDeviceReady: metaKey.notesSupported && !!metaKey.signature && !!metaKey.encryptedMnemonic,
           totalKeys: result.totalKeys,
-          allKeys: result.keys
+          allKeys: result.keys,
+          privateBalances: metaKey.privateBalances || [],
+          lastBalanceUpdate: metaKey.lastBalanceUpdate
+        };
+      }
+      
+      // FALLBACK: Handle old format for backward compatibility
+      const firstKey = result.keys[0];
+      if (firstKey && firstKey.format !== 'new-structure') {
+        console.log('🔍 [GET-WALLET-METADATA] Found legacy format wallet data', {
+          format: firstKey.format,
+          hasRailgunAddress: !!firstKey.railgunAddress,
+          hasSignature: !!firstKey.signature,
+          version: firstKey.version
+        });
+        
+        return {
+          walletId: firstKey.walletId,
+          railgunAddress: firstKey.railgunAddress,
+          signature: firstKey.signature,
+          encryptedMnemonic: firstKey.encryptedMnemonic,
+          version: firstKey.version || '1.0',
+          walletAddress: result.walletAddress,
+          source: 'Redis',
+          crossDeviceReady: !!(firstKey.signature && firstKey.encryptedMnemonic),
+          totalKeys: result.totalKeys,
+          allKeys: result.keys,
+          privateBalances: firstKey.privateBalances || [],
+          lastBalanceUpdate: firstKey.lastBalanceUpdate
         };
       }
     }
@@ -576,28 +583,18 @@ const WalletContextProvider = ({ children }) => {
     }
     
     // 🎯 REDIS FAST PATH: If we have complete data from Redis, try to load directly
-    if (redisWalletData && existingWalletID && existingRailgunAddress) {
-      console.log('[WalletContext] 🚀 Attempting Redis-first fast path with complete wallet data...', {
-        walletId: existingWalletID.slice(0, 8) + '...',
-        railgunAddress: existingRailgunAddress.slice(0, 8) + '...',
-        hasSignature: !!existingSignature
-      });
-      
-      // ✅ FIXED: Don't exit early - we still need to initialize the RAILGUN engine
-      // Redis data will speed up wallet loading, but engine must still start
-      console.log('[WalletContext] 🎯 Redis provides wallet data - will use for fast loading but engine must still initialize');
-    }
-    
-        if (existingSignature && existingWalletID && existingMnemonic) {
+    if (existingSignature && existingWalletID && existingRailgunAddress) {
       try {
-        console.log('💨 Fast path: Found complete wallet data in Redis, will load after engine init...', {
+        console.log('💨 Fast path: Found wallet data in Redis, will load after engine init...', {
           hasSignature: !!existingSignature,
           hasWalletID: !!existingWalletID,
+          hasRailgunAddress: !!existingRailgunAddress,
           hasMnemonic: !!existingMnemonic,
           walletIDPreview: existingWalletID.slice(0, 8) + '...',
           railgunAddressPreview: existingRailgunAddress?.slice(0, 8) + '...',
           source: 'Redis-only',
-          version: redisWalletData?.version || 'unknown'
+          version: redisWalletData?.version || 'unknown',
+          note: existingMnemonic ? 'Complete data - will use fast path' : 'Partial data - will load existing wallet'
         });
         
         // Import required modules for fast path
