@@ -268,11 +268,14 @@ const WalletPage = () => {
           txHash: txResponse.hash,
           chainId: chainConfig.id,
           transactionType: 'shield',
-          // Pass transaction details for optimistic UI update
+          // Pass transaction details for optimistic UI update and note capture
           transactionDetails: {
-            amount: amount,
+            walletAddress: address,
+            walletId: railgunWalletId,
+            tokenSymbol: token.symbol,
             tokenAddress: token.address,
-            tokenSymbol: token.symbol
+            decimals: token.decimals,
+            amount: amount,
           },
           listener: async (event) => {
             console.log(`[WalletPage] ✅ Shield tx ${txResponse.hash} indexed on chain ${chainConfig.id}`);

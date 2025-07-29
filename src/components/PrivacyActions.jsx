@@ -290,6 +290,15 @@ const PrivacyActions = () => {
           txHash: txResponse,
           chainId: chainConfig.id,
           transactionType: 'shield',
+          // Pass transaction details for note capture with wallet context
+          transactionDetails: {
+            walletAddress: address,
+            walletId: railgunWalletId,
+            tokenSymbol: selectedToken.symbol,
+            tokenAddress: selectedToken.address,
+            decimals: selectedToken.decimals,
+            amount: amount,
+          },
           listener: async (event) => {
             console.log(`[PrivacyActions] ✅ Shield tx ${txResponse} indexed on chain ${chainConfig.id}`);
             
@@ -422,6 +431,16 @@ const PrivacyActions = () => {
           txHash: result.transactionHash,
           chainId: chainConfig.id,
           transactionType: 'unshield',
+          // Pass transaction details for note processing with wallet context
+          transactionDetails: {
+            walletAddress: address,
+            walletId: railgunWalletId,
+            tokenSymbol: selectedToken.symbol,
+            tokenAddress: selectedToken.tokenAddress,
+            decimals: selectedToken.decimals,
+            amount: amount,
+            changeCommitment: result.changeCommitment, // For change notes
+          },
           listener: async (event) => {
             console.log(`[PrivacyActions] ✅ Unshield tx ${result.transactionHash} indexed on chain ${chainConfig.id}`);
             
