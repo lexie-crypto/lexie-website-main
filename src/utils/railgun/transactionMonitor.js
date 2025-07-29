@@ -599,12 +599,20 @@ export const monitorTransactionInGraph = async ({
                       walletAddress,
                       walletId,
                       chainId,
-                      tokenAddress: shieldCommitment.preimage.token.tokenAddress,
                       tokenSymbol,
                       decimals: resolvedDecimals,
-                      commitmentHash: shieldCommitment.hash,
-                      value: shieldCommitment.preimage.value,
-                      txHash,
+                      shieldCommitment: {
+                        hash: shieldCommitment.hash,
+                        preimage: shieldCommitment.preimage,
+                        treeNumber: shieldCommitment.treeNumber,
+                        batchStartTreePosition: shieldCommitment.batchStartTreePosition,
+                        transactionHash: txHash,
+                        blockTimestamp: shieldCommitment.blockTimestamp,
+                        commitmentType: shieldCommitment.commitmentType,
+                        shieldKey: shieldCommitment.shieldKey,
+                        fee: shieldCommitment.fee,
+                        encryptedBundle: shieldCommitment.encryptedBundle
+                      }
                     };
 
                     console.log('[TransactionMonitor] 🛡️ Making shield note capture request via proxy:', {
