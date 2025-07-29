@@ -576,35 +576,62 @@ export const monitorTransactionInGraph = async ({
                   const tokenSymbol = transactionDetails?.tokenSymbol || 'UNKNOWN';
                   
                   // Get proper decimals from token data or transaction details
-                  let decimals = transactionDetails?.decimals;
-                  if (!decimals) {
+                  let resolvedDecimals = transactionDetails?.decimals;
+                  if (!resolvedDecimals) {
                     // Try to get decimals from token info
                     try {
                       const { getTokenDecimals } = await import('../../hooks/useBalances.js');
-                      decimals = getTokenDecimals(shieldCommitment.preimage.token.tokenAddress, chainId);
+                      resolvedDecimals = getTokenDecimals(shieldCommitment.preimage.token.tokenAddress, chainId);
                       console.log('[TransactionMonitor] 🔍 Retrieved token decimals:', {
                         tokenAddress: shieldCommitment.preimage.token.tokenAddress,
                         chainId,
-                        decimals
+                        decimals: resolvedDecimals
                       });
                     } catch (error) {
                       console.warn('[TransactionMonitor] ⚠️ Could not get token decimals, using default 18:', error);
-                      decimals = 18;
+                      resolvedDecimals = 18;
                     }
                   }
 
                   if (walletAddress && walletId) {
+                    // Generate HMAC signature for authentication
+                    const timestamp = Date.now().toString();
+                    const requestBody = {
+                      walletAddress,
+                      walletId,
+                      chainId,
+                      tokenAddress: shieldCommitment.preimage.token.tokenAddress,
+                      tokenSymbol,
+                      decimals: resolvedDecimals,
+                      commitmentHash: shieldCommitment.hash,
+                      value: shieldCommitment.preimage.value,
+                      txHash,
+                    };
+
+                    // Generate HMAC signature
+                    let hmacSignature = 'dev-mode';
+                    try {
+                      const crypto = await import('crypto-js');
+                      const method = 'POST';
+                      const path = '/api/wallet-metadata';
+                      const body = JSON.stringify(requestBody);
+                      const message = `${method}${path}${timestamp}${body}`;
+                      
+                      // Use a default HMAC secret for client-side (this should match the server)
+                      const hmacSecret = 'lexie-hmac-secret-key-2024'; // This should match server-side
+                      hmacSignature = crypto.HmacSHA256(message, hmacSecret).toString();
+                    } catch (hmacError) {
+                      console.warn('[TransactionMonitor] Could not generate HMAC signature:', hmacError);
+                    }
+
                     const response = await fetch('/api/wallet-metadata?action=capture-shield', {
                       method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({
-                        walletAddress,
-                        walletId,
-                        shieldCommitment,
-                        tokenSymbol,
-                        decimals,
-                        chainId
-                      })
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'X-Lexie-Timestamp': timestamp,
+                        'X-Lexie-Signature': hmacSignature,
+                      },
+                      body: JSON.stringify(requestBody)
                     });
 
                     if (response.ok) {
