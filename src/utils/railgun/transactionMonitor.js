@@ -557,8 +557,8 @@ export const monitorTransactionInGraph = async ({
 
         // 🎯 CAPTURE NOTES: Handle note capture/spending based on transaction type
         try {
-          if (transactionType === 'shield' && events.length > 0) {
-            console.log('[TransactionMonitor] 📝 Processing shield commitment for note capture');
+        if (transactionType === 'shield' && events.length > 0) {
+          console.log('[TransactionMonitor] 📝 Processing shield commitment for note capture');
             
             // Process each shield commitment
             for (const shieldCommitment of events) {
@@ -594,8 +594,7 @@ export const monitorTransactionInGraph = async ({
                   }
 
                   if (walletAddress && walletId) {
-                    // Generate HMAC signature for authentication
-                    const timestamp = Date.now().toString();
+                    // Make request to Vercel proxy - NO client-side HMAC needed
                     const requestBody = {
                       walletAddress,
                       walletId,
@@ -608,28 +607,15 @@ export const monitorTransactionInGraph = async ({
                       txHash,
                     };
 
-                    // Generate HMAC signature
-                    let hmacSignature = 'dev-mode';
-                    try {
-                      const crypto = await import('crypto-js');
-                      const method = 'POST';
-                      const path = '/api/wallet-metadata';
-                      const body = JSON.stringify(requestBody);
-                      const message = `${method}${path}${timestamp}${body}`;
-                      
-                      // Use a default HMAC secret for client-side (this should match the server)
-                      const hmacSecret = 'lexie-hmac-secret-key-2024'; // This should match server-side
-                      hmacSignature = crypto.HmacSHA256(message, hmacSecret).toString();
-                    } catch (hmacError) {
-                      console.warn('[TransactionMonitor] Could not generate HMAC signature:', hmacError);
-                    }
+                    console.log('[TransactionMonitor] 🛡️ Making shield note capture request via proxy:', {
+                      requestBody,
+                      endpoint: '/api/wallet-metadata?action=capture-shield'
+                    });
 
                     const response = await fetch('/api/wallet-metadata?action=capture-shield', {
                       method: 'POST',
                       headers: {
                         'Content-Type': 'application/json',
-                        'X-Lexie-Timestamp': timestamp,
-                        'X-Lexie-Signature': hmacSignature,
                       },
                       body: JSON.stringify(requestBody)
                     });
@@ -637,7 +623,12 @@ export const monitorTransactionInGraph = async ({
                     if (response.ok) {
                       console.log('[TransactionMonitor] ✅ Shield note captured successfully');
                     } else {
-                      console.error('[TransactionMonitor] ❌ Failed to capture shield note:', await response.text());
+                      const errorText = await response.text();
+                      console.error('[TransactionMonitor] ❌ Failed to capture shield note:', {
+                        status: response.status,
+                        statusText: response.statusText,
+                        errorText
+                      });
                     }
                   } else {
                     console.warn('[TransactionMonitor] ⚠️ Missing wallet details for shield note capture');
@@ -647,8 +638,8 @@ export const monitorTransactionInGraph = async ({
                 }
               }
             }
-          } else if (transactionType === 'unshield' && events.length > 0) {
-            console.log('[TransactionMonitor] 🔓 Processing unshield event for note spending');
+        } else if (transactionType === 'unshield' && events.length > 0) {
+          console.log('[TransactionMonitor] 🔓 Processing unshield event for note spending');
             
             // Process each unshield event (nullifiers) using atomic operation
             for (const nullifierEvent of events) {
