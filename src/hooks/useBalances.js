@@ -468,9 +468,10 @@ export function useBalances() {
   };
 
   // Apply optimistic update for shield transactions (ONLY place that writes to Redis)
-  const applyOptimisticShieldUpdate = async (tokenAddress, tokenSymbol, shieldedAmount) => {
+  const applyOptimisticShieldUpdate = async (tokenAddress, tokenSymbol, shieldedAmount, validatedDecimals) => {
     const { address: currentAddress, railgunWalletId: currentRailgunWalletId, chainId: currentChainId, publicBalances: currentPublicBalances, privateBalances: currentPrivateBalances } = stableRefs.current;
     
+    // Use validated decimals instead of assuming 18
     const shieldedNumeric = parseFloat(shieldedAmount);
     
     // Calculate RAILGUN fee (25 basis points = 0.25%)
@@ -478,8 +479,10 @@ export function useBalances() {
     const railgunFee = shieldedNumeric * (RAILGUN_FEE_BPS / 10000);
     const actualPrivateAmount = shieldedNumeric - railgunFee;
     
-    console.log('[useBalances] 🛡️ Applying optimistic shield update:', {
-      tokenSymbol,
+    console.log('[Shield Debug] Applying optimistic update with validated decimals', { 
+      tokenSymbol, 
+      decimals: validatedDecimals, 
+      amount: shieldedAmount,
       originalAmount: shieldedNumeric,
       railgunFee: railgunFee.toFixed(6),
       actualPrivateAmount: actualPrivateAmount.toFixed(6),
@@ -659,7 +662,9 @@ export function useBalances() {
         if (transactionType === 'shield' && amount && tokenAddress && tokenSymbol) {
           console.log('[useBalances] 🛡️ Applying optimistic shield update...');
           try {
-            await applyOptimisticShieldUpdate(tokenAddress, tokenSymbol, amount);
+            // Use validated decimals from event detail, fallback to getTokenDecimals
+            const validatedDecimals = event.detail?.decimals || getTokenDecimals(tokenAddress, currentChainId) || 18;
+            await applyOptimisticShieldUpdate(tokenAddress, tokenSymbol, amount, validatedDecimals);
             console.log('[useBalances] ✅ Private balances updated after shield confirmation');
             
             // Also refresh public balances from blockchain now that transaction is indexed

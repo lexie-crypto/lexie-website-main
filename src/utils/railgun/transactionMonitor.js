@@ -764,7 +764,8 @@ export const monitorTransactionInGraph = async ({
           chainId, 
           transactionType,
           events, // Include the actual Graph events for note processing
-          ...transactionDetails // Spread transaction details (amount, tokenAddress, tokenSymbol)
+          ...transactionDetails, // Spread transaction details (amount, tokenAddress, tokenSymbol, decimals)
+          decimals: transactionDetails?.decimals // Ensure decimals are included for proper optimistic updates
         };
         
         console.log('[TransactionMonitor] 📡 Dispatching transaction confirmed event with details:', {
