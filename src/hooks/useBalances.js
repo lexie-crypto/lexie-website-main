@@ -471,21 +471,26 @@ export function useBalances() {
   const applyOptimisticShieldUpdate = async (tokenAddress, tokenSymbol, shieldedAmount, validatedDecimals) => {
     const { address: currentAddress, railgunWalletId: currentRailgunWalletId, chainId: currentChainId, publicBalances: currentPublicBalances, privateBalances: currentPrivateBalances } = stableRefs.current;
     
-    // Use validated decimals instead of assuming 18
+    // Convert display amount to base units using validated decimals, then back to display units
     const shieldedNumeric = parseFloat(shieldedAmount);
+    const baseUnits = BigInt(Math.round(shieldedNumeric * Math.pow(10, validatedDecimals)));
     
-    // Calculate RAILGUN fee (25 basis points = 0.25%)
-    const RAILGUN_FEE_BPS = 25;
-    const railgunFee = shieldedNumeric * (RAILGUN_FEE_BPS / 10000);
-    const actualPrivateAmount = shieldedNumeric - railgunFee;
+    // Calculate RAILGUN fee (25 basis points = 0.25%) on base units
+    const RAILGUN_FEE_BPS = 25n;
+    const railgunFeeUnits = (baseUnits * RAILGUN_FEE_BPS) / 10000n;
+    const actualPrivateUnits = baseUnits - railgunFeeUnits;
+    
+    // Convert back to display units using correct decimals
+    const actualPrivateAmount = Number(actualPrivateUnits) / Math.pow(10, validatedDecimals);
     
     console.log('[Shield Debug] Applying optimistic update with validated decimals', { 
       tokenSymbol, 
       decimals: validatedDecimals, 
       amount: shieldedAmount,
-      originalAmount: shieldedNumeric,
-      railgunFee: railgunFee.toFixed(6),
-      actualPrivateAmount: actualPrivateAmount.toFixed(6),
+      baseUnits: baseUnits.toString(),
+      railgunFeeUnits: railgunFeeUnits.toString(),
+      actualPrivateUnits: actualPrivateUnits.toString(),
+      actualPrivateAmount: actualPrivateAmount,
       currentPublicCount: currentPublicBalances.length,
       currentPrivateCount: currentPrivateBalances.length
     });
@@ -558,6 +563,7 @@ export function useBalances() {
       // Update existing token
       updatedPrivate[currentUIIndex] = {
         ...updatedPrivate[currentUIIndex],
+        decimals: validatedDecimals, // Ensure decimals are correct
         numericBalance: accumulatedBalance,
         hasBalance: true,
         balance: accumulatedBalance.toString(),
@@ -577,7 +583,7 @@ export function useBalances() {
           symbol: publicToken.symbol,
           address: publicToken.address,
           tokenAddress: publicToken.address,
-          decimals: publicToken.decimals,
+          decimals: validatedDecimals,
           name: publicToken.name,
           numericBalance: accumulatedBalance,
           balance: accumulatedBalance.toString(),
