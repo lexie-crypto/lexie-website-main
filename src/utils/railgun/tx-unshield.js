@@ -722,8 +722,98 @@ export const unshieldTokens = async ({
       console.warn('⚠️ [UNSHIELD DEBUG] No decimals passed from UI - will use fallback detection (less reliable)');
     }
 
-    // STEP 0: Get and validate unspent notes from Redis
-    console.log('📝 [UNSHIELD DEBUG] Step 0: Getting unspent notes from Redis to prevent "already spent" errors...');
+    // STEP 0: Force Railgun SDK balance refresh to sync with blockchain state
+    console.log('🔄 [UNSHIELD DEBUG] Step 0: Refreshing Railgun SDK balance state...');
+    try {
+      // ✅ OFFICIAL PATTERN: Use official Railgun SDK function as per documentation
+      const { refreshBalances } = await import('@railgun-community/wallet');
+      const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
+      const { waitForRailgunReady, getRailgunNetworkName } = await import('./railgun-util.js');
+      
+      // Wait for Railgun to be ready
+      await waitForRailgunReady();
+      
+      // Map chainId to proper Chain object (as expected by SDK)
+      const networkName = getRailgunNetworkName(chain.id);
+      const networkConfig = NETWORK_CONFIG[networkName];
+      
+      if (!networkConfig) {
+        throw new Error(`No network config found for ${networkName}`);
+      }
+      
+      // Use the chain object from network config
+      const railgunChain = networkConfig.chain;
+      
+      // Create a promise that resolves when balance update callback is triggered for our wallet
+      const balanceRefreshPromise = new Promise((resolve) => {
+        let timeout;
+        let originalCallback;
+        
+        // Import and temporarily wrap the balance update callback
+        import('./balance-update.js').then(({ onBalanceUpdateCallback, setOnBalanceUpdateCallback }) => {
+          originalCallback = onBalanceUpdateCallback;
+          
+          // Set a timeout to resolve after maximum wait time
+          timeout = setTimeout(() => {
+            console.warn('⚠️ [UNSHIELD DEBUG] Balance refresh timeout - proceeding anyway');
+            if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
+            resolve(false);
+          }, 15000); // 15 second timeout
+          
+          // Wrap the callback to detect when our wallet's balance is updated
+          const wrappedCallback = (balanceEvent) => {
+            try {
+              // Call the original callback first
+              if (originalCallback) {
+                originalCallback(balanceEvent);
+              }
+              
+              // Check if this update is for our wallet
+              if (balanceEvent.railgunWalletID === railgunWalletID) {
+                console.log('✅ [UNSHIELD DEBUG] Balance update callback triggered for our wallet');
+                clearTimeout(timeout);
+                if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
+                resolve(true);
+              }
+            } catch (error) {
+              console.warn('⚠️ [UNSHIELD DEBUG] Error in balance callback wrapper:', error);
+              clearTimeout(timeout);
+              if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
+              resolve(false);
+            }
+          };
+          
+          // Temporarily set our wrapped callback
+          setOnBalanceUpdateCallback(wrappedCallback);
+        });
+      });
+      
+      // ✅ OFFICIAL PATTERN: refreshBalances expects (chain, walletIdFilter)
+      const walletIdFilter = [railgunWalletID];
+      console.log('🔄 [UNSHIELD DEBUG] Calling official refreshBalances with:', {
+        chainType: railgunChain.type,
+        chainId: railgunChain.id,
+        walletIdFilter
+      });
+      
+      await refreshBalances(railgunChain, walletIdFilter);
+      
+      console.log('⏳ [UNSHIELD DEBUG] Waiting for balance update callback...');
+      const callbackReceived = await balanceRefreshPromise;
+      
+      if (callbackReceived) {
+        console.log('✅ [UNSHIELD DEBUG] Railgun SDK balance refresh completed with callback confirmation');
+      } else {
+        console.warn('⚠️ [UNSHIELD DEBUG] Balance refresh completed but callback not confirmed');
+      }
+      
+    } catch (refreshError) {
+      console.warn('⚠️ [UNSHIELD DEBUG] Railgun balance refresh error:', refreshError.message);
+      // Continue anyway - Redis notes are still our fallback
+    }
+
+    // STEP 1: Get and validate unspent notes from Redis
+    console.log('📝 [UNSHIELD DEBUG] Step 1: Getting unspent notes from Redis to prevent "already spent" errors...');
     const unspentNotes = await getUnspentNotesForUnshield(walletAddress, railgunWalletID, tokenAddress, amount);
     
     if (unspentNotes.length === 0) {
@@ -745,8 +835,8 @@ export const unshieldTokens = async ({
       canProceed: true
     });
 
-    // STEP 1: Initialize Relayer Client
-    console.log('🔧 [UNSHIELD DEBUG] Step 1: Initializing WakuRelayerClient...');
+    // STEP 2: Initialize Relayer Client
+    console.log('🔧 [UNSHIELD DEBUG] Step 2: Initializing WakuRelayerClient...');
     const relayerInitialized = await initializeRelayerClient(chain);
     console.log('🔧 [UNSHIELD DEBUG] WakuRelayerClient initialization result:', {
       success: relayerInitialized,
@@ -756,8 +846,8 @@ export const unshieldTokens = async ({
     if (!relayerInitialized) {
       console.warn('⚠️ [UNSHIELD DEBUG] Relayer initialization failed - proceeding with self-signing');
     } else {
-      // STEP 2: Find Best Relayer
-      console.log('🔍 [UNSHIELD DEBUG] Step 2: Searching for available relayers...');
+      // STEP 3: Find Best Relayer
+      console.log('🔍 [UNSHIELD DEBUG] Step 3: Searching for available relayers...');
       try {
         selectedRelayer = await findBestRelayerForUnshield(chain, tokenAddress);
         console.log('🔍 [UNSHIELD DEBUG] Relayer search result:', {
@@ -771,8 +861,8 @@ export const unshieldTokens = async ({
       }
     }
 
-    // STEP 3: Prepare transaction parameters
-    console.log('🔧 [UNSHIELD DEBUG] Step 3: Preparing transaction parameters...');
+    // STEP 4: Prepare transaction parameters
+    console.log('🔧 [UNSHIELD DEBUG] Step 4: Preparing transaction parameters...');
     
     let broadcasterFeeERC20AmountRecipient = null;
     let overallBatchMinGasPrice = '0x0';
@@ -825,8 +915,8 @@ export const unshieldTokens = async ({
       console.log('🔐 [UNSHIELD DEBUG] No relayer available - using self-signing mode');
     }
 
-    // STEP 4: Generate Proof
-    console.log('🔮 [UNSHIELD DEBUG] Step 4: Generating unshield proof...');
+    // STEP 5: Generate Proof
+    console.log('🔮 [UNSHIELD DEBUG] Step 5: Generating unshield proof...');
     const proofStartTime = Date.now();
     
     // Create properly formatted ERC20AmountRecipient with BigInt conversion
@@ -860,8 +950,8 @@ export const unshieldTokens = async ({
       note: 'Proof stored internally in SDK - nullifiers will come from populateProvedUnshield'
     });
 
-    // STEP 5: Gas Estimation (OFFICIAL SDK PATTERN)
-    console.log('📝 [UNSHIELD DEBUG] Step 5: Following OFFICIAL SDK gas estimation pattern...');
+    // STEP 6: Gas Estimation (OFFICIAL SDK PATTERN)
+    console.log('📝 [UNSHIELD DEBUG] Step 6: Following OFFICIAL SDK gas estimation pattern...');
     
     const networkName = chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum;
     
@@ -960,8 +1050,8 @@ export const unshieldTokens = async ({
       maxFeePerGas: gasDetails.maxFeePerGas ? gasDetails.maxFeePerGas.toString() : 'undefined',
     });
     
-    // STEP 6: Populate Transaction with real gas details
-    console.log('📝 [UNSHIELD DEBUG] Step 6: Populating transaction with real gas...');
+    // STEP 7: Populate Transaction with real gas details
+    console.log('📝 [UNSHIELD DEBUG] Step 7: Populating transaction with real gas...');
     console.log('📝 [UNSHIELD DEBUG] Using internally stored proof from SDK...');
     
     const populatedTransaction = await populateProvedUnshield(
@@ -991,8 +1081,8 @@ export const unshieldTokens = async ({
       allProperties: Object.keys(populatedTransaction).filter(key => key !== 'transaction')
     });
 
-    // STEP 7: Submit Transaction
-    console.log('📡 [UNSHIELD DEBUG] Step 7: Submitting transaction...');
+    // STEP 8: Submit Transaction
+    console.log('📡 [UNSHIELD DEBUG] Step 8: Submitting transaction...');
     console.log('📡 [UNSHIELD DEBUG] Transaction submission decision:', {
       hasSelectedRelayer: !!selectedRelayer,
       usedRelayer,
