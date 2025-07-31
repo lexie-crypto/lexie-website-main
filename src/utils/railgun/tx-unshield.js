@@ -485,7 +485,15 @@ const submitTransactionSelfSigned = async (populatedTransaction, walletProvider)
       console.log('[UnshieldTransactions] ✅ Self-signed transaction sent (simplified format)');
     }
     
-    return txResponse;
+    // Return the transaction hash, not the full response object
+    const finalTxHash = txResponse.hash || txResponse;
+    console.log('[UnshieldTransactions] ✅ Transaction hash extracted:', {
+      txHash: finalTxHash,
+      isString: typeof finalTxHash === 'string',
+      startsWithOx: typeof finalTxHash === 'string' && finalTxHash.startsWith('0x')
+    });
+    
+    return finalTxHash;
     
   } catch (error) {
     console.error('[UnshieldTransactions] ❌ Self-signing failed:', error.message);
@@ -744,72 +752,105 @@ export const unshieldTokens = async ({
       // Use the chain object from network config
       const railgunChain = networkConfig.chain;
       
-      // Create a promise that resolves when balance update callback is triggered for our wallet
-      const balanceRefreshPromise = new Promise((resolve) => {
-        let timeout;
+      // Create a promise that waits for SDK balance confirmation with proper verification
+      const balanceRefreshPromise = new Promise(async (resolve, reject) => {
+        let finalTimeout;
         let originalCallback;
         
-        // Import and temporarily wrap the balance update callback
-        import('./balance-update.js').then(({ onBalanceUpdateCallback, setOnBalanceUpdateCallback }) => {
-          originalCallback = onBalanceUpdateCallback;
-          
-          // Set a timeout to resolve after maximum wait time
-          timeout = setTimeout(() => {
-            console.warn('⚠️ [UNSHIELD DEBUG] Balance refresh timeout - proceeding anyway');
-            if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
-            resolve(false);
-          }, 15000); // 15 second timeout
-          
-          // Wrap the callback to detect when our wallet's balance is updated
-          const wrappedCallback = (balanceEvent) => {
-            try {
-              // Call the original callback first
-              if (originalCallback) {
-                originalCallback(balanceEvent);
-              }
-              
-              // Check if this update is for our wallet
-              if (balanceEvent.railgunWalletID === railgunWalletID) {
-                console.log('✅ [UNSHIELD DEBUG] Balance update callback triggered for our wallet');
-                clearTimeout(timeout);
-                if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
-                resolve(true);
-              }
-            } catch (error) {
-              console.warn('⚠️ [UNSHIELD DEBUG] Error in balance callback wrapper:', error);
-              clearTimeout(timeout);
-              if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
-              resolve(false);
+        // Import balance update system
+        const { onBalanceUpdateCallback, setOnBalanceUpdateCallback } = await import('./balance-update.js');
+        originalCallback = onBalanceUpdateCallback;
+        
+        // Set a LONG timeout (3 minutes) as final safeguard with clear error
+        finalTimeout = setTimeout(() => {
+          console.error('🚨 [UNSHIELD DEBUG] CRITICAL: Balance refresh timeout after 3 minutes - SDK sync failed');
+          if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
+          reject(new Error('Balance refresh failed: Railgun SDK did not sync within 3 minutes. This prevents safe unshield operation.'));
+        }, 180000); // 3 minutes
+        
+        // Wrap the callback to detect when our wallet's balance is updated AND verify notes
+        const wrappedCallback = async (balanceEvent) => {
+          try {
+            // Call the original callback first
+            if (originalCallback) {
+              originalCallback(balanceEvent);
             }
-          };
-          
-          // Temporarily set our wrapped callback
-          setOnBalanceUpdateCallback(wrappedCallback);
-        });
+            
+            // Check if this update is for our wallet
+            if (balanceEvent.railgunWalletID === railgunWalletID) {
+              console.log('📡 [UNSHIELD DEBUG] Balance update callback triggered for our wallet, verifying notes...');
+              
+              // Verify that the SDK actually has the unspent notes we expect
+              try {
+                const { getWalletForID } = await import('@railgun-community/wallet');
+                const wallet = getWalletForID(railgunWalletID);
+                
+                if (wallet) {
+                  const { TXIDVersion } = await import('@railgun-community/shared-models');
+                  const tokenBalances = await wallet.getTokenBalances(
+                    TXIDVersion.V2_PoseidonMerkle,
+                    railgunChain,
+                    true // onlySpendable = true
+                  );
+                  
+                  const targetTokenBalance = tokenBalances[tokenAddress.toLowerCase()];
+                  const hasExpectedBalance = targetTokenBalance && BigInt(targetTokenBalance.amount) > 0n;
+                  
+                  console.log('🔍 [UNSHIELD DEBUG] SDK balance verification:', {
+                    tokenAddress: tokenAddress.slice(0, 10) + '...',
+                    hasBalance: hasExpectedBalance,
+                    sdkAmount: targetTokenBalance?.amount || '0',
+                    tokenCount: Object.keys(tokenBalances).length
+                  });
+                  
+                  if (hasExpectedBalance) {
+                    console.log('✅ [UNSHIELD DEBUG] SDK balance confirmed - notes are properly synced');
+                    clearTimeout(finalTimeout);
+                    if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
+                    resolve(true);
+                  } else {
+                    console.log('⏳ [UNSHIELD DEBUG] SDK balance not yet reflecting expected notes, continuing to wait...');
+                  }
+                } else {
+                  console.warn('⚠️ [UNSHIELD DEBUG] Could not get wallet instance for verification');
+                }
+              } catch (verifyError) {
+                console.warn('⚠️ [UNSHIELD DEBUG] Error verifying SDK balance:', verifyError.message);
+                // Don't resolve/reject on verification error, keep waiting
+              }
+            }
+          } catch (error) {
+            console.error('❌ [UNSHIELD DEBUG] Error in balance callback wrapper:', error);
+            clearTimeout(finalTimeout);
+            if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
+            reject(new Error(`Balance refresh callback error: ${error.message}`));
+          }
+        };
+        
+        // Set our wrapped callback
+        setOnBalanceUpdateCallback(wrappedCallback);
       });
       
       // ✅ OFFICIAL PATTERN: refreshBalances expects (chain, walletIdFilter)
       const walletIdFilter = [railgunWalletID];
-      console.log('🔄 [UNSHIELD DEBUG] Calling official refreshBalances with:', {
+      console.log('🔄 [UNSHIELD DEBUG] Calling official refreshBalances with strict sync requirement:', {
         chainType: railgunChain.type,
         chainId: railgunChain.id,
-        walletIdFilter
+        walletIdFilter,
+        timeout: '3 minutes max',
+        requiresVerification: true
       });
       
       await refreshBalances(railgunChain, walletIdFilter);
       
-      console.log('⏳ [UNSHIELD DEBUG] Waiting for balance update callback...');
-      const callbackReceived = await balanceRefreshPromise;
+      console.log('⏳ [UNSHIELD DEBUG] Waiting for SDK balance confirmation (no timeout fallback)...');
+      await balanceRefreshPromise; // This will throw if timeout or verification fails
       
-      if (callbackReceived) {
-        console.log('✅ [UNSHIELD DEBUG] Railgun SDK balance refresh completed with callback confirmation');
-      } else {
-        console.warn('⚠️ [UNSHIELD DEBUG] Balance refresh completed but callback not confirmed');
-      }
+      console.log('✅ [UNSHIELD DEBUG] Railgun SDK balance confirmed and verified - safe to proceed with unshield');
       
     } catch (refreshError) {
-      console.warn('⚠️ [UNSHIELD DEBUG] Railgun balance refresh error:', refreshError.message);
-      // Continue anyway - Redis notes are still our fallback
+      console.error('🚨 [UNSHIELD DEBUG] CRITICAL: Railgun balance refresh failed - cannot proceed safely:', refreshError.message);
+      throw new Error(`Cannot proceed with unshield: ${refreshError.message}. SDK balance sync is required for safe operation.`);
     }
 
     // STEP 1: Get and validate unspent notes from Redis
@@ -1255,8 +1296,12 @@ export const unshieldTokens = async ({
     });
 
     // Start transaction monitoring for balance updates
-    if (transactionHash && chain.id) {
-      console.log('🔍 [UNSHIELD DEBUG] Starting transaction monitoring for balance updates...');
+    if (transactionHash && typeof transactionHash === 'string' && transactionHash.startsWith('0x') && chain.id) {
+      console.log('🔍 [UNSHIELD DEBUG] Starting transaction monitoring for balance updates...', {
+        txHash: transactionHash,
+        chainId: chain.id,
+        isValidHash: transactionHash.length === 66
+      });
       try {
         const { monitorTransactionInGraph } = await import('./transactionMonitor.js');
         
@@ -1375,6 +1420,18 @@ export const unshieldTokens = async ({
           }
         }
 
+        // Final validation before monitoring call
+        const finalDecimals = tokenDecimals || decimals || 18;
+        console.log('🔍 [UNSHIELD DEBUG] Final monitoring parameters validation:', {
+          txHash: transactionHash,
+          chainId: chain.id,
+          tokenSymbol,
+          finalDecimals,
+          hasTokenAddress: !!tokenAddress,
+          hasWalletAddress: !!walletAddress,
+          hasWalletId: !!railgunWalletID
+        });
+
         // Start monitoring in background (don't await to avoid blocking the UI)
         monitorTransactionInGraph({
           txHash: transactionHash,
@@ -1387,7 +1444,7 @@ export const unshieldTokens = async ({
             toAddress,
             walletAddress, // Add wallet details for note management
             walletId: railgunWalletID,
-            decimals: tokenDecimals, // Use proper decimals instead of defaulting to 18
+            decimals: finalDecimals, // Use validated decimals with fallbacks
             changeCommitment, // Pass detected change note if available
           },
           listener: (event) => {
@@ -1396,26 +1453,36 @@ export const unshieldTokens = async ({
         }).catch(monitorError => {
           console.warn('⚠️ [UNSHIELD DEBUG] Transaction monitoring failed (transaction still succeeded):', monitorError.message);
         });
-              } catch (importError) {
-          console.warn('⚠️ [UNSHIELD DEBUG] Could not start transaction monitoring:', importError.message);
-        }
         
-                 // VERIFICATION: Log final decimals used for critical debugging
-         console.log('🎯 [UNSHIELD DEBUG] FINAL DECIMALS VERIFICATION:', {
-           tokenAddress: tokenAddress?.slice(0, 10) + '...',
-           chainId: chain.id,
-           finalDecimals: tokenDecimals,
-           finalSymbol: tokenSymbol,
-           decimalsSource: decimals !== undefined && decimals !== null ? 'UI_PASSED' : 'LOOKUP_FALLBACK',
-           isUSDT: tokenSymbol === 'USDT',
-           isCorrectUSDTDecimals: tokenSymbol === 'USDT' && (tokenDecimals === 6 || (chain.id === 56 && tokenDecimals === 18)),
-           riskLevel: tokenSymbol === 'USDT' && tokenDecimals === 18 && chain.id !== 56 ? 'CRITICAL_ERROR' : 'OK',
-           reliabilityLevel: decimals !== undefined && decimals !== null ? 'HIGH (UI passed)' : 'MEDIUM (lookup)',
-           message: tokenSymbol === 'USDT' && tokenDecimals === 18 && chain.id !== 56 ? 
-             '🚨 CRITICAL: USDT detected with 18 decimals on non-BSC chain - THIS WILL BREAK BALANCES!' : 
-             '✅ Decimals verification passed'
-         });
+      } catch (importError) {
+        console.warn('⚠️ [UNSHIELD DEBUG] Could not start transaction monitoring:', importError.message);
+      }
+    } else {
+      console.warn('⚠️ [UNSHIELD DEBUG] Transaction monitoring skipped due to invalid parameters:', {
+        hasTransactionHash: !!transactionHash,
+        transactionHash: transactionHash,
+        transactionHashType: typeof transactionHash,
+        isValidHash: typeof transactionHash === 'string' && transactionHash.startsWith('0x'),
+        hasChainId: !!chain.id,
+        chainId: chain.id
+      });
     }
+        
+    // VERIFICATION: Log final decimals used for critical debugging
+    console.log('🎯 [UNSHIELD DEBUG] FINAL DECIMALS VERIFICATION:', {
+      tokenAddress: tokenAddress?.slice(0, 10) + '...',
+      chainId: chain.id,
+      finalDecimals: tokenDecimals || decimals || 18,
+      finalSymbol: tokenSymbol || 'Unknown',
+      decimalsSource: decimals !== undefined && decimals !== null ? 'UI_PASSED' : 'LOOKUP_FALLBACK',
+      isUSDT: (tokenSymbol || '').includes('USDT'),
+      isCorrectUSDTDecimals: (tokenSymbol || '').includes('USDT') && ((tokenDecimals || decimals) === 6 || (chain.id === 56 && (tokenDecimals || decimals) === 18)),
+      riskLevel: (tokenSymbol || '').includes('USDT') && (tokenDecimals || decimals) === 18 && chain.id !== 56 ? 'CRITICAL_ERROR' : 'OK',
+      reliabilityLevel: decimals !== undefined && decimals !== null ? 'HIGH (UI passed)' : 'MEDIUM (lookup)',
+      message: (tokenSymbol || '').includes('USDT') && (tokenDecimals || decimals) === 18 && chain.id !== 56 ? 
+        '🚨 CRITICAL: USDT detected with 18 decimals on non-BSC chain - THIS WILL BREAK BALANCES!' : 
+        '✅ Decimals verification passed'
+    });
 
     return {
       transactionHash,
