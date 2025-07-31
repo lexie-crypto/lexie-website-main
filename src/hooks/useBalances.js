@@ -666,12 +666,11 @@ export function useBalances() {
         const currentWalletAddress = stableRefs.current.address;
         
         if (transactionType === 'shield' && amount && tokenAddress && tokenSymbol) {
-          console.log('[useBalances] 🛡️ Applying optimistic shield update...');
+          console.log('[useBalances] 🛡️ Shield confirmed - refreshing balances from Redis...');
           try {
-            // Use validated decimals from event detail, fallback to getTokenDecimals
-            const validatedDecimals = event.detail?.decimals || getTokenDecimals(tokenAddress, currentChainId) || 18;
-            await applyOptimisticShieldUpdate(tokenAddress, tokenSymbol, amount, validatedDecimals);
-            console.log('[useBalances] ✅ Private balances updated after shield confirmation');
+            // Just refresh private balances from Redis (where transaction monitor already saved the correct balance)
+            await loadPrivateBalancesFromMetadata(currentWalletAddress, currentWalletId);
+            console.log('[useBalances] ✅ Private balances refreshed from Redis after shield');
             
             // Also refresh public balances from blockchain now that transaction is indexed
             console.log('[useBalances] 🔄 Refreshing public balances from blockchain...');
@@ -684,7 +683,7 @@ export function useBalances() {
             console.log('[useBalances] ✅ Public balances refreshed after transaction');
             
           } catch (error) {
-            console.error('[useBalances] Failed to update balances after shield:', error);
+            console.error('[useBalances] Failed to refresh balances after shield:', error);
           }
         } else if ((transactionType === 'unshield' || transactionType === 'transfer') && currentWalletId) {
           console.log('[useBalances] 🔓 Handling unshield/transfer confirmation - refreshing private balances...');
