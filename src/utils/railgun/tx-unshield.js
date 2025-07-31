@@ -728,12 +728,12 @@ export const unshieldTokens = async ({
       // ✅ OFFICIAL PATTERN: Use official Railgun SDK function as per documentation
       const { refreshBalances } = await import('@railgun-community/wallet');
       const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
-      const { waitForRailgunReady, getRailgunNetworkName } = await import('./railgun-util.js');
       
-      // Wait for Railgun to be ready
+      // Wait for Railgun to be ready (function already imported at top of file)
       await waitForRailgunReady();
       
       // Map chainId to proper Chain object (as expected by SDK)
+      // Using getRailgunNetworkName function defined in this file
       const networkName = getRailgunNetworkName(chain.id);
       const networkConfig = NETWORK_CONFIG[networkName];
       
