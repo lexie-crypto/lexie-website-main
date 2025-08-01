@@ -67,19 +67,51 @@ const parseRailgunTokenAddress = (tokenAddress) => {
 export const getSerializedERC20Balances = (balances) => {
   const tokenHashes = Object.keys(balances);
 
+  console.log('[BalanceUpdate] 🔍 Processing balances for serialization:', {
+    totalHashes: tokenHashes.length,
+    sampleBalanceObjects: tokenHashes.slice(0, 3).map(hash => ({
+      hash: hash.slice(0, 10) + '...',
+      balance: balances[hash]?.balance,
+      amount: balances[hash]?.amount,
+      tokenType: balances[hash]?.tokenData?.tokenType,
+      tokenAddress: balances[hash]?.tokenData?.tokenAddress?.slice(0, 10) + '...'
+    }))
+  });
+
   return tokenHashes
     .filter(tokenHash => {
       // Filter for ERC20 tokens (tokenType === 0)
-      return balances[tokenHash].tokenData.tokenType === 0;
+      const isERC20 = balances[tokenHash].tokenData.tokenType === 0;
+      console.log('[BalanceUpdate] Token filter check:', {
+        hash: tokenHash.slice(0, 10) + '...',
+        tokenType: balances[tokenHash].tokenData.tokenType,
+        isERC20
+      });
+      return isERC20;
     })
     .map(railgunBalanceAddress => {
+      const balanceObj = balances[railgunBalanceAddress];
       const tokenAddress = parseRailgunTokenAddress(
-        balances[railgunBalanceAddress].tokenData.tokenAddress
+        balanceObj.tokenData.tokenAddress
       );
+      
+      // Try multiple ways to get the balance amount
+      const balanceAmount = balanceObj.balance || balanceObj.amount || '0';
+      
+      console.log('[BalanceUpdate] 🔍 Serializing token balance:', {
+        railgunAddress: railgunBalanceAddress.slice(0, 10) + '...',
+        tokenAddress: tokenAddress?.slice(0, 10) + '...',
+        rawBalanceObj: {
+          balance: balanceObj.balance,
+          amount: balanceObj.amount,
+          tokenType: balanceObj.tokenData?.tokenType
+        },
+        finalAmount: balanceAmount
+      });
       
       return {
         tokenAddress: tokenAddress?.toLowerCase() || null, // Use null for native tokens instead of undefined
-        amount: balances[railgunBalanceAddress].balance,
+        amount: balanceAmount,
       };
     });
 };
@@ -140,6 +172,13 @@ export const onBalancesUpdate = async (txidVersion, wallet, chain) => {
       console.warn('[BalanceUpdate] Network not found for chain:', chain);
       return;
     }
+
+    // DEBUGGING: Let's see what the wallet object looks like
+    console.log('[BalanceUpdate] 🔍 Wallet debug info:', {
+      hasWallet: !!wallet,
+      walletId: wallet?.id?.slice(0, 8) + '...',
+      walletMethods: wallet ? Object.getOwnPropertyNames(Object.getPrototypeOf(wallet)) : []
+    });
 
     // First try to get balances by bucket (POI-aware mode)
     let tokenBalancesByBucket;
@@ -243,15 +282,50 @@ const getAllBalancesAsSpendable = async (txidVersion, wallet, chain) => {
       false // onlySpendable = false to get all balances
     );
 
-    console.log('[BalanceUpdate] Retrieved token balances:', {
+    console.log('[BalanceUpdate] 🔍 Raw token balances from SDK:', {
       count: Object.keys(tokenBalances).length,
-      tokens: Object.keys(tokenBalances)
+      tokenKeys: Object.keys(tokenBalances),
+      rawBalances: Object.entries(tokenBalances).reduce((acc, [key, value]) => {
+        acc[key.slice(0, 10) + '...'] = {
+          balance: value?.balance,
+          amount: value?.amount, 
+          tokenData: value?.tokenData ? {
+            tokenAddress: value.tokenData.tokenAddress?.slice(0, 10) + '...',
+            tokenType: value.tokenData.tokenType
+          } : null
+        };
+        return acc;
+      }, {})
     });
 
-    const erc20Amounts = getSerializedERC20Balances(tokenBalances);
-    const nftAmounts = getNFTBalances(tokenBalances);
+    // Let's also try getting spendable-only balances to compare
+    const spendableTokenBalances = await wallet.getTokenBalances(
+      txidVersion,
+      chain,
+      true // onlySpendable = true
+    );
 
-    console.log('[BalanceUpdate] Serialized balances:', {
+    console.log('[BalanceUpdate] 🔍 Spendable-only token balances from SDK:', {
+      count: Object.keys(spendableTokenBalances).length,
+      tokenKeys: Object.keys(spendableTokenBalances),
+      rawSpendableBalances: Object.entries(spendableTokenBalances).reduce((acc, [key, value]) => {
+        acc[key.slice(0, 10) + '...'] = {
+          balance: value?.balance,
+          amount: value?.amount,
+          tokenData: value?.tokenData ? {
+            tokenAddress: value.tokenData.tokenAddress?.slice(0, 10) + '...',
+            tokenType: value.tokenData.tokenType
+          } : null
+        };
+        return acc;
+      }, {})
+    });
+
+    // Use spendable balances instead of all balances
+    const erc20Amounts = getSerializedERC20Balances(spendableTokenBalances);
+    const nftAmounts = getNFTBalances(spendableTokenBalances);
+
+    console.log('[BalanceUpdate] Serialized balances (from spendable only):', {
       erc20Count: erc20Amounts.length,
       nftCount: nftAmounts.length,
       erc20Amounts

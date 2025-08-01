@@ -755,29 +755,65 @@ export const unshieldTokens = async ({
       // First, check if the SDK already has spendable balance (from recent QuickSync)
       let hasSpendableBalance = false;
       try {
-        const { getWalletForID } = await import('@railgun-community/wallet');
-        const { TXIDVersion } = await import('@railgun-community/shared-models');
+        // Import wallet functions with proper error handling
+        const walletModule = await import('@railgun-community/wallet');
+        const sharedModels = await import('@railgun-community/shared-models');
+        
+        const getWalletForID = walletModule.getWalletForID;
+        const TXIDVersion = sharedModels.TXIDVersion;
+        
+        if (!getWalletForID || !TXIDVersion) {
+          throw new Error('Required wallet functions not available');
+        }
+        
         const wallet = getWalletForID(railgunWalletID);
         
         if (wallet) {
+          // Get balances using proper SDK methods
           const tokenBalances = await wallet.getTokenBalances(TXIDVersion.V2_PoseidonMerkle, railgunChain, true);
-          const targetTokenBalance = tokenBalances[tokenAddress.toLowerCase()];
-          const currentBalance = targetTokenBalance ? BigInt(targetTokenBalance.amount) : BigInt(0);
           
-          console.log('🔍 [UNSHIELD DEBUG] Checking current SDK balance:', {
-            tokenAddress: tokenAddress.slice(0, 10) + '...',
-            currentBalance: currentBalance.toString(),
-            requiredAmount: amount,
-            hasBalance: currentBalance >= BigInt(amount)
+          console.log('🔍 [UNSHIELD DEBUG] SDK tokenBalances response:', {
+            totalTokens: Object.keys(tokenBalances).length,
+            targetTokenAddress: tokenAddress.toLowerCase(),
+            availableTokens: Object.keys(tokenBalances).map(addr => ({ 
+              address: addr.slice(0, 10) + '...', 
+              balance: tokenBalances[addr]?.balance || tokenBalances[addr]?.amount || '0'
+            }))
           });
+          
+          // Try both possible ways the balance might be stored
+          const targetTokenBalance = tokenBalances[tokenAddress.toLowerCase()];
+          let currentBalance = BigInt(0);
+          
+          if (targetTokenBalance) {
+            // Try different possible balance field names
+            const balanceValue = targetTokenBalance.balance || targetTokenBalance.amount || '0';
+            currentBalance = BigInt(balanceValue);
+            
+            console.log('🔍 [UNSHIELD DEBUG] Target token found:', {
+              tokenAddress: tokenAddress.slice(0, 10) + '...',
+              balanceObject: targetTokenBalance,
+              extractedBalance: balanceValue,
+              currentBalance: currentBalance.toString(),
+              requiredAmount: amount,
+              hasBalance: currentBalance >= BigInt(amount)
+            });
+          } else {
+            console.log('⚠️ [UNSHIELD DEBUG] Target token not found in SDK balances');
+          }
           
           if (currentBalance >= BigInt(amount)) {
             hasSpendableBalance = true;
             console.log('✅ [UNSHIELD DEBUG] SDK already has sufficient spendable balance - no refresh needed');
           }
+        } else {
+          console.warn('⚠️ [UNSHIELD DEBUG] Could not get wallet instance from SDK');
         }
       } catch (balanceCheckError) {
-        console.log('ℹ️ [UNSHIELD DEBUG] Could not check current SDK balance:', balanceCheckError.message);
+        console.log('ℹ️ [UNSHIELD DEBUG] Could not check current SDK balance:', {
+          error: balanceCheckError.message,
+          stack: balanceCheckError.stack?.split('\n')[0] // First line of stack for debugging
+        });
       }
       
       // Only refresh if we don't already have sufficient balance
@@ -858,9 +894,10 @@ export const unshieldTokens = async ({
         const callbackReceived = await balanceRefreshPromise;
         
         if (callbackReceived) {
-          console.log('✅ [UNSHIELD DEBUG] Railgun SDK balance refresh completed with sufficient balance confirmed');
+          console.log('✅ [UNSHIELD DEBUG] Railgun SDK balance refresh completed with callback confirmed');
         } else {
-          console.warn('⚠️ [UNSHIELD DEBUG] Balance refresh timeout - proceeding with Redis notes as fallback');
+          console.warn('⚠️ [UNSHIELD DEBUG] Balance refresh timeout - this suggests SDK/QuickSync sync issues');
+          console.warn('⚠️ [UNSHIELD DEBUG] However, we will proceed with Redis notes as fallback since Graph already confirmed the transaction');
         }
       }
       
@@ -984,20 +1021,56 @@ export const unshieldTokens = async ({
       recipientAddress: erc20AmountRecipient.recipientAddress,
     });
     
-            const proofResult = await generateUnshieldProof(
-      TXIDVersion.V2_PoseidonMerkle,
-      chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
-      railgunWalletID,
-      encryptionKey, // Encryption key is required
-      [erc20AmountRecipient], // Use properly formatted recipient
-      [], // nftAmountRecipients
-      broadcasterFeeERC20AmountRecipient,
-      sendWithPublicWallet,
-      overallBatchMinGasPrice,
-      (progress) => {
-        console.log(`🔮 [UNSHIELD DEBUG] Proof generation progress: ${Math.round(progress * 100)}%`);
+    // Add extra debugging before proof generation
+    console.log('🔮 [UNSHIELD DEBUG] Pre-proof generation state:', {
+      hasUnspentNotes: unspentNotes.length > 0,
+      noteValue: unspentNotes.reduce((sum, note) => sum + BigInt(note.value), BigInt(0)).toString(),
+      requestedAmount: amount,
+      railgunWalletID: railgunWalletID.slice(0, 10) + '...',
+      tokenAddress: tokenAddress.slice(0, 10) + '...',
+      networkName: chain.type === 0 ? 'Ethereum' : 'Arbitrum'
+    });
+    
+    let proofResult;
+    try {
+      proofResult = await generateUnshieldProof(
+        TXIDVersion.V2_PoseidonMerkle,
+        chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
+        railgunWalletID,
+        encryptionKey, // Encryption key is required
+        [erc20AmountRecipient], // Use properly formatted recipient
+        [], // nftAmountRecipients
+        broadcasterFeeERC20AmountRecipient,
+        sendWithPublicWallet,
+        overallBatchMinGasPrice,
+        (progress) => {
+          console.log(`🔮 [UNSHIELD DEBUG] Proof generation progress: ${Math.round(progress * 100)}%`);
+        }
+      );
+    } catch (proofError) {
+      console.error('❌ [UNSHIELD DEBUG] Proof generation failed:', {
+        error: proofError.message,
+        stack: proofError.stack?.split('\n').slice(0, 3), // First 3 lines of stack
+        isBalanceError: proofError.message?.includes('balance too low'),
+        hasRedisNotes: unspentNotes.length > 0,
+        redisNoteValue: unspentNotes.reduce((sum, note) => sum + BigInt(note.value), BigInt(0)).toString(),
+        requestedAmount: amount,
+        railgunWalletID: railgunWalletID.slice(0, 10) + '...'
+      });
+      
+      // If this is a balance error but we have Redis notes, provide detailed error
+      if (proofError.message?.includes('balance too low') && unspentNotes.length > 0) {
+        const redisTotal = unspentNotes.reduce((sum, note) => sum + BigInt(note.value), BigInt(0));
+        throw new Error(
+          `SDK balance sync issue detected: Railgun SDK reports balance 0 but Redis shows ${redisTotal.toString()} in unspent notes. ` +
+          `This indicates the QuickSync didn't properly sync the SDK's internal state. ` +
+          `Try the transaction again in a few minutes once the SDK has had time to sync.`
+        );
       }
-    );
+      
+      // Re-throw the original error for other cases
+      throw proofError;
+    }
 
     const proofDuration = Date.now() - proofStartTime;
     console.log('🔮 [UNSHIELD DEBUG] Proof generation completed:', {

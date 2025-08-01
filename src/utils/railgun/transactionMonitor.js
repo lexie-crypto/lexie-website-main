@@ -617,6 +617,7 @@ export const monitorTransactionInGraph = async ({
                         
                         console.log('[QuickSync] 🔍 Checking spendable balance for target token:', {
                           targetAddress: transactionDetails.tokenAddress.slice(0, 10) + '...',
+                          totalTokensInBucket: balanceEvent.erc20Amounts?.length || 0,
                           availableTokens: balanceEvent.erc20Amounts?.map(t => ({ 
                             address: t.tokenAddress?.slice(0, 10) + '...', 
                             amount: t.amount 
@@ -627,19 +628,24 @@ export const monitorTransactionInGraph = async ({
                           token.tokenAddress?.toLowerCase() === transactionDetails.tokenAddress.toLowerCase()
                         );
                         
-                        if (targetToken && BigInt(targetToken.amount || '0') > 0n) {
-                          console.log('[QuickSync] ✅ Target token found in spendable balance:', {
+                        if (targetToken) {
+                          const tokenAmount = BigInt(targetToken.amount || '0');
+                          console.log('[QuickSync] 🎯 Target token found in balance update:', {
                             tokenAddress: transactionDetails.tokenAddress.slice(0, 10) + '...',
                             amount: targetToken.amount,
-                            amountFormatted: parseFloat(targetToken.amount) / Math.pow(10, 18) // Rough formatting for debug
+                            amountBigInt: tokenAmount.toString(),
+                            hasPositiveAmount: tokenAmount > 0n
                           });
                           
+                          // Even if amount is 0, let's proceed and let the unshield handle validation
+                          // The QuickSync has completed and the SDK should now be synced
+                          console.log('[QuickSync] ✅ Target token confirmed in SDK (proceeding regardless of amount)');
                           clearTimeout(timeoutId);
                           window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
                           resolve(true);
                           return;
                         } else {
-                          console.log('[QuickSync] ⏳ Target token not found or zero balance in spendable bucket, continuing to wait...');
+                          console.log('[QuickSync] ⏳ Target token not found in spendable bucket, continuing to wait...');
                         }
                       }
                       
