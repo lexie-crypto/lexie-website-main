@@ -555,11 +555,11 @@ export const monitorTransactionInGraph = async ({
       if (hasEvent) {
         console.log('[TransactionMonitor] 🎉 Event confirmed in Graph, dispatching transaction confirmed event');
 
-        // ⚡ QUICKSYNC V2: Trigger immediate QuickSync refresh after Graph confirmation
+        // ⚡ QUICKSYNC: Trigger immediate Railgun SDK refresh after Graph confirmation
         if ((transactionType === 'shield' || transactionType === 'unshield' || transactionType === 'transfer') && transactionDetails?.walletId) {
           console.log('[QuickSync] Triggered after Graph confirmation for', txHash, `(${transactionType})`);
           try {
-            const { quickSyncEventsGraphV2, refreshBalances } = await import('@railgun-community/wallet');
+            const { refreshBalances } = await import('@railgun-community/wallet');
             const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
             
             // Find the correct network config by matching chain ID using official NETWORK_CONFIG
@@ -578,26 +578,13 @@ export const monitorTransactionInGraph = async ({
               throw new Error(`No network config found for chain ID: ${chainId}`);
             }
             
-            // Get starting block for QuickSync (use transaction block or recent block)
-            let startingBlock = blockNumber || 0;
-            if (!startingBlock || startingBlock <= 0) {
-              // Fallback: get recent block number minus safety buffer
-              try {
-                const currentBlock = await global.web3?.eth?.getBlockNumber?.() || 0;
-                startingBlock = Math.max(1, currentBlock - 100);
-              } catch {
-                startingBlock = 1; // Fallback to genesis if web3 not available
-              }
-            }
-            
-            console.log('[QuickSync] Starting QuickSyncV2 for chain:', {
+            console.log('[QuickSync] Starting Railgun SDK refresh for chain:', {
               chainId: railgunChain.id,
               chainType: railgunChain.type,
-              startingBlock,
               walletId: transactionDetails.walletId.slice(0, 10) + '...'
             });
             
-            // Execute QuickSyncV2 with retries
+            // Execute QuickSync refresh with retries
             let quickSyncAttempt = 0;
             const maxRetries = 3;
             let quickSyncSuccess = false;
@@ -605,20 +592,11 @@ export const monitorTransactionInGraph = async ({
             while (quickSyncAttempt < maxRetries && !quickSyncSuccess) {
               quickSyncAttempt++;
               try {
-                console.log(`[QuickSync] Attempt ${quickSyncAttempt}/${maxRetries} - calling quickSyncEventsGraphV2...`);
+                console.log(`[QuickSync] Attempt ${quickSyncAttempt}/${maxRetries} - calling refreshBalances...`);
+                console.log('[QuickSync] Refreshing wallet ID:', transactionDetails.walletId);
                 
-                // Call QuickSyncV2 to get accumulated events from Graph
-                const accumulatedEvents = await quickSyncEventsGraphV2(railgunChain, startingBlock);
-                
-                console.log('[QuickSync] QuickSyncV2 returned accumulated events:', {
-                  nullifierEvents: accumulatedEvents.nullifierEvents?.length || 0,
-                  unshieldEvents: accumulatedEvents.unshieldEvents?.length || 0,
-                  commitmentEvents: accumulatedEvents.commitmentEvents?.length || 0
-                });
-                
-                // Process events through SDK balance refresh to update wallet state
+                // Trigger Railgun SDK refresh with QuickSync (uses Graph internally)
                 const walletIdFilter = [transactionDetails.walletId];
-                console.log('[QuickSync] Processing events through SDK refreshBalances...');
                 await refreshBalances(railgunChain, walletIdFilter);
                 
                 console.log('[QuickSync] Completed successfully, balances updated');
