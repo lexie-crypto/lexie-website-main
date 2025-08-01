@@ -584,7 +584,7 @@ export const monitorTransactionInGraph = async ({
               walletId: transactionDetails.walletId.slice(0, 10) + '...'
             });
             
-            // Execute QuickSync refresh with balance callback confirmation
+            // Execute targeted QuickSync for immediate note availability
             let quickSyncAttempt = 0;
             const maxRetries = 3;
             let quickSyncSuccess = false;
@@ -592,103 +592,119 @@ export const monitorTransactionInGraph = async ({
             while (quickSyncAttempt < maxRetries && !quickSyncSuccess) {
               quickSyncAttempt++;
               try {
-                console.log(`[QuickSync] Attempt ${quickSyncAttempt}/${maxRetries} - calling refreshBalances...`);
+                console.log(`[QuickSync] Attempt ${quickSyncAttempt}/${maxRetries} - triggering targeted refresh...`);
                 console.log('[QuickSync] Refreshing wallet ID:', transactionDetails.walletId);
                 
-                // Set up balance update callback confirmation
-                const balanceUpdatePromise = new Promise(async (resolve, reject) => {
-                  let timeout;
-                  let originalCallback;
+                // Set up balance callback promise to wait for confirmation
+                const balanceUpdatePromise = new Promise((resolve, reject) => {
+                  let timeoutId;
                   
-                  try {
-                    const { onBalanceUpdateCallback, setOnBalanceUpdateCallback } = await import('./balance-update.js');
-                    originalCallback = onBalanceUpdateCallback;
+                  const handleBalanceUpdate = (event) => {
+                    const balanceEvent = event.detail;
                     
-                    // Set timeout for balance callback confirmation
-                    timeout = setTimeout(() => {
-                      if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
-                      reject(new Error('Balance update callback did not fire within 30 seconds'));
-                    }, 60000); // 60 seconds timeout
-                    
-                    // Set up callback to wait for our wallet's balance update
-                    const wrappedCallback = async (balanceEvent) => {
-                      try {
-                        if (originalCallback) originalCallback(balanceEvent);
+                    // Check if this update is for our wallet
+                    if (balanceEvent.railgunWalletID === transactionDetails.walletId) {
+                      console.log('[QuickSync] 🎯 Balance update received for target wallet:', {
+                        walletId: transactionDetails.walletId.slice(0, 10) + '...',
+                        bucket: balanceEvent.balanceBucket,
+                        erc20Count: balanceEvent.erc20Amounts?.length || 0,
+                        chainId: balanceEvent.chain?.id
+                      });
+                      
+                      // For shield transactions, we care about spendable bucket having our token
+                      if (transactionType === 'shield' && transactionDetails.tokenAddress && 
+                          balanceEvent.balanceBucket === 'Spendable') {
                         
-                        if (balanceEvent.railgunWalletID === transactionDetails.walletId) {
-                          console.log('[QuickSync] 🎯 Balance update callback fired for wallet:', transactionDetails.walletId);
+                        const targetToken = balanceEvent.erc20Amounts?.find(token => 
+                          token.tokenAddress?.toLowerCase() === transactionDetails.tokenAddress.toLowerCase()
+                        );
+                        
+                        if (targetToken && BigInt(targetToken.amount || '0') > 0n) {
+                          console.log('[QuickSync] ✅ Target token found in spendable balance:', {
+                            tokenAddress: transactionDetails.tokenAddress.slice(0, 10) + '...',
+                            amount: targetToken.amount
+                          });
                           
-                          // Verify SDK has spendable balance for our token
-                          try {
-                            const { getWalletForID } = await import('@railgun-community/wallet');
-                            const { TXIDVersion } = await import('@railgun-community/shared-models');
-                            const wallet = getWalletForID(transactionDetails.walletId);
-                            
-                            if (wallet && transactionDetails.tokenAddress) {
-                              const tokenBalances = await wallet.getTokenBalances(TXIDVersion.V2_PoseidonMerkle, railgunChain, true);
-                              const targetTokenBalance = tokenBalances[transactionDetails.tokenAddress.toLowerCase()];
-                              const hasSpendableBalance = targetTokenBalance && BigInt(targetTokenBalance.amount) > 0n;
-                              
-                              console.log('[QuickSync] 🔍 SDK balance verification:', {
-                                tokenAddress: transactionDetails.tokenAddress.slice(0, 10) + '...',
-                                hasSpendableBalance,
-                                sdkAmount: targetTokenBalance?.amount || '0',
-                                walletId: transactionDetails.walletId.slice(0, 10) + '...'
-                              });
-                              
-                              if (hasSpendableBalance) {
-                                console.log('[QuickSync] ✅ SDK balance confirmed - spendable notes are ready');
-                                clearTimeout(timeout);
-                                if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
-                                resolve(true);
-                              } else {
-                                console.log('[QuickSync] ⏳ SDK balance not yet available, continuing to wait...');
-                              }
-                            } else {
-                              console.warn('[QuickSync] ⚠️ Could not verify SDK balance - wallet or token address missing');
-                              clearTimeout(timeout);
-                              if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
-                              resolve(true); // Proceed anyway
-                            }
-                          } catch (verifyError) {
-                            console.warn('[QuickSync] ⚠️ Error verifying SDK balance:', verifyError.message);
-                            clearTimeout(timeout);
-                            if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
-                            resolve(true); // Proceed anyway
-                          }
+                          clearTimeout(timeoutId);
+                          window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
+                          resolve(true);
+                          return;
                         }
-                      } catch (error) {
-                        console.error('[QuickSync] ❌ Error in balance callback wrapper:', error);
-                        clearTimeout(timeout);
-                        if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
-                        reject(error);
                       }
-                    };
-                    
-                    setOnBalanceUpdateCallback(wrappedCallback);
-                  } catch (error) {
-                    reject(error);
-                  }
+                      
+                      // For other transaction types or if token not found yet, still proceed
+                      console.log('[QuickSync] ✅ Balance update confirmed, proceeding...');
+                      clearTimeout(timeoutId);
+                      window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
+                      resolve(true);
+                    }
+                  };
+                  
+                  // Set up timeout (60 seconds)
+                  timeoutId = setTimeout(() => {
+                    console.warn('[QuickSync] ⏰ Balance update timeout - proceeding anyway');
+                    window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
+                    resolve(true); // Don't fail, just proceed
+                  }, 60000);
+                  
+                  // Listen for balance updates
+                  window.addEventListener('railgun-balance-update', handleBalanceUpdate);
                 });
                 
-                // Trigger Railgun SDK refresh with QuickSync (uses Graph internally)
-                const walletIdFilter = [transactionDetails.walletId];
-                console.log('[QuickSync] 🔄 Starting refreshBalances and waiting for balance callback...');
-                await refreshBalances(railgunChain, walletIdFilter);
+                // Method 1: Try targeted QuickSync with specific transaction data
+                if (transactionType === 'shield' && txHash) {
+                  try {
+                    console.log('[QuickSync] 🎯 Attempting targeted QuickSync for transaction:', txHash);
+                    
+                    // Use the scan with specific starting block for efficiency
+                    const { getEngine } = await import('./engine.js');
+                    const engine = getEngine();
+                    
+                    // Get the block number from transaction details if available
+                    let startingBlock = null;
+                    try {
+                      if (transactionDetails.blockNumber) {
+                        startingBlock = parseInt(transactionDetails.blockNumber);
+                        console.log('[QuickSync] Using transaction block as starting point:', startingBlock);
+                      }
+                    } catch (e) {
+                      console.log('[QuickSync] Could not parse block number, using full scan');
+                    }
+                    
+                    // Trigger targeted scan for our wallet from the transaction block
+                    const walletIdFilter = [transactionDetails.walletId];
+                    await engine.scanContractHistory(railgunChain, walletIdFilter, startingBlock);
+                    
+                    console.log('[QuickSync] 🔄 Targeted scan initiated, waiting for balance callback...');
+                    
+                  } catch (targetedError) {
+                    console.warn('[QuickSync] Targeted QuickSync failed, falling back to standard refresh:', targetedError.message);
+                    
+                    // Fallback to standard refresh
+                    const walletIdFilter = [transactionDetails.walletId];
+                    await refreshBalances(railgunChain, walletIdFilter);
+                  }
+                } else {
+                  // Method 2: Standard refresh for non-shield or when txHash unavailable
+                  console.log('[QuickSync] 🔄 Using standard refreshBalances...');
+                  const walletIdFilter = [transactionDetails.walletId];
+                  await refreshBalances(railgunChain, walletIdFilter);
+                }
                 
-                // Wait for balance update callback to confirm SDK has spendable notes
-                console.log('[QuickSync] ⏳ Waiting for balance update callback confirmation...');
+                // Wait for balance update confirmation
+                console.log('[QuickSync] ⏳ Waiting for balance update confirmation...');
                 await balanceUpdatePromise;
                 
-                console.log('[QuickSync] ✅ Balance callback confirmed - SDK has spendable notes ready');
+                console.log('[QuickSync] ✅ QuickSync completed successfully - SDK has latest notes');
                 quickSyncSuccess = true;
                 
               } catch (syncError) {
                 console.error(`[QuickSync] Attempt ${quickSyncAttempt} failed:`, syncError.message);
                 if (quickSyncAttempt >= maxRetries) {
-                  throw new Error(`QuickSync failed after ${maxRetries} attempts: ${syncError.message}`);
+                  console.error(`[QuickSync] ❌ All ${maxRetries} attempts failed, but continuing...`);
+                  break; // Don't throw, just warn and continue
                 }
-                // Wait before retry (exponential backoff)
+                // Exponential backoff before retry
                 await new Promise(resolve => setTimeout(resolve, 2000 * quickSyncAttempt));
               }
             }

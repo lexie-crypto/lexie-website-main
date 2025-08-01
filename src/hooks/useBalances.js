@@ -647,6 +647,71 @@ export function useBalances() {
     }
   }, [railgunWalletId, address, isRailgunInitialized, chainId, loadPrivateBalancesFromMetadata]);
 
+  // Listen for Railgun SDK balance updates (real-time balance updates from SDK callbacks)
+  useEffect(() => {
+    const handleRailgunBalanceUpdate = (event) => {
+      const balanceEvent = event.detail;
+      const { address: currentAddress, railgunWalletId: currentWalletId, chainId: currentChainId } = stableRefs.current;
+      
+      // Only process updates for our wallet and chain
+      if (balanceEvent.railgunWalletID === currentWalletId && 
+          balanceEvent.chain?.id === currentChainId && 
+          currentAddress) {
+        
+        console.log('[useBalances] 🎯 Railgun SDK balance update received:', {
+          walletId: currentWalletId?.slice(0, 8) + '...',
+          bucket: balanceEvent.balanceBucket,
+          erc20Count: balanceEvent.erc20Amounts?.length || 0,
+          chainId: currentChainId
+        });
+        
+        // Convert SDK balance format to our UI format
+        if (balanceEvent.erc20Amounts && balanceEvent.erc20Amounts.length > 0) {
+          const updatedPrivateBalances = balanceEvent.erc20Amounts.map(token => {
+            const tokenInfo = getTokenInfo(token.tokenAddress, currentChainId);
+            const numericBalance = parseFloat(ethers.formatUnits(token.amount || '0', tokenInfo?.decimals || 18));
+            
+            return {
+              symbol: tokenInfo?.symbol || 'UNKNOWN',
+              address: token.tokenAddress,
+              balance: token.amount?.toString() || '0',
+              numericBalance,
+              decimals: tokenInfo?.decimals || 18,
+              hasBalance: numericBalance > 0,
+              balanceUSD: calculateUSDValue(numericBalance, tokenInfo?.symbol),
+              type: 'private'
+            };
+          });
+          
+          console.log('[useBalances] 🔄 Updating private balances from SDK callback:', {
+            tokens: updatedPrivateBalances.filter(t => t.hasBalance).length,
+            bucket: balanceEvent.balanceBucket
+          });
+          
+          // Update state with new balances
+          setPrivateBalances(updatedPrivateBalances);
+          
+          // Persist to Redis in background
+          persistPrivateBalancesToWalletMetadata(
+            currentAddress, 
+            currentWalletId, 
+            updatedPrivateBalances, 
+            currentChainId
+          ).then(() => {
+            console.log('[useBalances] ✅ SDK balances persisted to Redis');
+          }).catch((error) => {
+            console.error('[useBalances] ❌ Failed to persist SDK balances:', error);
+          });
+        }
+      }
+    };
+    
+    window.addEventListener('railgun-balance-update', handleRailgunBalanceUpdate);
+    return () => {
+      window.removeEventListener('railgun-balance-update', handleRailgunBalanceUpdate);
+    };
+  }, [calculateUSDValue]);
+
   // Listen for transaction confirmations (auto-refresh UI after confirmed transactions)
   useEffect(() => {
     const handleTransactionConfirmed = async (event) => {

@@ -111,6 +111,36 @@ export const parseTokenAmount = (amount, decimals) => {
   }
 };
 
+/**
+ * Handle balance update callback from Railgun SDK
+ * This integrates with useBalances hook to update UI state
+ * @param {Object} balancesEvent - Balance update event from Railgun SDK
+ */
+export const handleBalanceUpdateCallback = async (balancesEvent) => {
+  try {
+    console.log('[RailgunBalances] 🎯 Balance update callback fired:', {
+      walletID: balancesEvent.railgunWalletID?.slice(0, 8) + '...',
+      chainId: balancesEvent.chain?.id,
+      chainType: balancesEvent.chain?.type,
+      bucket: balancesEvent.balanceBucket,
+      erc20Count: balancesEvent.erc20Amounts?.length || 0,
+      nftCount: balancesEvent.nftAmounts?.length || 0
+    });
+
+    // Dispatch custom event for useBalances hook to listen to
+    const event = new CustomEvent('railgun-balance-update', {
+      detail: balancesEvent
+    });
+    
+    window.dispatchEvent(event);
+    
+    console.log('[RailgunBalances] ✅ Balance update event dispatched to UI');
+    
+  } catch (error) {
+    console.error('[RailgunBalances] ❌ Error handling balance update callback:', error);
+  }
+};
+
 // Backward compatibility exports - UPDATED: All callback-based now
 export const getPrivateBalancesFromCache = () => {
   console.warn('[RailgunBalances] ⚠️ getPrivateBalancesFromCache is deprecated - use SDK callbacks');
