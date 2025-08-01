@@ -752,67 +752,116 @@ export const unshieldTokens = async ({
       // Use the chain object from network config
       const railgunChain = networkConfig.chain;
       
-      // Create a promise that resolves when balance update callback is triggered for our wallet
-      const balanceRefreshPromise = new Promise((resolve) => {
-        let timeout;
-        let originalCallback;
+      // First, check if the SDK already has spendable balance (from recent QuickSync)
+      let hasSpendableBalance = false;
+      try {
+        const { getWalletForID } = await import('@railgun-community/wallet');
+        const { TXIDVersion } = await import('@railgun-community/shared-models');
+        const wallet = getWalletForID(railgunWalletID);
         
-        // Import and temporarily wrap the balance update callback
-        import('./balance-update.js').then(({ onBalanceUpdateCallback, setOnBalanceUpdateCallback }) => {
-          originalCallback = onBalanceUpdateCallback;
+        if (wallet) {
+          const tokenBalances = await wallet.getTokenBalances(TXIDVersion.V2_PoseidonMerkle, railgunChain, true);
+          const targetTokenBalance = tokenBalances[tokenAddress.toLowerCase()];
+          const currentBalance = targetTokenBalance ? BigInt(targetTokenBalance.amount) : BigInt(0);
           
-          // Set a timeout to resolve after maximum wait time
-          timeout = setTimeout(() => {
-            console.warn('⚠️ [UNSHIELD DEBUG] Balance refresh timeout - proceeding anyway');
-            if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
-            resolve(false);
-          }, 15000); // 15 second timeout
+          console.log('🔍 [UNSHIELD DEBUG] Checking current SDK balance:', {
+            tokenAddress: tokenAddress.slice(0, 10) + '...',
+            currentBalance: currentBalance.toString(),
+            requiredAmount: amount,
+            hasBalance: currentBalance >= BigInt(amount)
+          });
           
-          // Wrap the callback to detect when our wallet's balance is updated
-          const wrappedCallback = (balanceEvent) => {
-            try {
-              // Call the original callback first
-              if (originalCallback) {
-                originalCallback(balanceEvent);
-              }
-              
-              // Check if this update is for our wallet
-              if (balanceEvent.railgunWalletID === railgunWalletID) {
-                console.log('✅ [UNSHIELD DEBUG] Balance update callback triggered for our wallet');
-                clearTimeout(timeout);
-                if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
-                resolve(true);
-              }
-            } catch (error) {
-              console.warn('⚠️ [UNSHIELD DEBUG] Error in balance callback wrapper:', error);
-              clearTimeout(timeout);
+          if (currentBalance >= BigInt(amount)) {
+            hasSpendableBalance = true;
+            console.log('✅ [UNSHIELD DEBUG] SDK already has sufficient spendable balance - no refresh needed');
+          }
+        }
+      } catch (balanceCheckError) {
+        console.log('ℹ️ [UNSHIELD DEBUG] Could not check current SDK balance:', balanceCheckError.message);
+      }
+      
+      // Only refresh if we don't already have sufficient balance
+      if (!hasSpendableBalance) {
+        console.log('🔄 [UNSHIELD DEBUG] SDK balance insufficient, triggering refresh...');
+        
+        // Create a promise that resolves when balance update callback is triggered for our wallet
+        const balanceRefreshPromise = new Promise((resolve) => {
+          let timeout;
+          let originalCallback;
+          
+          // Import and temporarily wrap the balance update callback
+          import('./balance-update.js').then(({ onBalanceUpdateCallback, setOnBalanceUpdateCallback }) => {
+            originalCallback = onBalanceUpdateCallback;
+            
+            // Set a much longer timeout (3 minutes) to allow for proper sync
+            timeout = setTimeout(() => {
+              console.warn('⚠️ [UNSHIELD DEBUG] Balance refresh timeout after 3 minutes - this may indicate a sync issue');
               if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
               resolve(false);
-            }
-          };
-          
-          // Temporarily set our wrapped callback
-          setOnBalanceUpdateCallback(wrappedCallback);
+            }, 180000); // 3 minute timeout
+            
+            // Wrap the callback to detect when our wallet's balance is updated
+            const wrappedCallback = (balanceEvent) => {
+              try {
+                // Call the original callback first
+                if (originalCallback) {
+                  originalCallback(balanceEvent);
+                }
+                
+                // Check if this update is for our wallet's spendable bucket
+                if (balanceEvent.railgunWalletID === railgunWalletID && 
+                    balanceEvent.balanceBucket === 'Spendable') {
+                  
+                  // Verify the target token has sufficient balance
+                  const targetToken = balanceEvent.erc20Amounts?.find(token => 
+                    token.tokenAddress?.toLowerCase() === tokenAddress.toLowerCase()
+                  );
+                  
+                  if (targetToken && BigInt(targetToken.amount || '0') >= BigInt(amount)) {
+                    console.log('✅ [UNSHIELD DEBUG] Balance update confirmed with sufficient spendable balance:', {
+                      tokenAddress: tokenAddress.slice(0, 10) + '...',
+                      amount: targetToken.amount,
+                      required: amount
+                    });
+                    clearTimeout(timeout);
+                    if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
+                    resolve(true);
+                    return;
+                  }
+                  
+                  console.log('⏳ [UNSHIELD DEBUG] Balance update received but insufficient amount, continuing to wait...');
+                }
+              } catch (error) {
+                console.warn('⚠️ [UNSHIELD DEBUG] Error in balance callback wrapper:', error);
+                clearTimeout(timeout);
+                if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
+                resolve(false);
+              }
+            };
+            
+            // Temporarily set our wrapped callback
+            setOnBalanceUpdateCallback(wrappedCallback);
+          });
         });
-      });
-      
-      // ✅ OFFICIAL PATTERN: refreshBalances expects (chain, walletIdFilter)
-      const walletIdFilter = [railgunWalletID];
-      console.log('🔄 [UNSHIELD DEBUG] Calling official refreshBalances with:', {
-        chainType: railgunChain.type,
-        chainId: railgunChain.id,
-        walletIdFilter
-      });
-      
-      await refreshBalances(railgunChain, walletIdFilter);
-      
-      console.log('⏳ [UNSHIELD DEBUG] Waiting for balance update callback...');
-      const callbackReceived = await balanceRefreshPromise;
-      
-      if (callbackReceived) {
-        console.log('✅ [UNSHIELD DEBUG] Railgun SDK balance refresh completed with callback confirmation');
-      } else {
-        console.warn('⚠️ [UNSHIELD DEBUG] Balance refresh completed but callback not confirmed');
+        
+        // ✅ OFFICIAL PATTERN: refreshBalances expects (chain, walletIdFilter)
+        const walletIdFilter = [railgunWalletID];
+        console.log('🔄 [UNSHIELD DEBUG] Calling official refreshBalances with:', {
+          chainType: railgunChain.type,
+          chainId: railgunChain.id,
+          walletIdFilter
+        });
+        
+        await refreshBalances(railgunChain, walletIdFilter);
+        
+        console.log('⏳ [UNSHIELD DEBUG] Waiting for balance update callback with sufficient amount...');
+        const callbackReceived = await balanceRefreshPromise;
+        
+        if (callbackReceived) {
+          console.log('✅ [UNSHIELD DEBUG] Railgun SDK balance refresh completed with sufficient balance confirmed');
+        } else {
+          console.warn('⚠️ [UNSHIELD DEBUG] Balance refresh timeout - proceeding with Redis notes as fallback');
+        }
       }
       
     } catch (refreshError) {

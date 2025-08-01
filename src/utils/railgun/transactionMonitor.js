@@ -615,6 +615,14 @@ export const monitorTransactionInGraph = async ({
                       if (transactionType === 'shield' && transactionDetails.tokenAddress && 
                           balanceEvent.balanceBucket === 'Spendable') {
                         
+                        console.log('[QuickSync] 🔍 Checking spendable balance for target token:', {
+                          targetAddress: transactionDetails.tokenAddress.slice(0, 10) + '...',
+                          availableTokens: balanceEvent.erc20Amounts?.map(t => ({ 
+                            address: t.tokenAddress?.slice(0, 10) + '...', 
+                            amount: t.amount 
+                          })) || []
+                        });
+                        
                         const targetToken = balanceEvent.erc20Amounts?.find(token => 
                           token.tokenAddress?.toLowerCase() === transactionDetails.tokenAddress.toLowerCase()
                         );
@@ -622,21 +630,26 @@ export const monitorTransactionInGraph = async ({
                         if (targetToken && BigInt(targetToken.amount || '0') > 0n) {
                           console.log('[QuickSync] ✅ Target token found in spendable balance:', {
                             tokenAddress: transactionDetails.tokenAddress.slice(0, 10) + '...',
-                            amount: targetToken.amount
+                            amount: targetToken.amount,
+                            amountFormatted: parseFloat(targetToken.amount) / Math.pow(10, 18) // Rough formatting for debug
                           });
                           
                           clearTimeout(timeoutId);
                           window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
                           resolve(true);
                           return;
+                        } else {
+                          console.log('[QuickSync] ⏳ Target token not found or zero balance in spendable bucket, continuing to wait...');
                         }
                       }
                       
-                      // For other transaction types or if token not found yet, still proceed
-                      console.log('[QuickSync] ✅ Balance update confirmed, proceeding...');
-                      clearTimeout(timeoutId);
-                      window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
-                      resolve(true);
+                      // For non-shield transactions, proceed on any balance update
+                      if (transactionType !== 'shield') {
+                        console.log('[QuickSync] ✅ Balance update confirmed for non-shield transaction, proceeding...');
+                        clearTimeout(timeoutId);
+                        window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
+                        resolve(true);
+                      }
                     }
                   };
                   
@@ -651,45 +664,10 @@ export const monitorTransactionInGraph = async ({
                   window.addEventListener('railgun-balance-update', handleBalanceUpdate);
                 });
                 
-                // Method 1: Try targeted QuickSync with specific transaction data
-                if (transactionType === 'shield' && txHash) {
-                  try {
-                    console.log('[QuickSync] 🎯 Attempting targeted QuickSync for transaction:', txHash);
-                    
-                    // Use the scan with specific starting block for efficiency
-                    const { getEngine } = await import('./engine.js');
-                    const engine = getEngine();
-                    
-                    // Get the block number from transaction details if available
-                    let startingBlock = null;
-                    try {
-                      if (transactionDetails.blockNumber) {
-                        startingBlock = parseInt(transactionDetails.blockNumber);
-                        console.log('[QuickSync] Using transaction block as starting point:', startingBlock);
-                      }
-                    } catch (e) {
-                      console.log('[QuickSync] Could not parse block number, using full scan');
-                    }
-                    
-                    // Trigger targeted scan for our wallet from the transaction block
-                    const walletIdFilter = [transactionDetails.walletId];
-                    await engine.scanContractHistory(railgunChain, walletIdFilter, startingBlock);
-                    
-                    console.log('[QuickSync] 🔄 Targeted scan initiated, waiting for balance callback...');
-                    
-                  } catch (targetedError) {
-                    console.warn('[QuickSync] Targeted QuickSync failed, falling back to standard refresh:', targetedError.message);
-                    
-                    // Fallback to standard refresh
-                    const walletIdFilter = [transactionDetails.walletId];
-                    await refreshBalances(railgunChain, walletIdFilter);
-                  }
-                } else {
-                  // Method 2: Standard refresh for non-shield or when txHash unavailable
-                  console.log('[QuickSync] 🔄 Using standard refreshBalances...');
-                  const walletIdFilter = [transactionDetails.walletId];
-                  await refreshBalances(railgunChain, walletIdFilter);
-                }
+                // Use standard refreshBalances - it's the most reliable method
+                console.log('[QuickSync] 🔄 Using standard refreshBalances (most reliable)...');
+                const walletIdFilter = [transactionDetails.walletId];
+                await refreshBalances(railgunChain, walletIdFilter);
                 
                 // Wait for balance update confirmation
                 console.log('[QuickSync] ⏳ Waiting for balance update confirmation...');

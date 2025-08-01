@@ -669,38 +669,62 @@ export function useBalances() {
         if (balanceEvent.erc20Amounts && balanceEvent.erc20Amounts.length > 0) {
           const updatedPrivateBalances = balanceEvent.erc20Amounts.map(token => {
             const tokenInfo = getTokenInfo(token.tokenAddress, currentChainId);
-            const numericBalance = parseFloat(ethers.formatUnits(token.amount || '0', tokenInfo?.decimals || 18));
+            // Handle the case where getTokenInfo might fail - use fallback token data
+            const symbol = tokenInfo?.symbol || `TOKEN_${token.tokenAddress?.slice(-6)}` || 'UNKNOWN';
+            const decimals = tokenInfo?.decimals || 18;
+            const numericBalance = parseFloat(ethers.formatUnits(token.amount || '0', decimals));
+            
+            console.log('[useBalances] 🔍 Processing token from SDK:', {
+              tokenAddress: token.tokenAddress,
+              amount: token.amount,
+              tokenInfo: tokenInfo,
+              symbol,
+              decimals,
+              numericBalance,
+              hasBalance: numericBalance > 0
+            });
             
             return {
-              symbol: tokenInfo?.symbol || 'UNKNOWN',
+              symbol,
               address: token.tokenAddress,
               balance: token.amount?.toString() || '0',
               numericBalance,
-              decimals: tokenInfo?.decimals || 18,
+              decimals,
               hasBalance: numericBalance > 0,
-              balanceUSD: calculateUSDValue(numericBalance, tokenInfo?.symbol),
+              balanceUSD: calculateUSDValue(numericBalance, symbol),
               type: 'private'
             };
           });
           
           console.log('[useBalances] 🔄 Updating private balances from SDK callback:', {
-            tokens: updatedPrivateBalances.filter(t => t.hasBalance).length,
+            rawBalances: balanceEvent.erc20Amounts.map(t => ({ address: t.tokenAddress, amount: t.amount })),
+            processedTokens: updatedPrivateBalances.map(t => ({ symbol: t.symbol, numericBalance: t.numericBalance, hasBalance: t.hasBalance })),
+            tokensWithBalance: updatedPrivateBalances.filter(t => t.hasBalance).length,
             bucket: balanceEvent.balanceBucket
           });
           
-          // Update state with new balances
-          setPrivateBalances(updatedPrivateBalances);
-          
-          // Persist to Redis in background
-          persistPrivateBalancesToWalletMetadata(
-            currentAddress, 
-            currentWalletId, 
-            updatedPrivateBalances, 
-            currentChainId
-          ).then(() => {
-            console.log('[useBalances] ✅ SDK balances persisted to Redis');
-          }).catch((error) => {
-            console.error('[useBalances] ❌ Failed to persist SDK balances:', error);
+          // Only update state for Spendable bucket (most important for UI)
+          if (balanceEvent.balanceBucket === 'Spendable') {
+            setPrivateBalances(updatedPrivateBalances);
+            
+            // Persist to Redis in background
+            persistPrivateBalancesToWalletMetadata(
+              currentAddress, 
+              currentWalletId, 
+              updatedPrivateBalances, 
+              currentChainId
+            ).then(() => {
+              console.log('[useBalances] ✅ SDK balances persisted to Redis');
+            }).catch((error) => {
+              console.error('[useBalances] ❌ Failed to persist SDK balances:', error);
+            });
+          } else {
+            console.log('[useBalances] ℹ️ Ignoring non-spendable bucket update:', balanceEvent.balanceBucket);
+          }
+        } else {
+          console.log('[useBalances] ℹ️ No ERC20 amounts in balance update:', {
+            erc20Count: balanceEvent.erc20Amounts?.length || 0,
+            bucket: balanceEvent.balanceBucket
           });
         }
       }
