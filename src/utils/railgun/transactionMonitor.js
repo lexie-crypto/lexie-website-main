@@ -562,13 +562,21 @@ export const monitorTransactionInGraph = async ({
             const { refreshBalances } = await import('@railgun-community/wallet');
             const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
             
-            // Get correct network config
-            const networkName = getRailgunNetworkName(chainId);
-            const networkConfig = NETWORK_CONFIG[networkName];
-            if (!networkConfig) {
-              throw new Error(`No network config found for ${networkName}`);
+            // Find the correct network config by matching chain ID using official NETWORK_CONFIG
+            let networkName = null;
+            let railgunChain = null;
+            
+            for (const [name, config] of Object.entries(NETWORK_CONFIG)) {
+              if (config.chain.id === chainId) {
+                networkName = name;
+                railgunChain = config.chain;
+                break;
+              }
             }
-            const railgunChain = networkConfig.chain;
+            
+            if (!networkName || !railgunChain) {
+              throw new Error(`No network config found for chain ID: ${chainId}`);
+            }
             
             // Trigger QuickSync refresh for the specific wallet
             const walletIdFilter = [transactionDetails.walletId];
