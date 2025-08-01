@@ -868,30 +868,82 @@ export const monitorTransactionInGraph = async ({
                   }
                 }
 
-                if (walletAddress && walletId) {
-                  const response = await fetch('/api/wallet-metadata?action=process-unshield', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      walletAddress,
-                      walletId,
-                      spentCommitmentHash: nullifierEvent.nullifier,
-                      spentTxHash: nullifierEvent.transactionHash,
-                      decimals,
-                      changeCommitment: transactionDetails?.changeCommitment // Optional
-                    })
-                  });
+                // Validate all required fields before making API call
+                const requiredFields = {
+                  walletAddress,
+                  walletId,
+                  spentCommitmentHash: nullifierEvent?.nullifier,
+                  spentTxHash: nullifierEvent?.transactionHash,
+                  decimals
+                };
 
-                  if (response.ok) {
-                    console.log('[TransactionMonitor] ✅ Unshield processed atomically');
-                  } else {
-                    console.error('[TransactionMonitor] ❌ Failed to process unshield atomically:', await response.text());
+                // Check if all required fields are present and not null/undefined
+                const missingFields = Object.entries(requiredFields)
+                  .filter(([key, value]) => !value && value !== 0)
+                  .map(([key]) => key);
+
+                if (missingFields.length === 0) {
+                  try {
+                    const response = await fetch('/api/wallet-metadata?action=process-unshield', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        walletAddress,
+                        walletId,
+                        spentCommitmentHash: nullifierEvent.nullifier,
+                        spentTxHash: nullifierEvent.transactionHash,
+                        decimals,
+                        changeCommitment: transactionDetails?.changeCommitment // Optional
+                      })
+                    });
+
+                    if (response.ok) {
+                      console.log('[TransactionMonitor] ✅ Unshield processed atomically');
+                    } else {
+                      const errorText = await response.text();
+                      console.error('[TransactionMonitor] ❌ Failed to process unshield atomically:', {
+                        status: response.status,
+                        statusText: response.statusText,
+                        error: errorText,
+                        payload: {
+                          walletAddress: walletAddress?.slice(0, 10) + '...',
+                          walletId: walletId?.slice(0, 10) + '...',
+                          spentCommitmentHash: nullifierEvent?.nullifier?.slice(0, 10) + '...',
+                          spentTxHash: nullifierEvent?.transactionHash?.slice(0, 10) + '...',
+                          decimals
+                        }
+                      });
+                    }
+                  } catch (fetchError) {
+                    console.error('[TransactionMonitor] ❌ Network error in unshield API call:', fetchError);
                   }
                 } else {
-                  console.warn('[TransactionMonitor] ⚠️ Missing wallet details for atomic unshield processing');
+                  console.warn('[TransactionMonitor] ⚠️ Missing required fields for atomic unshield processing:', {
+                    missingFields,
+                    availableFields: Object.entries(requiredFields)
+                      .filter(([key, value]) => value || value === 0)
+                      .map(([key]) => key),
+                    nullifierEvent: {
+                      hasNullifier: !!nullifierEvent?.nullifier,
+                      hasTransactionHash: !!nullifierEvent?.transactionHash
+                    }
+                  });
                 }
               } catch (error) {
-                console.error('[TransactionMonitor] ❌ Error processing unshield atomically:', error);
+                console.error('[TransactionMonitor] ❌ Error processing unshield atomically:', {
+                  error: error.message,
+                  stack: error.stack,
+                  transactionDetails: {
+                    hasWalletAddress: !!transactionDetails?.walletAddress,
+                    hasWalletId: !!transactionDetails?.walletId,
+                    hasTokenAddress: !!transactionDetails?.tokenAddress,
+                    hasDecimals: !!transactionDetails?.decimals
+                  },
+                  nullifierEvent: {
+                    hasNullifier: !!nullifierEvent?.nullifier,
+                    hasTransactionHash: !!nullifierEvent?.transactionHash
+                  }
+                });
               }
             }
           }

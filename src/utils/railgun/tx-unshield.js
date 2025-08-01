@@ -1322,6 +1322,7 @@ export const unshieldTokens = async ({
         const { monitorTransactionInGraph } = await import('./transactionMonitor.js');
         
         // 🚨 CRITICAL: Get proper token decimals - prioritize UI-passed decimals first!
+        // Declare at function scope to avoid ReferenceError in nested callbacks
         let tokenDecimals = 18; // Final fallback default
         let tokenSymbol = 'Unknown';
         
