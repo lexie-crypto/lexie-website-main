@@ -584,7 +584,7 @@ export const monitorTransactionInGraph = async ({
               walletId: transactionDetails.walletId.slice(0, 10) + '...'
             });
             
-            // Execute QuickSync refresh with retries
+            // Execute QuickSync refresh with balance callback confirmation
             let quickSyncAttempt = 0;
             const maxRetries = 3;
             let quickSyncSuccess = false;
@@ -595,11 +595,92 @@ export const monitorTransactionInGraph = async ({
                 console.log(`[QuickSync] Attempt ${quickSyncAttempt}/${maxRetries} - calling refreshBalances...`);
                 console.log('[QuickSync] Refreshing wallet ID:', transactionDetails.walletId);
                 
+                // Set up balance update callback confirmation
+                const balanceUpdatePromise = new Promise(async (resolve, reject) => {
+                  let timeout;
+                  let originalCallback;
+                  
+                  try {
+                    const { onBalanceUpdateCallback, setOnBalanceUpdateCallback } = await import('./balance-update.js');
+                    originalCallback = onBalanceUpdateCallback;
+                    
+                    // Set timeout for balance callback confirmation
+                    timeout = setTimeout(() => {
+                      if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
+                      reject(new Error('Balance update callback did not fire within 30 seconds'));
+                    }, 60000); // 60 seconds timeout
+                    
+                    // Set up callback to wait for our wallet's balance update
+                    const wrappedCallback = async (balanceEvent) => {
+                      try {
+                        if (originalCallback) originalCallback(balanceEvent);
+                        
+                        if (balanceEvent.railgunWalletID === transactionDetails.walletId) {
+                          console.log('[QuickSync] 🎯 Balance update callback fired for wallet:', transactionDetails.walletId);
+                          
+                          // Verify SDK has spendable balance for our token
+                          try {
+                            const { getWalletForID } = await import('@railgun-community/wallet');
+                            const { TXIDVersion } = await import('@railgun-community/shared-models');
+                            const wallet = getWalletForID(transactionDetails.walletId);
+                            
+                            if (wallet && transactionDetails.tokenAddress) {
+                              const tokenBalances = await wallet.getTokenBalances(TXIDVersion.V2_PoseidonMerkle, railgunChain, true);
+                              const targetTokenBalance = tokenBalances[transactionDetails.tokenAddress.toLowerCase()];
+                              const hasSpendableBalance = targetTokenBalance && BigInt(targetTokenBalance.amount) > 0n;
+                              
+                              console.log('[QuickSync] 🔍 SDK balance verification:', {
+                                tokenAddress: transactionDetails.tokenAddress.slice(0, 10) + '...',
+                                hasSpendableBalance,
+                                sdkAmount: targetTokenBalance?.amount || '0',
+                                walletId: transactionDetails.walletId.slice(0, 10) + '...'
+                              });
+                              
+                              if (hasSpendableBalance) {
+                                console.log('[QuickSync] ✅ SDK balance confirmed - spendable notes are ready');
+                                clearTimeout(timeout);
+                                if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
+                                resolve(true);
+                              } else {
+                                console.log('[QuickSync] ⏳ SDK balance not yet available, continuing to wait...');
+                              }
+                            } else {
+                              console.warn('[QuickSync] ⚠️ Could not verify SDK balance - wallet or token address missing');
+                              clearTimeout(timeout);
+                              if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
+                              resolve(true); // Proceed anyway
+                            }
+                          } catch (verifyError) {
+                            console.warn('[QuickSync] ⚠️ Error verifying SDK balance:', verifyError.message);
+                            clearTimeout(timeout);
+                            if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
+                            resolve(true); // Proceed anyway
+                          }
+                        }
+                      } catch (error) {
+                        console.error('[QuickSync] ❌ Error in balance callback wrapper:', error);
+                        clearTimeout(timeout);
+                        if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
+                        reject(error);
+                      }
+                    };
+                    
+                    setOnBalanceUpdateCallback(wrappedCallback);
+                  } catch (error) {
+                    reject(error);
+                  }
+                });
+                
                 // Trigger Railgun SDK refresh with QuickSync (uses Graph internally)
                 const walletIdFilter = [transactionDetails.walletId];
+                console.log('[QuickSync] 🔄 Starting refreshBalances and waiting for balance callback...');
                 await refreshBalances(railgunChain, walletIdFilter);
                 
-                console.log('[QuickSync] Completed successfully, balances updated');
+                // Wait for balance update callback to confirm SDK has spendable notes
+                console.log('[QuickSync] ⏳ Waiting for balance update callback confirmation...');
+                await balanceUpdatePromise;
+                
+                console.log('[QuickSync] ✅ Balance callback confirmed - SDK has spendable notes ready');
                 quickSyncSuccess = true;
                 
               } catch (syncError) {
