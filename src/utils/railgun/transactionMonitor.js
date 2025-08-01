@@ -561,7 +561,6 @@ export const monitorTransactionInGraph = async ({
           try {
             const { refreshBalances } = await import('@railgun-community/wallet');
             const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
-            const { getRailgunNetworkName } = await import('./tx-unshield.js');
             
             // Get correct network config
             const networkName = getRailgunNetworkName(chainId);
