@@ -555,6 +555,84 @@ export const monitorTransactionInGraph = async ({
       if (hasEvent) {
         console.log('[TransactionMonitor] 🎉 Event confirmed in Graph, dispatching transaction confirmed event');
 
+        // ⚡ QUICKSYNC: Trigger immediate Railgun SDK refresh for shield transactions
+        if (transactionType === 'shield' && transactionDetails?.walletId) {
+          console.log('⚡ QuickSync triggered after Graph confirmation for tx', txHash);
+          try {
+            const { refreshBalances } = await import('@railgun-community/wallet');
+            const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
+            const { getRailgunNetworkName } = await import('./tx-unshield.js');
+            
+            // Get correct network config
+            const networkName = getRailgunNetworkName(chainId);
+            const networkConfig = NETWORK_CONFIG[networkName];
+            if (!networkConfig) {
+              throw new Error(`No network config found for ${networkName}`);
+            }
+            const railgunChain = networkConfig.chain;
+            
+            // Trigger QuickSync refresh for the specific wallet
+            const walletIdFilter = [transactionDetails.walletId];
+            console.log('[TransactionMonitor] 🔄 Triggering QuickSync refresh:', {
+              chainType: railgunChain.type,
+              chainId: railgunChain.id,
+              walletId: transactionDetails.walletId.slice(0, 10) + '...',
+              txHash: txHash.slice(0, 10) + '...'
+            });
+            
+            // Wait for balance update confirmation with timeout
+            const balanceUpdatePromise = new Promise(async (resolve, reject) => {
+              let timeout;
+              let originalCallback;
+              
+              try {
+                const { onBalanceUpdateCallback, setOnBalanceUpdateCallback } = await import('./balance-update.js');
+                originalCallback = onBalanceUpdateCallback;
+                
+                // Set timeout for QuickSync (shorter than unshield timeout)
+                timeout = setTimeout(() => {
+                  if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
+                  reject(new Error('QuickSync did not complete within 30 seconds'));
+                }, 60000); // 60 seconds timeout
+                
+                // Set up callback to wait for our wallet's balance update
+                const wrappedCallback = async (balanceEvent) => {
+                  try {
+                    if (originalCallback) originalCallback(balanceEvent);
+                    
+                    if (balanceEvent.railgunWalletID === transactionDetails.walletId) {
+                      console.log('[TransactionMonitor] 🎯 QuickSync balance update received for our wallet');
+                      clearTimeout(timeout);
+                      if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
+                      resolve(true);
+                    }
+                  } catch (error) {
+                    clearTimeout(timeout);
+                    if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
+                    reject(error);
+                  }
+                };
+                
+                setOnBalanceUpdateCallback(wrappedCallback);
+              } catch (error) {
+                reject(error);
+              }
+            });
+            
+            // Start refresh and wait for confirmation (in background)
+            refreshBalances(railgunChain, walletIdFilter).then(() => {
+              console.log('[TransactionMonitor] ⏳ Waiting for QuickSync balance confirmation...');
+              return balanceUpdatePromise;
+            }).then(() => {
+              console.log('[TransactionMonitor] ✅ QuickSync completed - new commitments are now spendable');
+            }).catch(error => {
+              console.error('[TransactionMonitor] ❌ QuickSync refresh or callback failed:', error.message);
+            });
+          } catch (error) {
+            console.error('[TransactionMonitor] ❌ Failed to trigger QuickSync refresh:', error.message);
+          }
+        }
+
         // 🎯 CAPTURE NOTES: Handle note capture/spending based on transaction type
         try {
         if (transactionType === 'shield' && events.length > 0) {
