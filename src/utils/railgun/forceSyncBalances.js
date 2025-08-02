@@ -182,12 +182,27 @@ export const forceSyncBalances = async (railgunWalletId, chainId, walletAddress,
       onProgress({
         stage: 'finalizing',
         progress: 0.9,
-        message: 'Confirming balance updates...'
+        message: 'Waiting for balance cache update...'
       });
     }
 
-    // Give some time for balance callbacks to fire
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Wait for balance cache to be updated via SDK callbacks (more reliable than arbitrary timeout)
+    try {
+      const { waitForBalanceUpdate } = await import('./balanceCache.js');
+      console.log('[ForceSyncBalances] ⏳ Waiting for balance cache update...');
+      
+      const balanceUpdated = await waitForBalanceUpdate(railgunWalletId, chainId, 15000); // 15 second timeout
+      
+      if (balanceUpdated) {
+        console.log('[ForceSyncBalances] ✅ Balance cache updated successfully');
+      } else {
+        console.warn('[ForceSyncBalances] ⚠️ Balance cache update timed out after 15s, but sync may still succeed');
+      }
+    } catch (balanceError) {
+      console.warn('[ForceSyncBalances] ⚠️ Balance cache wait failed, using fallback delay:', balanceError.message);
+      // Fallback to short delay if cache system fails
+      await new Promise(resolve => setTimeout(resolve, 2000));
+    }
 
     // Step 8: Update Redis with any new balance data
     console.log('[ForceSyncBalances] 💾 Updating Redis with refreshed balance data...');

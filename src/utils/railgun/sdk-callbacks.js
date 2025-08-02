@@ -297,6 +297,14 @@ export const handleBalanceUpdateCallback = async (balancesEvent) => {
       timestamp: new Date().toISOString()
     });
 
+    // Cache the balance update using our balance cache system
+    try {
+      const { onBalanceUpdateCallback: cacheCallback } = await import('./balanceCache.js');
+      cacheCallback(balancesEvent);
+    } catch (error) {
+      console.error('[SDK Callbacks] ❌ Error updating balance cache:', error);
+    }
+
     // Process spendable balance updates (most important for proof generation)
     if (bucket === 'Spendable' && balancesEvent.erc20Amounts?.length > 0) {
       

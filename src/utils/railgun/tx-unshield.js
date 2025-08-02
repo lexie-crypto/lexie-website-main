@@ -730,9 +730,12 @@ export const unshieldTokens = async ({
       console.warn('⚠️ [UNSHIELD DEBUG] No decimals passed from UI - will use fallback detection (less reliable)');
     }
 
-    // STEP 0: Check SDK callback state and ensure spendable notes are confirmed
-    console.log('🔄 [UNSHIELD DEBUG] Step 0: Checking official SDK callback state for spendable notes...');
+    // STEP 0: Check balance cache first, then SDK callback state for spendable notes
+    console.log('🔄 [UNSHIELD DEBUG] Step 0: Checking balance cache and SDK callback state for spendable notes...');
     try {
+      // Import the balance cache system
+      const { hasSufficientCachedBalance, getCachedTokenBalance, waitForBalanceUpdate } = await import('./balanceCache.js');
+      
       // Import the new SDK callbacks system
       const { areSpendableNotesReady, waitForSpendableNotes, areMerkleScansComplete, waitForMerkleScansComplete } = await import('./sdk-callbacks.js');
       
@@ -755,9 +758,28 @@ export const unshieldTokens = async ({
       // Use the chain object from network config
       const railgunChain = networkConfig.chain;
       
-      // CRITICAL: Check if SDK callbacks have already confirmed spendable notes
-      const alreadyReady = areSpendableNotesReady(railgunWalletID, tokenAddress, amount);
-      console.log('🎯 [UNSHIELD DEBUG] SDK callback spendable note check:', {
+      // 🚀 NEW: Check balance cache first (fastest method)
+      console.log('💰 [UNSHIELD DEBUG] Checking balance cache for sufficient funds...');
+      const hasCachedBalance = hasSufficientCachedBalance(railgunChain, railgunWalletID, tokenAddress, amount);
+      
+      if (hasCachedBalance) {
+        const cachedBalance = getCachedTokenBalance(railgunChain, railgunWalletID, tokenAddress);
+        console.log('✅ [UNSHIELD DEBUG] Sufficient cached balance found - can proceed immediately:', {
+          tokenAddress: tokenAddress?.slice(0, 10) + '...',
+          cachedAmount: cachedBalance?.erc20Amount?.amount,
+          requiredAmount: amount,
+          cacheAge: cachedBalance ? `${Math.round((Date.now() - cachedBalance.updatedAt) / 1000)}s ago` : 'unknown'
+        });
+        
+        // Balance cache confirms sufficient funds - can proceed directly to proof generation
+        console.log('🎯 [UNSHIELD DEBUG] Balance cache verification passed - skipping SDK refresh');
+        // Skip to proof generation (rest of function continues)
+      } else {
+        console.log('⚠️ [UNSHIELD DEBUG] No sufficient cached balance found - will check SDK callbacks and refresh if needed');
+        
+        // CRITICAL: Check if SDK callbacks have already confirmed spendable notes
+        const alreadyReady = areSpendableNotesReady(railgunWalletID, tokenAddress, amount);
+        console.log('🎯 [UNSHIELD DEBUG] SDK callback spendable note check:', {
         walletId: railgunWalletID?.slice(0, 8) + '...',
         tokenAddress: tokenAddress?.slice(0, 10) + '...',
         amount: amount,
@@ -872,6 +894,7 @@ export const unshieldTokens = async ({
           console.log('✅ [UNSHIELD DEBUG] SDK already has sufficient spendable balance, proceeding...');
         }
       }
+      } // Close the else block for cache check
       
     } catch (refreshError) {
       console.warn('⚠️ [UNSHIELD DEBUG] SDK refresh/callback monitoring error:', refreshError.message);
