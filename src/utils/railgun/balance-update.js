@@ -330,6 +330,16 @@ const getAllBalancesAsSpendable = async (txidVersion, wallet, chain) => {
       nftCount: nftAmounts.length,
       erc20Amounts
     });
+    
+    // Log warning if we have zero amounts (indicates timing issue)
+    const zeroAmountTokens = erc20Amounts.filter(token => BigInt(token.amount || '0') === 0n);
+    if (zeroAmountTokens.length > 0) {
+      console.warn('[BalanceUpdate] ⚠️ SDK returned tokens with zero spendable amounts:', {
+        zeroTokens: zeroAmountTokens.length,
+        totalTokens: erc20Amounts.length,
+        note: 'This suggests notes are decrypted but not yet processed for spending'
+      });
+    }
 
     const balancesEvent = {
       txidVersion,

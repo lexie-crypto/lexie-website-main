@@ -584,114 +584,127 @@ export const monitorTransactionInGraph = async ({
               walletId: transactionDetails.walletId.slice(0, 10) + '...'
             });
             
-            // Execute targeted QuickSync for immediate note availability
-            let quickSyncAttempt = 0;
-            const maxRetries = 3;
-            let quickSyncSuccess = false;
+            // 🚀 AGGRESSIVE QuickSync for IMMEDIATE SPENDABILITY - NO DELAYS!
+            console.log('[QuickSync] 💥 Starting AGGRESSIVE immediate spendability forcing...');
             
-            while (quickSyncAttempt < maxRetries && !quickSyncSuccess) {
-              quickSyncAttempt++;
-              try {
-                console.log(`[QuickSync] Attempt ${quickSyncAttempt}/${maxRetries} - triggering targeted refresh...`);
-                console.log('[QuickSync] Refreshing wallet ID:', transactionDetails.walletId);
+            const aggressiveQuickSync = async () => {
+              const maxAttempts = 8; // 8 attempts over 24 seconds  
+              let attempt = 0;
+              
+              while (attempt < maxAttempts) {
+                attempt++;
+                console.log(`[QuickSync] 🔨 AGGRESSIVE attempt ${attempt}/${maxAttempts} - HAMMERING SDK FOR IMMEDIATE ACCESS`);
                 
-                // Set up balance callback promise to wait for confirmation
-                const balanceUpdatePromise = new Promise((resolve, reject) => {
-                  let timeoutId;
+                try {
+                  // Import what we need
+                  const { getWalletForID } = await import('@railgun-community/wallet');
+                  const { TXIDVersion } = await import('@railgun-community/shared-models');
                   
-                  const handleBalanceUpdate = (event) => {
-                    const balanceEvent = event.detail;
+                  // HAMMER the SDK with refresh
+                  console.log(`[QuickSync] 💪 Hammering refreshBalances attempt ${attempt}...`);
+                  await refreshBalances(railgunChain, [transactionDetails.walletId]);
+                  console.log(`[QuickSync] ✅ RefreshBalances ${attempt} completed`);
+                  
+                  // Brief processing wait
+                  await new Promise(resolve => setTimeout(resolve, 500));
+                  
+                  // IMMEDIATELY test spendability for shield transactions WITH SCAN MONITORING
+                  if (transactionType === 'shield' && transactionDetails.tokenAddress) {
                     
-                    // Check if this update is for our wallet
-                    if (balanceEvent.railgunWalletID === transactionDetails.walletId) {
-                      console.log('[QuickSync] 🎯 Balance update received for target wallet:', {
-                        walletId: transactionDetails.walletId.slice(0, 10) + '...',
-                        bucket: balanceEvent.balanceBucket,
-                        erc20Count: balanceEvent.erc20Amounts?.length || 0,
-                        chainId: balanceEvent.chain?.id
+                    // Wait for merkle tree scans to complete first
+                    console.log('[QuickSync] 👀 Monitoring merkle tree scan completion...');
+                    const scanCompletion = await new Promise((scanResolve) => {
+                      let utxoScanComplete = false;
+                      let txidScanComplete = false;
+                      let scanTimeout;
+                      
+                      const checkScanCompletion = () => {
+                        if (utxoScanComplete && txidScanComplete) {
+                          console.log('[QuickSync] 🎯 Both UTXO and TXID scans completed!');
+                          clearTimeout(scanTimeout);
+                          window.removeEventListener('railgun-utxo-scan', handleUTXOScan);
+                          window.removeEventListener('railgun-txid-scan', handleTXIDScan);
+                          scanResolve(true);
+                        }
+                      };
+                      
+                      const handleUTXOScan = (event) => {
+                        const scanData = event.detail;
+                        if (scanData.progress >= 1.0 || scanData.scanStatus === 'Complete') {
+                          console.log('[QuickSync] ✅ UTXO scan completed');
+                          utxoScanComplete = true;
+                          checkScanCompletion();
+                        }
+                      };
+                      
+                      const handleTXIDScan = (event) => {
+                        const scanData = event.detail;
+                        if (scanData.progress >= 1.0 || scanData.scanStatus === 'Complete') {
+                          console.log('[QuickSync] ✅ TXID scan completed');
+                          txidScanComplete = true;
+                          checkScanCompletion();
+                        }
+                      };
+                      
+                      window.addEventListener('railgun-utxo-scan', handleUTXOScan);
+                      window.addEventListener('railgun-txid-scan', handleTXIDScan);
+                      
+                      // Timeout after 5 seconds
+                      scanTimeout = setTimeout(() => {
+                        console.log('[QuickSync] ⏰ Scan monitoring timeout - proceeding anyway');
+                        window.removeEventListener('railgun-utxo-scan', handleUTXOScan);
+                        window.removeEventListener('railgun-txid-scan', handleTXIDScan);
+                        scanResolve(false);
+                      }, 5000);
+                    });
+                    
+                    const wallet = getWalletForID(transactionDetails.walletId);
+                    if (wallet) {
+                      const balances = await wallet.getTokenBalances(TXIDVersion.V2_PoseidonMerkle, railgunChain, true);
+                      const tokenBalance = balances[transactionDetails.tokenAddress.toLowerCase()];
+                      const spendableAmount = tokenBalance ? BigInt(tokenBalance.balance || tokenBalance.amount || '0') : BigInt(0);
+                      
+                      console.log(`[QuickSync] 🔍 Attempt ${attempt} POST-SCAN spendability test:`, {
+                        tokenAddress: transactionDetails.tokenAddress.slice(0, 10) + '...',
+                        spendableAmount: spendableAmount.toString(),
+                        isSpendableNow: spendableAmount > 0n,
+                        readyForUser: spendableAmount > 0n,
+                        scansCompleted: scanCompletion
                       });
                       
-                      // For shield transactions, we care about spendable bucket having our token
-                      if (transactionType === 'shield' && transactionDetails.tokenAddress && 
-                          balanceEvent.balanceBucket === 'Spendable') {
-                        
-                        console.log('[QuickSync] 🔍 Checking spendable balance for target token:', {
-                          targetAddress: transactionDetails.tokenAddress.slice(0, 10) + '...',
-                          totalTokensInBucket: balanceEvent.erc20Amounts?.length || 0,
-                          availableTokens: balanceEvent.erc20Amounts?.map(t => ({ 
-                            address: t.tokenAddress?.slice(0, 10) + '...', 
-                            amount: t.amount 
-                          })) || []
-                        });
-                        
-                        const targetToken = balanceEvent.erc20Amounts?.find(token => 
-                          token.tokenAddress?.toLowerCase() === transactionDetails.tokenAddress.toLowerCase()
-                        );
-                        
-                        if (targetToken) {
-                          const tokenAmount = BigInt(targetToken.amount || '0');
-                          console.log('[QuickSync] 🎯 Target token found in balance update:', {
-                            tokenAddress: transactionDetails.tokenAddress.slice(0, 10) + '...',
-                            amount: targetToken.amount,
-                            amountBigInt: tokenAmount.toString(),
-                            hasPositiveAmount: tokenAmount > 0n
-                          });
-                          
-                          // Even if amount is 0, let's proceed and let the unshield handle validation
-                          // The QuickSync has completed and the SDK should now be synced
-                          console.log('[QuickSync] ✅ Target token confirmed in SDK (proceeding regardless of amount)');
-                          clearTimeout(timeoutId);
-                          window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
-                          resolve(true);
-                          return;
-                        } else {
-                          console.log('[QuickSync] ⏳ Target token not found in spendable bucket, continuing to wait...');
-                        }
-                      }
-                      
-                      // For non-shield transactions, proceed on any balance update
-                      if (transactionType !== 'shield') {
-                        console.log('[QuickSync] ✅ Balance update confirmed for non-shield transaction, proceeding...');
-                        clearTimeout(timeoutId);
-                        window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
-                        resolve(true);
+                      if (spendableAmount > 0n) {
+                        console.log('[QuickSync] 🎉🎉 IMMEDIATE SPENDABILITY ACHIEVED AFTER SCAN COMPLETION! USER CAN UNSHIELD RIGHT NOW!');
+                        console.log(`[QuickSync] 🏆 SUCCESS in ${attempt} attempts with proper scan monitoring`);
+                        return true;
                       }
                     }
-                  };
+                  }
                   
-                  // Set up timeout (60 seconds)
-                  timeoutId = setTimeout(() => {
-                    console.warn('[QuickSync] ⏰ Balance update timeout - proceeding anyway');
-                    window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
-                    resolve(true); // Don't fail, just proceed
-                  }, 60000);
+                  // For non-shield, just ensure refresh completed
+                  if (transactionType !== 'shield') {
+                    console.log(`[QuickSync] ✅ Non-shield QuickSync ${attempt} completed`);
+                    return true;
+                  }
                   
-                  // Listen for balance updates
-                  window.addEventListener('railgun-balance-update', handleBalanceUpdate);
-                });
-                
-                // Use standard refreshBalances - it's the most reliable method
-                console.log('[QuickSync] 🔄 Using standard refreshBalances (most reliable)...');
-                const walletIdFilter = [transactionDetails.walletId];
-                await refreshBalances(railgunChain, walletIdFilter);
-                
-                // Wait for balance update confirmation
-                console.log('[QuickSync] ⏳ Waiting for balance update confirmation...');
-                await balanceUpdatePromise;
-                
-                console.log('[QuickSync] ✅ QuickSync completed successfully - SDK has latest notes');
-                quickSyncSuccess = true;
-                
-              } catch (syncError) {
-                console.error(`[QuickSync] Attempt ${quickSyncAttempt} failed:`, syncError.message);
-                if (quickSyncAttempt >= maxRetries) {
-                  console.error(`[QuickSync] ❌ All ${maxRetries} attempts failed, but continuing...`);
-                  break; // Don't throw, just warn and continue
+                  if (attempt < maxAttempts) {
+                    console.log(`[QuickSync] ⏳ Not immediately spendable yet, hammering again in 3 seconds... (${attempt}/${maxAttempts})`);
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                  }
+                  
+                } catch (attemptError) {
+                  console.error(`[QuickSync] ❌ Hammer attempt ${attempt} failed:`, attemptError.message);
+                  if (attempt < maxAttempts) {
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                  }
                 }
-                // Exponential backoff before retry
-                await new Promise(resolve => setTimeout(resolve, 2000 * quickSyncAttempt));
               }
-            }
+              
+              console.warn(`[QuickSync] ⚠️ AGGRESSIVE approach did not achieve IMMEDIATE spendability after ${maxAttempts} attempts`);
+              console.warn(`[QuickSync] 💔 User will need to wait for background processing - THIS IS NOT ACCEPTABLE`);
+              return false;
+            };
+            
+            const quickSyncSuccess = await aggressiveQuickSync();
             
             console.log('[QuickSync] ✅ Successfully completed - SDK has latest note state for proof generation');
             
