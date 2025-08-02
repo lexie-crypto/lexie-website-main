@@ -150,13 +150,38 @@ export const performFullRescan = async (railgunWalletIDs = []) => {
     }));
     
     await waitForRailgunReady();
-    await rescanFullUTXOMerkletreesAndWallets(railgunWalletIDs);
     
-    // Update status for all networks
+    // ✅ Use proper chain-by-chain approach instead of the problematic rescanFullUTXOMerkletreesAndWallets
+    const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
+    
+    console.log('[ScanningService] Scanning each network individually with proper chain context...');
+    
+    // Scan each network individually to ensure proper chain context
     for (const networkName of Object.values(NetworkName)) {
-      scanStatus.set(networkName, ScanStatus.COMPLETE);
-      scanProgress.set(networkName, { utxo: 100, txid: 100 });
-      lastScanTime.set(networkName, Date.now());
+      try {
+        const networkConfig = NETWORK_CONFIG[networkName];
+        if (!networkConfig) {
+          console.warn(`[ScanningService] No network config found for ${networkName}, skipping...`);
+          continue;
+        }
+        
+        const railgunChain = networkConfig.chain;
+        console.log(`[ScanningService] Scanning ${networkName} with chain ${railgunChain.type}:${railgunChain.id}...`);
+        
+        // Use refreshBalances for each chain individually 
+        await refreshBalances(railgunChain, railgunWalletIDs);
+        
+        // Update status for this network
+        scanStatus.set(networkName, ScanStatus.COMPLETE);
+        scanProgress.set(networkName, { utxo: 100, txid: 100 });
+        lastScanTime.set(networkName, Date.now());
+        
+        console.log(`[ScanningService] ✅ ${networkName} scan completed`);
+        
+      } catch (networkError) {
+        console.error(`[ScanningService] Failed to scan ${networkName}:`, networkError);
+        scanStatus.set(networkName, ScanStatus.ERROR);
+      }
     }
     
     console.log('[ScanningService] Full rescan completed');
@@ -203,9 +228,26 @@ export const performNetworkRescan = async (networkName, railgunWalletIDs = []) =
     }));
     
     await waitForRailgunReady();
-    // Use the full rescan function with specific network name - RAILGUN SDK doesn't have network-specific function
-    // So we'll use the general rescan and then refresh balances for the specific network
-    await rescanFullUTXOMerkletreesAndWallets(railgunWalletIDs);
+    
+    // ✅ Use proper chain object as per official SDK pattern
+    const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
+    const networkConfig = NETWORK_CONFIG[networkName];
+    
+    if (!networkConfig) {
+      throw new Error(`No network config found for ${networkName}`);
+    }
+    
+    // Get the proper chain object from network config
+    const railgunChain = networkConfig.chain;
+    
+    console.log(`[ScanningService] Using refreshBalances for ${networkName} with chain:`, {
+      chainType: railgunChain.type,
+      chainId: railgunChain.id,
+      walletCount: railgunWalletIDs.length
+    });
+    
+    // ✅ Use refreshBalances with proper chain context (following official SDK pattern)
+    await refreshBalances(railgunChain, railgunWalletIDs);
     
     // Update status
     scanStatus.set(networkName, ScanStatus.COMPLETE);
