@@ -140,6 +140,8 @@ export const useForceSyncBalances = (railgunWalletId, chainId, walletAddress) =>
     switch (stage) {
       case 'initializing':
         return 'Initializing full rescan...';
+      case 'utxo-history':
+        return 'Getting UTXO history...';
       case 'rescanning':
         return 'Starting full UTXO rescan (ignoring validated index)...';
       case 'scanning':

@@ -79,18 +79,33 @@ export const forceSyncBalances = async (railgunWalletId, chainId, walletAddress,
       });
     }
 
-    // Step 5: Force FULL UTXO rescan (bypasses validated index checks)
-    console.log('[ForceSyncBalances] 🚨 Triggering FULL UTXO rescan - ignoring validated index...');
+    // Step 5a: First get UTXO history (required before TXID rescan)
+    console.log('[ForceSyncBalances] 🔄 Step 1: Getting UTXO history...');
+    
+    if (onProgress) {
+      onProgress({
+        stage: 'utxo-history',
+        progress: 0.2,
+        message: 'Getting UTXO history...'
+      });
+    }
+
+    // First call refreshBalances to ensure UTXO history is available
+    await refreshBalances(railgunChain, [railgunWalletId]);
+    console.log('[ForceSyncBalances] ✅ UTXO history refresh completed');
+
+    // Step 5b: Now force FULL UTXO rescan (bypasses validated index checks)
+    console.log('[ForceSyncBalances] 🚨 Step 2: Triggering FULL UTXO rescan - ignoring validated index...');
     
     if (onProgress) {
       onProgress({
         stage: 'rescanning',
-        progress: 0.2,
+        progress: 0.4,
         message: 'Starting full UTXO rescan (ignoring validated index)...'
       });
     }
 
-    // Use rescanFullUTXOMerkletreesAndWallets instead of refreshBalances
+    // Now that UTXO history is available, do the full rescan
     // This forces a complete rescan that ignores "already synced to validated index" checks
     await rescanFullUTXOMerkletreesAndWallets(railgunChain, [railgunWalletId]);
     console.log('[ForceSyncBalances] ✅ Full UTXO rescan call completed - should pick up new transactions past validated index');
@@ -101,7 +116,7 @@ export const forceSyncBalances = async (railgunWalletId, chainId, walletAddress,
     if (onProgress) {
       onProgress({
         stage: 'scanning',
-        progress: 0.3,
+        progress: 0.5,
         message: 'Waiting for full Merkle tree rescan to complete (up to 2 minutes)...'
       });
     }
@@ -139,7 +154,7 @@ export const forceSyncBalances = async (railgunWalletId, chainId, walletAddress,
         if (onProgress) {
           onProgress({
             stage: 'processing',
-            progress: 0.8,
+            progress: 0.85,
             message: 'Processing balance updates...'
           });
         }
@@ -149,7 +164,7 @@ export const forceSyncBalances = async (railgunWalletId, chainId, walletAddress,
         if (onProgress) {
           onProgress({
             stage: 'processing',
-            progress: 0.8,
+            progress: 0.85,
             message: 'Full rescan timed out after 2 minutes, processing available data...'
           });
         }
