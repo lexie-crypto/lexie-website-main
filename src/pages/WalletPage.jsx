@@ -678,7 +678,7 @@ const WalletPage = () => {
                           ? 'bg-orange-600 hover:bg-orange-700 disabled:bg-orange-800 text-white'
                           : 'bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 text-white'
                       }`}
-                      title={isSyncRecommended ? 'Force sync recommended - may fix stale balances' : 'Force full Merkle tree sync'}
+                      title={isSyncRecommended ? 'Full rescan recommended - will pick up latest transactions' : 'Force full Merkle tree rescan (ignores validated index)'}
                     >
                       {isSyncing ? (
                         <>
@@ -688,7 +688,7 @@ const WalletPage = () => {
                       ) : (
                         <>
                           <ArrowPathIcon className={`h-4 w-4 ${isSyncRecommended ? 'animate-pulse' : ''}`} />
-                          <span>Force Sync</span>
+                          <span>Full Rescan</span>
                           {isSyncRecommended && (
                             <div className="w-2 h-2 bg-orange-300 rounded-full animate-pulse" />
                           )}
@@ -720,9 +720,9 @@ const WalletPage = () => {
                     <div className="flex items-center space-x-3">
                       <div className="animate-spin rounded-full h-4 w-4 border-b border-blue-400" />
                       <div>
-                        <div className="text-blue-100 font-medium text-sm">Force Sync in Progress</div>
+                        <div className="text-blue-100 font-medium text-sm">Full Rescan in Progress</div>
                         <div className="text-blue-200 text-xs">
-                          {progressMessage || 'Syncing with Railgun network...'}
+                          {progressMessage || 'Full Merkle tree rescan in progress (ignores validated index)...'}
                         </div>
                       </div>
                       <div className="text-blue-300 text-sm font-mono">
@@ -750,9 +750,9 @@ const WalletPage = () => {
                       <div className="flex items-center space-x-3">
                         <ClockIcon className="h-4 w-4 text-orange-400" />
                         <div>
-                          <div className="text-orange-100 font-medium text-sm">Sync Recommended</div>
+                          <div className="text-orange-100 font-medium text-sm">Full Rescan Recommended</div>
                           <div className="text-orange-200 text-xs">
-                            Last sync: {timeSinceLastSync} • Force sync to ensure latest balances
+                            Last sync: {timeSinceLastSync} • Full rescan will pick up latest transactions
                           </div>
                         </div>
                       </div>
@@ -761,7 +761,7 @@ const WalletPage = () => {
                         disabled={!canSync}
                         className="bg-orange-600 hover:bg-orange-700 disabled:bg-orange-800 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
                       >
-                        Sync Now
+                        Rescan Now
                       </button>
                     </div>
                   </div>

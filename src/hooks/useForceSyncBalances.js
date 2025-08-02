@@ -80,7 +80,7 @@ export const useForceSyncBalances = (railgunWalletId, chainId, walletAddress) =>
     setSyncError(null);
 
     // Show initial loading toast
-    toast.loading('Starting force sync...', { id: 'sync-progress' });
+    toast.loading('Starting full rescan...', { id: 'sync-progress' });
 
     try {
       const success = await forceSyncBalances(
@@ -91,7 +91,7 @@ export const useForceSyncBalances = (railgunWalletId, chainId, walletAddress) =>
       );
 
       if (success) {
-        toast.success('Force sync completed successfully!', { id: 'sync-progress' });
+        toast.success('Full rescan completed successfully!', { id: 'sync-progress' });
         
         // Update sync status
         updateLastSyncTime(railgunWalletId, chainId);
@@ -103,14 +103,14 @@ export const useForceSyncBalances = (railgunWalletId, chainId, walletAddress) =>
         
         return true;
       } else {
-        toast.error('Force sync failed. Please try again.', { id: 'sync-progress' });
-        setSyncError('Force sync failed');
+        toast.error('Full rescan failed. Please try again.', { id: 'sync-progress' });
+        setSyncError('Full rescan failed');
         return false;
       }
     } catch (error) {
-      console.error('Force sync error:', error);
+      console.error('Full rescan error:', error);
       setSyncError(error.message);
-      toast.error(`Sync failed: ${error.message}`, { id: 'sync-progress' });
+      toast.error(`Rescan failed: ${error.message}`, { id: 'sync-progress' });
       return false;
     } finally {
       setIsSyncing(false);
@@ -126,7 +126,7 @@ export const useForceSyncBalances = (railgunWalletId, chainId, walletAddress) =>
       setIsSyncing(false);
       setSyncProgress(null);
       toast.dismiss('sync-progress');
-      toast.error('Sync cancelled');
+      toast.error('Full rescan cancelled');
     }
   }, [isSyncing]);
 
@@ -139,21 +139,21 @@ export const useForceSyncBalances = (railgunWalletId, chainId, walletAddress) =>
 
     switch (stage) {
       case 'initializing':
-        return 'Initializing sync...';
-      case 'refreshing':
-        return 'Triggering Merkle tree refresh...';
+        return 'Initializing full rescan...';
+      case 'rescanning':
+        return 'Starting full UTXO rescan (ignoring validated index)...';
       case 'scanning':
-        return message || `Scanning: ${percent}%`;
+        return message || `Full rescan: ${percent}%`;
       case 'processing':
         return 'Processing balance updates...';
       case 'finalizing':
-        return 'Finalizing sync...';
+        return 'Finalizing rescan...';
       case 'complete':
-        return 'Sync completed!';
+        return 'Full rescan completed!';
       case 'error':
         return `Error: ${message}`;
       default:
-        return message || `Syncing: ${percent}%`;
+        return message || `Full rescanning: ${percent}%`;
     }
   }, [syncProgress]);
 

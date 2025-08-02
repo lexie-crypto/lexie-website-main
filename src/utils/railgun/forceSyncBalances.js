@@ -15,17 +15,21 @@ import { toast } from 'react-hot-toast';
  * @returns {Promise<boolean>} Success status
  */
 export const forceSyncBalances = async (railgunWalletId, chainId, walletAddress, onProgress = null) => {
-  console.log('[ForceSyncBalances] 🚀 Starting manual Merkle tree sync...', {
-    railgunWalletId: railgunWalletId?.slice(0, 8) + '...',
-    chainId,
-    walletAddress: walletAddress?.slice(0, 8) + '...',
-    timestamp: new Date().toISOString()
-  });
+      console.log('[ForceSyncBalances] 🚀 Starting FULL Merkle tree rescan (ignores validated index)...', {
+      railgunWalletId: railgunWalletId?.slice(0, 8) + '...',
+      chainId,
+      walletAddress: walletAddress?.slice(0, 8) + '...',
+      timestamp: new Date().toISOString(),
+      note: 'This will pick up new transactions past the validated index'
+    });
 
   try {
     // Step 1: Import required dependencies
     const { waitForRailgunReady } = await import('./engine.js');
-    const { refreshBalances } = await import('@railgun-community/wallet');
+    const { 
+      refreshBalances, 
+      rescanFullUTXOMerkletreesAndWallets 
+    } = await import('@railgun-community/wallet');
     const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
     const { 
       waitForMerkleScansComplete, 
@@ -75,19 +79,21 @@ export const forceSyncBalances = async (railgunWalletId, chainId, walletAddress,
       });
     }
 
-    // Step 5: Force refresh balances (this should trigger Merkle tree scans)
-    console.log('[ForceSyncBalances] 🔄 Triggering forced refreshBalances...');
+    // Step 5: Force FULL UTXO rescan (bypasses validated index checks)
+    console.log('[ForceSyncBalances] 🚨 Triggering FULL UTXO rescan - ignoring validated index...');
     
     if (onProgress) {
       onProgress({
-        stage: 'refreshing',
+        stage: 'rescanning',
         progress: 0.2,
-        message: 'Triggering Merkle tree refresh...'
+        message: 'Starting full UTXO rescan (ignoring validated index)...'
       });
     }
 
-    await refreshBalances(railgunChain, [railgunWalletId]);
-    console.log('[ForceSyncBalances] ✅ RefreshBalances call completed');
+    // Use rescanFullUTXOMerkletreesAndWallets instead of refreshBalances
+    // This forces a complete rescan that ignores "already synced to validated index" checks
+    await rescanFullUTXOMerkletreesAndWallets(railgunChain, [railgunWalletId]);
+    console.log('[ForceSyncBalances] ✅ Full UTXO rescan call completed - should pick up new transactions past validated index');
 
     // Step 6: Wait for Merkle scans to complete with progress monitoring
     console.log('[ForceSyncBalances] 📊 Monitoring Merkle tree scan completion...');
@@ -96,7 +102,7 @@ export const forceSyncBalances = async (railgunWalletId, chainId, walletAddress,
       onProgress({
         stage: 'scanning',
         progress: 0.3,
-        message: 'Waiting for Merkle tree scans to complete...'
+        message: 'Waiting for full Merkle tree rescan to complete (up to 2 minutes)...'
       });
     }
 
@@ -121,7 +127,7 @@ export const forceSyncBalances = async (railgunWalletId, chainId, walletAddress,
     window.addEventListener('railgun-txid-scan', scanProgressHandler);
 
     try {
-      const scansCompleted = await waitForMerkleScansComplete(railgunWalletId, 60000); // 60 second timeout
+      const scansCompleted = await waitForMerkleScansComplete(railgunWalletId, 120000); // 120 second timeout for full rescan
       
       // Remove progress listeners
       window.removeEventListener('railgun-utxo-scan', scanProgressHandler);
@@ -138,13 +144,13 @@ export const forceSyncBalances = async (railgunWalletId, chainId, walletAddress,
           });
         }
       } else {
-        console.warn('[ForceSyncBalances] ⚠️ Merkle scans timed out, but continuing...');
+        console.warn('[ForceSyncBalances] ⚠️ Full rescan timed out after 2 minutes, but continuing...');
         
         if (onProgress) {
           onProgress({
             stage: 'processing',
             progress: 0.8,
-            message: 'Scans timed out, processing available data...'
+            message: 'Full rescan timed out after 2 minutes, processing available data...'
           });
         }
       }
@@ -191,21 +197,22 @@ export const forceSyncBalances = async (railgunWalletId, chainId, walletAddress,
       onProgress({
         stage: 'complete',
         progress: 1.0,
-        message: 'Force sync completed successfully!'
+        message: 'Full rescan completed successfully!'
       });
     }
 
-    console.log('[ForceSyncBalances] 🎉 Force sync completed successfully!', {
+    console.log('[ForceSyncBalances] 🎉 Full rescan completed successfully - new transactions should now be visible!', {
       walletId: railgunWalletId?.slice(0, 8) + '...',
       chainId,
       networkName,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      note: 'Full UTXO rescan bypassed validated index checks'
     });
 
     return true;
 
   } catch (error) {
-    console.error('[ForceSyncBalances] ❌ Force sync failed:', {
+    console.error('[ForceSyncBalances] ❌ Full rescan failed:', {
       error: error.message,
       stack: error.stack,
       walletId: railgunWalletId?.slice(0, 8) + '...',
@@ -223,11 +230,11 @@ export const forceSyncBalances = async (railgunWalletId, chainId, walletAddress,
 
     // Show user-friendly error message
     if (error.message.includes('network')) {
-      toast.error('Network error during sync. Please check your connection and try again.');
+      toast.error('Network error during full rescan. Please check your connection and try again.');
     } else if (error.message.includes('timeout')) {
-      toast.error('Sync timed out. Your balances may still update in the background.');
+      toast.error('Full rescan timed out. Your balances may still update in the background.');
     } else {
-      toast.error(`Sync failed: ${error.message}`);
+      toast.error(`Full rescan failed: ${error.message}`);
     }
 
     return false;
