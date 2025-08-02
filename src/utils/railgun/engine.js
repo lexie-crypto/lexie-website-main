@@ -154,47 +154,16 @@ const setupNetworks = async () => {
 };
 
 /**
- * Setup balance update callbacks
- * Following the private balances documentation
+ * Setup balance update callbacks using the new SDK callbacks system
  */
 const setupBalanceCallbacks = async () => {
-  console.log('[RAILGUN] 🔧 Setting up balance callbacks...');
+  console.log('[RAILGUN] 🔧 Setting up official SDK callbacks...');
   
-  // Use the OFFICIAL RAILGUN SDK callback system - pass through directly
-  const { handleBalanceUpdateCallback } = await import('./balances.js');
-  setOnBalanceUpdateCallback(handleBalanceUpdateCallback);
-
-  // UTXO Merkletree scan callback
-  setOnUTXOMerkletreeScanCallback((scanData) => {
-    console.log('[RAILGUN] UTXO Merkletree scan progress:', scanData);
-    
-    // Check if scan is completed
-    if (scanData.progress >= 1.0 || scanData.scanStatus === 'Complete') {
-      console.log('[RAILGUN] 🎉 UTXO Merkletree scan COMPLETED! This should trigger balance updates.');
-    }
-    
-    // Dispatch custom event for UI to listen to
-    window.dispatchEvent(new CustomEvent('railgun-utxo-scan', {
-      detail: scanData
-    }));
-  });
-
-  // TXID Merkletree scan callback  
-  setOnTXIDMerkletreeScanCallback((scanData) => {
-    console.log('[RAILGUN] TXID Merkletree scan progress:', scanData);
-    
-    // Check if scan is completed
-    if (scanData.progress >= 1.0 || scanData.scanStatus === 'Complete') {
-      console.log('[RAILGUN] 🎉 TXID Merkletree scan COMPLETED! This should trigger balance updates.');
-    }
-    
-    // Dispatch custom event for UI to listen to
-    window.dispatchEvent(new CustomEvent('railgun-txid-scan', {
-      detail: scanData
-    }));
-  });
-
-  console.log('[RAILGUN] Balance callbacks configured');
+  // Use the new enhanced SDK callbacks system
+  const { initializeSDKCallbacks } = await import('./sdk-callbacks.js');
+  await initializeSDKCallbacks();
+  
+  console.log('[RAILGUN] ✅ Official SDK callbacks configured with spendable note tracking');
 };
 
 // Helper to get network name from chain
@@ -318,16 +287,7 @@ const startEngine = async () => {
       console.warn('[RAILGUN] ⚠️ POI validation failed, but engine will handle POI errors gracefully:', poiError);
     }
     
-    // Step 7: Setup balance update callback
-    console.log('[RAILGUN] 🔄 Setting up balance update callbacks...');
-    try {
-      const { handleBalanceUpdateCallback } = await import('./balances.js');
-      setOnBalanceUpdateCallback(handleBalanceUpdateCallback);
-      console.log('[RAILGUN] ✅ Balance update callback registered successfully');
-    } catch (callbackError) {
-      console.warn('[RAILGUN] ⚠️ Failed to register balance update callback:', callbackError);
-      // Continue without callback - this is not critical for engine start
-    }
+    // Balance callbacks are now set up in setupBalanceCallbacks() above
     
     console.log('[RAILGUN] 🎉 Engine initialization completed');
 

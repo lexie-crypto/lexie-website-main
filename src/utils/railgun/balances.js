@@ -113,31 +113,28 @@ export const parseTokenAmount = (amount, decimals) => {
 
 /**
  * Handle balance update callback from Railgun SDK
- * This integrates with useBalances hook to update UI state
+ * DEPRECATED: This function forwards to the enhanced SDK callback system
  * @param {Object} balancesEvent - Balance update event from Railgun SDK
  */
 export const handleBalanceUpdateCallback = async (balancesEvent) => {
+  console.warn('[RailgunBalances] ⚠️ Using deprecated balance update callback - forwarding to enhanced SDK callbacks');
+  
   try {
-    console.log('[RailgunBalances] 🎯 Balance update callback fired:', {
-      walletID: balancesEvent.railgunWalletID?.slice(0, 8) + '...',
-      chainId: balancesEvent.chain?.id,
-      chainType: balancesEvent.chain?.type,
-      bucket: balancesEvent.balanceBucket,
-      erc20Count: balancesEvent.erc20Amounts?.length || 0,
-      nftCount: balancesEvent.nftAmounts?.length || 0
-    });
-
-    // Dispatch custom event for useBalances hook to listen to
+    // Forward to the new enhanced callback system
+    const { handleBalanceUpdateCallback: enhancedCallback } = await import('./sdk-callbacks.js');
+    await enhancedCallback(balancesEvent);
+    
+  } catch (error) {
+    console.error('[RailgunBalances] ❌ Error forwarding to enhanced callback:', error);
+    
+    // Fallback to basic dispatch
     const event = new CustomEvent('railgun-balance-update', {
       detail: balancesEvent
     });
     
-    window.dispatchEvent(event);
-    
-    console.log('[RailgunBalances] ✅ Balance update event dispatched to UI');
-    
-  } catch (error) {
-    console.error('[RailgunBalances] ❌ Error handling balance update callback:', error);
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(event);
+    }
   }
 };
 
