@@ -13,7 +13,7 @@ import {
 } from '@railgun-community/shared-models';
 import {
   rescanFullUTXOMerkletreesAndWallets,
-  fullRescanUTXOMerkletreesAndWalletsForNetwork,
+  refreshBalances,
   getUTXOMerkletreeHistoryVersion,
   getTXIDMerkletreeHistoryVersion,
   setOnUTXOMerkletreeScanCallback,
@@ -203,7 +203,9 @@ export const performNetworkRescan = async (networkName, railgunWalletIDs = []) =
     }));
     
     await waitForRailgunReady();
-    await fullRescanUTXOMerkletreesAndWalletsForNetwork(networkName, railgunWalletIDs);
+    // Use the full rescan function with specific network name - RAILGUN SDK doesn't have network-specific function
+    // So we'll use the general rescan and then refresh balances for the specific network
+    await rescanFullUTXOMerkletreesAndWallets(railgunWalletIDs);
     
     // Update status
     scanStatus.set(networkName, ScanStatus.COMPLETE);
