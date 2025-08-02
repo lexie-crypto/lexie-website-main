@@ -756,11 +756,8 @@ export const unshieldTokens = async ({
       let hasSpendableBalance = false;
       try {
         // Import wallet functions with proper error handling
-        const walletModule = await import('@railgun-community/wallet');
-        const sharedModels = await import('@railgun-community/shared-models');
-        
-        const getWalletForID = walletModule.getWalletForID;
-        const TXIDVersion = sharedModels.TXIDVersion;
+        const { getWalletForID } = await import('@railgun-community/wallet');
+        const { TXIDVersion } = await import('@railgun-community/shared-models');
         
         if (!getWalletForID || !TXIDVersion) {
           throw new Error('Required wallet functions not available');
@@ -833,12 +830,9 @@ export const unshieldTokens = async ({
               retryCount++;
               console.log(`⚡ [UNSHIELD DEBUG] Attempt ${retryCount}/${maxRetries} - Forcing SDK spendability with proper scan monitoring...`);
               
-              // Import SDK functions
-              const walletModule = await import('@railgun-community/wallet');
-              const sharedModels = await import('@railgun-community/shared-models');
-              const refreshBalances = walletModule.refreshBalances;
-              const getWalletForID = walletModule.getWalletForID;
-              const TXIDVersion = sharedModels.TXIDVersion;
+              // Import SDK functions  
+              const { refreshBalances, getWalletForID } = await import('@railgun-community/wallet');
+              const { TXIDVersion } = await import('@railgun-community/shared-models');
               
               // STEP 1: Monitor scan completion status before hammering
               console.log('👀 [UNSHIELD DEBUG] Monitoring merkle tree scan completion...');
