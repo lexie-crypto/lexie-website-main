@@ -837,7 +837,7 @@ export const unshieldTokens = async ({
               
               console.log('🔍 [UNSHIELD DEBUG] Import completed, extracting functions...', {
                 walletModuleType: typeof walletModule,
-                walletModuleKeys: Object.keys(walletModule).slice(0, 15), // More keys
+                walletModuleKeys: Object.keys(walletModule), // Show ALL keys to find the right function
                 hasRefreshBalances: 'refreshBalances' in walletModule,
                 hasGetWalletForID: 'getWalletForID' in walletModule,
                 sharedModuleType: typeof sharedModule,
@@ -846,7 +846,20 @@ export const unshieldTokens = async ({
               
               // Use the working import pattern from line 758
               const walletImport = await import('@railgun-community/wallet');
-              const { refreshBalances, getWalletForID } = walletImport;
+              
+              // Try different possible function names for getting wallet
+              console.log('🔍 [UNSHIELD DEBUG] Looking for wallet getter function:', {
+                getWalletForID: typeof walletImport.getWalletForID,
+                getWallet: typeof walletImport.getWallet,
+                getRailgunWallet: typeof walletImport.getRailgunWallet,
+                getWalletById: typeof walletImport.getWalletById,
+                findWallet: typeof walletImport.findWallet,
+                wallet: typeof walletImport.wallet,
+                Wallet: typeof walletImport.Wallet
+              });
+              
+              const { refreshBalances } = walletImport;
+              const getWalletForID = walletImport.getWalletForID || walletImport.getWallet || walletImport.getRailgunWallet || walletImport.getWalletById;
               const { TXIDVersion } = sharedModule;
               
               console.log('🔍 [UNSHIELD DEBUG] Functions extracted:', {
