@@ -1,15 +1,4 @@
 import {
-  Chain,
-  AbstractWallet,
-  TokenType,
-  TokenBalances,
-  NFTTokenData,
-  getTokenDataHash,
-  getTokenDataNFT,
-  getTokenDataERC20,
-  POIProofEventStatus,
-} from '@railgun-community/engine';
-import {
   RailgunBalancesEvent,
   POIProofProgressEvent,
   RailgunNFTAmount,
@@ -22,10 +11,50 @@ import {
   isDefined,
   networkForChain,
 } from '@railgun-community/shared-models';
-import { sendErrorMessage, sendMessage } from '../../../utils/logger';
-import { parseRailgunTokenAddress } from '../util/bytes';
-import { POIRequired } from '../../poi/poi-required';
-import { getEngine } from '../core/engine';
+import { sendErrorMessage, sendMessage } from './logger.js';
+// Utility functions
+const parseRailgunTokenAddress = (tokenAddress) => {
+  // Simple implementation - convert to standard address format
+  if (typeof tokenAddress === 'string') {
+    return tokenAddress;
+  }
+  // If it's a bytes array or other format, convert to hex string
+  if (tokenAddress && tokenAddress.length) {
+    return '0x' + Array.from(tokenAddress).map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  return tokenAddress;
+};
+
+// TokenType constants (replacing @railgun-community/engine import)
+const TokenType = {
+  ERC20: 0,
+  ERC721: 1, 
+  ERC1155: 2,
+};
+
+// Utility functions (simplified versions replacing @railgun-community/engine imports)
+const getTokenDataHash = (tokenData) => {
+  // Simple implementation for token data hashing
+  return `${tokenData.tokenAddress}_${tokenData.tokenSubID || '0'}`;
+};
+
+const getTokenDataNFT = (tokenAddress, tokenSubID, nftTokenType) => {
+  return {
+    tokenAddress,
+    tokenSubID,
+    tokenType: nftTokenType,
+  };
+};
+
+const getTokenDataERC20 = (tokenAddress) => {
+  return {
+    tokenAddress,
+    tokenType: TokenType.ERC20,
+  };
+};
+
+// Type placeholder for NFTTokenData (for JSDoc)
+const NFTTokenData = {};
 
 let onBalanceUpdateCallback;
 
@@ -121,9 +150,16 @@ export const onBalancesUpdate = async (txidVersion, wallet, chain) => {
     if (!network) {
       return;
     }
-    if (!(await POIRequired.isRequiredForNetwork(network.name))) {
-      // POI not required for this network
-      return getAllBalancesAsSpendable(txidVersion, wallet, chain);
+    // Check if POI is required for this network (dynamic import to avoid circular dependencies)
+    try {
+      const { POIRequired } = await import('@railgun-community/wallet');
+      if (!(await POIRequired.isRequiredForNetwork(network.name))) {
+        // POI not required for this network
+        return getAllBalancesAsSpendable(txidVersion, wallet, chain);
+      }
+    } catch (error) {
+      console.warn('[BalanceUpdate] POI check failed, assuming POI required:', error.message);
+      // Continue with POI-required flow as fallback
     }
 
     // POI required for this network

@@ -16,6 +16,8 @@ import {
   fullRescanUTXOMerkletreesAndWalletsForNetwork,
   getUTXOMerkletreeHistoryVersion,
   getTXIDMerkletreeHistoryVersion,
+  setOnUTXOMerkletreeScanCallback,
+  setOnTXIDMerkletreeScanCallback,
 } from '@railgun-community/wallet';
 import { waitForRailgunReady } from './engine.js';
 import { setOnBalanceUpdateCallback } from './balance-update.js';
@@ -319,12 +321,13 @@ export const getScanningSummary = () => {
 };
 
 /**
- * Setup scanning progress callbacks and official SDK balance callbacks
+ * Setup official Railgun SDK callbacks for balance updates and Merkle tree scan progress
  * ⚠️ IMPORTANT: Call this once during app startup after initializeEngine()
- * This ensures the SDK emits RailgunBalancesEvent into our app via railgun-balance-update
+ * This ensures the SDK emits RailgunBalancesEvent and MerkletreeScanUpdateEvent directly into our app
+ * Following official docs: https://docs.railgun.org/developer-guide/wallet/private-balances/balance-and-sync-callbacks
  */
 export const setupScanningCallbacks = () => {
-  console.log('[ScanningService] Setting up comprehensive scanning and balance callbacks...');
+  console.log('[ScanningService] Setting up official Railgun SDK callbacks for real-time balance and scan updates...');
   
   // ✅ Balance updates from official Railgun SDK
   /**
@@ -355,43 +358,47 @@ export const setupScanningCallbacks = () => {
     console.log('[ScanningService] ✅ Balance update processed and dispatched');
   });
 
-  // ✅ UTXO scan progress tracking
-  /**
-   * @param {CustomEvent} event - Event with { networkName: string, scanData: MerkletreeScanUpdateEvent }
-   */
-  window.addEventListener('railgun-utxo-scan', (event) => {
-    const { networkName, scanData } = event.detail;
+  // ✅ Official UTXO Merkle tree scan progress callback from Railgun SDK
+  setOnUTXOMerkletreeScanCallback((event) => {
+    console.log(`[ScanningService] 📊 UTXO scan progress: ${event.progress * 100}%`);
     
-    if (scanData && networkName) {
+    // Update internal progress tracking
+    const networkName = event.chain?.name;
+    if (networkName) {
       const currentProgress = getScanProgress(networkName);
       scanProgress.set(networkName, {
         ...currentProgress,
-        utxo: scanData.progressPercent || 0,
+        utxo: event.progress * 100 || 0,
       });
-      
-      console.log(`[ScanningService] 📊 UTXO scan progress for ${networkName}: ${scanData.progressPercent}%`);
     }
-  });
-  
-  // ✅ TXID scan progress tracking
-  /**
-   * @param {CustomEvent} event - Event with { networkName: string, scanData: MerkletreeScanUpdateEvent }
-   */
-  window.addEventListener('railgun-txid-scan', (event) => {
-    const { networkName, scanData } = event.detail;
     
-    if (scanData && networkName) {
+    // Dispatch custom event for UI compatibility
+    window.dispatchEvent(new CustomEvent('railgun-utxo-scan', {
+      detail: { networkName: event.chain?.name, scanData: event },
+    }));
+  });
+
+  // ✅ Official TXID Merkle tree scan progress callback from Railgun SDK
+  setOnTXIDMerkletreeScanCallback((event) => {
+    console.log(`[ScanningService] 📊 TXID scan progress: ${event.progress * 100}%`);
+    
+    // Update internal progress tracking
+    const networkName = event.chain?.name;
+    if (networkName) {
       const currentProgress = getScanProgress(networkName);
       scanProgress.set(networkName, {
         ...currentProgress,
-        txid: scanData.progressPercent || 0,
+        txid: event.progress * 100 || 0,
       });
-      
-      console.log(`[ScanningService] 📊 TXID scan progress for ${networkName}: ${scanData.progressPercent}%`);
     }
+    
+    // Dispatch custom event for UI compatibility
+    window.dispatchEvent(new CustomEvent('railgun-txid-scan', {
+      detail: { networkName: event.chain?.name, scanData: event },
+    }));
   });
   
-  console.log('[ScanningService] ✅ Comprehensive scanning and balance callbacks setup complete');
+  console.log('[ScanningService] ✅ Official Railgun SDK callbacks registered - real-time balance and scan updates enabled');
 };
 
 /**
