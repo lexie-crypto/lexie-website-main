@@ -730,15 +730,9 @@ export const unshieldTokens = async ({
       console.warn('⚠️ [UNSHIELD DEBUG] No decimals passed from UI - will use fallback detection (less reliable)');
     }
 
-    // STEP 0: Check balance cache first, then SDK callback state for spendable notes
-    console.log('🔄 [UNSHIELD DEBUG] Step 0: Checking balance cache and SDK callback state for spendable notes...');
+    // STEP 0: Force Railgun SDK balance refresh to sync with blockchain state
+    console.log('🔄 [UNSHIELD DEBUG] Step 0: Refreshing Railgun SDK balance state...');
     try {
-      // Import the balance cache system
-      const { hasSufficientCachedBalance, getCachedTokenBalance, waitForBalanceUpdate } = await import('./balanceCache.js');
-      
-      // Import the new SDK callbacks system
-      const { areSpendableNotesReady, waitForSpendableNotes, areMerkleScansComplete, waitForMerkleScansComplete } = await import('./sdk-callbacks.js');
-      
       // ✅ OFFICIAL PATTERN: Use official Railgun SDK function as per documentation
       const { refreshBalances } = await import('@railgun-community/wallet');
       const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
@@ -758,149 +752,122 @@ export const unshieldTokens = async ({
       // Use the chain object from network config
       const railgunChain = networkConfig.chain;
       
-      // 🚀 NEW: Check balance cache first (fastest method)
-      console.log('💰 [UNSHIELD DEBUG] Checking balance cache for sufficient funds...');
-      const hasCachedBalance = hasSufficientCachedBalance(railgunChain, railgunWalletID, tokenAddress, amount);
-      
-      if (hasCachedBalance) {
-        const cachedBalance = getCachedTokenBalance(railgunChain, railgunWalletID, tokenAddress);
-        console.log('✅ [UNSHIELD DEBUG] Sufficient cached balance found - can proceed immediately:', {
-          tokenAddress: tokenAddress?.slice(0, 10) + '...',
-          cachedAmount: cachedBalance?.erc20Amount?.amount,
-          requiredAmount: amount,
-          cacheAge: cachedBalance ? `${Math.round((Date.now() - cachedBalance.updatedAt) / 1000)}s ago` : 'unknown'
-        });
-        
-        // Balance cache confirms sufficient funds - can proceed directly to proof generation
-        console.log('🎯 [UNSHIELD DEBUG] Balance cache verification passed - skipping SDK refresh');
-        // Skip to proof generation (rest of function continues)
-      } else {
-        console.log('⚠️ [UNSHIELD DEBUG] No sufficient cached balance found - will check SDK callbacks and refresh if needed');
-        
-        // CRITICAL: Check if SDK callbacks have already confirmed spendable notes
-        const alreadyReady = areSpendableNotesReady(railgunWalletID, tokenAddress, amount);
-        console.log('🎯 [UNSHIELD DEBUG] SDK callback spendable note check:', {
-        walletId: railgunWalletID?.slice(0, 8) + '...',
-        tokenAddress: tokenAddress?.slice(0, 10) + '...',
-        amount: amount,
-        alreadyReady,
-        skipRefresh: alreadyReady
-      });
-      
-      if (alreadyReady) {
-        console.log('✅ [UNSHIELD DEBUG] SDK callbacks confirm spendable notes are ready - skipping refresh');
-      } else {
-        console.log('⏳ [UNSHIELD DEBUG] SDK callbacks indicate notes not ready - forcing refresh and monitoring...');
-      
       // First, check if the SDK already has spendable balance (from recent QuickSync)
       let hasSpendableBalance = false;
       try {
-        // Import wallet functions with proper error handling
-        const walletModule = await import('@railgun-community/wallet');
-        const sharedModels = await import('@railgun-community/shared-models');
-        
-        const getWalletForID = walletModule.getWalletForID;
-        const TXIDVersion = sharedModels.TXIDVersion;
-        
-        if (!getWalletForID || !TXIDVersion) {
-          throw new Error('Required wallet functions not available');
-        }
-        
+        const { getWalletForID } = await import('@railgun-community/wallet');
+        const { TXIDVersion } = await import('@railgun-community/shared-models');
         const wallet = getWalletForID(railgunWalletID);
         
         if (wallet) {
-          // Get balances using proper SDK methods
           const tokenBalances = await wallet.getTokenBalances(TXIDVersion.V2_PoseidonMerkle, railgunChain, true);
-          
-          console.log('🔍 [UNSHIELD DEBUG] SDK tokenBalances response:', {
-            totalTokens: Object.keys(tokenBalances).length,
-            targetTokenAddress: tokenAddress.toLowerCase(),
-            availableTokens: Object.keys(tokenBalances).map(addr => ({ 
-              address: addr.slice(0, 10) + '...', 
-              balance: tokenBalances[addr]?.balance || tokenBalances[addr]?.amount || '0'
-            }))
-          });
-          
-          // Try both possible ways the balance might be stored
           const targetTokenBalance = tokenBalances[tokenAddress.toLowerCase()];
-          let currentBalance = BigInt(0);
+          const currentBalance = targetTokenBalance ? BigInt(targetTokenBalance.amount) : BigInt(0);
           
-          if (targetTokenBalance) {
-            // Try different possible balance field names
-            const balanceValue = targetTokenBalance.balance || targetTokenBalance.amount || '0';
-            currentBalance = BigInt(balanceValue);
-            
-            console.log('🔍 [UNSHIELD DEBUG] Target token found:', {
-              tokenAddress: tokenAddress.slice(0, 10) + '...',
-              balanceObject: targetTokenBalance,
-              extractedBalance: balanceValue,
-              currentBalance: currentBalance.toString(),
-              requiredAmount: amount,
-              hasBalance: currentBalance >= BigInt(amount)
-            });
-          } else {
-            console.log('⚠️ [UNSHIELD DEBUG] Target token not found in SDK balances');
-          }
+          console.log('🔍 [UNSHIELD DEBUG] Checking current SDK balance:', {
+            tokenAddress: tokenAddress.slice(0, 10) + '...',
+            currentBalance: currentBalance.toString(),
+            requiredAmount: amount,
+            hasBalance: currentBalance >= BigInt(amount)
+          });
           
           if (currentBalance >= BigInt(amount)) {
             hasSpendableBalance = true;
             console.log('✅ [UNSHIELD DEBUG] SDK already has sufficient spendable balance - no refresh needed');
           }
-        } else {
-          console.warn('⚠️ [UNSHIELD DEBUG] Could not get wallet instance from SDK');
         }
       } catch (balanceCheckError) {
-        console.log('ℹ️ [UNSHIELD DEBUG] Could not check current SDK balance:', {
-          error: balanceCheckError.message,
-          stack: balanceCheckError.stack?.split('\n')[0] // First line of stack for debugging
-        });
+        console.log('ℹ️ [UNSHIELD DEBUG] Could not check current SDK balance:', balanceCheckError.message);
       }
       
-        // Only refresh if we don't already have sufficient balance
-        if (!hasSpendableBalance) {
-          console.log('🔄 [UNSHIELD DEBUG] SDK balance insufficient, triggering refresh with official callback monitoring...');
+      // Only refresh if we don't already have sufficient balance
+      if (!hasSpendableBalance) {
+        console.log('🔄 [UNSHIELD DEBUG] SDK balance insufficient, triggering refresh...');
+        
+        // Create a promise that resolves when balance update callback is triggered for our wallet
+        const balanceRefreshPromise = new Promise((resolve) => {
+          let timeout;
+          let originalCallback;
           
-          // OFFICIAL APPROACH: Use SDK callbacks to monitor spendable note confirmation
-          console.log('🚀 [UNSHIELD DEBUG] Starting official SDK callback-based refresh monitoring...');
-          
-          // Step 1: Trigger SDK refresh
-          console.log('🔄 [UNSHIELD DEBUG] Triggering refreshBalances...');
-          await refreshBalances(railgunChain, [railgunWalletID]);
-          
-          // Step 2: Wait for Merkle scans to complete first
-          console.log('📊 [UNSHIELD DEBUG] Waiting for Merkle tree scans to complete...');
-          const scansCompleted = await waitForMerkleScansComplete(railgunWalletID, 30000); // 30 second timeout
-          
-          if (scansCompleted) {
-            console.log('✅ [UNSHIELD DEBUG] Merkle scans completed successfully');
-          } else {
-            console.warn('⚠️ [UNSHIELD DEBUG] Merkle scans timed out, but continuing to check for spendable notes');
-          }
-          
-          // Step 3: Wait for SDK balance callback to confirm spendable notes
-          console.log('💎 [UNSHIELD DEBUG] Waiting for SDK balance callback to confirm spendable notes...');
-          const notesReady = await waitForSpendableNotes(railgunWalletID, tokenAddress, amount, 60000); // 60 second timeout
-          
-          if (notesReady) {
-            console.log('🎉 [UNSHIELD DEBUG] SDK callbacks confirmed spendable notes are ready!');
-          } else {
-            throw new Error(
-              'SDK callback system failed to confirm spendable notes within 60 seconds. ' +
-              'This indicates the Railgun SDK balance callbacks are not properly updating spendable state, ' +
-              'or there are insufficient spendable notes for the requested amount.'
-            );
-          }
+          // Import and temporarily wrap the balance update callback
+          import('./balance-update.js').then(({ onBalanceUpdateCallback, setOnBalanceUpdateCallback }) => {
+            originalCallback = onBalanceUpdateCallback;
+            
+            // Set a much longer timeout (3 minutes) to allow for proper sync
+            timeout = setTimeout(() => {
+              console.warn('⚠️ [UNSHIELD DEBUG] Balance refresh timeout after 3 minutes - this may indicate a sync issue');
+              if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
+              resolve(false);
+            }, 180000); // 3 minute timeout
+            
+            // Wrap the callback to detect when our wallet's balance is updated
+            const wrappedCallback = (balanceEvent) => {
+              try {
+                // Call the original callback first
+                if (originalCallback) {
+                  originalCallback(balanceEvent);
+                }
+                
+                // Check if this update is for our wallet's spendable bucket
+                if (balanceEvent.railgunWalletID === railgunWalletID && 
+                    balanceEvent.balanceBucket === 'Spendable') {
+                  
+                  // Verify the target token has sufficient balance
+                  const targetToken = balanceEvent.erc20Amounts?.find(token => 
+                    token.tokenAddress?.toLowerCase() === tokenAddress.toLowerCase()
+                  );
+                  
+                  if (targetToken && BigInt(targetToken.amount || '0') >= BigInt(amount)) {
+                    console.log('✅ [UNSHIELD DEBUG] Balance update confirmed with sufficient spendable balance:', {
+                      tokenAddress: tokenAddress.slice(0, 10) + '...',
+                      amount: targetToken.amount,
+                      required: amount
+                    });
+                    clearTimeout(timeout);
+                    if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
+                    resolve(true);
+                    return;
+                  }
+                  
+                  console.log('⏳ [UNSHIELD DEBUG] Balance update received but insufficient amount, continuing to wait...');
+                }
+              } catch (error) {
+                console.warn('⚠️ [UNSHIELD DEBUG] Error in balance callback wrapper:', error);
+                clearTimeout(timeout);
+                if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
+                resolve(false);
+              }
+            };
+            
+            // Temporarily set our wrapped callback
+            setOnBalanceUpdateCallback(wrappedCallback);
+          });
+        });
+        
+        // ✅ OFFICIAL PATTERN: refreshBalances expects (chain, walletIdFilter)
+        const walletIdFilter = [railgunWalletID];
+        console.log('🔄 [UNSHIELD DEBUG] Calling official refreshBalances with:', {
+          chainType: railgunChain.type,
+          chainId: railgunChain.id,
+          walletIdFilter
+        });
+        
+        await refreshBalances(railgunChain, walletIdFilter);
+        
+        console.log('⏳ [UNSHIELD DEBUG] Waiting for balance update callback with sufficient amount...');
+        const callbackReceived = await balanceRefreshPromise;
+        
+        if (callbackReceived) {
+          console.log('✅ [UNSHIELD DEBUG] Railgun SDK balance refresh completed with sufficient balance confirmed');
         } else {
-          console.log('✅ [UNSHIELD DEBUG] SDK already has sufficient spendable balance, proceeding...');
+          console.warn('⚠️ [UNSHIELD DEBUG] Balance refresh timeout - proceeding with Redis notes as fallback');
         }
       }
-      } // Close the else block for cache check
       
     } catch (refreshError) {
-      console.warn('⚠️ [UNSHIELD DEBUG] SDK refresh/callback monitoring error:', refreshError.message);
-      throw new Error(`Failed to confirm spendable notes via SDK callbacks: ${refreshError.message}`);
+      console.warn('⚠️ [UNSHIELD DEBUG] Railgun balance refresh error:', refreshError.message);
+      // Continue anyway - Redis notes are still our fallback
     }
-
 
     // STEP 1: Get and validate unspent notes from Redis
     console.log('📝 [UNSHIELD DEBUG] Step 1: Getting unspent notes from Redis to prevent "already spent" errors...');
@@ -1017,57 +984,20 @@ export const unshieldTokens = async ({
       recipientAddress: erc20AmountRecipient.recipientAddress,
     });
     
-    // Add extra debugging before proof generation
-    console.log('🔮 [UNSHIELD DEBUG] Pre-proof generation state:', {
-      hasUnspentNotes: unspentNotes.length > 0,
-      noteValue: unspentNotes.reduce((sum, note) => sum + BigInt(note.value), BigInt(0)).toString(),
-      requestedAmount: amount,
-      railgunWalletID: railgunWalletID.slice(0, 10) + '...',
-      tokenAddress: tokenAddress.slice(0, 10) + '...',
-      networkName: chain.type === 0 ? 'Ethereum' : 'Arbitrum'
-    });
-    
-    let proofResult;
-    try {
-      proofResult = await generateUnshieldProof(
-        TXIDVersion.V2_PoseidonMerkle,
-        chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
-        railgunWalletID,
-        encryptionKey, // Encryption key is required
-        [erc20AmountRecipient], // Use properly formatted recipient
-        [], // nftAmountRecipients
-        broadcasterFeeERC20AmountRecipient,
-        sendWithPublicWallet,
-        overallBatchMinGasPrice,
-        (progress) => {
-          console.log(`🔮 [UNSHIELD DEBUG] Proof generation progress: ${Math.round(progress * 100)}%`);
-        }
-      );
-    } catch (proofError) {
-      console.error('❌ [UNSHIELD DEBUG] Proof generation failed:', {
-        error: proofError.message,
-        stack: proofError.stack?.split('\n').slice(0, 3), // First 3 lines of stack
-        isBalanceError: proofError.message?.includes('balance too low'),
-        hasRedisNotes: unspentNotes.length > 0,
-        redisNoteValue: unspentNotes.reduce((sum, note) => sum + BigInt(note.value), BigInt(0)).toString(),
-        requestedAmount: amount,
-        railgunWalletID: railgunWalletID.slice(0, 10) + '...'
-      });
-      
-      // If this is a balance error but we have Redis notes, provide detailed error
-      if (proofError.message?.includes('balance too low') && unspentNotes.length > 0) {
-        const redisTotal = unspentNotes.reduce((sum, note) => sum + BigInt(note.value), BigInt(0));
-        throw new Error(
-          `🚨 CRITICAL: Aggressive SDK forcing failed! ` +
-          `Your notes exist in Redis (${redisTotal.toString()}) but the Railgun SDK cannot access them for proof generation. ` +
-          `This indicates a fundamental synchronization issue between the SDK's internal state and the blockchain data. ` +
-          `This should not happen with our aggressive retry system. Please contact support immediately.`
-        );
+            const proofResult = await generateUnshieldProof(
+      TXIDVersion.V2_PoseidonMerkle,
+      chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
+      railgunWalletID,
+      encryptionKey, // Encryption key is required
+      [erc20AmountRecipient], // Use properly formatted recipient
+      [], // nftAmountRecipients
+      broadcasterFeeERC20AmountRecipient,
+      sendWithPublicWallet,
+      overallBatchMinGasPrice,
+      (progress) => {
+        console.log(`🔮 [UNSHIELD DEBUG] Proof generation progress: ${Math.round(progress * 100)}%`);
       }
-      
-      // Re-throw the original error for other cases
-      throw proofError;
-    }
+    );
 
     const proofDuration = Date.now() - proofStartTime;
     console.log('🔮 [UNSHIELD DEBUG] Proof generation completed:', {

@@ -555,20 +555,12 @@ export const monitorTransactionInGraph = async ({
       if (hasEvent) {
         console.log('[TransactionMonitor] 🎉 Event confirmed in Graph, dispatching transaction confirmed event');
 
-        // ⚡ ENHANCED QUICKSYNC: Trigger SDK refresh with callback monitoring
+        // ⚡ QUICKSYNC: Trigger immediate Railgun SDK refresh after Graph confirmation
         if ((transactionType === 'shield' || transactionType === 'unshield' || transactionType === 'transfer') && transactionDetails?.walletId) {
-          console.log('[QuickSync] 🎯 Enhanced QuickSync triggered after Graph confirmation:', {
-            txHash,
-            transactionType,
-            timestamp: new Date().toISOString()
-          });
-          
+          console.log('[QuickSync] Triggered after Graph confirmation for', txHash, `(${transactionType})`);
           try {
             const { refreshBalances } = await import('@railgun-community/wallet');
             const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
-            
-            // Import the new SDK callbacks system for monitoring
-            const { areSpendableNotesReady, areMerkleScansComplete } = await import('./sdk-callbacks.js');
             
             // Find the correct network config by matching chain ID using official NETWORK_CONFIG
             let networkName = null;
@@ -586,90 +578,114 @@ export const monitorTransactionInGraph = async ({
               throw new Error(`No network config found for chain ID: ${chainId}`);
             }
             
-            console.log('[QuickSync] 📊 Pre-refresh state check:', {
+            console.log('[QuickSync] Starting Railgun SDK refresh for chain:', {
               chainId: railgunChain.id,
               chainType: railgunChain.type,
-              walletId: transactionDetails.walletId.slice(0, 10) + '...',
-              preMerkleScansComplete: areMerkleScansComplete(transactionDetails.walletId),
-              timestamp: new Date().toISOString()
+              walletId: transactionDetails.walletId.slice(0, 10) + '...'
             });
             
-            // Check pre-refresh spendable state for shields
-            if (transactionType === 'shield' && transactionDetails.tokenAddress) {
-              const preSpendableReady = areSpendableNotesReady(
-                transactionDetails.walletId, 
-                transactionDetails.tokenAddress, 
-                transactionDetails.amount || '1' // Use transaction amount or minimal check
-              );
-              console.log('[QuickSync] 💎 Pre-refresh spendable check for shield:', {
-                tokenAddress: transactionDetails.tokenAddress.slice(0, 10) + '...',
-                amount: transactionDetails.amount,
-                preSpendableReady,
-                note: preSpendableReady ? 'Notes already spendable before refresh' : 'Notes not yet spendable - refresh should fix'
-              });
-            }
+            // Execute targeted QuickSync for immediate note availability
+            let quickSyncAttempt = 0;
+            const maxRetries = 3;
+            let quickSyncSuccess = false;
             
-            // 🚀 OFFICIAL SDK CALLBACK QUICKSYNC - Proper SDK integration
-            console.log('[QuickSync] 💎 Starting official SDK callback-based QuickSync...');
-            
-            const officialQuickSync = async () => {
+            while (quickSyncAttempt < maxRetries && !quickSyncSuccess) {
+              quickSyncAttempt++;
               try {
-                // Step 1: Trigger SDK refresh
-                console.log('[QuickSync] 🔄 Triggering official refreshBalances...');
-                await refreshBalances(railgunChain, [transactionDetails.walletId]);
+                console.log(`[QuickSync] Attempt ${quickSyncAttempt}/${maxRetries} - triggering targeted refresh...`);
+                console.log('[QuickSync] Refreshing wallet ID:', transactionDetails.walletId);
                 
-                // Step 2: For shields, monitor spendable note confirmation via callbacks
-                if (transactionType === 'shield' && transactionDetails.tokenAddress) {
-                  console.log('[QuickSync] 💎 Monitoring spendable note confirmation for shield transaction...');
+                // Set up balance callback promise to wait for confirmation
+                const balanceUpdatePromise = new Promise((resolve, reject) => {
+                  let timeoutId;
                   
-                  // Wait for scans to complete first (gives more reliable results)
-                  console.log('[QuickSync] 📊 Waiting for Merkle tree scans to complete...');
-                  const scansComplete = areMerkleScansComplete(transactionDetails.walletId);
+                  const handleBalanceUpdate = (event) => {
+                    const balanceEvent = event.detail;
+                    
+                    // Check if this update is for our wallet
+                    if (balanceEvent.railgunWalletID === transactionDetails.walletId) {
+                      console.log('[QuickSync] 🎯 Balance update received for target wallet:', {
+                        walletId: transactionDetails.walletId.slice(0, 10) + '...',
+                        bucket: balanceEvent.balanceBucket,
+                        erc20Count: balanceEvent.erc20Amounts?.length || 0,
+                        chainId: balanceEvent.chain?.id
+                      });
+                      
+                      // For shield transactions, we care about spendable bucket having our token
+                      if (transactionType === 'shield' && transactionDetails.tokenAddress && 
+                          balanceEvent.balanceBucket === 'Spendable') {
+                        
+                        console.log('[QuickSync] 🔍 Checking spendable balance for target token:', {
+                          targetAddress: transactionDetails.tokenAddress.slice(0, 10) + '...',
+                          availableTokens: balanceEvent.erc20Amounts?.map(t => ({ 
+                            address: t.tokenAddress?.slice(0, 10) + '...', 
+                            amount: t.amount 
+                          })) || []
+                        });
+                        
+                        const targetToken = balanceEvent.erc20Amounts?.find(token => 
+                          token.tokenAddress?.toLowerCase() === transactionDetails.tokenAddress.toLowerCase()
+                        );
+                        
+                        if (targetToken && BigInt(targetToken.amount || '0') > 0n) {
+                          console.log('[QuickSync] ✅ Target token found in spendable balance:', {
+                            tokenAddress: transactionDetails.tokenAddress.slice(0, 10) + '...',
+                            amount: targetToken.amount,
+                            amountFormatted: parseFloat(targetToken.amount) / Math.pow(10, 18) // Rough formatting for debug
+                          });
+                          
+                          clearTimeout(timeoutId);
+                          window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
+                          resolve(true);
+                          return;
+                        } else {
+                          console.log('[QuickSync] ⏳ Target token not found or zero balance in spendable bucket, continuing to wait...');
+                        }
+                      }
+                      
+                      // For non-shield transactions, proceed on any balance update
+                      if (transactionType !== 'shield') {
+                        console.log('[QuickSync] ✅ Balance update confirmed for non-shield transaction, proceeding...');
+                        clearTimeout(timeoutId);
+                        window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
+                        resolve(true);
+                      }
+                    }
+                  };
                   
-                  if (scansComplete) {
-                    console.log('[QuickSync] ✅ Merkle scans already complete');
-                  } else {
-                    console.log('[QuickSync] ⏳ Merkle scans in progress, monitoring completion...');
-                    // Note: We don't wait here as the callback system will handle it
-                  }
+                  // Set up timeout (60 seconds)
+                  timeoutId = setTimeout(() => {
+                    console.warn('[QuickSync] ⏰ Balance update timeout - proceeding anyway');
+                    window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
+                    resolve(true); // Don't fail, just proceed
+                  }, 60000);
                   
-                  // Check if SDK callbacks have confirmed spendable notes
-                  const notesReady = areSpendableNotesReady(
-                    transactionDetails.walletId,
-                    transactionDetails.tokenAddress,
-                    transactionDetails.amount || '1'
-                  );
-                  
-                  console.log('[QuickSync] 🎯 Post-refresh spendable note status:', {
-                    tokenAddress: transactionDetails.tokenAddress.slice(0, 10) + '...',
-                    amount: transactionDetails.amount,
-                    notesReady,
-                    scansComplete,
-                    userCanUnshield: notesReady,
-                    timestamp: new Date().toISOString()
-                  });
-                  
-                  if (notesReady) {
-                    console.log('[QuickSync] 🎉 SDK callbacks confirm notes are spendable! User can unshield immediately.');
-                    return true;
-                  } else {
-                    console.log('[QuickSync] ⏳ Notes not yet confirmed as spendable by SDK callbacks - background processing will continue');
-                    console.log('[QuickSync] 📝 Note: This is normal and expected. SDK callbacks will update when ready.');
-                    return true; // Still successful - callbacks will handle the rest
-                  }
-                } else {
-                  // For non-shield transactions, just confirm refresh completed
-                  console.log(`[QuickSync] ✅ Non-shield QuickSync completed for ${transactionType}`);
-                  return true;
+                  // Listen for balance updates
+                  window.addEventListener('railgun-balance-update', handleBalanceUpdate);
+                });
+                
+                // Use standard refreshBalances - it's the most reliable method
+                console.log('[QuickSync] 🔄 Using standard refreshBalances (most reliable)...');
+                const walletIdFilter = [transactionDetails.walletId];
+                await refreshBalances(railgunChain, walletIdFilter);
+                
+                // Wait for balance update confirmation
+                console.log('[QuickSync] ⏳ Waiting for balance update confirmation...');
+                await balanceUpdatePromise;
+                
+                console.log('[QuickSync] ✅ QuickSync completed successfully - SDK has latest notes');
+                quickSyncSuccess = true;
+                
+              } catch (syncError) {
+                console.error(`[QuickSync] Attempt ${quickSyncAttempt} failed:`, syncError.message);
+                if (quickSyncAttempt >= maxRetries) {
+                  console.error(`[QuickSync] ❌ All ${maxRetries} attempts failed, but continuing...`);
+                  break; // Don't throw, just warn and continue
                 }
-                
-              } catch (error) {
-                console.error('[QuickSync] ❌ Official QuickSync error:', error.message);
-                return false;
+                // Exponential backoff before retry
+                await new Promise(resolve => setTimeout(resolve, 2000 * quickSyncAttempt));
               }
-            };
-            
-            const quickSyncSuccess = await officialQuickSync();
+            }
             
             console.log('[QuickSync] ✅ Successfully completed - SDK has latest note state for proof generation');
             

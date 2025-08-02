@@ -250,74 +250,10 @@ export function useBalances() {
     }
   }, [address, chainId, fetchNativeBalance, fetchTokenBalance]);
 
-  // Load private balances from cache first, then Redis fallback
+  // Load private balances from Redis ONLY
   const loadPrivateBalancesFromMetadata = useCallback(async (walletAddress, railgunWalletId) => {
     try {
-      console.log('[useBalances] 🛡️ Loading private balances (cache first, then Redis fallback)...');
-      
-      // Step 1: Try to load from balance cache first
-      try {
-        const { getPrivateTokenBalanceCache } = await import('../utils/railgun/balanceCache.js');
-        const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
-        
-        // Find the chain config for current chainId
-        let railgunChain = null;
-        for (const [name, config] of Object.entries(NETWORK_CONFIG)) {
-          if (config.chain.id === chainId) {
-            railgunChain = config.chain;
-            break;
-          }
-        }
-        
-        if (railgunChain) {
-          const cachedBalances = getPrivateTokenBalanceCache(railgunChain, railgunWalletId);
-          
-          if (cachedBalances && cachedBalances.length > 0) {
-            console.log('[useBalances] 🚀 Found cached private balances:', {
-              chainId,
-              count: cachedBalances.length,
-              tokens: cachedBalances.map(b => `${b.erc20Amount.symbol || 'Unknown'}: ${b.erc20Amount.amount}`)
-            });
-            
-            // Convert cached balances to UI format
-            const privateBalancesFromCache = cachedBalances.map(cached => {
-              const token = cached.erc20Amount;
-              const numericBalance = parseFloat(formatUnits(token.amount || '0', token.decimals || 18));
-              
-              return {
-                symbol: token.symbol || 'Unknown',
-                address: token.tokenAddress,
-                tokenAddress: token.tokenAddress,
-                numericBalance,
-                formattedBalance: numericBalance.toFixed(6),
-                balance: numericBalance.toString(),
-                decimals: token.decimals || 18,
-                hasBalance: numericBalance > 0,
-                isPrivate: true,
-                lastUpdated: cached.updatedAt,
-                source: 'cache'
-              };
-            });
-            
-            // Filter out zero balances for cleaner UI
-            const nonZeroBalances = privateBalancesFromCache.filter(b => b.numericBalance > 0);
-            
-            if (nonZeroBalances.length > 0) {
-              console.log('[useBalances] ✅ Using cached private balances:', {
-                total: privateBalancesFromCache.length,
-                nonZero: nonZeroBalances.length
-              });
-              setPrivateBalances(nonZeroBalances);
-              return true;
-            }
-          }
-        }
-      } catch (cacheError) {
-        console.log('[useBalances] ℹ️ Cache lookup failed, falling back to Redis:', cacheError.message);
-      }
-      
-      // Step 2: Fallback to Redis if cache is empty or failed
-      console.log('[useBalances] 📦 Cache empty/failed, loading from Redis...');
+      console.log('[useBalances] 🛡️ Loading private balances from Redis...');
       
       const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(walletAddress)}`, {
         method: 'GET',
@@ -799,83 +735,6 @@ export function useBalances() {
       window.removeEventListener('railgun-balance-update', handleRailgunBalanceUpdate);
     };
   }, [calculateUSDValue]);
-
-  // Listen for balance cache updates
-  useEffect(() => {
-    const handleBalanceCacheUpdate = async (event) => {
-      const { chainId: currentChainId, railgunWalletId: currentWalletId, address: currentAddress } = stableRefs.current;
-      
-      console.log('[useBalances] 🚀 Balance cache update received:', {
-        walletId: event.detail?.walletId?.slice(0, 8) + '...',
-        chainId: event.detail?.chainId,
-        tokenCount: event.detail?.tokenCount,
-        currentWalletId: currentWalletId?.slice(0, 8) + '...',
-        currentChainId
-      });
-      
-      // Only process if it's for our current wallet and chain
-      if (event.detail?.walletId === currentWalletId && event.detail?.chainId === currentChainId && currentAddress) {
-        try {
-          console.log('[useBalances] 🔄 Processing balance cache update for current wallet...');
-          
-          // Load latest private balances (will check cache first)
-          const loadedSuccessfully = await loadPrivateBalancesFromMetadata(currentAddress, currentWalletId);
-          if (loadedSuccessfully) {
-            console.log('[useBalances] ✅ Balance cache update applied to UI');
-          }
-          
-        } catch (error) {
-          console.error('[useBalances] ❌ Balance cache update failed:', error);
-        }
-      }
-    };
-    
-    window.addEventListener('railgun-balance-cached', handleBalanceCacheUpdate);
-    return () => {
-      window.removeEventListener('railgun-balance-cached', handleBalanceCacheUpdate);
-    };
-  }, [loadPrivateBalancesFromMetadata]);
-
-  // Listen for force balance refresh events (from force sync)
-  useEffect(() => {
-    const handleForceBalanceRefresh = async (event) => {
-      const { chainId: currentChainId, railgunWalletId: currentWalletId, address: currentAddress } = stableRefs.current;
-      
-      console.log('[useBalances] ⚡ Force balance refresh triggered:', {
-        walletId: event.detail?.walletId?.slice(0, 8) + '...',
-        chainId: event.detail?.chainId,
-        source: event.detail?.source,
-        currentWalletId: currentWalletId?.slice(0, 8) + '...',
-        currentChainId
-      });
-      
-      // Only process if it's for our current wallet and chain
-      if (event.detail?.walletId === currentWalletId && event.detail?.chainId === currentChainId && currentAddress) {
-        try {
-          console.log('[useBalances] 🔄 Executing force refresh for current wallet...');
-          
-          // Refresh both public and private balances
-          await refreshAllBalances();
-          
-          // Load latest private balances from Redis
-          const loadedSuccessfully = await loadPrivateBalancesFromMetadata(currentAddress, currentWalletId);
-          if (loadedSuccessfully) {
-            console.log('[useBalances] ✅ Force refresh completed - private balances updated from Redis');
-          } else {
-            console.log('[useBalances] ℹ️ Force refresh completed - no private balances found in Redis');
-          }
-          
-        } catch (error) {
-          console.error('[useBalances] ❌ Force refresh failed:', error);
-        }
-      }
-    };
-    
-    window.addEventListener('force-balance-refresh', handleForceBalanceRefresh);
-    return () => {
-      window.removeEventListener('force-balance-refresh', handleForceBalanceRefresh);
-    };
-  }, [loadPrivateBalancesFromMetadata, refreshAllBalances]);
 
   // Listen for transaction confirmations (auto-refresh UI after confirmed transactions)
   useEffect(() => {
