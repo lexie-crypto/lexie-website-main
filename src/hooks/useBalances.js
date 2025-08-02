@@ -736,6 +736,47 @@ export function useBalances() {
     };
   }, [calculateUSDValue]);
 
+  // Listen for force balance refresh events (from force sync)
+  useEffect(() => {
+    const handleForceBalanceRefresh = async (event) => {
+      const { chainId: currentChainId, railgunWalletId: currentWalletId, address: currentAddress } = stableRefs.current;
+      
+      console.log('[useBalances] ⚡ Force balance refresh triggered:', {
+        walletId: event.detail?.walletId?.slice(0, 8) + '...',
+        chainId: event.detail?.chainId,
+        source: event.detail?.source,
+        currentWalletId: currentWalletId?.slice(0, 8) + '...',
+        currentChainId
+      });
+      
+      // Only process if it's for our current wallet and chain
+      if (event.detail?.walletId === currentWalletId && event.detail?.chainId === currentChainId && currentAddress) {
+        try {
+          console.log('[useBalances] 🔄 Executing force refresh for current wallet...');
+          
+          // Refresh both public and private balances
+          await refreshAllBalances();
+          
+          // Load latest private balances from Redis
+          const loadedSuccessfully = await loadPrivateBalancesFromMetadata(currentAddress, currentWalletId);
+          if (loadedSuccessfully) {
+            console.log('[useBalances] ✅ Force refresh completed - private balances updated from Redis');
+          } else {
+            console.log('[useBalances] ℹ️ Force refresh completed - no private balances found in Redis');
+          }
+          
+        } catch (error) {
+          console.error('[useBalances] ❌ Force refresh failed:', error);
+        }
+      }
+    };
+    
+    window.addEventListener('force-balance-refresh', handleForceBalanceRefresh);
+    return () => {
+      window.removeEventListener('force-balance-refresh', handleForceBalanceRefresh);
+    };
+  }, [loadPrivateBalancesFromMetadata, refreshAllBalances]);
+
   // Listen for transaction confirmations (auto-refresh UI after confirmed transactions)
   useEffect(() => {
     const handleTransactionConfirmed = async (event) => {

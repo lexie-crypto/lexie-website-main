@@ -16,10 +16,13 @@ import {
   XCircleIcon,
   ShieldCheckIcon,
   CurrencyDollarIcon,
+  ArrowPathIcon,
+  ClockIcon,
 } from '@heroicons/react/24/outline';
 
 import { useWallet } from '../contexts/WalletContext';
 import useBalances from '../hooks/useBalances';
+import useForceSyncBalances from '../hooks/useForceSyncBalances';
 import PrivacyActions from '../components/PrivacyActions';
 import TransactionHistory from '../components/TransactionHistory';
 import {
@@ -61,6 +64,18 @@ const WalletPage = () => {
     lastUpdateTime,
     loadPrivateBalancesFromMetadata, // Add this for Redis-only refresh
   } = useBalances();
+
+  // Force sync hook for manual Merkle tree sync
+  const {
+    isSyncing,
+    startForceSync,
+    progressMessage,
+    progressPercent,
+    timeSinceLastSync,
+    isSyncRecommended,
+    canSync,
+    syncError,
+  } = useForceSyncBalances(railgunWalletId, chainId, address);
 
   const [showPrivateMode, setShowPrivateMode] = useState(false);
   const [selectedView, setSelectedView] = useState('balances'); // 'balances', 'privacy', or 'history'
@@ -641,15 +656,118 @@ const WalletPage = () => {
                     Privacy Actions
                   </button>
                 )}
+                
+                {/* Regular Refresh Button */}
                 <button
                   onClick={refreshBalances}
                   disabled={isLoading || !isConnected}
-                  className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                  className="bg-gray-600 hover:bg-gray-700 disabled:bg-gray-800 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2"
                 >
-                  {isLoading ? 'Refreshing...' : 'Refresh'}
+                  <ArrowPathIcon className="h-4 w-4" />
+                  <span>{isLoading ? 'Refreshing...' : 'Refresh'}</span>
                 </button>
+
+                {/* Force Sync Button - Only show for Railgun users */}
+                {canUseRailgun && (
+                  <div className="relative">
+                    <button
+                      onClick={startForceSync}
+                      disabled={!canSync || isSyncing}
+                      className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center space-x-2 ${
+                        isSyncRecommended && !isSyncing
+                          ? 'bg-orange-600 hover:bg-orange-700 disabled:bg-orange-800 text-white'
+                          : 'bg-purple-600 hover:bg-purple-700 disabled:bg-purple-800 text-white'
+                      }`}
+                      title={isSyncRecommended ? 'Force sync recommended - may fix stale balances' : 'Force full Merkle tree sync'}
+                    >
+                      {isSyncing ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b border-white" />
+                          <span>Syncing...</span>
+                        </>
+                      ) : (
+                        <>
+                          <ArrowPathIcon className={`h-4 w-4 ${isSyncRecommended ? 'animate-pulse' : ''}`} />
+                          <span>Force Sync</span>
+                          {isSyncRecommended && (
+                            <div className="w-2 h-2 bg-orange-300 rounded-full animate-pulse" />
+                          )}
+                        </>
+                      )}
+                    </button>
+                    
+                    {/* Progress Indicator */}
+                    {isSyncing && progressPercent > 0 && (
+                      <div className="absolute -bottom-1 left-0 right-0">
+                        <div className="w-full bg-gray-700 rounded-full h-1">
+                          <div 
+                            className="bg-purple-400 h-1 rounded-full transition-all duration-300"
+                            style={{ width: `${progressPercent}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
+
+            {/* Force Sync Status */}
+            {canUseRailgun && (isSyncing || syncError || isSyncRecommended) && (
+              <div className="mb-4">
+                {isSyncing && (
+                  <div className="bg-blue-900 border border-blue-700 rounded-lg p-3">
+                    <div className="flex items-center space-x-3">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b border-blue-400" />
+                      <div>
+                        <div className="text-blue-100 font-medium text-sm">Force Sync in Progress</div>
+                        <div className="text-blue-200 text-xs">
+                          {progressMessage || 'Syncing with Railgun network...'}
+                        </div>
+                      </div>
+                      <div className="text-blue-300 text-sm font-mono">
+                        {progressPercent}%
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {syncError && !isSyncing && (
+                  <div className="bg-red-900 border border-red-700 rounded-lg p-3">
+                    <div className="flex items-center space-x-3">
+                      <XCircleIcon className="h-4 w-4 text-red-400" />
+                      <div>
+                        <div className="text-red-100 font-medium text-sm">Sync Failed</div>
+                        <div className="text-red-200 text-xs">{syncError}</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {isSyncRecommended && !isSyncing && !syncError && (
+                  <div className="bg-orange-900 border border-orange-700 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-3">
+                        <ClockIcon className="h-4 w-4 text-orange-400" />
+                        <div>
+                          <div className="text-orange-100 font-medium text-sm">Sync Recommended</div>
+                          <div className="text-orange-200 text-xs">
+                            Last sync: {timeSinceLastSync} • Force sync to ensure latest balances
+                          </div>
+                        </div>
+                      </div>
+                      <button
+                        onClick={startForceSync}
+                        disabled={!canSync}
+                        className="bg-orange-600 hover:bg-orange-700 disabled:bg-orange-800 text-white px-3 py-1 rounded text-xs font-medium transition-colors"
+                      >
+                        Sync Now
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Public Balances */}
