@@ -905,6 +905,21 @@ export const unshieldTokens = async ({
                 throw new Error('Wallet not found');
               }
               
+              // Debug wallet object and available methods
+              console.log('🔍 [UNSHIELD DEBUG] Wallet object debug:', {
+                walletExists: !!wallet,
+                walletType: typeof wallet,
+                hasGetTokenBalances: typeof wallet.getTokenBalances,
+                walletMethods: wallet ? Object.getOwnPropertyNames(Object.getPrototypeOf(wallet)) : 'no wallet',
+                TXIDVersionType: typeof TXIDVersion,
+                TXIDVersionValue: TXIDVersion,
+                railgunChainType: typeof railgunChain
+              });
+              
+              if (typeof wallet.getTokenBalances !== 'function') {
+                throw new Error(`getTokenBalances is not a function. Type: ${typeof wallet.getTokenBalances}`);
+              }
+              
               const realTimeBalances = await wallet.getTokenBalances(TXIDVersion.V2_PoseidonMerkle, railgunChain, true);
               const spendableBalance = realTimeBalances[tokenAddress.toLowerCase()];
               const spendableAmount = spendableBalance ? BigInt(spendableBalance.balance || spendableBalance.amount || '0') : BigInt(0);
