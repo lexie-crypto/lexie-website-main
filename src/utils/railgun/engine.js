@@ -155,46 +155,18 @@ const setupNetworks = async () => {
 
 /**
  * Setup balance update callbacks
- * Following the private balances documentation
+ * Following the private balances documentation and official SDK patterns
  */
 const setupBalanceCallbacks = async () => {
-  console.log('[RAILGUN] 🔧 Setting up balance callbacks...');
+  console.log('[RAILGUN] 🔧 Setting up comprehensive balance and scanning callbacks...');
   
-  // Use the OFFICIAL RAILGUN SDK callback system - pass through directly
-  const { handleBalanceUpdateCallback } = await import('./balances.js');
-  setOnBalanceUpdateCallback(handleBalanceUpdateCallback);
+  // ✅ Initialize comprehensive scanning service with official SDK callbacks
+  // This handles: setOnBalanceUpdateCallback, setOnUTXOMerkletreeScanCallback, setOnTXIDMerkletreeScanCallback
+  // And dispatches 'railgun-balance-update' events for the useBalances hook
+  const { setupScanningCallbacks } = await import('./scanning-service.js');
+  setupScanningCallbacks();
 
-  // UTXO Merkletree scan callback
-  setOnUTXOMerkletreeScanCallback((scanData) => {
-    console.log('[RAILGUN] UTXO Merkletree scan progress:', scanData);
-    
-    // Check if scan is completed
-    if (scanData.progress >= 1.0 || scanData.scanStatus === 'Complete') {
-      console.log('[RAILGUN] 🎉 UTXO Merkletree scan COMPLETED! This should trigger balance updates.');
-    }
-    
-    // Dispatch custom event for UI to listen to
-    window.dispatchEvent(new CustomEvent('railgun-utxo-scan', {
-      detail: scanData
-    }));
-  });
-
-  // TXID Merkletree scan callback  
-  setOnTXIDMerkletreeScanCallback((scanData) => {
-    console.log('[RAILGUN] TXID Merkletree scan progress:', scanData);
-    
-    // Check if scan is completed
-    if (scanData.progress >= 1.0 || scanData.scanStatus === 'Complete') {
-      console.log('[RAILGUN] 🎉 TXID Merkletree scan COMPLETED! This should trigger balance updates.');
-    }
-    
-    // Dispatch custom event for UI to listen to
-    window.dispatchEvent(new CustomEvent('railgun-txid-scan', {
-      detail: scanData
-    }));
-  });
-
-  console.log('[RAILGUN] Balance callbacks configured');
+  console.log('[RAILGUN] ✅ Comprehensive balance and scanning callbacks configured via scanning service');
 };
 
 // Helper to get network name from chain

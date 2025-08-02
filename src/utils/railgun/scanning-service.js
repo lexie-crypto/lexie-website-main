@@ -8,6 +8,8 @@ import {
   NetworkName,
   TXIDVersion,
   isDefined,
+  RailgunBalancesEvent,
+  MerkletreeScanUpdateEvent,
 } from '@railgun-community/shared-models';
 import {
   rescanFullUTXOMerkletreesAndWallets,
@@ -16,6 +18,7 @@ import {
   getTXIDMerkletreeHistoryVersion,
 } from '@railgun-community/wallet';
 import { waitForRailgunReady } from './engine.js';
+import { setOnBalanceUpdateCallback } from './balance-update.js';
 
 /**
  * Scan status tracking
@@ -23,6 +26,21 @@ import { waitForRailgunReady } from './engine.js';
 let scanStatus = new Map(); // networkName -> status
 let scanProgress = new Map(); // networkName -> { utxo: number, txid: number }
 let lastScanTime = new Map(); // networkName -> timestamp
+
+/**
+ * Network mapping for chain ID to Railgun network names
+ * @param {number} chainId - Chain ID
+ * @returns {string} Railgun network name
+ */
+export const getRailgunNetworkName = (chainId) => {
+  const mapping = {
+    1: 'Ethereum',
+    42161: 'Arbitrum', 
+    137: 'Polygon',
+    56: 'BNBChain'
+  };
+  return mapping[chainId] || 'Ethereum';
+};
 
 /**
  * Scan status enum
@@ -301,10 +319,46 @@ export const getScanningSummary = () => {
 };
 
 /**
- * Setup scanning progress callbacks
+ * Setup scanning progress callbacks and official SDK balance callbacks
+ * ⚠️ IMPORTANT: Call this once during app startup after initializeEngine()
+ * This ensures the SDK emits RailgunBalancesEvent into our app via railgun-balance-update
  */
 export const setupScanningCallbacks = () => {
-  // Listen for UTXO scan progress
+  console.log('[ScanningService] Setting up comprehensive scanning and balance callbacks...');
+  
+  // ✅ Balance updates from official Railgun SDK
+  /**
+   * @param {RailgunBalancesEvent} balances - Balance update event from Railgun SDK
+   */
+  setOnBalanceUpdateCallback(async (balances) => {
+    console.log('[ScanningService] 💎 Balance update from SDK:', {
+      walletId: balances.railgunWalletID?.slice(0, 8) + '...',
+      chainId: balances.chain?.id,
+      bucket: balances.balanceBucket,
+      erc20Count: balances.erc20Amounts?.length || 0,
+      nftCount: balances.nftAmounts?.length || 0
+    });
+    
+    // ✅ Call legacy balance handler for backwards compatibility
+    try {
+      const { handleBalanceUpdateCallback } = await import('./balances.js');
+      await handleBalanceUpdateCallback(balances);
+    } catch (error) {
+      console.warn('[ScanningService] ⚠️ Legacy balance callback error (non-critical):', error.message);
+    }
+    
+    // ✅ Also dispatch our own event for scanning service tracking
+    window.dispatchEvent(new CustomEvent('railgun-scan-balance-update', {
+      detail: balances,
+    }));
+    
+    console.log('[ScanningService] ✅ Balance update processed and dispatched');
+  });
+
+  // ✅ UTXO scan progress tracking
+  /**
+   * @param {CustomEvent} event - Event with { networkName: string, scanData: MerkletreeScanUpdateEvent }
+   */
   window.addEventListener('railgun-utxo-scan', (event) => {
     const { networkName, scanData } = event.detail;
     
@@ -315,11 +369,14 @@ export const setupScanningCallbacks = () => {
         utxo: scanData.progressPercent || 0,
       });
       
-      console.log(`[ScanningService] UTXO scan progress for ${networkName}: ${scanData.progressPercent}%`);
+      console.log(`[ScanningService] 📊 UTXO scan progress for ${networkName}: ${scanData.progressPercent}%`);
     }
   });
   
-  // Listen for TXID scan progress
+  // ✅ TXID scan progress tracking
+  /**
+   * @param {CustomEvent} event - Event with { networkName: string, scanData: MerkletreeScanUpdateEvent }
+   */
   window.addEventListener('railgun-txid-scan', (event) => {
     const { networkName, scanData } = event.detail;
     
@@ -330,11 +387,11 @@ export const setupScanningCallbacks = () => {
         txid: scanData.progressPercent || 0,
       });
       
-      console.log(`[ScanningService] TXID scan progress for ${networkName}: ${scanData.progressPercent}%`);
+      console.log(`[ScanningService] 📊 TXID scan progress for ${networkName}: ${scanData.progressPercent}%`);
     }
   });
   
-  console.log('[ScanningService] Scanning callbacks setup complete');
+  console.log('[ScanningService] ✅ Comprehensive scanning and balance callbacks setup complete');
 };
 
 /**
@@ -362,6 +419,7 @@ export const resetAllScanStatus = () => {
 
 export default {
   ScanStatus,
+  getRailgunNetworkName,
   getScanStatus,
   getScanProgress,
   getLastScanTime,

@@ -869,6 +869,29 @@ export const unshieldTokens = async ({
       // Continue anyway - Redis notes are still our fallback
     }
 
+    // STEP 0.5: Perform fresh Merkle tree rescan to ensure up-to-date state
+    console.log('🔄 [UNSHIELD DEBUG] Step 0.5: Performing fresh Merkle tree rescan before proof generation...');
+    try {
+      const { performNetworkRescan, getRailgunNetworkName } = await import('./scanning-service.js');
+      
+      const networkName = getRailgunNetworkName(chain.id);
+      console.log('📊 [UNSHIELD DEBUG] Starting network rescan:', {
+        chainId: chain.id,
+        networkName,
+        walletId: railgunWalletID.slice(0, 8) + '...',
+        timestamp: new Date().toISOString()
+      });
+      
+      // Perform network-specific rescan for just this wallet
+      await performNetworkRescan(networkName, [railgunWalletID]);
+      
+      console.log('✅ [UNSHIELD DEBUG] Network rescan completed successfully - Merkle tree is now up-to-date');
+      
+    } catch (rescanError) {
+      console.error('❌ [UNSHIELD DEBUG] Network rescan failed:', rescanError.message);
+      throw new Error(`Failed to rescan Merkle tree before proof generation: ${rescanError.message}. Cannot proceed with unshield to ensure transaction safety.`);
+    }
+
     // STEP 1: Get and validate unspent notes from Redis
     console.log('📝 [UNSHIELD DEBUG] Step 1: Getting unspent notes from Redis to prevent "already spent" errors...');
     const unspentNotes = await getUnspentNotesForUnshield(walletAddress, railgunWalletID, tokenAddress, amount);

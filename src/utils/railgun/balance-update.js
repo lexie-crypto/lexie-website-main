@@ -1,197 +1,147 @@
-/**
- * RAILGUN Balance Update Service
- * Adapted from official SDK: wallet/src/services/railgun/wallets/balance-update.ts
- * 
- * Handles balance update callbacks and POI proof progress
- */
-
 import {
+  Chain,
+  AbstractWallet,
+  TokenType,
+  TokenBalances,
+  NFTTokenData,
+  getTokenDataHash,
+  getTokenDataNFT,
+  getTokenDataERC20,
+  POIProofEventStatus,
+} from '@railgun-community/engine';
+import {
+  RailgunBalancesEvent,
+  POIProofProgressEvent,
+  RailgunNFTAmount,
+  RailgunERC20Amount,
+  NetworkName,
   NETWORK_CONFIG,
   TXIDVersion,
+  NFTTokenType,
   RailgunWalletBalanceBucket,
   isDefined,
   networkForChain,
 } from '@railgun-community/shared-models';
-import { getEngine } from './engine.js';
-import { parseUnits, formatUnits } from 'ethers';
+import { sendErrorMessage, sendMessage } from '../../../utils/logger';
+import { parseRailgunTokenAddress } from '../util/bytes';
+import { POIRequired } from '../../poi/poi-required';
+import { getEngine } from '../core/engine';
 
-// Callback storage
 let onBalanceUpdateCallback;
-let onPOIProofProgressCallback;
 
-/**
- * Set the balance update callback
- * @param {Function} callback - Callback function for balance updates
- */
 export const setOnBalanceUpdateCallback = (callback) => {
   onBalanceUpdateCallback = callback;
 };
 
-/**
- * Set the POI proof progress callback
- * @param {Function} callback - Callback function for POI proof progress
- */
+let onWalletPOIProofProgressCallback;
+
 export const setOnWalletPOIProofProgressCallback = (callback) => {
-  onPOIProofProgressCallback = callback;
+  onWalletPOIProofProgressCallback = callback;
 };
 
-/**
- * Parse RAILGUN token address to standard format
- * @param {string} tokenAddress - RAILGUN format token address
- * @returns {string} Standard format token address
- */
-const parseRailgunTokenAddress = (tokenAddress) => {
-  // RAILGUN uses a special format for token addresses
-  // Convert from internal format to standard ERC20 address
-  if (!tokenAddress || tokenAddress === '0x00') {
-    return undefined; // Native token
-  }
-  
-  // Remove 0x prefix if present and ensure lowercase
-  const cleaned = tokenAddress.replace(/^0x/, '').toLowerCase();
-  
-  // RAILGUN internal addresses are 32 bytes, standard addresses are 20 bytes
-  // Take the last 40 characters (20 bytes) for the actual address
-  if (cleaned.length > 40) {
-    return '0x' + cleaned.slice(-40);
-  }
-  
-  return '0x' + cleaned.padStart(40, '0');
-};
-
-/**
- * Get serialized ERC20 balances from token balances
- * @param {Object} balances - Token balances from RAILGUN
- * @returns {Array} Array of ERC20 amounts
- */
 export const getSerializedERC20Balances = (balances) => {
   const tokenHashes = Object.keys(balances);
 
   return tokenHashes
     .filter(tokenHash => {
-      // Filter for ERC20 tokens (tokenType === 0)
-      return balances[tokenHash].tokenData.tokenType === 0;
+      return balances[tokenHash].tokenData.tokenType === TokenType.ERC20;
     })
     .map(railgunBalanceAddress => {
-      const tokenAddress = parseRailgunTokenAddress(
-        balances[railgunBalanceAddress].tokenData.tokenAddress
-      );
-      
-      return {
-        tokenAddress: tokenAddress?.toLowerCase() || null, // Use null for native tokens instead of undefined
+      const erc20Balance = {
+        tokenAddress: parseRailgunTokenAddress(
+          balances[railgunBalanceAddress].tokenData.tokenAddress,
+        ).toLowerCase(),
         amount: balances[railgunBalanceAddress].balance,
       };
+      return erc20Balance;
     });
 };
 
-/**
- * Get NFT balances from token balances
- * @param {Object} balances - Token balances from RAILGUN
- * @returns {Array} Array of NFT amounts
- */
-export const getNFTBalances = (balances) => {
+export const getSerializedNFTBalances = (balances) => {
   const tokenHashes = Object.keys(balances);
 
   return tokenHashes
     .filter(tokenHash => {
-      // Filter for NFT tokens (tokenType === 1 or 2)
-      const tokenType = balances[tokenHash].tokenData.tokenType;
-      return tokenType === 1 || tokenType === 2;
+      return [TokenType.ERC721, TokenType.ERC1155].includes(
+        balances[tokenHash].tokenData.tokenType,
+      );
     })
     .map(railgunBalanceAddress => {
-      const tokenData = balances[railgunBalanceAddress].tokenData;
-      const nftAddress = parseRailgunTokenAddress(tokenData.tokenAddress);
-      
-      return {
-        nftAddress: nftAddress?.toLowerCase(),
-        nftTokenType: tokenData.tokenType === 1 ? 'ERC721' : 'ERC1155',
+      const balanceForToken = balances[railgunBalanceAddress];
+      const tokenData = balanceForToken.tokenData;
+      const nftBalance = {
+        nftAddress: parseRailgunTokenAddress(
+          tokenData.tokenAddress,
+        ).toLowerCase(),
         tokenSubID: tokenData.tokenSubID,
-        amount: balances[railgunBalanceAddress].balance,
+        nftTokenType: tokenData.tokenType,
+        amount: balanceForToken.balance,
       };
+      return nftBalance;
     });
 };
 
-/**
- * Handle balance updates for a wallet
- * @param {string} txidVersion - TXID version
- * @param {Object} wallet - RAILGUN wallet instance
- * @param {Object} chain - Chain configuration
- */
-export const onBalancesUpdate = async (txidVersion, wallet, chain) => {
-  console.log('[BalanceUpdate] 🔥 onBalancesUpdate called!', {
-    txidVersion,
-    chain: chain?.id,
-    walletID: wallet?.id?.slice(0, 8) + '...',
-    hasCallback: !!onBalanceUpdateCallback
-  });
+const getNFTBalances = (balances) => {
+  const tokenHashes = Object.keys(balances);
 
+  return tokenHashes
+    .filter(tokenHash => {
+      return (
+        [TokenType.ERC721, TokenType.ERC1155].includes(
+          balances[tokenHash].tokenData.tokenType,
+        ) && balances[tokenHash].balance > BigInt(0)
+      );
+    })
+    .map(tokenHash => {
+      const tokenData = balances[tokenHash].tokenData;
+
+      const nftBalance = {
+        nftAddress: parseRailgunTokenAddress(
+          tokenData.tokenAddress,
+        ).toLowerCase(),
+        nftTokenType: tokenData.tokenType,
+        tokenSubID: tokenData.tokenSubID,
+        amount: balances[tokenHash].balance,
+      };
+      return nftBalance;
+    });
+};
+
+export const onBalancesUpdate = async (txidVersion, wallet, chain) => {
   try {
     if (!onBalanceUpdateCallback) {
-      console.warn('[BalanceUpdate] ⚠️ No balance update callback set in onBalancesUpdate!');
       return;
     }
 
-    console.log(
-      `[BalanceUpdate] Wallet balance SCANNED. Getting balances for chain ${chain.type}:${chain.id}.`
+    sendMessage(
+      `Wallet balance SCANNED. Getting balances for chain ${chain.type}:${chain.id}.`,
     );
 
     const network = networkForChain(chain);
     if (!network) {
-      console.warn('[BalanceUpdate] Network not found for chain:', chain);
       return;
     }
-
-    // First try to get balances by bucket (POI-aware mode)
-    let tokenBalancesByBucket;
-    let usingPOIBuckets = false;
-    
-    try {
-      console.log('[BalanceUpdate] Attempting to get balances by POI bucket...');
-      tokenBalancesByBucket = await wallet.getTokenBalancesByBucket(
-        txidVersion,
-        chain
-      );
-      
-      // Check if we got any spendable balances and analyze bucket distribution
-      const spendableTokens = tokenBalancesByBucket[RailgunWalletBalanceBucket.Spendable] || {};
-      const hasSpendableBalances = Object.keys(spendableTokens).length > 0;
-      
-      // Count balances in all buckets for diagnostic purposes
-      const bucketCounts = {};
-      Object.entries(tokenBalancesByBucket).forEach(([bucket, tokens]) => {
-        bucketCounts[bucket] = Object.keys(tokens).length;
-      });
-      
-      console.log(`[BalanceUpdate] POI bucket distribution:`, bucketCounts);
-      console.log(`[BalanceUpdate] Spendable balances found: ${hasSpendableBalances}`);
-      
-      // If POI system gives us non-spendable balances only, this indicates POI issues
-      // In this case, fall back to spendable-only mode for better user experience
-      if (!hasSpendableBalances) {
-        const totalBalances = Object.values(bucketCounts).reduce((sum, count) => sum + count, 0);
-        console.warn(`[BalanceUpdate] ⚠️  POI system returned ${totalBalances} total balances but 0 spendable - falling back to spendable-only mode`);
-        return getAllBalancesAsSpendable(txidVersion, wallet, chain);
-      }
-      
-      usingPOIBuckets = true;
-      
-    } catch (error) {
-      console.warn('[BalanceUpdate] POI bucket mode failed, falling back to spendable-only mode:', error);
+    if (!(await POIRequired.isRequiredForNetwork(network.name))) {
+      // POI not required for this network
       return getAllBalancesAsSpendable(txidVersion, wallet, chain);
     }
 
-    // Process POI balance buckets
-    console.log('[BalanceUpdate] ✅ Using POI bucket mode with spendable balances');
+    // POI required for this network
+    const tokenBalancesByBucket = await wallet.getTokenBalancesByBucket(
+      txidVersion,
+      chain,
+    );
+
     const balanceBuckets = Object.values(RailgunWalletBalanceBucket);
 
-    for (const balanceBucket of balanceBuckets) {
+    balanceBuckets.forEach(balanceBucket => {
       if (!onBalanceUpdateCallback) {
         return;
       }
 
       const tokenBalances = tokenBalancesByBucket[balanceBucket];
       if (!isDefined(tokenBalances)) {
-        continue;
+        return;
       }
 
       const erc20Amounts = getSerializedERC20Balances(tokenBalances);
@@ -206,120 +156,45 @@ export const onBalancesUpdate = async (txidVersion, wallet, chain) => {
         balanceBucket,
       };
 
-      // Call the callback
       onBalanceUpdateCallback(balancesEvent);
-    }
+    });
   } catch (err) {
-    console.error(
-      `[BalanceUpdate] Error getting balances for chain ${chain.type}:${chain.id}:`,
-      err
+    if (!(err instanceof Error)) {
+      return;
+    }
+    sendMessage(
+      `Error getting balances for chain ${chain.type}:${chain.id}: ${err.message}`,
     );
+    sendErrorMessage(err);
   }
 };
 
-/**
- * Get all balances as spendable (for non-POI networks)
- * @param {string} txidVersion - TXID version
- * @param {Object} wallet - RAILGUN wallet instance
- * @param {Object} chain - Chain configuration
- */
 const getAllBalancesAsSpendable = async (txidVersion, wallet, chain) => {
-  console.log('[BalanceUpdate] getAllBalancesAsSpendable called', {
-    txidVersion,
-    chain: chain?.id,
-    walletID: wallet?.id?.slice(0, 8) + '...',
-    hasCallback: !!onBalanceUpdateCallback
-  });
-
   if (!onBalanceUpdateCallback) {
-    console.warn('[BalanceUpdate] No balance update callback set!');
     return;
   }
 
-  try {
-    const tokenBalances = await wallet.getTokenBalances(
-      txidVersion,
-      chain,
-      false // onlySpendable = false to get all balances
-    );
+  const tokenBalances = await wallet.getTokenBalances(
+    txidVersion,
+    chain,
+    false, // onlySpendable
+  );
 
-    console.log('[BalanceUpdate] Retrieved token balances:', {
-      count: Object.keys(tokenBalances).length,
-      tokens: Object.keys(tokenBalances)
-    });
+  const erc20Amounts = getSerializedERC20Balances(tokenBalances);
+  const nftAmounts = getNFTBalances(tokenBalances);
 
-    const erc20Amounts = getSerializedERC20Balances(tokenBalances);
-    const nftAmounts = getNFTBalances(tokenBalances);
+  const balancesEvent = {
+    txidVersion,
+    chain,
+    erc20Amounts,
+    nftAmounts,
+    railgunWalletID: wallet.id,
+    balanceBucket: RailgunWalletBalanceBucket.Spendable,
+  };
 
-    console.log('[BalanceUpdate] Serialized balances:', {
-      erc20Count: erc20Amounts.length,
-      nftCount: nftAmounts.length,
-      erc20Amounts
-    });
-
-    const balancesEvent = {
-      txidVersion,
-      chain,
-      erc20Amounts,
-      nftAmounts,
-      railgunWalletID: wallet.id,
-      balanceBucket: RailgunWalletBalanceBucket.Spendable,
-    };
-
-    console.log('[BalanceUpdate] Calling balance update callback with event:', balancesEvent);
-    onBalanceUpdateCallback(balancesEvent);
-    console.log('[BalanceUpdate] Balance update callback completed');
-
-  } catch (error) {
-    console.error('[BalanceUpdate] Error in getAllBalancesAsSpendable:', error);
-  }
+  onBalanceUpdateCallback(balancesEvent);
 };
 
-/**
- * Check if POI is required for a network
- * @param {string} networkName - Network name
- * @returns {boolean} Whether POI is required
- */
-const checkPOIRequired = async (networkName) => {
-  try {
-    // Use our proper POI service
-    const { isPOIRequiredForNetwork, handlePOIError } = await import('./poi-service.js');
-    
-    const isRequired = await isPOIRequiredForNetwork(networkName);
-    console.log(`[BalanceUpdate] ✅ POI required for ${networkName}: ${isRequired}`);
-    
-    return isRequired;
-  } catch (error) {
-    console.warn('[BalanceUpdate] POI check failed:', error);
-    
-    // Use POI error handler
-    const { handlePOIError } = await import('./poi-service.js');
-    const shouldContinue = handlePOIError(error, networkName);
-    
-    if (shouldContinue) {
-      console.log(`[BalanceUpdate] 🔄 Continuing with spendable balances for ${networkName}`);
-      return false; // Treat as not required so all balances are spendable
-    }
-    
-    // Fallback for other errors
-    return false;
-  }
-};
-
-/**
- * Handle POI proof progress updates
- * @param {string} status - POI proof status
- * @param {string} txidVersion - TXID version
- * @param {Object} wallet - RAILGUN wallet instance
- * @param {Object} chain - Chain configuration
- * @param {number} progress - Progress percentage
- * @param {string} listKey - POI list key
- * @param {string} txid - Transaction ID
- * @param {string} railgunTxid - RAILGUN transaction ID
- * @param {number} index - Current index
- * @param {number} totalCount - Total count
- * @param {string} errorMsg - Error message if any
- */
 export const onWalletPOIProofProgress = (
   status,
   txidVersion,
@@ -331,13 +206,16 @@ export const onWalletPOIProofProgress = (
   railgunTxid,
   index,
   totalCount,
-  errorMsg
+  errMessage,
 ) => {
-  if (!onPOIProofProgressCallback) {
+  sendMessage(
+    `[${listKey}, ${chain.type}:${chain.id}] Wallet POI proof progress: ${progress}.`,
+  );
+  if (!onWalletPOIProofProgressCallback) {
     return;
   }
 
-  const progressEvent = {
+  const poiProofEvent = {
     status,
     txidVersion,
     chain,
@@ -348,85 +226,69 @@ export const onWalletPOIProofProgress = (
     railgunTxid,
     index,
     totalCount,
-    errorMsg,
+    errMessage,
   };
 
-  onPOIProofProgressCallback(progressEvent);
+  onWalletPOIProofProgressCallback(poiProofEvent);
 };
 
-/**
- * Get balance for a specific ERC20 token
- * @param {string} txidVersion - TXID version
- * @param {Object} wallet - RAILGUN wallet instance
- * @param {string} networkName - Network name
- * @param {string} tokenAddress - Token address
- * @param {boolean} onlySpendable - Whether to only get spendable balance
- * @returns {bigint} Token balance
- */
 export const balanceForERC20Token = async (
   txidVersion,
   wallet,
   networkName,
   tokenAddress,
-  onlySpendable
+  onlySpendable,
 ) => {
   const { chain } = NETWORK_CONFIG[networkName];
   const balances = await wallet.getTokenBalances(
     txidVersion,
     chain,
-    onlySpendable
+    onlySpendable,
   );
   const tokenBalances = getSerializedERC20Balances(balances);
 
   const matchingTokenBalance = tokenBalances.find(
     tokenBalance =>
-      tokenBalance.tokenAddress.toLowerCase() === tokenAddress.toLowerCase()
+      tokenBalance.tokenAddress.toLowerCase() === tokenAddress.toLowerCase(),
   );
-  
   if (!matchingTokenBalance) {
     return 0n;
   }
-  
   return matchingTokenBalance.amount;
 };
 
-/**
- * Get balance for a specific NFT
- * @param {string} txidVersion - TXID version
- * @param {Object} wallet - RAILGUN wallet instance
- * @param {string} networkName - Network name
- * @param {Object} nftTokenData - NFT token data
- * @param {boolean} onlySpendable - Whether to only get spendable balance
- * @returns {bigint} NFT balance
- */
 export const balanceForNFT = async (
   txidVersion,
   wallet,
   networkName,
   nftTokenData,
-  onlySpendable
+  onlySpendable,
 ) => {
   const { chain } = NETWORK_CONFIG[networkName];
   const balances = await wallet.getTokenBalances(
     txidVersion,
     chain,
-    onlySpendable
+    onlySpendable,
   );
-  const nftBalances = getNFTBalances(balances);
+  const nftBalances = getSerializedNFTBalances(balances);
 
   const matchingNFTBalance = nftBalances.find(
     nftBalance =>
-      nftBalance.nftAddress.toLowerCase() === 
+      nftBalance.nftAddress.toLowerCase() ===
         nftTokenData.tokenAddress.toLowerCase() &&
-      BigInt(nftBalance.tokenSubID) === BigInt(nftTokenData.tokenSubID)
+      BigInt(nftBalance.tokenSubID) === BigInt(nftTokenData.tokenSubID),
   );
-  
   if (!matchingNFTBalance) {
     return 0n;
   }
-  
   return matchingNFTBalance.amount;
 };
 
-// Re-export token data helpers
-export { getTokenDataERC20, getTokenDataNFT } from '@railgun-community/wallet'; 
+export {
+  getTokenDataHash,
+  getTokenDataNFT,
+  getTokenDataERC20,
+  TokenType,
+  NFTTokenType,
+  NFTTokenData,
+};
