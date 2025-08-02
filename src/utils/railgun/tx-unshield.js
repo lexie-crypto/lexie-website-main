@@ -831,8 +831,26 @@ export const unshieldTokens = async ({
               console.log(`⚡ [UNSHIELD DEBUG] Attempt ${retryCount}/${maxRetries} - Forcing SDK spendability with proper scan monitoring...`);
               
               // Import SDK functions  
-              const { refreshBalances, getWalletForID } = await import('@railgun-community/wallet');
-              const { TXIDVersion } = await import('@railgun-community/shared-models');
+              console.log('🔍 [UNSHIELD DEBUG] Starting imports...');
+              const walletModule = await import('@railgun-community/wallet');
+              const sharedModule = await import('@railgun-community/shared-models');
+              
+              console.log('🔍 [UNSHIELD DEBUG] Import completed, extracting functions...', {
+                walletModuleType: typeof walletModule,
+                walletModuleKeys: Object.keys(walletModule).slice(0, 10), // First 10 keys
+                sharedModuleType: typeof sharedModule,
+                sharedModuleKeys: Object.keys(sharedModule).slice(0, 10)
+              });
+              
+              const { refreshBalances, getWalletForID } = walletModule;
+              const { TXIDVersion } = sharedModule;
+              
+              console.log('🔍 [UNSHIELD DEBUG] Functions extracted:', {
+                refreshBalancesType: typeof refreshBalances,
+                getWalletForIDType: typeof getWalletForID,
+                TXIDVersionType: typeof TXIDVersion,
+                TXIDVersionValue: TXIDVersion
+              });
               
               // STEP 1: Monitor scan completion status before hammering
               console.log('👀 [UNSHIELD DEBUG] Monitoring merkle tree scan completion...');
@@ -900,7 +918,24 @@ export const unshieldTokens = async ({
               }
               
               // STEP 3: Test actual spendability immediately after scans
-              const wallet = getWalletForID(railgunWalletID);
+              console.log('🔍 [UNSHIELD DEBUG] About to call getWalletForID with:', {
+                railgunWalletID: railgunWalletID?.slice(0, 10) + '...',
+                getWalletForIDType: typeof getWalletForID,
+                getWalletForIDExists: !!getWalletForID
+              });
+              
+              let wallet;
+              try {
+                wallet = getWalletForID(railgunWalletID);
+                console.log('🔍 [UNSHIELD DEBUG] getWalletForID call completed:', {
+                  walletExists: !!wallet,
+                  walletType: typeof wallet
+                });
+              } catch (getWalletError) {
+                console.error('💥 [UNSHIELD DEBUG] getWalletForID failed:', getWalletError.message);
+                throw new Error(`getWalletForID failed: ${getWalletError.message}`);
+              }
+              
               if (!wallet) {
                 throw new Error('Wallet not found');
               }
