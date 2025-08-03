@@ -242,20 +242,12 @@ const startEngine = async () => {
 
     console.log('[RAILGUN] ✅ Debug loggers configured');
 
-    // Step 4: Start engine with proper POI integration
-    // Using valid POI node URL from RAILGUN Discord
-    const poiNodeURLs = [
-      'https://ppoi.fdi.network/'
-    ];
+    // Step 4: Start engine WITHOUT POI integration (bypassing 1-hour standby period)
+    // 🔓 PPOI DISABLED: Funds will be immediately spendable after shielding
+    const poiNodeURLs = []; // ← Empty array disables PPOI enforcement
     
-    console.log('[RAILGUN] 🔒 Initializing POI (Proof of Innocence) system with official nodes:', poiNodeURLs);
-    console.log('[RAILGUN] 🔍 POI URLs type:', typeof poiNodeURLs, 'length:', poiNodeURLs?.length);
-    
-    // Validate POI URLs before passing
-    if (!Array.isArray(poiNodeURLs) || poiNodeURLs.length === 0) {
-      console.error('[RAILGUN] ❌ POI URLs validation failed!', poiNodeURLs);
-      throw new Error('POI URLs must be a non-empty array');
-    }
+    console.log('[RAILGUN] 🔓 BYPASSING POI system - funds will be immediately spendable after shielding');
+    console.log('[RAILGUN] ⚠️ WARNING: PPOI compliance features disabled');
     
     await startRailgunEngine(
       'Lexie Wallet',
@@ -277,18 +269,8 @@ const startEngine = async () => {
     await setupNetworks();
     await setupBalanceCallbacks();
     
-    // Validate POI system (POI is already initialized via startRailgunEngine)
-    try {
-      const { validatePOIConfiguration } = await import('./poi-service.js');
-      const isValidPOI = await validatePOIConfiguration();
-      if (isValidPOI) {
-        console.log('[RAILGUN] ✅ POI system validated and ready');
-      } else {
-        console.warn('[RAILGUN] ⚠️ POI system validation failed, but continuing with fallback handling');
-      }
-    } catch (poiError) {
-      console.warn('[RAILGUN] ⚠️ POI validation failed, but engine will handle POI errors gracefully:', poiError);
-    }
+    // POI system validation SKIPPED - PPOI is disabled
+    console.log('[RAILGUN] ⏭️ POI validation skipped - PPOI bypass is active');
     
     // Step 7: Setup balance update callback
     console.log('[RAILGUN] 🔄 Setting up balance update callbacks...');
