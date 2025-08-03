@@ -786,19 +786,11 @@ export const unshieldTokens = async ({
         
         // Create a promise that resolves when balance update callback is triggered for our wallet
         const balanceRefreshPromise = new Promise((resolve) => {
-          let timeout;
           let originalCallback;
           
           // Import and temporarily wrap the balance update callback
           import('./balance-update.js').then(({ onBalanceUpdateCallback, setOnBalanceUpdateCallback }) => {
             originalCallback = onBalanceUpdateCallback;
-            
-            // Set a much longer timeout (3 minutes) to allow for proper sync
-            timeout = setTimeout(() => {
-              console.warn('⚠️ [UNSHIELD DEBUG] Balance refresh timeout after 3 minutes - this may indicate a sync issue');
-              if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
-              resolve(false);
-            }, 180000); // 3 minute timeout
             
             // Wrap the callback to detect when our wallet's balance is updated
             const wrappedCallback = (balanceEvent) => {
@@ -823,7 +815,6 @@ export const unshieldTokens = async ({
                       amount: targetToken.amount,
                       required: amount
                     });
-                    clearTimeout(timeout);
                     if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
                     resolve(true);
                     return;
@@ -833,7 +824,6 @@ export const unshieldTokens = async ({
                 }
               } catch (error) {
                 console.warn('⚠️ [UNSHIELD DEBUG] Error in balance callback wrapper:', error);
-                clearTimeout(timeout);
                 if (originalCallback) setOnBalanceUpdateCallback(originalCallback);
                 resolve(false);
               }
@@ -860,7 +850,7 @@ export const unshieldTokens = async ({
         if (callbackReceived) {
           console.log('✅ [UNSHIELD DEBUG] Railgun SDK balance refresh completed with sufficient balance confirmed');
         } else {
-          console.warn('⚠️ [UNSHIELD DEBUG] Balance refresh timeout - proceeding with Redis notes as fallback');
+          console.warn('⚠️ [UNSHIELD DEBUG] Balance refresh failed - proceeding with Redis notes as fallback');
         }
       }
       
