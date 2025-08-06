@@ -1,8 +1,9 @@
 /**
- * RAILGUN Engine Setup
+ * RAILGUN Engine Setup - ZERO-DELAY POI EDITION
  * Following official docs: https://docs.railgun.org/developer-guide/wallet/getting-started
  * 
  * Implements:
+ * - Step 0: Patch RAILGUN SDK to use Zero-Delay POI contracts
  * - Step 1: Start the RAILGUN Privacy Engine
  * - Step 2: Build a persistent store for artifact downloads (uses artifactStore.js)
  * - Step 3: Load a Groth16 prover for browser platform
@@ -46,6 +47,14 @@ import {
 import { groth16 } from 'snarkjs';
 import LevelJS from 'level-js';
 import { createEnhancedArtifactStore } from './artifactStore.js';
+
+// 🚀 ZERO-DELAY POI: Import contract address configuration
+import { 
+  patchRailgunForZeroDelay, 
+  verifyZeroDelayConfiguration,
+  getArbitrumZeroDelayAddresses,
+  getLocalhostZeroDelayAddresses 
+} from '../../../railgun-contracts/lexie-integration-patch.js';
 
 // Engine state
 let isEngineStarted = false;
@@ -214,7 +223,26 @@ const startEngine = async () => {
   }
 
   try {
-    console.log('[RAILGUN] 🚀 Initializing Railgun engine...');
+    console.log('[RAILGUN] 🚀 Initializing Zero-Delay POI Railgun engine...');
+
+    // Step 0: 🚀 PATCH RAILGUN SDK FOR ZERO-DELAY CONTRACTS
+    console.log('[RAILGUN] 🔧 Step 0: Configuring Zero-Delay POI contract addresses...');
+    
+    // Determine which addresses to use based on environment
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const zeroDelayAddresses = isLocalhost 
+      ? getLocalhostZeroDelayAddresses()
+      : getArbitrumZeroDelayAddresses();
+    
+    // Patch the RAILGUN SDK to use Zero-Delay contracts
+    const patchSuccess = patchRailgunForZeroDelay(zeroDelayAddresses);
+    if (!patchSuccess) {
+      throw new Error('Failed to patch RAILGUN SDK for Zero-Delay POI contracts');
+    }
+    
+    // Verify configuration
+    verifyZeroDelayConfiguration();
+    console.log('[RAILGUN] ✅ Zero-Delay POI contracts configured successfully');
 
     // Step 1: Create enhanced artifact store with downloader
     const artifactManager = await createEnhancedArtifactStore(false); // false = web/WASM
@@ -242,21 +270,23 @@ const startEngine = async () => {
 
     console.log('[RAILGUN] ✅ Debug loggers configured');
 
-    // Step 4: Start engine WITHOUT POI integration (bypassing 1-hour standby period)
-    // 🔓 PPOI DISABLED: Funds will be immediately spendable after shielding
-    const poiNodeURLs = []; // ← Empty array disables PPOI enforcement
+    // Step 4: Start engine WITH Zero-Delay POI integration
+    // 🚀 ZERO-DELAY POI: Enhanced real-time compliance without delays
+    const poiNodeURLs = [
+      'https://ppoi.fdi.network/',
+    ]; // ← Official POI nodes for Zero-Delay enhanced validation
     
-    console.log('[RAILGUN] 🔓 BYPASSING POI system - funds will be immediately spendable after shielding');
-    console.log('[RAILGUN] ⚠️ WARNING: PPOI compliance features disabled');
+    console.log('[RAILGUN] 🚀 Starting Zero-Delay POI system - enhanced compliance with instant spendability');
+    console.log('[RAILGUN] ⚡ Zero-Delay POI active: Real-time sanctions checking + instant spendability');
     
     await startRailgunEngine(
-      'Lexie Wallet',
+      'Lexie Wallet - Zero-Delay POI',
       db,
       true,
       artifactManager.store,  // Pass the actual ArtifactStore instance
       false,
       false,
-      poiNodeURLs,  // ✅ Official POI node URLs
+      poiNodeURLs,  // ✅ Official POI node URLs for enhanced validation
       [],           // Custom POI lists (empty for now)
       true
     );
@@ -269,8 +299,8 @@ const startEngine = async () => {
     await setupNetworks();
     await setupBalanceCallbacks();
     
-    // POI system validation SKIPPED - PPOI is disabled
-    console.log('[RAILGUN] ⏭️ POI validation skipped - PPOI bypass is active');
+    // Zero-Delay POI system is now active with enhanced real-time validation
+    console.log('[RAILGUN] ⚡ Zero-Delay POI validation active - enhanced compliance with instant spendability');
     
     // Step 7: Setup balance update callback
     console.log('[RAILGUN] 🔄 Setting up balance update callbacks...');
