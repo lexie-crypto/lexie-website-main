@@ -235,13 +235,13 @@ const startEngine = async () => {
       : getArbitrumZeroDelayAddresses();
     
     // Patch the RAILGUN SDK to use Zero-Delay contracts
-    const patchSuccess = await patchRailgunForZeroDelay(zeroDelayAddresses);
+    const patchSuccess = patchRailgunForZeroDelay(zeroDelayAddresses);
     if (!patchSuccess) {
       throw new Error('Failed to patch RAILGUN SDK for Zero-Delay POI contracts');
     }
     
     // Verify configuration
-    await verifyZeroDelayConfiguration();
+    verifyZeroDelayConfiguration();
     console.log('[RAILGUN] ✅ Zero-Delay POI contracts configured successfully');
 
     // Step 1: Create enhanced artifact store with downloader

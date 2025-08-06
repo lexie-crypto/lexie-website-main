@@ -14,25 +14,25 @@ let originalNetworkConfig = null;
  * Override NETWORK_CONFIG to use Zero-Delay contracts
  * Call this BEFORE initializing RAILGUN engine
  */
-export const patchRailgunForZeroDelay = async (zeroDelayAddresses) => {
+export const patchRailgunForZeroDelay = (zeroDelayAddresses) => {
   try {
-    // Import the shared models module using ES6 import
-    const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
+    // Import the shared models module
+    const sharedModels = require('@railgun-community/shared-models');
     
     // Store original config if not already stored
     if (!originalNetworkConfig) {
-      originalNetworkConfig = JSON.parse(JSON.stringify(NETWORK_CONFIG));
+      originalNetworkConfig = JSON.parse(JSON.stringify(sharedModels.NETWORK_CONFIG));
     }
     
     // Override Arbitrum configuration with Zero-Delay contracts
-    if (NETWORK_CONFIG.Arbitrum) {
+    if (sharedModels.NETWORK_CONFIG.Arbitrum) {
       console.log('🔧 [ZERO-DELAY] Patching RAILGUN SDK for Zero-Delay POI contracts...');
       
       // Backup original
-      const originalArbitrumConfig = { ...NETWORK_CONFIG.Arbitrum };
+      const originalArbitrumConfig = { ...sharedModels.NETWORK_CONFIG.Arbitrum };
       
       // Apply Zero-Delay contract addresses
-      NETWORK_CONFIG.Arbitrum = {
+      sharedModels.NETWORK_CONFIG.Arbitrum = {
         ...originalArbitrumConfig,
         // Main contract overrides
         proxyContract: zeroDelayAddresses.railgunZeroDelay,
@@ -65,11 +65,11 @@ export const patchRailgunForZeroDelay = async (zeroDelayAddresses) => {
 /**
  * Restore original NETWORK_CONFIG (for testing/debugging)
  */
-export const restoreOriginalRailgunConfig = async () => {
+export const restoreOriginalRailgunConfig = () => {
   if (originalNetworkConfig) {
     try {
-      const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
-      NETWORK_CONFIG.Arbitrum = originalNetworkConfig.Arbitrum;
+      const sharedModels = require('@railgun-community/shared-models');
+      sharedModels.NETWORK_CONFIG.Arbitrum = originalNetworkConfig.Arbitrum;
       console.log('🔄 [ZERO-DELAY] Original RAILGUN configuration restored');
       return true;
     } catch (error) {
@@ -83,10 +83,10 @@ export const restoreOriginalRailgunConfig = async () => {
 /**
  * Verify that Zero-Delay contracts are configured
  */
-export const verifyZeroDelayConfiguration = async () => {
+export const verifyZeroDelayConfiguration = () => {
   try {
-    const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
-    const arbitrumConfig = NETWORK_CONFIG.Arbitrum;
+    const sharedModels = require('@railgun-community/shared-models');
+    const arbitrumConfig = sharedModels.NETWORK_CONFIG.Arbitrum;
     
     if (!arbitrumConfig) {
       console.error('❌ [ZERO-DELAY] No Arbitrum configuration found');
