@@ -54,7 +54,7 @@ import {
   verifyZeroDelayConfiguration,
   getArbitrumZeroDelayAddresses,
   getLocalhostZeroDelayAddresses 
-} from '../../../railgun-contracts/lexie-integration-patch.js';
+} from './lexie-integration-patch.js';
 
 // Engine state
 let isEngineStarted = false;
