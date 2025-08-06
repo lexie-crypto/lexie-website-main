@@ -235,7 +235,7 @@ const startEngine = async () => {
       : getArbitrumZeroDelayAddresses();
     
     // Patch the RAILGUN SDK to use Zero-Delay contracts
-    const patchSuccess = patchRailgunForZeroDelay(zeroDelayAddresses, NETWORK_CONFIG);
+    const patchSuccess = await patchRailgunForZeroDelay(zeroDelayAddresses, NETWORK_CONFIG);
     if (!patchSuccess) {
       throw new Error('Failed to patch RAILGUN SDK for Zero-Delay POI contracts');
     }
