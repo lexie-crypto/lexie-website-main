@@ -1,4 +1,4 @@
-# Lexie Website 12 BILLIONAIRE!!!
+# Lexie Website 12 BILLIONAIRE!!
 
 Landing page for Lexie, an AI companion for the world of Web3.
 
