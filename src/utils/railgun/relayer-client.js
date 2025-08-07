@@ -87,23 +87,24 @@ export async function estimateRelayerFee({
  */
 export async function submitRelayedTransaction({
   chainId,
-  unsignedTransaction,
+  serializedTransaction,
   tokenAddress,
   amount,
   userAddress,
   feeDetails
 }) {
   try {
-    console.log('🚀 [RELAYER] Submitting transaction through gas relayer:', {
+    console.log('🚀 [RELAYER] Submitting serialized transaction through gas relayer:', {
       chainId,
       tokenAddress: tokenAddress?.slice(0, 10) + '...',
       amount,
-      userAddress: userAddress?.slice(0, 10) + '...'
+      userAddress: userAddress?.slice(0, 10) + '...',
+      serializedTxLength: serializedTransaction?.length
     });
 
     const payload = {
       chainId,
-      unsignedTransaction,
+      serializedTransaction,
       tokenAddress,
       amount,
       userAddress,
