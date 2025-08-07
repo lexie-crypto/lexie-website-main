@@ -43,7 +43,8 @@ export async function estimateRelayerFee({
       gasEstimate: gasEstimate?.toString()
     };
 
-    const feeUrl = `${RELAYER_PROXY_URL}/estimate-fee`;
+    // Backend expects /api/relay/estimate-fee
+    const feeUrl = `${RELAYER_PROXY_URL}/api/relay/estimate-fee`;
     console.log(`💰 [RELAYER] Calling fee estimation at: ${feeUrl}`);
     console.log(`💰 [RELAYER] Full URL: ${window.location.origin}${feeUrl}`);
     
@@ -109,7 +110,8 @@ export async function submitRelayedTransaction({
       feeDetails
     };
 
-    const response = await fetch(`${RELAYER_PROXY_URL}/submit`, {
+    // Backend expects /api/relay/submit
+    const response = await fetch(`${RELAYER_PROXY_URL}/api/relay/submit`, {
       method: 'POST',
       headers: createHeaders(),
       body: JSON.stringify(payload)
