@@ -1192,6 +1192,7 @@ export const unshieldTokens = async ({
         // Check relayer health first
         const relayerHealthy = await checkRelayerHealth();
         if (!relayerHealthy) {
+          console.warn('⚠️ [GAS RELAYER] Service not available, skipping relayer integration');
           throw new Error('Gas relayer service is not available');
         }
         
