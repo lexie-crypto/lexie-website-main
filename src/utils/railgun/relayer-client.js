@@ -196,7 +196,7 @@ export function calculateTotalAmountWithFees(baseAmount, feeEstimate) {
  * Configuration object for frontend integration
  */
 export const RelayerConfig = {
-  url: RELAYER_URL,
+  url: RELAYER_PROXY_URL,
   enabled: process.env.REACT_APP_RELAYER_ENABLED === 'true' && !!HMAC_SECRET,
   supportedNetworks: [42161, 1], // Arbitrum, Ethereum
   
