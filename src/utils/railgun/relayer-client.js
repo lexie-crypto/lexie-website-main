@@ -153,17 +153,35 @@ export async function submitRelayedTransaction({
  */
 export async function checkRelayerHealth() {
   try {
+    console.log(`🏥 [RELAYER] Checking health at: ${RELAYER_PROXY_URL}/health`);
     const response = await fetch(`${RELAYER_PROXY_URL}/health`);
     
+    console.log(`🏥 [RELAYER] Health response status: ${response.status}`);
+    
     if (!response.ok) {
-      throw new Error(`Health check failed: ${response.status}`);
+      const errorText = await response.text();
+      console.error(`❌ [RELAYER] Health check failed - Status: ${response.status}, Response: ${errorText}`);
+      throw new Error(`Health check failed: ${response.status} - ${errorText}`);
     }
 
     const result = await response.json();
-    return result.status === 'healthy';
+    console.log(`🏥 [RELAYER] Health check result:`, result);
+    
+    const isHealthy = result.status === 'healthy';
+    if (isHealthy) {
+      console.log('✅ [RELAYER] Gas relayer service is healthy and ready');
+    } else {
+      console.warn('⚠️ [RELAYER] Gas relayer responded but status is not healthy:', result.status);
+    }
+    
+    return isHealthy;
 
   } catch (error) {
-    console.error('❌ [RELAYER] Health check failed:', error);
+    console.error('❌ [RELAYER] Health check failed with error:', {
+      message: error.message,
+      url: `${RELAYER_PROXY_URL}/health`,
+      timestamp: new Date().toISOString()
+    });
     return false;
   }
 }
@@ -226,23 +244,32 @@ export const RelayerConfig = {
  * Check if relayer should be used for this transaction
  */
 export function shouldUseRelayer(chainId, amount) {
-  if (!RelayerConfig.enabled) {
-    console.log('🔄 [RELAYER] Disabled via configuration');
-    return false;
-  }
+  console.log('🚀 [RELAYER] Always attempting gas relayer first for anonymous transactions');
+  console.log('🔍 [RELAYER] Transaction details:', {
+    chainId,
+    amount,
+    hasHMACSecret: !!HMAC_SECRET,
+    hmacSecretPrefix: HMAC_SECRET ? HMAC_SECRET.substring(0, 5) + '...' : 'not set',
+    supportedNetwork: RelayerConfig.supportedNetworks.includes(chainId),
+    url: RelayerConfig.url
+  });
   
+  // Log warnings but don't prevent relayer attempt
   if (!RelayerConfig.supportedNetworks.includes(chainId)) {
-    console.log('🔄 [RELAYER] Unsupported network:', chainId);
-    return false;
+    console.warn('⚠️ [RELAYER] Unsupported network - may fail:', chainId);
   }
   
-  // Add minimum amount threshold if needed
+  if (!HMAC_SECRET) {
+    console.warn('⚠️ [RELAYER] No HMAC secret - using test authentication');
+  }
+  
   const minAmount = BigInt(process.env.REACT_APP_RELAYER_MIN_AMOUNT || '0');
   if (BigInt(amount) < minAmount) {
-    console.log('🔄 [RELAYER] Amount below minimum threshold');
-    return false;
+    console.warn('⚠️ [RELAYER] Amount below minimum threshold - may not be worth relayer fees');
   }
   
+  // Always try the relayer - let it fail gracefully if needed
+  console.log('✅ [RELAYER] Will attempt gas relayer submission');
   return true;
 }
 

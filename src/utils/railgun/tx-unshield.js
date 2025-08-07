@@ -1276,8 +1276,15 @@ export const unshieldTokens = async ({
         };
         
       } catch (gasRelayerError) {
-        console.error('❌ [GAS RELAYER] Failed:', gasRelayerError.message);
-        console.log('🔄 [GAS RELAYER] Falling back to traditional methods...');
+        console.error('❌ [GAS RELAYER] Failed with detailed error:', {
+          error: gasRelayerError.message,
+          stack: gasRelayerError.stack,
+          url: '/api/gas-relayer',
+          timestamp: new Date().toISOString(),
+          chainId: chain.id,
+          amount: amount.toString()
+        });
+        console.log('🔄 [GAS RELAYER] Falling back to self-signing for transaction completion...');
         // Continue to existing relayer/self-sign logic
       }
     }
