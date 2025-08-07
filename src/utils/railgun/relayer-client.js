@@ -7,7 +7,8 @@
 
 import crypto from 'crypto-js';
 
-const RELAYER_URL = process.env.REACT_APP_RELAYER_URL || 'http://localhost:3001';
+// Use Vercel proxy instead of direct relayer calls for security
+const RELAYER_PROXY_URL = '/api/gas-relayer';
 const HMAC_SECRET = process.env.LEXIE_HMAC_SECRET;
 
 if (!HMAC_SECRET) {
@@ -70,7 +71,7 @@ export async function estimateRelayerFee({
       gasEstimate: gasEstimate?.toString()
     };
 
-    const response = await fetch(`${RELAYER_URL}/api/relay/estimate-fee`, {
+    const response = await fetch(`${RELAYER_PROXY_URL}/estimate-fee`, {
       method: 'POST',
       headers: createAuthHeaders(payload),
       body: JSON.stringify(payload)
@@ -120,7 +121,7 @@ export async function submitRelayedTransaction({
       feeDetails
     };
 
-    const response = await fetch(`${RELAYER_URL}/api/relay/submit`, {
+    const response = await fetch(`${RELAYER_PROXY_URL}/submit`, {
       method: 'POST',
       headers: createAuthHeaders(payload),
       body: JSON.stringify(payload)
@@ -152,7 +153,7 @@ export async function submitRelayedTransaction({
  */
 export async function checkRelayerHealth() {
   try {
-    const response = await fetch(`${RELAYER_URL}/health`);
+    const response = await fetch(`${RELAYER_PROXY_URL}/health`);
     
     if (!response.ok) {
       throw new Error(`Health check failed: ${response.status}`);
@@ -168,17 +169,18 @@ export async function checkRelayerHealth() {
 }
 
 /**
- * Get relayer address from service
+ * Get relayer address from environment (since it's fixed)
  */
 export async function getRelayerAddress() {
-  try {
-    const response = await fetch(`${RELAYER_URL}/health`);
-    const health = await response.json();
-    return health.relayerAddress || process.env.REACT_APP_RELAYER_ADDRESS;
-  } catch (error) {
-    console.error('❌ [RELAYER] Failed to get relayer address:', error);
-    return process.env.REACT_APP_RELAYER_ADDRESS;
+  // Return the configured relayer address directly
+  const relayerAddress = process.env.REACT_APP_RELAYER_ADDRESS;
+  
+  if (!relayerAddress) {
+    console.error('❌ [RELAYER] REACT_APP_RELAYER_ADDRESS not configured');
+    throw new Error('Relayer address not configured');
   }
+  
+  return relayerAddress;
 }
 
 /**
