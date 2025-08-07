@@ -31,20 +31,11 @@ function generateHmacSignature(payload, timestamp, secret = HMAC_SECRET) {
  * Create authenticated request headers
  */
 function createAuthHeaders(payload) {
-  const timestamp = Date.now().toString();
-  
-  // Temporarily bypass HMAC for testing
   if (!HMAC_SECRET) {
-    console.warn('⚠️ [RELAYER] HMAC secret not configured - using test headers');
-    return {
-      'X-Timestamp': timestamp,
-      'X-Signature': 'test-signature-bypassed',
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'Origin': window.location.origin
-    };
+    throw new Error('HMAC secret not configured - cannot authenticate relayer requests');
   }
   
+  const timestamp = Date.now().toString();
   const signature = generateHmacSignature(payload, timestamp);
   
   return {
@@ -206,7 +197,7 @@ export function calculateTotalAmountWithFees(baseAmount, feeEstimate) {
  */
 export const RelayerConfig = {
   url: RELAYER_PROXY_URL,
-  enabled: process.env.REACT_APP_RELAYER_ENABLED === 'true', // Temporarily bypass HMAC requirement for testing
+  enabled: process.env.REACT_APP_RELAYER_ENABLED === 'true' && !!HMAC_SECRET,
   supportedNetworks: [42161, 1], // Arbitrum, Ethereum
   
   // Fee structure
@@ -235,16 +226,8 @@ export const RelayerConfig = {
  * Check if relayer should be used for this transaction
  */
 export function shouldUseRelayer(chainId, amount) {
-  console.log('🔍 [RELAYER] Debug info:', {
-    chainId,
-    amount,
-    REACT_APP_RELAYER_ENABLED: process.env.REACT_APP_RELAYER_ENABLED,
-    hasHMACSecret: !!HMAC_SECRET,
-    RelayerConfigEnabled: RelayerConfig.enabled
-  });
-  
   if (!RelayerConfig.enabled) {
-    console.log('🔄 [RELAYER] Disabled via configuration - missing HMAC secret or not enabled');
+    console.log('🔄 [RELAYER] Disabled via configuration');
     return false;
   }
   

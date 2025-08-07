@@ -62,20 +62,14 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Get HMAC secret from environment (allow bypass for testing)
+    // Get HMAC secret from environment
     const hmacSecret = process.env.LEXIE_HMAC_SECRET;
-    const testSignature = req.headers['x-signature'] === 'test-signature-bypassed';
-    
-    if (!hmacSecret && !testSignature) {
+    if (!hmacSecret) {
       console.error(`❌ [GAS-RELAYER-PROXY-${requestId}] LEXIE_HMAC_SECRET environment variable is not set`);
       return res.status(500).json({
         success: false,
         error: 'Server authentication configuration error'
       });
-    }
-    
-    if (testSignature) {
-      console.warn(`⚠️ [GAS-RELAYER-PROXY-${requestId}] Using test signature bypass - NOT FOR PRODUCTION`);
     }
 
     // Parse the URL to get the relayer endpoint
@@ -109,11 +103,7 @@ export default async function handler(req, res) {
 
     const timestamp = Date.now().toString();
     const bodyString = req.method === 'POST' ? JSON.stringify(req.body) : '';
-    
-    // Generate signature (use test signature if bypassing HMAC)
-    const signature = testSignature ? 
-      'test-signature-bypassed' : 
-      generateHmacSignature(req.method, backendPath, timestamp, bodyString, hmacSecret);
+    const signature = generateHmacSignature(req.method, backendPath, timestamp, bodyString, hmacSecret);
     
     const headers = {
       'Content-Type': 'application/json',

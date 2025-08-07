@@ -13,9 +13,14 @@ import {
   ProofType,
 } from '@railgun-community/shared-models';
 import { reportAndSanitizeError } from './utils.js';
+import { 
+  RelayerConfig, 
+  shouldUseRelayer, 
+  getRelayerAddress 
+} from './relayer-client.js';
 
 /**
- * Generate unshield proof with progress tracking
+ * Generate unshield proof with progress tracking and gas relayer support
  * This wraps the official SDK proof generation with better error handling and logging
  * 
  * @param {TXIDVersion} txidVersion - Transaction ID version
@@ -28,6 +33,8 @@ import { reportAndSanitizeError } from './utils.js';
  * @param {boolean} sendWithPublicWallet - Whether to send with public wallet
  * @param {bigint} overallBatchMinGasPrice - Minimum gas price (optional)
  * @param {Function} progressCallback - Progress callback function
+ * @param {Object} relayerFeeDetails - Gas relayer fee details (optional)
+ * @param {number} chainId - Chain ID for relayer support
  */
 export const generateUnshieldProof = async (
   txidVersion,
@@ -39,7 +46,9 @@ export const generateUnshieldProof = async (
   broadcasterFeeERC20AmountRecipient,
   sendWithPublicWallet,
   overallBatchMinGasPrice,
-  progressCallback
+  progressCallback,
+  relayerFeeDetails = null,
+  chainId = null
 ) => {
   try {
     console.log('[UnshieldProof] Starting proof generation...', {
@@ -50,7 +59,52 @@ export const generateUnshieldProof = async (
       nftRecipients: nftAmountRecipients.length,
       hasBroadcasterFee: !!broadcasterFeeERC20AmountRecipient,
       sendWithPublicWallet,
+      hasRelayerFee: !!relayerFeeDetails,
+      chainId,
     });
+
+    // Enhanced recipients array with relayer fee support
+    let finalErc20Recipients = [...erc20AmountRecipients];
+    let finalBroadcasterFee = broadcasterFeeERC20AmountRecipient;
+
+    // Check if we should add relayer fee to the proof
+    if (relayerFeeDetails && chainId && shouldUseRelayer(chainId, '0')) {
+      console.log('[UnshieldProof] 🚀 Adding gas relayer fee to proof generation...');
+      
+      try {
+        const relayerAddress = await getRelayerAddress();
+        
+        if (relayerAddress && relayerFeeDetails.totalFee) {
+          // Extract token address from first recipient
+          const primaryTokenAddress = erc20AmountRecipients[0]?.tokenAddress;
+          
+          if (primaryTokenAddress) {
+            // Create relayer fee recipient
+            const relayerFeeRecipient = {
+              tokenAddress: primaryTokenAddress,
+              amount: BigInt(relayerFeeDetails.totalFee),
+              recipientAddress: relayerAddress,
+            };
+            
+            console.log('[UnshieldProof] ✅ Relayer fee recipient created:', {
+              tokenAddress: primaryTokenAddress.slice(0, 10) + '...',
+              amount: relayerFeeDetails.totalFee,
+              relayerAddress: relayerAddress.slice(0, 10) + '...',
+            });
+            
+            // Add relayer fee to recipients
+            finalErc20Recipients.push(relayerFeeRecipient);
+          } else {
+            console.warn('[UnshieldProof] ⚠️ No token address found for relayer fee');
+          }
+        } else {
+          console.warn('[UnshieldProof] ⚠️ Missing relayer address or fee amount');
+        }
+      } catch (error) {
+        console.error('[UnshieldProof] ❌ Failed to add relayer fee:', error);
+        console.log('[UnshieldProof] 🔄 Continuing without relayer fee...');
+      }
+    }
 
     // Create a progress wrapper that provides better logging
     const wrappedProgressCallback = (progress) => {
@@ -63,16 +117,16 @@ export const generateUnshieldProof = async (
       }
     };
 
-    // Call the official SDK proof generation function
+    // Call the official SDK proof generation function with enhanced recipients
     // Note: This function stores the proof internally, it doesn't return the proof response
     await generateUnshieldProofSDK(
       txidVersion,
       networkName,
       railgunWalletID,
       encryptionKey,
-      erc20AmountRecipients,
+      finalErc20Recipients, // Use enhanced recipients array with relayer fee
       nftAmountRecipients,
-      broadcasterFeeERC20AmountRecipient,
+      finalBroadcasterFee,
       sendWithPublicWallet,
       overallBatchMinGasPrice,
       wrappedProgressCallback
