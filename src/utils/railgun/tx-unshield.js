@@ -24,6 +24,7 @@ import {
   submitRelayedTransaction, 
   shouldUseRelayer,
   checkRelayerHealth,
+  getRelayerAddress,
   RelayerConfig 
 } from './relayer-client.js';
 // Official Relayer SDK imports (following docs pattern)
@@ -1150,16 +1151,84 @@ export const unshieldTokens = async ({
       allProperties: Object.keys(populatedTransaction)
     });
     
-    // Extract serialized transaction for self-signing by gas relayer
-    const serializedTransaction = populatedTransaction.serializedTransaction;
-    if (!serializedTransaction) {
-      throw new Error('No serialized transaction found in populated response');
-    }
+    // ✅ OFFICIAL RAILGUN SDK PATTERN: Use generateTransact to create serialized transaction
+    // populateProvedUnshield returns transaction structures that need to be passed to generateTransact
+    console.log('📦 [UNSHIELD DEBUG] Using official Railgun SDK generateTransact pattern...');
     
-    console.log('📦 [UNSHIELD DEBUG] Serialized transaction ready for gas relayer:', {
-      serializedTxLength: serializedTransaction.length,
-      serializedTxSample: serializedTransaction.slice(0, 50) + '...'
-    });
+    let serializedTransaction;
+    try {
+      // Import generateTransact from Railgun SDK
+      const { RailgunVersionedSmartContracts } = await import('@railgun-community/engine');
+      const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
+      
+      const networkName = chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum;
+      const chainConfig = NETWORK_CONFIG[networkName].chain;
+      
+      // Get transaction structures from populated response
+      // populatedTransaction should contain the transaction structures
+      const transactionStructs = populatedTransaction.transactionStructs || populatedTransaction.txs;
+      
+      if (!transactionStructs || !Array.isArray(transactionStructs)) {
+        console.warn('⚠️ [UNSHIELD DEBUG] No transaction structures found, using fallback serialization...');
+        
+        // Fallback: Create serialized transaction from the transaction object
+        const { ethers } = await import('ethers');
+        const { transaction } = populatedTransaction;
+        
+        const txForSerialization = {
+          to: transaction.to,
+          data: transaction.data,
+          value: transaction.value ? '0x' + transaction.value.toString(16) : '0x0',
+          gasLimit: transaction.gasLimit ? '0x' + transaction.gasLimit.toString(16) : undefined,
+          gasPrice: transaction.gasPrice ? '0x' + transaction.gasPrice.toString(16) : undefined,
+          maxFeePerGas: transaction.maxFeePerGas ? '0x' + transaction.maxFeePerGas.toString(16) : undefined,
+          maxPriorityFeePerGas: transaction.maxPriorityFeePerGas ? '0x' + transaction.maxPriorityFeePerGas.toString(16) : undefined,
+          type: transaction.type,
+          chainId: chain.id
+        };
+        
+        // Remove undefined values
+        Object.keys(txForSerialization).forEach(key => {
+          if (txForSerialization[key] === undefined) {
+            delete txForSerialization[key];
+          }
+        });
+        
+        const ethersTransaction = ethers.Transaction.from(txForSerialization);
+        serializedTransaction = ethersTransaction.unsignedSerialized;
+        
+      } else {
+        console.log('✅ [UNSHIELD DEBUG] Found transaction structures, using official generateTransact...');
+        
+        // ✅ OFFICIAL PATTERN: Use RailgunVersionedSmartContracts.generateTransact
+        const contractTransaction = await RailgunVersionedSmartContracts.generateTransact(
+          TXIDVersion.V2_PoseidonMerkle,
+          chainConfig,
+          transactionStructs
+        );
+        
+        console.log('📦 [UNSHIELD DEBUG] generateTransact result:', {
+          to: contractTransaction.to,
+          dataLength: contractTransaction.data?.length || 0,
+          value: contractTransaction.value?.toString() || '0',
+          gasLimit: contractTransaction.gasLimit?.toString() || 'undefined'
+        });
+        
+        // Serialize the contract transaction
+        const { ethers } = await import('ethers');
+        const ethersTransaction = ethers.Transaction.from(contractTransaction);
+        serializedTransaction = ethersTransaction.unsignedSerialized;
+      }
+      
+      console.log('📦 [UNSHIELD DEBUG] Serialized transaction ready for gas relayer:', {
+        serializedTxLength: serializedTransaction.length,
+        serializedTxSample: serializedTransaction.slice(0, 50) + '...'
+      });
+      
+    } catch (serializationError) {
+      console.error('❌ [UNSHIELD DEBUG] Failed to serialize transaction:', serializationError);
+      throw new Error(`Failed to serialize transaction for gas relayer: ${serializationError.message}`);
+    }
 
     // STEP 8: Submit Transaction (Enhanced with Gas Relayer Support)
     console.log('📡 [UNSHIELD DEBUG] Step 8: Submitting transaction...');
@@ -1189,39 +1258,147 @@ export const unshieldTokens = async ({
         
         console.log('💰 [GAS RELAYER] Fee estimate:', gasRelayerFeeDetails);
         
-        // Regenerate proof with relayer fee included
-        console.log('🔮 [GAS RELAYER] Regenerating proof with relayer fee...');
+        // Create relayer fee recipient with the proper fee amount
+        console.log('💰 [GAS RELAYER] Creating relayer fee recipient...');
+        const relayerAddress = await getRelayerAddress();
+        if (!relayerAddress) {
+          throw new Error('Relayer address not configured');
+        }
+        
+        // Create fee recipient for the total relayer fee
+        const relayerFeeERC20AmountRecipient = createERC20AmountRecipient(
+          tokenAddress,
+          gasRelayerFeeDetails.totalFee,
+          relayerAddress
+        );
+        
+        // Create updated user recipient with fee subtracted
+        const userAmountAfterFee = BigInt(amount) - BigInt(gasRelayerFeeDetails.totalFee);
+        const userRecipientWithFee = createERC20AmountRecipient(
+          tokenAddress,
+          userAmountAfterFee.toString(),
+          toAddress
+        );
+        
+        console.log('💰 [GAS RELAYER] Fee allocation:', {
+          originalAmount: amount,
+          userAmountAfterFee: userAmountAfterFee.toString(),
+          relayerFee: gasRelayerFeeDetails.totalFee,
+          relayerAddress: relayerAddress.slice(0, 10) + '...',
+          userAddress: toAddress.slice(0, 10) + '...'
+        });
+        
+        // Regenerate proof with relayer fee recipient included
+        console.log('🔮 [GAS RELAYER] Regenerating proof with relayer fee recipient...');
         
         const relayerProofResult = await generateUnshieldProof(
           TXIDVersion.V2_PoseidonMerkle,
           chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
           railgunWalletID,
           encryptionKey,
-          [erc20AmountRecipient],
+          [userRecipientWithFee, relayerFeeERC20AmountRecipient], // Both user and relayer recipients
           [], // nftAmountRecipients
-          null, // broadcasterFeeERC20AmountRecipient
-          false, // sendWithPublicWallet (use relayer)
+          null, // broadcasterFeeERC20AmountRecipient (not using broadcaster)
+          sendWithPublicWallet, // Use self-signing pattern
           overallBatchMinGasPrice,
           (progress) => {
             console.log(`🔮 [GAS RELAYER] Proof generation: ${Math.round(progress * 100)}%`);
-          },
-          gasRelayerFeeDetails, // Include relayer fee in proof
-          chain.id // Chain ID for relayer support
+          }
         );
         
         console.log('🔮 [GAS RELAYER] Proof with relayer fee generated:', relayerProofResult);
         
-        // Use the same populated transaction with relayer fee for submission
-        // Since we're using self-signing, the transaction already includes all necessary details
+        // Populate transaction with the new recipients (user + relayer fee)
+        console.log('📝 [GAS RELAYER] Populating transaction with relayer fee recipients...');
+        const relayerPopulatedTransaction = await populateProvedUnshield(
+          TXIDVersion.V2_PoseidonMerkle,
+          chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
+          railgunWalletID,
+          [userRecipientWithFee, relayerFeeERC20AmountRecipient], // Both user and relayer recipients
+          [], // nftAmountRecipients
+          null, // broadcasterFeeERC20AmountRecipient (not using broadcaster)
+          sendWithPublicWallet, // Use self-signing pattern
+          overallBatchMinGasPrice,
+          gasDetails // Use the same gas details
+        );
+        
+        // Generate serialized transaction for relayer submission using the same pattern as above
+        console.log('📦 [GAS RELAYER] Generating serialized transaction with fees...');
+        let relayerSerializedTx;
+        try {
+          // Import generateTransact from Railgun SDK
+          const { RailgunVersionedSmartContracts } = await import('@railgun-community/engine');
+          const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
+          
+          const networkName = chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum;
+          const chainConfig = NETWORK_CONFIG[networkName].chain;
+          
+          // Get transaction structures from populated response
+          const transactionStructs = relayerPopulatedTransaction.transactionStructs || relayerPopulatedTransaction.txs;
+          
+          if (!transactionStructs || !Array.isArray(transactionStructs)) {
+            console.warn('⚠️ [GAS RELAYER] No transaction structures found, using fallback serialization...');
+            
+            // Fallback: Create serialized transaction from the transaction object
+            const { ethers } = await import('ethers');
+            const { transaction } = relayerPopulatedTransaction;
+            
+            const txForSerialization = {
+              to: transaction.to,
+              data: transaction.data,
+              value: transaction.value ? '0x' + transaction.value.toString(16) : '0x0',
+              gasLimit: transaction.gasLimit ? '0x' + transaction.gasLimit.toString(16) : undefined,
+              gasPrice: transaction.gasPrice ? '0x' + transaction.gasPrice.toString(16) : undefined,
+              maxFeePerGas: transaction.maxFeePerGas ? '0x' + transaction.maxFeePerGas.toString(16) : undefined,
+              maxPriorityFeePerGas: transaction.maxPriorityFeePerGas ? '0x' + transaction.maxPriorityFeePerGas.toString(16) : undefined,
+              type: transaction.type,
+              chainId: chain.id
+            };
+            
+            // Remove undefined values
+            Object.keys(txForSerialization).forEach(key => {
+              if (txForSerialization[key] === undefined) {
+                delete txForSerialization[key];
+              }
+            });
+            
+            const ethersTransaction = ethers.Transaction.from(txForSerialization);
+            relayerSerializedTx = ethersTransaction.unsignedSerialized;
+            
+          } else {
+            console.log('✅ [GAS RELAYER] Found transaction structures, using official generateTransact...');
+            
+            // ✅ OFFICIAL PATTERN: Use RailgunVersionedSmartContracts.generateTransact
+            const contractTransaction = await RailgunVersionedSmartContracts.generateTransact(
+              TXIDVersion.V2_PoseidonMerkle,
+              chainConfig,
+              transactionStructs
+            );
+            
+            // Serialize the contract transaction
+            const { ethers } = await import('ethers');
+            const ethersTransaction = ethers.Transaction.from(contractTransaction);
+            relayerSerializedTx = ethersTransaction.unsignedSerialized;
+          }
+          
+          console.log('📦 [GAS RELAYER] Relayer serialized transaction ready:', {
+            serializedTxLength: relayerSerializedTx.length,
+            serializedTxSample: relayerSerializedTx.slice(0, 50) + '...'
+          });
+          
+        } catch (serializationError) {
+          console.error('❌ [GAS RELAYER] Failed to serialize relayer transaction:', serializationError);
+          throw new Error(`Failed to serialize relayer transaction: ${serializationError.message}`);
+        }
         
         // Submit via gas relayer
         console.log('📤 [GAS RELAYER] Submitting transaction via gas relayer...');
         
         const relayerResult = await submitRelayedTransaction({
           chainId: chain.id,
-          serializedTransaction, // Send the complete serialized transaction for self-signing
+          serializedTransaction: relayerSerializedTx, // Use the relayer transaction with fees
           tokenAddress,
-          amount: (BigInt(amount) + BigInt(gasRelayerFeeDetails.totalFee)).toString(),
+          amount: amount, // Original amount (user gets userAmountAfterFee, relayer gets totalFee)
           userAddress: walletAddress,
           feeDetails: gasRelayerFeeDetails
         });
