@@ -5,9 +5,8 @@
  * through the gas relayer for anonymous EOA submission
  */
 
-// Use Vercel proxy instead of direct relayer calls for security
-// Direct gas relayer proxy - no HMAC needed
-const RELAYER_PROXY_URL = '/api/gas-relayer';
+// Direct calls to gas relayer backend
+const RELAYER_PROXY_URL = 'https://relayer.lexiecrypto.com';
 
 /**
  * Create simple headers for relayer requests (no HMAC needed)
