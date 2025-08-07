@@ -188,14 +188,7 @@ export default async function handler(req, res) {
     let backendPath, backendUrl, headers;
     const timestamp = Date.now().toString();
 
-      // Check if this is a gas relayer request
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const isGasRelayerRequest = url.pathname.includes('/gas-relayer');
-  
-  if (isGasRelayerRequest) {
-    // Handle gas relayer routing
-    return await handleGasRelayerRequest(req, res, requestId, hmacSecret);
-  }
+      // Gas relayer now has its own separate endpoint /api/gas-relayer
 
   // Detect request type based on query parameters
   const { 

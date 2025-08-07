@@ -5,43 +5,15 @@
  * through the gas relayer for anonymous EOA submission
  */
 
-import crypto from 'crypto-js';
-
 // Use Vercel proxy instead of direct relayer calls for security
-// Route through wallet-metadata proxy to save serverless capacity
-const RELAYER_PROXY_URL = '/api/wallet-metadata/gas-relayer';
-const HMAC_SECRET = process.env.LEXIE_HMAC_SECRET;
-
-if (!HMAC_SECRET) {
-  console.warn('⚠️ LEXIE_HMAC_SECRET not configured - relayer will be disabled');
-}
+// Direct gas relayer proxy - no HMAC needed
+const RELAYER_PROXY_URL = '/api/gas-relayer';
 
 /**
- * Generate HMAC signature for authenticated requests
+ * Create simple headers for relayer requests (no HMAC needed)
  */
-function generateHmacSignature(payload, timestamp, secret = HMAC_SECRET) {
-  if (!secret) {
-    throw new Error('HMAC secret not configured');
-  }
-  
-  const message = `${timestamp}:${JSON.stringify(payload)}`;
-  return crypto.HmacSHA256(message, secret).toString();
-}
-
-/**
- * Create authenticated request headers
- */
-function createAuthHeaders(payload) {
-  if (!HMAC_SECRET) {
-    throw new Error('HMAC secret not configured - cannot authenticate relayer requests');
-  }
-  
-  const timestamp = Date.now().toString();
-  const signature = generateHmacSignature(payload, timestamp);
-  
+function createHeaders() {
   return {
-    'X-Timestamp': timestamp,
-    'X-Signature': signature,
     'Content-Type': 'application/json',
     'Accept': 'application/json',
     'Origin': window.location.origin
@@ -78,7 +50,7 @@ export async function estimateRelayerFee({
     
     const response = await fetch(feeUrl, {
       method: 'POST',
-      headers: createAuthHeaders(payload),
+      headers: createHeaders(),
       body: JSON.stringify(payload)
     });
 
@@ -140,7 +112,7 @@ export async function submitRelayedTransaction({
 
     const response = await fetch(`${RELAYER_PROXY_URL}/submit`, {
       method: 'POST',
-      headers: createAuthHeaders(payload),
+      headers: createHeaders(),
       body: JSON.stringify(payload)
     });
 
@@ -269,8 +241,6 @@ export function shouldUseRelayer(chainId, amount) {
   console.log('🔍 [RELAYER] Transaction details:', {
     chainId,
     amount,
-    hasHMACSecret: !!HMAC_SECRET,
-    hmacSecretPrefix: HMAC_SECRET ? HMAC_SECRET.substring(0, 5) + '...' : 'not set',
     supportedNetwork: RelayerConfig.supportedNetworks.includes(chainId),
     url: RelayerConfig.url
   });
@@ -278,10 +248,6 @@ export function shouldUseRelayer(chainId, amount) {
   // Log warnings but don't prevent relayer attempt
   if (!RelayerConfig.supportedNetworks.includes(chainId)) {
     console.warn('⚠️ [RELAYER] Unsupported network - may fail:', chainId);
-  }
-  
-  if (!HMAC_SECRET) {
-    console.warn('⚠️ [RELAYER] No HMAC secret - using test authentication');
   }
   
   const minAmount = BigInt(process.env.REACT_APP_RELAYER_MIN_AMOUNT || '0');
