@@ -1024,7 +1024,7 @@ export const unshieldTokens = async ({
     // Note: willUseGasRelayer already declared earlier in Step 4
     // ALWAYS use sendWithPublicWallet = true because our relayer will self-sign the transaction
     // This avoids broadcaster validation issues while still allowing anonymous transactions
-    sendWithPublicWallet = true;
+    let sendWithPublicWallet = true;
     const evmGasType = getEVMGasTypeForTransaction(networkName, sendWithPublicWallet);
     const originalGasEstimate = 0n; // Always start with 0 per official docs
     
