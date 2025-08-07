@@ -957,6 +957,10 @@ export const unshieldTokens = async ({
     let broadcasterFeeERC20AmountRecipient = null;
     let overallBatchMinGasPrice = undefined; // Not needed for self-signing transactions
     
+    // ALWAYS use sendWithPublicWallet = true because our relayer will self-sign the transaction
+    // This avoids broadcaster validation issues while still allowing anonymous transactions
+    let sendWithPublicWallet = true;
+    
     // Determine if we'll use our custom gas relayer
     const willUseGasRelayer = shouldUseRelayer(chain.id, amount);
     if (willUseGasRelayer) {
@@ -1021,10 +1025,7 @@ export const unshieldTokens = async ({
     const networkName = chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum;
     
     // OFFICIAL PATTERN: Determine EVM gas type based on wallet type
-    // Note: willUseGasRelayer already declared earlier in Step 4
-    // ALWAYS use sendWithPublicWallet = true because our relayer will self-sign the transaction
-    // This avoids broadcaster validation issues while still allowing anonymous transactions
-    let sendWithPublicWallet = true;
+    // Note: willUseGasRelayer and sendWithPublicWallet already declared earlier in Step 4
     const evmGasType = getEVMGasTypeForTransaction(networkName, sendWithPublicWallet);
     const originalGasEstimate = 0n; // Always start with 0 per official docs
     
