@@ -8,6 +8,119 @@ function generateHmacSignature(method, path, timestamp, secret) {
   return 'sha256=' + crypto.createHmac('sha256', secret).update(payload).digest('hex');
 }
 
+// No longer needed - using standardized HMAC format for both services
+
+/**
+ * Handle gas relayer requests
+ */
+async function handleGasRelayerRequest(req, res, requestId, hmacSecret) {
+  console.log(`🚀 [GAS-RELAYER-${requestId}] ${req.method} request via wallet-metadata proxy`);
+  
+  // Parse the URL to get the relayer endpoint
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const relayerPath = url.pathname.replace('/api/wallet-metadata/gas-relayer', '').replace('/api/gas-relayer', '');
+  
+  console.log(`🔍 [GAS-RELAYER-${requestId}] URL parsing:`, {
+    originalUrl: req.url,
+    parsedPathname: url.pathname,
+    relayerPath,
+    host: req.headers.host
+  });
+  
+  let backendPath, backendUrl;
+  
+  if (relayerPath === '/health' || relayerPath === '') {
+    // Health check endpoint
+    backendPath = '/health';
+    backendUrl = `https://relayer.lexiecrypto.com${backendPath}`;
+    
+  } else if (relayerPath === '/estimate-fee') {
+    // Fee estimation endpoint  
+    backendPath = '/api/relay/estimate-fee';
+    backendUrl = `https://relayer.lexiecrypto.com${backendPath}`;
+    
+  } else if (relayerPath === '/submit') {
+    // Transaction submission endpoint
+    backendPath = '/api/relay/submit';
+    backendUrl = `https://relayer.lexiecrypto.com${backendPath}`;
+    
+  } else {
+    console.log(`❌ [GAS-RELAYER-${requestId}] Unknown relayer endpoint: ${relayerPath}`);
+    return res.status(404).json({
+      success: false,
+      error: 'Unknown relayer endpoint'
+    });
+  }
+
+  const timestamp = Date.now().toString();
+  const bodyString = req.method === 'POST' ? JSON.stringify(req.body) : '';
+  const signature = generateGasRelayerHmacSignature(req.method, backendPath, timestamp, bodyString, hmacSecret);
+  
+  const headers = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'X-Signature': signature,
+    'X-Timestamp': timestamp,
+    'Origin': 'https://app.lexiecrypto.com',
+    'User-Agent': 'Lexie-Gas-Relayer-Proxy/1.0',
+  };
+
+  console.log(`🔐 [GAS-RELAYER-${requestId}] Generated HMAC headers`, {
+    method: req.method,
+    timestamp,
+    signature: signature.substring(0, 20) + '...',
+    path: backendPath
+  });
+
+  console.log(`📡 [GAS-RELAYER-${requestId}] Forwarding to relayer: ${backendUrl}`);
+
+  try {
+    // Make the relayer request
+    const fetchOptions = {
+      method: req.method,
+      headers,
+      signal: AbortSignal.timeout(30000),
+    };
+
+    // Add body for POST requests
+    if (req.method === 'POST') {
+      fetchOptions.body = bodyString;
+    }
+
+    const relayerResponse = await fetch(backendUrl, fetchOptions);
+    const responseBody = await relayerResponse.text(); // Read as text first
+
+    console.log(`✅ [GAS-RELAYER-${requestId}] Gas relayer responded with status ${relayerResponse.status}`);
+    console.log(`✅ [GAS-RELAYER-${requestId}] Response body (first 200 chars): ${responseBody.substring(0, 200)}...`);
+
+    // Attempt to parse as JSON, fallback to text
+    try {
+      const jsonResult = JSON.parse(responseBody);
+      res.status(relayerResponse.status).json(jsonResult);
+    } catch (jsonError) {
+      console.error(`❌ [GAS-RELAYER-${requestId}] Failed to parse response as JSON:`, jsonError.message);
+      res.status(relayerResponse.status).send(responseBody); // Send raw text if not JSON
+    }
+
+  } catch (error) {
+    console.error(`❌ [GAS-RELAYER-${requestId}] Error:`, {
+      method: req.method,
+      error: error.message,
+      stack: error.stack,
+      path: req.url
+    });
+    
+    if (!res.headersSent) {
+      res.status(500).json({
+        success: false,
+        error: error.message.includes('timeout') ? 'Gas relayer timeout - please try again' :
+               error.message.includes('502') ? 'Gas relayer service unavailable' :
+               'Internal proxy error'
+      });
+    }
+  }
+}
+
 export const config = {
   api: {
     bodyParser: true, // Enable body parsing for JSON
@@ -27,15 +140,22 @@ export default async function handler(req, res) {
 
   // Set CORS headers
   const origin = req.headers.origin;
-  const allowedOrigins = ['https://lexiecrypto.com', 'http://localhost:3000', 'http://localhost:3001'];
-  const isOriginAllowed = origin && allowedOrigins.includes(origin);
+  const allowedOrigins = [
+    'https://app.lexiecrypto.com',
+    'https://lexiecrypto.com', 
+    'http://localhost:3000', 
+    'http://localhost:3001',
+    'http://localhost:5173'
+  ];
+  const isOriginAllowed = origin && (allowedOrigins.includes(origin) || 
+    (origin && origin.endsWith('.lexiecrypto.com')));
   
   if (isOriginAllowed) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
   }
   
-  res.setHeader('Access-Control-Allow-Headers', 'Origin, Content-Type, Accept');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, Content-Type, Accept, X-Signature, X-Timestamp');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Vary', 'Origin');
 
@@ -68,14 +188,23 @@ export default async function handler(req, res) {
     let backendPath, backendUrl, headers;
     const timestamp = Date.now().toString();
 
-    // Detect request type based on query parameters
-    const { 
-      walletAddress, 
-      action, 
-      walletId,
-      tokenAddress,
-      requiredAmount 
-    } = req.query;
+      // Check if this is a gas relayer request
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const isGasRelayerRequest = url.pathname.includes('/gas-relayer');
+  
+  if (isGasRelayerRequest) {
+    // Handle gas relayer routing
+    return await handleGasRelayerRequest(req, res, requestId, hmacSecret);
+  }
+
+  // Detect request type based on query parameters
+  const { 
+    walletAddress, 
+    action, 
+    walletId,
+    tokenAddress,
+    requiredAmount 
+  } = req.query;
 
     if (req.method === 'GET') {
       if (action === 'balances') {

@@ -8,7 +8,8 @@
 import crypto from 'crypto-js';
 
 // Use Vercel proxy instead of direct relayer calls for security
-const RELAYER_PROXY_URL = '/api/gas-relayer';
+// Route through wallet-metadata proxy to save serverless capacity
+const RELAYER_PROXY_URL = '/api/wallet-metadata/gas-relayer';
 const HMAC_SECRET = process.env.LEXIE_HMAC_SECRET;
 
 if (!HMAC_SECRET) {
@@ -71,15 +72,31 @@ export async function estimateRelayerFee({
       gasEstimate: gasEstimate?.toString()
     };
 
-    const response = await fetch(`${RELAYER_PROXY_URL}/estimate-fee`, {
+    const feeUrl = `${RELAYER_PROXY_URL}/estimate-fee`;
+    console.log(`💰 [RELAYER] Calling fee estimation at: ${feeUrl}`);
+    console.log(`💰 [RELAYER] Full URL: ${window.location.origin}${feeUrl}`);
+    
+    const response = await fetch(feeUrl, {
       method: 'POST',
       headers: createAuthHeaders(payload),
       body: JSON.stringify(payload)
     });
 
+    console.log(`💰 [RELAYER] Fee response status: ${response.status}`);
+    console.log(`💰 [RELAYER] Fee response headers:`, Object.fromEntries(response.headers.entries()));
+
     if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`Fee estimation failed: ${error.error}`);
+      const errorText = await response.text();
+      console.error(`❌ [RELAYER] Fee estimation failed - Status: ${response.status}, Response: ${errorText.substring(0, 200)}...`);
+      
+      // Try to parse as JSON, but fallback to text if it fails
+      let error;
+      try {
+        error = JSON.parse(errorText);
+      } catch {
+        error = { error: errorText };
+      }
+      throw new Error(`Fee estimation failed: ${error.error || 'Unknown error'}`);
     }
 
     const result = await response.json();
@@ -153,15 +170,19 @@ export async function submitRelayedTransaction({
  */
 export async function checkRelayerHealth() {
   try {
-    console.log(`🏥 [RELAYER] Checking health at: ${RELAYER_PROXY_URL}/health`);
-    const response = await fetch(`${RELAYER_PROXY_URL}/health`);
+    const healthUrl = `${RELAYER_PROXY_URL}/health`;
+    console.log(`🏥 [RELAYER] Checking health at: ${healthUrl}`);
+    console.log(`🏥 [RELAYER] Full URL: ${window.location.origin}${healthUrl}`);
+    
+    const response = await fetch(healthUrl);
     
     console.log(`🏥 [RELAYER] Health response status: ${response.status}`);
+    console.log(`🏥 [RELAYER] Health response headers:`, Object.fromEntries(response.headers.entries()));
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`❌ [RELAYER] Health check failed - Status: ${response.status}, Response: ${errorText}`);
-      throw new Error(`Health check failed: ${response.status} - ${errorText}`);
+      console.error(`❌ [RELAYER] Health check failed - Status: ${response.status}, Response: ${errorText.substring(0, 200)}...`);
+      throw new Error(`Health check failed: ${response.status} - ${errorText.substring(0, 100)}`);
     }
 
     const result = await response.json();
