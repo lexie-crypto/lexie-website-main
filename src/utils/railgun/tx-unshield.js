@@ -18,14 +18,6 @@ import { waitForRailgunReady } from './engine.js';
 import { createUnshieldGasDetails } from './tx-gas-details.js';
 import { estimateGasWithBroadcasterFee } from './tx-gas-broadcaster-fee-estimator.js';
 import { generateUnshieldProof } from './tx-proof-unshield.js';
-// Gas Relayer Integration
-import { 
-  estimateRelayerFee, 
-  submitRelayedTransaction, 
-  shouldUseRelayer,
-  checkRelayerHealth,
-  RelayerConfig 
-} from './relayer-client.js';
 // Official Relayer SDK imports (following docs pattern)
 import {
   WakuRelayerClient,
@@ -1178,115 +1170,11 @@ export const unshieldTokens = async ({
       allProperties: Object.keys(populatedTransaction).filter(key => key !== 'transaction')
     });
 
-    // STEP 8: Submit Transaction (Enhanced with Gas Relayer Support)
+    // STEP 8: Submit Transaction
     console.log('📡 [UNSHIELD DEBUG] Step 8: Submitting transaction...');
-    
-    // 🚀 GAS RELAYER: Check if we should use the gas relayer for anonymous transactions
-    const useGasRelayer = shouldUseRelayer(chain.id, amount);
-    let gasRelayerFeeDetails = null;
-    
-    if (useGasRelayer) {
-      console.log('🚀 [GAS RELAYER] Attempting anonymous submission via gas relayer...');
-      
-      try {
-        // Check relayer health first
-        const relayerHealthy = await checkRelayerHealth();
-        if (!relayerHealthy) {
-          console.warn('⚠️ [GAS RELAYER] Service not available, skipping relayer integration');
-          throw new Error('Gas relayer service is not available');
-        }
-        
-        // Estimate relayer fees
-        console.log('💰 [GAS RELAYER] Estimating relayer fees...');
-        gasRelayerFeeDetails = await estimateRelayerFee({
-          chainId: chain.id,
-          tokenAddress,
-          amount: amount.toString(),
-          gasEstimate: finalGasEstimate.toString()
-        });
-        
-        console.log('💰 [GAS RELAYER] Fee estimate:', gasRelayerFeeDetails);
-        
-        // Regenerate proof with relayer fee included
-        console.log('🔮 [GAS RELAYER] Regenerating proof with relayer fee...');
-        
-        const relayerProofResult = await generateUnshieldProof(
-          TXIDVersion.V2_PoseidonMerkle,
-          chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
-          railgunWalletID,
-          encryptionKey,
-          [erc20AmountRecipient],
-          [], // nftAmountRecipients
-          null, // broadcasterFeeERC20AmountRecipient
-          false, // sendWithPublicWallet (use relayer)
-          overallBatchMinGasPrice,
-          (progress) => {
-            console.log(`🔮 [GAS RELAYER] Proof generation: ${Math.round(progress * 100)}%`);
-          },
-          gasRelayerFeeDetails, // Include relayer fee in proof
-          chain.id // Chain ID for relayer support
-        );
-        
-        console.log('🔮 [GAS RELAYER] Proof with relayer fee generated:', relayerProofResult);
-        
-        // Populate transaction with relayer fee proof
-        const relayerPopulatedTransaction = await populateProvedUnshield(
-          TXIDVersion.V2_PoseidonMerkle,
-          chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
-          railgunWalletID,
-          [erc20AmountRecipient],
-          [],
-          null, // No broadcaster fee
-          false, // sendWithPublicWallet
-          overallBatchMinGasPrice,
-          gasDetails
-        );
-        
-        // Submit via gas relayer
-        console.log('📤 [GAS RELAYER] Submitting transaction via gas relayer...');
-        
-        const relayerResult = await submitRelayedTransaction({
-          chainId: chain.id,
-          unsignedTransaction: {
-            to: relayerPopulatedTransaction.transaction.to,
-            data: relayerPopulatedTransaction.transaction.data,
-            value: relayerPopulatedTransaction.transaction.value || '0x0',
-            gasLimit: relayerPopulatedTransaction.transaction.gasLimit
-          },
-          tokenAddress,
-          amount: (BigInt(amount) + BigInt(gasRelayerFeeDetails.totalFee)).toString(),
-          userAddress: walletAddress,
-          feeDetails: gasRelayerFeeDetails
-        });
-        
-        console.log('✅ [GAS RELAYER] Anonymous transaction submitted successfully!', {
-          transactionHash: relayerResult.transactionHash,
-          gasUsed: relayerResult.gasUsed,
-          totalFee: relayerResult.totalFee,
-          privacyLevel: 'anonymous-eoa'
-        });
-        
-        // Return early with gas relayer success
-        return {
-          hash: relayerResult.transactionHash,
-          gasUsed: relayerResult.gasUsed,
-          totalFee: relayerResult.totalFee,
-          privacyLevel: 'anonymous-eoa',
-          method: 'gas-relayer',
-          relayerAddress: relayerResult.relayerAddress
-        };
-        
-      } catch (gasRelayerError) {
-        console.error('❌ [GAS RELAYER] Failed:', gasRelayerError.message);
-        console.log('🔄 [GAS RELAYER] Falling back to traditional methods...');
-        // Continue to existing relayer/self-sign logic
-      }
-    }
-    
     console.log('📡 [UNSHIELD DEBUG] Transaction submission decision:', {
       hasSelectedRelayer: !!selectedRelayer,
       usedRelayer,
-      useGasRelayer,
       selectedRelayerAddress: selectedRelayer?.railgunAddress?.substring(0, 20) + '...' || 'none',
       willUseRelayer: !!(selectedRelayer && usedRelayer),
       willSelfSign: !(selectedRelayer && usedRelayer),

@@ -37,7 +37,7 @@ export const initializeRailgunSystem = async () => {
     }
 
     // Set up global balance update callback using the handler from balances.js
-    const { handleBalanceUpdateCallback } = await import('./balances.js');
+    const { handleBalanceUpdateCallback } = await import('./railgun/balances.js');
     setOnBalanceUpdateCallback(handleBalanceUpdateCallback);
 
     // Set up UTXO Merkletree scan callback
