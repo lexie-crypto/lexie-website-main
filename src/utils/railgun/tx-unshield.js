@@ -1053,17 +1053,21 @@ export const unshieldTokens = async ({
     const networkName = chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum;
     
     // OFFICIAL PATTERN: Determine EVM gas type based on wallet type
-    sendWithPublicWallet = true; // True for self-signing (we're not using relayer for this flow)
+    // Check if we'll use gas relayer to determine correct sendWithPublicWallet value
+    const willUseGasRelayer = shouldUseRelayer(chain.id, amount);
+    sendWithPublicWallet = !willUseGasRelayer; // False when using relayer (broadcaster), true for self-signing
     const evmGasType = getEVMGasTypeForTransaction(networkName, sendWithPublicWallet);
     const originalGasEstimate = 0n; // Always start with 0 per official docs
     
     console.log('📝 [UNSHIELD DEBUG] Determined gas type (OFFICIAL):', {
       networkName,
+      willUseGasRelayer,
       sendWithPublicWallet,
       evmGasType,
       gasTypeDescription: evmGasType === EVMGasType.Type0 ? 'Legacy (Type0)' : 
                          evmGasType === EVMGasType.Type1 ? 'Legacy (Type1)' : 
-                         evmGasType === EVMGasType.Type2 ? 'EIP-1559 (Type2)' : 'Unknown'
+                         evmGasType === EVMGasType.Type2 ? 'EIP-1559 (Type2)' : 'Unknown',
+      note: willUseGasRelayer ? 'Using broadcaster gas type for relayer' : 'Using public wallet gas type for self-signing'
     });
     
     // OFFICIAL PATTERN: Create original gas details based on determined gas type
