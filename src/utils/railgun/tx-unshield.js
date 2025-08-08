@@ -357,8 +357,8 @@ export const unshieldTokens = async ({
       erc20AmountRecipients = [userRecipient];
     }
 
-    // STEP 5: Generate proof first (PROVEN TRANSACTION FLOW)
-    console.log('📝 [UNSHIELD] Step 5: Generating unshield proof...');
+    // STEP 5: Dummy proof dry-run for accurate gas estimation
+    console.log('📝 [UNSHIELD] Step 5a: Running dummy proof for gas estimation...');
     
     const networkName = getRailgunNetworkName(chain.id);
     const sendWithPublicWallet = true; // Always true for our pattern
@@ -387,6 +387,38 @@ export const unshieldTokens = async ({
         throw new Error(`Unsupported EVM gas type: ${evmGasType}`);
     }
     
+    // Create dummy recipients for gas estimation (no relayer fee)
+    const dummyRecipients = [createERC20AmountRecipient(tokenAddress, amount, toAddress)];
+    
+    console.log('🧮 [UNSHIELD] Running dummy proof for accurate gas estimation...');
+    
+    try {
+      // Generate dummy proof to get accurate gas estimate
+      const dummyProof = await generateUnshieldProof(
+        TXIDVersion.V2_PoseidonMerkle,
+        networkName,
+        railgunWalletID,
+        encryptionKey,
+        dummyRecipients,
+        [], // nftAmountRecipients
+        null, // No broadcasterFee for dummy run
+        sendWithPublicWallet,
+        undefined, // overallBatchMinGasPrice
+        (progress, status) => {
+          console.log(`📊 [UNSHIELD] Dummy Proof Progress: ${progress.toFixed(2)}% | ${status}`);
+        } // progressCallback
+      );
+      
+      var accurateGasEstimate = dummyProof.gasEstimate || BigInt('300000'); // Fallback estimate
+      console.log('✅ [UNSHIELD] Dummy proof completed, gas estimate:', accurateGasEstimate.toString());
+      
+    } catch (dummyError) {
+      console.warn('⚠️ [UNSHIELD] Dummy proof failed, using fallback gas estimate:', dummyError.message);
+      var accurateGasEstimate = BigInt('300000'); // Fallback if dummy proof fails
+    }
+    
+    console.log('📝 [UNSHIELD] Step 5b: Generating real unshield proof with accurate gas...');
+    
     // IMPORTANT: Prepare the relayer fee recipient BEFORE proof generation
     let broadcasterFeeERC20AmountRecipient = null;
     if (willUseGasRelayer && gasRelayerFeeDetails) {
@@ -408,7 +440,7 @@ export const unshieldTokens = async ({
       hasBroadcasterFee: !!broadcasterFeeERC20AmountRecipient
     });
     
-    // Generate proof - pass ALL recipients at once
+    // Generate proof - pass ALL recipients at once WITH accurate gas estimate
     const proofResponse = await generateUnshieldProof(
       TXIDVersion.V2_PoseidonMerkle,
       networkName,
@@ -420,19 +452,19 @@ export const unshieldTokens = async ({
       sendWithPublicWallet,
       undefined, // overallBatchMinGasPrice
       (progress, status) => {
-        console.log(`📊 [UNSHIELD] Proof Progress: ${progress.toFixed(2)}% | ${status}`);
+        console.log(`📊 [UNSHIELD] Real Proof Progress: ${progress.toFixed(2)}% | ${status}`);
       } // progressCallback
     );
     
-    // Extract gas estimate from proof response
-    const finalGasEstimate = proofResponse.gasEstimate || BigInt('250000'); // Fallback estimate
+    // Use the accurate gas estimate from dummy proof
+    const finalGasEstimate = accurateGasEstimate;
     console.log('✅ [UNSHIELD] Proof generation completed:', {
       gasEstimate: finalGasEstimate.toString(),
       evmGasType,
       hasProof: !!proofResponse,
     });
 
-    // Create final gas details with real estimate
+    // Create final gas details with accurate estimate from dummy proof
     let gasDetails;
     switch (evmGasType) {
       case EVMGasType.Type0:
