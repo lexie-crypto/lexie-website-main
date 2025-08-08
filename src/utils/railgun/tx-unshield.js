@@ -17,7 +17,7 @@ import {
 import { waitForRailgunReady } from './engine.js';
 import { createUnshieldGasDetails } from './tx-gas-details.js';
 import { estimateGasWithBroadcasterFee } from './tx-gas-broadcaster-fee-estimator.js';
-import { generateUnshieldProof } from './tx-proof-unshield.js';
+// Removed generateUnshieldProof - using official SDK pattern with gasEstimateForUnprovenUnshield + populateProvedUnshield
 // Gas Relayer Integration
 import { 
   estimateRelayerFee, 
@@ -1380,103 +1380,12 @@ export const unshieldTokens = async ({
         console.error('❌ [UNSHIELD DEBUG] Relayer submission failed:', relayerSubmissionError.message);
         console.warn('🔄 [UNSHIELD DEBUG] Falling back to self-signing...');
         
-        // Regenerate proof for self-signing
-        console.log('🔮 [UNSHIELD DEBUG] Regenerating proof for self-signing...');
+        // ✅ FIXED: No proof regeneration needed! Use existing populatedTransaction
+        // The transaction was already populated with the correct proof from gasEstimateForUnprovenUnshield
+        console.log('🔮 [UNSHIELD DEBUG] Using existing transaction for self-signing fallback...');
         
-        // Create new ERC20AmountRecipient for self-signing (reuse same values)
-        const selfSignRecipient = createERC20AmountRecipient(tokenAddress, amount, toAddress);
-        
-        const selfSignResult = await generateUnshieldProof(
-          TXIDVersion.V2_PoseidonMerkle,
-          chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
-          railgunWalletID,
-          encryptionKey, // Encryption key is required
-          [selfSignRecipient],
-          [], // nftAmountRecipients
-          null, // broadcasterFeeERC20AmountRecipient - No broadcaster fee for self-signing
-          true, // sendWithPublicWallet
-          '0x0', // overallBatchMinGasPrice
-          (progress) => {
-            console.log(`🔮 [UNSHIELD DEBUG] Fallback proof generation: ${Math.round(progress * 100)}%`);
-          }
-        );
-
-        console.log('🔮 [UNSHIELD DEBUG] Fallback proof result:', selfSignResult);
-
-        // Re-estimate gas for self-signing mode
-        // FALLBACK: Use same official SDK pattern for gas estimation
-        const fallbackNetworkName = chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum;
-        const fallbackSendWithPublicWallet = true; // Self-signing fallback
-        const fallbackEvmGasType = getEVMGasTypeForTransaction(fallbackNetworkName, fallbackSendWithPublicWallet);
-        
-        // Create fallback original gas details
-        let fallbackOriginalGasDetails;
-        switch (fallbackEvmGasType) {
-          case EVMGasType.Type0:
-          case EVMGasType.Type1:
-            fallbackOriginalGasDetails = {
-              evmGasType: fallbackEvmGasType,
-              gasEstimate: 0n,
-              gasPrice: BigInt('0x100000'),
-            };
-            break;
-          case EVMGasType.Type2:
-            fallbackOriginalGasDetails = {
-              evmGasType: fallbackEvmGasType,
-              gasEstimate: 0n,
-              maxFeePerGas: BigInt('0x100000'),
-              maxPriorityFeePerGas: BigInt('0x010000'),
-            };
-            break;
-        }
-
-        const fallbackGasEstimateResponse = await gasEstimateForUnprovenUnshield(
-          TXIDVersion.V2_PoseidonMerkle,
-          fallbackNetworkName,
-          railgunWalletID,
-          encryptionKey,
-          [selfSignRecipient],
-          [], // nftAmountRecipients
-          fallbackOriginalGasDetails, // Use structured gas details
-          null, // feeTokenDetails
-          true // Always use true for gas estimation to avoid broadcaster validation
-        );
-        
-        const fallbackGasEstimate = fallbackGasEstimateResponse.gasEstimate;
-        
-        // Create final fallback gas details
-        let fallbackGasDetails;
-        switch (fallbackEvmGasType) {
-          case EVMGasType.Type0:
-          case EVMGasType.Type1:
-            fallbackGasDetails = {
-              evmGasType: fallbackEvmGasType,
-              gasEstimate: fallbackGasEstimate,
-              gasPrice: fallbackOriginalGasDetails.gasPrice,
-            };
-            break;
-          case EVMGasType.Type2:
-            fallbackGasDetails = {
-              evmGasType: fallbackEvmGasType,
-              gasEstimate: fallbackGasEstimate,
-              maxFeePerGas: fallbackOriginalGasDetails.maxFeePerGas,
-              maxPriorityFeePerGas: fallbackOriginalGasDetails.maxPriorityFeePerGas,
-            };
-            break;
-        }
-
-        // Repopulate transaction for self-signing using internally stored proof
-        const selfSignTx = await populateProvedUnshield(
-          TXIDVersion.V2_PoseidonMerkle,
-          chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
-          railgunWalletID,
-          [selfSignRecipient], // Reuse the properly formatted recipient
-          [], // nftAmountRecipients
-          null, // broadcasterFeeERC20AmountRecipient
-          true, // sendWithPublicWallet
-          '0x0', // overallBatchMinGasPrice
-          fallbackGasDetails // Use fallback gas estimation
-        );
+        // Use the existing populatedTransaction - it already has the correct proof and gas details
+        const selfSignTx = populatedTransaction;
 
         // Submit self-signed transaction
         transactionHash = await submitTransactionSelfSigned(selfSignTx, walletProvider);
