@@ -507,15 +507,19 @@ export const unshieldTokens = async ({
           gasLimit: contractTransaction.gasLimit?.toString(),
         });
         
-        // For wallet.sendTransaction(), we need to pass the contract transaction object directly
-        // The relayer wallet will handle the serialization internally
-        const serializedTransaction = JSON.stringify({
+        // Create properly serialized transaction
+        // We need to pass the transaction object to sendTransaction, not a hex string
+        const transactionObject = {
           to: contractTransaction.to,
           data: contractTransaction.data,
-          value: contractTransaction.value?.toString() || '0x0',
-          gasLimit: contractTransaction.gasLimit?.toString(),
+          value: contractTransaction.value || '0x0',
+          gasLimit: contractTransaction.gasLimit,
           type: contractTransaction.type
-        });
+        };
+        
+        // For the relayer, we'll send the transaction object as a JSON string
+        // but mark it as a "serialized transaction" that the relayer can parse
+        const serializedTransaction = '0x' + Buffer.from(JSON.stringify(transactionObject)).toString('hex');
         
         console.log('📤 [GAS RELAYER] Submitting serialized transaction...');
         
