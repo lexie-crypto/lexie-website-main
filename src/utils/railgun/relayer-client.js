@@ -186,13 +186,15 @@ export async function checkRelayerHealth() {
  */
 export async function getRelayerAddress() {
   // Return the configured relayer address directly
-  const relayerAddress = process.env.REACT_APP_RELAYER_ADDRESS;
+  const relayerAddress = import.meta.env.REACT_APP_RELAYER_ADDRESS;
   
   if (!relayerAddress) {
     console.error('❌ [RELAYER] REACT_APP_RELAYER_ADDRESS not configured');
+    console.error('❌ [RELAYER] Available env vars:', Object.keys(import.meta.env));
     throw new Error('Relayer address not configured');
   }
   
+  console.log('✅ [RELAYER] Using relayer address:', relayerAddress.slice(0, 10) + '...');
   return relayerAddress;
 }
 
