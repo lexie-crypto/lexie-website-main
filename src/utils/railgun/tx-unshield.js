@@ -1042,12 +1042,16 @@ export const unshieldTokens = async ({
     // NOTE: Always use sendWithPublicWallet=true for gas estimation to avoid broadcaster validation
     // The actual sendWithPublicWallet value is used later in populateProvedUnshield
     console.log('📝 [UNSHIELD DEBUG] Calling gasEstimateForUnprovenUnshield...');
+    
+    // Create a simple recipient for gas estimation (full user amount, fees calculated later)
+    const gasEstimationRecipient = createERC20AmountRecipient(tokenAddress, amount, toAddress);
+    
     const gasEstimateResponse = await gasEstimateForUnprovenUnshield(
       TXIDVersion.V2_PoseidonMerkle,
       networkName,
       railgunWalletID,
       encryptionKey,
-      [erc20AmountRecipient],
+      [gasEstimationRecipient],
       [], // nftAmountRecipients
       originalGasDetails, // Pass the properly structured original gas details
       null, // feeTokenDetails (null for self-signing)
