@@ -8,7 +8,6 @@
 
 import {
   populateProvedUnshield,
-  gasEstimateForUnprovenUnshield,
 } from '@railgun-community/wallet';
 import {
   NetworkName,
@@ -26,6 +25,9 @@ import {
   checkRelayerHealth,
   getRelayerAddress,
 } from './relayer-client.js';
+
+// Proof Generation
+import { generateUnshieldProof } from './tx-proof-unshield.js';
 
 /**
  * Network mapping to Railgun NetworkName enum values
@@ -358,14 +360,14 @@ export const unshieldTokens = async ({
       erc20AmountRecipients = [userRecipient];
     }
 
-    // STEP 5: Gas estimation and proof generation (SINGLE CALL)
-    console.log('📝 [UNSHIELD] Step 5: Gas estimation and proof generation...');
+    // STEP 5: Generate proof first (PROVEN TRANSACTION FLOW)
+    console.log('📝 [UNSHIELD] Step 5: Generating unshield proof...');
     
     const networkName = getRailgunNetworkName(chain.id);
     const sendWithPublicWallet = true; // Always true for our pattern
     const evmGasType = getEVMGasTypeForTransaction(networkName, sendWithPublicWallet);
     
-    // Create gas details structure
+    // Create gas details structure for proof generation
     let originalGasDetails;
     switch (evmGasType) {
       case EVMGasType.Type0:
@@ -388,25 +390,32 @@ export const unshieldTokens = async ({
         throw new Error(`Unsupported EVM gas type: ${evmGasType}`);
     }
     
-    console.log('📝 [UNSHIELD] Gas estimation with recipients:', erc20AmountRecipients.length);
+    console.log('📝 [UNSHIELD] Generating proof with recipients:', erc20AmountRecipients.length);
     
-    // SINGLE gas estimation call - this generates the proof internally
-    const gasEstimateResponse = await gasEstimateForUnprovenUnshield(
+    // Generate the proof first - this is the proven transaction flow
+    const proofResponse = await generateUnshieldProof(
       TXIDVersion.V2_PoseidonMerkle,
       networkName,
       railgunWalletID,
       encryptionKey,
       erc20AmountRecipients, // Final recipients (user + relayer fee if applicable)
       [], // nftAmountRecipients
-      originalGasDetails,
-      null, // feeTokenDetails
-      sendWithPublicWallet // Always true for public wallet pattern
+      null, // broadcasterFeeERC20AmountRecipient (not needed for public wallet)
+      sendWithPublicWallet,
+      undefined, // overallBatchMinGasPrice
+      (progress, status) => {
+        console.log(`📊 [UNSHIELD] Proof Progress: ${progress.toFixed(2)}% | ${status}`);
+      }, // progressCallback
+      gasRelayerFeeDetails, // relayerFeeDetails
+      chain.id // chainId
     );
     
-    const finalGasEstimate = gasEstimateResponse.gasEstimate;
-    console.log('✅ [UNSHIELD] Gas estimation completed:', {
+    // Extract gas estimate from proof response
+    const finalGasEstimate = proofResponse.gasEstimate || BigInt('250000'); // Fallback estimate
+    console.log('✅ [UNSHIELD] Proof generation completed:', {
       gasEstimate: finalGasEstimate.toString(),
       evmGasType,
+      hasProof: !!proofResponse,
     });
 
     // Create final gas details with real estimate
@@ -430,8 +439,8 @@ export const unshieldTokens = async ({
         break;
     }
 
-    // STEP 6: Populate transaction using stored proof
-    console.log('📝 [UNSHIELD] Step 6: Populating transaction...');
+    // STEP 6: Populate transaction using generated proof
+    console.log('📝 [UNSHIELD] Step 6: Populating transaction with proof...');
     
     const populatedTransaction = await populateProvedUnshield(
       TXIDVersion.V2_PoseidonMerkle,
