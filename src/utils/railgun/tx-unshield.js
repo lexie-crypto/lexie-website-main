@@ -507,9 +507,15 @@ export const unshieldTokens = async ({
           gasLimit: contractTransaction.gasLimit?.toString(),
         });
         
-        // Create ethers transaction for serialization
-        const ethersTransaction = ethers.Transaction.from(contractTransaction);
-        const serializedTransaction = ethersTransaction.unsignedSerialized;
+        // For wallet.sendTransaction(), we need to pass the contract transaction object directly
+        // The relayer wallet will handle the serialization internally
+        const serializedTransaction = JSON.stringify({
+          to: contractTransaction.to,
+          data: contractTransaction.data,
+          value: contractTransaction.value?.toString() || '0x0',
+          gasLimit: contractTransaction.gasLimit?.toString(),
+          type: contractTransaction.type
+        });
         
         console.log('📤 [GAS RELAYER] Submitting serialized transaction...');
         
