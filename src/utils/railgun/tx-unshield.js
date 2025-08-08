@@ -492,26 +492,24 @@ export const unshieldTokens = async ({
         }
         
         // Serialize transaction for relayer
-        const { RailgunVersionedSmartContracts } = await import('@railgun-community/engine');
-        const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
+        // The populatedTransaction.transaction is already a ContractTransaction
+        const contractTransaction = populatedTransaction.transaction;
         
-        const chainConfig = NETWORK_CONFIG[networkName].chain;
-        const transactionStructs = populatedTransaction.transactionStructs || populatedTransaction.txs;
-        
-        let serializedTransaction;
-        if (transactionStructs && Array.isArray(transactionStructs)) {
-          const contractTransaction = await RailgunVersionedSmartContracts.generateTransact(
-            TXIDVersion.V2_PoseidonMerkle,
-            chainConfig,
-            transactionStructs
-          );
-          
-          const { ethers } = await import('ethers');
-          const ethersTransaction = ethers.Transaction.from(contractTransaction);
-          serializedTransaction = ethersTransaction.unsignedSerialized;
-        } else {
-          throw new Error('No transaction structures found for serialization');
+        if (!contractTransaction) {
+          throw new Error('No transaction found in populated response');
         }
+        
+        const { ethers } = await import('ethers');
+        console.log('🔧 [GAS RELAYER] Serializing transaction:', {
+          to: contractTransaction.to,
+          data: contractTransaction.data ? 'present' : 'missing',
+          value: contractTransaction.value?.toString(),
+          gasLimit: contractTransaction.gasLimit?.toString(),
+        });
+        
+        // Create ethers transaction for serialization
+        const ethersTransaction = ethers.Transaction.from(contractTransaction);
+        const serializedTransaction = ethersTransaction.unsignedSerialized;
         
         console.log('📤 [GAS RELAYER] Submitting serialized transaction...');
         
