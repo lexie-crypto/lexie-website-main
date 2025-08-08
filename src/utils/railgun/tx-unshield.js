@@ -325,19 +325,16 @@ export const unshieldTokens = async ({
           toAddress
         );
         
-        const relayerFeeRecipient = createERC20AmountRecipient(
-          tokenAddress,
-          relayerFeeAmount.toString(),
-          relayerAddress
-        );
-        
-        erc20AmountRecipients = [userRecipient, relayerFeeRecipient];
+        // Keep only the user recipient in erc20AmountRecipients
+        // Relayer fee will be passed separately as broadcasterFeeERC20AmountRecipient
+        erc20AmountRecipients = [userRecipient];
         
         gasRelayerFeeDetails = {
           relayerFee: relayerFeeAmount.toString(),
           protocolFee: '0',
           gasFee: '0',
-          totalFee: relayerFeeAmount.toString()
+          totalFee: relayerFeeAmount.toString(),
+          relayerAddress: relayerAddress // Store for later use
         };
         
         console.log('💰 [GAS RELAYER] Fee calculation completed:', {
@@ -390,24 +387,41 @@ export const unshieldTokens = async ({
         throw new Error(`Unsupported EVM gas type: ${evmGasType}`);
     }
     
-    console.log('📝 [UNSHIELD] Generating proof with recipients:', erc20AmountRecipients.length);
+    // IMPORTANT: Prepare the relayer fee recipient BEFORE proof generation
+    let broadcasterFeeERC20AmountRecipient = null;
+    if (willUseGasRelayer && gasRelayerFeeDetails) {
+      // This is the RAILGUN SDK expected format for relayer fees
+      broadcasterFeeERC20AmountRecipient = {
+        tokenAddress: tokenAddress,
+        amount: BigInt(gasRelayerFeeDetails.relayerFee),
+        recipientAddress: gasRelayerFeeDetails.relayerAddress
+      };
+      console.log('💰 [UNSHIELD] Broadcaster fee recipient prepared:', {
+        tokenAddress,
+        amount: gasRelayerFeeDetails.relayerFee,
+        recipientAddress: gasRelayerFeeDetails.relayerAddress.slice(0, 10) + '...',
+      });
+    }
     
-    // Generate the proof first - this is the proven transaction flow
+    console.log('📝 [UNSHIELD] Generating proof with recipients:', {
+      userRecipients: erc20AmountRecipients.length,
+      hasBroadcasterFee: !!broadcasterFeeERC20AmountRecipient
+    });
+    
+    // Generate proof - pass ALL recipients at once
     const proofResponse = await generateUnshieldProof(
       TXIDVersion.V2_PoseidonMerkle,
       networkName,
       railgunWalletID,
       encryptionKey,
-      erc20AmountRecipients, // Final recipients (user + relayer fee if applicable)
+      erc20AmountRecipients, // User recipients only (already reduced amount if using relayer)
       [], // nftAmountRecipients
-      null, // broadcasterFeeERC20AmountRecipient (not needed for public wallet)
+      broadcasterFeeERC20AmountRecipient, // Pass relayer fee HERE, not inside the function
       sendWithPublicWallet,
       undefined, // overallBatchMinGasPrice
       (progress, status) => {
         console.log(`📊 [UNSHIELD] Proof Progress: ${progress.toFixed(2)}% | ${status}`);
-      }, // progressCallback
-      gasRelayerFeeDetails, // relayerFeeDetails
-      chain.id // chainId
+      } // progressCallback
     );
     
     // Extract gas estimate from proof response
@@ -446,9 +460,9 @@ export const unshieldTokens = async ({
       TXIDVersion.V2_PoseidonMerkle,
       networkName,
       railgunWalletID,
-      erc20AmountRecipients, // Same recipients as used in proof generation
+      erc20AmountRecipients, // Same user recipients as used in proof generation
       [], // nftAmountRecipients
-      null, // broadcasterFeeERC20AmountRecipient (not needed for public wallet)
+      broadcasterFeeERC20AmountRecipient, // Same broadcaster fee as used in proof generation
       sendWithPublicWallet,
       undefined, // overallBatchMinGasPrice (not needed)
       gasDetails

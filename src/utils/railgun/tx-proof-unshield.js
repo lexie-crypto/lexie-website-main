@@ -63,48 +63,14 @@ export const generateUnshieldProof = async (
       chainId,
     });
 
-    // Enhanced recipients array with relayer fee support
-    let finalErc20Recipients = [...erc20AmountRecipients];
-    let finalBroadcasterFee = broadcasterFeeERC20AmountRecipient;
-
-    // Check if we should add relayer fee to the proof
-    if (relayerFeeDetails && chainId && shouldUseRelayer(chainId, '0')) {
-      console.log('[UnshieldProof] 🚀 Adding gas relayer fee to proof generation...');
-      
-      try {
-        const relayerAddress = await getRelayerAddress();
-        
-        if (relayerAddress && relayerFeeDetails.totalFee) {
-          // Extract token address from first recipient
-          const primaryTokenAddress = erc20AmountRecipients[0]?.tokenAddress;
-          
-          if (primaryTokenAddress) {
-            // Create relayer fee recipient
-            const relayerFeeRecipient = {
-              tokenAddress: primaryTokenAddress,
-              amount: BigInt(relayerFeeDetails.totalFee),
-              recipientAddress: relayerAddress,
-            };
-            
-            console.log('[UnshieldProof] ✅ Relayer fee recipient created:', {
-              tokenAddress: primaryTokenAddress.slice(0, 10) + '...',
-              amount: relayerFeeDetails.totalFee,
-              relayerAddress: relayerAddress.slice(0, 10) + '...',
-            });
-            
-            // Add relayer fee to recipients
-            finalErc20Recipients.push(relayerFeeRecipient);
-          } else {
-            console.warn('[UnshieldProof] ⚠️ No token address found for relayer fee');
-          }
-        } else {
-          console.warn('[UnshieldProof] ⚠️ Missing relayer address or fee amount');
-        }
-      } catch (error) {
-        console.error('[UnshieldProof] ❌ Failed to add relayer fee:', error);
-        console.log('[UnshieldProof] 🔄 Continuing without relayer fee...');
-      }
-    }
+    // DO NOT modify recipients here - pass them through as received
+    // The caller should already have set up the proper broadcasterFeeERC20AmountRecipient
+    // and erc20AmountRecipients correctly according to RAILGUN SDK patterns
+    console.log('[UnshieldProof] 📋 Using recipients as provided by caller:', {
+      userRecipients: erc20AmountRecipients.length,
+      hasBroadcasterFee: !!broadcasterFeeERC20AmountRecipient,
+      relayerFeeAmount: broadcasterFeeERC20AmountRecipient?.amount?.toString(),
+    });
 
     // Create a progress wrapper that provides better logging
     const wrappedProgressCallback = (progress) => {
@@ -117,16 +83,16 @@ export const generateUnshieldProof = async (
       }
     };
 
-    // Call the official SDK proof generation function with enhanced recipients
+    // Call the official SDK proof generation function with original parameters
     // Note: This function stores the proof internally, it doesn't return the proof response
     await generateUnshieldProofSDK(
       txidVersion,
       networkName,
       railgunWalletID,
       encryptionKey,
-      finalErc20Recipients, // Use enhanced recipients array with relayer fee
+      erc20AmountRecipients, // Use original recipients - no modification
       nftAmountRecipients,
-      finalBroadcasterFee,
+      broadcasterFeeERC20AmountRecipient, // Use original broadcaster fee
       sendWithPublicWallet,
       overallBatchMinGasPrice,
       wrappedProgressCallback
