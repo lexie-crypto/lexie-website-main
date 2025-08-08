@@ -186,10 +186,11 @@ export async function checkRelayerHealth() {
  */
 export async function getRelayerAddress() {
   // Return the configured relayer address directly
-  const relayerAddress = import.meta.env.REACT_APP_RELAYER_ADDRESS;
+  // In Vite, environment variables must be prefixed with VITE_
+  const relayerAddress = import.meta.env.VITE_RELAYER_ADDRESS;
   
   if (!relayerAddress) {
-    console.error('❌ [RELAYER] REACT_APP_RELAYER_ADDRESS not configured');
+    console.error('❌ [RELAYER] VITE_RELAYER_ADDRESS not configured');
     console.error('❌ [RELAYER] Available env vars:', Object.keys(import.meta.env));
     throw new Error('Relayer address not configured');
   }
