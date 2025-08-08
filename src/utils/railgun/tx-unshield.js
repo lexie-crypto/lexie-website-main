@@ -976,105 +976,7 @@ export const unshieldTokens = async ({
 
 
 
-    // STEP 4.5: Calculate gas relayer fees if needed
-    let erc20AmountRecipients = [];
-    let gasRelayerFeeDetails = null;
-    
-    if (willUseGasRelayer) {
-      console.log('💰 [GAS RELAYER] Calculating fees before proof generation...');
-      
-      try {
-        // Estimate relayer fees
-        gasRelayerFeeDetails = await estimateRelayerFee({
-          chainId: chain.id,
-          amount,
-          tokenAddress,
-          gasEstimate: finalGasEstimate.toString()
-        });
-        
-        console.log('💰 [GAS RELAYER] Fee estimate:', gasRelayerFeeDetails);
-        
-        // Get relayer address
-        const relayerAddress = await getRelayerAddress();
-        
-        // Create fee recipient for the total relayer fee
-        const relayerFeeERC20AmountRecipient = createERC20AmountRecipient(
-          tokenAddress,
-          gasRelayerFeeDetails.totalFee,
-          relayerAddress
-        );
-        
-        // Create updated user recipient with fee subtracted
-        const userAmountAfterFee = BigInt(amount) - BigInt(gasRelayerFeeDetails.totalFee);
-        const userRecipientWithFee = createERC20AmountRecipient(
-          tokenAddress,
-          userAmountAfterFee.toString(),
-          toAddress
-        );
-        
-        console.log('💰 [GAS RELAYER] Fee allocation:', {
-          originalAmount: amount,
-          userAmountAfterFee: userAmountAfterFee.toString(),
-          relayerFee: gasRelayerFeeDetails.totalFee,
-          relayerAddress: relayerAddress.slice(0, 10) + '...',
-          userAddress: toAddress.slice(0, 10) + '...'
-        });
-        
-        // Use both user and relayer recipients
-        erc20AmountRecipients = [userRecipientWithFee, relayerFeeERC20AmountRecipient];
-        
-      } catch (relayerError) {
-        console.error('❌ [GAS RELAYER] Fee calculation failed:', relayerError);
-        console.log('🔄 [GAS RELAYER] Falling back to self-signing...');
-        
-        // Fallback to self-signing
-        willUseGasRelayer = false;
-        usedRelayer = false;
-        privacyLevel = 'self-signed';
-      }
-    }
-    
-    if (!willUseGasRelayer) {
-      // Create single recipient for user amount (self-signing mode)
-      const erc20AmountRecipient = createERC20AmountRecipient(tokenAddress, amount, toAddress);
-      erc20AmountRecipients = [erc20AmountRecipient];
-    }
-
-    // STEP 5: Generate Proof
-    console.log('🔮 [UNSHIELD DEBUG] Step 5: Generating unshield proof...');
-    const proofStartTime = Date.now();
-    
-    console.log('🔮 [UNSHIELD DEBUG] Created ERC20AmountRecipients:', {
-      count: erc20AmountRecipients.length,
-      recipients: erc20AmountRecipients.map(r => ({
-        tokenAddress: r.tokenAddress,
-        amount: r.amount.toString(),
-        recipientAddress: r.recipientAddress.slice(0, 10) + '...'
-      }))
-    });
-    
-            const proofResult = await generateUnshieldProof(
-      TXIDVersion.V2_PoseidonMerkle,
-      chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
-      railgunWalletID,
-      encryptionKey, // Encryption key is required
-      erc20AmountRecipients, // Use the calculated recipients (user only or user+relayer)
-      [], // nftAmountRecipients
-      broadcasterFeeERC20AmountRecipient,
-      sendWithPublicWallet,
-      overallBatchMinGasPrice,
-      (progress) => {
-        console.log(`🔮 [UNSHIELD DEBUG] Proof generation progress: ${Math.round(progress * 100)}%`);
-      }
-    );
-
-    const proofDuration = Date.now() - proofStartTime;
-    console.log('🔮 [UNSHIELD DEBUG] Proof generation completed:', {
-      duration: `${proofDuration}ms`,
-      success: proofResult?.success,
-      message: proofResult?.message,
-      note: 'Proof stored internally in SDK - nullifiers will come from populateProvedUnshield'
-    });
+    // Proof generation will happen after fee calculation
 
     // 🚀 ZERO-DELAY POI: Check if we're in zero-delay mode and bypass spendable checks
     if (typeof window !== 'undefined' && window.__LEXIE_ZERO_DELAY_MODE__) {
@@ -1187,6 +1089,104 @@ export const unshieldTokens = async ({
       hasMaxFeePerGas: !!gasDetails.maxFeePerGas,
       gasPrice: gasDetails.gasPrice ? gasDetails.gasPrice.toString() : 'undefined',
       maxFeePerGas: gasDetails.maxFeePerGas ? gasDetails.maxFeePerGas.toString() : 'undefined',
+    });
+
+    // STEP 6.5: Calculate gas relayer fees if needed (now that we have gas estimate)
+    let erc20AmountRecipients = [];
+    let gasRelayerFeeDetails = null;
+    
+    if (willUseGasRelayer) {
+      console.log('💰 [GAS RELAYER] Calculating fees after gas estimation...');
+      
+      try {
+        // Estimate relayer fees
+        gasRelayerFeeDetails = await estimateRelayerFee({
+          chainId: chain.id,
+          amount,
+          tokenAddress,
+          gasEstimate: finalGasEstimate.toString()
+        });
+        
+        console.log('💰 [GAS RELAYER] Fee estimate:', gasRelayerFeeDetails);
+        
+        // Get relayer address
+        const relayerAddress = await getRelayerAddress();
+        
+        // Create fee recipient for the total relayer fee
+        const relayerFeeERC20AmountRecipient = createERC20AmountRecipient(
+          tokenAddress,
+          gasRelayerFeeDetails.totalFee,
+          relayerAddress
+        );
+        
+        // Create updated user recipient with fee subtracted
+        const userAmountAfterFee = BigInt(amount) - BigInt(gasRelayerFeeDetails.totalFee);
+        const userRecipientWithFee = createERC20AmountRecipient(
+          tokenAddress,
+          userAmountAfterFee.toString(),
+          toAddress
+        );
+        
+        console.log('💰 [GAS RELAYER] Fee allocation:', {
+          originalAmount: amount,
+          userAmountAfterFee: userAmountAfterFee.toString(),
+          relayerFee: gasRelayerFeeDetails.totalFee,
+          relayerAddress: relayerAddress.slice(0, 10) + '...',
+          userAddress: toAddress.slice(0, 10) + '...'
+        });
+        
+        // Use both user and relayer recipients
+        erc20AmountRecipients = [userRecipientWithFee, relayerFeeERC20AmountRecipient];
+        
+      } catch (relayerError) {
+        console.error('❌ [GAS RELAYER] Fee calculation failed:', relayerError);
+        console.log('🔄 [GAS RELAYER] Falling back to self-signing...');
+        
+        // Fallback to self-signing
+        const erc20AmountRecipient = createERC20AmountRecipient(tokenAddress, amount, toAddress);
+        erc20AmountRecipients = [erc20AmountRecipient];
+        gasRelayerFeeDetails = null;
+      }
+    } else {
+      // Create single recipient for user amount (self-signing mode)
+      const erc20AmountRecipient = createERC20AmountRecipient(tokenAddress, amount, toAddress);
+      erc20AmountRecipients = [erc20AmountRecipient];
+    }
+
+    // STEP 7: Generate Proof (after fee calculation)
+    console.log('🔮 [UNSHIELD DEBUG] Step 7: Generating unshield proof...');
+    const proofStartTime = Date.now();
+    
+    console.log('🔮 [UNSHIELD DEBUG] Created ERC20AmountRecipients:', {
+      count: erc20AmountRecipients.length,
+      recipients: erc20AmountRecipients.map(r => ({
+        tokenAddress: r.tokenAddress,
+        amount: r.amount.toString(),
+        recipientAddress: r.recipientAddress.slice(0, 10) + '...'
+      }))
+    });
+    
+    const proofResult = await generateUnshieldProof(
+      TXIDVersion.V2_PoseidonMerkle,
+      chain.type === 0 ? NetworkName.Ethereum : NetworkName.Arbitrum,
+      railgunWalletID,
+      encryptionKey, // Encryption key is required
+      erc20AmountRecipients, // Use the calculated recipients (user only or user+relayer)
+      [], // nftAmountRecipients
+      broadcasterFeeERC20AmountRecipient,
+      sendWithPublicWallet,
+      overallBatchMinGasPrice,
+      (progress) => {
+        console.log(`🔮 [UNSHIELD DEBUG] Proof generation progress: ${Math.round(progress * 100)}%`);
+      }
+    );
+
+    const proofDuration = Date.now() - proofStartTime;
+    console.log('🔮 [UNSHIELD DEBUG] Proof generation completed:', {
+      duration: `${proofDuration}ms`,
+      success: proofResult?.success,
+      message: proofResult?.message,
+      note: 'Proof stored internally in SDK - nullifiers will come from populateProvedUnshield'
     });
     
     // STEP 7: Populate Transaction with real gas details
