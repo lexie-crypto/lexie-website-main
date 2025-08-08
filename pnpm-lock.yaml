@@ -11,6 +11,9 @@ importers:
       '@heroicons/react':
         specifier: 2.1.1
         version: 2.1.1(react@18.3.1)
+      '@railgun-community/engine':
+        specifier: 9.4.0
+        version: 9.4.0(bufferutil@4.0.9)(chai@5.2.1)(utf-8-validate@5.0.10)
       '@railgun-community/shared-models':
         specifier: 7.6.2
         version: 7.6.2(ethers@6.13.4(bufferutil@4.0.9)(utf-8-validate@5.0.10))

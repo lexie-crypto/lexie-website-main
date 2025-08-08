@@ -46,6 +46,7 @@ export default defineConfig({
     include: [
       '@railgun-community/wallet',
       '@railgun-community/shared-models',
+      '@railgun-community/engine',
       'localforage',
       'level-js',
       'snarkjs'
