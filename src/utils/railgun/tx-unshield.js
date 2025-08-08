@@ -519,7 +519,8 @@ export const unshieldTokens = async ({
           tokenAddress,
           amount,
           userAddress: walletAddress,
-          feeDetails: gasRelayerFeeDetails
+          feeDetails: gasRelayerFeeDetails,
+          gasEstimate: contractTransaction.gasLimit?.toString() // Pass actual gas estimate
         });
         
         transactionHash = relayerResult.transactionHash;

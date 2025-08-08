@@ -91,7 +91,8 @@ export async function submitRelayedTransaction({
   tokenAddress,
   amount,
   userAddress,
-  feeDetails
+  feeDetails,
+  gasEstimate
 }) {
   try {
     console.log('🚀 [RELAYER] Submitting serialized transaction through gas relayer:', {
@@ -108,7 +109,8 @@ export async function submitRelayedTransaction({
       tokenAddress,
       amount,
       userAddress,
-      feeDetails
+      feeDetails,
+      gasEstimate
     };
 
     // Backend expects /api/relay/submit
