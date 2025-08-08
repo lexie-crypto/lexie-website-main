@@ -508,14 +508,22 @@ export const unshieldTokens = async ({
         });
         
         // Create properly serialized transaction
-        // We need to pass the transaction object to sendTransaction, not a hex string
+        // Convert BigInt values to strings for JSON serialization
         const transactionObject = {
           to: contractTransaction.to,
           data: contractTransaction.data,
-          value: contractTransaction.value || '0x0',
-          gasLimit: contractTransaction.gasLimit,
+          value: contractTransaction.value ? contractTransaction.value.toString() : '0x0',
+          gasLimit: contractTransaction.gasLimit ? contractTransaction.gasLimit.toString() : undefined,
           type: contractTransaction.type
         };
+        
+        console.log('🔧 [GAS RELAYER] Transaction object before serialization:', {
+          to: transactionObject.to,
+          dataLength: transactionObject.data?.length,
+          value: transactionObject.value,
+          gasLimit: transactionObject.gasLimit,
+          type: transactionObject.type
+        });
         
         // For the relayer, we'll send the transaction object as a JSON string
         // but mark it as a "serialized transaction" that the relayer can parse
