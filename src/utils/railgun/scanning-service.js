@@ -20,7 +20,7 @@ import {
   setOnTXIDMerkletreeScanCallback,
 } from '@railgun-community/wallet';
 import { waitForRailgunReady } from './engine.js';
-import { setOnBalanceUpdateCallback } from './balance-update.js';
+// Balance update callbacks are handled centrally in sdk-callbacks.js
 
 /**
  * Scan status tracking
@@ -373,34 +373,7 @@ export const getScanningSummary = () => {
 export const setupScanningCallbacks = () => {
   console.log('[ScanningService] Setting up official Railgun SDK callbacks for real-time balance and scan updates...');
   
-  // ✅ Balance updates from official Railgun SDK
-  /**
-   * @param {RailgunBalancesEvent} balances - Balance update event from Railgun SDK
-   */
-  setOnBalanceUpdateCallback(async (balances) => {
-    console.log('[ScanningService] 💎 Balance update from SDK:', {
-      walletId: balances.railgunWalletID?.slice(0, 8) + '...',
-      chainId: balances.chain?.id,
-      bucket: balances.balanceBucket,
-      erc20Count: balances.erc20Amounts?.length || 0,
-      nftCount: balances.nftAmounts?.length || 0
-    });
-    
-    // ✅ Call legacy balance handler for backwards compatibility
-    try {
-      const { handleBalanceUpdateCallback } = await import('./balances.js');
-      await handleBalanceUpdateCallback(balances);
-    } catch (error) {
-      console.warn('[ScanningService] ⚠️ Legacy balance callback error (non-critical):', error.message);
-    }
-    
-    // ✅ Also dispatch our own event for scanning service tracking
-    window.dispatchEvent(new CustomEvent('railgun-scan-balance-update', {
-      detail: balances,
-    }));
-    
-    console.log('[ScanningService] ✅ Balance update processed and dispatched');
-  });
+  // Balance update callbacks are handled centrally in sdk-callbacks.js to prevent duplicates
 
   // ✅ Official UTXO Merkle tree scan progress callback from Railgun SDK
   setOnUTXOMerkletreeScanCallback((event) => {

@@ -5,7 +5,6 @@
 
 import {
   loadProvider,
-  setOnBalanceUpdateCallback,
   setOnUTXOMerkletreeScanCallback,
   setOnTXIDMerkletreeScanCallback,
 } from '@railgun-community/wallet';
@@ -36,9 +35,7 @@ export const initializeRailgunSystem = async () => {
       }
     }
 
-    // Set up global balance update callback using the handler from balances.js
-    const { handleBalanceUpdateCallback } = await import('./balances.js');
-    setOnBalanceUpdateCallback(handleBalanceUpdateCallback);
+    // Balance update callbacks are handled centrally in sdk-callbacks.js
 
     // Set up UTXO Merkletree scan callback
     setOnUTXOMerkletreeScanCallback((scanData) => {

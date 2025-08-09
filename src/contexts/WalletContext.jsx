@@ -603,8 +603,7 @@ const WalletContextProvider = ({ children }) => {
         const { 
           startRailgunEngine, 
           loadWalletByID, 
-          setLoggers,
-          setOnBalanceUpdateCallback
+          setLoggers
         } = railgunWallet;
         
         // Validate that loadWalletByID is actually a function
@@ -745,15 +744,7 @@ const WalletContextProvider = ({ children }) => {
             }
           }
           
-          // Set up balance callbacks for fast path too
-          setOnBalanceUpdateCallback((balancesEvent) => {
-            console.log('🔄 Railgun balance update (fast path):', balancesEvent);
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('railgun-balance-update', {
-                detail: balancesEvent
-              }));
-            }
-          });
+          // Balance callbacks are handled centrally in sdk-callbacks.js
 
           // 🛑 CRITICAL: Pause providers immediately after loading to prevent wasteful polling
           console.log('⏸️ Pausing RAILGUN providers to prevent RPC polling until wallet connects...');
@@ -834,8 +825,7 @@ const WalletContextProvider = ({ children }) => {
         loadProvider,
         createRailgunWallet,
         loadWalletByID,
-        setLoggers,
-        setOnBalanceUpdateCallback,
+        setLoggers
       } = await import('@railgun-community/wallet');
       
       console.log('✅ Official Railgun SDK imported');
@@ -989,16 +979,7 @@ const WalletContextProvider = ({ children }) => {
         }
       }
 
-      // Step 3: Set up balance callbacks
-      setOnBalanceUpdateCallback((balancesEvent) => {
-        console.log('🔄 Railgun balance update:', balancesEvent);
-        // Trigger UI update
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('railgun-balance-update', {
-            detail: balancesEvent
-          }));
-        }
-      });
+      // Step 3: Balance callbacks are handled centrally in sdk-callbacks.js
 
       // 🛑 CRITICAL: Pause providers after full initialization to prevent wasteful polling
       console.log('⏸️ Pausing RAILGUN providers after full init to prevent RPC polling...');

@@ -33,7 +33,6 @@ import {
   setLoggers,
   loadProvider,
   getProver,
-  setOnBalanceUpdateCallback,
   setOnUTXOMerkletreeScanCallback,
   setOnTXIDMerkletreeScanCallback,
   refreshRailgunBalances,
@@ -302,15 +301,15 @@ const startEngine = async () => {
     // Zero-Delay POI system is now active with enhanced real-time validation
     console.log('[RAILGUN] ⚡ Zero-Delay POI validation active - enhanced compliance with instant spendability');
     
-    // Step 7: Setup balance update callback
-    console.log('[RAILGUN] 🔄 Setting up balance update callbacks...');
+    // Step 7: Initialize centralized SDK callbacks to prevent duplicates
+    console.log('[RAILGUN] 🔄 Initializing centralized SDK callbacks...');
     try {
-      const { handleBalanceUpdateCallback } = await import('./balances.js');
-      setOnBalanceUpdateCallback(handleBalanceUpdateCallback);
-      console.log('[RAILGUN] ✅ Balance update callback registered successfully');
+      const { initializeSDKCallbacks } = await import('./sdk-callbacks.js');
+      await initializeSDKCallbacks();
+      console.log('[RAILGUN] ✅ Centralized SDK callbacks initialized successfully');
     } catch (callbackError) {
-      console.warn('[RAILGUN] ⚠️ Failed to register balance update callback:', callbackError);
-      // Continue without callback - this is not critical for engine start
+      console.warn('[RAILGUN] ⚠️ Failed to initialize SDK callbacks:', callbackError);
+      // Continue without callbacks - this is not critical for engine start
     }
     
     console.log('[RAILGUN] 🎉 Engine initialization completed');
