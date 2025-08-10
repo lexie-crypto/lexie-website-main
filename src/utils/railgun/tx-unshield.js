@@ -492,11 +492,18 @@ export const unshieldTokens = async ({
           data: contractTransaction.data,
           value: contractTransaction.value ? '0x' + contractTransaction.value.toString(16) : '0x0',
           gasLimit: contractTransaction.gasLimit ? '0x' + contractTransaction.gasLimit.toString(16) : undefined,
-          gasPrice: contractTransaction.gasPrice ? '0x' + contractTransaction.gasPrice.toString(16) : undefined,
-          maxFeePerGas: contractTransaction.maxFeePerGas ? '0x' + contractTransaction.maxFeePerGas.toString(16) : undefined,
-          maxPriorityFeePerGas: contractTransaction.maxPriorityFeePerGas ? '0x' + contractTransaction.maxPriorityFeePerGas.toString(16) : undefined,
           type: contractTransaction.type
         };
+
+        // Handle gas pricing based on transaction type (avoid mixing legacy and EIP-1559)
+        if (contractTransaction.type === 2) {
+          // EIP-1559 transaction - use maxFeePerGas and maxPriorityFeePerGas
+          transactionObject.maxFeePerGas = contractTransaction.maxFeePerGas ? '0x' + contractTransaction.maxFeePerGas.toString(16) : undefined;
+          transactionObject.maxPriorityFeePerGas = contractTransaction.maxPriorityFeePerGas ? '0x' + contractTransaction.maxPriorityFeePerGas.toString(16) : undefined;
+        } else {
+          // Legacy transaction - use gasPrice
+          transactionObject.gasPrice = contractTransaction.gasPrice ? '0x' + contractTransaction.gasPrice.toString(16) : undefined;
+        }
 
         // Clean up undefined values
         Object.keys(transactionObject).forEach(key => {
@@ -510,7 +517,11 @@ export const unshieldTokens = async ({
           dataLength: transactionObject.data?.length,
           value: transactionObject.value,
           gasLimit: transactionObject.gasLimit,
-          type: transactionObject.type
+          gasPrice: transactionObject.gasPrice,
+          maxFeePerGas: transactionObject.maxFeePerGas,
+          maxPriorityFeePerGas: transactionObject.maxPriorityFeePerGas,
+          type: transactionObject.type,
+          mode: transactionObject.type === 2 ? 'EIP-1559' : 'Legacy'
         });
         
         // Send transaction object as hex-encoded JSON
