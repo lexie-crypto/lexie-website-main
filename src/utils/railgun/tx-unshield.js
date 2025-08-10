@@ -293,75 +293,34 @@ export const unshieldTokens = async ({
       totalValue: totalAvailable.toString(),
     });
 
-    // STEP 4: Determine transaction method and calculate recipients
+    // STEP 4: Determine transaction method and prepare recipients
     console.log('🔧 [UNSHIELD] Step 4: Determining transaction method...');
     
     const willUseGasRelayer = shouldUseRelayer(chain.id, amount);
-    console.log(`💰 [UNSHIELD] Transaction method: ${willUseGasRelayer ? 'Gas Relayer (Anonymous)' : 'Self-Signing (Direct)'}`);
+    console.log(`💰 [UNSHIELD] Transaction method: ${willUseGasRelayer ? 'Gas Relayer (Transparent Signing)' : 'Self-Signing (Direct)'}`);
 
     // Check zero-delay mode
     if (typeof window !== 'undefined' && window.__LEXIE_ZERO_DELAY_MODE__) {
       console.log('🚀 [UNSHIELD] Zero-Delay mode active - bypassing spendable balance checks');
     }
 
-    // Calculate recipients based on transaction method
-    let erc20AmountRecipients = [];
-    let gasRelayerFeeDetails = null;
+    // SIMPLIFIED: Always create transaction for self-signing (no relayer fees)
+    // The relayer will simply sign and send the same transaction the user would
+    const userRecipient = createERC20AmountRecipient(tokenAddress, amount, toAddress);
+    const erc20AmountRecipients = [userRecipient];
     
-    if (willUseGasRelayer) {
-      try {
-        console.log('💰 [GAS RELAYER] Calculating 0.5% relayer fee...');
-        
-        const relayerFeePercentage = 0.005; // 0.5%
-        const relayerFeeAmount = BigInt(Math.floor(Number(amount) * relayerFeePercentage));
-        const userAmountAfterFee = BigInt(amount) - relayerFeeAmount;
-        
-        const relayerAddress = await getRelayerAddress();
-        
-        // Create recipients: user gets reduced amount, relayer gets fee
-        const userRecipient = createERC20AmountRecipient(
-          tokenAddress,
-          userAmountAfterFee.toString(),
-          toAddress
-        );
-        
-        // Keep only the user recipient in erc20AmountRecipients
-        // Relayer fee will be passed separately as broadcasterFeeERC20AmountRecipient
-        erc20AmountRecipients = [userRecipient];
-        
-        gasRelayerFeeDetails = {
-          relayerFee: relayerFeeAmount.toString(),
-          protocolFee: '0',
-          gasFee: '0',
-          totalFee: relayerFeeAmount.toString(),
-          relayerAddress: relayerAddress // Store for later use
-        };
-        
-        console.log('💰 [GAS RELAYER] Fee calculation completed:', {
-          originalAmount: amount,
-          userAmount: userAmountAfterFee.toString(),
-          relayerFee: relayerFeeAmount.toString(),
-          relayerAddress: relayerAddress.slice(0, 10) + '...',
-        });
-        
-      } catch (relayerError) {
-        console.error('❌ [GAS RELAYER] Fee calculation failed:', relayerError.message);
-        console.log('🔄 [GAS RELAYER] Falling back to self-signing...');
-        willUseGasRelayer = false;
-      }
-    }
-    
-    if (!willUseGasRelayer) {
-      // Self-signing: single recipient gets full amount
-      const userRecipient = createERC20AmountRecipient(tokenAddress, amount, toAddress);
-      erc20AmountRecipients = [userRecipient];
-    }
+    console.log('📝 [UNSHIELD] Transaction recipients prepared:', {
+      method: willUseGasRelayer ? 'relayer' : 'self-signing',
+      recipients: erc20AmountRecipients.length,
+      fullAmount: amount,
+      noFees: true
+    });
 
     // STEP 5: Dummy proof dry-run for accurate gas estimation
     console.log('📝 [UNSHIELD] Step 5a: Running dummy proof for gas estimation...');
     
     const networkName = getRailgunNetworkName(chain.id);
-    const sendWithPublicWallet = true; // Always true for our pattern
+    const sendWithPublicWallet = true; // Always true - relayer acts as transparent signer
     const evmGasType = getEVMGasTypeForTransaction(networkName, sendWithPublicWallet);
     
     // Create gas details structure for proof generation
@@ -419,37 +378,25 @@ export const unshieldTokens = async ({
     
     console.log('📝 [UNSHIELD] Step 5b: Generating real unshield proof with accurate gas...');
     
-    // IMPORTANT: Prepare the relayer fee recipient BEFORE proof generation
-    let broadcasterFeeERC20AmountRecipient = null;
-    if (willUseGasRelayer && gasRelayerFeeDetails) {
-      // This is the RAILGUN SDK expected format for relayer fees
-      broadcasterFeeERC20AmountRecipient = {
-        tokenAddress: tokenAddress,
-        amount: BigInt(gasRelayerFeeDetails.relayerFee),
-        recipientAddress: gasRelayerFeeDetails.relayerAddress
-      };
-      console.log('💰 [UNSHIELD] Broadcaster fee recipient prepared:', {
-        tokenAddress,
-        amount: gasRelayerFeeDetails.relayerFee,
-        recipientAddress: gasRelayerFeeDetails.relayerAddress.slice(0, 10) + '...',
-      });
-    }
+    // SIMPLIFIED: No broadcaster fees - always generate for self-signing
+    const broadcasterFeeERC20AmountRecipient = null;
     
     console.log('📝 [UNSHIELD] Generating proof with recipients:', {
       userRecipients: erc20AmountRecipients.length,
-      hasBroadcasterFee: !!broadcasterFeeERC20AmountRecipient
+      hasBroadcasterFee: false,
+      mode: 'self-signing-format'
     });
     
-    // Generate proof - pass ALL recipients at once WITH accurate gas estimate
+    // Generate proof - same format as self-signing (no broadcaster fees)
     const proofResponse = await generateUnshieldProof(
       TXIDVersion.V2_PoseidonMerkle,
       networkName,
       railgunWalletID,
       encryptionKey,
-      erc20AmountRecipients, // User recipients only (already reduced amount if using relayer)
+      erc20AmountRecipients, // Single recipient with full amount
       [], // nftAmountRecipients
-      broadcasterFeeERC20AmountRecipient, // Pass relayer fee HERE, not inside the function
-      sendWithPublicWallet,
+      broadcasterFeeERC20AmountRecipient, // null - no fees
+      sendWithPublicWallet, // true - self-signing format
       undefined, // overallBatchMinGasPrice
       (progress, status) => {
         console.log(`📊 [UNSHIELD] Real Proof Progress: ${progress.toFixed(2)}% | ${status}`);
@@ -494,8 +441,8 @@ export const unshieldTokens = async ({
       railgunWalletID,
       erc20AmountRecipients, // Same user recipients as used in proof generation
       [], // nftAmountRecipients
-      broadcasterFeeERC20AmountRecipient, // Same broadcaster fee as used in proof generation
-      sendWithPublicWallet,
+      broadcasterFeeERC20AmountRecipient, // null - no broadcaster fee
+      sendWithPublicWallet, // true - self-signing format
       undefined, // overallBatchMinGasPrice (not needed)
       gasDetails
     );
@@ -513,8 +460,8 @@ export const unshieldTokens = async ({
     let usedRelayer = false;
     let privacyLevel = 'self-signed';
     
-    if (willUseGasRelayer && gasRelayerFeeDetails) {
-      console.log('🚀 [GAS RELAYER] Attempting submission via gas relayer...');
+    if (willUseGasRelayer) {
+      console.log('🚀 [GAS RELAYER] Attempting submission via transparent gas relayer...');
       
       try {
         // Check relayer health
@@ -523,33 +470,42 @@ export const unshieldTokens = async ({
           throw new Error('Gas relayer service is not available');
         }
         
-        // Serialize transaction for relayer
-        // The populatedTransaction.transaction is already a ContractTransaction
+        // Get the transaction from RAILGUN (same format as self-signing)
         const contractTransaction = populatedTransaction.transaction;
         
         if (!contractTransaction) {
           throw new Error('No transaction found in populated response');
         }
         
-        const { ethers } = await import('ethers');
-        console.log('🔧 [GAS RELAYER] Serializing transaction:', {
+        console.log('🔧 [GAS RELAYER] Preparing transaction for relayer signing:', {
           to: contractTransaction.to,
           data: contractTransaction.data ? 'present' : 'missing',
           value: contractTransaction.value?.toString(),
           gasLimit: contractTransaction.gasLimit?.toString(),
+          noFees: true,
+          format: 'self-signing-compatible'
         });
         
-        // Create properly serialized transaction
-        // Convert BigInt values to strings for JSON serialization
+        // Format transaction like self-signing does (hex values)
         const transactionObject = {
           to: contractTransaction.to,
           data: contractTransaction.data,
-          value: contractTransaction.value ? contractTransaction.value.toString() : '0x0',
-          gasLimit: contractTransaction.gasLimit ? contractTransaction.gasLimit.toString() : undefined,
+          value: contractTransaction.value ? '0x' + contractTransaction.value.toString(16) : '0x0',
+          gasLimit: contractTransaction.gasLimit ? '0x' + contractTransaction.gasLimit.toString(16) : undefined,
+          gasPrice: contractTransaction.gasPrice ? '0x' + contractTransaction.gasPrice.toString(16) : undefined,
+          maxFeePerGas: contractTransaction.maxFeePerGas ? '0x' + contractTransaction.maxFeePerGas.toString(16) : undefined,
+          maxPriorityFeePerGas: contractTransaction.maxPriorityFeePerGas ? '0x' + contractTransaction.maxPriorityFeePerGas.toString(16) : undefined,
           type: contractTransaction.type
         };
+
+        // Clean up undefined values
+        Object.keys(transactionObject).forEach(key => {
+          if (transactionObject[key] === undefined) {
+            delete transactionObject[key];
+          }
+        });
         
-        console.log('🔧 [GAS RELAYER] Transaction object before serialization:', {
+        console.log('🔧 [GAS RELAYER] Transaction formatted for relayer:', {
           to: transactionObject.to,
           dataLength: transactionObject.data?.length,
           value: transactionObject.value,
@@ -557,11 +513,10 @@ export const unshieldTokens = async ({
           type: transactionObject.type
         });
         
-        // For the relayer, we'll send the transaction object as a JSON string
-        // but mark it as a "serialized transaction" that the relayer can parse
+        // Send transaction object as hex-encoded JSON
         const serializedTransaction = '0x' + Buffer.from(JSON.stringify(transactionObject)).toString('hex');
         
-        console.log('📤 [GAS RELAYER] Submitting serialized transaction...');
+        console.log('📤 [GAS RELAYER] Submitting to transparent relayer (no fees)...');
         
         const relayerResult = await submitRelayedTransaction({
           chainId: chain.id,
@@ -569,17 +524,18 @@ export const unshieldTokens = async ({
           tokenAddress,
           amount,
           userAddress: walletAddress,
-          feeDetails: gasRelayerFeeDetails,
-          gasEstimate: contractTransaction.gasLimit?.toString() // Pass actual gas estimate
+          feeDetails: { relayerFee: '0', protocolFee: '0', totalFee: '0' }, // No fees
+          gasEstimate: contractTransaction.gasLimit?.toString()
         });
         
         transactionHash = relayerResult.transactionHash;
         usedRelayer = true;
-        privacyLevel = 'anonymous-eoa';
+        privacyLevel = 'transparent-relayer';
         
         console.log('✅ [GAS RELAYER] Transaction submitted successfully!', {
           transactionHash,
           privacyLevel,
+          noFees: true
         });
         
       } catch (gasRelayerError) {
