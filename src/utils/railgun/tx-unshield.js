@@ -438,35 +438,55 @@ export const unshieldTokens = async ({
     var accurateGasEstimate;
     try {
       if (useRelayer) {
-        // For RelayAdapt mode, use UnshieldBaseToken gas estimation
-        console.log('🧮 [UNSHIELD] Using gasEstimateForUnprovenUnshieldBaseToken for RelayAdapt...');
+        // For RelayAdapt mode, use cross-contract calls gas estimation
+        console.log('🧮 [UNSHIELD] Using gasEstimateForUnprovenCrossContractCalls for RelayAdapt...');
         
-        const { gasEstimateForUnprovenUnshieldBaseToken } = await import('@railgun-community/wallet');
+        const { gasEstimateForUnprovenCrossContractCalls } = await import('@railgun-community/wallet');
         
-        // For RelayAdapt, we need the wrapped amount for the user
-        const wrappedERC20Amount = {
+        // RelayAdapt unshield amounts (to RelayAdapt contract)
+        const relayAdaptUnshieldERC20Amounts = [{
           tokenAddress,
-          amount: BigInt(amount) - railgunProtocolFee - relayerFeeAmount, // User gets amount minus all fees
-        };
+          amount: BigInt(amount) - railgunProtocolFee - relayerFeeAmount,
+        }];
         
-        const gasEstimateResponse = await gasEstimateForUnprovenUnshieldBaseToken(
+        // Create transfer contract calls to forward tokens to final recipient
+        const { ethers } = await import('ethers');
+        const erc20Interface = new ethers.Interface([
+          'function transfer(address to, uint256 amount) returns (bool)'
+        ]);
+        
+        const transferCallData = erc20Interface.encodeFunctionData('transfer', [
+          toAddress, // Final recipient
+          BigInt(amount) - railgunProtocolFee - relayerFeeAmount // Amount to transfer
+        ]);
+        
+        const crossContractCalls = [{
+          to: tokenAddress, // USDC contract
+          data: transferCallData,
+          value: '0x0',
+        }];
+        
+        const gasEstimateResponse = await gasEstimateForUnprovenCrossContractCalls(
           TXIDVersion.V2_PoseidonMerkle,
           networkName,
-          toAddress, // publicWalletAddress
           railgunWalletID,
           encryptionKey,
-          wrappedERC20Amount,
+          relayAdaptUnshieldERC20Amounts, // Unshield to RelayAdapt
+          [], // nftAmounts
+          [], // shieldERC20Recipients
+          [], // shieldNFTRecipients
+          crossContractCalls, // Transfer calls
           originalGasDetails,
           null, // feeTokenDetails - not needed for our use case
           sendWithPublicWallet
         );
         
         accurateGasEstimate = gasEstimateResponse.gasEstimate;
-        console.log('✅ [UNSHIELD] UnshieldBaseToken gas estimation completed:', {
+        console.log('✅ [UNSHIELD] Cross-contract calls gas estimation completed:', {
           gasEstimate: accurateGasEstimate.toString(),
           evmGasType,
           sendWithPublicWallet,
-          method: 'gasEstimateForUnprovenUnshieldBaseToken'
+          method: 'gasEstimateForUnprovenCrossContractCalls'
         });
         
       } else {
@@ -549,33 +569,54 @@ export const unshieldTokens = async ({
     let proofResponse;
     
     if (useRelayer) {
-      console.log('🔐 [UNSHIELD] Generating UnshieldBaseToken proof for RelayAdapt mode...');
+      console.log('🔐 [UNSHIELD] Generating cross-contract calls proof for RelayAdapt mode...');
       
-      // Import the correct proof generation function for RelayAdapt
-      const { generateUnshieldBaseTokenProof } = await import('@railgun-community/wallet');
+      // Import the cross-contract calls proof generation function
+      const { generateCrossContractCallsProof } = await import('@railgun-community/wallet');
       
-      // For RelayAdapt, we need the wrapped amount for the user
-      const wrappedERC20Amount = {
+      // RelayAdapt unshield amounts (to RelayAdapt contract)
+      const relayAdaptUnshieldERC20Amounts = [{
         tokenAddress,
-        amount: BigInt(amount) - railgunProtocolFee - relayerFeeAmount, // User gets amount minus all fees
-      };
+        amount: BigInt(amount) - railgunProtocolFee - relayerFeeAmount,
+      }];
       
-      proofResponse = await generateUnshieldBaseTokenProof(
+      // Create transfer contract calls to forward tokens to final recipient
+      const { ethers } = await import('ethers');
+      const erc20Interface = new ethers.Interface([
+        'function transfer(address to, uint256 amount) returns (bool)'
+      ]);
+      
+      const transferCallData = erc20Interface.encodeFunctionData('transfer', [
+        toAddress, // Final recipient
+        BigInt(amount) - railgunProtocolFee - relayerFeeAmount // Amount to transfer
+      ]);
+      
+      const crossContractCalls = [{
+        to: tokenAddress, // USDC contract
+        data: transferCallData,
+        value: '0x0',
+      }];
+      
+      proofResponse = await generateCrossContractCallsProof(
         TXIDVersion.V2_PoseidonMerkle,
         networkName,
-        toAddress, // publicWalletAddress
         railgunWalletID,
         encryptionKey,
-        wrappedERC20Amount,
+        relayAdaptUnshieldERC20Amounts, // Unshield to RelayAdapt
+        [], // nftAmounts
+        [], // shieldERC20Recipients
+        [], // shieldNFTRecipients
+        crossContractCalls, // Transfer calls
         broadcasterFeeERC20AmountRecipient, // Broadcaster fee
         sendWithPublicWallet, // false for RelayAdapt
-        BigInt('1000000000'), // overallBatchMinGasPrice for broadcaster validation (1 gwei)
+        BigInt('1000000000'), // overallBatchMinGasPrice
+        BigInt('200000'), // minGasLimit for cross-contract calls
         (progress) => {
-          console.log(`📊 [UNSHIELD] UnshieldBaseToken Proof Progress: ${(progress * 100).toFixed(2)}%`);
+          console.log(`📊 [UNSHIELD] Cross-contract calls Proof Progress: ${(progress * 100).toFixed(2)}%`);
         } // progressCallback
       );
       
-      console.log('✅ [UNSHIELD] UnshieldBaseToken proof generated for RelayAdapt mode');
+      console.log('✅ [UNSHIELD] Cross-contract calls proof generated for RelayAdapt mode');
       
     } else {
       console.log('🔐 [UNSHIELD] Generating regular Unshield proof for self-signing mode...');
@@ -783,30 +824,64 @@ export const unshieldTokens = async ({
     let populatedTransaction;
     
     if (useRelayer) {
-      console.log('🔧 [UNSHIELD] Using populateProvedUnshieldBaseToken for RelayAdapt mode...');
+      console.log('🔧 [UNSHIELD] Using cross-contract calls for proper RelayAdapt forwarding...');
       
-      // Import the correct function for RelayAdapt mode
-      const { populateProvedUnshieldBaseToken } = await import('@railgun-community/wallet');
+      // Import the cross-contract calls function
+      const { populateProvedCrossContractCalls } = await import('@railgun-community/wallet');
       
-      // For RelayAdapt, we need the wrapped amount for the user
-      const wrappedERC20Amount = {
+      // Create the final recipient for token forwarding
+      const finalRecipients = [{
         tokenAddress,
+        recipientAddress: toAddress, // Final EOA recipient
         amount: BigInt(amount) - railgunProtocolFee - relayerFeeAmount, // User gets amount minus all fees
-      };
+      }];
       
-      populatedTransaction = await populateProvedUnshieldBaseToken(
+      // RelayAdapt unshield amounts (to RelayAdapt contract)
+      const relayAdaptUnshieldERC20Amounts = [{
+        tokenAddress,
+        amount: BigInt(amount) - railgunProtocolFee - relayerFeeAmount,
+      }];
+      
+      // Create transfer contract calls to forward tokens to final recipient
+      const { ethers } = await import('ethers');
+      const erc20Interface = new ethers.Interface([
+        'function transfer(address to, uint256 amount) returns (bool)'
+      ]);
+      
+      const transferCallData = erc20Interface.encodeFunctionData('transfer', [
+        toAddress, // Final recipient
+        BigInt(amount) - railgunProtocolFee - relayerFeeAmount // Amount to transfer
+      ]);
+      
+      const crossContractCalls = [{
+        to: tokenAddress, // USDC contract
+        data: transferCallData,
+        value: '0x0',
+      }];
+      
+      console.log('🔧 [UNSHIELD] Cross-contract transfer call created:', {
+        to: tokenAddress,
+        recipient: toAddress,
+        amount: (BigInt(amount) - railgunProtocolFee - relayerFeeAmount).toString(),
+        dataLength: transferCallData.length
+      });
+      
+      populatedTransaction = await populateProvedCrossContractCalls(
         TXIDVersion.V2_PoseidonMerkle,
         networkName,
-        toAddress, // publicWalletAddress
         railgunWalletID,
-        wrappedERC20Amount,
+        relayAdaptUnshieldERC20Amounts, // Unshield to RelayAdapt
+        [], // nftAmounts
+        [], // shieldERC20Recipients 
+        [], // shieldNFTRecipients
+        crossContractCalls, // Transfer calls
         broadcasterFeeERC20AmountRecipient, // Broadcaster fee
         sendWithPublicWallet,
-        BigInt('1000000000'), // overallBatchMinGasPrice for broadcaster validation (1 gwei)
+        BigInt('1000000000'), // overallBatchMinGasPrice
         gasDetails
       );
       
-      console.log('✅ [UNSHIELD] RelayAdapt transaction populated using UnshieldBaseToken proof type');
+      console.log('✅ [UNSHIELD] RelayAdapt transaction populated using cross-contract calls');
       
     } else {
       console.log('🔧 [UNSHIELD] Using populateProvedUnshield for self-signing mode...');
