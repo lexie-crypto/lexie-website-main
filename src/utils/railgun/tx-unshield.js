@@ -42,6 +42,34 @@ const getSelectedRelayer = async () => {
 import { generateUnshieldProof } from './tx-proof-unshield.js';
 
 /**
+ * Resolve recipient input into a valid 0x address.
+ * - Accepts an ENS name or 0x address
+ * - Uses provided wallet provider (if available) to resolve ENS
+ */
+const resolveRecipient = async (recipientInput, walletProvider) => {
+  if (!recipientInput || typeof recipientInput !== 'string') return null;
+  try {
+    const { ethers } = await import('ethers');
+    // Already a 0x address
+    if (recipientInput.startsWith('0x') && ethers.isAddress(recipientInput)) {
+      return recipientInput;
+    }
+    // Try ENS resolution via provider
+    const signer = typeof walletProvider === 'function' ? await walletProvider() : undefined;
+    const provider = signer?.provider;
+    if (provider && !recipientInput.startsWith('0x')) {
+      const resolved = await provider.resolveName(recipientInput);
+      if (resolved && ethers.isAddress(resolved)) {
+        return resolved;
+      }
+    }
+  } catch (err) {
+    // Silent fallthrough; caller will validate null
+  }
+  return null;
+};
+
+/**
  * Network mapping to Railgun NetworkName enum values
  */
 const RAILGUN_NETWORK_NAMES = {
@@ -220,6 +248,8 @@ export const unshieldTokens = async ({
   amount,
   chain,
   recipientAddress,
+  // Backward-compat: support legacy param name
+  toAddress,
   walletProvider,
   walletAddress,
   decimals,
@@ -228,27 +258,29 @@ export const unshieldTokens = async ({
     railgunWalletID: railgunWalletID?.substring(0, 10) + '...',
     tokenAddress: tokenAddress?.substring(0, 10) + '...',
     amount,
-    recipientAddress: recipientAddress?.substring(0, 10) + '...',
+    recipientParam: (recipientAddress ?? toAddress)?.substring?.(0, 10) + '...',
     chainId: chain.id,
     decimals,
   });
 
   try {
-    // Validate required parameters
-    if (!encryptionKey || !railgunWalletID || !amount || !recipientAddress || !walletAddress) {
+    // Validate required parameters (preliminary)
+    if (!encryptionKey || !railgunWalletID || !amount || !walletAddress) {
       throw new Error('Missing required parameters');
     }
-    
-    // Recipient validation (public only)
-    // Resolve ENS if provided; must end as a valid 0x address.
-    if (!recipientAddress.startsWith('0x')) {
-      throw new Error('Unshield requires a public 0x address');
+
+    // Resolve recipient once (ENS -> 0x or direct 0x)
+    const recipientInput = recipientAddress ?? toAddress;
+    const recipientEVM = await resolveRecipient(recipientInput, walletProvider);
+    if (!recipientEVM) {
+      throw new Error('Unshield requires a valid 0x recipient address');
     }
     const { ethers } = await import('ethers');
-    if (!ethers.isAddress(recipientAddress)) {
-      throw new Error('Invalid recipient EVM address');
+    if (!recipientEVM.startsWith('0x') || !ethers.isAddress(recipientEVM)) {
+      throw new Error('Unshield requires a valid 0x recipient address');
     }
-    const recipientEVM = recipientAddress; // Valid 0x address
+
+    console.log('✅ [UNSHIELD] Resolved recipient:', { recipientEVM });
     
     if (!tokenAddress || typeof tokenAddress !== 'string' || tokenAddress.length < 10) {
       throw new Error(`Invalid tokenAddress: "${tokenAddress}"`);
@@ -354,6 +386,11 @@ export const unshieldTokens = async ({
       if (totalAvailable < requiredPrivate) {
         throw new Error(`Insufficient private balance for unshield + relayer fee. Available: ${totalAvailable.toString()}, Required: ${requiredPrivate.toString()}`);
       }
+    } else {
+      const requiredPrivate = unshieldIn;
+      if (totalAvailable < requiredPrivate) {
+        throw new Error(`Insufficient private balance for unshield. Available: ${totalAvailable.toString()}, Required: ${requiredPrivate.toString()}`);
+      }
     }
     
     if (useRelayer) {
@@ -395,6 +432,11 @@ export const unshieldTokens = async ({
         throw new Error(`Math error: recipient (${recipientBn.toString()}) + relayer fee (${relayerFeeBn.toString()}) != afterFee (${afterFee.toString()})`);
       }
       
+      // Guard: Relayer must provide a valid 0zk address
+      if (!selectedRelayer.railgunAddress?.startsWith('0zk')) {
+        throw new Error('Invalid RAILGUN address for relayer');
+      }
+
       // SDK handles relayer fee via RAILGUN's internal mechanism
       broadcasterFeeERC20AmountRecipient = {
         tokenAddress: selectedRelayer.feeToken,
@@ -445,6 +487,10 @@ export const unshieldTokens = async ({
         noRelayerFee: true
       });
       
+      // Hard guard: self-sign path must NOT provide a broadcaster fee
+      if (broadcasterFeeERC20AmountRecipient !== null) {
+        throw new Error('Internal error: broadcaster fee must be undefined for self-signing path');
+      }
       const userRecipient = createERC20AmountRecipient(tokenAddress, recipientBn, recipientEVM);
       erc20AmountRecipients = [userRecipient];
       
@@ -572,7 +618,7 @@ export const unshieldTokens = async ({
         
         const { gasEstimateForUnprovenUnshield } = await import('@railgun-community/wallet');
         
-        const gasEstimateResponse = await gasEstimateForUnprovenUnshield(
+         const gasEstimateResponse = await gasEstimateForUnprovenUnshield(
           TXIDVersion.V2_PoseidonMerkle,
           networkName,
           railgunWalletID,
@@ -581,7 +627,7 @@ export const unshieldTokens = async ({
           [], // nftAmountRecipients
           originalGasDetails,
           null, // feeTokenDetails - not needed for our use case
-          sendWithPublicWallet
+           sendWithPublicWallet
         );
         
         accurateGasEstimate = gasEstimateResponse.gasEstimate;
