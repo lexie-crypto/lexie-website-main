@@ -311,17 +311,19 @@ export const unshieldTokens = async ({
     let erc20AmountRecipients;
     let broadcasterFeeERC20AmountRecipient = null;
     
+    // Fee calculations (needed for both proof generation and populate)
+    const RAILGUN_FEE_BPS = 25n; // 25 basis points = 0.25%
+    const railgunProtocolFee = (BigInt(amount) * RAILGUN_FEE_BPS) / 10000n;
+    let relayerFeeAmount = 0n;
+    
     if (useRelayer) {
       console.log('🔧 [UNSHIELD] Preparing RelayAdapt mode with broadcaster fee...');
       console.log('🚨 [UNSHIELD] CRITICAL: RelayAdapt mode should use UnshieldBaseToken proof type, not regular Unshield!');
-      
-      // CRITICAL MISSING: RAILGUN Protocol Fee (0.25% like in shield operations)
-      const RAILGUN_FEE_BPS = 25n; // 25 basis points = 0.25%
-      const railgunProtocolFee = (BigInt(amount) * RAILGUN_FEE_BPS) / 10000n;
+      console.log('🚨 [UNSHIELD] THIS IS LIKELY THE ROOT CAUSE OF SNARK VERIFICATION FAILURES!');
       
       // Calculate relayer fee (e.g., 0.5% of transaction amount) 
       const feePercentage = 0.005; // 0.5%
-      const relayerFeeAmount = BigInt(Math.floor(Number(amount) * feePercentage));
+      relayerFeeAmount = BigInt(Math.floor(Number(amount) * feePercentage));
       
       // Total fees: RAILGUN protocol fee + relayer fee
       const totalFees = railgunProtocolFee + relayerFeeAmount;
@@ -381,9 +383,7 @@ export const unshieldTokens = async ({
       // SELF-SIGNING MODE: Still need to account for RAILGUN protocol fee
       console.log('🔧 [UNSHIELD] Preparing self-signing mode (with RAILGUN protocol fee)...');
       
-      // CRITICAL: RAILGUN Protocol Fee still applies in self-signing mode
-      const RAILGUN_FEE_BPS = 25n; // 25 basis points = 0.25%
-      const railgunProtocolFee = (BigInt(amount) * RAILGUN_FEE_BPS) / 10000n;
+      // For self-signing, only RAILGUN protocol fee applies (relayer fee already 0)
       const userAmount = BigInt(amount) - railgunProtocolFee;
       
       console.log('💰 [UNSHIELD] Self-signing fee calculation:', {
@@ -433,8 +433,9 @@ export const unshieldTokens = async ({
         throw new Error(`Unsupported EVM gas type: ${evmGasType}`);
     }
     
-    console.log('🧮 [UNSHIELD] Using official gasEstimateForUnprovenUnshield...');
+    console.log('🧮 [UNSHIELD] Attempting official gasEstimateForUnprovenUnshield...');
     
+    var accurateGasEstimate;
     try {
       // Import the official SDK function
       const { gasEstimateForUnprovenUnshield } = await import('@railgun-community/wallet');
@@ -452,7 +453,7 @@ export const unshieldTokens = async ({
         sendWithPublicWallet
       );
       
-      var accurateGasEstimate = gasEstimateResponse.gasEstimate;
+      accurateGasEstimate = gasEstimateResponse.gasEstimate;
       console.log('✅ [UNSHIELD] Official gas estimation completed:', {
         gasEstimate: accurateGasEstimate.toString(),
         evmGasType,
@@ -461,8 +462,20 @@ export const unshieldTokens = async ({
       });
       
     } catch (gasError) {
-      console.warn('⚠️ [UNSHIELD] Official gas estimation failed, using fallback:', gasError.message);
-      var accurateGasEstimate = BigInt('300000'); // Fallback if gas estimation fails
+      console.warn('⚠️ [UNSHIELD] Official gas estimation failed, using conservative fallback:', gasError.message);
+      
+      // Use conservative gas estimate based on transaction type
+      if (useRelayer) {
+        accurateGasEstimate = BigInt('500000'); // Higher estimate for RelayAdapt transactions
+      } else {
+        accurateGasEstimate = BigInt('300000'); // Standard estimate for self-signing
+      }
+      
+      console.log('📊 [UNSHIELD] Using fallback gas estimate:', {
+        gasEstimate: accurateGasEstimate.toString(),
+        reason: 'official-estimation-failed',
+        mode: useRelayer ? 'relayer' : 'self-signing'
+      });
     }
     
     console.log('📝 [UNSHIELD] Step 5b: Generating real unshield proof with accurate gas...');
@@ -497,21 +510,59 @@ export const unshieldTokens = async ({
       sendWithPublicWallet
     });
     
-    // Generate proof with correct mode and broadcaster fee
-    const proofResponse = await generateUnshieldProof(
-      TXIDVersion.V2_PoseidonMerkle,
-      networkName,
-      railgunWalletID,
-      encryptionKey,
-      erc20AmountRecipients,
-      [], // nftAmountRecipients
-      broadcasterFeeERC20AmountRecipient, // null for self-signing, fee object for RelayAdapt
-      sendWithPublicWallet, // false for RelayAdapt, true for self-signing
-      undefined, // overallBatchMinGasPrice
-      (progress, status) => {
-        console.log(`📊 [UNSHIELD] Real Proof Progress: ${progress.toFixed(2)}% | ${status}`);
-      } // progressCallback
-    );
+    // Generate proof with correct type based on transaction mode
+    let proofResponse;
+    
+    if (useRelayer) {
+      console.log('🔐 [UNSHIELD] Generating UnshieldBaseToken proof for RelayAdapt mode...');
+      
+      // Import the correct proof generation function for RelayAdapt
+      const { generateUnshieldBaseTokenProof } = await import('@railgun-community/wallet');
+      
+      // For RelayAdapt, we need the wrapped amount for the user
+      const wrappedERC20Amount = {
+        tokenAddress,
+        amount: BigInt(amount) - railgunProtocolFee - relayerFeeAmount, // User gets amount minus all fees
+      };
+      
+      proofResponse = await generateUnshieldBaseTokenProof(
+        TXIDVersion.V2_PoseidonMerkle,
+        networkName,
+        toAddress, // publicWalletAddress
+        railgunWalletID,
+        encryptionKey,
+        wrappedERC20Amount,
+        broadcasterFeeERC20AmountRecipient, // Broadcaster fee
+        sendWithPublicWallet, // false for RelayAdapt
+        undefined, // overallBatchMinGasPrice
+        (progress) => {
+          console.log(`📊 [UNSHIELD] UnshieldBaseToken Proof Progress: ${(progress * 100).toFixed(2)}%`);
+        } // progressCallback
+      );
+      
+      console.log('✅ [UNSHIELD] UnshieldBaseToken proof generated for RelayAdapt mode');
+      
+    } else {
+      console.log('🔐 [UNSHIELD] Generating regular Unshield proof for self-signing mode...');
+      
+      // For self-signing, use regular unshield proof
+      proofResponse = await generateUnshieldProof(
+        TXIDVersion.V2_PoseidonMerkle,
+        networkName,
+        railgunWalletID,
+        encryptionKey,
+        erc20AmountRecipients, // User recipients (amount minus protocol fee)
+        [], // nftAmountRecipients
+        undefined, // No broadcaster fee for self-signing
+        sendWithPublicWallet, // true for self-signing
+        undefined, // overallBatchMinGasPrice
+        (progress, status) => {
+          console.log(`📊 [UNSHIELD] Regular Unshield Proof Progress: ${progress.toFixed(2)}% | ${status}`);
+        } // progressCallback
+      );
+      
+      console.log('✅ [UNSHIELD] Regular Unshield proof generated for self-signing mode');
+    }
     
     // Use the accurate gas estimate from official SDK
     const finalGasEstimate = accurateGasEstimate;
@@ -525,6 +576,7 @@ export const unshieldTokens = async ({
     // Create proper gas details using official RAILGUN pattern
     console.log('💰 [UNSHIELD] Creating transaction gas details using SDK pattern...');
     
+    let gasDetails;
     try {
       // Get current network gas prices
       const signer = await walletProvider();
@@ -554,7 +606,6 @@ export const unshieldTokens = async ({
       }
       
       // Create gas details following official SDK pattern
-      let gasDetails;
       switch (evmGasType) {
         case EVMGasType.Type0:
         case EVMGasType.Type1:
@@ -587,7 +638,30 @@ export const unshieldTokens = async ({
       
     } catch (gasError) {
       console.error('❌ [UNSHIELD] Failed to create gas details:', gasError.message);
-      throw new Error(`Gas details creation failed: ${gasError.message}`);
+      
+      // Create fallback gas details
+      switch (evmGasType) {
+        case EVMGasType.Type0:
+        case EVMGasType.Type1:
+          gasDetails = {
+            evmGasType,
+            gasEstimate: accurateGasEstimate,
+            gasPrice: BigInt('20000000000'), // 20 gwei fallback
+          };
+          break;
+        case EVMGasType.Type2:
+          gasDetails = {
+            evmGasType,
+            gasEstimate: accurateGasEstimate,
+            maxFeePerGas: BigInt('20000000000'), // 20 gwei fallback
+            maxPriorityFeePerGas: BigInt('2000000000'), // 2 gwei fallback
+          };
+          break;
+        default:
+          throw new Error(`Unsupported EVM gas type: ${evmGasType}`);
+      }
+      
+      console.log('⚠️ [UNSHIELD] Using fallback gas details due to error');
     }
 
     // STEP 6: Populate transaction using generated proof
@@ -629,18 +703,53 @@ export const unshieldTokens = async ({
       mode: useRelayer ? 'RelayAdapt' : 'Self-Signing'
     });
     
-    // CRITICAL: populateProvedUnshield MUST use EXACT same parameters as proof generation
-    const populatedTransaction = await populateProvedUnshield(
-      TXIDVersion.V2_PoseidonMerkle,
-      networkName,
-      railgunWalletID,
-      erc20AmountRecipients, // EXACT same recipients used in proof generation
-      [], // nftAmountRecipients - empty for regular unshield
-      broadcasterFeeERC20AmountRecipient, // EXACT same broadcaster fee as proof
-      sendWithPublicWallet, // EXACT same sendWithPublicWallet as proof
-      undefined, // overallBatchMinGasPrice - same as proof
-      gasDetails
-    );
+    // CRITICAL: Use correct populate function based on transaction mode
+    let populatedTransaction;
+    
+    if (useRelayer) {
+      console.log('🔧 [UNSHIELD] Using populateProvedUnshieldBaseToken for RelayAdapt mode...');
+      
+      // Import the correct function for RelayAdapt mode
+      const { populateProvedUnshieldBaseToken } = await import('@railgun-community/wallet');
+      
+      // For RelayAdapt, we need the wrapped amount for the user
+      const wrappedERC20Amount = {
+        tokenAddress,
+        amount: BigInt(amount) - railgunProtocolFee - relayerFeeAmount, // User gets amount minus all fees
+      };
+      
+      populatedTransaction = await populateProvedUnshieldBaseToken(
+        TXIDVersion.V2_PoseidonMerkle,
+        networkName,
+        toAddress, // publicWalletAddress
+        railgunWalletID,
+        wrappedERC20Amount,
+        broadcasterFeeERC20AmountRecipient, // Broadcaster fee
+        sendWithPublicWallet,
+        undefined, // overallBatchMinGasPrice - will add this later
+        gasDetails
+      );
+      
+      console.log('✅ [UNSHIELD] RelayAdapt transaction populated using UnshieldBaseToken proof type');
+      
+    } else {
+      console.log('🔧 [UNSHIELD] Using populateProvedUnshield for self-signing mode...');
+      
+      // For self-signing, use regular unshield
+      populatedTransaction = await populateProvedUnshield(
+        TXIDVersion.V2_PoseidonMerkle,
+        networkName,
+        railgunWalletID,
+        erc20AmountRecipients, // User recipients (amount minus protocol fee)
+        [], // nftAmountRecipients - empty for regular unshield
+        undefined, // No broadcaster fee for self-signing
+        sendWithPublicWallet, // true for self-signing
+        undefined, // overallBatchMinGasPrice - not needed for self-signing
+        gasDetails
+      );
+      
+      console.log('✅ [UNSHIELD] Self-signing transaction populated using regular Unshield proof type');
+    }
 
     console.log('✅ [UNSHIELD] Transaction populated:', {
       to: populatedTransaction.transaction.to,
