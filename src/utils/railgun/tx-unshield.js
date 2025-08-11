@@ -410,21 +410,21 @@ export const unshieldTokens = async ({
     const networkName = getRailgunNetworkName(chain.id);
     const evmGasType = getEVMGasTypeForTransaction(networkName, sendWithPublicWallet);
     
-    // Create original gas details with low initial values (official pattern)
+    // Create original gas details with EXACT official docs pattern
     let originalGasDetails;
     switch (evmGasType) {
       case EVMGasType.Type0:
       case EVMGasType.Type1:
         originalGasDetails = {
           evmGasType,
-          gasEstimate: 0n, // Always 0 initially
+          originalGasEstimate: 0n, // CRITICAL: Must be originalGasEstimate, not gasEstimate
           gasPrice: BigInt('0x100000'), // 1.048M wei (~1 gwei) - official docs value
         };
         break;
       case EVMGasType.Type2:
         originalGasDetails = {
           evmGasType,
-          gasEstimate: 0n, // Always 0 initially
+          originalGasEstimate: 0n, // CRITICAL: Must be originalGasEstimate, not gasEstimate
           maxFeePerGas: BigInt('0x100000'), // 1.048M wei (~1 gwei) - official docs value
           maxPriorityFeePerGas: BigInt('0x010000'), // 65K wei (~0.065 gwei) - official docs value
         };
@@ -640,22 +640,47 @@ export const unshieldTokens = async ({
         }
       }
       
-      // Create gas details following official SDK pattern
+      // Create gas details following official SDK pattern with network-appropriate fallbacks
+      let gasPriceFallback, maxFeeFallback, priorityFeeFallback;
+      
+      // Network-specific gas price fallbacks
+      if (chain.id === 42161) { // Arbitrum
+        gasPriceFallback = BigInt('100000000'); // 0.1 gwei
+        maxFeeFallback = BigInt('1000000000'); // 1 gwei
+        priorityFeeFallback = BigInt('10000000'); // 0.01 gwei
+      } else if (chain.id === 1) { // Ethereum
+        gasPriceFallback = BigInt('20000000000'); // 20 gwei
+        maxFeeFallback = BigInt('25000000000'); // 25 gwei
+        priorityFeeFallback = BigInt('2000000000'); // 2 gwei
+      } else { // Default for other networks
+        gasPriceFallback = BigInt('5000000000'); // 5 gwei
+        maxFeeFallback = BigInt('6000000000'); // 6 gwei
+        priorityFeeFallback = BigInt('1000000000'); // 1 gwei
+      }
+      
+      console.log('💰 [UNSHIELD] Using network-specific gas fallbacks:', {
+        chainId: chain.id,
+        gasPriceFallback: gasPriceFallback.toString(),
+        maxFeeFallback: maxFeeFallback.toString(),
+        priorityFeeFallback: priorityFeeFallback.toString(),
+        accurateGasEstimate: accurateGasEstimate.toString()
+      });
+      
       switch (evmGasType) {
         case EVMGasType.Type0:
         case EVMGasType.Type1:
           gasDetails = {
             evmGasType,
             gasEstimate: accurateGasEstimate,
-            gasPrice: networkGasPrices?.gasPrice || BigInt('20000000000'), // 20 gwei fallback (higher for safety)
+            gasPrice: networkGasPrices?.gasPrice || gasPriceFallback,
           };
           break;
         case EVMGasType.Type2:
           gasDetails = {
             evmGasType,
             gasEstimate: accurateGasEstimate,
-            maxFeePerGas: networkGasPrices?.maxFeePerGas || BigInt('20000000000'), // 20 gwei fallback (higher for safety)
-            maxPriorityFeePerGas: networkGasPrices?.maxPriorityFeePerGas || BigInt('2000000000'), // 2 gwei fallback
+            maxFeePerGas: networkGasPrices?.maxFeePerGas || maxFeeFallback,
+            maxPriorityFeePerGas: networkGasPrices?.maxPriorityFeePerGas || priorityFeeFallback,
           };
           break;
         default:
@@ -674,22 +699,38 @@ export const unshieldTokens = async ({
     } catch (gasError) {
       console.error('❌ [UNSHIELD] Failed to create gas details:', gasError.message);
       
-      // Create fallback gas details
+      // Create fallback gas details with network-appropriate values
+      let gasPriceFallback, maxFeeFallback, priorityFeeFallback;
+      
+      if (chain.id === 42161) { // Arbitrum
+        gasPriceFallback = BigInt('100000000'); // 0.1 gwei
+        maxFeeFallback = BigInt('1000000000'); // 1 gwei
+        priorityFeeFallback = BigInt('10000000'); // 0.01 gwei
+      } else if (chain.id === 1) { // Ethereum
+        gasPriceFallback = BigInt('20000000000'); // 20 gwei
+        maxFeeFallback = BigInt('25000000000'); // 25 gwei
+        priorityFeeFallback = BigInt('2000000000'); // 2 gwei
+      } else {
+        gasPriceFallback = BigInt('5000000000'); // 5 gwei
+        maxFeeFallback = BigInt('6000000000'); // 6 gwei
+        priorityFeeFallback = BigInt('1000000000'); // 1 gwei
+      }
+      
       switch (evmGasType) {
         case EVMGasType.Type0:
         case EVMGasType.Type1:
           gasDetails = {
             evmGasType,
             gasEstimate: accurateGasEstimate,
-            gasPrice: BigInt('20000000000'), // 20 gwei fallback
+            gasPrice: gasPriceFallback,
           };
           break;
         case EVMGasType.Type2:
           gasDetails = {
             evmGasType,
             gasEstimate: accurateGasEstimate,
-            maxFeePerGas: BigInt('20000000000'), // 20 gwei fallback
-            maxPriorityFeePerGas: BigInt('2000000000'), // 2 gwei fallback
+            maxFeePerGas: maxFeeFallback,
+            maxPriorityFeePerGas: priorityFeeFallback,
           };
           break;
         default:
