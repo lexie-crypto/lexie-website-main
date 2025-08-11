@@ -573,6 +573,20 @@ export const unshieldTokens = async ({
     }
     
     console.log('✅ [UNSHIELD] Public inputs match between proof and populate steps');
+
+    // PROOF-LEVEL BREADCRUMBS: Log critical proof parameters for debugging
+    console.log('🔍 [UNSHIELD] [proof] Proof parameters for debugging:', {
+      txidVersion: 'V2_PoseidonMerkle',
+      sendWithPublicWallet, // expect false for relayer mode
+      relayAdaptExpected: useRelayer ? '0xFA7093CDD9EE6932B4eb2c9e1cde7CE00B1FA4b9' : 'N/A',
+      merkleRoot: proofResponse?.publicInputs?.merkleRoot?.toString() ?? '<n/a>',
+      nullifiers: proofResponse?.nullifiers?.map(x => x.toString()) ?? [],
+      recipientsFingerprint: canonRecipients(erc20AmountRecipients),
+      hasBroadcasterFee: !!broadcasterFeeERC20AmountRecipient,
+      relayerFeeAmount: broadcasterFeeERC20AmountRecipient?.amount?.toString() || '0',
+      proofGenerated: !!proofResponse,
+      mode: useRelayer ? 'RelayAdapt' : 'Self-Signing'
+    });
     
     const populatedTransaction = await populateProvedUnshield(
       TXIDVersion.V2_PoseidonMerkle,
