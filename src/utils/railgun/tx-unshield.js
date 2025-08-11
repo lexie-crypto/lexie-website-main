@@ -311,33 +311,38 @@ export const unshieldTokens = async ({
     let erc20AmountRecipients;
     let broadcasterFeeERC20AmountRecipient = null;
     
-    // Fee calculations (needed for both proof generation and populate)
-    const RAILGUN_FEE_BPS = 25n; // 25 basis points = 0.25%
-    const railgunProtocolFee = (BigInt(amount) * RAILGUN_FEE_BPS) / 10000n;
-    let relayerFeeAmount = 0n;
+    // CRITICAL: SDK handles protocol fee automatically - don't subtract it manually
+    const UNSHIELD_FEE_BPS = 25n; // 25 basis points = 0.25% (handled by SDK)
+    const RELAYER_FEE_BPS = 50n; // 50 basis points = 0.5%
+    
+    const unshieldIn = BigInt(amount); // What we pass to RelayAdapt
+    // SDK automatically deducts 0.25% protocol fee, leaving afterFee available
+    const afterFee = (unshieldIn * (10000n - UNSHIELD_FEE_BPS)) / 10000n;
+    
+    let relayerFeeBn = 0n;
+    let recipientBn = afterFee;
     
     if (useRelayer) {
-      console.log('🔧 [UNSHIELD] Preparing RelayAdapt mode with broadcaster fee...');
-      console.log('🚨 [UNSHIELD] CRITICAL: RelayAdapt mode should use UnshieldBaseToken proof type, not regular Unshield!');
-      console.log('🚨 [UNSHIELD] THIS IS LIKELY THE ROOT CAUSE OF SNARK VERIFICATION FAILURES!');
+      console.log('🔧 [UNSHIELD] Preparing RelayAdapt mode with cross-contract calls...');
       
-      // Calculate relayer fee (e.g., 0.5% of transaction amount) 
-      const feePercentage = 0.005; // 0.5%
-      relayerFeeAmount = BigInt(Math.floor(Number(amount) * feePercentage));
+      // Calculate relayer fee from after-fee amount (pure BigInt)
+      relayerFeeBn = (afterFee * RELAYER_FEE_BPS) / 10000n;
+      recipientBn = afterFee - relayerFeeBn;
       
-      // Total fees: RAILGUN protocol fee + relayer fee
-      const totalFees = railgunProtocolFee + relayerFeeAmount;
-      const userAmount = BigInt(amount) - totalFees;
-      
-      console.log('💰 [UNSHIELD] Fee calculation:', {
-        totalAmount: amount,
-        userAmount: userAmount.toString(),
-        railgunProtocolFee: railgunProtocolFee.toString(),
-        relayerFeeAmount: relayerFeeAmount.toString(),
-        totalFees: totalFees.toString(),
-        railgunFeePercent: '0.25%',
-        relayerFeePercent: (feePercentage * 100) + '%'
+      console.log('💰 [UNSHIELD] SDK-compatible fee calculation:', {
+        unshieldIn: unshieldIn.toString(),
+        afterFee: afterFee.toString(), // Available after SDK's 0.25% deduction
+        relayerFeeBn: relayerFeeBn.toString(),
+        recipientBn: recipientBn.toString(),
+        verification: `${recipientBn.toString()} + ${relayerFeeBn.toString()} = ${(recipientBn + relayerFeeBn).toString()}`
       });
+      // Assertions (before proof/populate)
+      if (recipientBn <= 0n) {
+        throw new Error(`Recipient amount must be > 0. Got: ${recipientBn.toString()}`);
+      }
+      if (recipientBn + relayerFeeBn !== afterFee) {
+        throw new Error(`Math error: recipient (${recipientBn.toString()}) + relayer fee (${relayerFeeBn.toString()}) != afterFee (${afterFee.toString()})`);
+      }
       
       // CRITICAL ISSUE: For RelayAdapt (UnshieldBaseToken), the TypeScript implementation shows:
       // 1. erc20AmountRecipients contains the user recipient (full amount to user's address)
@@ -347,60 +352,59 @@ export const unshieldTokens = async ({
       // TODO: This needs to be refactored to use UnshieldBaseToken pattern
       // For now, keeping existing pattern but with corrected recipients
       
-      // User recipient gets amount minus fee
-      const userRecipient = createERC20AmountRecipient(tokenAddress, userAmount, toAddress);
-      
-      // CRITICAL: Broadcaster fee recipient MUST match TypeScript SDK pattern
-      // This is the fee paid to the relayer/broadcaster for relaying the transaction
+      // For RelayAdapt: broadcaster fee will be paid FROM RelayAdapt via cross-contract calls
+      // NOT as a separate public output - we'll implement this in cross-contract calls
       const RELAYER_EOA_ADDRESS = await getRelayerAddress(); // Get from relayer service
-      broadcasterFeeERC20AmountRecipient = createERC20AmountRecipient(tokenAddress, relayerFeeAmount, RELAYER_EOA_ADDRESS);
+      broadcasterFeeERC20AmountRecipient = {
+        tokenAddress,
+        recipientAddress: RELAYER_EOA_ADDRESS,
+        amount: relayerFeeBn, // Pure BigInt fee
+      };
       
       console.log('🔍 [UNSHIELD] CRITICAL - Broadcaster fee setup:', {
         feeRecipient: RELAYER_EOA_ADDRESS,
-        relayerFeeAmount: relayerFeeAmount.toString(),
+        relayerFeeBn: relayerFeeBn.toString(),
         tokenAddress: tokenAddress,
         purpose: 'RAILGUN_BROADCASTER_FEE_FOR_RELAYING'
       });
       
-      // TODO: RAILGUN protocol fee needs to be handled separately
-      // It's not a separate recipient but is deducted from the proof internally
+      // RAILGUN protocol fee is deducted by SDK automatically
       console.log('🔍 [UNSHIELD] RAILGUN Protocol Fee:', {
-        railgunProtocolFee: railgunProtocolFee.toString(),
-        purpose: 'RAILGUN_PROTOCOL_FEE_DEDUCTED_FROM_PROOF',
+        unshieldFee: ((unshieldIn * UNSHIELD_FEE_BPS) / 10000n).toString(),
+        purpose: 'RAILGUN_PROTOCOL_FEE_DEDUCTED_BY_SDK',
         note: 'This fee is handled internally by RAILGUN SDK, not as separate recipient'
       });
       
-      erc20AmountRecipients = [userRecipient];
+      // Note: erc20AmountRecipients is not used in cross-contract calls mode
+      // Instead, we use relayAdaptUnshieldERC20Amounts + crossContractCalls
+      erc20AmountRecipients = [];
       
       console.log('📝 [UNSHIELD] RelayAdapt recipients prepared:', {
-        userRecipient: { amount: userAmount.toString(), to: toAddress },
-        broadcasterFee: { amount: relayerFeeAmount.toString(), to: RELAYER_EOA_ADDRESS },
-        railgunProtocolFee: { amount: railgunProtocolFee.toString(), note: 'handled_internally' },
-        mode: 'RelayAdapt_NEEDS_UNSHIELD_BASE_TOKEN_REFACTOR'
+        recipientAmount: { amount: recipientBn.toString(), to: toAddress },
+        broadcasterFee: { amount: relayerFeeBn.toString(), to: RELAYER_EOA_ADDRESS },
+        unshieldFee: { amount: ((unshieldIn * UNSHIELD_FEE_BPS) / 10000n).toString(), note: 'handled_by_SDK' },
+        mode: 'RelayAdapt_CrossContractCalls'
       });
       
     } else {
-      // SELF-SIGNING MODE: Still need to account for RAILGUN protocol fee
-      console.log('🔧 [UNSHIELD] Preparing self-signing mode (with RAILGUN protocol fee)...');
-      
-      // For self-signing, only RAILGUN protocol fee applies (relayer fee already 0)
-      const userAmount = BigInt(amount) - railgunProtocolFee;
+      // SELF-SIGNING MODE: Only SDK's unshield fee applies (relayer fee is 0)
+      console.log('🔧 [UNSHIELD] Preparing self-signing mode (with SDK unshield fee)...');
       
       console.log('💰 [UNSHIELD] Self-signing fee calculation:', {
-        totalAmount: amount,
-        userAmount: userAmount.toString(),
-        railgunProtocolFee: railgunProtocolFee.toString(),
+        unshieldIn: unshieldIn.toString(),
+        afterFee: afterFee.toString(), // Same as recipientBn for self-signing
+        unshieldFee: ((unshieldIn * UNSHIELD_FEE_BPS) / 10000n).toString(),
         railgunFeePercent: '0.25%',
         noRelayerFee: true
       });
       
-      const userRecipient = createERC20AmountRecipient(tokenAddress, userAmount, toAddress);
+      const userRecipient = createERC20AmountRecipient(tokenAddress, recipientBn, toAddress);
       erc20AmountRecipients = [userRecipient];
       
       console.log('📝 [UNSHIELD] Self-signing recipients prepared:', {
-        userRecipient: { amount: userAmount.toString(), to: toAddress },
-        railgunProtocolFee: { amount: railgunProtocolFee.toString(), note: 'handled_internally' },
-        mode: 'self-signing-with-protocol-fee'
+        userRecipient: { amount: recipientBn.toString(), to: toAddress },
+        unshieldFee: { amount: ((unshieldIn * UNSHIELD_FEE_BPS) / 10000n).toString(), note: 'handled_by_SDK' },
+        mode: 'self-signing-with-unshield-fee'
       });
     }
 
@@ -443,29 +447,53 @@ export const unshieldTokens = async ({
         
         const { gasEstimateForUnprovenCrossContractCalls } = await import('@railgun-community/wallet');
         
-        // RelayAdapt unshield amounts (to RelayAdapt contract)
+        // CRITICAL: RelayAdapt unshields the input amount, SDK deducts 0.25%
+        // RelayAdapt unshield amounts - input amount to SDK
         const relayAdaptUnshieldERC20Amounts = [{
           tokenAddress,
-          amount: BigInt(amount) - railgunProtocolFee - relayerFeeAmount,
+          amount: unshieldIn, // Amount passed to SDK (before SDK's 0.25% deduction)
         }];
         
-        // Create transfer contract calls to forward tokens to final recipient
+        // Assertion: after-fee spend matches available amount
+        const totalSpend = recipientBn + relayerFeeBn;
+        if (totalSpend !== afterFee) {
+          throw new Error(`Spend mismatch: spend ${totalSpend.toString()} != afterFee ${afterFee.toString()}`);
+        }
+        
+        // Create cross-contract calls: 1) Pay relayer fee, 2) Forward to recipient
         const { ethers } = await import('ethers');
         const erc20Interface = new ethers.Interface([
           'function transfer(address to, uint256 amount) returns (bool)'
         ]);
         
-        const transferCallData = erc20Interface.encodeFunctionData('transfer', [
-          toAddress, // Final recipient
-          BigInt(amount) - railgunProtocolFee - relayerFeeAmount // Amount to transfer
+        // Call 1: Pay relayer fee FROM RelayAdapt to relayer EOA
+        const relayerFeeCallData = erc20Interface.encodeFunctionData('transfer', [
+          broadcasterFeeERC20AmountRecipient.recipientAddress, // Relayer EOA
+          relayerFeeBn // Relayer fee amount
         ]);
         
-        const crossContractCalls = [{
-          to: tokenAddress, // USDC contract
-          data: transferCallData,
-          value: '0x0',
-        }];
+        // Call 2: Forward remaining amount FROM RelayAdapt to final recipient
+        const recipientCallData = erc20Interface.encodeFunctionData('transfer', [
+          toAddress, // Final recipient
+          recipientBn // Recipient amount (after fee deduction)
+        ]);
         
+        const crossContractCalls = [
+          {
+            to: tokenAddress, // USDC contract
+            data: relayerFeeCallData,
+            value: '0x0',
+            requireSuccess: true, // Revert if relayer fee payment fails
+          },
+          {
+            to: tokenAddress, // USDC contract  
+            data: recipientCallData,
+            value: '0x0',
+            requireSuccess: true, // Revert if recipient transfer fails
+          }
+        ];
+        
+        const minGasLimit = 2400000n; // Sane floor for cross-contract calls
         const gasEstimateResponse = await gasEstimateForUnprovenCrossContractCalls(
           TXIDVersion.V2_PoseidonMerkle,
           networkName,
@@ -475,10 +503,11 @@ export const unshieldTokens = async ({
           [], // nftAmounts
           [], // shieldERC20Recipients
           [], // shieldNFTRecipients
-          crossContractCalls, // Transfer calls
+          crossContractCalls, // Transfer calls (includes fee payment)
           originalGasDetails,
           null, // feeTokenDetails - not needed for our use case
-          sendWithPublicWallet
+          sendWithPublicWallet,
+          minGasLimit // Missing parameter from docs
         );
         
         accurateGasEstimate = gasEstimateResponse.gasEstimate;
@@ -574,28 +603,45 @@ export const unshieldTokens = async ({
       // Import the cross-contract calls proof generation function
       const { generateCrossContractCallsProof } = await import('@railgun-community/wallet');
       
-      // RelayAdapt unshield amounts (to RelayAdapt contract)
+      // CRITICAL: RelayAdapt unshields the input amount, SDK deducts 0.25%
+      // RelayAdapt unshield amounts - input amount to SDK
       const relayAdaptUnshieldERC20Amounts = [{
         tokenAddress,
-        amount: BigInt(amount) - railgunProtocolFee - relayerFeeAmount,
+        amount: unshieldIn, // Amount passed to SDK (before SDK's 0.25% deduction)
       }];
       
-      // Create transfer contract calls to forward tokens to final recipient
+      // Create cross-contract calls: 1) Pay relayer fee, 2) Forward to recipient
       const { ethers } = await import('ethers');
       const erc20Interface = new ethers.Interface([
         'function transfer(address to, uint256 amount) returns (bool)'
       ]);
       
-      const transferCallData = erc20Interface.encodeFunctionData('transfer', [
-        toAddress, // Final recipient
-        BigInt(amount) - railgunProtocolFee - relayerFeeAmount // Amount to transfer
+      // Call 1: Pay relayer fee FROM RelayAdapt to relayer EOA
+      const relayerFeeCallData = erc20Interface.encodeFunctionData('transfer', [
+        broadcasterFeeERC20AmountRecipient.recipientAddress, // Relayer EOA
+        relayerFeeBn // Relayer fee amount
       ]);
       
-      const crossContractCalls = [{
-        to: tokenAddress, // USDC contract
-        data: transferCallData,
-        value: '0x0',
-      }];
+      // Call 2: Forward remaining amount FROM RelayAdapt to final recipient
+      const recipientCallData = erc20Interface.encodeFunctionData('transfer', [
+        toAddress, // Final recipient
+        recipientBn // Recipient amount (after fee deduction)
+      ]);
+      
+      const crossContractCalls = [
+        {
+          to: tokenAddress, // USDC contract
+          data: relayerFeeCallData,
+          value: '0x0',
+          requireSuccess: true, // Revert if relayer fee payment fails
+        },
+        {
+          to: tokenAddress, // USDC contract  
+          data: recipientCallData,
+          value: '0x0',
+          requireSuccess: true, // Revert if recipient transfer fails
+        }
+      ];
       
       proofResponse = await generateCrossContractCallsProof(
         TXIDVersion.V2_PoseidonMerkle,
@@ -606,8 +652,8 @@ export const unshieldTokens = async ({
         [], // nftAmounts
         [], // shieldERC20Recipients
         [], // shieldNFTRecipients
-        crossContractCalls, // Transfer calls
-        broadcasterFeeERC20AmountRecipient, // Broadcaster fee
+        crossContractCalls, // Transfer calls (includes fee payment)
+        undefined, // No separate broadcaster fee - paid via cross-contract calls
         sendWithPublicWallet, // false for RelayAdapt
         BigInt('1000000000'), // overallBatchMinGasPrice
         BigInt('200000'), // minGasLimit for cross-contract calls
@@ -829,41 +875,67 @@ export const unshieldTokens = async ({
       // Import the cross-contract calls function
       const { populateProvedCrossContractCalls } = await import('@railgun-community/wallet');
       
-      // Create the final recipient for token forwarding
-      const finalRecipients = [{
-        tokenAddress,
-        recipientAddress: toAddress, // Final EOA recipient
-        amount: BigInt(amount) - railgunProtocolFee - relayerFeeAmount, // User gets amount minus all fees
-      }];
+      console.log('💰 [UNSHIELD] RelayAdapt SDK-compatible calculation:', {
+        unshieldIn: unshieldIn.toString(),
+        afterFee: afterFee.toString(), // Available after SDK's 0.25% deduction
+        relayerFeeBn: relayerFeeBn.toString(),
+        recipientBn: recipientBn.toString(),
+        verification: `${recipientBn.toString()} + ${relayerFeeBn.toString()} = ${(recipientBn + relayerFeeBn).toString()}`
+      });
       
-      // RelayAdapt unshield amounts (to RelayAdapt contract)
+      // RelayAdapt unshield amounts - input amount to SDK
       const relayAdaptUnshieldERC20Amounts = [{
         tokenAddress,
-        amount: BigInt(amount) - railgunProtocolFee - relayerFeeAmount,
+        amount: unshieldIn, // Amount passed to SDK (before SDK's 0.25% deduction)
       }];
       
-      // Create transfer contract calls to forward tokens to final recipient
+      // Invariant: after-fee spend matches available amount
+      const totalSpend = recipientBn + relayerFeeBn;
+      if (totalSpend !== afterFee) {
+        throw new Error(`Spend mismatch: spend ${totalSpend.toString()} != afterFee ${afterFee.toString()}`);
+      }
+      
+      // Create cross-contract calls: 1) Pay relayer fee, 2) Forward to recipient
       const { ethers } = await import('ethers');
       const erc20Interface = new ethers.Interface([
         'function transfer(address to, uint256 amount) returns (bool)'
       ]);
       
-      const transferCallData = erc20Interface.encodeFunctionData('transfer', [
-        toAddress, // Final recipient
-        BigInt(amount) - railgunProtocolFee - relayerFeeAmount // Amount to transfer
+      // Call 1: Pay relayer fee FROM RelayAdapt to relayer EOA
+      const relayerFeeCallData = erc20Interface.encodeFunctionData('transfer', [
+        broadcasterFeeERC20AmountRecipient.recipientAddress, // Relayer EOA
+        relayerFeeBn // Relayer fee amount
       ]);
       
-      const crossContractCalls = [{
-        to: tokenAddress, // USDC contract
-        data: transferCallData,
-        value: '0x0',
-      }];
+      // Call 2: Forward remaining amount FROM RelayAdapt to final recipient
+      const recipientCallData = erc20Interface.encodeFunctionData('transfer', [
+        toAddress, // Final recipient
+        recipientBn // Recipient amount (after fee deduction)
+      ]);
       
-      console.log('🔧 [UNSHIELD] Cross-contract transfer call created:', {
+      const crossContractCalls = [
+        {
+          to: tokenAddress, // USDC contract
+          data: relayerFeeCallData,
+          value: '0x0',
+          requireSuccess: true, // Revert if relayer fee payment fails
+        },
+        {
+          to: tokenAddress, // USDC contract  
+          data: recipientCallData,
+          value: '0x0',
+          requireSuccess: true, // Revert if recipient transfer fails
+        }
+      ];
+      
+      console.log('🔧 [UNSHIELD] Cross-contract transfer calls created:', {
         to: tokenAddress,
-        recipient: toAddress,
-        amount: (BigInt(amount) - railgunProtocolFee - relayerFeeAmount).toString(),
-        dataLength: transferCallData.length
+        relayerFeeCall: { recipient: broadcasterFeeERC20AmountRecipient.recipientAddress, amount: relayerFeeBn.toString() },
+        recipientCall: { recipient: toAddress, amount: recipientBn.toString() },
+        unshieldIn: unshieldIn.toString(),
+        afterFee: afterFee.toString(),
+        totalCalls: crossContractCalls.length,
+        requireSuccess: true
       });
       
       populatedTransaction = await populateProvedCrossContractCalls(
@@ -874,8 +946,8 @@ export const unshieldTokens = async ({
         [], // nftAmounts
         [], // shieldERC20Recipients 
         [], // shieldNFTRecipients
-        crossContractCalls, // Transfer calls
-        broadcasterFeeERC20AmountRecipient, // Broadcaster fee
+        crossContractCalls, // Transfer calls (includes fee payment)
+        undefined, // No separate broadcaster fee - paid via cross-contract calls
         sendWithPublicWallet,
         BigInt('1000000000'), // overallBatchMinGasPrice
         gasDetails
@@ -1096,6 +1168,41 @@ export const unshieldTokens = async ({
       error: error.message,
       stack: error.stack,
     });
+    
+    // Decode CallError for better debugging
+    try {
+      if (error.data && typeof error.data === 'string') {
+        const errorData = error.data;
+        
+        // Check for standard Error(string) revert (0x08c379a0)
+        if (errorData.startsWith('0x08c379a0')) {
+          const { ethers } = await import('ethers');
+          try {
+            const decodedError = ethers.AbiCoder.defaultAbiCoder().decode(
+              ['string'],
+              '0x' + errorData.slice(10) // Remove 0x08c379a0
+            );
+            console.error('🔍 [UNSHIELD] Decoded revert reason:', decodedError[0]);
+            
+            // Check for specific ERC20 errors
+            if (decodedError[0].includes('transfer amount exceeds balance')) {
+              console.error('⚠️ [UNSHIELD] RelayAdapt balance insufficient - check amount calculation!');
+              console.error('💡 [UNSHIELD] Verify: unshieldAmount == transferAmount (no overshoot)');
+            }
+            if (decodedError[0].includes('insufficient allowance')) {
+              console.error('⚠️ [UNSHIELD] ERC20 allowance issue - check token approval');
+            }
+          } catch (decodeError) {
+            console.error('🔍 [UNSHIELD] Failed to decode error:', decodeError);
+          }
+        } else {
+          console.error('🔍 [UNSHIELD] Raw error data:', errorData);
+        }
+      }
+    } catch (decodeError) {
+      console.error('🔍 [UNSHIELD] Error decoding failed:', decodeError);
+    }
+    
     throw error;
   }
 };
