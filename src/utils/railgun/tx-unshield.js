@@ -599,7 +599,7 @@ export const unshieldTokens = async ({
     let usedRelayer = false;
     let privacyLevel = 'self-signed';
     
-    if (willUseGasRelayer) {
+    if (useRelayer) {
       console.log('🚀 [GAS RELAYER] Attempting submission via transparent gas relayer...');
       
       try {
