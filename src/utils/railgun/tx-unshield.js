@@ -569,7 +569,7 @@ export const unshieldTokens = async ({
         wrappedERC20Amount,
         broadcasterFeeERC20AmountRecipient, // Broadcaster fee
         sendWithPublicWallet, // false for RelayAdapt
-        undefined, // overallBatchMinGasPrice
+        BigInt('1000000000'), // overallBatchMinGasPrice for broadcaster validation (1 gwei)
         (progress) => {
           console.log(`📊 [UNSHIELD] UnshieldBaseToken Proof Progress: ${(progress * 100).toFixed(2)}%`);
         } // progressCallback
@@ -802,7 +802,7 @@ export const unshieldTokens = async ({
         wrappedERC20Amount,
         broadcasterFeeERC20AmountRecipient, // Broadcaster fee
         sendWithPublicWallet,
-        undefined, // overallBatchMinGasPrice - will add this later
+        BigInt('1000000000'), // overallBatchMinGasPrice for broadcaster validation (1 gwei)
         gasDetails
       );
       
