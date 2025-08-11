@@ -525,24 +525,18 @@ export const unshieldTokens = async ({
           format: 'self-signing-compatible'
         });
         
-        // Format transaction like self-signing does (hex values)
+        // CORRECTED: Preserve ALL RAILGUN fields without modification
         const transactionObject = {
           to: contractTransaction.to,
           data: contractTransaction.data,
-          value: contractTransaction.value ? '0x' + contractTransaction.value.toString(16) : '0x0',
-          gasLimit: contractTransaction.gasLimit ? '0x' + contractTransaction.gasLimit.toString(16) : undefined,
+          value: contractTransaction.value,
+          gasLimit: contractTransaction.gasLimit,
+          gasPrice: contractTransaction.gasPrice,        // Don't skip these!
+          maxFeePerGas: contractTransaction.maxFeePerGas,
+          maxPriorityFeePerGas: contractTransaction.maxPriorityFeePerGas,
           type: contractTransaction.type
+          // Don't convert to hex here - let the relayer handle it
         };
-
-        // Handle gas pricing based on transaction type (avoid mixing legacy and EIP-1559)
-        if (contractTransaction.type === 2) {
-          // EIP-1559 transaction - use maxFeePerGas and maxPriorityFeePerGas
-          transactionObject.maxFeePerGas = contractTransaction.maxFeePerGas ? '0x' + contractTransaction.maxFeePerGas.toString(16) : undefined;
-          transactionObject.maxPriorityFeePerGas = contractTransaction.maxPriorityFeePerGas ? '0x' + contractTransaction.maxPriorityFeePerGas.toString(16) : undefined;
-        } else {
-          // Legacy transaction - use gasPrice
-          transactionObject.gasPrice = contractTransaction.gasPrice ? '0x' + contractTransaction.gasPrice.toString(16) : undefined;
-        }
 
         // Clean up undefined values
         Object.keys(transactionObject).forEach(key => {
