@@ -381,6 +381,23 @@ export const unshieldTokens = async ({
     // SIMPLIFIED: No broadcaster fees - always generate for self-signing
     const broadcasterFeeERC20AmountRecipient = null;
     
+    // PUBLIC INPUTS FINGERPRINTING - Proof Step
+    const canonRecipients = (xs) => JSON.stringify(xs.map(r => ({
+      token: r.tokenAddress.toLowerCase(),
+      amt: r.amount.toString(),
+      to: r.recipientAddress.toLowerCase(),
+    })));
+
+    const proofFP = {
+      token: tokenAddress.toLowerCase(),
+      recipients: canonRecipients(erc20AmountRecipients),
+      sendWithPublicWallet,
+      hasBroadcasterFee: !!broadcasterFeeERC20AmountRecipient,
+      broadcasterAmount: broadcasterFeeERC20AmountRecipient?.amount?.toString() || 'null'
+    };
+
+    console.log('🔍 [UNSHIELD] PUBINPUTS - Proof step:', { step: 'proof', ...proofFP });
+    
     console.log('📝 [UNSHIELD] Generating proof with recipients:', {
       userRecipients: erc20AmountRecipients.length,
       hasBroadcasterFee: false,
@@ -434,6 +451,28 @@ export const unshieldTokens = async ({
 
     // STEP 6: Populate transaction using generated proof
     console.log('📝 [UNSHIELD] Step 6: Populating transaction with proof...');
+    
+    // PUBLIC INPUTS FINGERPRINTING - Populate Step
+    const populateFP = {
+      token: tokenAddress.toLowerCase(),
+      recipients: canonRecipients(erc20AmountRecipients),
+      sendWithPublicWallet,
+      hasBroadcasterFee: !!broadcasterFeeERC20AmountRecipient,
+      broadcasterAmount: broadcasterFeeERC20AmountRecipient?.amount?.toString() || 'null'
+    };
+
+    console.log('🔍 [UNSHIELD] PUBINPUTS - Populate step:', { step: 'populate', ...populateFP });
+
+    // Verify proof and populate parameters match
+    if (JSON.stringify(proofFP) !== JSON.stringify(populateFP)) {
+      console.error('❌ [UNSHIELD] Mismatch between proof and populate inputs!', {
+        proofFP,
+        populateFP
+      });
+      throw new Error('Mismatch: proof vs populate public inputs');
+    }
+    
+    console.log('✅ [UNSHIELD] Public inputs match between proof and populate steps');
     
     const populatedTransaction = await populateProvedUnshield(
       TXIDVersion.V2_PoseidonMerkle,
