@@ -511,15 +511,15 @@ export const unshieldTokens = async ({
           realGasDetails = {
             evmGasType,
             gasEstimate: finalGasEstimate,
-            gasPrice: feeData.gasPrice || BigInt('20000000000'), // 20 gwei fallback
+            gasPrice: feeData.gasPrice || BigInt('100000000'), // 0.1 gwei fallback for Arbitrum
           };
           break;
         case EVMGasType.Type2:
           realGasDetails = {
             evmGasType,
             gasEstimate: finalGasEstimate,
-            maxFeePerGas: feeData.maxFeePerGas || BigInt('20000000000'),
-            maxPriorityFeePerGas: feeData.maxPriorityFeePerGas || BigInt('2000000000'),
+            maxFeePerGas: feeData.maxFeePerGas || BigInt('200000000'), // 0.2 gwei for Arbitrum
+            maxPriorityFeePerGas: feeData.maxPriorityFeePerGas || BigInt('100000000'), // 0.1 gwei for Arbitrum
           };
           break;
       }
@@ -533,15 +533,15 @@ export const unshieldTokens = async ({
           realGasDetails = {
             evmGasType,
             gasEstimate: finalGasEstimate,
-            gasPrice: BigInt('20000000000'), // 20 gwei
+            gasPrice: BigInt('100000000'), // 0.1 gwei for Arbitrum
           };
           break;
         case EVMGasType.Type2:
           realGasDetails = {
             evmGasType,
             gasEstimate: finalGasEstimate,
-            maxFeePerGas: BigInt('5000000000'), // 5 gwei - more reasonable fallback
-            maxPriorityFeePerGas: BigInt('1000000000'), // 1 gwei - less than max fee
+            maxFeePerGas: BigInt('200000000'), // 0.2 gwei for Arbitrum
+            maxPriorityFeePerGas: BigInt('100000000'), // 0.1 gwei for Arbitrum
           };
           break;
       }
