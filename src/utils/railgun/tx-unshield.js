@@ -499,11 +499,11 @@ export const unshieldTokens = async ({
     } catch (gasError) {
       console.warn('⚠️ [UNSHIELD] Official gas estimation failed, using conservative fallback:', gasError.message);
       
-      // Use conservative gas estimate based on transaction type
+      // Use very high conservative gas estimates for complex SNARK verification
       if (useRelayer) {
-        accurateGasEstimate = BigInt('500000'); // Higher estimate for RelayAdapt transactions
+        accurateGasEstimate = BigInt('2000000'); // Very high for RelayAdapt SNARK verification (2M gas)
       } else {
-        accurateGasEstimate = BigInt('300000'); // Standard estimate for self-signing
+        accurateGasEstimate = BigInt('1200000'); // High for self-signing SNARK verification (1.2M gas)
       }
       
       console.log('📊 [UNSHIELD] Using fallback gas estimate:', {
