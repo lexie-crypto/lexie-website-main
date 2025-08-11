@@ -525,15 +525,15 @@ export const unshieldTokens = async ({
           format: 'self-signing-compatible'
         });
         
-        // CORRECTED: Preserve ALL RAILGUN fields with proper ethers.js formatting
+        // CORRECTED: Preserve ALL RAILGUN fields with proper JSON serialization
         const transactionObject = {
           to: contractTransaction.to,
           data: contractTransaction.data,
-          value: contractTransaction.value || '0x0',  // Ensure value is defined
-          gasLimit: contractTransaction.gasLimit,
-          gasPrice: contractTransaction.gasPrice,
-          maxFeePerGas: contractTransaction.maxFeePerGas,
-          maxPriorityFeePerGas: contractTransaction.maxPriorityFeePerGas,
+          value: contractTransaction.value || '0x0',
+          gasLimit: contractTransaction.gasLimit ? contractTransaction.gasLimit.toString() : undefined,
+          gasPrice: contractTransaction.gasPrice ? contractTransaction.gasPrice.toString() : undefined,
+          maxFeePerGas: contractTransaction.maxFeePerGas ? contractTransaction.maxFeePerGas.toString() : undefined,
+          maxPriorityFeePerGas: contractTransaction.maxPriorityFeePerGas ? contractTransaction.maxPriorityFeePerGas.toString() : undefined,
           type: contractTransaction.type
         };
 
