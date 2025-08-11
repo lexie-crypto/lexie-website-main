@@ -29,13 +29,20 @@ import {
 /**
  * Get selected relayer details for SDK integration
  */
-const getSelectedRelayer = async () => {
-  // TODO: Get from actual relayer service
-  return {
-    railgunAddress: "0zk1q8hqg5sa7v0a0adn6e9pqyj3z0pdp2g3m4ndu74qt9rc2648u72fptdr7j6fe3253lauu1erv2t7tvsk4m0t9sqv94mr0k4tksrxep2n38xdd2akc75qjyrenxn", // RAILGUN address
-    feePerUnitGas: BigInt('1000000000'), // 1 gwei
-    feeToken: "0xaf88d065e77c8cc2239327c5edb3a432268e5831", // USDC on Arbitrum - should match tokenAddress
-  };
+const getSelectedRelayer = async (preferredFeeTokenAddress) => {
+  // Fetch live RAILGUN address from relayer service
+  try {
+    const railgunAddress = await getRelayerAddress();
+    return {
+      railgunAddress, // MUST be '0zk…'
+      feePerUnitGas: BigInt('1000000000'), // default 1 gwei; replace with quote when available
+      // Prefer to pay fee in the same token we're unshielding
+      feeToken: preferredFeeTokenAddress || "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
+    };
+  } catch (e) {
+    // Fall back to error; do not proceed with undefined/invalid address
+    throw new Error(`Failed to retrieve relayer RAILGUN address: ${e.message}`);
+  }
 };
 
 // Proof Generation
@@ -397,7 +404,7 @@ export const unshieldTokens = async ({
       console.log('🔧 [UNSHIELD] Preparing RelayAdapt mode with cross-contract calls...');
       
       // CRITICAL: Select relayer once, reuse everywhere
-      const selectedRelayer = await getSelectedRelayer();
+      const selectedRelayer = await getSelectedRelayer(tokenAddress);
       if (!selectedRelayer || !selectedRelayer.railgunAddress?.startsWith('0zk')) {
         throw new Error(`Invalid RAILGUN address: ${selectedRelayer?.railgunAddress}. Must start with '0zk'`);
       }
