@@ -525,11 +525,11 @@ export const unshieldTokens = async ({
           format: 'self-signing-compatible'
         });
         
-        // CORRECTED: Preserve ALL RAILGUN fields with proper BigInt serialization
+        // CORRECTED: Preserve ALL RAILGUN fields with proper ethers.js formatting
         const transactionObject = {
           to: contractTransaction.to,
           data: contractTransaction.data,
-          value: contractTransaction.value || '0x0',
+          value: contractTransaction.value || '0x0',  // Ensure value is defined
           gasLimit: contractTransaction.gasLimit,
           gasPrice: contractTransaction.gasPrice,
           maxFeePerGas: contractTransaction.maxFeePerGas,
@@ -537,13 +537,10 @@ export const unshieldTokens = async ({
           type: contractTransaction.type
         };
 
-        // Convert BigInt values to strings for JSON serialization
+        // Clean up undefined values
         Object.keys(transactionObject).forEach(key => {
-          const value = transactionObject[key];
-          if (value === undefined) {
+          if (transactionObject[key] === undefined) {
             delete transactionObject[key];
-          } else if (typeof value === 'bigint') {
-            transactionObject[key] = value.toString();
           }
         });
         
@@ -671,3 +668,4 @@ export const unshieldTokens = async ({
 export default {
   unshieldTokens,
 };
+
