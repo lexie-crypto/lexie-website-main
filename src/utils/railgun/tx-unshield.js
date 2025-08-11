@@ -1031,6 +1031,7 @@ export const unshieldTokens = async ({
         TXIDVersion.V2_PoseidonMerkle,
         networkName,
         railgunWalletID,
+        proofResponse, // REQUIRED: pass the generated proof
         relayAdaptUnshieldERC20Amounts, // Unshield to RelayAdapt
         [], // nftAmounts
         [], // shieldERC20Recipients 
