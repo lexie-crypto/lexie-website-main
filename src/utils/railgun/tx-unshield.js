@@ -672,12 +672,23 @@ export const unshieldTokens = async ({
       });
     }
     
+    // Derive overallBatchMinGasPrice from transaction gas details (per docs)
+    const txGasForBatchPrice = {
+      evmGasType,
+      gasEstimate: accurateGasEstimate,
+      gasPrice: originalGasDetails.gasPrice,
+      maxFeePerGas: originalGasDetails.maxFeePerGas,
+      maxPriorityFeePerGas: originalGasDetails.maxPriorityFeePerGas,
+    };
+    const OVERALL_BATCH_MIN_GAS_PRICE = await calculateGasPrice(txGasForBatchPrice);
+    
     console.log('📝 [UNSHIELD] Step 5b: Generating real unshield proof with accurate gas...');
     
     console.log('🔧 [UNSHIELD] Real proof mode:', {
       sendWithPublicWallet,
       hasBroadcasterFee: !!broadcasterFeeERC20AmountRecipient,
-      mode: useRelayer ? 'RelayAdapt' : 'Self-Signing'
+      mode: useRelayer ? 'RelayAdapt' : 'Self-Signing',
+      overallBatchMinGasPrice: OVERALL_BATCH_MIN_GAS_PRICE.toString()
     });
     
     // PUBLIC INPUTS FINGERPRINTING - Proof Step
@@ -747,15 +758,6 @@ export const unshieldTokens = async ({
         minGasLimit: MIN_GAS_LIMIT.toString()
       });
       
-      // Derive overallBatchMinGasPrice from gas details per docs
-      const overallBatchMinGasPrice = await calculateGasPrice({
-        evmGasType: originalGasDetails.evmGasType,
-        gasEstimate: accurateGasEstimate,
-        gasPrice: originalGasDetails.gasPrice,
-        maxFeePerGas: originalGasDetails.maxFeePerGas,
-        maxPriorityFeePerGas: originalGasDetails.maxPriorityFeePerGas,
-      });
-
       proofResponse = await generateCrossContractCallsProof(
         TXIDVersion.V2_PoseidonMerkle,
         networkName,
@@ -768,7 +770,7 @@ export const unshieldTokens = async ({
         crossContractCalls, // Single transfer call (recipient only)
         broadcasterFeeERC20AmountRecipient, // Official SDK pattern for relayer fees
         sendWithPublicWallet,
-        overallBatchMinGasPrice,
+        OVERALL_BATCH_MIN_GAS_PRICE,
         MIN_GAS_LIMIT,
         (progress) => {
           console.log(`📊 [UNSHIELD] Cross-contract calls Proof Progress: ${(progress * 100).toFixed(2)}%`);
