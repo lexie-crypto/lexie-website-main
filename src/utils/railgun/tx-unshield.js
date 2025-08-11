@@ -404,64 +404,65 @@ export const unshieldTokens = async ({
       });
     }
 
-    // STEP 5: Dummy proof dry-run for accurate gas estimation
-    console.log('📝 [UNSHIELD] Step 5a: Running dummy proof for gas estimation...');
+    // STEP 5: Official RAILGUN gas estimation using SDK
+    console.log('📝 [UNSHIELD] Step 5: Running official RAILGUN gas estimation...');
     
     const networkName = getRailgunNetworkName(chain.id);
     const evmGasType = getEVMGasTypeForTransaction(networkName, sendWithPublicWallet);
     
-    // Create gas details structure for proof generation
+    // Create original gas details with low initial values (official pattern)
     let originalGasDetails;
     switch (evmGasType) {
       case EVMGasType.Type0:
       case EVMGasType.Type1:
         originalGasDetails = {
           evmGasType,
-          gasEstimate: 0n,
-          gasPrice: BigInt('0x100000'),
+          gasEstimate: 0n, // Always 0 initially
+          gasPrice: BigInt('0x100000'), // 1.048M wei (~1 gwei) - official docs value
         };
         break;
       case EVMGasType.Type2:
         originalGasDetails = {
           evmGasType,
-          gasEstimate: 0n,
-          maxFeePerGas: BigInt('0x100000'),
-          maxPriorityFeePerGas: BigInt('0x010000'),
+          gasEstimate: 0n, // Always 0 initially
+          maxFeePerGas: BigInt('0x100000'), // 1.048M wei (~1 gwei) - official docs value
+          maxPriorityFeePerGas: BigInt('0x010000'), // 65K wei (~0.065 gwei) - official docs value
         };
         break;
       default:
         throw new Error(`Unsupported EVM gas type: ${evmGasType}`);
     }
     
-    // Create dummy recipients for gas estimation matching real transaction mode
-    const dummyRecipients = [...erc20AmountRecipients];
-    const dummyBroadcasterFee = useRelayer ? broadcasterFeeERC20AmountRecipient : null;
-    
-    console.log('🧮 [UNSHIELD] Running dummy proof for accurate gas estimation...');
+    console.log('🧮 [UNSHIELD] Using official gasEstimateForUnprovenUnshield...');
     
     try {
-      // Generate dummy proof to get accurate gas estimate
-      const dummyProof = await generateUnshieldProof(
+      // Import the official SDK function
+      const { gasEstimateForUnprovenUnshield } = await import('@railgun-community/wallet');
+      
+      // Use official gas estimation (matches documentation exactly)
+      const gasEstimateResponse = await gasEstimateForUnprovenUnshield(
         TXIDVersion.V2_PoseidonMerkle,
         networkName,
         railgunWalletID,
         encryptionKey,
-        dummyRecipients,
+        erc20AmountRecipients,
         [], // nftAmountRecipients
-        dummyBroadcasterFee, // Match real transaction broadcaster fee setup
-        sendWithPublicWallet,
-        undefined, // overallBatchMinGasPrice
-        (progress, status) => {
-          console.log(`📊 [UNSHIELD] Dummy Proof Progress: ${progress.toFixed(2)}% | ${status}`);
-        } // progressCallback
+        originalGasDetails,
+        null, // feeTokenDetails - not needed for our use case
+        sendWithPublicWallet
       );
       
-      var accurateGasEstimate = dummyProof.gasEstimate || BigInt('300000'); // Fallback estimate
-      console.log('✅ [UNSHIELD] Dummy proof completed, gas estimate:', accurateGasEstimate.toString());
+      var accurateGasEstimate = gasEstimateResponse.gasEstimate;
+      console.log('✅ [UNSHIELD] Official gas estimation completed:', {
+        gasEstimate: accurateGasEstimate.toString(),
+        evmGasType,
+        sendWithPublicWallet,
+        method: 'gasEstimateForUnprovenUnshield'
+      });
       
-    } catch (dummyError) {
-      console.warn('⚠️ [UNSHIELD] Dummy proof failed, using fallback gas estimate:', dummyError.message);
-      var accurateGasEstimate = BigInt('300000'); // Fallback if dummy proof fails
+    } catch (gasError) {
+      console.warn('⚠️ [UNSHIELD] Official gas estimation failed, using fallback:', gasError.message);
+      var accurateGasEstimate = BigInt('300000'); // Fallback if gas estimation fails
     }
     
     console.log('📝 [UNSHIELD] Step 5b: Generating real unshield proof with accurate gas...');
@@ -512,92 +513,82 @@ export const unshieldTokens = async ({
       } // progressCallback
     );
     
-    // Use the accurate gas estimate from dummy proof
+    // Use the accurate gas estimate from official SDK
     const finalGasEstimate = accurateGasEstimate;
     console.log('✅ [UNSHIELD] Proof generation completed:', {
       gasEstimate: finalGasEstimate.toString(),
       evmGasType,
       hasProof: !!proofResponse,
+      method: 'official-sdk-gas-estimation'
     });
 
-    // Get REAL gas prices from network for the actual transaction
-    console.log('💰 [UNSHIELD] Getting real gas prices from network...');
-    let realGasDetails;
+    // Create proper gas details using official RAILGUN pattern
+    console.log('💰 [UNSHIELD] Creating transaction gas details using SDK pattern...');
     
     try {
       // Get current network gas prices
       const signer = await walletProvider();
-      console.log('💰 [UNSHIELD] Signer created, checking provider...');
+      const provider = signer?.provider;
       
-      if (!signer || !signer.provider) {
-        throw new Error('No provider available from signer');
+      let networkGasPrices = null;
+      if (provider) {
+        try {
+          const feeData = await provider.getFeeData();
+          console.log('💰 [UNSHIELD] Network gas prices:', {
+            gasPrice: feeData.gasPrice?.toString(),
+            maxFeePerGas: feeData.maxFeePerGas?.toString(),
+            maxPriorityFeePerGas: feeData.maxPriorityFeePerGas?.toString()
+          });
+          
+          // Use network prices if available and reasonable
+          if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
+            // Ensure priority fee is not higher than max fee
+            if (feeData.maxPriorityFeePerGas > feeData.maxFeePerGas) {
+              feeData.maxPriorityFeePerGas = feeData.maxFeePerGas / 2n;
+            }
+            networkGasPrices = feeData;
+          }
+        } catch (feeError) {
+          console.warn('⚠️ [UNSHIELD] Failed to get network gas prices:', feeError.message);
+        }
       }
       
-      const provider = signer.provider;
-      console.log('💰 [UNSHIELD] Getting fee data from provider...');
-      const feeData = await provider.getFeeData();
+      // Create gas details following official SDK pattern
+      let gasDetails;
+      switch (evmGasType) {
+        case EVMGasType.Type0:
+        case EVMGasType.Type1:
+          gasDetails = {
+            evmGasType,
+            gasEstimate: accurateGasEstimate,
+            gasPrice: networkGasPrices?.gasPrice || BigInt('20000000000'), // 20 gwei fallback (higher for safety)
+          };
+          break;
+        case EVMGasType.Type2:
+          gasDetails = {
+            evmGasType,
+            gasEstimate: accurateGasEstimate,
+            maxFeePerGas: networkGasPrices?.maxFeePerGas || BigInt('20000000000'), // 20 gwei fallback (higher for safety)
+            maxPriorityFeePerGas: networkGasPrices?.maxPriorityFeePerGas || BigInt('2000000000'), // 2 gwei fallback
+          };
+          break;
+        default:
+          throw new Error(`Unsupported EVM gas type: ${evmGasType}`);
+      }
       
-      console.log('💰 [UNSHIELD] Network gas prices:', {
-        gasPrice: feeData.gasPrice?.toString(),
-        maxFeePerGas: feeData.maxFeePerGas?.toString(),
-        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas?.toString(),
-        hasValidData: !!(feeData.maxFeePerGas && feeData.maxPriorityFeePerGas)
+      console.log('✅ [UNSHIELD] Gas details created:', {
+        evmGasType,
+        gasEstimate: gasDetails.gasEstimate.toString(),
+        gasPrice: gasDetails.gasPrice?.toString(),
+        maxFeePerGas: gasDetails.maxFeePerGas?.toString(),
+        maxPriorityFeePerGas: gasDetails.maxPriorityFeePerGas?.toString(),
+        usingNetworkPrices: !!networkGasPrices
       });
       
-      // Validate that we got reasonable gas prices
-      if (!feeData.maxFeePerGas || !feeData.maxPriorityFeePerGas) {
-        throw new Error('Invalid fee data received from provider');
-      }
-      
-      // Ensure priority fee is not higher than max fee
-      if (feeData.maxPriorityFeePerGas > feeData.maxFeePerGas) {
-        console.warn('⚠️ [UNSHIELD] Priority fee higher than max fee, adjusting...');
-        feeData.maxPriorityFeePerGas = feeData.maxFeePerGas / 2n; // Set to half of max fee
-      }
-      
-      switch (evmGasType) {
-        case EVMGasType.Type0:
-        case EVMGasType.Type1:
-          realGasDetails = {
-            evmGasType,
-            gasEstimate: finalGasEstimate,
-            gasPrice: feeData.gasPrice || BigInt('100000000'), // 0.1 gwei fallback for Arbitrum
-          };
-          break;
-        case EVMGasType.Type2:
-          realGasDetails = {
-            evmGasType,
-            gasEstimate: finalGasEstimate,
-            maxFeePerGas: feeData.maxFeePerGas || BigInt('200000000'), // 0.2 gwei for Arbitrum
-            maxPriorityFeePerGas: feeData.maxPriorityFeePerGas || BigInt('100000000'), // 0.1 gwei for Arbitrum
-          };
-          break;
-      }
-      
     } catch (gasError) {
-      console.warn('⚠️ [UNSHIELD] Failed to get network gas prices, using fallback:', gasError.message);
-      // Fallback to higher values than dummy
-      switch (evmGasType) {
-        case EVMGasType.Type0:
-        case EVMGasType.Type1:
-          realGasDetails = {
-            evmGasType,
-            gasEstimate: finalGasEstimate,
-            gasPrice: BigInt('100000000'), // 0.1 gwei for Arbitrum
-          };
-          break;
-        case EVMGasType.Type2:
-          realGasDetails = {
-            evmGasType,
-            gasEstimate: finalGasEstimate,
-            maxFeePerGas: BigInt('200000000'), // 0.2 gwei for Arbitrum
-            maxPriorityFeePerGas: BigInt('100000000'), // 0.1 gwei for Arbitrum
-          };
-          break;
-      }
+      console.error('❌ [UNSHIELD] Failed to create gas details:', gasError.message);
+      throw new Error(`Gas details creation failed: ${gasError.message}`);
     }
-    
-    const gasDetails = realGasDetails;
 
     // STEP 6: Populate transaction using generated proof
     console.log('📝 [UNSHIELD] Step 6: Populating transaction with proof...');
