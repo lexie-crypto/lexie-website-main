@@ -187,18 +187,29 @@ export async function checkRelayerHealth() {
  * Get relayer address from environment (since it's fixed)
  */
 export async function getRelayerAddress() {
-  // Return the configured relayer address directly
-  // In Vite, environment variables must be prefixed with VITE_
-  const relayerAddress = import.meta.env.VITE_RELAYER_ADDRESS;
-  
-  if (!relayerAddress) {
-    console.error('❌ [RELAYER] VITE_RELAYER_ADDRESS not configured');
-    console.error('❌ [RELAYER] Available env vars:', Object.keys(import.meta.env));
-    throw new Error('Relayer address not configured');
+  try {
+    const response = await fetch(`${RELAYER_PROXY_URL}/api/relayer/address`, {
+      method: 'GET',
+      headers: createHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to get relayer address: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.railgunAddress) {
+      throw new Error('No RAILGUN address returned from relayer');
+    }
+
+    console.log('📍 [RELAYER] Got RAILGUN address:', data.railgunAddress);
+    return data.railgunAddress;
+    
+  } catch (error) {
+    console.error('❌ [RELAYER] Failed to get relayer address:', error);
+    throw new Error(`Could not get relayer RAILGUN address: ${error.message}`);
   }
-  
-  console.log('✅ [RELAYER] Using relayer address:', relayerAddress.slice(0, 10) + '...');
-  return relayerAddress;
 }
 
 /**
