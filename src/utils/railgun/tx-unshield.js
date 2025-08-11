@@ -661,13 +661,22 @@ export const unshieldTokens = async ({
         
         console.log('📤 [GAS RELAYER] Submitting to transparent relayer (no fees)...');
         
+        // Calculate fee details for RelayAdapt mode
+        const feeDetails = useRelayer && broadcasterFeeERC20AmountRecipient ? {
+          relayerFee: broadcasterFeeERC20AmountRecipient.amount.toString(),
+          protocolFee: '0',
+          totalFee: broadcasterFeeERC20AmountRecipient.amount.toString()
+        } : { relayerFee: '0', protocolFee: '0', totalFee: '0' };
+        
+        console.log('💰 [GAS RELAYER] Fee details for submission:', feeDetails);
+        
         const relayerResult = await submitRelayedTransaction({
           chainId: chain.id,
           serializedTransaction,
           tokenAddress,
           amount,
           userAddress: walletAddress,
-          feeDetails: { relayerFee: '0', protocolFee: '0', totalFee: '0' }, // No fees
+          feeDetails,
           gasEstimate: contractTransaction.gasLimit?.toString()
         });
         
