@@ -435,14 +435,33 @@ export const unshieldTokens = async ({
     try {
       // Get current network gas prices
       const signer = await walletProvider();
+      console.log('💰 [UNSHIELD] Signer created, checking provider...');
+      
+      if (!signer || !signer.provider) {
+        throw new Error('No provider available from signer');
+      }
+      
       const provider = signer.provider;
+      console.log('💰 [UNSHIELD] Getting fee data from provider...');
       const feeData = await provider.getFeeData();
       
       console.log('💰 [UNSHIELD] Network gas prices:', {
         gasPrice: feeData.gasPrice?.toString(),
         maxFeePerGas: feeData.maxFeePerGas?.toString(),
-        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas?.toString()
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas?.toString(),
+        hasValidData: !!(feeData.maxFeePerGas && feeData.maxPriorityFeePerGas)
       });
+      
+      // Validate that we got reasonable gas prices
+      if (!feeData.maxFeePerGas || !feeData.maxPriorityFeePerGas) {
+        throw new Error('Invalid fee data received from provider');
+      }
+      
+      // Ensure priority fee is not higher than max fee
+      if (feeData.maxPriorityFeePerGas > feeData.maxFeePerGas) {
+        console.warn('⚠️ [UNSHIELD] Priority fee higher than max fee, adjusting...');
+        feeData.maxPriorityFeePerGas = feeData.maxFeePerGas / 2n; // Set to half of max fee
+      }
       
       switch (evmGasType) {
         case EVMGasType.Type0:
@@ -479,8 +498,8 @@ export const unshieldTokens = async ({
           realGasDetails = {
             evmGasType,
             gasEstimate: finalGasEstimate,
-            maxFeePerGas: BigInt('20000000000'), // 20 gwei
-            maxPriorityFeePerGas: BigInt('2000000000'), // 2 gwei
+            maxFeePerGas: BigInt('5000000000'), // 5 gwei - more reasonable fallback
+            maxPriorityFeePerGas: BigInt('1000000000'), // 1 gwei - less than max fee
           };
           break;
       }
