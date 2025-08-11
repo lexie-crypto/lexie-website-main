@@ -528,18 +528,19 @@ export const unshieldTokens = async ({
         });
         
         // User signs the transaction directly (this maintains the proof-signer consistency)
-        const signedTx = await walletProvider.sendTransaction(contractTransaction);
+        const txHash = await walletProvider.request({
+          method: 'eth_sendTransaction',
+          params: [contractTransaction]
+        });
         
         console.log('✅ [GAS RELAYER] Transaction signed and sent by user wallet:', {
-          hash: signedTx.hash,
-          from: signedTx.from,
-          to: signedTx.to,
-          nonce: signedTx.nonce,
+          hash: txHash,
+          to: contractTransaction.to,
           approach: 'direct-user-transaction'
         });
 
         // The transaction is already submitted - no need for relayer
-        transactionHash = signedTx.hash;
+        transactionHash = txHash;
         usedRelayer = false; // Actually sent directly by user
         privacyLevel = 'self-signed';
 
