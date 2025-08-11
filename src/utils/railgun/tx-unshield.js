@@ -433,33 +433,68 @@ export const unshieldTokens = async ({
         throw new Error(`Unsupported EVM gas type: ${evmGasType}`);
     }
     
-    console.log('🧮 [UNSHIELD] Attempting official gasEstimateForUnprovenUnshield...');
+    console.log('🧮 [UNSHIELD] Attempting official gas estimation with correct method...');
     
     var accurateGasEstimate;
     try {
-      // Import the official SDK function
-      const { gasEstimateForUnprovenUnshield } = await import('@railgun-community/wallet');
-      
-      // Use official gas estimation (matches documentation exactly)
-      const gasEstimateResponse = await gasEstimateForUnprovenUnshield(
-        TXIDVersion.V2_PoseidonMerkle,
-        networkName,
-        railgunWalletID,
-        encryptionKey,
-        erc20AmountRecipients,
-        [], // nftAmountRecipients
-        originalGasDetails,
-        null, // feeTokenDetails - not needed for our use case
-        sendWithPublicWallet
-      );
-      
-      accurateGasEstimate = gasEstimateResponse.gasEstimate;
-      console.log('✅ [UNSHIELD] Official gas estimation completed:', {
-        gasEstimate: accurateGasEstimate.toString(),
-        evmGasType,
-        sendWithPublicWallet,
-        method: 'gasEstimateForUnprovenUnshield'
-      });
+      if (useRelayer) {
+        // For RelayAdapt mode, use UnshieldBaseToken gas estimation
+        console.log('🧮 [UNSHIELD] Using gasEstimateForUnprovenUnshieldBaseToken for RelayAdapt...');
+        
+        const { gasEstimateForUnprovenUnshieldBaseToken } = await import('@railgun-community/wallet');
+        
+        // For RelayAdapt, we need the wrapped amount for the user
+        const wrappedERC20Amount = {
+          tokenAddress,
+          amount: BigInt(amount) - railgunProtocolFee - relayerFeeAmount, // User gets amount minus all fees
+        };
+        
+        const gasEstimateResponse = await gasEstimateForUnprovenUnshieldBaseToken(
+          TXIDVersion.V2_PoseidonMerkle,
+          networkName,
+          toAddress, // publicWalletAddress
+          railgunWalletID,
+          encryptionKey,
+          wrappedERC20Amount,
+          originalGasDetails,
+          null, // feeTokenDetails - not needed for our use case
+          sendWithPublicWallet
+        );
+        
+        accurateGasEstimate = gasEstimateResponse.gasEstimate;
+        console.log('✅ [UNSHIELD] UnshieldBaseToken gas estimation completed:', {
+          gasEstimate: accurateGasEstimate.toString(),
+          evmGasType,
+          sendWithPublicWallet,
+          method: 'gasEstimateForUnprovenUnshieldBaseToken'
+        });
+        
+      } else {
+        // For self-signing mode, use regular Unshield gas estimation
+        console.log('🧮 [UNSHIELD] Using gasEstimateForUnprovenUnshield for self-signing...');
+        
+        const { gasEstimateForUnprovenUnshield } = await import('@railgun-community/wallet');
+        
+        const gasEstimateResponse = await gasEstimateForUnprovenUnshield(
+          TXIDVersion.V2_PoseidonMerkle,
+          networkName,
+          railgunWalletID,
+          encryptionKey,
+          erc20AmountRecipients,
+          [], // nftAmountRecipients
+          originalGasDetails,
+          null, // feeTokenDetails - not needed for our use case
+          sendWithPublicWallet
+        );
+        
+        accurateGasEstimate = gasEstimateResponse.gasEstimate;
+        console.log('✅ [UNSHIELD] Regular Unshield gas estimation completed:', {
+          gasEstimate: accurateGasEstimate.toString(),
+          evmGasType,
+          sendWithPublicWallet,
+          method: 'gasEstimateForUnprovenUnshield'
+        });
+      }
       
     } catch (gasError) {
       console.warn('⚠️ [UNSHIELD] Official gas estimation failed, using conservative fallback:', gasError.message);
