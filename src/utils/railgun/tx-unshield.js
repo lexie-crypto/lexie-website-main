@@ -372,6 +372,9 @@ export const unshieldTokens = async ({
     // RELAYER MODE: Prepare recipients with broadcaster fee
     let erc20AmountRecipients;
     let broadcasterFeeERC20AmountRecipient = null;
+    // Cross-contract (RelayAdapt) shared objects used across estimate → proof → populate
+    let relayAdaptUnshieldERC20Amounts = undefined;
+    let crossContractCalls = undefined;
     
     // CRITICAL: SDK handles protocol fee automatically - don't subtract it manually
     const UNSHIELD_FEE_BPS = 25n; // 0.25%
@@ -483,7 +486,7 @@ export const unshieldTokens = async ({
       });
 
       // Hoist shared params for estimate -> proof -> populate
-      const relayAdaptUnshieldERC20Amounts = [{
+      relayAdaptUnshieldERC20Amounts = [{
         tokenAddress,
         amount: unshieldIn, // Gross into RelayAdapt; SDK deducts 0.25%
       }];
@@ -496,7 +499,7 @@ export const unshieldTokens = async ({
         recipientEVM,
         recipientBn,
       ]);
-      const crossContractCalls = [{
+      crossContractCalls = [{
         to: tokenAddress,
         data: recipientCallData,
         value: 0n,
