@@ -296,31 +296,68 @@ export const unshieldTokens = async ({
     // STEP 4: Determine transaction method and prepare recipients
     console.log('🔧 [UNSHIELD] Step 4: Determining transaction method...');
     
-    const willUseGasRelayer = shouldUseRelayer(chain.id, amount);
-    console.log(`💰 [UNSHIELD] Transaction method: ${willUseGasRelayer ? 'Gas Relayer (Transparent Signing)' : 'Self-Signing (Direct)'}`);
+    const useRelayer = shouldUseRelayer(chain.id, amount);
+    const sendWithPublicWallet = !useRelayer; // false when relaying, true when self-signing
+    
+    console.log(`💰 [UNSHIELD] Transaction method: ${useRelayer ? 'RelayAdapt Mode (with broadcaster fee)' : 'Self-Signing (Direct)'}`);
+    console.log(`🔧 [UNSHIELD] sendWithPublicWallet: ${sendWithPublicWallet}`);
 
     // Check zero-delay mode
     if (typeof window !== 'undefined' && window.__LEXIE_ZERO_DELAY_MODE__) {
       console.log('🚀 [UNSHIELD] Zero-Delay mode active - bypassing spendable balance checks');
     }
 
-    // SIMPLIFIED: Always create transaction for self-signing (no relayer fees)
-    // The relayer will simply sign and send the same transaction the user would
-    const userRecipient = createERC20AmountRecipient(tokenAddress, amount, toAddress);
-    const erc20AmountRecipients = [userRecipient];
+    // RELAYER MODE: Prepare recipients with broadcaster fee
+    let erc20AmountRecipients;
+    let broadcasterFeeERC20AmountRecipient = null;
     
-    console.log('📝 [UNSHIELD] Transaction recipients prepared:', {
-      method: willUseGasRelayer ? 'relayer' : 'self-signing',
-      recipients: erc20AmountRecipients.length,
-      fullAmount: amount,
-      noFees: true
-    });
+    if (useRelayer) {
+      console.log('🔧 [UNSHIELD] Preparing RelayAdapt mode with broadcaster fee...');
+      
+      // Calculate relayer fee (e.g., 0.5% of transaction amount)
+      const feePercentage = 0.005; // 0.5%
+      const feeAmount = BigInt(Math.floor(Number(amount) * feePercentage));
+      const userAmount = BigInt(amount) - feeAmount;
+      
+      console.log('💰 [UNSHIELD] Fee calculation:', {
+        totalAmount: amount,
+        userAmount: userAmount.toString(),
+        feeAmount: feeAmount.toString(),
+        feePercentage: (feePercentage * 100) + '%'
+      });
+      
+      // User recipient gets amount minus fee
+      const userRecipient = createERC20AmountRecipient(tokenAddress, userAmount, toAddress);
+      
+      // Broadcaster fee recipient (relayer EOA)
+      const RELAYER_EOA_ADDRESS = await getRelayerAddress(); // Get from relayer service
+      broadcasterFeeERC20AmountRecipient = createERC20AmountRecipient(tokenAddress, feeAmount, RELAYER_EOA_ADDRESS);
+      
+      erc20AmountRecipients = [userRecipient];
+      
+      console.log('📝 [UNSHIELD] RelayAdapt recipients prepared:', {
+        userRecipient: { amount: userAmount.toString(), to: toAddress },
+        broadcasterFee: { amount: feeAmount.toString(), to: RELAYER_EOA_ADDRESS },
+        mode: 'RelayAdapt'
+      });
+      
+    } else {
+      // SELF-SIGNING MODE: No fees, user gets full amount
+      console.log('🔧 [UNSHIELD] Preparing self-signing mode (no fees)...');
+      
+      const userRecipient = createERC20AmountRecipient(tokenAddress, amount, toAddress);
+      erc20AmountRecipients = [userRecipient];
+      
+      console.log('📝 [UNSHIELD] Self-signing recipients prepared:', {
+        userRecipient: { amount: amount, to: toAddress },
+        mode: 'self-signing'
+      });
+    }
 
     // STEP 5: Dummy proof dry-run for accurate gas estimation
     console.log('📝 [UNSHIELD] Step 5a: Running dummy proof for gas estimation...');
     
     const networkName = getRailgunNetworkName(chain.id);
-    const sendWithPublicWallet = true; // Always true - relayer acts as transparent signer
     const evmGasType = getEVMGasTypeForTransaction(networkName, sendWithPublicWallet);
     
     // Create gas details structure for proof generation
@@ -346,8 +383,9 @@ export const unshieldTokens = async ({
         throw new Error(`Unsupported EVM gas type: ${evmGasType}`);
     }
     
-    // Create dummy recipients for gas estimation (no relayer fee)
-    const dummyRecipients = [createERC20AmountRecipient(tokenAddress, amount, toAddress)];
+    // Create dummy recipients for gas estimation matching real transaction mode
+    const dummyRecipients = [...erc20AmountRecipients];
+    const dummyBroadcasterFee = useRelayer ? broadcasterFeeERC20AmountRecipient : null;
     
     console.log('🧮 [UNSHIELD] Running dummy proof for accurate gas estimation...');
     
@@ -360,7 +398,7 @@ export const unshieldTokens = async ({
         encryptionKey,
         dummyRecipients,
         [], // nftAmountRecipients
-        null, // No broadcasterFee for dummy run
+        dummyBroadcasterFee, // Match real transaction broadcaster fee setup
         sendWithPublicWallet,
         undefined, // overallBatchMinGasPrice
         (progress, status) => {
@@ -378,8 +416,11 @@ export const unshieldTokens = async ({
     
     console.log('📝 [UNSHIELD] Step 5b: Generating real unshield proof with accurate gas...');
     
-    // SIMPLIFIED: No broadcaster fees - always generate for self-signing
-    const broadcasterFeeERC20AmountRecipient = null;
+    console.log('🔧 [UNSHIELD] Real proof mode:', {
+      sendWithPublicWallet,
+      hasBroadcasterFee: !!broadcasterFeeERC20AmountRecipient,
+      mode: useRelayer ? 'RelayAdapt' : 'Self-Signing'
+    });
     
     // PUBLIC INPUTS FINGERPRINTING - Proof Step
     const canonRecipients = (xs) => JSON.stringify(xs.map(r => ({
@@ -400,20 +441,21 @@ export const unshieldTokens = async ({
     
     console.log('📝 [UNSHIELD] Generating proof with recipients:', {
       userRecipients: erc20AmountRecipients.length,
-      hasBroadcasterFee: false,
-      mode: 'self-signing-format'
+      hasBroadcasterFee: !!broadcasterFeeERC20AmountRecipient,
+      mode: useRelayer ? 'RelayAdapt' : 'Self-Signing',
+      sendWithPublicWallet
     });
     
-    // Generate proof - same format as self-signing (no broadcaster fees)
+    // Generate proof with correct mode and broadcaster fee
     const proofResponse = await generateUnshieldProof(
       TXIDVersion.V2_PoseidonMerkle,
       networkName,
       railgunWalletID,
       encryptionKey,
-      erc20AmountRecipients, // Single recipient with full amount
+      erc20AmountRecipients,
       [], // nftAmountRecipients
-      broadcasterFeeERC20AmountRecipient, // null - no fees
-      sendWithPublicWallet, // true - self-signing format
+      broadcasterFeeERC20AmountRecipient, // null for self-signing, fee object for RelayAdapt
+      sendWithPublicWallet, // false for RelayAdapt, true for self-signing
       undefined, // overallBatchMinGasPrice
       (progress, status) => {
         console.log(`📊 [UNSHIELD] Real Proof Progress: ${progress.toFixed(2)}% | ${status}`);
