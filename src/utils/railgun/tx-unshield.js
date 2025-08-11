@@ -313,44 +313,94 @@ export const unshieldTokens = async ({
     
     if (useRelayer) {
       console.log('🔧 [UNSHIELD] Preparing RelayAdapt mode with broadcaster fee...');
+      console.log('🚨 [UNSHIELD] CRITICAL: RelayAdapt mode should use UnshieldBaseToken proof type, not regular Unshield!');
       
-      // Calculate relayer fee (e.g., 0.5% of transaction amount)
+      // CRITICAL MISSING: RAILGUN Protocol Fee (0.25% like in shield operations)
+      const RAILGUN_FEE_BPS = 25n; // 25 basis points = 0.25%
+      const railgunProtocolFee = (BigInt(amount) * RAILGUN_FEE_BPS) / 10000n;
+      
+      // Calculate relayer fee (e.g., 0.5% of transaction amount) 
       const feePercentage = 0.005; // 0.5%
-      const feeAmount = BigInt(Math.floor(Number(amount) * feePercentage));
-      const userAmount = BigInt(amount) - feeAmount;
+      const relayerFeeAmount = BigInt(Math.floor(Number(amount) * feePercentage));
+      
+      // Total fees: RAILGUN protocol fee + relayer fee
+      const totalFees = railgunProtocolFee + relayerFeeAmount;
+      const userAmount = BigInt(amount) - totalFees;
       
       console.log('💰 [UNSHIELD] Fee calculation:', {
         totalAmount: amount,
         userAmount: userAmount.toString(),
-        feeAmount: feeAmount.toString(),
-        feePercentage: (feePercentage * 100) + '%'
+        railgunProtocolFee: railgunProtocolFee.toString(),
+        relayerFeeAmount: relayerFeeAmount.toString(),
+        totalFees: totalFees.toString(),
+        railgunFeePercent: '0.25%',
+        relayerFeePercent: (feePercentage * 100) + '%'
       });
+      
+      // CRITICAL ISSUE: For RelayAdapt (UnshieldBaseToken), the TypeScript implementation shows:
+      // 1. erc20AmountRecipients contains the user recipient (full amount to user's address)
+      // 2. relayAdaptUnshieldERC20Amounts is used (not regular unshield)
+      // 3. broadcasterFeeERC20AmountRecipient is separate
+      
+      // TODO: This needs to be refactored to use UnshieldBaseToken pattern
+      // For now, keeping existing pattern but with corrected recipients
       
       // User recipient gets amount minus fee
       const userRecipient = createERC20AmountRecipient(tokenAddress, userAmount, toAddress);
       
-      // Broadcaster fee recipient (relayer EOA)
+      // CRITICAL: Broadcaster fee recipient MUST match TypeScript SDK pattern
+      // This is the fee paid to the relayer/broadcaster for relaying the transaction
       const RELAYER_EOA_ADDRESS = await getRelayerAddress(); // Get from relayer service
-      broadcasterFeeERC20AmountRecipient = createERC20AmountRecipient(tokenAddress, feeAmount, RELAYER_EOA_ADDRESS);
+      broadcasterFeeERC20AmountRecipient = createERC20AmountRecipient(tokenAddress, relayerFeeAmount, RELAYER_EOA_ADDRESS);
+      
+      console.log('🔍 [UNSHIELD] CRITICAL - Broadcaster fee setup:', {
+        feeRecipient: RELAYER_EOA_ADDRESS,
+        relayerFeeAmount: relayerFeeAmount.toString(),
+        tokenAddress: tokenAddress,
+        purpose: 'RAILGUN_BROADCASTER_FEE_FOR_RELAYING'
+      });
+      
+      // TODO: RAILGUN protocol fee needs to be handled separately
+      // It's not a separate recipient but is deducted from the proof internally
+      console.log('🔍 [UNSHIELD] RAILGUN Protocol Fee:', {
+        railgunProtocolFee: railgunProtocolFee.toString(),
+        purpose: 'RAILGUN_PROTOCOL_FEE_DEDUCTED_FROM_PROOF',
+        note: 'This fee is handled internally by RAILGUN SDK, not as separate recipient'
+      });
       
       erc20AmountRecipients = [userRecipient];
       
       console.log('📝 [UNSHIELD] RelayAdapt recipients prepared:', {
         userRecipient: { amount: userAmount.toString(), to: toAddress },
-        broadcasterFee: { amount: feeAmount.toString(), to: RELAYER_EOA_ADDRESS },
-        mode: 'RelayAdapt'
+        broadcasterFee: { amount: relayerFeeAmount.toString(), to: RELAYER_EOA_ADDRESS },
+        railgunProtocolFee: { amount: railgunProtocolFee.toString(), note: 'handled_internally' },
+        mode: 'RelayAdapt_NEEDS_UNSHIELD_BASE_TOKEN_REFACTOR'
       });
       
     } else {
-      // SELF-SIGNING MODE: No fees, user gets full amount
-      console.log('🔧 [UNSHIELD] Preparing self-signing mode (no fees)...');
+      // SELF-SIGNING MODE: Still need to account for RAILGUN protocol fee
+      console.log('🔧 [UNSHIELD] Preparing self-signing mode (with RAILGUN protocol fee)...');
       
-      const userRecipient = createERC20AmountRecipient(tokenAddress, amount, toAddress);
+      // CRITICAL: RAILGUN Protocol Fee still applies in self-signing mode
+      const RAILGUN_FEE_BPS = 25n; // 25 basis points = 0.25%
+      const railgunProtocolFee = (BigInt(amount) * RAILGUN_FEE_BPS) / 10000n;
+      const userAmount = BigInt(amount) - railgunProtocolFee;
+      
+      console.log('💰 [UNSHIELD] Self-signing fee calculation:', {
+        totalAmount: amount,
+        userAmount: userAmount.toString(),
+        railgunProtocolFee: railgunProtocolFee.toString(),
+        railgunFeePercent: '0.25%',
+        noRelayerFee: true
+      });
+      
+      const userRecipient = createERC20AmountRecipient(tokenAddress, userAmount, toAddress);
       erc20AmountRecipients = [userRecipient];
       
       console.log('📝 [UNSHIELD] Self-signing recipients prepared:', {
-        userRecipient: { amount: amount, to: toAddress },
-        mode: 'self-signing'
+        userRecipient: { amount: userAmount.toString(), to: toAddress },
+        railgunProtocolFee: { amount: railgunProtocolFee.toString(), note: 'handled_internally' },
+        mode: 'self-signing-with-protocol-fee'
       });
     }
 
@@ -588,15 +638,16 @@ export const unshieldTokens = async ({
       mode: useRelayer ? 'RelayAdapt' : 'Self-Signing'
     });
     
+    // CRITICAL: populateProvedUnshield MUST use EXACT same parameters as proof generation
     const populatedTransaction = await populateProvedUnshield(
       TXIDVersion.V2_PoseidonMerkle,
       networkName,
       railgunWalletID,
-      erc20AmountRecipients, // Same user recipients as used in proof generation
-      [], // nftAmountRecipients
-      broadcasterFeeERC20AmountRecipient, // null - no broadcaster fee
-      sendWithPublicWallet, // true - self-signing format
-      undefined, // overallBatchMinGasPrice (not needed)
+      erc20AmountRecipients, // EXACT same recipients used in proof generation
+      [], // nftAmountRecipients - empty for regular unshield
+      broadcasterFeeERC20AmountRecipient, // EXACT same broadcaster fee as proof
+      sendWithPublicWallet, // EXACT same sendWithPublicWallet as proof
+      undefined, // overallBatchMinGasPrice - same as proof
       gasDetails
     );
 
@@ -676,11 +727,21 @@ export const unshieldTokens = async ({
         console.log('📤 [GAS RELAYER] Submitting to transparent relayer (no fees)...');
         
         // Calculate fee details for RelayAdapt mode
-        const feeDetails = useRelayer && broadcasterFeeERC20AmountRecipient ? {
-          relayerFee: broadcasterFeeERC20AmountRecipient.amount.toString(),
-          protocolFee: '0',
-          totalFee: broadcasterFeeERC20AmountRecipient.amount.toString()
-        } : { relayerFee: '0', protocolFee: '0', totalFee: '0' };
+        const relayerFeeAmount = useRelayer && broadcasterFeeERC20AmountRecipient ? 
+          broadcasterFeeERC20AmountRecipient.amount.toString() : '0';
+        
+        // RAILGUN protocol fee is always applied (0.25%)
+        const RAILGUN_FEE_BPS = 25n;
+        const railgunProtocolFee = (BigInt(amount) * RAILGUN_FEE_BPS) / 10000n;
+        const protocolFeeAmount = railgunProtocolFee.toString();
+        
+        const totalFeeAmount = BigInt(relayerFeeAmount) + BigInt(protocolFeeAmount);
+        
+        const feeDetails = {
+          relayerFee: relayerFeeAmount,
+          protocolFee: protocolFeeAmount,
+          totalFee: totalFeeAmount.toString()
+        };
         
         console.log('💰 [GAS RELAYER] Fee details for submission:', feeDetails);
         
