@@ -14,6 +14,7 @@ import {
   TXIDVersion,
   EVMGasType,
   getEVMGasTypeForTransaction,
+  calculateGasPrice,
 } from '@railgun-community/shared-models';
 import { waitForRailgunReady } from './engine.js';
 
@@ -375,6 +376,9 @@ export const unshieldTokens = async ({
     // Cross-contract (RelayAdapt) shared objects used across estimate → proof → populate
     let relayAdaptUnshieldERC20Amounts = undefined;
     let crossContractCalls = undefined;
+    let relayAdaptShieldERC20Recipients = [];
+    let relayAdaptShieldNFTRecipients = [];
+    let relayAdaptUnshieldNFTAmounts = [];
     
     // CRITICAL: SDK handles protocol fee automatically - don't subtract it manually
     const UNSHIELD_FEE_BPS = 25n; // 0.25%
@@ -743,20 +747,29 @@ export const unshieldTokens = async ({
         minGasLimit: MIN_GAS_LIMIT.toString()
       });
       
+      // Derive overallBatchMinGasPrice from gas details per docs
+      const overallBatchMinGasPrice = await calculateGasPrice({
+        evmGasType: originalGasDetails.evmGasType,
+        gasEstimate: accurateGasEstimate,
+        gasPrice: originalGasDetails.gasPrice,
+        maxFeePerGas: originalGasDetails.maxFeePerGas,
+        maxPriorityFeePerGas: originalGasDetails.maxPriorityFeePerGas,
+      });
+
       proofResponse = await generateCrossContractCallsProof(
         TXIDVersion.V2_PoseidonMerkle,
         networkName,
         railgunWalletID,
         encryptionKey,
-        relayAdaptUnshieldERC20Amounts, // Unshield to RelayAdapt
-        [], // nftAmounts
-        [], // shieldERC20Recipients
-        [], // shieldNFTRecipients
+        relayAdaptUnshieldERC20Amounts,
+        relayAdaptUnshieldNFTAmounts,
+        relayAdaptShieldERC20Recipients,
+        relayAdaptShieldNFTRecipients,
         crossContractCalls, // Single transfer call (recipient only)
         broadcasterFeeERC20AmountRecipient, // Official SDK pattern for relayer fees
-        sendWithPublicWallet, // false for RelayAdapt
-        BigInt('1000000000'), // overallBatchMinGasPrice
-        MIN_GAS_LIMIT, // minGasLimit for cross-contract calls (matches estimation)
+        sendWithPublicWallet,
+        overallBatchMinGasPrice,
+        MIN_GAS_LIMIT,
         (progress) => {
           console.log(`📊 [UNSHIELD] Cross-contract calls Proof Progress: ${(progress * 100).toFixed(2)}%`);
         } // progressCallback
@@ -1023,18 +1036,21 @@ export const unshieldTokens = async ({
         pattern: 'Official_SDK_Pattern'
       });
       
+      // overallBatchMinGasPrice must match proof
+      const overallBatchMinGasPrice = await calculateGasPrice(gasDetails);
+
       populatedTransaction = await populateProvedCrossContractCalls(
         TXIDVersion.V2_PoseidonMerkle,
         networkName,
         railgunWalletID,
-        relayAdaptUnshieldERC20Amounts, // Unshield to RelayAdapt
-        [], // nftAmounts
-        [], // shieldERC20Recipients 
-        [], // shieldNFTRecipients
+        relayAdaptUnshieldERC20Amounts,
+        relayAdaptUnshieldNFTAmounts,
+        relayAdaptShieldERC20Recipients,
+        relayAdaptShieldNFTRecipients,
         crossContractCalls, // Single transfer call (recipient only)
         broadcasterFeeERC20AmountRecipient, // Official SDK pattern for relayer fees
         sendWithPublicWallet,
-        BigInt('1000000000'), // overallBatchMinGasPrice
+        overallBatchMinGasPrice,
         gasDetails
       );
       
