@@ -428,26 +428,64 @@ export const unshieldTokens = async ({
       hasProof: !!proofResponse,
     });
 
-    // Create final gas details with accurate estimate from dummy proof
-    let gasDetails;
-    switch (evmGasType) {
-      case EVMGasType.Type0:
-      case EVMGasType.Type1:
-        gasDetails = {
-          evmGasType,
-          gasEstimate: finalGasEstimate,
-          gasPrice: originalGasDetails.gasPrice,
-        };
-        break;
-      case EVMGasType.Type2:
-        gasDetails = {
-          evmGasType,
-          gasEstimate: finalGasEstimate,
-          maxFeePerGas: originalGasDetails.maxFeePerGas,
-          maxPriorityFeePerGas: originalGasDetails.maxPriorityFeePerGas,
-        };
-        break;
+    // Get REAL gas prices from network for the actual transaction
+    console.log('💰 [UNSHIELD] Getting real gas prices from network...');
+    let realGasDetails;
+    
+    try {
+      // Get current network gas prices
+      const provider = await walletProvider();
+      const feeData = await provider.getFeeData();
+      
+      console.log('💰 [UNSHIELD] Network gas prices:', {
+        gasPrice: feeData.gasPrice?.toString(),
+        maxFeePerGas: feeData.maxFeePerGas?.toString(),
+        maxPriorityFeePerGas: feeData.maxPriorityFeePerGas?.toString()
+      });
+      
+      switch (evmGasType) {
+        case EVMGasType.Type0:
+        case EVMGasType.Type1:
+          realGasDetails = {
+            evmGasType,
+            gasEstimate: finalGasEstimate,
+            gasPrice: feeData.gasPrice || BigInt('20000000000'), // 20 gwei fallback
+          };
+          break;
+        case EVMGasType.Type2:
+          realGasDetails = {
+            evmGasType,
+            gasEstimate: finalGasEstimate,
+            maxFeePerGas: feeData.maxFeePerGas || BigInt('20000000000'),
+            maxPriorityFeePerGas: feeData.maxPriorityFeePerGas || BigInt('2000000000'),
+          };
+          break;
+      }
+      
+    } catch (gasError) {
+      console.warn('⚠️ [UNSHIELD] Failed to get network gas prices, using fallback:', gasError.message);
+      // Fallback to higher values than dummy
+      switch (evmGasType) {
+        case EVMGasType.Type0:
+        case EVMGasType.Type1:
+          realGasDetails = {
+            evmGasType,
+            gasEstimate: finalGasEstimate,
+            gasPrice: BigInt('20000000000'), // 20 gwei
+          };
+          break;
+        case EVMGasType.Type2:
+          realGasDetails = {
+            evmGasType,
+            gasEstimate: finalGasEstimate,
+            maxFeePerGas: BigInt('20000000000'), // 20 gwei
+            maxPriorityFeePerGas: BigInt('2000000000'), // 2 gwei
+          };
+          break;
+      }
     }
+    
+    const gasDetails = realGasDetails;
 
     // STEP 6: Populate transaction using generated proof
     console.log('📝 [UNSHIELD] Step 6: Populating transaction with proof...');
