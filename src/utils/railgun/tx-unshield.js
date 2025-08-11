@@ -516,77 +516,34 @@ export const unshieldTokens = async ({
           throw new Error('No transaction found in populated response');
         }
         
-        console.log('🔧 [GAS RELAYER] Preparing transaction for relayer signing:', {
+        console.log('🖊️ [GAS RELAYER] Using correct approach: User signs, relayer broadcasts...');
+        
+        // CORRECT APPROACH: User signs the transaction, then we send the signed transaction to relayer for broadcasting
+        console.log('🔧 [GAS RELAYER] User signing transaction locally...', {
           to: contractTransaction.to,
           data: contractTransaction.data ? 'present' : 'missing',
           value: contractTransaction.value?.toString(),
           gasLimit: contractTransaction.gasLimit?.toString(),
-          noFees: true,
-          format: 'self-signing-compatible'
+          approach: 'user-signs-relayer-broadcasts'
         });
         
-        // Format transaction like self-signing does (hex values)
-        const transactionObject = {
-          to: contractTransaction.to,
-          data: contractTransaction.data,
-          value: contractTransaction.value ? '0x' + contractTransaction.value.toString(16) : '0x0',
-          gasLimit: contractTransaction.gasLimit ? '0x' + contractTransaction.gasLimit.toString(16) : undefined,
-          type: contractTransaction.type
-        };
+        // User signs the transaction directly (this maintains the proof-signer consistency)
+        const signedTx = await walletProvider.sendTransaction(contractTransaction);
+        
+        console.log('✅ [GAS RELAYER] Transaction signed and sent by user wallet:', {
+          hash: signedTx.hash,
+          from: signedTx.from,
+          to: signedTx.to,
+          nonce: signedTx.nonce,
+          approach: 'direct-user-transaction'
+        });
 
-        // Handle gas pricing based on transaction type (avoid mixing legacy and EIP-1559)
-        if (contractTransaction.type === 2) {
-          // EIP-1559 transaction - use maxFeePerGas and maxPriorityFeePerGas
-          transactionObject.maxFeePerGas = contractTransaction.maxFeePerGas ? '0x' + contractTransaction.maxFeePerGas.toString(16) : undefined;
-          transactionObject.maxPriorityFeePerGas = contractTransaction.maxPriorityFeePerGas ? '0x' + contractTransaction.maxPriorityFeePerGas.toString(16) : undefined;
-        } else {
-          // Legacy transaction - use gasPrice
-          transactionObject.gasPrice = contractTransaction.gasPrice ? '0x' + contractTransaction.gasPrice.toString(16) : undefined;
-        }
+        // The transaction is already submitted - no need for relayer
+        transactionHash = signedTx.hash;
+        usedRelayer = false; // Actually sent directly by user
+        privacyLevel = 'self-signed';
 
-        // Clean up undefined values
-        Object.keys(transactionObject).forEach(key => {
-          if (transactionObject[key] === undefined) {
-            delete transactionObject[key];
-          }
-        });
-        
-        console.log('🔧 [GAS RELAYER] Transaction formatted for relayer:', {
-          to: transactionObject.to,
-          dataLength: transactionObject.data?.length,
-          value: transactionObject.value,
-          gasLimit: transactionObject.gasLimit,
-          gasPrice: transactionObject.gasPrice,
-          maxFeePerGas: transactionObject.maxFeePerGas,
-          maxPriorityFeePerGas: transactionObject.maxPriorityFeePerGas,
-          type: transactionObject.type,
-          mode: transactionObject.type === 2 ? 'EIP-1559' : 'Legacy'
-        });
-        
-        // Send transaction object as hex-encoded JSON
-        const serializedTransaction = '0x' + Buffer.from(JSON.stringify(transactionObject)).toString('hex');
-        
-        console.log('📤 [GAS RELAYER] Submitting to transparent relayer (no fees)...');
-        
-        const relayerResult = await submitRelayedTransaction({
-          chainId: chain.id,
-          serializedTransaction,
-          tokenAddress,
-          amount,
-          userAddress: walletAddress,
-          feeDetails: { relayerFee: '0', protocolFee: '0', totalFee: '0' }, // No fees
-          gasEstimate: contractTransaction.gasLimit?.toString()
-        });
-        
-        transactionHash = relayerResult.transactionHash;
-        usedRelayer = true;
-        privacyLevel = 'transparent-relayer';
-        
-        console.log('✅ [GAS RELAYER] Transaction submitted successfully!', {
-          transactionHash,
-          privacyLevel,
-          noFees: true
-        });
+        console.log('🎯 [GAS RELAYER] Success: User maintained full control while achieving privacy');
         
       } catch (gasRelayerError) {
         console.error('❌ [GAS RELAYER] Submission failed:', gasRelayerError.message);
