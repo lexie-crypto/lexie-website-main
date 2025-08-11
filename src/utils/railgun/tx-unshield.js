@@ -434,7 +434,8 @@ export const unshieldTokens = async ({
     
     try {
       // Get current network gas prices
-      const provider = await walletProvider();
+      const signer = await walletProvider();
+      const provider = signer.provider;
       const feeData = await provider.getFeeData();
       
       console.log('💰 [UNSHIELD] Network gas prices:', {
