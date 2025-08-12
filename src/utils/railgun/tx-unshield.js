@@ -509,7 +509,6 @@ export const unshieldTokens = async ({
         to: tokenAddress,
         data: recipientCallData,
         value: 0n,
-        requireSuccess: true,
       }];
       
     } else {
@@ -726,27 +725,7 @@ export const unshieldTokens = async ({
       // Import the cross-contract calls proof generation function
       const { generateCrossContractCallsProof } = await import('@railgun-community/wallet');
       
-      // using hoisted relayAdaptUnshieldERC20Amounts
-      
-      // Create single cross-contract call: Forward NET amount to recipient
-      // (SDK handles relayer fee payment internally via broadcasterFeeERC20AmountRecipient)
-      const { ethers } = await import('ethers');
-      const erc20Interface = new ethers.Interface([
-        'function transfer(address to, uint256 amount) returns (bool)'
-      ]);
-      
-      // Cross-contract call must forward NET:
-      const recipientCallData = erc20Interface.encodeFunctionData('transfer', [
-        recipientEVM, // Final recipient (public EVM address)
-        afterFee // Spend full after-fee amount from RelayAdapt
-      ]);
-      
-      const crossContractCalls = [{
-        to: tokenAddress, // USDC contract  
-        data: recipientCallData,
-        value: 0n,
-        requireSuccess: true, // Revert if recipient transfer fails
-      }];
+      // using hoisted relayAdaptUnshieldERC20Amounts and crossContractCalls from Step 4
       
       const proofBundle = {
         relayAdaptUnshieldERC20Amounts: relayAdaptUnshieldERC20Amounts.map(a => ({ tokenAddress: a.tokenAddress, amount: a.amount.toString() })),
@@ -1006,30 +985,7 @@ export const unshieldTokens = async ({
         verification: `${recipientBn.toString()} + ${relayerFeeBn.toString()} = ${(recipientBn + relayerFeeBn).toString()}`
       });
       
-      // using hoisted relayAdaptUnshieldERC20Amounts
-      
-      // In this pattern, RelayAdapt spends the full afterFee amount via transfer,
-      // and the relayer fee is paid as a private output. No invariant needed here.
-      
-      // Create single cross-contract call: Forward NET amount to recipient
-      // (SDK handles relayer fee payment internally via broadcasterFeeERC20AmountRecipient)
-      const { ethers } = await import('ethers');
-      const erc20Interface = new ethers.Interface([
-        'function transfer(address to, uint256 amount) returns (bool)'
-      ]);
-      
-      // Cross-contract call must forward NET:
-      const recipientCallData = erc20Interface.encodeFunctionData('transfer', [
-        recipientEVM, // Final recipient (public EVM address)
-        afterFee // Spend full after-fee amount from RelayAdapt
-      ]);
-      
-      const crossContractCalls = [{
-        to: tokenAddress, // USDC contract  
-        data: recipientCallData,
-        value: 0n,
-        requireSuccess: true, // Revert if recipient transfer fails
-      }];
+      // using hoisted relayAdaptUnshieldERC20Amounts and crossContractCalls from Step 4
       
       const populateBundle = {
         relayAdaptUnshieldERC20Amounts: relayAdaptUnshieldERC20Amounts.map(a => ({ tokenAddress: a.tokenAddress, amount: a.amount.toString() })),
@@ -1081,20 +1037,33 @@ export const unshieldTokens = async ({
         throw new Error('Mismatch: cross-contract proof vs populate params');
       }
       
-      populatedTransaction = await populateProvedCrossContractCalls(
-        TXIDVersion.V2_PoseidonMerkle,
-        networkName,
-        railgunWalletID,
-        relayAdaptUnshieldERC20Amounts,
-        relayAdaptUnshieldNFTAmounts,
-        relayAdaptShieldERC20Recipients,
-        relayAdaptShieldNFTRecipients,
-        crossContractCalls, // Single transfer call (recipient only)
-        broadcasterFeeERC20AmountRecipient, // Official SDK pattern for relayer fees
-        sendWithPublicWallet,
-        OVERALL_BATCH_MIN_GAS_PRICE,
-        gasDetails
-      );
+      try {
+        populatedTransaction = await populateProvedCrossContractCalls(
+          TXIDVersion.V2_PoseidonMerkle,
+          networkName,
+          railgunWalletID,
+          relayAdaptUnshieldERC20Amounts,
+          relayAdaptUnshieldNFTAmounts,
+          relayAdaptShieldERC20Recipients,
+          relayAdaptShieldNFTRecipients,
+          crossContractCalls, // Single transfer call (recipient only)
+          broadcasterFeeERC20AmountRecipient, // Official SDK pattern for relayer fees
+          sendWithPublicWallet,
+          OVERALL_BATCH_MIN_GAS_PRICE,
+          gasDetails
+        );
+      } catch (sdkErr) {
+        const causeMsg = sdkErr?.cause?.message || sdkErr?.message;
+        console.error('❌ [UNSHIELD] populateProvedCrossContractCalls failed:', {
+          message: sdkErr?.message,
+          cause: sdkErr?.cause?.message,
+        });
+        // If SDK surfaced a specific mismatch, log it plainly for quick triage
+        if (causeMsg?.startsWith('Mismatch:')) {
+          console.error('❌ [UNSHIELD] SDK mismatch detail:', causeMsg);
+        }
+        throw sdkErr;
+      }
       
       console.log('✅ [UNSHIELD] RelayAdapt transaction populated using cross-contract calls');
       
