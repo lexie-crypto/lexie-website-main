@@ -869,11 +869,14 @@ export const monitorTransactionInGraph = async ({
                   }
                 }
 
+                // Prefer a direct spent commitment hash hint if provided
+                const spentCommitmentHashHint = transactionDetails?.spentCommitmentHash;
+
                 // Validate all required fields before making API call
                 const requiredFields = {
                   walletAddress,
                   walletId,
-                  spentCommitmentHash: nullifierEvent?.nullifier,
+                  spentCommitmentHash: spentCommitmentHashHint || nullifierEvent?.nullifier,
                   spentTxHash: nullifierEvent?.transactionHash,
                   decimals
                 };
@@ -891,7 +894,7 @@ export const monitorTransactionInGraph = async ({
                       body: JSON.stringify({
                         walletAddress,
                         walletId,
-                        spentCommitmentHash: nullifierEvent.nullifier,
+                        spentCommitmentHash: spentCommitmentHashHint || nullifierEvent.nullifier,
                         spentTxHash: nullifierEvent.transactionHash,
                         decimals,
                         changeCommitment: transactionDetails?.changeCommitment // Optional
@@ -899,7 +902,13 @@ export const monitorTransactionInGraph = async ({
                     });
 
                     if (response.ok) {
-                      console.log('[TransactionMonitor] ✅ Unshield processed atomically');
+                      let json;
+                      try { json = await response.json(); } catch (_) {}
+                      if (json?.success) {
+                        console.log('[TransactionMonitor] ✅ Unshield processed atomically');
+                      } else {
+                        console.warn('[TransactionMonitor] ⚠️ Unshield processing returned non-success JSON:', json);
+                      }
                     } else {
                       const errorText = await response.text();
                       console.error('[TransactionMonitor] ❌ Failed to process unshield atomically:', {
@@ -909,7 +918,7 @@ export const monitorTransactionInGraph = async ({
                         payload: {
                           walletAddress: walletAddress?.slice(0, 10) + '...',
                           walletId: walletId?.slice(0, 10) + '...',
-                          spentCommitmentHash: nullifierEvent?.nullifier?.slice(0, 10) + '...',
+                          spentCommitmentHash: (spentCommitmentHashHint || nullifierEvent?.nullifier)?.slice?.(0, 10) + '...',
                           spentTxHash: nullifierEvent?.transactionHash?.slice(0, 10) + '...',
                           decimals
                         }

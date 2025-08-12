@@ -398,6 +398,15 @@ export const unshieldTokens = async ({
       totalValue: totalAvailable.toString(),
     });
 
+    // Try to infer the spent commitment hash when obvious (single-note wallet for token)
+    let spentCommitmentHashCandidate = null;
+    try {
+      if (Array.isArray(unspentNotes) && unspentNotes.length === 1 && unspentNotes[0]?.commitmentHash) {
+        spentCommitmentHashCandidate = unspentNotes[0].commitmentHash;
+        console.log('🧭 [UNSHIELD] Using single-note commitmentHash as spent candidate:', spentCommitmentHashCandidate?.slice?.(0, 10) + '...');
+      }
+    } catch (_) {}
+
     // STEP 4: Determine transaction method and prepare recipients
     console.log('🔧 [UNSHIELD] Step 4: Determining transaction method...');
     
@@ -1298,6 +1307,8 @@ export const unshieldTokens = async ({
             walletAddress,
             walletId: railgunWalletID,
             decimals: tokenDecimals,
+            // Hint for backend to mark the correct note as spent
+            spentCommitmentHash: spentCommitmentHashCandidate || undefined,
           },
           listener: (event) => {
             console.log(`🎉 [UNSHIELD] Transaction ${transactionHash} confirmed!`);
