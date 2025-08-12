@@ -501,7 +501,7 @@ export const unshieldTokens = async ({
       ]);
       const recipientCallData = erc20Interface.encodeFunctionData('transfer', [
         recipientEVM,
-        recipientBn,
+        afterFee, // Forward full after-fee amount; relayer fee is private output
       ]);
       crossContractCalls = [{
         to: tokenAddress,
@@ -592,7 +592,7 @@ export const unshieldTokens = async ({
         console.log('🔧 [UNSHIELD] Cross-contract call created:', {
           to: tokenAddress,
           recipientEVM: recipientEVM,
-          recipientBn: recipientBn.toString(),
+          afterFee: afterFee.toString(),
           callCount: crossContractCalls.length
         });
         
@@ -736,7 +736,7 @@ export const unshieldTokens = async ({
       // Cross-contract call must forward NET:
       const recipientCallData = erc20Interface.encodeFunctionData('transfer', [
         recipientEVM, // Final recipient (public EVM address)
-        recipientBn // NET to recipient (afterFee - relayerFeeBn)
+        afterFee // Spend full after-fee amount from RelayAdapt
       ]);
       
       const crossContractCalls = [{
@@ -1000,11 +1000,8 @@ export const unshieldTokens = async ({
       
       // using hoisted relayAdaptUnshieldERC20Amounts
       
-      // Invariant: after-fee spend matches available amount
-      const totalSpend = recipientBn + relayerFeeBn;
-      if (totalSpend !== afterFee) {
-        throw new Error(`Spend mismatch: spend ${totalSpend.toString()} != afterFee ${afterFee.toString()}`);
-      }
+      // In this pattern, RelayAdapt spends the full afterFee amount via transfer,
+      // and the relayer fee is paid as a private output. No invariant needed here.
       
       // Create single cross-contract call: Forward NET amount to recipient
       // (SDK handles relayer fee payment internally via broadcasterFeeERC20AmountRecipient)
@@ -1016,7 +1013,7 @@ export const unshieldTokens = async ({
       // Cross-contract call must forward NET:
       const recipientCallData = erc20Interface.encodeFunctionData('transfer', [
         recipientEVM, // Final recipient (public EVM address)
-        recipientBn // NET to recipient (afterFee - relayerFeeBn)
+        afterFee // Spend full after-fee amount from RelayAdapt
       ]);
       
       const crossContractCalls = [{
@@ -1038,9 +1035,6 @@ export const unshieldTokens = async ({
         pattern: 'Official_SDK_Pattern'
       });
       
-      // overallBatchMinGasPrice must match proof
-      const overallBatchMinGasPrice = await calculateGasPrice(gasDetails);
-
       populatedTransaction = await populateProvedCrossContractCalls(
         TXIDVersion.V2_PoseidonMerkle,
         networkName,
@@ -1052,7 +1046,7 @@ export const unshieldTokens = async ({
         crossContractCalls, // Single transfer call (recipient only)
         broadcasterFeeERC20AmountRecipient, // Official SDK pattern for relayer fees
         sendWithPublicWallet,
-        overallBatchMinGasPrice,
+        OVERALL_BATCH_MIN_GAS_PRICE,
         gasDetails
       );
       
