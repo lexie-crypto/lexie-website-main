@@ -814,6 +814,12 @@ const WalletContextProvider = ({ children }) => {
             console.log('[Railgun Init] 🔄 Performing initial balance refresh for chain', railgunChain.id);
             await refreshBalances(railgunChain, [railgunWalletInfo.id]);
             console.log('[Railgun Init] ✅ Initial balance refresh complete');
+            try {
+              if (typeof window !== 'undefined') {
+                window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
+                window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id] = true;
+              }
+            } catch {}
           } else {
             console.warn('[Railgun Init] ⚠️ Unable to resolve Railgun chain for initial scan; chainId:', chainId);
           }
@@ -1216,6 +1222,12 @@ const WalletContextProvider = ({ children }) => {
           console.log('[Railgun Init] 🔄 Performing initial balance refresh for chain', railgunChain.id);
           await refreshBalances(railgunChain, [railgunWalletInfo.id]);
           console.log('[Railgun Init] ✅ Initial balance refresh complete');
+          try {
+            if (typeof window !== 'undefined') {
+              window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
+              window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id] = true;
+            }
+          } catch {}
         } else {
           console.warn('[Railgun Init] ⚠️ Unable to resolve Railgun chain for initial scan; chainId:', chainId);
         }

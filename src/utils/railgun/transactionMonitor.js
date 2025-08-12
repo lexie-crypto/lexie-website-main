@@ -665,8 +665,13 @@ export const monitorTransactionInGraph = async ({
                   window.addEventListener('railgun-balance-update', handleBalanceUpdate);
                 });
                 
-                // Use standard refreshBalances - it's the most reliable method
-                console.log('[QuickSync] 🔄 Using standard refreshBalances (most reliable)...');
+                // Use partial refresh if we've already completed the initial scan after init
+                const initialScanDone = (typeof window !== 'undefined') && window.__RAILGUN_INITIAL_SCAN_DONE && window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id];
+                if (initialScanDone) {
+                  console.log('[QuickSync] 🔄 Using partial refreshBalances (initial scan already done)...');
+                } else {
+                  console.log('[QuickSync] 🔄 Using standard refreshBalances (first time on this chain)...');
+                }
                 const walletIdFilter = [transactionDetails.walletId];
                 await refreshBalances(railgunChain, walletIdFilter);
                 
