@@ -379,6 +379,8 @@ export const unshieldTokens = async ({
     let relayAdaptShieldERC20Recipients = [];
     let relayAdaptShieldNFTRecipients = [];
     let relayAdaptUnshieldNFTAmounts = [];
+    // Parity checksum across proof → populate
+    let proofBundleString = null;
     
     // CRITICAL: SDK handles protocol fee automatically - don't subtract it manually
     const UNSHIELD_FEE_BPS = 25n; // 0.25%
@@ -761,6 +763,7 @@ export const unshieldTokens = async ({
         overallBatchMinGasPrice: OVERALL_BATCH_MIN_GAS_PRICE.toString(),
         minGasLimit: MIN_GAS_LIMIT.toString()
       };
+      proofBundleString = JSON.stringify(proofBundle);
       console.log('🔧 [UNSHIELD] Proof generation parameters:', proofBundle);
       
       proofResponse = await generateCrossContractCallsProof(
@@ -1044,10 +1047,13 @@ export const unshieldTokens = async ({
         pattern: 'Official_SDK_Pattern'
       };
       console.log('🔧 [UNSHIELD] Populate parameters:', populateBundle);
-      if (JSON.stringify(proofBundle) !== JSON.stringify(populateBundle)) {
+      const populateBundleString = JSON.stringify(populateBundle);
+      if (!proofBundleString) {
+        console.error('❌ [UNSHIELD] Missing proof bundle for parity check');
+      } else if (proofBundleString !== populateBundleString) {
         console.error('❌ [UNSHIELD] Cross-contract parity mismatch between proof and populate', {
-          proofBundle,
-          populateBundle,
+          proofBundle: JSON.parse(proofBundleString),
+          populateBundle: JSON.parse(populateBundleString),
         });
         throw new Error('Mismatch: cross-contract proof vs populate params');
       }
