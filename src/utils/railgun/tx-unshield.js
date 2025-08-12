@@ -62,14 +62,35 @@ const resolveRecipient = async (recipientInput, walletProvider) => {
     if (recipientInput.startsWith('0x') && ethers.isAddress(recipientInput)) {
       return recipientInput;
     }
-    // Try ENS resolution via provider
-    const signer = typeof walletProvider === 'function' ? await walletProvider() : undefined;
-    const provider = signer?.provider;
-    if (provider && !recipientInput.startsWith('0x')) {
-      const resolved = await provider.resolveName(recipientInput);
+
+    const name = recipientInput.trim().toLowerCase();
+
+    // Try ENS resolution via connected provider first
+    try {
+      const signer = typeof walletProvider === 'function' ? await walletProvider() : undefined;
+      const provider = signer?.provider;
+      if (provider && !name.startsWith('0x')) {
+        const resolved = await provider.resolveName(name);
+        if (resolved && ethers.isAddress(resolved)) {
+          console.log('🔎 [UNSHIELD] ENS resolved via connected provider:', { name, resolved });
+          return resolved;
+        }
+      }
+    } catch (e) {
+      // continue to fallback
+    }
+
+    // Fallback: resolve ENS on Ethereum mainnet (handles L2s without ENS)
+    try {
+      const mainnetRPC = (typeof window !== 'undefined' && window.__ENS_MAINNET_RPC__) || 'https://cloudflare-eth.com';
+      const mainnetProvider = new ethers.JsonRpcProvider(mainnetRPC);
+      const resolved = await mainnetProvider.resolveName(name);
       if (resolved && ethers.isAddress(resolved)) {
+        console.log('🔎 [UNSHIELD] ENS resolved via mainnet fallback:', { name, resolved });
         return resolved;
       }
+    } catch (e2) {
+      // fall through to return null
     }
   } catch (err) {
     // Silent fallthrough; caller will validate null
