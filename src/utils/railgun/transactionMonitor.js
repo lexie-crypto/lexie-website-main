@@ -897,6 +897,9 @@ export const monitorTransactionInGraph = async ({
                         spentCommitmentHash: spentCommitmentHashHint || nullifierEvent.nullifier,
                         spentTxHash: nullifierEvent.transactionHash,
                         decimals,
+                        // Provide extra context so backend can reconcile if commitment hash is unavailable
+                        tokenAddress: transactionDetails?.tokenAddress,
+                        amount: transactionDetails?.amount,
                         changeCommitment: transactionDetails?.changeCommitment // Optional
                       })
                     });
