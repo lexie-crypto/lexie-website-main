@@ -80,13 +80,22 @@ const resolveRecipient = async (recipientInput, walletProvider) => {
       // continue to fallback
     }
 
-    // Fallback: resolve ENS on Ethereum mainnet (handles L2s without ENS)
+    // Fallback: resolve ENS on Ethereum mainnet via Alchemy (preferred) or default provider
     try {
-      const mainnetRPC = (typeof window !== 'undefined' && window.__ENS_MAINNET_RPC__) || 'https://cloudflare-eth.com';
-      const mainnetProvider = new ethers.JsonRpcProvider(mainnetRPC);
+      const alchemyKey =
+        (typeof window !== 'undefined' && (window.__ALCHEMY_API_KEY__ || window.NEXT_PUBLIC_ALCHEMY_API_KEY || window.VITE_ALCHEMY_API_KEY)) ||
+        (typeof process !== 'undefined' && (process.env?.NEXT_PUBLIC_ALCHEMY_API_KEY || process.env?.VITE_ALCHEMY_API_KEY));
+
+      let mainnetProvider;
+      if (alchemyKey) {
+        mainnetProvider = new ethers.AlchemyProvider('mainnet', alchemyKey);
+      } else {
+        mainnetProvider = ethers.getDefaultProvider('mainnet');
+      }
+
       const resolved = await mainnetProvider.resolveName(name);
       if (resolved && ethers.isAddress(resolved)) {
-        console.log('🔎 [UNSHIELD] ENS resolved via mainnet fallback:', { name, resolved });
+        console.log('🔎 [UNSHIELD] ENS resolved via', alchemyKey ? 'Alchemy' : 'default', 'mainnet provider:', { name, resolved });
         return resolved;
       }
     } catch (e2) {
