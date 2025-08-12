@@ -746,17 +746,22 @@ export const unshieldTokens = async ({
         requireSuccess: true, // Revert if recipient transfer fails
       }];
       
-      console.log('🔧 [UNSHIELD] Proof generation parameters:', {
+      const proofBundle = {
         relayAdaptUnshieldERC20Amounts: relayAdaptUnshieldERC20Amounts.map(a => ({ tokenAddress: a.tokenAddress, amount: a.amount.toString() })),
-        crossContractCalls: crossContractCalls.length,
+        relayAdaptUnshieldNFTAmounts,
+        relayAdaptShieldERC20Recipients,
+        relayAdaptShieldNFTRecipients,
+        crossContractCalls: crossContractCalls.map(c => ({ to: c.to, data: String(c.data), value: c.value?.toString?.() ?? '0' })),
         broadcasterFeeERC20AmountRecipient: {
           tokenAddress: broadcasterFeeERC20AmountRecipient.tokenAddress,
           recipientAddress: broadcasterFeeERC20AmountRecipient.recipientAddress,
           amount: broadcasterFeeERC20AmountRecipient.amount.toString()
         },
         sendWithPublicWallet,
+        overallBatchMinGasPrice: OVERALL_BATCH_MIN_GAS_PRICE.toString(),
         minGasLimit: MIN_GAS_LIMIT.toString()
-      });
+      };
+      console.log('🔧 [UNSHIELD] Proof generation parameters:', proofBundle);
       
       proofResponse = await generateCrossContractCallsProof(
         TXIDVersion.V2_PoseidonMerkle,
@@ -1023,17 +1028,29 @@ export const unshieldTokens = async ({
         requireSuccess: true, // Revert if recipient transfer fails
       }];
       
-      console.log('🔧 [UNSHIELD] Populate parameters:', {
+      const populateBundle = {
         relayAdaptUnshieldERC20Amounts: relayAdaptUnshieldERC20Amounts.map(a => ({ tokenAddress: a.tokenAddress, amount: a.amount.toString() })),
-        crossContractCalls: crossContractCalls.length,
+        relayAdaptUnshieldNFTAmounts,
+        relayAdaptShieldERC20Recipients,
+        relayAdaptShieldNFTRecipients,
+        crossContractCalls: crossContractCalls.map(c => ({ to: c.to, data: String(c.data), value: c.value?.toString?.() ?? '0' })),
         broadcasterFeeERC20AmountRecipient: {
           tokenAddress: broadcasterFeeERC20AmountRecipient.tokenAddress,
           recipientAddress: broadcasterFeeERC20AmountRecipient.recipientAddress,
           amount: broadcasterFeeERC20AmountRecipient.amount.toString()
         },
         sendWithPublicWallet,
+        overallBatchMinGasPrice: OVERALL_BATCH_MIN_GAS_PRICE.toString(),
         pattern: 'Official_SDK_Pattern'
-      });
+      };
+      console.log('🔧 [UNSHIELD] Populate parameters:', populateBundle);
+      if (JSON.stringify(proofBundle) !== JSON.stringify(populateBundle)) {
+        console.error('❌ [UNSHIELD] Cross-contract parity mismatch between proof and populate', {
+          proofBundle,
+          populateBundle,
+        });
+        throw new Error('Mismatch: cross-contract proof vs populate params');
+      }
       
       populatedTransaction = await populateProvedCrossContractCalls(
         TXIDVersion.V2_PoseidonMerkle,
