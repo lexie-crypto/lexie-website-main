@@ -4,7 +4,7 @@
  * No custom connector hacks - just clean UI layer over official SDK
  */
 
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { createConfig, custom } from 'wagmi';
 import { mainnet, polygon, arbitrum, bsc } from 'wagmi/chains';
 import { metaMask, walletConnect } from 'wagmi/connectors';
@@ -69,7 +69,8 @@ async function getWalletMetadata(walletAddress) {
           totalKeys: result.totalKeys,
           allKeys: result.keys,
           privateBalances: metaKey.privateBalances || [],
-          lastBalanceUpdate: metaKey.lastBalanceUpdate
+          lastBalanceUpdate: metaKey.lastBalanceUpdate,
+          scannedChains: metaKey.scannedChains || []
         };
       }
       
@@ -95,7 +96,8 @@ async function getWalletMetadata(walletAddress) {
           totalKeys: result.totalKeys,
           allKeys: result.keys,
           privateBalances: firstKey.privateBalances || [],
-          lastBalanceUpdate: firstKey.lastBalanceUpdate
+          lastBalanceUpdate: firstKey.lastBalanceUpdate,
+          scannedChains: firstKey.scannedChains || []
         };
       }
     }
@@ -240,11 +242,6 @@ const WalletContextProvider = ({ children }) => {
   const [isInitializing, setIsInitializing] = useState(false);
   const [railgunError, setRailgunError] = useState(null);
 
-  // Network onboarding and scanning state
-  const [showNetworkSelectModal, setShowNetworkSelectModal] = useState(false);
-  const [isNetworkScanning, setIsNetworkScanning] = useState(false);
-  const [scanningChainId, setScanningChainId] = useState(null);
-
   // Wagmi hooks - ONLY for UI wallet connection
   const { address, isConnected, chainId, connector } = useAccount();
   const { connect, connectors, isPending: isConnecting } = useConnect();
@@ -253,61 +250,6 @@ const WalletContextProvider = ({ children }) => {
   const { data: connectorClient } = useConnectorClient();
   const { signMessageAsync } = useSignMessage();
 
-  // Helpers for per-chain initial scan flags
-  const getScanKey = useCallback((walletAddress, walletId, targetChainId) => {
-    return `railgun-initial-scan:${walletAddress?.toLowerCase()}:${walletId}:${targetChainId}`;
-  }, []);
-
-  const hasInitialScan = useCallback((walletAddress, walletId, targetChainId) => {
-    try {
-      if (typeof window === 'undefined') return false;
-      const memFlag = window.__RAILGUN_INITIAL_SCAN_DONE?.[targetChainId];
-      const lsFlag = localStorage.getItem(getScanKey(walletAddress, walletId, targetChainId)) === '1';
-      return !!memFlag || lsFlag;
-    } catch {
-      return false;
-    }
-  }, [getScanKey]);
-
-  const markInitialScan = useCallback((walletAddress, walletId, targetChainId) => {
-    try {
-      if (typeof window !== 'undefined') {
-        window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
-        window.__RAILGUN_INITIAL_SCAN_DONE[targetChainId] = true;
-        try { localStorage.setItem(getScanKey(walletAddress, walletId, targetChainId), '1'); } catch {}
-      }
-    } catch {}
-  }, [getScanKey]);
-
-  // Ensure chain is scanned (full initial scan once per chain)
-  const ensureChainScanned = useCallback(async (targetChainId) => {
-    if (!isConnected || !address || !railgunWalletID || !isRailgunInitialized || !targetChainId) return;
-    if (hasInitialScan(address, railgunWalletID, targetChainId)) return;
-    try {
-      setIsNetworkScanning(true);
-      setScanningChainId(targetChainId);
-      const { refreshBalances } = await import('@railgun-community/wallet');
-      const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
-      let railgunChain = null;
-      for (const [, cfg] of Object.entries(NETWORK_CONFIG)) {
-        if (cfg.chain.id === targetChainId) { railgunChain = cfg.chain; break; }
-      }
-      if (!railgunChain) {
-        console.warn('[Railgun Init] ⚠️ Unknown chain for initial scan:', targetChainId);
-        return;
-      }
-      console.log('[Railgun Init] 🔄 Performing initial balance refresh for chain', railgunChain.id);
-      await refreshBalances(railgunChain, [railgunWalletID]);
-      markInitialScan(address, railgunWalletID, railgunChain.id);
-      console.log('[Railgun Init] ✅ Initial scan complete for chain', railgunChain.id);
-    } catch (err) {
-      console.warn('[Railgun Init] ⚠️ Initial balance refresh failed:', err?.message);
-    } finally {
-      setIsNetworkScanning(false);
-      setScanningChainId(null);
-    }
-  }, [isConnected, address, railgunWalletID, isRailgunInitialized, hasInitialScan, markInitialScan]);
-
   // Global RPC rate limiter to prevent excessive calls
   const rpcLimiter = useRef({
     totalAttempts: 0,
@@ -315,6 +257,111 @@ const WalletContextProvider = ({ children }) => {
     isBlocked: false,
     blockedForSession: null // Track which wallet session caused the block
   });
+
+  // Track chains currently undergoing an initial scan to prevent overlaps
+  const chainsScanningRef = useRef(new Set());
+
+  // Ensure initial full scan is completed for a given chain before user transacts
+  const ensureChainScanned = useCallback(async (targetChainId) => {
+    try {
+      if (!isConnected || !address || !railgunWalletID) return;
+
+      // Resolve Railgun chain config by chainId
+      const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
+      let railgunChain = null;
+      for (const [, cfg] of Object.entries(NETWORK_CONFIG)) {
+        if (cfg.chain.id === targetChainId) { railgunChain = cfg.chain; break; }
+      }
+      if (!railgunChain) {
+        console.warn('[Railgun Init] ⚠️ No Railgun chain for chainId:', targetChainId);
+        return;
+      }
+
+      // Check Redis-scanned state via wallet metadata proxy
+      let alreadyScannedInRedis = false;
+      try {
+        const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+        if (resp.ok) {
+          const json = await resp.json();
+          const metaKey = json?.keys?.find((k) => k.walletId === railgunWalletID) || null;
+          const scannedChains = metaKey?.scannedChains || [];
+          alreadyScannedInRedis = scannedChains.includes(railgunChain.id);
+        }
+      } catch {}
+
+      const alreadyScannedInWindow = (typeof window !== 'undefined') && window.__RAILGUN_INITIAL_SCAN_DONE && window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id];
+      const isAlreadyScanning = chainsScanningRef.current.has(railgunChain.id);
+
+      if (alreadyScannedInRedis || alreadyScannedInWindow) {
+        console.log('[Railgun Init] ⏭️ Chain already scanned, skipping:', railgunChain.id);
+        return;
+      }
+      if (isAlreadyScanning) {
+        console.log('[Railgun Init] ⏳ Initial scan already in progress for chain:', railgunChain.id);
+        return;
+      }
+
+      // Respect RPC limiter
+      resetRPCLimiter();
+      if (rpcLimiter.current.isBlocked) {
+        console.warn('[Railgun Init] 🚫 RPC limited, skipping initial scan for chain:', railgunChain.id);
+        return;
+      }
+
+      chainsScanningRef.current.add(railgunChain.id);
+      console.log('[Railgun Init] 🔄 Performing initial full scan for chain', railgunChain.id);
+
+      const { refreshBalances } = await import('@railgun-community/wallet');
+      await refreshBalances(railgunChain, [railgunWalletID]);
+
+      // Mark as scanned in memory and Redis metadata
+      if (typeof window !== 'undefined') {
+        window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
+        window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id] = true;
+      }
+
+      try {
+        // Persist scanned chain to Redis by updating wallet metadata
+        // Fetch existing metadata first to preserve fields
+        const getResp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+        let existing = {};
+        if (getResp.ok) {
+          const data = await getResp.json();
+          const metaKey = data?.keys?.find((k) => k.walletId === railgunWalletID);
+          if (metaKey) {
+            existing = {
+              railgunAddress: metaKey.railgunAddress,
+              signature: metaKey.signature,
+              encryptedMnemonic: metaKey.encryptedMnemonic,
+              privateBalances: metaKey.privateBalances,
+              scannedChains: Array.from(new Set([...(metaKey.scannedChains || []), railgunChain.id]))
+            };
+          }
+        }
+
+        // Post updated metadata back via existing endpoint
+        await fetch('/api/wallet-metadata', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            walletAddress: address,
+            walletId: railgunWalletID,
+            ...existing,
+          })
+        });
+      } catch {}
+
+      console.log('[Railgun Init] ✅ Initial scan complete for chain', railgunChain.id);
+    } catch (error) {
+      console.warn('[Railgun Init] ⚠️ Initial scan failed:', error?.message);
+    } finally {
+      try {
+        const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
+        const chainObj = Object.values(NETWORK_CONFIG).find(cfg => cfg.chain.id === targetChainId)?.chain;
+        if (chainObj) chainsScanningRef.current.delete(chainObj.id);
+      } catch {}
+    }
+  }, [isConnected, address, railgunWalletID]);
 
   // Reset rate limiter only on wallet disconnect/connect
   const resetRPCLimiter = () => {
@@ -1331,14 +1378,7 @@ const WalletContextProvider = ({ children }) => {
     
     if (isConnected && address && !isInitializing) {
       console.log('🚀 Auto-initializing Railgun for connected wallet:', address);
-      initializeRailgun().then(() => {
-        // After engine/wallet is ready, if current chain hasn't been scanned, show modal
-        setTimeout(() => {
-          if (railgunWalletID && !hasInitialScan(address, railgunWalletID, chainId)) {
-            setShowNetworkSelectModal(true);
-          }
-        }, 250);
-      });
+      initializeRailgun();
     }
   }, [isConnected, address, isRailgunInitialized, isInitializing, chainId]);
 
@@ -1429,6 +1469,13 @@ const WalletContextProvider = ({ children }) => {
         } catch (providerError) {
           console.warn('⚠️ Failed to update Railgun provider:', providerError);
           // Don't throw - this is non-critical, RPC fallback will work
+        }
+
+        // Ensure chain has done its initial scan once providers are updated
+        try {
+          await ensureChainScanned(chainId);
+        } catch (e) {
+          console.warn('[Railgun Init] ⚠️ ensureChainScanned failed after provider update:', e?.message);
         }
 
       } catch (error) {
@@ -1574,64 +1621,11 @@ const WalletContextProvider = ({ children }) => {
       railgunAddress,
       railgunWalletID: railgunWalletID?.slice(0, 8) + '...',
     }),
-
-    // Network onboarding state and actions
-    showNetworkSelectModal,
-    isNetworkScanning,
-    scanningChainId,
-    ensureChainScanned,
-    dismissNetworkModal: () => setShowNetworkSelectModal(false),
   };
 
   return (
     <WalletContext.Provider value={value}>
       {children}
-
-      {/* Network selection modal for first-time per-chain scan */}
-      {showNetworkSelectModal && isConnected && address && !hasInitialScan(address, railgunWalletID, chainId) && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: '#1f2937', color: 'white', padding: '24px', borderRadius: '12px', width: '420px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
-            <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>Select your network</h2>
-            <p style={{ fontSize: '14px', color: '#cbd5e1', marginBottom: '16px' }}>
-              We will set up your private wallet on the selected network. This one-time setup scans the Merkle trees and may take a minute.
-            </p>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '16px' }}>
-              {[{ id: 1, name: 'Ethereum' }, { id: 137, name: 'Polygon' }, { id: 42161, name: 'Arbitrum' }, { id: 56, name: 'BNB Chain' }].map((net) => (
-                <button
-                  key={net.id}
-                  disabled={isNetworkScanning}
-                  onClick={async () => {
-                    setShowNetworkSelectModal(false);
-                    await ensureChainScanned(net.id);
-                  }}
-                  style={{
-                    padding: '10px 12px',
-                    background: '#374151',
-                    borderRadius: '8px',
-                    color: 'white',
-                    border: '1px solid #4b5563',
-                    cursor: isNetworkScanning ? 'not-allowed' : 'pointer'
-                  }}
-                >
-                  {net.name}
-                </button>
-              ))}
-            </div>
-
-            {isNetworkScanning ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#a78bfa' }}>
-                <div className="animate-spin" style={{ width: '16px', height: '16px', border: '2px solid #a78bfa', borderTopColor: 'transparent', borderRadius: '50%' }} />
-                <span>Setting up wallet on selected network...</span>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <button onClick={() => setShowNetworkSelectModal(false)} style={{ fontSize: '12px', color: '#9ca3af' }}>Maybe later</button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </WalletContext.Provider>
   );
 };
