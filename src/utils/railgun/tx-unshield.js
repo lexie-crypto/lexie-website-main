@@ -1044,7 +1044,7 @@ export const unshieldTokens = async ({
         },
         sendWithPublicWallet,
         overallBatchMinGasPrice: OVERALL_BATCH_MIN_GAS_PRICE.toString(),
-        pattern: 'Official_SDK_Pattern'
+        minGasLimit: MIN_GAS_LIMIT.toString()
       };
       console.log('🔧 [UNSHIELD] Populate parameters:', populateBundle);
       const populateBundleString = JSON.stringify(populateBundle);
