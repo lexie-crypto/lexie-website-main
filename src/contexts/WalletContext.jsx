@@ -797,31 +797,23 @@ const WalletContextProvider = ({ children }) => {
           storage: 'Redis-only'
         });
         
-        // 🔄 Run initial Merkle-tree scan and balance refresh for current chain
+        // 🔄 Run initial Merkle-tree scan and balance refresh for ALL supported chains
         try {
           const { refreshBalances } = await import('@railgun-community/wallet');
           const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
-
-          let railgunChain = null;
-          for (const [, config] of Object.entries(NETWORK_CONFIG)) {
-            if (config.chain.id === chainId) {
-              railgunChain = config.chain;
-              break;
-            }
-          }
-
-          if (railgunChain) {
-            console.log('[Railgun Init] 🔄 Performing initial balance refresh for chain', railgunChain.id);
-            await refreshBalances(railgunChain, [railgunWalletInfo.id]);
-            console.log('[Railgun Init] ✅ Initial balance refresh complete');
+          const networkEntries = Object.entries(NETWORK_CONFIG);
+          console.log('[Railgun Init] 🔄 Performing initial balance refresh across networks:', networkEntries.map(([n,c]) => c.chain.id));
+          for (const [, cfg] of networkEntries) {
             try {
+              await refreshBalances(cfg.chain, [railgunWalletInfo.id]);
               if (typeof window !== 'undefined') {
                 window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
-                window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id] = true;
+                window.__RAILGUN_INITIAL_SCAN_DONE[cfg.chain.id] = true;
               }
-            } catch {}
-          } else {
-            console.warn('[Railgun Init] ⚠️ Unable to resolve Railgun chain for initial scan; chainId:', chainId);
+              console.log('[Railgun Init] ✅ Initial scan complete for chain', cfg.chain.id);
+            } catch (perChainError) {
+              console.warn('[Railgun Init] ⚠️ Initial scan failed for chain', cfg.chain.id, perChainError?.message);
+            }
           }
         } catch (scanError) {
           console.warn('[Railgun Init] ⚠️ Initial balance refresh failed (continuing):', scanError?.message);
@@ -1205,31 +1197,23 @@ const WalletContextProvider = ({ children }) => {
 
       console.log('✅ Wallet state updated - all data persisted in Redis for cross-device access');
 
-      // 🔄 Run initial Merkle-tree scan and balance refresh for current chain
+      // 🔄 Run initial Merkle-tree scan and balance refresh for ALL supported chains
       try {
         const { refreshBalances } = await import('@railgun-community/wallet');
         const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
-
-        let railgunChain = null;
-        for (const [, config] of Object.entries(NETWORK_CONFIG)) {
-          if (config.chain.id === chainId) {
-            railgunChain = config.chain;
-            break;
-          }
-        }
-
-        if (railgunChain) {
-          console.log('[Railgun Init] 🔄 Performing initial balance refresh for chain', railgunChain.id);
-          await refreshBalances(railgunChain, [railgunWalletInfo.id]);
-          console.log('[Railgun Init] ✅ Initial balance refresh complete');
+        const networkEntries = Object.entries(NETWORK_CONFIG);
+        console.log('[Railgun Init] 🔄 Performing initial balance refresh across networks:', networkEntries.map(([n,c]) => c.chain.id));
+        for (const [, cfg] of networkEntries) {
           try {
+            await refreshBalances(cfg.chain, [railgunWalletInfo.id]);
             if (typeof window !== 'undefined') {
               window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
-              window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id] = true;
+              window.__RAILGUN_INITIAL_SCAN_DONE[cfg.chain.id] = true;
             }
-          } catch {}
-        } else {
-          console.warn('[Railgun Init] ⚠️ Unable to resolve Railgun chain for initial scan; chainId:', chainId);
+            console.log('[Railgun Init] ✅ Initial scan complete for chain', cfg.chain.id);
+          } catch (perChainError) {
+            console.warn('[Railgun Init] ⚠️ Initial scan failed for chain', cfg.chain.id, perChainError?.message);
+          }
         }
       } catch (scanError) {
         console.warn('[Railgun Init] ⚠️ Initial balance refresh failed (continuing):', scanError?.message);
