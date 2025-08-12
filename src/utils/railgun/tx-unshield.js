@@ -1055,6 +1055,29 @@ export const unshieldTokens = async ({
           proofBundle: JSON.parse(proofBundleString),
           populateBundle: JSON.parse(populateBundleString),
         });
+
+        const deepDiff = (a, b, path = []) => {
+          const diffs = [];
+          const isObj = (v) => typeof v === 'object' && v !== null;
+          if (!isObj(a) || !isObj(b)) {
+            if (a !== b) diffs.push({ path: path.join('.'), proof: a, populate: b });
+            return diffs;
+          }
+          const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+          for (const k of keys) {
+            diffs.push(...deepDiff(a[k], b[k], [...path, k]));
+          }
+          return diffs;
+        };
+
+        try {
+          const proofObj = JSON.parse(proofBundleString);
+          const populateObj = JSON.parse(populateBundleString);
+          const diffs = deepDiff(proofObj, populateObj);
+          console.error('❌ [UNSHIELD] Parity differences:', diffs);
+        } catch (e) {
+          console.error('❌ [UNSHIELD] Failed to compute diff:', e?.message);
+        }
         throw new Error('Mismatch: cross-contract proof vs populate params');
       }
       
