@@ -545,7 +545,8 @@ export const monitorTransactionInGraph = async ({
       if (transactionType === 'shield') {
         events = await queryCommitments(chainId, blockNumber, txHash);
       } else if (transactionType === 'unshield') {
-        events = await queryUnshields(chainId, blockNumber, txHash);
+        // Use nullifiers for unshield (spent notes) – these include the 'nullifier' field
+        events = await queryNullifiers(chainId, blockNumber, txHash);
       } else if (transactionType === 'transfer') {
         events = await queryNullifiers(chainId, blockNumber, txHash);
       }
