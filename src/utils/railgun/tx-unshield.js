@@ -82,9 +82,21 @@ const resolveRecipient = async (recipientInput, walletProvider) => {
 
     // Fallback: resolve ENS on Ethereum mainnet via Alchemy (preferred) or default provider
     try {
-      const alchemyKey =
-        (typeof window !== 'undefined' && (window.__ALCHEMY_API_KEY__ || window.NEXT_PUBLIC_ALCHEMY_API_KEY || window.VITE_ALCHEMY_API_KEY)) ||
-        (typeof process !== 'undefined' && (process.env?.NEXT_PUBLIC_ALCHEMY_API_KEY || process.env?.VITE_ALCHEMY_API_KEY));
+      let alchemyKey;
+      try {
+        // Prefer Vite env in-browser builds
+        if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_ALCHEMY_API_KEY) {
+          alchemyKey = import.meta.env.VITE_ALCHEMY_API_KEY;
+        }
+      } catch (_) {}
+      // Browser globals
+      if (!alchemyKey && typeof window !== 'undefined') {
+        alchemyKey = window.VITE_ALCHEMY_API_KEY || window.NEXT_PUBLIC_ALCHEMY_API_KEY || window.__ALCHEMY_API_KEY__;
+      }
+      // Process env fallback (SSR/build-time)
+      if (!alchemyKey && typeof process !== 'undefined') {
+        alchemyKey = process.env?.VITE_ALCHEMY_API_KEY || process.env?.NEXT_PUBLIC_ALCHEMY_API_KEY;
+      }
 
       let mainnetProvider;
       if (alchemyKey) {
