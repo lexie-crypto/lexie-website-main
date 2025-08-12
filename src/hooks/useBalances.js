@@ -691,6 +691,7 @@ export function useBalances() {
               numericBalance,
               decimals,
               hasBalance: numericBalance > 0,
+              formattedBalance: Number.isFinite(numericBalance) ? numericBalance.toFixed(6) : '0.000000',
               balanceUSD: calculateUSDValue(numericBalance, symbol),
               type: 'private'
             };
@@ -706,18 +707,11 @@ export function useBalances() {
           // Only update state for Spendable bucket (most important for UI)
           if (balanceEvent.balanceBucket === 'Spendable') {
             setPrivateBalances(updatedPrivateBalances);
-            
-            // Persist to Redis in background
-            persistPrivateBalancesToWalletMetadata(
-              currentAddress, 
-              currentWalletId, 
-              updatedPrivateBalances, 
-              currentChainId
-            ).then(() => {
-              console.log('[useBalances] ✅ SDK balances persisted to Redis');
-            }).catch((error) => {
-              console.error('[useBalances] ❌ Failed to persist SDK balances:', error);
-            });
+
+            // IMPORTANT: Do not write SDK callback balances to Redis.
+            // The transaction monitor is the single source of truth and will
+            // persist confirmed balances after Graph confirmation, then the
+            // UI refreshes from Redis via the transaction-confirmed handler.
           } else {
             console.log('[useBalances] ℹ️ Ignoring non-spendable bucket update:', balanceEvent.balanceBucket);
           }
