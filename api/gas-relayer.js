@@ -1,7 +1,9 @@
 /**
- * Gas Relayer Proxy - Direct calls without HMAC
- * Simple proxy to gas relayer backend with proper CORS
+ * Gas Relayer Proxy - HMAC-authenticated server-to-server proxy
+ * Adds CORS and HMAC headers for requests to relayer.lexiecrypto.com
  */
+
+import crypto from 'crypto';
 
 export const config = {
   api: {
@@ -27,6 +29,7 @@ export default async function handler(req, res) {
     'https://lexiecrypto.com',
     'https://lexiecrypto.com/wallet',
     'http://localhost:3000', 
+    'http://localhost:3001',
     'http://localhost:5173'
   ];
   const isOriginAllowed = origin && (allowedOrigins.includes(origin) || 
@@ -90,11 +93,26 @@ export default async function handler(req, res) {
       });
     }
 
+    // HMAC configuration
+    const hmacSecret = process.env.LEXIE_HMAC_SECRET;
+    if (!hmacSecret) {
+      console.error(`❌ [GAS-RELAYER-${requestId}] LEXIE_HMAC_SECRET is not set`);
+      return res.status(500).json({ success: false, error: 'Server authentication configuration error' });
+    }
+
+    const timestamp = Date.now().toString();
+    const bodyString = req.method === 'POST' ? JSON.stringify(req.body) : '';
+    // Use the exact backend path segment for signing to match server verification
+    const payload = `${req.method}:${relayerPath === '/submit' ? '/api/relay/submit' : relayerPath === '/estimate-fee' ? '/api/relay/estimate-fee' : relayerPath || '/'}:${timestamp}:${bodyString}`;
+    const signature = 'sha256=' + crypto.createHmac('sha256', hmacSecret).update(payload).digest('hex');
+
     const headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
       'Origin': 'https://app.lexiecrypto.com',
       'User-Agent': 'Lexie-Gas-Relayer-Proxy/1.0',
+      'X-Lexie-Signature': signature,
+      'X-Lexie-Timestamp': timestamp,
     };
 
     console.log(`📡 [GAS-RELAYER-${requestId}] Forwarding to relayer: ${backendUrl}`);
@@ -108,7 +126,7 @@ export default async function handler(req, res) {
 
     // Add body for POST requests
     if (req.method === 'POST') {
-      fetchOptions.body = JSON.stringify(req.body);
+      fetchOptions.body = bodyString;
     }
 
     const relayerResponse = await fetch(backendUrl, fetchOptions);
