@@ -38,6 +38,19 @@ export async function handleGasRelayer(req, res) {
       method: req.method
     });
 
+    // Local ping endpoint (diagnostic) – does not forward to backend
+    if (relayerPath === '/ping') {
+      return res.status(200).json({
+        ok: true,
+        role: 'vercel-proxy',
+        requestId,
+        method: req.method,
+        path: relayerPath,
+        timestamp: new Date().toISOString(),
+        userAgent: req.headers['user-agent']
+      });
+    }
+
     // Map proxy paths to backend API paths (support both short and full)
     let targetPath = relayerPath;
     if (targetPath === '/' || targetPath === '') {
