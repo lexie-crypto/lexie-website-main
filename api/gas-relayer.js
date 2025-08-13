@@ -3,15 +3,13 @@
  * Adds CORS and HMAC headers for requests to relayer.lexiecrypto.com
  */
 
+import { config as sharedConfig, handleGasRelayer } from './proxy.js';
 import crypto from 'crypto';
 
-export const config = {
-  api: {
-    bodyParser: true,
-  },
-};
+export const config = sharedConfig;
 
 export default async function handler(req, res) {
+  return handleGasRelayer(req, res);
   const requestId = Math.random().toString(36).substring(7);
   
   console.log(`🚀 [GAS-RELAYER-${requestId}] ${req.method} request`, {
