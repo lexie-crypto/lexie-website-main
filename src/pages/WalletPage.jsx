@@ -49,6 +49,7 @@ const WalletPage = () => {
     walletProviders,
     isWalletAvailable,
     walletProvider, // Add walletProvider to destructuring
+    checkChainReady,
   } = useWallet();
 
   const {
@@ -71,6 +72,24 @@ const WalletPage = () => {
   const [showSignatureGuide, setShowSignatureGuide] = useState(false);
 
   const network = getCurrentNetwork();
+  const [isChainReady, setIsChainReady] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (!canUseRailgun || !railgunWalletId || !address) {
+        if (mounted) setIsChainReady(false);
+        return;
+      }
+      try {
+        const ready = await checkChainReady();
+        if (mounted) setIsChainReady(!!ready);
+      } catch {
+        if (mounted) setIsChainReady(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [canUseRailgun, railgunWalletId, address, chainId]);
 
   // Hybrid refresh: Public from blockchain + Private from Redis  
   const refreshBalances = useCallback(async () => {
@@ -710,14 +729,14 @@ const WalletPage = () => {
                                   ...prev,
                                   [token.symbol]: token.numericBalance.toString()
                                 }))}
-                                disabled={isShieldingThis}
+                                disabled={isShieldingThis || !isChainReady}
                                 className="bg-gray-600 hover:bg-gray-500 disabled:bg-gray-700 text-white px-3 py-2 rounded text-sm transition-colors"
                               >
                                 Max
                               </button>
                               <button
                                 onClick={() => handleShieldToken(token)}
-                                disabled={isShieldingThis || !shieldAmounts[token.symbol]}
+                                disabled={isShieldingThis || !shieldAmounts[token.symbol] || !isChainReady}
                                 className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 text-white px-4 py-2 rounded text-sm font-medium transition-colors flex items-center space-x-1"
                               >
                                 {isShieldingThis ? (
@@ -742,9 +761,9 @@ const WalletPage = () => {
                             </div>
                           )}
                           
-                          {!canUseRailgun && (
+                          {(!canUseRailgun || !isChainReady) && (
                             <div className="mt-3 text-gray-500 text-sm">
-                              Connect Railgun to enable shielding
+                              {(!canUseRailgun) ? 'Connect Railgun to enable shielding' : 'Creating your wallet shield... please wait until initialization completes'}
                             </div>
                           )}
                         </div>
