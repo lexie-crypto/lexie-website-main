@@ -191,15 +191,15 @@ export async function getRelayerAddress() {
   let envAddress;
   try {
     // Vite-style env
-    envAddress = import.meta && import.meta.env && import.meta.env.RELAYER_ADDRESS;
+    envAddress = import.meta && import.meta.env && import.meta.env.VITE_RELAYER_ADDRESS;
   } catch (_e) {
     // ignore
   }
   if (!envAddress && typeof process !== 'undefined' && process.env) {
-    envAddress = process.env.RELAYER_ADDRESS;
+    envAddress = process.env.VITE_RELAYER_ADDRESS;
   }
   if (!envAddress && typeof window !== 'undefined') {
-    envAddress = window.RELAYER_ADDRESS;
+    envAddress = window.VITE_RELAYER_ADDRESS;
   }
   if (envAddress) return envAddress;
 
