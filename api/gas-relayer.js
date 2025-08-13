@@ -74,15 +74,15 @@ export default async function handler(req, res) {
       // Health check endpoint
       backendUrl = `https://relayer.lexiecrypto.com/health`;
       
-    } else if (relayerPath === '/estimate-fee' || relayerPath === '/api/relay/estimate-fee') {
+    } else if (relayerPath === '/estimate-fee') {
       // Fee estimation endpoint  
       backendUrl = `https://relayer.lexiecrypto.com/api/relay/estimate-fee`;
       
-    } else if (relayerPath === '/submit' || relayerPath === '/api/relay/submit') {
+    } else if (relayerPath === '/submit') {
       // Transaction submission endpoint
       backendUrl = `https://relayer.lexiecrypto.com/api/relay/submit`;
       
-    } else if (relayerPath === '/api/relayer/address') {
+    } else if (relayerPath === '/relayer/address') {
       // Relayer Railgun/EOA addresses endpoint
       backendUrl = `https://relayer.lexiecrypto.com/api/relayer/address`;
       
