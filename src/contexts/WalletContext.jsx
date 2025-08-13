@@ -924,6 +924,31 @@ const WalletContextProvider = ({ children }) => {
                 window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id] = true;
                 try { localStorage.setItem(scanKey, '1'); } catch {}
               }
+              // Persist scannedChains to Redis metadata
+              try {
+                const getResp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+                let existing = {};
+                let scannedChains = [];
+                if (getResp.ok) {
+                  const data = await getResp.json();
+                  const metaKey = data?.keys?.find((k) => k.walletId === railgunWalletInfo.id);
+                  if (metaKey) {
+                    scannedChains = Array.from(new Set([...(metaKey.scannedChains || []), railgunChain.id]));
+                    existing = {
+                      railgunAddress: metaKey.railgunAddress,
+                      signature: metaKey.signature,
+                      encryptedMnemonic: metaKey.encryptedMnemonic,
+                      privateBalances: metaKey.privateBalances,
+                      scannedChains,
+                    };
+                  }
+                }
+                await fetch('/api/wallet-metadata', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ walletAddress: address, walletId: railgunWalletInfo.id, ...existing })
+                });
+              } catch {}
               console.log('[Railgun Init] ✅ Initial scan complete for chain', railgunChain.id);
             } else {
               console.log('[Railgun Init] ⏭️ Skipping initial scan (already completed) for chain', railgunChain.id);
@@ -1332,6 +1357,31 @@ const WalletContextProvider = ({ children }) => {
               window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id] = true;
               try { localStorage.setItem(scanKey, '1'); } catch {}
             }
+            // Persist scannedChains to Redis metadata
+            try {
+              const getResp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+              let existing = {};
+              let scannedChains = [];
+              if (getResp.ok) {
+                const data = await getResp.json();
+                const metaKey = data?.keys?.find((k) => k.walletId === railgunWalletInfo.id);
+                if (metaKey) {
+                  scannedChains = Array.from(new Set([...(metaKey.scannedChains || []), railgunChain.id]));
+                  existing = {
+                    railgunAddress: metaKey.railgunAddress,
+                    signature: metaKey.signature,
+                    encryptedMnemonic: metaKey.encryptedMnemonic,
+                    privateBalances: metaKey.privateBalances,
+                    scannedChains,
+                  };
+                }
+              }
+              await fetch('/api/wallet-metadata', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ walletAddress: address, walletId: railgunWalletInfo.id, ...existing })
+              });
+            } catch {}
             console.log('[Railgun Init] ✅ Initial scan complete for chain', railgunChain.id);
           } else {
             console.log('[Railgun Init] ⏭️ Skipping initial scan (already completed) for chain', railgunChain.id);
