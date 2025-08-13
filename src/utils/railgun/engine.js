@@ -68,23 +68,23 @@ let enginePromise = null;
 const RPC_PROVIDERS = {
   [NetworkName.Ethereum]: {
     chainId: 1,
-    rpcUrl: '/api/rpc?chainId=1&provider=auto',
-    ankrUrl: '/api/rpc?chainId=1&provider=ankr',
+    rpcUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=1&provider=auto',
+    ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=1&provider=ankr',
   },
   [NetworkName.Arbitrum]: {
     chainId: 42161, 
-    rpcUrl: '/api/rpc?chainId=42161&provider=auto',
-    ankrUrl: '/api/rpc?chainId=42161&provider=ankr',
+    rpcUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=42161&provider=auto',
+    ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=42161&provider=ankr',
   },
   [NetworkName.Polygon]: {
     chainId: 137,
-    rpcUrl: '/api/rpc?chainId=137&provider=auto',
-    ankrUrl: '/api/rpc?chainId=137&provider=ankr',
+    rpcUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=137&provider=auto',
+    ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=137&provider=ankr',
   },
   [NetworkName.BNBChain]: {
     chainId: 56,
-    rpcUrl: '/api/rpc?chainId=56&provider=auto',
-    ankrUrl: '/api/rpc?chainId=56&provider=ankr',
+    rpcUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=56&provider=auto',
+    ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=56&provider=ankr',
   },
 };
 

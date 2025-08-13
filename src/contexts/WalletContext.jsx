@@ -787,25 +787,25 @@ const WalletContextProvider = ({ children }) => {
             { 
               networkName: NetworkName.Ethereum, 
               rpcUrl: RPC_URLS.ethereum, 
-              ankrUrl: '/api/rpc?chainId=1&provider=ankr',
+              ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=1&provider=ankr',
               chainId: 1 
             },
             { 
               networkName: NetworkName.Polygon, 
               rpcUrl: RPC_URLS.polygon, 
-              ankrUrl: '/api/rpc?chainId=137&provider=ankr',
+              ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=137&provider=ankr',
               chainId: 137 
             },
             { 
               networkName: NetworkName.Arbitrum, 
               rpcUrl: RPC_URLS.arbitrum, 
-              ankrUrl: '/api/rpc?chainId=42161&provider=ankr',
+              ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=42161&provider=ankr',
               chainId: 42161 
             },
             { 
               networkName: NetworkName.BNBChain, 
               rpcUrl: RPC_URLS.bsc, 
-              ankrUrl: '/api/rpc?chainId=56&provider=ankr',
+              ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=56&provider=ankr',
               chainId: 56 
             },
           ];
@@ -1052,25 +1052,25 @@ const WalletContextProvider = ({ children }) => {
           { 
             networkName: NetworkName.Ethereum, 
             rpcUrl: RPC_URLS.ethereum, 
-            ankrUrl: '/api/rpc?chainId=1&provider=ankr',
+            ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=1&provider=ankr',
             chainId: 1 
           },
           { 
             networkName: NetworkName.Polygon, 
             rpcUrl: RPC_URLS.polygon, 
-            ankrUrl: '/api/rpc?chainId=137&provider=ankr',
+            ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=137&provider=ankr',
             chainId: 137 
           },
           { 
             networkName: NetworkName.Arbitrum, 
             rpcUrl: RPC_URLS.arbitrum, 
-            ankrUrl: '/api/rpc?chainId=42161&provider=ankr',
+            ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=42161&provider=ankr',
             chainId: 42161 
           },
           { 
             networkName: NetworkName.BNBChain, 
             rpcUrl: RPC_URLS.bsc, 
-            ankrUrl: '/api/rpc?chainId=56&provider=ankr',
+            ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=56&provider=ankr',
             chainId: 56 
           },
         ];

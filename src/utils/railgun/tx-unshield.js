@@ -86,7 +86,8 @@ const resolveRecipient = async (recipientInput, walletProvider) => {
       try {
         // Use our proxied RPC to avoid exposing keys
         const { JsonRpcProvider } = ethers;
-        mainnetProvider = new JsonRpcProvider('/api/rpc?chainId=1&provider=auto');
+        const origin = (typeof window !== 'undefined' ? window.location.origin : '');
+        mainnetProvider = new JsonRpcProvider(origin + '/api/rpc?chainId=1&provider=auto');
       } catch (_) {
         mainnetProvider = ethers.getDefaultProvider('mainnet');
       }

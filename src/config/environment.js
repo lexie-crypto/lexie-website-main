@@ -3,8 +3,11 @@
  * Handles all environment variables and provides defaults
  */
 
-// Prefer serverless proxy to avoid exposing keys. For browser usage, point RPCs to /api/rpc.
-const buildProxyUrl = (chainId, provider = 'alchemy') => `/api/rpc?chainId=${chainId}&provider=${provider}`;
+// Prefer serverless proxy to avoid exposing keys. Use absolute URL so ethers providers accept it.
+const buildProxyUrl = (chainId, provider = 'alchemy') => {
+  const origin = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
+  return `${origin}/api/rpc?chainId=${chainId}&provider=${provider}`;
+};
 
 // Alchemy RPC URLs with proper API key integration
 export const RPC_URLS = {
