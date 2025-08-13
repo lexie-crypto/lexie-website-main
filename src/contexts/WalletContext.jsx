@@ -923,44 +923,61 @@ const WalletContextProvider = ({ children }) => {
             if (cfg.chain.id === chainId) { railgunChain = cfg.chain; break; }
           }
           if (railgunChain) {
-            const scanKey = `railgun-initial-scan:${address?.toLowerCase()}:${railgunWalletInfo.id}:${railgunChain.id}`;
-            const alreadyScanned = typeof window !== 'undefined' && (window.__RAILGUN_INITIAL_SCAN_DONE?.[railgunChain.id] || localStorage.getItem(scanKey) === '1');
-            if (!alreadyScanned) {
-              console.log('[Railgun Init] 🔄 Performing initial balance refresh for chain', railgunChain.id);
-              await refreshBalances(railgunChain, [railgunWalletInfo.id]);
-              if (typeof window !== 'undefined') {
-                window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
-                window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id] = true;
-                try { localStorage.setItem(scanKey, '1'); } catch {}
+            // Strictly check Redis first to decide whether to scan
+            try {
+              const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+              let redisHasChain = false;
+              if (resp.ok) {
+                const data = await resp.json();
+                const metaKey = data?.keys?.find((k) => k.walletId === railgunWalletInfo.id);
+                const scannedChains = metaKey?.scannedChains || [];
+                redisHasChain = Array.isArray(scannedChains) && scannedChains.includes(railgunChain.id);
               }
-              // Persist scannedChains to Redis metadata
-              try {
-                const getResp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-                let existing = {};
-                let scannedChains = [];
-                if (getResp.ok) {
-                  const data = await getResp.json();
-                  const metaKey = data?.keys?.find((k) => k.walletId === railgunWalletInfo.id);
-                  if (metaKey) {
-                    scannedChains = Array.from(new Set([...(metaKey.scannedChains || []), railgunChain.id]));
-                    existing = {
-                      railgunAddress: metaKey.railgunAddress,
-                      signature: metaKey.signature,
-                      encryptedMnemonic: metaKey.encryptedMnemonic,
-                      privateBalances: metaKey.privateBalances,
-                      scannedChains,
-                    };
-                  }
+              if (redisHasChain) {
+                console.log('[Railgun Init] ⏭️ Skipping initial scan (found in Redis) for chain', railgunChain.id);
+              } else {
+                console.log('[Railgun Init] 🔄 Performing initial balance refresh for chain', railgunChain.id);
+                await refreshBalances(railgunChain, [railgunWalletInfo.id]);
+                if (typeof window !== 'undefined') {
+                  window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
+                  window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id] = true;
                 }
-                await fetch('/api/wallet-metadata', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ walletAddress: address, walletId: railgunWalletInfo.id, ...existing })
-                });
-              } catch {}
-              console.log('[Railgun Init] ✅ Initial scan complete for chain', railgunChain.id);
-            } else {
-              console.log('[Railgun Init] ⏭️ Skipping initial scan (already completed) for chain', railgunChain.id);
+                // Persist scannedChains to Redis metadata
+                try {
+                  const getResp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+                  let existing = {};
+                  let scannedChains = [];
+                  if (getResp.ok) {
+                    const data = await getResp.json();
+                    const metaKey = data?.keys?.find((k) => k.walletId === railgunWalletInfo.id);
+                    if (metaKey) {
+                      scannedChains = Array.from(new Set([...(metaKey.scannedChains || []), railgunChain.id]));
+                      existing = {
+                        railgunAddress: metaKey.railgunAddress,
+                        signature: metaKey.signature,
+                        encryptedMnemonic: metaKey.encryptedMnemonic,
+                        privateBalances: metaKey.privateBalances,
+                        scannedChains,
+                      };
+                    }
+                  }
+                  const persistResp = await fetch('/api/wallet-metadata', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ walletAddress: address, walletId: railgunWalletInfo.id, ...existing })
+                  });
+                  if (persistResp.ok) {
+                    console.log('[Railgun Init] 💾 Persisted scannedChains to Redis:', {
+                      chainId: railgunChain.id,
+                      walletId: railgunWalletInfo.id?.slice(0,8) + '...'
+                    });
+                  }
+                } catch {}
+                console.log('[Railgun Init] ✅ Initial scan complete for chain', railgunChain.id);
+              }
+            } catch (e) {
+              console.warn('[Railgun Init] ⚠️ Failed to read scannedChains from Redis, proceeding with scan:', e?.message);
+              await refreshBalances(railgunChain, [railgunWalletInfo.id]);
             }
           } else {
             console.warn('[Railgun Init] ⚠️ Unable to resolve Railgun chain for initial scan; chainId:', chainId);
