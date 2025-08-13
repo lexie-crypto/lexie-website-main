@@ -1,9 +1,7 @@
 /**
- * Gas Relayer Proxy - HMAC-authenticated server-to-server proxy
- * Adds CORS and HMAC headers for requests to relayer.lexiecrypto.com
+ * Gas Relayer Proxy - Direct calls without HMAC
+ * Simple proxy to gas relayer backend with proper CORS
  */
-
-import crypto from 'crypto';
 
 export const config = {
   api: {
@@ -29,7 +27,6 @@ export default async function handler(req, res) {
     'https://lexiecrypto.com',
     'https://lexiecrypto.com/wallet',
     'http://localhost:3000', 
-    'http://localhost:3001',
     'http://localhost:5173'
   ];
   const isOriginAllowed = origin && (allowedOrigins.includes(origin) || 
@@ -64,15 +61,6 @@ export default async function handler(req, res) {
     const url = new URL(req.url, `http://${req.headers.host}`);
     const relayerPath = url.pathname.replace('/api/gas-relayer', '');
     
-    // Lightweight proxy reachability check
-    if (relayerPath === '/ping') {
-      return res.status(200).json({
-        status: 'ok',
-        service: 'lexie-gas-relayer-proxy',
-        timestamp: new Date().toISOString()
-      });
-    }
-
     console.log(`🔍 [GAS-RELAYER-${requestId}] URL parsing:`, {
       originalUrl: req.url,
       parsedPathname: url.pathname,
@@ -88,15 +76,11 @@ export default async function handler(req, res) {
       
     } else if (relayerPath === '/estimate-fee') {
       // Fee estimation endpoint  
-      backendUrl = `https://relayer.lexiecrypto.com/estimate-fee`;
+      backendUrl = `https://relayer.lexiecrypto.com/api/relay/estimate-fee`;
       
     } else if (relayerPath === '/submit') {
       // Transaction submission endpoint
-      backendUrl = `https://relayer.lexiecrypto.com/submit`;
-      
-    } else if (relayerPath === '/address') {
-      // Relayer address endpoint
-      backendUrl = `https://relayer.lexiecrypto.com/address`;
+      backendUrl = `https://relayer.lexiecrypto.com/api/relay/submit`;
       
     } else {
       console.log(`❌ [GAS-RELAYER-${requestId}] Unknown relayer endpoint: ${relayerPath}`);
@@ -106,38 +90,11 @@ export default async function handler(req, res) {
       });
     }
 
-    // HMAC configuration
-    const hmacSecret = process.env.LEXIE_HMAC_SECRET;
-    if (!hmacSecret) {
-      console.error(`❌ [GAS-RELAYER-${requestId}] LEXIE_HMAC_SECRET is not set`);
-      return res.status(500).json({ success: false, error: 'Server authentication configuration error' });
-    }
-
-    const timestamp = Date.now().toString();
-    const bodyString = req.method === 'POST' ? JSON.stringify(req.body) : '';
-    // Use the exact backend path for signing to match server verification
-    let backendPath;
-    if (relayerPath === '/submit') {
-      backendPath = '/submit';
-    } else if (relayerPath === '/estimate-fee') {
-      backendPath = '/estimate-fee';
-    } else if (relayerPath === '/address') {
-      backendPath = '/address';
-    } else if (relayerPath === '/health' || relayerPath === '') {
-      backendPath = '/health';
-    } else {
-      backendPath = relayerPath || '/';
-    }
-    const payload = `${req.method}:${backendPath}:${timestamp}:${bodyString}`;
-    const signature = 'sha256=' + crypto.createHmac('sha256', hmacSecret).update(payload).digest('hex');
-
     const headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
       'Origin': 'https://app.lexiecrypto.com',
       'User-Agent': 'Lexie-Gas-Relayer-Proxy/1.0',
-      'X-Lexie-Signature': signature,
-      'X-Lexie-Timestamp': timestamp,
     };
 
     console.log(`📡 [GAS-RELAYER-${requestId}] Forwarding to relayer: ${backendUrl}`);
@@ -151,7 +108,7 @@ export default async function handler(req, res) {
 
     // Add body for POST requests
     if (req.method === 'POST') {
-      fetchOptions.body = bodyString;
+      fetchOptions.body = JSON.stringify(req.body);
     }
 
     const relayerResponse = await fetch(backendUrl, fetchOptions);

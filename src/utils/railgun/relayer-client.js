@@ -5,8 +5,8 @@
  * through the gas relayer for anonymous EOA submission
  */
 
-// Route through our Vercel proxy so HMAC headers are added server-side
-const RELAYER_PROXY_URL = (typeof window !== 'undefined' ? window.location.origin : '') + '/api/gas-relayer';
+// Direct calls to gas relayer backend
+const RELAYER_PROXY_URL = 'https://relayer.lexiecrypto.com';
 
 /**
  * Create simple headers for relayer requests (no HMAC needed)
@@ -43,8 +43,8 @@ export async function estimateRelayerFee({
       gasEstimate: gasEstimate?.toString()
     };
 
-    // Proxy endpoint -> backend /api/relay/estimate-fee
-    const feeUrl = `${RELAYER_PROXY_URL}/estimate-fee`;
+    // Backend expects /api/relay/estimate-fee
+    const feeUrl = `${RELAYER_PROXY_URL}/api/relay/estimate-fee`;
     console.log(`💰 [RELAYER] Calling fee estimation at: ${feeUrl}`);
     console.log(`💰 [RELAYER] Full URL: ${window.location.origin}${feeUrl}`);
     
@@ -113,8 +113,8 @@ export async function submitRelayedTransaction({
       gasEstimate
     };
 
-    // Proxy endpoint -> backend /api/relay/submit
-    const response = await fetch(`${RELAYER_PROXY_URL}/submit`, {
+    // Backend expects /api/relay/submit
+    const response = await fetch(`${RELAYER_PROXY_URL}/api/relay/submit`, {
       method: 'POST',
       headers: createHeaders(),
       body: JSON.stringify(payload)
@@ -186,19 +186,9 @@ export async function checkRelayerHealth() {
 /**
  * Get relayer address from environment (since it's fixed)
  */
-  export async function getRelayerAddress() {
+export async function getRelayerAddress() {
   try {
-    // First ping the proxy to ensure reachability
-    try {
-      const pingRes = await fetch(`${RELAYER_PROXY_URL}/ping`, { method: 'GET' });
-      if (!pingRes.ok) {
-        console.warn('⚠️ [RELAYER] Proxy ping failed with status:', pingRes.status);
-      }
-    } catch (e) {
-      console.warn('⚠️ [RELAYER] Proxy ping threw error:', e.message);
-    }
-
-    const response = await fetch(`${RELAYER_PROXY_URL}/address`, {
+    const response = await fetch(`${RELAYER_PROXY_URL}/api/relayer/address`, {
       method: 'GET',
       headers: createHeaders()
     });
