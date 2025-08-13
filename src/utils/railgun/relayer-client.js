@@ -188,7 +188,7 @@ export async function checkRelayerHealth() {
  */
   export async function getRelayerAddress() {
   try {
-    const response = await fetch(`${RELAYER_PROXY_URL}/api/relayer/address`, {
+    const response = await fetch(`${RELAYER_PROXY_URL}/address`, {
       method: 'GET',
       headers: createHeaders()
     });

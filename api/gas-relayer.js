@@ -85,7 +85,7 @@ export default async function handler(req, res) {
       // Transaction submission endpoint
       backendUrl = `https://relayer.lexiecrypto.com/api/relay/submit`;
       
-    } else if (relayerPath === '/api/relayer/address') {
+    } else if (relayerPath === '/address') {
       // Relayer address endpoint
       backendUrl = `https://relayer.lexiecrypto.com/api/relayer/address`;
       
