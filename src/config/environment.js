@@ -76,17 +76,16 @@ export const validateEnvironment = () => {
 
   // Check if we're in production and require real API keys
   if (APP_CONFIG.isProduction) {
-    requiredVars.push(
-      'VITE_ALCHEMY_API_KEY',
-      'VITE_REOWN_PROJECT_ID'
-    );
+    // No client-side Alchemy key required anymore (RPC goes through /api/rpc)
+    // Keep WalletConnect ID optional: warn but don't crash if absent
+    if (import.meta.env.VITE_REOWN_PROJECT_ID || import.meta.env.VITE_WALLETCONNECT_PROJECT_ID) {
+      // present → fine
+    } else {
+      console.warn('WalletConnect project ID is not set. Add VITE_REOWN_PROJECT_ID or VITE_WALLETCONNECT_PROJECT_ID for production.');
+    }
   }
 
-  requiredVars.forEach(varName => {
-    if (!import.meta.env[varName]) {
-      missingVars.push(varName);
-    }
-  });
+  // Nothing mandatory for client now; keep hook for future checks
 
   if (missingVars.length > 0) {
     console.warn('Missing required environment variables:', missingVars);
