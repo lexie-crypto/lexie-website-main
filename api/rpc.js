@@ -6,7 +6,11 @@
  *  - provider is optional; defaults to "alchemy" with automatic fallback to ankr on failure
  */
 
-export { config } from './proxy.js';
+export const config = {
+  api: {
+    bodyParser: true,
+  },
+};
 
 const ALCHEMY_HOSTS = {
   1: 'https://eth-mainnet.g.alchemy.com/v2/',
@@ -51,10 +55,7 @@ async function forwardJSONRPC({ upstreamUrl, body, signal }) {
   return { ok: res.ok, status: res.status, json, text };
 }
 
-import { handleRpc } from './proxy.js';
-
 export default async function handler(req, res) {
-  return handleRpc(req, res);
   const requestId = Math.random().toString(36).slice(2, 8);
 
   // CORS

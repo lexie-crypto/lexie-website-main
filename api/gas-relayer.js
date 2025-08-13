@@ -3,13 +3,15 @@
  * Adds CORS and HMAC headers for requests to relayer.lexiecrypto.com
  */
 
-import { config as sharedConfig, handleGasRelayer } from './proxy.js';
 import crypto from 'crypto';
 
-export const config = sharedConfig;
+export const config = {
+  api: {
+    bodyParser: true,
+  },
+};
 
 export default async function handler(req, res) {
-  return handleGasRelayer(req, res);
   const requestId = Math.random().toString(36).substring(7);
   
   console.log(`🚀 [GAS-RELAYER-${requestId}] ${req.method} request`, {
@@ -77,15 +79,15 @@ export default async function handler(req, res) {
       
     } else if (relayerPath === '/estimate-fee') {
       // Fee estimation endpoint  
-      backendUrl = `https://relayer.lexiecrypto.com/api/relay/estimate-fee`;
+      backendUrl = `https://relayer.lexiecrypto.com/estimate-fee`;
       
     } else if (relayerPath === '/submit') {
       // Transaction submission endpoint
-      backendUrl = `https://relayer.lexiecrypto.com/api/relay/submit`;
+      backendUrl = `https://relayer.lexiecrypto.com/submit`;
       
     } else if (relayerPath === '/address') {
       // Relayer address endpoint
-      backendUrl = `https://relayer.lexiecrypto.com/api/relayer/address`;
+      backendUrl = `https://relayer.lexiecrypto.com/address`;
       
     } else {
       console.log(`❌ [GAS-RELAYER-${requestId}] Unknown relayer endpoint: ${relayerPath}`);
@@ -107,11 +109,11 @@ export default async function handler(req, res) {
     // Use the exact backend path for signing to match server verification
     let backendPath;
     if (relayerPath === '/submit') {
-      backendPath = '/api/relay/submit';
+      backendPath = '/submit';
     } else if (relayerPath === '/estimate-fee') {
-      backendPath = '/api/relay/estimate-fee';
-    } else if (relayerPath === '/api/relayer/address') {
-      backendPath = '/api/relayer/address';
+      backendPath = '/estimate-fee';
+    } else if (relayerPath === '/address') {
+      backendPath = '/address';
     } else if (relayerPath === '/health' || relayerPath === '') {
       backendPath = '/health';
     } else {

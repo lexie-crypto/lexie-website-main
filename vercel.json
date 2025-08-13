@@ -25,16 +25,16 @@
       "source": "/api/(.*)",
       "headers": [
         {
-          "key": "Access-Control-Allow-Origin",
-          "value": "*"
-        },
-        {
           "key": "Access-Control-Allow-Methods",
-          "value": "POST, OPTIONS, GET, PUT, DELETE"
+          "value": "GET, POST, OPTIONS"
         },
         {
           "key": "Access-Control-Allow-Headers",
-          "value": "Content-Type"
+          "value": "Origin, Content-Type, Accept"
+        },
+        {
+          "key": "Vary",
+          "value": "Origin"
         }
       ]
     }
