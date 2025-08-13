@@ -85,6 +85,10 @@ export default async function handler(req, res) {
       // Transaction submission endpoint
       backendUrl = `https://relayer.lexiecrypto.com/api/relay/submit`;
       
+    } else if (relayerPath === '/api/relayer/address') {
+      // Relayer address endpoint
+      backendUrl = `https://relayer.lexiecrypto.com/api/relayer/address`;
+      
     } else {
       console.log(`❌ [GAS-RELAYER-${requestId}] Unknown relayer endpoint: ${relayerPath}`);
       return res.status(404).json({
@@ -102,8 +106,20 @@ export default async function handler(req, res) {
 
     const timestamp = Date.now().toString();
     const bodyString = req.method === 'POST' ? JSON.stringify(req.body) : '';
-    // Use the exact backend path segment for signing to match server verification
-    const payload = `${req.method}:${relayerPath === '/submit' ? '/api/relay/submit' : relayerPath === '/estimate-fee' ? '/api/relay/estimate-fee' : relayerPath || '/'}:${timestamp}:${bodyString}`;
+    // Use the exact backend path for signing to match server verification
+    let backendPath;
+    if (relayerPath === '/submit') {
+      backendPath = '/api/relay/submit';
+    } else if (relayerPath === '/estimate-fee') {
+      backendPath = '/api/relay/estimate-fee';
+    } else if (relayerPath === '/api/relayer/address') {
+      backendPath = '/api/relayer/address';
+    } else if (relayerPath === '/health' || relayerPath === '') {
+      backendPath = '/health';
+    } else {
+      backendPath = relayerPath || '/';
+    }
+    const payload = `${req.method}:${backendPath}:${timestamp}:${bodyString}`;
     const signature = 'sha256=' + crypto.createHmac('sha256', hmacSecret).update(payload).digest('hex');
 
     const headers = {
