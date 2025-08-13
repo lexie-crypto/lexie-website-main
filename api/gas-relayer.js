@@ -64,6 +64,15 @@ export default async function handler(req, res) {
     const url = new URL(req.url, `http://${req.headers.host}`);
     const relayerPath = url.pathname.replace('/api/gas-relayer', '');
     
+    // Lightweight proxy reachability check
+    if (relayerPath === '/ping') {
+      return res.status(200).json({
+        status: 'ok',
+        service: 'lexie-gas-relayer-proxy',
+        timestamp: new Date().toISOString()
+      });
+    }
+
     console.log(`🔍 [GAS-RELAYER-${requestId}] URL parsing:`, {
       originalUrl: req.url,
       parsedPathname: url.pathname,

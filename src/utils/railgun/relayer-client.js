@@ -188,6 +188,16 @@ export async function checkRelayerHealth() {
  */
   export async function getRelayerAddress() {
   try {
+    // First ping the proxy to ensure reachability
+    try {
+      const pingRes = await fetch(`${RELAYER_PROXY_URL}/ping`, { method: 'GET' });
+      if (!pingRes.ok) {
+        console.warn('⚠️ [RELAYER] Proxy ping failed with status:', pingRes.status);
+      }
+    } catch (e) {
+      console.warn('⚠️ [RELAYER] Proxy ping threw error:', e.message);
+    }
+
     const response = await fetch(`${RELAYER_PROXY_URL}/address`, {
       method: 'GET',
       headers: createHeaders()
