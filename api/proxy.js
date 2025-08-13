@@ -161,11 +161,11 @@ export async function handleGasRelayer(req, res) {
     if (relayerPath === '/health' || relayerPath === '') {
       backendUrl = `https://relayer.lexiecrypto.com/health`;
     } else if (relayerPath === '/estimate-fee') {
-      backendUrl = `https://relayer.lexiecrypto.com/api/relay/estimate-fee`;
+      backendUrl = `https://relayer.lexiecrypto.com/estimate-fee`;
     } else if (relayerPath === '/submit') {
-      backendUrl = `https://relayer.lexiecrypto.com/api/relay/submit`;
+      backendUrl = `https://relayer.lexiecrypto.com/submit`;
     } else if (relayerPath === '/address') { // proxy path -> backend address
-      backendUrl = `https://relayer.lexiecrypto.com/api/relayer/address`;
+      backendUrl = `https://relayer.lexiecrypto.com/address`;
     } else {
       return res.status(404).json({ success: false, error: 'Unknown relayer endpoint' });
     }
@@ -179,9 +179,9 @@ export async function handleGasRelayer(req, res) {
     const bodyString = req.method === 'POST' ? JSON.stringify(req.body) : '';
 
     let backendPath;
-    if (relayerPath === '/submit') backendPath = '/api/relay/submit';
-    else if (relayerPath === '/estimate-fee') backendPath = '/api/relay/estimate-fee';
-    else if (relayerPath === '/address') backendPath = '/api/relayer/address';
+    if (relayerPath === '/submit') backendPath = '/submit';
+    else if (relayerPath === '/estimate-fee') backendPath = '/estimate-fee';
+    else if (relayerPath === '/address') backendPath = '/address';
     else if (relayerPath === '/health' || relayerPath === '') backendPath = '/health';
     else backendPath = relayerPath || '/';
 
