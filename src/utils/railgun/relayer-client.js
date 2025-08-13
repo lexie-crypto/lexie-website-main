@@ -5,8 +5,8 @@
  * through the gas relayer for anonymous EOA submission
  */
 
-// Direct calls to gas relayer backend
-const RELAYER_PROXY_URL = 'https://relayer.lexiecrypto.com';
+// Route through Next.js proxy to the gas relayer backend
+const RELAYER_PROXY_URL = '/api/gas-relayer';
 
 /**
  * Create simple headers for relayer requests (no HMAC needed)
