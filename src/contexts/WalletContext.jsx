@@ -411,8 +411,8 @@ const WalletContextProvider = ({ children }) => {
       window.fetch = async (...args) => {
         const [url, options] = args;
         
-        // Check if this is an RPC call to Alchemy
-        if (typeof url === 'string' && url.includes('alchemy')) {
+        // Check if this is an RPC call (Alchemy direct or proxied via /api/rpc)
+        if (typeof url === 'string' && (url.includes('alchemy') || url.includes('/api/rpc'))) {
           resetRPCLimiter();
           
           if (rpcLimiter.current.isBlocked) {
@@ -787,25 +787,25 @@ const WalletContextProvider = ({ children }) => {
             { 
               networkName: NetworkName.Ethereum, 
               rpcUrl: RPC_URLS.ethereum, 
-              ankrUrl: 'https://rpc.ankr.com/eth/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+              ankrUrl: '/api/rpc?chainId=1&provider=ankr',
               chainId: 1 
             },
             { 
               networkName: NetworkName.Polygon, 
               rpcUrl: RPC_URLS.polygon, 
-              ankrUrl: 'https://rpc.ankr.com/polygon/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+              ankrUrl: '/api/rpc?chainId=137&provider=ankr',
               chainId: 137 
             },
             { 
               networkName: NetworkName.Arbitrum, 
               rpcUrl: RPC_URLS.arbitrum, 
-              ankrUrl: 'https://rpc.ankr.com/arbitrum/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+              ankrUrl: '/api/rpc?chainId=42161&provider=ankr',
               chainId: 42161 
             },
             { 
               networkName: NetworkName.BNBChain, 
               rpcUrl: RPC_URLS.bsc, 
-              ankrUrl: 'https://rpc.ankr.com/bsc/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+              ankrUrl: '/api/rpc?chainId=56&provider=ankr',
               chainId: 56 
             },
           ];
@@ -1052,25 +1052,25 @@ const WalletContextProvider = ({ children }) => {
           { 
             networkName: NetworkName.Ethereum, 
             rpcUrl: RPC_URLS.ethereum, 
-            ankrUrl: 'https://rpc.ankr.com/eth/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+            ankrUrl: '/api/rpc?chainId=1&provider=ankr',
             chainId: 1 
           },
           { 
             networkName: NetworkName.Polygon, 
             rpcUrl: RPC_URLS.polygon, 
-            ankrUrl: 'https://rpc.ankr.com/polygon/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+            ankrUrl: '/api/rpc?chainId=137&provider=ankr',
             chainId: 137 
           },
           { 
             networkName: NetworkName.Arbitrum, 
             rpcUrl: RPC_URLS.arbitrum, 
-            ankrUrl: 'https://rpc.ankr.com/arbitrum/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+            ankrUrl: '/api/rpc?chainId=42161&provider=ankr',
             chainId: 42161 
           },
           { 
             networkName: NetworkName.BNBChain, 
             rpcUrl: RPC_URLS.bsc, 
-            ankrUrl: 'https://rpc.ankr.com/bsc/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+            ankrUrl: '/api/rpc?chainId=56&provider=ankr',
             chainId: 56 
           },
         ];
@@ -1096,7 +1096,7 @@ const WalletContextProvider = ({ children }) => {
                   stallTimeout: 2500,
                 },
                 {
-                  provider: currentChainConfig.ankrUrl, // Fallback: Ankr
+                  provider: currentChainConfig.ankrUrl, // Fallback: Ankr (proxied)
                   priority: 1,
                   weight: 1,                           // Slightly lower weight for fallback
                   maxLogsPerBatch: 10,                 // Higher batch size for Ankr
@@ -1144,7 +1144,7 @@ const WalletContextProvider = ({ children }) => {
                   stallTimeout: 2500,
                 },
                 {
-                  provider: ankrUrl,    // Fallback: Ankr
+                  provider: ankrUrl,    // Fallback: Ankr (proxied)
                   priority: 1,
                   weight: 1,            // Slightly lower weight for fallback
                   maxLogsPerBatch: 10,  // Higher batch size for Ankr
@@ -1489,25 +1489,25 @@ const WalletContextProvider = ({ children }) => {
           { 
             networkName: NetworkName.Ethereum, 
             rpcUrl: RPC_URLS.ethereum, 
-            ankrUrl: 'https://rpc.ankr.com/eth/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+            ankrUrl: '/api/rpc?chainId=1&provider=ankr',
             chainId: 1 
           },
           { 
             networkName: NetworkName.Polygon, 
             rpcUrl: RPC_URLS.polygon, 
-            ankrUrl: 'https://rpc.ankr.com/polygon/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+            ankrUrl: '/api/rpc?chainId=137&provider=ankr',
             chainId: 137 
           },
           { 
             networkName: NetworkName.Arbitrum, 
             rpcUrl: RPC_URLS.arbitrum, 
-            ankrUrl: 'https://rpc.ankr.com/arbitrum/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+            ankrUrl: '/api/rpc?chainId=42161&provider=ankr',
             chainId: 42161 
           },
           { 
             networkName: NetworkName.BNBChain, 
             rpcUrl: RPC_URLS.bsc, 
-            ankrUrl: 'https://rpc.ankr.com/bsc/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+            ankrUrl: '/api/rpc?chainId=56&provider=ankr',
             chainId: 56 
           },
         ];
@@ -1532,7 +1532,7 @@ const WalletContextProvider = ({ children }) => {
                 stallTimeout: 2500,
               },
               {
-                provider: currentNetwork.ankrUrl, // Fallback: Ankr
+                provider: currentNetwork.ankrUrl, // Fallback: Ankr (proxied)
                 priority: 1,
                 weight: 1,                        // Slightly lower weight for fallback
                 maxLogsPerBatch: 10,              // Higher batch size for Ankr

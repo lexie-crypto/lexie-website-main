@@ -1032,7 +1032,7 @@ const getRpcUrl = async (chainId) => {
       throw new Error(`No RPC URL configured for chain ${chainId}`);
     }
     
-    console.log(`[TransactionMonitor] Using Alchemy RPC for chain ${chainId}:`, rpcUrl?.slice(0, 50) + '...');
+    console.log(`[TransactionMonitor] Using proxied RPC for chain ${chainId}:`, rpcUrl?.slice(0, 50) + '...');
     return rpcUrl;
   } catch (error) {
     console.error('[TransactionMonitor] Failed to get RPC URL:', error);

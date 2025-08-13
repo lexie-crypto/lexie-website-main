@@ -3,27 +3,16 @@
  * Handles all environment variables and provides defaults
  */
 
-// Helper function to build Alchemy URLs with API key - PRODUCTION READY
-const buildAlchemyUrl = (baseUrl, apiKey = null) => {
-  const key = apiKey || import.meta.env.VITE_ALCHEMY_API_KEY;
-  if (!key && import.meta.env.PROD) {
-    throw new Error('VITE_ALCHEMY_API_KEY environment variable is required for production');
-  }
-  // In development, allow fallback to demo key
-  const finalKey = key || 'demo';
-  return baseUrl.replace('/v2/demo', `/v2/${finalKey}`);
-};
+// Prefer serverless proxy to avoid exposing keys. For browser usage, point RPCs to /api/rpc.
+const buildProxyUrl = (chainId, provider = 'alchemy') => `/api/rpc?chainId=${chainId}&provider=${provider}`;
 
 // Alchemy RPC URLs with proper API key integration
 export const RPC_URLS = {
-  ethereum: import.meta.env.VITE_ALCHEMY_ETHEREUM_URL || 
-    buildAlchemyUrl('https://eth-mainnet.alchemyapi.io/v2/demo'),
-  polygon: import.meta.env.VITE_ALCHEMY_POLYGON_URL || 
-    buildAlchemyUrl('https://polygon-mainnet.alchemyapi.io/v2/demo'), 
-  arbitrum: import.meta.env.VITE_ALCHEMY_ARBITRUM_URL || 
-    buildAlchemyUrl('https://arb-mainnet.alchemyapi.io/v2/demo'),
-  bsc: import.meta.env.VITE_ALCHEMY_BSC_URL || 
-    buildAlchemyUrl('https://bnb-mainnet.g.alchemy.com/v2/demo'),
+  // Route browser RPC calls via Vercel proxy. The proxy will use server-stored keys and fallback to Ankr.
+  ethereum: buildProxyUrl(1, 'auto'),
+  polygon: buildProxyUrl(137, 'auto'), 
+  arbitrum: buildProxyUrl(42161, 'auto'),
+  bsc: buildProxyUrl(56, 'auto'),
 };
 
 // Railgun Configuration

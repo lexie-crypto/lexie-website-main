@@ -62,34 +62,29 @@ let areArtifactsLoaded = false;
 let enginePromise = null;
 
 /**
- * Alchemy RPC Configuration
- * Using official Alchemy RPC endpoints - PRODUCTION READY
+ * RPC Configuration via proxied endpoints
+ * All RPC traffic goes through /api/rpc to avoid exposing API keys in the browser.
  */
-const ALCHEMY_API_KEY = import.meta.env.VITE_ALCHEMY_API_KEY;
-if (!ALCHEMY_API_KEY) {
-  throw new Error('VITE_ALCHEMY_API_KEY environment variable is required for production');
-} // Use demo key as fallback
-
 const RPC_PROVIDERS = {
   [NetworkName.Ethereum]: {
     chainId: 1,
-    rpcUrl: `https://eth-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
-    ankrUrl: 'https://rpc.ankr.com/eth/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+    rpcUrl: '/api/rpc?chainId=1&provider=auto',
+    ankrUrl: '/api/rpc?chainId=1&provider=ankr',
   },
   [NetworkName.Arbitrum]: {
     chainId: 42161, 
-    rpcUrl: `https://arb-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
-    ankrUrl: 'https://rpc.ankr.com/arbitrum/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+    rpcUrl: '/api/rpc?chainId=42161&provider=auto',
+    ankrUrl: '/api/rpc?chainId=42161&provider=ankr',
   },
   [NetworkName.Polygon]: {
     chainId: 137,
-    rpcUrl: `https://polygon-mainnet.g.alchemy.com/v2/${ALCHEMY_API_KEY}`,
-    ankrUrl: 'https://rpc.ankr.com/polygon/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+    rpcUrl: '/api/rpc?chainId=137&provider=auto',
+    ankrUrl: '/api/rpc?chainId=137&provider=ankr',
   },
   [NetworkName.BNBChain]: {
     chainId: 56,
-    rpcUrl: 'https://bsc-dataseed.binance.org/', // BSC public RPC
-    ankrUrl: 'https://rpc.ankr.com/bsc/e7886d2b9a773c6bd849e717a32896521010a7782379a434977c1ce07752a9a7',
+    rpcUrl: '/api/rpc?chainId=56&provider=auto',
+    ankrUrl: '/api/rpc?chainId=56&provider=ankr',
   },
 };
 
