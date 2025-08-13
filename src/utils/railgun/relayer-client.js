@@ -43,8 +43,8 @@ export async function estimateRelayerFee({
       gasEstimate: gasEstimate?.toString()
     };
 
-    // Route through proxy flat path (no nested segments)
-    const feeUrl = `${RELAYER_PROXY_URL}/estimate-fee`;
+    // Backend expects /api/relay/estimate-fee
+    const feeUrl = `${RELAYER_PROXY_URL}/api/relay/estimate-fee`;
     console.log(`💰 [RELAYER] Calling fee estimation at: ${feeUrl}`);
     console.log(`💰 [RELAYER] Full URL: ${window.location.origin}${feeUrl}`);
     
@@ -113,8 +113,8 @@ export async function submitRelayedTransaction({
       gasEstimate
     };
 
-    // Route through proxy flat path (no nested segments)
-    const response = await fetch(`${RELAYER_PROXY_URL}/submit`, {
+    // Backend expects /api/relay/submit
+    const response = await fetch(`${RELAYER_PROXY_URL}/api/relay/submit`, {
       method: 'POST',
       headers: createHeaders(),
       body: JSON.stringify(payload)
@@ -188,8 +188,7 @@ export async function checkRelayerHealth() {
  */
 export async function getRelayerAddress() {
   try {
-    // Route through proxy flat path (no nested segments)
-    const response = await fetch(`${RELAYER_PROXY_URL}/relayer/address`, {
+    const response = await fetch(`${RELAYER_PROXY_URL}/api/relayer/address`, {
       method: 'GET',
       headers: createHeaders()
     });
