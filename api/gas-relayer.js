@@ -86,7 +86,7 @@ export default async function handler(req, res) {
       backendUrl = `https://relayer.lexiecrypto.com/api/relay/submit`;
       
     } else if (relayerPath === '/api/relayer/address') {
-      // Public relayer address endpoint (no HMAC required)
+      // Relayer address endpoint
       backendUrl = `https://relayer.lexiecrypto.com/api/relayer/address`;
       
     } else {
@@ -104,17 +104,21 @@ export default async function handler(req, res) {
       'User-Agent': 'Lexie-Gas-Relayer-Proxy/1.0',
     };
 
-    // Only attach HMAC for POST to submit/estimate-fee endpoints
-    if (req.method === 'POST' && (relayerPath === '/submit' || relayerPath === '/estimate-fee')) {
+    // Attach HMAC for ALL endpoints (GET and POST)
+    {
       const hmacSecret = process.env.LEXIE_HMAC_SECRET;
       if (!hmacSecret) {
         console.error(`❌ [GAS-RELAYER-${requestId}] LEXIE_HMAC_SECRET is not set`);
         return res.status(500).json({ success: false, error: 'Server authentication configuration error' });
       }
       const timestamp = Date.now().toString();
-      const bodyString = JSON.stringify(req.body);
-      const pathForSigning = relayerPath === '/submit' ? '/api/relay/submit' : '/api/relay/estimate-fee';
-      const payload = `${req.method}:${pathForSigning}:${timestamp}:${bodyString}`;
+      const bodyStringForSigning = req.method === 'POST' ? JSON.stringify(req.body) : '';
+      let pathForSigning = relayerPath;
+      if (relayerPath === '/submit') pathForSigning = '/api/relay/submit';
+      else if (relayerPath === '/estimate-fee') pathForSigning = '/api/relay/estimate-fee';
+      else if (relayerPath === '/health') pathForSigning = '/health';
+      else if (relayerPath === '/api/relayer/address') pathForSigning = '/api/relayer/address';
+      const payload = `${req.method}:${pathForSigning}:${timestamp}:${bodyStringForSigning}`;
       const signature = 'sha256=' + crypto.createHmac('sha256', hmacSecret).update(payload).digest('hex');
       headers['X-Lexie-Signature'] = signature;
       headers['X-Lexie-Timestamp'] = timestamp;
