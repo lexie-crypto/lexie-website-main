@@ -187,6 +187,23 @@ export async function checkRelayerHealth() {
  * Get relayer address from environment (since it's fixed)
  */
 export async function getRelayerAddress() {
+  // Prefer build-time configured address if provided
+  let envAddress;
+  try {
+    // Vite-style env
+    envAddress = import.meta && import.meta.env && import.meta.env.RELAYER_ADDRESS;
+  } catch (_e) {
+    // ignore
+  }
+  if (!envAddress && typeof process !== 'undefined' && process.env) {
+    envAddress = process.env.RELAYER_ADDRESS;
+  }
+  if (!envAddress && typeof window !== 'undefined') {
+    envAddress = window.RELAYER_ADDRESS;
+  }
+  if (envAddress) return envAddress;
+
+  // Fallback to proxy API if not configured via env
   try {
     const response = await fetch(`${RELAYER_PROXY_URL}/api/relayer/address`, {
       method: 'GET',
@@ -198,16 +215,11 @@ export async function getRelayerAddress() {
     }
 
     const data = await response.json();
-    
     if (!data.railgunAddress) {
       throw new Error('No RAILGUN address returned from relayer');
     }
-
-    console.log('📍 [RELAYER] Got RAILGUN address:', data.railgunAddress);
     return data.railgunAddress;
-    
   } catch (error) {
-    console.error('❌ [RELAYER] Failed to get relayer address:', error);
     throw new Error(`Could not get relayer RAILGUN address: ${error.message}`);
   }
 }
