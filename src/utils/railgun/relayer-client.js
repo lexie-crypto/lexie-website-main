@@ -5,8 +5,19 @@
  * through the gas relayer for anonymous EOA submission
  */
 
-// Route through Next.js proxy to the gas relayer backend
+// Route through Next.js proxy to the gas relayer backend (for HMAC-protected POSTs)
 const RELAYER_PROXY_URL = '/api/gas-relayer';
+
+// Direct backend URL used for public GETs (health, address fallback)
+let RELAYER_BACKEND_URL = 'https://relayer.lexiecrypto.com';
+try {
+  if (import.meta && import.meta.env && import.meta.env.VITE_RELAYER_BACKEND_URL) {
+    RELAYER_BACKEND_URL = import.meta.env.VITE_RELAYER_BACKEND_URL;
+  }
+} catch (_e) {}
+if (typeof window !== 'undefined' && window.VITE_RELAYER_BACKEND_URL) {
+  RELAYER_BACKEND_URL = window.VITE_RELAYER_BACKEND_URL;
+}
 
 /**
  * Create simple headers for relayer requests (no HMAC needed)
@@ -146,11 +157,13 @@ export async function submitRelayedTransaction({
  */
 export async function checkRelayerHealth() {
   try {
-    const healthUrl = `${RELAYER_PROXY_URL}/health`;
-    console.log(`🏥 [RELAYER] Checking health at: ${healthUrl}`);
-    console.log(`🏥 [RELAYER] Full URL: ${window.location.origin}${healthUrl}`);
+    // Call backend directly (no proxy, no HMAC) to avoid CDN challenges
+    const healthUrl = `${RELAYER_BACKEND_URL}/health`;
+    console.log(`🏥 [RELAYER] Checking health at (direct): ${healthUrl}`);
     
-    const response = await fetch(healthUrl);
+    const response = await fetch(healthUrl, {
+      headers: { 'Accept': 'application/json' }
+    });
     
     console.log(`🏥 [RELAYER] Health response status: ${response.status}`);
     console.log(`🏥 [RELAYER] Health response headers:`, Object.fromEntries(response.headers.entries()));
@@ -176,7 +189,7 @@ export async function checkRelayerHealth() {
   } catch (error) {
     console.error('❌ [RELAYER] Health check failed with error:', {
       message: error.message,
-      url: `${RELAYER_PROXY_URL}/health`,
+      url: `${RELAYER_BACKEND_URL}/health`,
       timestamp: new Date().toISOString()
     });
     return false;
