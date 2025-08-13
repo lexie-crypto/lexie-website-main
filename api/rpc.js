@@ -86,13 +86,24 @@ export default async function handler(req, res) {
 
   try {
     const { chainId: chainIdRaw, provider: providerRaw } = req.query;
-    const chainId = Number(chainIdRaw || req.body?.chainId || req.body?.params?.[0]?.chainId || 1);
-    const providerPref = String(providerRaw || 'alchemy').toLowerCase(); // 'alchemy' | 'ankr' | 'auto'
+    let body = req.body;
+    // Ensure we have a serializable payload; do not over-validate (some clients send batch arrays)
+    let bodyForForward = body;
+    try {
+      if (typeof bodyForForward === 'string') {
+        // already raw JSON
+      } else if (bodyForForward == null) {
+        // Try to read raw
+        const chunks = [];
+        for await (const chunk of req) chunks.push(chunk);
+        const raw = Buffer.concat(chunks).toString();
+        bodyForForward = raw || bodyForForward;
+      }
+    } catch (_) {}
 
-    const body = req.body;
-    if (!body || !body.method) {
-      return res.status(400).json({ error: 'Invalid JSON-RPC payload' });
-    }
+    // Determine chainId (query param has priority). We do not rely on body structure here.
+    const chainId = Number(chainIdRaw || 1);
+    const providerPref = String(providerRaw || 'alchemy').toLowerCase(); // 'alchemy' | 'ankr' | 'auto'
 
     const alchemyUrl = buildUpstreamUrl('alchemy', chainId);
     const ankrUrl = buildUpstreamUrl('ankr', chainId);
@@ -121,7 +132,7 @@ export default async function handler(req, res) {
     for (const p of providers) {
       try {
         const timeoutSignal = AbortSignal.timeout(20000);
-        const result = await forwardJSONRPC({ upstreamUrl: p.url, body, signal: timeoutSignal });
+        const result = await forwardJSONRPC({ upstreamUrl: p.url, body: bodyForForward ?? body, signal: timeoutSignal });
         if (result.ok) {
           return res.status(200).json(result.json ?? { ok: true, raw: result.text });
         }
