@@ -85,6 +85,10 @@ export default async function handler(req, res) {
       // Transaction submission endpoint
       backendUrl = `https://relayer.lexiecrypto.com/api/relay/submit`;
       
+    } else if (relayerPath === '/api/relayer/address') {
+      // Public relayer address endpoint (no HMAC required)
+      backendUrl = `https://relayer.lexiecrypto.com/api/relayer/address`;
+      
     } else {
       console.log(`❌ [GAS-RELAYER-${requestId}] Unknown relayer endpoint: ${relayerPath}`);
       return res.status(404).json({
@@ -93,27 +97,28 @@ export default async function handler(req, res) {
       });
     }
 
-    // HMAC configuration
-    const hmacSecret = process.env.LEXIE_HMAC_SECRET;
-    if (!hmacSecret) {
-      console.error(`❌ [GAS-RELAYER-${requestId}] LEXIE_HMAC_SECRET is not set`);
-      return res.status(500).json({ success: false, error: 'Server authentication configuration error' });
-    }
-
-    const timestamp = Date.now().toString();
-    const bodyString = req.method === 'POST' ? JSON.stringify(req.body) : '';
-    // Use the exact backend path segment for signing to match server verification
-    const payload = `${req.method}:${relayerPath === '/submit' ? '/api/relay/submit' : relayerPath === '/estimate-fee' ? '/api/relay/estimate-fee' : relayerPath || '/'}:${timestamp}:${bodyString}`;
-    const signature = 'sha256=' + crypto.createHmac('sha256', hmacSecret).update(payload).digest('hex');
-
     const headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
       'Origin': 'https://app.lexiecrypto.com',
       'User-Agent': 'Lexie-Gas-Relayer-Proxy/1.0',
-      'X-Lexie-Signature': signature,
-      'X-Lexie-Timestamp': timestamp,
     };
+
+    // Only attach HMAC for POST to submit/estimate-fee endpoints
+    if (req.method === 'POST' && (relayerPath === '/submit' || relayerPath === '/estimate-fee')) {
+      const hmacSecret = process.env.LEXIE_HMAC_SECRET;
+      if (!hmacSecret) {
+        console.error(`❌ [GAS-RELAYER-${requestId}] LEXIE_HMAC_SECRET is not set`);
+        return res.status(500).json({ success: false, error: 'Server authentication configuration error' });
+      }
+      const timestamp = Date.now().toString();
+      const bodyString = JSON.stringify(req.body);
+      const pathForSigning = relayerPath === '/submit' ? '/api/relay/submit' : '/api/relay/estimate-fee';
+      const payload = `${req.method}:${pathForSigning}:${timestamp}:${bodyString}`;
+      const signature = 'sha256=' + crypto.createHmac('sha256', hmacSecret).update(payload).digest('hex');
+      headers['X-Lexie-Signature'] = signature;
+      headers['X-Lexie-Timestamp'] = timestamp;
+    }
 
     console.log(`📡 [GAS-RELAYER-${requestId}] Forwarding to relayer: ${backendUrl}`);
 
@@ -126,7 +131,7 @@ export default async function handler(req, res) {
 
     // Add body for POST requests
     if (req.method === 'POST') {
-      fetchOptions.body = bodyString;
+      fetchOptions.body = JSON.stringify(req.body);
     }
 
     const relayerResponse = await fetch(backendUrl, fetchOptions);
