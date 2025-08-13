@@ -3,8 +3,8 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
-      "source": "/api/(.*)",
-      "destination": "/api/$1"
+      "source": "/api/gas-relayer/(.*)",
+      "destination": "/api/gas-relayer/$1"
     },
     {
       "source": "/(.*)",
@@ -34,9 +34,9 @@
         },
         {
           "key": "Access-Control-Allow-Headers",
-          "value": "Content-Type"
+          "value": "Content-Type, X-Lexie-Signature, X-Lexie-Timestamp"
         }
       ]
     }
   ]
-} 
+}
