@@ -19,6 +19,22 @@ if (typeof window !== 'undefined' && window.VITE_RELAYER_BACKEND_URL) {
   RELAYER_BACKEND_URL = window.VITE_RELAYER_BACKEND_URL;
 }
 
+// Ensure backend URL uses https and has no trailing slash
+function normalizeBackendUrl(url) {
+  try {
+    let u = url || '';
+    if (!u) return 'https://relayer.lexiecrypto.com';
+    if (u.startsWith('//')) u = 'https:' + u; // protocol-relative -> https
+    if (!/^https?:\/\//i.test(u)) u = 'https://' + u; // missing protocol -> https
+    if (u.startsWith('http://')) u = 'https://' + u.slice(7); // upgrade to https
+    return u.replace(/\/+$/, '');
+  } catch {
+    return 'https://relayer.lexiecrypto.com';
+  }
+}
+
+RELAYER_BACKEND_URL = normalizeBackendUrl(RELAYER_BACKEND_URL);
+
 /**
  * Create simple headers for relayer requests (no HMAC needed)
  */
