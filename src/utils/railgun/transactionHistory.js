@@ -68,7 +68,9 @@ const formatTransactionHistoryItem = (historyItem, chainId) => {
     transferERC20Amounts = [],
     receiveERC20Amounts = [],
     unshieldERC20Amounts = [],
-    category
+    category,
+    memoText,
+    memo,
   } = historyItem;
 
   // Determine transaction type and primary amounts
@@ -124,6 +126,9 @@ const formatTransactionHistoryItem = (historyItem, chainId) => {
     transactionType,
     category,
     description,
+    memo: (typeof memoText === 'string' && memoText.length > 0)
+      ? memoText
+      : (typeof memo === 'string' && memo.length > 0 ? memo : null),
     tokenAmounts,
     chainId,
     // Raw data for detailed view

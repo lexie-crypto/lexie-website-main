@@ -217,9 +217,14 @@ const TransactionHistory = () => {
                 ))}
               </div>
 
-              {/* Description */}
+              {/* Description + Memo */}
               <div className="text-gray-400 text-sm mb-3">
-                {tx.description}
+                <div>{tx.description}</div>
+                {tx.memo && (
+                  <div className="mt-1 text-blue-300 break-words">
+                    Memo: {tx.memo}
+                  </div>
+                )}
               </div>
 
               {/* Details */}
