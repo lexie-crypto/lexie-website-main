@@ -422,7 +422,12 @@ export const shieldTokens = async ({
 
       // Return transaction for the caller to send (consistent with ERC20 flow)
       console.log('[ShieldTransactions] Base token shield transaction prepared');
-      return { transaction };
+      return {
+        gasEstimate: gasDetails.gasEstimate,
+        gasDetails,
+        transaction,
+        shieldPrivateKey,
+      };
     }
 
     // Get network configuration

@@ -27,16 +27,19 @@ const TOKEN_LISTS = {
     { address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', symbol: 'WETH', name: 'Wrapped Ether', decimals: 18 },
   ],
   42161: [ // Arbitrum
+    { address: '0x82af49447D8a07e3bd95BD0d56f35241523fBab1', symbol: 'WETH', name: 'Wrapped Ether', decimals: 18 },
     { address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', symbol: 'USDC', name: 'USD Coin', decimals: 6 },
     { address: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1', symbol: 'DAI', name: 'Dai Stablecoin', decimals: 18 },
     { address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', symbol: 'USDT', name: 'Tether USD', decimals: 6 },
   ],
   137: [ // Polygon
+    { address: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', symbol: 'WMATIC', name: 'Wrapped MATIC', decimals: 18 },
     { address: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', symbol: 'USDC.e', name: 'USD Coin (PoS)', decimals: 6 },
     { address: '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063', symbol: 'DAI', name: 'Dai Stablecoin (PoS)', decimals: 18 },
     { address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', symbol: 'USDT', name: 'Tether USD (PoS)', decimals: 6 },
   ],
   56: [ // BSC
+    { address: '0xBB4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', symbol: 'WBNB', name: 'Wrapped BNB', decimals: 18 },
     { address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', symbol: 'USDC', name: 'USD Coin', decimals: 18 },
     { address: '0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3', symbol: 'DAI', name: 'Dai Token', decimals: 18 },
     { address: '0x55d398326f99059fF775485246999027B3197955', symbol: 'USDT', name: 'Tether USD', decimals: 18 }, // BSC USDT uses 18 decimals
@@ -111,7 +114,12 @@ export function useBalances() {
   // Fetch and cache token prices
   const fetchAndCachePrices = useCallback(async (symbols) => {
     try {
-      const uniqueSymbols = [...new Set(symbols)];
+      // Include wrapped base-token symbols to ensure pricing coverage
+      const priceSymbols = [
+        ...symbols,
+        'WETH', 'WMATIC', 'WBNB', // wrapped base tokens
+      ];
+      const uniqueSymbols = [...new Set(priceSymbols)];
       const prices = await fetchTokenPrices(uniqueSymbols);
       setTokenPrices(prev => ({ ...prev, ...prices }));
       return prices;
@@ -124,7 +132,15 @@ export function useBalances() {
   // Calculate USD value for a balance
   const calculateUSDValue = useCallback((numericBalance, symbol, pricesOverride = null) => {
     const prices = pricesOverride || stableRefs.current.tokenPrices;
-    const price = prices[symbol];
+    // Resolve common wrapper/alias symbols to their base asset prices if needed
+    const aliasMap = {
+      WETH: 'ETH',
+      WMATIC: 'MATIC',
+      WBNB: 'BNB',
+      'USDC.e': 'USDC',
+    };
+    const resolvedSymbol = prices[symbol] != null ? symbol : (aliasMap[symbol] || symbol);
+    const price = prices[resolvedSymbol];
     if (price && typeof price === 'number' && numericBalance > 0) {
       return (numericBalance * price).toFixed(2);
     }
