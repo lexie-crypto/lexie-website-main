@@ -17,6 +17,11 @@ import {
   getEVMGasTypeForTransaction,
 } from '@railgun-community/shared-models';
 import { waitForRailgunReady } from './engine.js';
+import {
+  gasEstimateForShieldBaseToken,
+  populateShieldBaseToken,
+  getShieldPrivateKeySignatureMessage,
+} from '@railgun-community/wallet';
 import { createShieldGasDetails } from './tx-gas-details.js';
 import { estimateGasWithBroadcasterFee } from './tx-gas-broadcaster-fee-estimator.js';
 import { assertNotSanctioned } from '../sanctions/chainalysis-oracle.js';
@@ -41,6 +46,14 @@ const getRailgunNetworkName = (chainId) => {
   }
   return networkName;
 };
+
+// Wrapped base token per chain (minimal set)
+const WRAPPED_BASE_TOKEN_BY_CHAIN = {
+  1: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', // wETH
+  42161: '0x82af49447D8a07e3bd95BD0d56f35241523fBab1', // wETH (Arbitrum)
+};
+
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 /**
  * Check and ensure token approval for RAILGUN contract
@@ -348,6 +361,69 @@ export const shieldTokens = async ({
 
     // Wait for Railgun readiness
     await waitForRailgunReady();
+
+    // Base token branch (wrap-and-shield via Relay Adapt)
+    const isBaseToken = !tokenAddress || tokenAddress === ZERO_ADDRESS;
+    if (isBaseToken) {
+      const networkName = getRailgunNetworkName(chain.id);
+      const wrappedAddress = WRAPPED_BASE_TOKEN_BY_CHAIN[chain.id];
+      if (!wrappedAddress) {
+        throw new Error(`Unsupported chain for base token shielding: ${chain.id}`);
+      }
+
+      // Generate shield private key
+      const shieldMessage = getShieldPrivateKeySignatureMessage();
+      const signer = await walletProvider();
+      const signature = await signer.signMessage(shieldMessage);
+      const shieldPrivateKey = keccak256(signature);
+
+      // Estimate gas using SDK helper
+      const { gasEstimate } = await gasEstimateForShieldBaseToken(
+        TXIDVersion.V2_PoseidonMerkle,
+        networkName,
+        railgunAddress,
+        shieldPrivateKey,
+        { tokenAddress: wrappedAddress, amount: BigInt(amount) },
+        fromAddress,
+      );
+
+      // Create gas details
+      const provider = signer.provider;
+      const fee = await provider.getFeeData();
+      const evmGasType = getEVMGasTypeForTransaction(networkName, true);
+      let gasDetails;
+      if (evmGasType === EVMGasType.Type2) {
+        gasDetails = {
+          evmGasType,
+          gasEstimate,
+          maxFeePerGas: fee.maxFeePerGas || BigInt('1000000'),
+          maxPriorityFeePerGas: fee.maxPriorityFeePerGas || BigInt('100000'),
+        };
+      } else {
+        gasDetails = {
+          evmGasType,
+          gasEstimate,
+          gasPrice: fee.gasPrice || BigInt('1000000'),
+        };
+      }
+
+      // Build transaction via SDK
+      const { transaction } = await populateShieldBaseToken(
+        TXIDVersion.V2_PoseidonMerkle,
+        networkName,
+        railgunAddress,
+        shieldPrivateKey,
+        { tokenAddress: wrappedAddress, amount: BigInt(amount) },
+        gasDetails,
+      );
+
+      transaction.from = fromAddress;
+
+      // Send with public wallet (self-sign)
+      console.log('[ShieldTransactions] Sending base token shield transaction...');
+      const txResponse = await signer.sendTransaction(transaction);
+      return { transactionHash: txResponse.hash };
+    }
 
     // Get network configuration
     const networkName = getRailgunNetworkName(chain.id);

@@ -27,6 +27,11 @@ import {
   checkRelayerHealth,
   getRelayerAddress,
 } from './relayer-client.js';
+import {
+  gasEstimateForUnprovenUnshieldBaseToken,
+  generateUnshieldBaseTokenProof,
+  populateProvedUnshieldBaseToken,
+} from '@railgun-community/wallet';
 
 /**
  * Get selected relayer details for SDK integration
@@ -416,6 +421,100 @@ export const unshieldTokens = async ({
     // Check zero-delay mode
     if (typeof window !== 'undefined' && window.__LEXIE_ZERO_DELAY_MODE__) {
       console.log('🚀 [UNSHIELD] Zero-Delay mode active - bypassing spendable balance checks');
+    }
+
+    // If unshielding base token (wETH unwrap): use base-token SDK path
+    const isBaseToken = !tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000';
+    if (isBaseToken) {
+      console.log('🔧 [UNSHIELD] Base token flow: using SDK unshield base token');
+      const networkName = getRailgunNetworkName(chain.id);
+
+      // Prepare wrapped ERC20 amount object (tokenAddress must be the wrapped base token used privately)
+      const wrappedERC20Amount = { tokenAddress, amount: BigInt(amount) };
+
+      // Gas details
+      const evmGasType = getEVMGasTypeForTransaction(networkName, true);
+      let originalGasDetails;
+      switch (evmGasType) {
+        case EVMGasType.Type0:
+        case EVMGasType.Type1:
+          originalGasDetails = {
+            evmGasType,
+            originalGasEstimate: 0n,
+            gasPrice: BigInt('0x100000'),
+          };
+          break;
+        case EVMGasType.Type2:
+          originalGasDetails = {
+            evmGasType,
+            originalGasEstimate: 0n,
+            maxFeePerGas: BigInt('0x100000'),
+            maxPriorityFeePerGas: BigInt('0x010000'),
+          };
+          break;
+        default:
+          throw new Error(`Unsupported EVM gas type`);
+      }
+
+      // Estimate
+      await gasEstimateForUnprovenUnshieldBaseToken(
+        TXIDVersion.V2_PoseidonMerkle,
+        networkName,
+        recipientEVM,
+        railgunWalletID,
+        encryptionKey,
+        wrappedERC20Amount,
+        originalGasDetails,
+        null,
+        true,
+      );
+
+      // Proof
+      await generateUnshieldBaseTokenProof(
+        TXIDVersion.V2_PoseidonMerkle,
+        networkName,
+        recipientEVM,
+        railgunWalletID,
+        encryptionKey,
+        wrappedERC20Amount,
+        undefined,
+        true,
+        undefined,
+        (p) => console.log(`[UNSHIELD] Base token proof progress: ${(p * 100).toFixed(1)}%`),
+      );
+
+      // Gas details for populate
+      let gasDetails;
+      if (evmGasType === EVMGasType.Type2) {
+        gasDetails = {
+          evmGasType,
+          gasEstimate: 0n,
+          maxFeePerGas: BigInt('0x100000'),
+          maxPriorityFeePerGas: BigInt('0x010000'),
+        };
+      } else {
+        gasDetails = {
+          evmGasType,
+          gasEstimate: 0n,
+          gasPrice: BigInt('0x100000'),
+        };
+      }
+
+      const populateResponse = await populateProvedUnshieldBaseToken(
+        TXIDVersion.V2_PoseidonMerkle,
+        networkName,
+        recipientEVM,
+        railgunWalletID,
+        wrappedERC20Amount,
+        undefined,
+        true,
+        undefined,
+        gasDetails,
+      );
+
+      // Submit using same path as self-signing (public wallet)
+      const txHash = await submitTransactionSelfSigned(populateResponse, walletProvider);
+      return { hash: txHash, method: 'base-token', privacy: 'public' };
     }
 
     // RELAYER MODE: Prepare recipients with broadcaster fee
