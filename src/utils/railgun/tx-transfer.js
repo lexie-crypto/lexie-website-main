@@ -186,7 +186,10 @@ export const buildAndPopulatePrivateTransfer = async ({
       { tokenAddress, recipientAddress: recipientRG, amount: netAmount },
     ];
     const relayAdaptShieldNFTRecipients = [];
-    const relayAdaptUnshieldERC20Amounts = [];
+    // Unshield gross amount into RelayAdapt so SDK can create private outputs
+    const relayAdaptUnshieldERC20Amounts = [
+      { tokenAddress, amount: amountBn },
+    ];
     const relayAdaptUnshieldNFTAmounts = [];
 
     // Include broadcaster fee recipient
