@@ -13,6 +13,7 @@ import {
   ArrowDownIcon,
   CurrencyDollarIcon,
   ExclamationTriangleIcon,
+  ArrowRightIcon,
 } from '@heroicons/react/24/outline';
 
 import { useWallet } from '../contexts/WalletContext';
@@ -23,6 +24,7 @@ import {
   isValidRailgunAddress,
   isTokenSupportedByRailgun,
   getSupportedChainIds,
+  privateTransfer,
 } from '../utils/railgun/actions';
 import { 
   getPrivateBalances,
@@ -63,6 +65,7 @@ const PrivacyActions = () => {
   const [selectedToken, setSelectedToken] = useState(null);
   const [amount, setAmount] = useState('');
   const [recipientAddress, setRecipientAddress] = useState('');
+  const [memoText, setMemoText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [railgunSetupComplete, setRailgunSetupComplete] = useState(false);
 
@@ -79,6 +82,12 @@ const PrivacyActions = () => {
       name: 'Unshield', 
       icon: ArrowUpIcon,
       description: 'Move tokens back to your public wallet'
+    },
+    {
+      id: 'transfer',
+      name: 'Transfer',
+      icon: ArrowRightIcon,
+      description: 'Send privately to another Railgun address (with optional memo)'
     },
   ];
 
@@ -111,7 +120,7 @@ const PrivacyActions = () => {
         token.hasBalance && 
         isTokenSupportedByRailgun(token.address, chainId)
       );
-    } else if (activeTab === 'unshield') {
+    } else if (activeTab === 'unshield' || activeTab === 'transfer') {
       // Show private tokens for unshielding
       return privateBalances.filter(token => token.hasBalance);
     }
@@ -474,6 +483,66 @@ const PrivacyActions = () => {
     }
   }, [selectedToken, amount, isValidAmount, recipientAddress, address, railgunWalletId, chainId, getEncryptionKey, availableTokens, refreshBalancesAfterTransaction]);
 
+  // Handle private transfer operation
+  const handleTransfer = useCallback(async () => {
+    if (!selectedToken || !amount || !isValidAmount || !isValidRailgunAddress(railgunAddress)) {
+      return;
+    }
+
+    if (!isValidRailgunAddress(recipientAddress)) {
+      toast.error('Please enter a valid Railgun recipient address (starts with 0zk)');
+      return;
+    }
+
+    setIsProcessing(true);
+    let toastId;
+
+    try {
+      toastId = toast.loading('Preparing private transfer...');
+
+      const encryptionKey = await getEncryptionKey();
+      const amountInUnits = parseTokenAmount(amount, selectedToken.decimals);
+
+      const tx = await privateTransfer({
+        chainId,
+        railgunWalletID: railgunWalletId,
+        encryptionKey,
+        tokenAddress: selectedToken.address,
+        amount: amountInUnits,
+        recipientRailgunAddress: recipientAddress,
+        memoText,
+        walletProvider,
+      });
+
+      toast.dismiss(toastId);
+      toast.success(`Private transfer sent! TX: ${tx.txHash}`);
+
+      // Reset
+      setAmount('');
+      setRecipientAddress('');
+      setMemoText('');
+      setSelectedToken(availableTokens[0] || null);
+
+      // Optional: Graph monitoring (transfer)
+      try {
+        const { monitorTransactionInGraph } = await import('../utils/railgun/transactionMonitor');
+        monitorTransactionInGraph({
+          txHash: tx.txHash,
+          chainId,
+          transactionType: 'transfer',
+          transactionDetails: { walletId: railgunWalletId },
+        }).catch(() => {});
+      } catch {}
+
+    } catch (error) {
+      console.error('[PrivacyActions] Private transfer failed:', error);
+      toast.dismiss(toastId);
+      toast.error(`Transfer failed: ${error.message}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [selectedToken, amount, recipientAddress, memoText, isValidAmount, railgunAddress, railgunWalletId, chainId, walletProvider, getEncryptionKey, availableTokens]);
+
   // Handle form submission
   const handleSubmit = useCallback((e) => {
     e.preventDefault();
@@ -482,6 +551,8 @@ const PrivacyActions = () => {
       handleShield();
     } else if (activeTab === 'unshield') {
       handleUnshield();
+    } else if (activeTab === 'transfer') {
+      handleTransfer();
     }
   }, [activeTab, handleShield, handleUnshield]);
 
@@ -649,7 +720,7 @@ const PrivacyActions = () => {
             )}
           </div>
 
-          {/* Recipient Address (for unshield) */}
+          {/* Recipient Address */}
           {activeTab === 'unshield' && (
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -665,6 +736,36 @@ const PrivacyActions = () => {
               <p className="mt-1 text-sm text-gray-500">
                 Leave empty to unshield to your connected wallet
               </p>
+            </div>
+          )}
+
+          {activeTab === 'transfer' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Recipient Railgun Address
+                </label>
+                <input
+                  type="text"
+                  value={recipientAddress}
+                  onChange={(e) => setRecipientAddress(e.target.value)}
+                  placeholder={`0zk... (recipient Railgun address)`}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Memo (optional)
+                </label>
+                <input
+                  type="text"
+                  value={memoText}
+                  onChange={(e) => setMemoText(e.target.value)}
+                  placeholder="Thanks for dinner! 🍝😋"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                />
+                <p className="mt-1 text-sm text-gray-500">Memo is encrypted; only sender and recipient can read it.</p>
+              </div>
             </div>
           )}
 

@@ -15,6 +15,7 @@ import { unshieldTokens } from './tx-unshield.js';
 
 // Import our new modular utilities
 import { shieldTokens } from './shieldTransactions.js';
+import { buildAndPopulatePrivateTransfer } from './tx-transfer.js';
 import { 
   generateTransferTransaction,
   generateCrossContractTransaction,
@@ -208,6 +209,60 @@ export const transferTokens = async ({
       totals,
     };
 
+  } catch (error) {
+    console.error('[RailgunActions] Private transfer failed:', error);
+    throw new Error(`Private transfer failed: ${error.message}`);
+  }
+};
+
+/**
+ * PRIVATE TRANSFER (memo-capable, single-recipient convenience)
+ * Uses tx-transfer.js to mirror SDK structure and include memo support.
+ */
+export const privateTransfer = async ({
+  chainId,
+  railgunWalletID,
+  encryptionKey,
+  tokenAddress,
+  amount,
+  recipientRailgunAddress,
+  memoText = undefined,
+  walletProvider = null,
+}) => {
+  try {
+    const networkName = getRailgunNetworkName(chainId);
+
+    if (!walletProvider) {
+      throw new Error('Wallet provider (signer) required');
+    }
+
+    const signer = await walletProvider();
+
+    const erc20AmountRecipients = [
+      {
+        tokenAddress,
+        amount: BigInt(amount),
+        recipientAddress: recipientRailgunAddress,
+      },
+    ];
+
+    const { transaction } = await buildAndPopulatePrivateTransfer({
+      networkName,
+      railgunWalletID,
+      encryptionKey,
+      erc20AmountRecipients,
+      nftAmountRecipients: [],
+      memoText,
+      sendWithPublicWallet: true,
+      walletSigner: signer,
+      showSenderAddressToRecipient: true,
+    });
+
+    // Send
+    transaction.from = await signer.getAddress();
+    const txResponse = await signer.sendTransaction(transaction);
+
+    return { txHash: txResponse.hash };
   } catch (error) {
     console.error('[RailgunActions] Private transfer failed:', error);
     throw new Error(`Private transfer failed: ${error.message}`);
