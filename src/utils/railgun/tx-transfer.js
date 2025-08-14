@@ -184,6 +184,7 @@ export const buildAndPopulatePrivateTransfer = async ({
     // Shield outputs created at RelayAdapt destination
     const relayAdaptShieldERC20Recipients = [
       { tokenAddress, recipientAddress: recipientRG, amount: netAmount },
+      { tokenAddress, recipientAddress: relayerRailgunAddress, amount: relayerFeeBn },
     ];
     const relayAdaptShieldNFTRecipients = [];
     // Unshield gross amount into RelayAdapt so SDK can create private outputs
@@ -192,12 +193,8 @@ export const buildAndPopulatePrivateTransfer = async ({
     ];
     const relayAdaptUnshieldNFTAmounts = [];
 
-    // Include broadcaster fee recipient
-    const broadcasterFeeERC20AmountRecipient = {
-      tokenAddress,
-      recipientAddress: relayerRailgunAddress,
-      amount: relayerFeeBn,
-    };
+    // Broadcaster fee included as explicit shield recipient (satisfies relayer check)
+    const broadcasterFeeERC20AmountRecipient = undefined;
 
     // Add a harmless cross-contract call so SDK targets RelayAdapt (read-only call)
     const { ethers } = await import('ethers');
