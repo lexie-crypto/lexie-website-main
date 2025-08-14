@@ -226,13 +226,14 @@ const WalletPage = () => {
         railgunAddress: railgunAddress ? `${railgunAddress.slice(0, 8)}...` : 'MISSING'
       });
 
-      // Validate token address before calling shield (allow null for native tokens)
-      if (token.address === undefined) {
-        throw new Error(`Token ${token.symbol} has no address property`);
+      // Validate token address: allow undefined/null for native base tokens (e.g., ETH/MATIC/BNB)
+      const isNativeToken = token.address == null; // undefined or null means native token
+      if (!isNativeToken && (typeof token.address !== 'string' || !token.address.startsWith('0x') || token.address.length !== 42)) {
+        throw new Error(`Invalid token address for ${token.symbol}`);
       }
-      
+
       // Log token type for debugging
-      const tokenType = token.address === null ? 'NATIVE' : 'ERC20';
+      const tokenType = isNativeToken ? 'NATIVE' : 'ERC20';
       console.log('[WalletPage] About to shield', tokenType, 'token:', token.symbol);
 
       toast.loading(`Shielding ${amount} ${token.symbol}...`);
