@@ -17,9 +17,12 @@ import {
   gasEstimateForUnprovenTransfer,
   generateTransferProof,
   populateProvedTransfer,
+  gasEstimateForUnprovenCrossContractCalls,
+  generateCrossContractCallsProof,
+  populateProvedCrossContractCalls,
 } from '@railgun-community/wallet';
 import { waitForRailgunReady } from './engine.js';
-import { shouldUseRelayer, checkRelayerHealth, submitRelayedTransaction, estimateRelayerFee } from './relayer-client.js';
+import { shouldUseRelayer, checkRelayerHealth, submitRelayedTransaction, estimateRelayerFee, getRelayerAddress } from './relayer-client.js';
 
 const DEFAULT_TXID = TXIDVersion.V2_PoseidonMerkle;
 
@@ -154,51 +157,152 @@ export const buildAndPopulatePrivateTransfer = async ({
   walletSigner = null,
   showSenderAddressToRecipient = true,
 }) => {
-  // 1) Estimate gas
-  const { originalGasDetails, gasEstimate } = await estimatePrivateTransferGas({
-    networkName,
-    railgunWalletID,
-    encryptionKey,
-    erc20AmountRecipients,
-    nftAmountRecipients,
-    memoText,
-    sendWithPublicWallet,
-    walletSigner,
-  });
+  // Determine if we'll use the relayer. If yes, build RelayAdapt cross-contract flow.
+  const useRelayer = shouldUseRelayer(
+    (await import('@railgun-community/shared-models')).then(m => m.NETWORK_CONFIG[networkName].chain.id)
+  );
 
-  const transactionGasDetails = {
-    evmGasType: originalGasDetails.evmGasType,
-    gasEstimate,
-    gasPrice: originalGasDetails.gasPrice,
-    maxFeePerGas: originalGasDetails.maxFeePerGas,
-    maxPriorityFeePerGas: originalGasDetails.maxPriorityFeePerGas,
-  };
+  let transaction;
+  let transactionGasDetails;
+  if (await checkRelayerHealth()) {
+    // Calculate gas details baseline
+    const originalGasDetails = await buildOriginalGasDetails(networkName, false, walletSigner);
+    // Build RelayAdapt params for a simple private transfer (no external calls)
+    const amountBn = BigInt(erc20AmountRecipients[0].amount?.toString?.() || erc20AmountRecipients[0].amount);
+    const tokenAddress = erc20AmountRecipients[0].tokenAddress;
 
-  // 2) Generate proof (memo supported)
-  const { overallBatchMinGasPrice } = await generatePrivateTransferProof({
-    networkName,
-    railgunWalletID,
-    encryptionKey,
-    memoText,
-    erc20AmountRecipients,
-    nftAmountRecipients,
-    sendWithPublicWallet,
-    showSenderAddressToRecipient,
-    transactionGasDetails,
-  });
+    // Relayer private fee: 0.5% of amount
+    const RELAYER_FEE_BPS = 50n;
+    const relayerFeeBn = (amountBn * RELAYER_FEE_BPS) / 10000n;
+    if (relayerFeeBn <= 0n || relayerFeeBn >= amountBn) {
+      throw new Error('Relayer fee invalid for provided amount');
+    }
 
-  // 3) Populate
-  const { transaction } = await populatePrivateTransfer({
-    networkName,
-    railgunWalletID,
-    memoText,
-    erc20AmountRecipients,
-    nftAmountRecipients,
-    sendWithPublicWallet,
-    showSenderAddressToRecipient,
-    transactionGasDetails,
-    overallBatchMinGasPrice,
-  });
+    const netToRecipient = amountBn - relayerFeeBn;
+    const relayerRailgunAddress = await getRelayerAddress();
+
+    const relayAdaptUnshieldERC20Amounts = []; // none for pure transfer
+    const relayAdaptShieldERC20Recipients = [
+      {
+        tokenAddress,
+        recipientAddress: erc20AmountRecipients[0].recipientAddress,
+        amount: netToRecipient,
+      },
+    ];
+    const relayAdaptUnshieldNFTAmounts = [];
+    const relayAdaptShieldNFTRecipients = [];
+    const crossContractCalls = [];
+    const broadcasterFeeERC20AmountRecipient = {
+      tokenAddress,
+      recipientAddress: relayerRailgunAddress, // 0zk...
+      amount: relayerFeeBn,
+    };
+
+    // Gas estimate for cross-contract (RelayAdapt)
+    const { gasEstimate } = await gasEstimateForUnprovenCrossContractCalls(
+      DEFAULT_TXID,
+      networkName,
+      railgunWalletID,
+      encryptionKey,
+      relayAdaptUnshieldERC20Amounts,
+      relayAdaptUnshieldNFTAmounts,
+      relayAdaptShieldERC20Recipients,
+      relayAdaptShieldNFTRecipients,
+      crossContractCalls,
+      originalGasDetails,
+      { tokenAddress, feePerUnitGas: BigInt('1000000000') },
+      false, // sendWithPublicWallet must be false for relayer mode
+      1500000n,
+    );
+
+    transactionGasDetails = {
+      evmGasType: originalGasDetails.evmGasType,
+      gasEstimate,
+      gasPrice: originalGasDetails.gasPrice,
+      maxFeePerGas: originalGasDetails.maxFeePerGas,
+      maxPriorityFeePerGas: originalGasDetails.maxPriorityFeePerGas,
+    };
+
+    // Proof
+    await generateCrossContractCallsProof(
+      DEFAULT_TXID,
+      networkName,
+      railgunWalletID,
+      encryptionKey,
+      relayAdaptUnshieldERC20Amounts,
+      relayAdaptUnshieldNFTAmounts,
+      relayAdaptShieldERC20Recipients,
+      relayAdaptShieldNFTRecipients,
+      crossContractCalls,
+      broadcasterFeeERC20AmountRecipient,
+      false,
+      await calculateGasPrice(transactionGasDetails),
+      1500000n,
+      () => {}
+    );
+
+    // Populate to RelayAdapt
+    const populated = await populateProvedCrossContractCalls(
+      DEFAULT_TXID,
+      networkName,
+      railgunWalletID,
+      relayAdaptUnshieldERC20Amounts,
+      relayAdaptUnshieldNFTAmounts,
+      relayAdaptShieldERC20Recipients,
+      relayAdaptShieldNFTRecipients,
+      crossContractCalls,
+      broadcasterFeeERC20AmountRecipient,
+      false,
+      await calculateGasPrice(transactionGasDetails),
+      transactionGasDetails,
+    );
+    transaction = populated.transaction;
+  } else {
+    // Fallback: classic transfer path (self-signing)
+    const { originalGasDetails, gasEstimate } = await estimatePrivateTransferGas({
+      networkName,
+      railgunWalletID,
+      encryptionKey,
+      erc20AmountRecipients,
+      nftAmountRecipients,
+      memoText,
+      sendWithPublicWallet,
+      walletSigner,
+    });
+
+    transactionGasDetails = {
+      evmGasType: originalGasDetails.evmGasType,
+      gasEstimate,
+      gasPrice: originalGasDetails.gasPrice,
+      maxFeePerGas: originalGasDetails.maxFeePerGas,
+      maxPriorityFeePerGas: originalGasDetails.maxPriorityFeePerGas,
+    };
+
+    const { overallBatchMinGasPrice } = await generatePrivateTransferProof({
+      networkName,
+      railgunWalletID,
+      encryptionKey,
+      memoText,
+      erc20AmountRecipients,
+      nftAmountRecipients,
+      sendWithPublicWallet,
+      showSenderAddressToRecipient,
+      transactionGasDetails,
+    });
+
+    const populated = await populatePrivateTransfer({
+      networkName,
+      railgunWalletID,
+      memoText,
+      erc20AmountRecipients,
+      nftAmountRecipients,
+      sendWithPublicWallet,
+      showSenderAddressToRecipient,
+      transactionGasDetails,
+      overallBatchMinGasPrice,
+    });
+    transaction = populated.transaction;
+  }
 
   // 4) Attempt relayed submission to hide EOA
   try {
