@@ -198,8 +198,8 @@ export const buildAndPopulatePrivateTransfer = async ({
 
     // Add a harmless cross-contract call so SDK targets RelayAdapt (read-only call)
     const { ethers } = await import('ethers');
-    const erc20Interface = new ethers.Interface(['function totalSupply() view returns (uint256)']);
-    const readOnlyData = erc20Interface.encodeFunctionData('totalSupply', []);
+    const erc20Interface = new ethers.Interface(['function decimals() view returns (uint8)']);
+    const readOnlyData = erc20Interface.encodeFunctionData('decimals', []);
     const crossContractCalls = [{ to: tokenAddress, data: readOnlyData, value: 0n }];
 
     // Gas estimate for cross-contract calls
