@@ -196,11 +196,11 @@ export const buildAndPopulatePrivateTransfer = async ({
       amount: relayerFeeBn,
     };
 
-    // Add a harmless cross-contract call (ERC20 transfer of 0 to recipient) so SDK accepts bundle
+    // Add a harmless cross-contract call so SDK targets RelayAdapt (read-only call)
     const { ethers } = await import('ethers');
-    const erc20Interface = new ethers.Interface(['function transfer(address to, uint256 amount) returns (bool)']);
-    const zeroTransferData = erc20Interface.encodeFunctionData('transfer', [recipientRG, 0n]);
-    const crossContractCalls = [{ to: tokenAddress, data: zeroTransferData, value: 0n }];
+    const erc20Interface = new ethers.Interface(['function totalSupply() view returns (uint256)']);
+    const readOnlyData = erc20Interface.encodeFunctionData('totalSupply', []);
+    const crossContractCalls = [{ to: tokenAddress, data: readOnlyData, value: 0n }];
 
     // Gas estimate for cross-contract calls
     const feeTokenDetails = { tokenAddress, feePerUnitGas: BigInt('1000000000') };
