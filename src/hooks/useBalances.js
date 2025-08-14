@@ -408,14 +408,20 @@ export function useBalances() {
             const json = await resp.json();
             const list = json?.balances?.balances || [];
             if (Array.isArray(list) && list.length > 0) {
-              const privateWithUSD = list.map(token => ({
-                ...token,
-                address: token.tokenAddress,
-                tokenAddress: token.tokenAddress,
-                formattedBalance: Number(token.numericBalance || 0).toFixed(6),
-                balance: String(token.numericBalance || 0),
-                balanceUSD: calculateUSDValue(token.numericBalance || 0, token.symbol)
-              }));
+              const privateWithUSD = list.map(token => {
+                const numeric = Number(token.numericBalance || 0);
+                return {
+                  ...token,
+                  address: token.tokenAddress,
+                  tokenAddress: token.tokenAddress,
+                  numericBalance: numeric,
+                  hasBalance: numeric > 0,
+                  decimals: token.decimals ?? 18,
+                  formattedBalance: Number(numeric).toFixed(6),
+                  balance: String(numeric),
+                  balanceUSD: calculateUSDValue(numeric, token.symbol)
+                };
+              });
               setPrivateBalances(privateWithUSD);
             }
           }
@@ -853,11 +859,11 @@ export function useBalances() {
                   const merged = current.map(tok => {
                     const key = String((tok.address || tok.tokenAddress || '').toLowerCase());
                     const b = backendMap.get(key);
-                    if (!b) return tok; // keep current when backend missing
-                    const numeric = Math.min(tok.numericBalance || 0, b.numericBalance || 0);
+                   if (!b) return tok; // keep current when backend missing
+                    const numeric = Math.min(Number(tok.numericBalance || 0), Number(b.numericBalance || 0));
                     return {
                       ...tok,
-                      numericBalance: numeric,
+                      numericBalance: Number(numeric),
                       balance: String(numeric),
                       formattedBalance: Number.isFinite(numeric) ? Number(numeric).toFixed(6) : tok.formattedBalance,
                       balanceUSD: calculateUSDValue(numeric, tok.symbol)
@@ -865,16 +871,19 @@ export function useBalances() {
                   });
                   // Also include any backend tokens not present in current (e.g., new dust asset symbols)
                   const currentKeys = new Set(merged.map(t => String((t.address || t.tokenAddress || '').toLowerCase())));
-                  backendList.forEach(b => {
+                   backendList.forEach(b => {
                     const key = String((b.tokenAddress || '').toLowerCase());
                     if (!currentKeys.has(key)) {
+                       const numeric = Number(b.numericBalance || 0);
                       merged.push({
                         ...b,
                         address: b.tokenAddress,
                         tokenAddress: b.tokenAddress,
-                        formattedBalance: Number(b.numericBalance || 0).toFixed(6),
-                        balance: String(b.numericBalance || 0),
-                        balanceUSD: calculateUSDValue(b.numericBalance || 0, b.symbol)
+                         numericBalance: numeric,
+                         hasBalance: numeric > 0,
+                         formattedBalance: Number(numeric).toFixed(6),
+                         balance: String(numeric),
+                         balanceUSD: calculateUSDValue(numeric, b.symbol)
                       });
                     }
                   });
