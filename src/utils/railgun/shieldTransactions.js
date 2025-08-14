@@ -20,7 +20,6 @@ import { waitForRailgunReady } from './engine.js';
 import {
   gasEstimateForShieldBaseToken,
   populateShieldBaseToken,
-  getShieldPrivateKeySignatureMessage,
 } from '@railgun-community/wallet';
 import { createShieldGasDetails } from './tx-gas-details.js';
 import { estimateGasWithBroadcasterFee } from './tx-gas-broadcaster-fee-estimator.js';
