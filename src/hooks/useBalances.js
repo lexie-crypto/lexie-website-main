@@ -89,6 +89,7 @@ export function useBalances() {
 
   // Stable refs for event listeners
   const stableRefs = useRef({});
+  const lastSpendableUpdateRef = useRef(0); // timestamp of last SDK Spendable update
   const hasAutoRefreshed = useRef(false);
   
   useEffect(() => {
@@ -754,6 +755,7 @@ export function useBalances() {
           // Only update state for Spendable bucket (most important for UI)
           if (balanceEvent.balanceBucket === 'Spendable') {
             setPrivateBalances(updatedPrivateBalances);
+            lastSpendableUpdateRef.current = Date.now();
 
             // IMPORTANT: Do not write SDK callback balances to Redis.
             // The transaction monitor is the single source of truth and will
@@ -828,12 +830,52 @@ export function useBalances() {
                   totalNotes: result.balances.balances?.reduce((sum, token) => sum + (token.notes?.length || 0), 0) || 0
                 });
                 
-                // Update private balances with note data
-                const privateWithUSD = result.balances.balances.map(token => ({
-                  ...token,
-                  balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
-                }));
-                setPrivateBalances(privateWithUSD);
+                // If a Spendable update just occurred, avoid overwriting it with potentially stale backend data
+                const elapsedSinceSpendable = Date.now() - lastSpendableUpdateRef.current;
+                const recentSpendable = elapsedSinceSpendable < 60000; // 60s window
+                
+                const backendList = result.balances.balances || [];
+                const backendMap = new Map(backendList.map(t => [String((t.tokenAddress || '').toLowerCase()), t]));
+                
+                // Merge with current UI state, biasing toward the most conservative (lower) spendable to avoid overstatement
+                setPrivateBalances(current => {
+                  if (!current || current.length === 0) {
+                    const fromBackend = backendList.map(token => ({
+                      ...token,
+                      balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
+                    }));
+                    return recentSpendable ? current : fromBackend;
+                  }
+                  const merged = current.map(tok => {
+                    const key = String((tok.address || tok.tokenAddress || '').toLowerCase());
+                    const b = backendMap.get(key);
+                    if (!b) return tok; // keep current when backend missing
+                    const numeric = Math.min(tok.numericBalance || 0, b.numericBalance || 0);
+                    return {
+                      ...tok,
+                      numericBalance: numeric,
+                      balance: String(numeric),
+                      formattedBalance: Number.isFinite(numeric) ? Number(numeric).toFixed(6) : tok.formattedBalance,
+                      balanceUSD: calculateUSDValue(numeric, tok.symbol)
+                    };
+                  });
+                  // Also include any backend tokens not present in current (e.g., new dust asset symbols)
+                  const currentKeys = new Set(merged.map(t => String((t.address || t.tokenAddress || '').toLowerCase())));
+                  backendList.forEach(b => {
+                    const key = String((b.tokenAddress || '').toLowerCase());
+                    if (!currentKeys.has(key)) {
+                      merged.push({
+                        ...b,
+                        address: b.tokenAddress,
+                        tokenAddress: b.tokenAddress,
+                        formattedBalance: Number(b.numericBalance || 0).toFixed(6),
+                        balance: String(b.numericBalance || 0),
+                        balanceUSD: calculateUSDValue(b.numericBalance || 0, b.symbol)
+                      });
+                    }
+                  });
+                  return recentSpendable ? current : merged;
+                });
                 
                 // Also refresh public balances
                 const freshPublicBalances = await fetchPublicBalances();
