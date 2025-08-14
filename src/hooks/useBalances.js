@@ -272,42 +272,73 @@ export function useBalances() {
   const loadPrivateBalancesFromMetadata = useCallback(async (walletAddress, railgunWalletId) => {
     try {
       console.log('[useBalances] 🛡️ Loading private balances from Redis...');
-      
+
+      // 1) Prefer the dedicated balances endpoint (authoritative, chain-aware)
+      try {
+        const balancesResp = await fetch(`/api/wallet-metadata?action=balances&walletAddress=${encodeURIComponent(walletAddress)}&walletId=${encodeURIComponent(railgunWalletId)}`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        if (balancesResp.ok) {
+          const balancesJson = await balancesResp.json();
+          const allBalances = balancesJson?.balances?.balances || balancesJson?.balances || [];
+          const balancesForCurrentChain = allBalances.filter(b => b.chainId === chainId);
+
+          if (Array.isArray(balancesForCurrentChain) && balancesForCurrentChain.length > 0) {
+            const privateBalancesFromRedis = balancesForCurrentChain.map(balance => ({
+              symbol: balance.symbol,
+              address: balance.tokenAddress,
+              tokenAddress: balance.tokenAddress,
+              numericBalance: Number(balance.numericBalance) || 0,
+              formattedBalance: (Number(balance.numericBalance) || 0).toFixed(6),
+              balance: String(balance.numericBalance ?? '0'),
+              decimals: balance.decimals ?? 18,
+              hasBalance: (Number(balance.numericBalance) || 0) > 0,
+              isPrivate: true,
+              lastUpdated: balance.lastUpdated
+            }));
+
+            console.log('[useBalances] ✅ Loaded private balances via balances endpoint:', {
+              chainId,
+              count: privateBalancesFromRedis.length,
+              tokens: privateBalancesFromRedis.map(b => `${b.symbol}: ${b.numericBalance}`)
+            });
+
+            setPrivateBalances(privateBalancesFromRedis);
+            return true;
+          }
+        } else {
+          console.log('[useBalances] ℹ️ Balances endpoint not available or returned non-200, falling back to metadata');
+        }
+      } catch (e) {
+        console.warn('[useBalances] ⚠️ Balances endpoint failed, falling back to metadata:', e?.message);
+      }
+
+      // 2) Fallback to legacy metadata format
       const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(walletAddress)}`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' }
       });
-      
       if (!response.ok) {
         console.log('[useBalances] No wallet metadata found in Redis');
         return false;
       }
-      
       const result = await response.json();
       if (!result.success || !result.keys || result.keys.length === 0) {
         console.log('[useBalances] No wallet metadata keys found');
         return false;
       }
-      
-      // Find metadata for specific wallet ID
       const metadata = result.keys.find(k => k.walletId === railgunWalletId);
       if (!metadata || !metadata.privateBalances || metadata.privateBalances.length === 0) {
-        console.log('[useBalances] No private balances found in Redis');
+        console.log('[useBalances] No private balances found in Redis (metadata fallback)');
         return false;
       }
-      
-      // Filter private balances by current chain ID
-      const balancesForCurrentChain = metadata.privateBalances.filter(balance => 
-        balance.chainId === chainId
-      );
-      
+      const balancesForCurrentChain = metadata.privateBalances.filter(balance => balance.chainId === chainId);
       if (balancesForCurrentChain.length === 0) {
-        console.log(`[useBalances] No private balances found for chain ${chainId}`);
-        setPrivateBalances([]);
+        console.log(`[useBalances] No private balances found for chain ${chainId} (metadata fallback)`);
+        // Do NOT clear state here to avoid flashing 0 balances; just return
         return false;
       }
-      
-      // Convert stored balances to UI format
       const privateBalancesFromRedis = balancesForCurrentChain.map(balance => ({
         symbol: balance.symbol,
         address: balance.tokenAddress,
@@ -320,14 +351,12 @@ export function useBalances() {
         isPrivate: true,
         lastUpdated: balance.lastUpdated
       }));
-      
-      console.log('[useBalances] ✅ Loaded private balances from Redis for chain:', {
+      console.log('[useBalances] ✅ Loaded private balances from Redis (metadata fallback):', {
         chainId,
         count: privateBalancesFromRedis.length,
         totalInRedis: metadata.privateBalances.length,
         tokens: privateBalancesFromRedis.map(b => `${b.symbol}: ${b.numericBalance}`)
       });
-      
       setPrivateBalances(privateBalancesFromRedis);
       return true;
       
