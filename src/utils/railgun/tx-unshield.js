@@ -34,22 +34,7 @@ import {
 const getSelectedRelayer = async (preferredFeeTokenAddress) => {
   // Fetch live RAILGUN address from relayer service
   try {
-    // Screen recipient address before proceeding
-    const recipientInput = recipientAddress ?? toAddress;
-    if (recipientInput) {
-      console.log('[Sanctions] Starting screening for recipient (unshield):', {
-        chainId: chain.id,
-        recipientInput: recipientInput?.slice?.(0, 12) + '...'
-      });
-      // Resolve recipient to ensure 0x address for screening
-      const resolved = await resolveRecipient(recipientInput, walletProvider);
-      if (resolved) {
-        await assertNotSanctioned(chain.id, resolved);
-        console.log('[Sanctions] Screening passed for recipient (unshield):', {
-          resolved: resolved?.slice?.(0, 12) + '...'
-        });
-      }
-    }
+    // NOTE: recipient sanctions screening occurs after resolving recipient below
     const railgunAddress = await getRelayerAddress();
     return {
       railgunAddress, // MUST be '0zk…'
@@ -333,6 +318,14 @@ export const unshieldTokens = async ({
     if (!recipientEVM.startsWith('0x') || !ethers.isAddress(recipientEVM)) {
       throw new Error('Unshield requires a valid 0x recipient address');
     }
+
+    // Sanctions screening on resolved recipient address (EOA)
+    console.log('[Sanctions] Starting screening for resolved recipient (unshield):', {
+      chainId: chain.id,
+      resolved: recipientEVM?.slice?.(0, 12) + '...'
+    });
+    await assertNotSanctioned(chain.id, recipientEVM);
+    console.log('[Sanctions] Screening passed for resolved recipient (unshield)');
 
     console.log('✅ [UNSHIELD] Resolved recipient:', { recipientEVM });
     
