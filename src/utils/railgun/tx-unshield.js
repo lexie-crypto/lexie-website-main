@@ -17,6 +17,7 @@ import {
   calculateGasPrice,
 } from '@railgun-community/shared-models';
 import { waitForRailgunReady } from './engine.js';
+import { assertNotSanctioned } from '../sanctions/chainalysis-oracle.js';
 
 // Gas Relayer Integration
 import { 
@@ -33,6 +34,22 @@ import {
 const getSelectedRelayer = async (preferredFeeTokenAddress) => {
   // Fetch live RAILGUN address from relayer service
   try {
+    // Screen recipient address before proceeding
+    const recipientInput = recipientAddress ?? toAddress;
+    if (recipientInput) {
+      console.log('[Sanctions] Starting screening for recipient (unshield):', {
+        chainId: chain.id,
+        recipientInput: recipientInput?.slice?.(0, 12) + '...'
+      });
+      // Resolve recipient to ensure 0x address for screening
+      const resolved = await resolveRecipient(recipientInput, walletProvider);
+      if (resolved) {
+        await assertNotSanctioned(chain.id, resolved);
+        console.log('[Sanctions] Screening passed for recipient (unshield):', {
+          resolved: resolved?.slice?.(0, 12) + '...'
+        });
+      }
+    }
     const railgunAddress = await getRelayerAddress();
     return {
       railgunAddress, // MUST be '0zk…'

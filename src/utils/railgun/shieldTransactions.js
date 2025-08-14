@@ -19,6 +19,7 @@ import {
 import { waitForRailgunReady } from './engine.js';
 import { createShieldGasDetails } from './tx-gas-details.js';
 import { estimateGasWithBroadcasterFee } from './tx-gas-broadcaster-fee-estimator.js';
+import { assertNotSanctioned } from '../sanctions/chainalysis-oracle.js';
 
 /**
  * Network mapping to Railgun NetworkName enum values
@@ -305,6 +306,13 @@ export const shieldTokens = async ({
   walletProvider
 }) => {
   try {
+    // Sanctions screen the user's EOA before proceeding
+    console.log('[Sanctions] Starting screening for user EOA (shield):', {
+      chainId: chain.id,
+      address: fromAddress?.slice?.(0, 10) + '...'
+    });
+    await assertNotSanctioned(chain.id, fromAddress);
+    console.log('[Sanctions] Screening passed for user EOA (shield)');
     // Enhanced validation with better error handling
     console.log('[ShieldTransactions] Input validation:', {
       amount: amount,
