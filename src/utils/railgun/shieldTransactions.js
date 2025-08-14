@@ -372,7 +372,7 @@ export const shieldTokens = async ({
 
       // Generate shield private key
       const shieldMessage = getShieldPrivateKeySignatureMessage();
-      const signer = await walletProvider();
+      const signer = walletProvider; // walletProvider is a Signer object, not a function
       const signature = await signer.signMessage(shieldMessage);
       const shieldPrivateKey = keccak256(signature);
 
