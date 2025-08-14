@@ -202,8 +202,13 @@ export const buildAndPopulatePrivateTransfer = async ({
 
   // 4) Attempt relayed submission to hide EOA
   try {
-    const { chain: chainObj } = await import('@railgun-community/shared-models').then(m => ({ chain: m.NETWORK_CONFIG[networkName].chain }));
-    const chainId = chainObj.id;
+    // Robustly resolve chainId from NETWORK_CONFIG using the enum key
+    const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
+    const netCfg = NETWORK_CONFIG?.[networkName];
+    if (!netCfg || !netCfg.chain || typeof netCfg.chain.id !== 'number') {
+      throw new Error(`Invalid network config for ${String(networkName)}`);
+    }
+    const chainId = netCfg.chain.id;
     const tokenAddress = erc20AmountRecipients[0]?.tokenAddress;
     const amount = erc20AmountRecipients[0]?.amount?.toString?.() || String(erc20AmountRecipients[0]?.amount);
 
@@ -212,7 +217,7 @@ export const buildAndPopulatePrivateTransfer = async ({
       const txObj = {
         to: transaction.to,
         data: transaction.data,
-        value: transaction.value || '0x0',
+        value: transaction.value?.toString?.() || transaction.value || '0x0',
         gasLimit: transaction.gasLimit ? transaction.gasLimit.toString() : undefined,
         gasPrice: transaction.gasPrice ? transaction.gasPrice.toString() : undefined,
         maxFeePerGas: transaction.maxFeePerGas ? transaction.maxFeePerGas.toString() : undefined,
