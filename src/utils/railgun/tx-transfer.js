@@ -158,13 +158,17 @@ export const buildAndPopulatePrivateTransfer = async ({
   showSenderAddressToRecipient = true,
 }) => {
   // Determine if we'll use the relayer. If yes, build RelayAdapt cross-contract flow.
-  const useRelayer = shouldUseRelayer(
-    (await import('@railgun-community/shared-models')).then(m => m.NETWORK_CONFIG[networkName].chain.id)
-  );
+  const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
+  const chainIdForDecision = NETWORK_CONFIG?.[networkName]?.chain?.id;
+  if (typeof chainIdForDecision !== 'number') {
+    throw new Error(`Invalid network for relayer decision: ${String(networkName)}`);
+  }
+  const amountForDecision = String(erc20AmountRecipients?.[0]?.amount?.toString?.() || erc20AmountRecipients?.[0]?.amount || '0');
+  const useRelayer = shouldUseRelayer(chainIdForDecision, amountForDecision);
 
   let transaction;
   let transactionGasDetails;
-  if (await checkRelayerHealth()) {
+  if (useRelayer && (await checkRelayerHealth())) {
     // Calculate gas details baseline
     const originalGasDetails = await buildOriginalGasDetails(networkName, false, walletSigner);
     // Build RelayAdapt params for a simple private transfer (no external calls)
