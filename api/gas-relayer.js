@@ -6,13 +6,17 @@ export const config = {
   },
 };
 
-export async function handleGasRelayer(req, res) {
+export default async function handler(req, res) {
   const requestId = Math.random().toString(36).substring(7);
 
   const origin = req.headers.origin;
   const allowedOrigins = [
     'https://app.lexiecrypto.com',
     'https://lexiecrypto.com',
+    'https://relayer.lexiecrypto.com',
+    'https://www.lexiecrypto.com',
+    'https://lexiecrypto.com/wallet',
+    'https://www.lexiecrypto.com/wallet',
     'http://localhost:3000',
     'http://localhost:5173',
   ];
@@ -31,6 +35,7 @@ export async function handleGasRelayer(req, res) {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
     const relayerPath = url.pathname.replace('/api/gas-relayer', '') || '/';
+    const endpoint = url.searchParams.get('endpoint');
 
     console.log(`🔍 [PROXY-${requestId}] Processing path`, {
       originalPath: url.pathname,
@@ -51,16 +56,29 @@ export async function handleGasRelayer(req, res) {
       });
     }
 
-    // Map proxy paths to backend API paths (support both short and full)
+    // Map proxy paths to backend API paths
     let targetPath = relayerPath;
-    if (targetPath === '/' || targetPath === '') {
-      targetPath = '/health';
-    } else if (targetPath === '/api/relay/submit' || targetPath === '/submit') {
-      targetPath = '/api/relay/submit';
-    } else if (targetPath === '/api/relay/estimate-fee' || targetPath === '/estimate-fee') {
-      targetPath = '/api/relay/estimate-fee';
-    } else if (targetPath === '/api/relayer/address' || targetPath === '/address') {
-      targetPath = '/api/relayer/address';
+    if (endpoint) {
+      const e = endpoint.toLowerCase();
+      if (e === 'submit') targetPath = '/api/relay/submit';
+      else if (e === 'estimate-fee' || e === 'estimatefee') targetPath = '/api/relay/estimate-fee';
+      else if (e === 'address') targetPath = '/api/relayer/address';
+      else if (e === 'ping') targetPath = '/ping';
+      else if (e === 'health') targetPath = '/health';
+      else targetPath = '/health';
+    } else {
+      // Path-based routing (legacy)
+      if (targetPath === '/' || targetPath === '') {
+        targetPath = '/health';
+      } else if (targetPath === '/api/relay/submit' || targetPath === '/submit') {
+        targetPath = '/api/relay/submit';
+      } else if (targetPath === '/api/relay/estimate-fee' || targetPath === '/estimate-fee') {
+        targetPath = '/api/relay/estimate-fee';
+      } else if (targetPath === '/api/relayer/address' || targetPath === '/address') {
+        targetPath = '/api/relayer/address';
+      } else if (targetPath === '/ping') {
+        targetPath = '/ping';
+      }
     }
 
     const RAILWAY_URL = process.env.RAILWAY_RELAYER_URL || 'https://relayer.lexiecrypto.com';
@@ -75,10 +93,9 @@ export async function handleGasRelayer(req, res) {
     }
 
     const timestamp = Date.now().toString();
-    const bodyString = req.method === 'POST' ? JSON.stringify(req.body) : '';
-    const payload = `${req.method}:${targetPath}:${timestamp}:${bodyString}`;
-    const signature =
-      'sha256=' + crypto.createHmac('sha256', hmacSecret).update(payload).digest('hex');
+    // Match wallet-metadata format: method:path:timestamp (no body)
+    const payload = `${req.method}:${targetPath}:${timestamp}`;
+    const signature = 'sha256=' + crypto.createHmac('sha256', hmacSecret).update(payload).digest('hex');
 
     const response = await fetch(backendUrl, {
       method: req.method,
@@ -90,7 +107,7 @@ export async function handleGasRelayer(req, res) {
         'X-Forwarded-For':
           req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.connection.remoteAddress,
       },
-      body: req.method === 'POST' ? bodyString : undefined,
+      body: req.method === 'POST' ? JSON.stringify(req.body) : undefined,
       signal: AbortSignal.timeout(30000),
     });
 
@@ -114,5 +131,3 @@ export async function handleGasRelayer(req, res) {
     res.status(500).json({ error: 'Relay service error', requestId });
   }
 }
-
-

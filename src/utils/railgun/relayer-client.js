@@ -70,8 +70,8 @@ export async function estimateRelayerFee({
       gasEstimate: gasEstimate?.toString()
     };
 
-    // Backend expects /api/relay/estimate-fee
-    const feeUrl = `${RELAYER_PROXY_URL}/api/relay/estimate-fee`;
+    // Single-route proxy with endpoint query
+    const feeUrl = `${RELAYER_PROXY_URL}?endpoint=estimate-fee`;
     console.log(`💰 [RELAYER] Calling fee estimation at: ${feeUrl}`);
     console.log(`💰 [RELAYER] Full URL: ${window.location.origin}${feeUrl}`);
     
@@ -140,8 +140,8 @@ export async function submitRelayedTransaction({
       gasEstimate
     };
 
-    // Backend expects /api/relay/submit
-    const response = await fetch(`${RELAYER_PROXY_URL}/api/relay/submit`, {
+    // Single-route proxy with endpoint query
+    const response = await fetch(`${RELAYER_PROXY_URL}?endpoint=submit`, {
       method: 'POST',
       headers: createHeaders(),
       body: JSON.stringify(payload)
@@ -234,7 +234,7 @@ export async function getRelayerAddress() {
 
   // Fallback to proxy API if not configured via env
   try {
-    const response = await fetch(`${RELAYER_PROXY_URL}/api/relayer/address`, {
+    const response = await fetch(`${RELAYER_PROXY_URL}?endpoint=address`, {
       method: 'GET',
       headers: createHeaders()
     });
