@@ -48,8 +48,10 @@ const getRailgunNetworkName = (chainId) => {
 
 // Wrapped base token per chain (minimal set)
 const WRAPPED_BASE_TOKEN_BY_CHAIN = {
-  1: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', // wETH
-  42161: '0x82af49447D8a07e3bd95BD0d56f35241523fBab1', // wETH (Arbitrum)
+  1: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', // WETH (Ethereum)
+  42161: '0x82af49447D8a07e3bd95BD0d56f35241523fBab1', // WETH (Arbitrum)
+  137: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', // WMATIC (Polygon)
+  56: '0xBB4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', // WBNB (BSC)
 };
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
@@ -418,10 +420,9 @@ export const shieldTokens = async ({
 
       transaction.from = fromAddress;
 
-      // Send with public wallet (self-sign)
-      console.log('[ShieldTransactions] Sending base token shield transaction...');
-      const txResponse = await signer.sendTransaction(transaction);
-      return { transactionHash: txResponse.hash };
+      // Return transaction for the caller to send (consistent with ERC20 flow)
+      console.log('[ShieldTransactions] Base token shield transaction prepared');
+      return { transaction };
     }
 
     // Get network configuration
