@@ -19,6 +19,7 @@ import {
   populateProvedTransfer,
 } from '@railgun-community/wallet';
 import { waitForRailgunReady } from './engine.js';
+import { shouldUseRelayer, checkRelayerHealth, submitRelayedTransaction, estimateRelayerFee } from './relayer-client.js';
 
 const DEFAULT_TXID = TXIDVersion.V2_PoseidonMerkle;
 
@@ -199,7 +200,52 @@ export const buildAndPopulatePrivateTransfer = async ({
     overallBatchMinGasPrice,
   });
 
-  return { transaction, transactionGasDetails };
+  // 4) Attempt relayed submission to hide EOA
+  try {
+    const { chain: chainObj } = await import('@railgun-community/shared-models').then(m => ({ chain: m.NETWORK_CONFIG[networkName].chain }));
+    const chainId = chainObj.id;
+    const tokenAddress = erc20AmountRecipients[0]?.tokenAddress;
+    const amount = erc20AmountRecipients[0]?.amount?.toString?.() || String(erc20AmountRecipients[0]?.amount);
+
+    if (shouldUseRelayer(chainId, amount) && (await checkRelayerHealth())) {
+      // Serialize transaction for relayer
+      const txObj = {
+        to: transaction.to,
+        data: transaction.data,
+        value: transaction.value || '0x0',
+        gasLimit: transaction.gasLimit ? transaction.gasLimit.toString() : undefined,
+        gasPrice: transaction.gasPrice ? transaction.gasPrice.toString() : undefined,
+        maxFeePerGas: transaction.maxFeePerGas ? transaction.maxFeePerGas.toString() : undefined,
+        maxPriorityFeePerGas: transaction.maxPriorityFeePerGas ? transaction.maxPriorityFeePerGas.toString() : undefined,
+        type: transaction.type,
+      };
+      Object.keys(txObj).forEach(k => txObj[k] === undefined && delete txObj[k]);
+      const serializedTransaction = '0x' + Buffer.from(JSON.stringify(txObj)).toString('hex');
+
+      // Optional: estimate fee (can be shown in UI later)
+      try { await estimateRelayerFee({ chainId, tokenAddress, amount, gasEstimate: transactionGasDetails.gasEstimate }); } catch {}
+
+      const relayed = await submitRelayedTransaction({
+        chainId,
+        serializedTransaction,
+        tokenAddress,
+        amount,
+        userAddress: null,
+        feeDetails: {},
+        gasEstimate: transactionGasDetails.gasEstimate?.toString?.(),
+      });
+
+      return { transactionHash: relayed.transactionHash, relayed: true };
+    }
+  } catch (e) {
+    // Fallback to self-signing below
+    console.warn('[tx-transfer] Relayer submission failed or unavailable, falling back to self-sign:', e?.message);
+  }
+
+  // 5) Fallback: self-sign when relayer not available
+  if (!walletSigner) throw new Error('Wallet signer required when relayer is unavailable');
+  const txResponse = await walletSigner.sendTransaction(transaction);
+  return { transactionHash: txResponse.hash, relayed: false };
 };
 
 export default {

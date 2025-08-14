@@ -396,29 +396,33 @@ export function useBalances() {
         balanceUSD: calculateUSDValue(token.numericBalance, token.symbol, freshPrices)
       }));
 
-      // Add USD values to existing private balances (no new data)
+      // Set public balances
       setPublicBalances(publicWithUSD);
       setLastUpdated(Date.now());
-      
-      // Update private balances with USD values only if we have balances
-      // Use functional update to access current state without adding to deps
-      setPrivateBalances(currentPrivateBalances => {
-        if (currentPrivateBalances.length === 0) {
-          return currentPrivateBalances;
-        }
-        
-        const updated = currentPrivateBalances.map(token => ({
-          ...token,
-          balanceUSD: calculateUSDValue(token.numericBalance, token.symbol, freshPrices)
-        }));
 
-        // Prevent unnecessary update with deep equality check
-        if (JSON.stringify(updated) !== JSON.stringify(currentPrivateBalances)) {
-          return updated;
+      // Refresh private balances from backend to reflect transfers/dust
+      try {
+        if (railgunWalletId) {
+          const resp = await fetch(`/api/wallet-metadata?action=balances&walletAddress=${address}&walletId=${railgunWalletId}`);
+          if (resp.ok) {
+            const json = await resp.json();
+            const list = json?.balances?.balances || [];
+            if (Array.isArray(list) && list.length > 0) {
+              const privateWithUSD = list.map(token => ({
+                ...token,
+                address: token.tokenAddress,
+                tokenAddress: token.tokenAddress,
+                formattedBalance: Number(token.numericBalance || 0).toFixed(6),
+                balance: String(token.numericBalance || 0),
+                balanceUSD: calculateUSDValue(token.numericBalance || 0, token.symbol)
+              }));
+              setPrivateBalances(privateWithUSD);
+            }
+          }
         }
-
-        return currentPrivateBalances;
-      });
+      } catch (e) {
+        console.warn('[useBalances] Private balances backend refresh failed:', e?.message);
+      }
 
       console.log('[useBalances] ✅ Balances refreshed:', {
         public: publicBals.length,
