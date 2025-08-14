@@ -184,7 +184,8 @@ export const buildAndPopulatePrivateTransfer = async ({
       amount: relayerFeeBn,
     };
 
-    // Gas estimate for standard transfer
+    // Gas estimate for standard transfer (relayer mode requires feeTokenDetails)
+    const feeTokenDetails = { tokenAddress, feePerUnitGas: BigInt('1000000000') };
     const { gasEstimate } = await gasEstimateForUnprovenTransfer(
       DEFAULT_TXID,
       networkName,
@@ -194,7 +195,7 @@ export const buildAndPopulatePrivateTransfer = async ({
       erc20AmountRecipients,
       nftAmountRecipients,
       originalGasDetails,
-      null, // feeTokenDetails not needed here
+      feeTokenDetails,
       false, // sendWithPublicWallet = false for relayer
     );
 
