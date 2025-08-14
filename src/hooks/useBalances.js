@@ -51,9 +51,9 @@ export const getTokenDecimals = (tokenAddress, chainId) => {
   const tokenList = TOKEN_LISTS[chainId];
   if (!tokenList) return 18; // Default fallback
   
-  const token = tokenList.find(
-    t => t.address.toLowerCase() === tokenAddress.toLowerCase()
-  );
+      const token = tokenList.find(
+        t => t.address.toLowerCase() === tokenAddress.toLowerCase()
+      );
   
   return token ? token.decimals : 18;
 };
@@ -199,7 +199,9 @@ export function useBalances() {
   const fetchTokenBalance = useCallback(async (userAddress, tokenInfo, targetChainId) => {
     try {
       const provider = getProvider(targetChainId);
-      const contract = new Contract(tokenInfo.address, ERC20_ABI, provider);
+      // Normalize address to lowercase to avoid checksum mismatches from different libs
+      const normalizedAddress = (tokenInfo.address || '').trim().toLowerCase();
+      const contract = new Contract(normalizedAddress, ERC20_ABI, provider);
       
       const [balance, decimals, symbol, name] = await Promise.all([
         contract.balanceOf(userAddress),
@@ -212,7 +214,7 @@ export function useBalances() {
       const numericBalance = parseFloat(formattedBalance);
 
       return {
-        address: tokenInfo.address,
+        address: normalizedAddress,
         symbol: symbol,
         name: name,
         decimals: Number(decimals),
