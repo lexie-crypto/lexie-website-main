@@ -1521,6 +1521,8 @@ export const privateTransferWithRelayer = async ({
     const relayAdaptUnshieldNFTAmounts = [];
     const relayAdaptShieldERC20Recipients = [
       { tokenAddress, recipientAddress: erc20AmountRecipients[0].recipientAddress, amount: netToRecipient },
+      // Include explicit private output to relayer 0zk to satisfy relayer broadcaster fee validation
+      { tokenAddress, recipientAddress: relayerRailgunAddress, amount: relayerFeeAmount },
     ];
     const relayAdaptShieldNFTRecipients = [];
     // Add a benign read-only call so RelayAdapt bundle is valid in relayer mode
