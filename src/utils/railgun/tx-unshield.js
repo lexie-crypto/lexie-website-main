@@ -1502,9 +1502,10 @@ export const privateTransferWithRelayer = async ({
 
     // 2) Fee token details (from our relayer; fallback values ok)
     let relayerFeePerUnitGas = BigInt('1000000000');
+    let feeQuote = null;
     try {
-      const quote = await estimateRelayerFee({ chainId, tokenAddress, amount: String(erc20AmountRecipients[0].amount) });
-      if (quote?.feeEstimate?.feePerUnitGas) relayerFeePerUnitGas = BigInt(quote.feeEstimate.feePerUnitGas);
+      feeQuote = await estimateRelayerFee({ chainId, tokenAddress, amount: String(erc20AmountRecipients[0].amount) });
+      if (feeQuote?.feeEstimate?.feePerUnitGas) relayerFeePerUnitGas = BigInt(feeQuote.feeEstimate.feePerUnitGas);
     } catch {}
     const feeTokenDetails = { tokenAddress, feePerUnitGas: relayerFeePerUnitGas };
 
@@ -1525,7 +1526,9 @@ export const privateTransferWithRelayer = async ({
 
     // 4) Proof with broadcaster fee to our relayer Railgun address
     const relayerRailgunAddress = await getRelayerAddress();
-    const relayerFeeAmount = BigInt(quote?.feeEstimate?.relayerFee || 0);
+    const relayerFeeAmount = feeQuote && (feeQuote.relayerFee || feeQuote.feeEstimate?.relayerFee)
+      ? BigInt(feeQuote.relayerFee || feeQuote.feeEstimate.relayerFee)
+      : (BigInt(erc20AmountRecipients[0].amount) / 200n); // fallback 0.5%
     const relayerFeeERC20AmountRecipient = {
       tokenAddress,
       recipientAddress: relayerRailgunAddress,
