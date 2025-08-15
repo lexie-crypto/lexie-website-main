@@ -1509,57 +1509,75 @@ export const privateTransferWithRelayer = async ({
     } catch {}
     const feeTokenDetails = { tokenAddress, feePerUnitGas: relayerFeePerUnitGas };
 
-    // 3) Estimate
-    const { gasEstimate } = await gasEstimateForUnprovenTransfer(
+    // 3) RelayAdapt arrays (gross in, net to recipient) and fee recipient
+    const amountBn = BigInt(erc20AmountRecipients[0].amount);
+    const relayerRailgunAddress = await getRelayerAddress();
+    const relayerFeeAmount = feeQuote && (feeQuote.relayerFee || feeQuote.feeEstimate?.relayerFee)
+      ? BigInt(feeQuote.relayerFee || feeQuote.feeEstimate.relayerFee)
+      : (amountBn / 200n); // 0.5% fallback
+    const netToRecipient = amountBn - relayerFeeAmount;
+
+    const relayAdaptUnshieldERC20Amounts = [{ tokenAddress, amount: amountBn }];
+    const relayAdaptUnshieldNFTAmounts = [];
+    const relayAdaptShieldERC20Recipients = [
+      { tokenAddress, recipientAddress: erc20AmountRecipients[0].recipientAddress, amount: netToRecipient },
+    ];
+    const relayAdaptShieldNFTRecipients = [];
+    const crossContractCalls = [];
+
+    // 4) Estimate via cross-contract calls (RelayAdapt)
+    const { gasEstimate } = await gasEstimateForUnprovenCrossContractCalls(
       TXIDVersion.V2_PoseidonMerkle,
       networkName,
       railgunWalletID,
       encryptionKey,
-      memoText,
-      erc20AmountRecipients,
-      [],
+      relayAdaptUnshieldERC20Amounts,
+      relayAdaptUnshieldNFTAmounts,
+      relayAdaptShieldERC20Recipients,
+      relayAdaptShieldNFTRecipients,
+      crossContractCalls,
       originalGasDetails,
       feeTokenDetails,
       false,
+      1000000n,
     );
     const transactionGasDetails = { evmGasType, gasEstimate, ...originalGasDetails };
 
-    // 4) Proof with broadcaster fee to our relayer Railgun address
-    const relayerRailgunAddress = await getRelayerAddress();
-    const relayerFeeAmount = feeQuote && (feeQuote.relayerFee || feeQuote.feeEstimate?.relayerFee)
-      ? BigInt(feeQuote.relayerFee || feeQuote.feeEstimate.relayerFee)
-      : (BigInt(erc20AmountRecipients[0].amount) / 200n); // fallback 0.5%
-    const relayerFeeERC20AmountRecipient = {
+    // 5) Proof (RelayAdapt) with broadcaster fee
+    const broadcasterFeeERC20AmountRecipient = {
       tokenAddress,
       recipientAddress: relayerRailgunAddress,
       amount: relayerFeeAmount,
     };
     const overallBatchMinGasPrice = await calculateGasPrice(transactionGasDetails);
-    await generateTransferProof(
+    await generateCrossContractCallsProof(
       TXIDVersion.V2_PoseidonMerkle,
       networkName,
       railgunWalletID,
       encryptionKey,
-      true,
-      memoText,
-      erc20AmountRecipients,
-      [],
-      relayerFeeERC20AmountRecipient,
+      relayAdaptUnshieldERC20Amounts,
+      relayAdaptUnshieldNFTAmounts,
+      relayAdaptShieldERC20Recipients,
+      relayAdaptShieldNFTRecipients,
+      crossContractCalls,
+      broadcasterFeeERC20AmountRecipient,
       false,
       overallBatchMinGasPrice,
+      1000000n,
       () => {},
     );
 
-    // 5) Populate
-    const { transaction } = await populateProvedTransfer(
+    // 6) Populate (RelayAdapt)
+    const { transaction } = await populateProvedCrossContractCalls(
       TXIDVersion.V2_PoseidonMerkle,
       networkName,
       railgunWalletID,
-      true,
-      memoText,
-      erc20AmountRecipients,
-      [],
-      relayerFeeERC20AmountRecipient,
+      relayAdaptUnshieldERC20Amounts,
+      relayAdaptUnshieldNFTAmounts,
+      relayAdaptShieldERC20Recipients,
+      relayAdaptShieldNFTRecipients,
+      crossContractCalls,
+      broadcasterFeeERC20AmountRecipient,
       false,
       overallBatchMinGasPrice,
       transactionGasDetails,
