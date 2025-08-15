@@ -11,11 +11,11 @@
 
 import { NetworkName, TXIDVersion } from '@railgun-community/shared-models';
 // Import our custom unshield implementation
-import { unshieldTokens } from './tx-unshield.js';
+import { unshieldTokens, privateTransferWithRelayer } from './tx-unshield.js';
 
 // Import our new modular utilities
 import { shieldTokens } from './shieldTransactions.js';
-import { buildAndPopulatePrivateTransfer } from './tx-transfer.js';
+// Removed: tx-transfer.js merged into tx-unshield.js (privateTransferWithRelayer)
 import { 
   generateTransferTransaction,
   generateCrossContractTransaction,
@@ -231,38 +231,18 @@ export const privateTransfer = async ({
 }) => {
   try {
     const networkName = getRailgunNetworkName(chainId);
+    const erc20AmountRecipients = [{ tokenAddress, amount: BigInt(amount), recipientAddress: recipientRailgunAddress }];
 
-    if (!walletProvider) {
-      throw new Error('Wallet provider (signer) required');
-    }
-
-    const signer = await walletProvider();
-
-    const erc20AmountRecipients = [
-      {
-        tokenAddress,
-        amount: BigInt(amount),
-        recipientAddress: recipientRailgunAddress,
-      },
-    ];
-
-    const { transaction } = await buildAndPopulatePrivateTransfer({
-      networkName,
+    // Use our relayer path for private transfers
+    const { transactionHash } = await privateTransferWithRelayer({
       railgunWalletID,
       encryptionKey,
       erc20AmountRecipients,
-      nftAmountRecipients: [],
       memoText,
-      sendWithPublicWallet: true,
-      walletSigner: signer,
-      showSenderAddressToRecipient: true,
+      networkName,
     });
 
-    // Send
-    transaction.from = await signer.getAddress();
-    const txResponse = await signer.sendTransaction(transaction);
-
-    return { txHash: txResponse.hash };
+    return { txHash: transactionHash };
   } catch (error) {
     console.error('[RailgunActions] Private transfer failed:', error);
     throw new Error(`Private transfer failed: ${error.message}`);
