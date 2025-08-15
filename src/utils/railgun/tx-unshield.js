@@ -1587,7 +1587,6 @@ export const privateTransferWithRelayer = async ({
         relayerFee: relayerFeeAmount.toString(),
         protocolFee: '0',
         totalFee: relayerFeeAmount.toString(),
-        relayerAddress: relayerRailgunAddress,
         chainId: String(chainId),
         tokenAddress,
         proofTimestamp: new Date().toISOString(),
