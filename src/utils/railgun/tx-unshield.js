@@ -10,6 +10,14 @@ import {
   populateProvedUnshield,
 } from '@railgun-community/wallet';
 import {
+  gasEstimateForUnprovenTransfer,
+  generateTransferProof,
+  populateProvedTransfer,
+  gasEstimateForUnprovenCrossContractCalls,
+  generateCrossContractCallsProof,
+  populateProvedCrossContractCalls,
+} from '@railgun-community/wallet';
+import {
   NetworkName,
   TXIDVersion,
   EVMGasType,
@@ -1470,5 +1478,115 @@ export const unshieldTokens = async ({
 
 export default {
   unshieldTokens,
+};
+
+
+// --- Private Transfer via Relayer (docs flow, our relayer submission) ---
+export const privateTransferWithRelayer = async ({
+  railgunWalletID,
+  encryptionKey,
+  erc20AmountRecipients, // [{ tokenAddress, amount (BigInt string), recipientAddress (0zk) }]
+  memoText,
+  networkName,
+}) => {
+  try {
+    const tokenAddress = erc20AmountRecipients[0].tokenAddress;
+    const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
+    const chainId = NETWORK_CONFIG?.[networkName]?.chain?.id;
+
+    // 1) Gas details (relayer path)
+    const evmGasType = getEVMGasTypeForTransaction(networkName, false);
+    const originalGasDetails = evmGasType === EVMGasType.Type2
+      ? { evmGasType, originalGasEstimate: 0n, maxFeePerGas: BigInt('0x100000'), maxPriorityFeePerGas: BigInt('0x010000') }
+      : { evmGasType, originalGasEstimate: 0n, gasPrice: BigInt('0x100000') };
+
+    // 2) Fee token details (from our relayer; fallback values ok)
+    let relayerFeePerUnitGas = BigInt('1000000000');
+    try {
+      const quote = await estimateRelayerFee({ chainId, tokenAddress, amount: String(erc20AmountRecipients[0].amount) });
+      if (quote?.feeEstimate?.feePerUnitGas) relayerFeePerUnitGas = BigInt(quote.feeEstimate.feePerUnitGas);
+    } catch {}
+    const feeTokenDetails = { tokenAddress, feePerUnitGas: relayerFeePerUnitGas };
+
+    // 3) Estimate
+    const { gasEstimate } = await gasEstimateForUnprovenTransfer(
+      TXIDVersion.V2_PoseidonMerkle,
+      networkName,
+      railgunWalletID,
+      encryptionKey,
+      memoText,
+      erc20AmountRecipients,
+      [],
+      originalGasDetails,
+      feeTokenDetails,
+      false,
+    );
+    const transactionGasDetails = { evmGasType, gasEstimate, ...originalGasDetails };
+
+    // 4) Proof with broadcaster fee to our relayer Railgun address
+    const relayerRailgunAddress = await getRelayerAddress();
+    const relayerFeeAmount = BigInt(quote?.feeEstimate?.relayerFee || 0);
+    const relayerFeeERC20AmountRecipient = {
+      tokenAddress,
+      recipientAddress: relayerRailgunAddress,
+      amount: relayerFeeAmount,
+    };
+    const overallBatchMinGasPrice = await calculateGasPrice(transactionGasDetails);
+    await generateTransferProof(
+      TXIDVersion.V2_PoseidonMerkle,
+      networkName,
+      railgunWalletID,
+      encryptionKey,
+      true,
+      memoText,
+      erc20AmountRecipients,
+      [],
+      relayerFeeERC20AmountRecipient,
+      false,
+      overallBatchMinGasPrice,
+      () => {},
+    );
+
+    // 5) Populate
+    const { transaction } = await populateProvedTransfer(
+      TXIDVersion.V2_PoseidonMerkle,
+      networkName,
+      railgunWalletID,
+      true,
+      memoText,
+      erc20AmountRecipients,
+      [],
+      relayerFeeERC20AmountRecipient,
+      false,
+      overallBatchMinGasPrice,
+      transactionGasDetails,
+    );
+
+    // 6) Submit via our relayer
+    const serializedTransaction = '0x' + Buffer.from(JSON.stringify({
+      to: transaction.to,
+      data: transaction.data,
+      value: transaction.value || '0x0',
+      gasLimit: transaction.gasLimit?.toString(),
+      gasPrice: transaction.gasPrice?.toString(),
+      maxFeePerGas: transaction.maxFeePerGas?.toString(),
+      maxPriorityFeePerGas: transaction.maxPriorityFeePerGas?.toString(),
+      type: transaction.type,
+    })).toString('hex');
+
+    const relayed = await submitRelayedTransaction({
+      chainId,
+      serializedTransaction,
+      tokenAddress,
+      amount: String(erc20AmountRecipients[0].amount),
+      userAddress: null,
+      feeDetails: {},
+      gasEstimate: transactionGasDetails.gasEstimate?.toString?.(),
+    });
+
+    return { transactionHash: relayed.transactionHash, relayed: true };
+  } catch (e) {
+    throw e;
+  }
 };
 
