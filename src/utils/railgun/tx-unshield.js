@@ -1523,7 +1523,11 @@ export const privateTransferWithRelayer = async ({
       { tokenAddress, recipientAddress: erc20AmountRecipients[0].recipientAddress, amount: netToRecipient },
     ];
     const relayAdaptShieldNFTRecipients = [];
-    const crossContractCalls = [];
+    // Add a benign read-only call so RelayAdapt bundle is valid in relayer mode
+    const { ethers } = await import('ethers');
+    const erc20Interface = new ethers.Interface(['function decimals() view returns (uint8)']);
+    const readOnlyData = erc20Interface.encodeFunctionData('decimals', []);
+    const crossContractCalls = [{ to: tokenAddress, data: readOnlyData, value: 0n }];
 
     // 4) Estimate via cross-contract calls (RelayAdapt)
     const { gasEstimate } = await gasEstimateForUnprovenCrossContractCalls(
