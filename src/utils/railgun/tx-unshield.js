@@ -1583,7 +1583,15 @@ export const privateTransferWithRelayer = async ({
       tokenAddress,
       amount: String(erc20AmountRecipients[0].amount),
       userAddress: null,
-      feeDetails: {},
+      feeDetails: {
+        relayerFee: relayerFeeAmount.toString(),
+        protocolFee: '0',
+        totalFee: relayerFeeAmount.toString(),
+        relayerAddress: relayerRailgunAddress,
+        chainId: String(chainId),
+        tokenAddress,
+        proofTimestamp: new Date().toISOString(),
+      },
       gasEstimate: transactionGasDetails.gasEstimate?.toString?.(),
     });
 
