@@ -8,12 +8,15 @@
 
 import { waitForRailgunReady } from './engine.js';
 
-const waitForSpendableUpdate = (walletId, targetChainId, timeoutMs = 30000) => {
+const waitForBalanceUpdate = (walletId, targetChainId, timeoutMs = 30000) => {
   return new Promise((resolve) => {
-    const start = Date.now();
+    let lastEvent = null;
     const handler = (event) => {
       const ev = event.detail || {};
-      if (ev.railgunWalletID === walletId && ev.chain?.id === targetChainId && ev.balanceBucket === 'Spendable') {
+      if (ev.railgunWalletID !== walletId || ev.chain?.id !== targetChainId) return;
+      // Prefer Spendable bucket, but remember any event for fallback
+      lastEvent = ev;
+      if (ev.balanceBucket === 'Spendable') {
         window.removeEventListener('railgun-balance-update', handler);
         resolve(ev);
       }
@@ -21,7 +24,13 @@ const waitForSpendableUpdate = (walletId, targetChainId, timeoutMs = 30000) => {
     window.addEventListener('railgun-balance-update', handler);
     setTimeout(() => {
       window.removeEventListener('railgun-balance-update', handler);
-      resolve(null);
+      if (!lastEvent) {
+        console.warn('[SyncBalances] No balance callback received within timeout; skipping persist');
+        resolve(null);
+      } else {
+        console.warn('[SyncBalances] No Spendable callback; using latest balance callback as fallback');
+        resolve(lastEvent);
+      }
     }, timeoutMs);
   });
 };
@@ -40,14 +49,13 @@ export const refreshAndOverwriteBalances = async ({ walletAddress, walletId, cha
     await refreshBalances(network, [walletId]);
 
     // Wait for spendable callback
-    const spendableEvent = await waitForSpendableUpdate(walletId, chainId, 30000);
-    if (!spendableEvent || !Array.isArray(spendableEvent.erc20Amounts)) {
-      console.warn('[SyncBalances] No spendable callback received within timeout; skipping persist');
+    const balanceEvent = await waitForBalanceUpdate(walletId, chainId, 30000);
+    if (!balanceEvent || !Array.isArray(balanceEvent.erc20Amounts)) {
       return false;
     }
 
     // Convert SDK tokens to our storage format
-    const privateBalances = spendableEvent.erc20Amounts.map((t) => {
+    const privateBalances = balanceEvent.erc20Amounts.map((t) => {
       const tokenAddress = String(t.tokenAddress || '').toLowerCase();
       const decimals = getTokenDecimals(tokenAddress, chainId) ?? 18;
       const tokenInfo = getTokenInfo(tokenAddress, chainId);
