@@ -96,29 +96,28 @@ const WalletPage = () => {
     try {
       console.log('[WalletPage] 🔄 Hybrid refresh - Public from blockchain + Private from Redis...');
       
-      // 1. Refresh public balances from blockchain (real-time)
-      if (isConnected && address) {
-        console.log('[WalletPage] 💰 Refreshing public balances from blockchain...');
-        await refreshAllBalances();
-      }
-      
-      // 2. Load private balances from Redis (accumulated)
-      if (canUseRailgun && railgunWalletId && address) {
-        console.log('[WalletPage] 🛡️ Loading private balances from Redis...');
-        const loadedSuccessfully = await loadPrivateBalancesFromMetadata(address, railgunWalletId);
-        if (loadedSuccessfully) {
-          console.log('[WalletPage] ✅ Successfully loaded private balances from Redis');
+      // 0) Centralized SDK refresh → overwrite Redis
+      try {
+        if (canUseRailgun && railgunWalletId && address && chainId) {
+          const { refreshAndOverwriteBalances } = await import('../utils/railgun/syncBalances.js');
+          console.log('[WalletPage] ⚙️ Calling refreshAndOverwriteBalances utility');
+          await refreshAndOverwriteBalances({ walletAddress: address, walletId: railgunWalletId, chainId });
         } else {
-          console.log('[WalletPage] ℹ️ No private balances found in Redis storage');
+          console.log('[WalletPage] ⚠️ Skipping SDK refresh: missing railgun context');
         }
+      } catch (e) {
+        console.warn('[WalletPage] refreshAndOverwriteBalances failed:', e?.message);
       }
+
+      // 1) Single entry point for UI/state refresh (also re-fetches from backend)
+      await refreshAllBalances();
       
       toast.success('Balances refreshed successfully');
     } catch (error) {
       console.error('[WalletPage] Hybrid refresh failed:', error);
       toast.error('Failed to refresh balances');
     }
-  }, [isConnected, address, canUseRailgun, railgunWalletId, loadPrivateBalancesFromMetadata]); // Removed refreshAllBalances to prevent infinite loop
+  }, [refreshAllBalances]);
 
   // Auto-refresh public balances when wallet connects
   useEffect(() => {
