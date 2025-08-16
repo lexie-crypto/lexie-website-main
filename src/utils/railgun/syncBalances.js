@@ -64,13 +64,25 @@ export const refreshAndOverwriteBalances = async ({ walletAddress, walletId, cha
       };
     });
 
-    // Persist to Redis via metadata store endpoint
+    // Retrieve existing meta to include railgunAddress (required by backend)
+    let railgunAddress = null;
+    try {
+      const metaResp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(walletAddress)}`);
+      if (metaResp.ok) {
+        const metaJson = await metaResp.json();
+        const entry = metaJson?.keys?.find((k) => k.walletId === walletId);
+        railgunAddress = entry?.railgunAddress || null;
+      }
+    } catch (_) {}
+
+    // Persist to Redis via metadata store endpoint (include railgunAddress when available)
     const response = await fetch('/api/wallet-metadata', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         walletAddress,
         walletId,
+        ...(railgunAddress ? { railgunAddress } : {}),
         privateBalances,
         lastBalanceUpdate: new Date().toISOString(),
       }),
