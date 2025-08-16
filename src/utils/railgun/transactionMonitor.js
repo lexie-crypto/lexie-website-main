@@ -1103,13 +1103,14 @@ export const monitorUnshieldTransaction = async (txHash, chainId, railgunWalletI
 /**
  * NEW: Monitor private transfer transaction
  */
-export const monitorTransferTransaction = async (txHash, chainId, railgunWalletId) => {
+export const monitorTransferTransaction = async (txHash, chainId, railgunWalletId, transactionDetails = null) => {
   console.log('[TransactionMonitor] 🔄 Monitoring transfer transaction:', txHash);
   
   return await monitorTransactionInGraph({
     txHash,
     chainId,
     transactionType: 'transfer',
+    transactionDetails: transactionDetails || { walletId: railgunWalletId },
     listener: async (event) => {
       console.log(`[TransactionMonitor] ✅ Transfer tx ${txHash} indexed on chain ${chainId}`);
       
@@ -1121,7 +1122,8 @@ export const monitorTransferTransaction = async (txHash, chainId, railgunWalletI
             chainId,
             transactionType: 'transfer',
             event,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            ...(transactionDetails || { walletId: railgunWalletId })
           }
         }));
       }

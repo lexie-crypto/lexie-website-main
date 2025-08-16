@@ -1594,6 +1594,21 @@ export const privateTransferWithRelayer = async ({
       gasEstimate: transactionGasDetails.gasEstimate?.toString?.(),
     });
 
+    // Start monitoring so recipient’s private balance is persisted to Redis and UI updates
+    try {
+      const { monitorTransferTransaction } = await import('./transactionMonitor.js');
+      await monitorTransferTransaction(
+        relayed.transactionHash,
+        chainId,
+        railgunWalletID,
+        {
+          walletId: railgunWalletID,
+          tokenAddress,
+          amount: String(erc20AmountRecipients[0].amount),
+        }
+      );
+    } catch (_) {}
+
     return { transactionHash: relayed.transactionHash, relayed: true };
   } catch (e) {
     throw e;
