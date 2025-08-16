@@ -1009,16 +1009,18 @@ export const monitorTransactionInGraph = async ({
           detail: eventDetail
         }));
 
-        // ⚙️ Trigger SDK refreshBalances to make SDK the source of truth per docs
+        // ⚙️ Centralized refresh & persist using shared utility
         try {
-          const { refreshBalances } = await import('@railgun-community/wallet');
-          const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
-          const network = Object.values(NETWORK_CONFIG).find((c) => c.chain.id === chainId)?.chain;
-          if (network && transactionDetails?.walletId) {
-            await refreshBalances(network, [transactionDetails.walletId]);
+          if (transactionDetails?.walletId && transactionDetails?.walletAddress) {
+            const { refreshAndOverwriteBalances } = await import('./syncBalances.js');
+            await refreshAndOverwriteBalances({
+              walletAddress: transactionDetails.walletAddress,
+              walletId: transactionDetails.walletId,
+              chainId,
+            });
           }
         } catch (rfErr) {
-          console.warn('[TransactionMonitor] ⚠️ refreshBalances failed:', rfErr?.message);
+          console.warn('[TransactionMonitor] ⚠️ refreshAndOverwriteBalances failed:', rfErr?.message);
         }
 
         return { found: true, elapsedTime: Date.now() - startTime };

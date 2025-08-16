@@ -400,9 +400,15 @@ export function useBalances() {
       setPublicBalances(publicWithUSD);
       setLastUpdated(Date.now());
 
-      // Refresh private balances from backend to reflect transfers/dust
+      // Refresh private balances via centralized SDK refresh + persist, then load from backend
       try {
         if (railgunWalletId) {
+          try {
+            const { refreshAndOverwriteBalances } = await import('../utils/railgun/syncBalances.js');
+            await refreshAndOverwriteBalances({ walletAddress: address, walletId: railgunWalletId, chainId });
+          } catch (e) {
+            console.warn('[useBalances] Central refreshAndOverwriteBalances failed:', e?.message);
+          }
           const resp = await fetch(`/api/wallet-metadata?action=balances&walletAddress=${address}&walletId=${railgunWalletId}`);
           if (resp.ok) {
             const json = await resp.json();

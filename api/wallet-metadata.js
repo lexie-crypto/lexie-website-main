@@ -258,6 +258,11 @@ export default async function handler(req, res) {
         backendPath = '/api/wallet-notes/capture-change';
         console.log(`🔄 [WALLET-METADATA-PROXY-${requestId}] POST capture change note`);
 
+      } else if (action === 'credit-transfer') {
+        // Handle POST: credit recipient after private transfer (reverse index)
+        backendPath = '/api/wallet-notes/credit-transfer';
+        console.log(`💳 [WALLET-METADATA-PROXY-${requestId}] POST credit transfer`);
+
       } else if (action === 'mark-spent') {
         // Handle POST: mark note as spent
         backendPath = '/api/wallet-notes/mark-spent';

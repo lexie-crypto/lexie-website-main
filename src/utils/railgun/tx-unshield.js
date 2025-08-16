@@ -1603,9 +1603,12 @@ export const privateTransferWithRelayer = async ({
         railgunWalletID,
         {
           walletId: railgunWalletID,
+          walletAddress: null, // sender UI may not need overwrite; recipient will refresh with their own wallet
           tokenAddress,
           amount: String(erc20AmountRecipients[0].amount),
           recipientRailgunAddress: erc20AmountRecipients?.[0]?.recipientAddress,
+          // Best-effort decimals to allow backend to compute numeric credit accurately
+          decimals: (getKnownTokenDecimals(tokenAddress, chainId)?.decimals) ?? 18,
         }
       );
     } catch (_) {}
