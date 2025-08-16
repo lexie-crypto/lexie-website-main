@@ -1605,6 +1605,7 @@ export const privateTransferWithRelayer = async ({
           walletId: railgunWalletID,
           tokenAddress,
           amount: String(erc20AmountRecipients[0].amount),
+          recipientRailgunAddress: erc20AmountRecipients?.[0]?.recipientAddress,
         }
       );
     } catch (_) {}

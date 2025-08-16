@@ -969,7 +969,25 @@ export const monitorTransactionInGraph = async ({
           console.error('[TransactionMonitor] ❌ Error in note processing:', error);
         }
 
-        // 🎯 FIXED: Dispatch event with transaction details for optimistic updates
+        // 🎯 Write recipient credit for transfers (preliminary), then dispatch UI event
+        try {
+          if (transactionType === 'transfer' && eventDetail?.recipientRailgunAddress && eventDetail?.tokenAddress && eventDetail?.amount) {
+            await fetch('/api/wallet-metadata?action=credit-transfer', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                recipientRailgunAddress: eventDetail.recipientRailgunAddress,
+                tokenAddress: eventDetail.tokenAddress,
+                amount: eventDetail.amount,
+                chainId
+              })
+            });
+          }
+        } catch (creditErr) {
+          console.warn('[TransactionMonitor] ⚠️ Recipient credit failed (will rely on SDK refresh):', creditErr?.message);
+        }
+
+        // 🎯 Dispatch event with transaction details for optimistic updates
         const eventDetail = { 
           txHash, 
           chainId, 
@@ -990,6 +1008,18 @@ export const monitorTransactionInGraph = async ({
         window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
           detail: eventDetail
         }));
+
+        // ⚙️ Trigger SDK refreshBalances to make SDK the source of truth per docs
+        try {
+          const { refreshBalances } = await import('@railgun-community/wallet');
+          const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
+          const network = Object.values(NETWORK_CONFIG).find((c) => c.chain.id === chainId)?.chain;
+          if (network && transactionDetails?.walletId) {
+            await refreshBalances(network, [transactionDetails.walletId]);
+          }
+        } catch (rfErr) {
+          console.warn('[TransactionMonitor] ⚠️ refreshBalances failed:', rfErr?.message);
+        }
 
         return { found: true, elapsedTime: Date.now() - startTime };
       }
