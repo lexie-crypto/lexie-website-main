@@ -333,31 +333,14 @@ const WalletContextProvider = ({ children }) => {
               railgunAddress: metaKey.railgunAddress,
               signature: metaKey.signature,
               encryptedMnemonic: metaKey.encryptedMnemonic,
-              privateBalances: metaKey.privateBalances,
+              // IMPORTANT: Never include privateBalances on init/refresh writes
               scannedChains: Array.from(new Set([...(metaKey.scannedChains || []), railgunChain.id]))
             };
           }
         }
 
-        // Post updated metadata back via existing endpoint
-        const persistResp = await fetch('/api/wallet-metadata', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            walletAddress: address,
-            walletId: railgunWalletID,
-            ...existing,
-            scannedChains: Array.from(new Set([...(existing.scannedChains || []), railgunChain.id]))
-          })
-        });
-        if (persistResp.ok) {
-          console.log('[Railgun Init] 💾 Persisted scannedChains to Redis:', {
-            chainId: railgunChain.id,
-            walletId: railgunWalletID?.slice(0,8) + '...'
-          });
-        } else {
-          console.warn('[Railgun Init] ⚠️ Failed to persist scannedChains to Redis:', await persistResp.text());
-        }
+        // Disabled: Never write to Redis on page load/refresh
+        console.log('[Railgun Init] 🔒 Skipping scannedChains persistence on load (read-only mode)');
       } catch {}
 
       console.log('[Railgun Init] ✅ Initial scan complete for chain', railgunChain.id);
@@ -956,22 +939,13 @@ const WalletContextProvider = ({ children }) => {
                         railgunAddress: metaKey.railgunAddress,
                         signature: metaKey.signature,
                         encryptedMnemonic: metaKey.encryptedMnemonic,
-                        privateBalances: metaKey.privateBalances,
+                        // IMPORTANT: Never include privateBalances on init/refresh writes
                         scannedChains,
                       };
                     }
                   }
-                  const persistResp = await fetch('/api/wallet-metadata', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ walletAddress: address, walletId: railgunWalletInfo.id, ...existing })
-                  });
-                  if (persistResp.ok) {
-                    console.log('[Railgun Init] 💾 Persisted scannedChains to Redis:', {
-                      chainId: railgunChain.id,
-                      walletId: railgunWalletInfo.id?.slice(0,8) + '...'
-                    });
-                  }
+                  // Disabled: Never write to Redis on page load/refresh
+                  console.log('[Railgun Init] 🔒 Skipping scannedChains persistence on load (read-only mode)');
                 } catch {}
                 console.log('[Railgun Init] ✅ Initial scan complete for chain', railgunChain.id);
               }
@@ -1397,24 +1371,13 @@ const WalletContextProvider = ({ children }) => {
                     railgunAddress: metaKey.railgunAddress,
                     signature: metaKey.signature,
                     encryptedMnemonic: metaKey.encryptedMnemonic,
-                    privateBalances: metaKey.privateBalances,
+                    // IMPORTANT: Never include privateBalances on init/refresh writes
                     scannedChains,
                   };
                 }
               }
-            const persistResp = await fetch('/api/wallet-metadata', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ walletAddress: address, walletId: railgunWalletInfo.id, ...existing })
-            });
-            if (persistResp.ok) {
-              console.log('[Railgun Init] 💾 Persisted scannedChains to Redis:', {
-                chainId: railgunChain.id,
-                walletId: railgunWalletInfo.id?.slice(0,8) + '...'
-              });
-            } else {
-              console.warn('[Railgun Init] ⚠️ Failed to persist scannedChains to Redis:', await persistResp.text());
-            }
+            // Disabled: Never write to Redis on page load/refresh
+            console.log('[Railgun Init] 🔒 Skipping scannedChains persistence on load (read-only mode)');
             } catch {}
             console.log('[Railgun Init] ✅ Initial scan complete for chain', railgunChain.id);
           } else {
