@@ -1012,15 +1012,15 @@ export const monitorTransactionInGraph = async ({
         // ⚙️ Centralized refresh & persist using shared utility
         try {
           if (transactionDetails?.walletId && transactionDetails?.walletAddress) {
-            const { refreshAndOverwriteBalances } = await import('./syncBalances.js');
-            await refreshAndOverwriteBalances({
+            const { syncBalancesAfterTransaction } = await import('./syncBalances.js');
+            await syncBalancesAfterTransaction({
               walletAddress: transactionDetails.walletAddress,
               walletId: transactionDetails.walletId,
               chainId,
             });
           }
         } catch (rfErr) {
-          console.warn('[TransactionMonitor] ⚠️ refreshAndOverwriteBalances failed:', rfErr?.message);
+          console.warn('[TransactionMonitor] ⚠️ syncBalancesAfterTransaction failed:', rfErr?.message);
         }
 
         return { found: true, elapsedTime: Date.now() - startTime };

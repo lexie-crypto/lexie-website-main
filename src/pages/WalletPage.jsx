@@ -98,9 +98,9 @@ const WalletPage = () => {
       
       // 0) Centralized SDK refresh → overwrite Redis
       try {
-        const { refreshAndOverwriteBalances } = await import('../utils/railgun/syncBalances.js');
-        console.log('[WalletPage] ⚙️ Calling refreshAndOverwriteBalances utility');
-        await refreshAndOverwriteBalances({ walletAddress: address, walletId: railgunWalletId, chainId });
+        const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
+        console.log('[WalletPage] ⚙️ Calling syncBalancesAfterTransaction utility');
+        await syncBalancesAfterTransaction({ walletAddress: address, walletId: railgunWalletId, chainId });
       } catch (e) {
         console.warn('[WalletPage] refreshAndOverwriteBalances failed:', e?.message);
       }
