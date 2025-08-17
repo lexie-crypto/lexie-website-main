@@ -82,27 +82,47 @@ export const refreshAndOverwriteBalances = async ({ walletAddress, walletId, cha
         railgunAddress = entry?.railgunAddress || null;
       }
     } catch (_) {}
-    if (!railgunAddress) {
-      console.warn('[syncBalances] Missing railgunAddress for store call; aborting persist');
+    // Persist: try store (requires railgunAddress), else fall back to overwrite-balances.
+    let persisted = false;
+    try {
+      if (railgunAddress) {
+        const resp = await fetch('/api/wallet-metadata', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            walletAddress,
+            walletId,
+            railgunAddress,
+            privateBalances,
+            lastBalanceUpdate: new Date().toISOString(),
+          }),
+        });
+        if (resp.ok) {
+          const json = await resp.json();
+          if (json.success) persisted = true;
+        }
+      }
+      if (!persisted) {
+        const ow = await fetch('/api/wallet-metadata?action=overwrite-balances', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            walletAddress,
+            walletId,
+            chainId,
+            balances: privateBalances,
+          }),
+        });
+        if (!ow.ok) throw new Error(`Overwrite persist failed: ${ow.status}`);
+        const json = await ow.json();
+        if (!json.success) throw new Error(`Overwrite persist error: ${json.error}`);
+        persisted = true;
+      }
+    } catch (persistErr) {
+      console.error('[syncBalances] Persist error:', persistErr);
       return false;
     }
-
-    // Persist via store-wallet-metadata (merges and preserves notes)
-    const resp = await fetch('/api/wallet-metadata', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        walletAddress,
-        walletId,
-        railgunAddress,
-        privateBalances,
-        lastBalanceUpdate: new Date().toISOString(),
-      }),
-    });
-    if (!resp.ok) throw new Error(`Persist failed: ${resp.status}`);
-    const json = await resp.json();
-    if (!json.success) throw new Error(`Persist error: ${json.error}`);
-    return true;
+    return persisted;
   } catch (e) {
     console.error('[syncBalances] Failed to refresh & persist balances:', e);
     return false;
