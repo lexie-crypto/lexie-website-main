@@ -8,12 +8,14 @@
 
 import { waitForRailgunReady } from './engine.js';
 
-const waitForSpendableUpdate = (walletId, targetChainId, timeoutMs = 30000) => {
+const waitForBalanceUpdate = (walletId, targetChainId, timeoutMs = 30000) => {
   return new Promise((resolve) => {
-    const start = Date.now();
+    let lastEvent = null;
     const handler = (event) => {
       const ev = event.detail || {};
-      if (ev.railgunWalletID === walletId && ev.chain?.id === targetChainId && ev.balanceBucket === 'Spendable') {
+      if (ev.railgunWalletID !== walletId || ev.chain?.id !== targetChainId) return;
+      lastEvent = ev;
+      if (ev.balanceBucket === 'Spendable') {
         window.removeEventListener('railgun-balance-update', handler);
         resolve(ev);
       }
@@ -21,7 +23,7 @@ const waitForSpendableUpdate = (walletId, targetChainId, timeoutMs = 30000) => {
     window.addEventListener('railgun-balance-update', handler);
     setTimeout(() => {
       window.removeEventListener('railgun-balance-update', handler);
-      resolve(null);
+      resolve(lastEvent);
     }, timeoutMs);
   });
 };
@@ -36,18 +38,14 @@ export const refreshAndOverwriteBalances = async ({ walletAddress, walletId, cha
     const network = Object.values(NETWORK_CONFIG).find((c) => c.chain.id === chainId)?.chain;
     if (!network) throw new Error(`No network config for chain ${chainId}`);
 
-    // Trigger SDK refresh
+    // Attach listener first; then trigger refresh
+    const waitPromise = waitForBalanceUpdate(walletId, chainId, 45000);
     await refreshBalances(network, [walletId]);
-
-    // Wait for spendable callback
-    const spendableEvent = await waitForSpendableUpdate(walletId, chainId, 30000);
-    if (!spendableEvent || !Array.isArray(spendableEvent.erc20Amounts)) {
-      console.warn('[SyncBalances] No spendable callback received within timeout; skipping persist');
-      return false;
-    }
+    const balanceEvent = await waitPromise;
+    if (!balanceEvent || !Array.isArray(balanceEvent.erc20Amounts)) return false;
 
     // Convert SDK tokens to our storage format
-    const privateBalances = spendableEvent.erc20Amounts.map((t) => {
+    const privateBalances = balanceEvent.erc20Amounts.map((t) => {
       const tokenAddress = String(t.tokenAddress || '').toLowerCase();
       const decimals = getTokenDecimals(tokenAddress, chainId) ?? 18;
       const tokenInfo = getTokenInfo(tokenAddress, chainId);
@@ -75,16 +73,15 @@ export const refreshAndOverwriteBalances = async ({ walletAddress, walletId, cha
       }
     } catch (_) {}
 
-    // Persist to Redis via metadata store endpoint (include railgunAddress when available)
-    const response = await fetch('/api/wallet-metadata', {
+    // Persist to Redis via overwrite endpoint (authoritative)
+    const response = await fetch('/api/wallet-metadata?action=overwrite-balances', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         walletAddress,
         walletId,
-        ...(railgunAddress ? { railgunAddress } : {}),
-        privateBalances,
-        lastBalanceUpdate: new Date().toISOString(),
+        chainId,
+        balances: privateBalances,
       }),
     });
     if (!response.ok) throw new Error(`Persist failed: ${response.status}`);
