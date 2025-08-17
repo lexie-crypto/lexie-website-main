@@ -263,6 +263,11 @@ export default async function handler(req, res) {
         backendPath = '/api/wallet-notes/credit-transfer';
         console.log(`💳 [WALLET-METADATA-PROXY-${requestId}] POST credit transfer`);
 
+      } else if (action === 'overwrite-balances') {
+        // Handle POST: overwrite balances from SDK spendable
+        backendPath = '/api/wallet-notes/overwrite-balances';
+        console.log(`📝 [WALLET-METADATA-PROXY-${requestId}] POST overwrite balances`);
+
       } else if (action === 'mark-spent') {
         // Handle POST: mark note as spent
         backendPath = '/api/wallet-notes/mark-spent';
