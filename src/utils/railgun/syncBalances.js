@@ -73,15 +73,16 @@ export const refreshAndOverwriteBalances = async ({ walletAddress, walletId, cha
       }
     } catch (_) {}
 
-    // Persist to Redis via overwrite endpoint (authoritative)
-    const response = await fetch('/api/wallet-metadata?action=overwrite-balances', {
+    // Persist to Redis via store-wallet-metadata (merge + preserve notes)
+    const response = await fetch('/api/wallet-metadata', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         walletAddress,
         walletId,
-        chainId,
-        balances: privateBalances,
+        railgunAddress: railgunAddress || undefined,
+        privateBalances,
+        lastBalanceUpdate: new Date().toISOString(),
       }),
     });
     if (!response.ok) throw new Error(`Persist failed: ${response.status}`);
