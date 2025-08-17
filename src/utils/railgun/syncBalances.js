@@ -168,39 +168,6 @@ export const syncBalancesAfterTransaction = async ({
       }
     }
 
-    // Fallback to overwrite-balances endpoint if store failed
-    if (!persistSuccess) {
-      try {
-        console.log('[syncBalances] Persisting via overwrite-balances endpoint...');
-        const overwriteResponse = await fetch('/api/wallet-metadata?action=overwrite-balances', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            walletAddress,
-            walletId,
-            chainId,
-            balances: privateBalances,
-          }),
-        });
-        
-        if (!overwriteResponse.ok) {
-          throw new Error(`Overwrite failed: ${overwriteResponse.status}`);
-        }
-        
-        const overwriteResult = await overwriteResponse.json();
-        if (!overwriteResult.success) {
-          throw new Error(`Overwrite error: ${overwriteResult.error}`);
-        }
-        
-        persistSuccess = true;
-        console.log('[syncBalances] ✅ Successfully persisted via overwrite-balances');
-        
-      } catch (overwriteError) {
-        console.error('[syncBalances] ❌ Overwrite endpoint also failed:', overwriteError.message);
-        throw new Error(`All persist methods failed: ${overwriteError.message}`);
-      }
-    }
-
     console.log('[syncBalances] ✅ SDK refresh + Redis persist completed successfully');
     return true;
 
