@@ -72,6 +72,21 @@ export const refreshAndOverwriteBalances = async ({ walletAddress, walletId, cha
       };
     });
 
+    // Retrieve railgunAddress required by store-wallet-metadata
+    let railgunAddress = null;
+    try {
+      const metaResp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(walletAddress)}`);
+      if (metaResp.ok) {
+        const metaJson = await metaResp.json();
+        const entry = metaJson?.keys?.find((k) => k.walletId === walletId);
+        railgunAddress = entry?.railgunAddress || null;
+      }
+    } catch (_) {}
+    if (!railgunAddress) {
+      console.warn('[syncBalances] Missing railgunAddress for store call; aborting persist');
+      return false;
+    }
+
     // Persist via store-wallet-metadata (merges and preserves notes)
     const resp = await fetch('/api/wallet-metadata', {
       method: 'POST',
@@ -79,6 +94,7 @@ export const refreshAndOverwriteBalances = async ({ walletAddress, walletId, cha
       body: JSON.stringify({
         walletAddress,
         walletId,
+        railgunAddress,
         privateBalances,
         lastBalanceUpdate: new Date().toISOString(),
       }),
