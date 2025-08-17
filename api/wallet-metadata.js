@@ -201,19 +201,9 @@ export default async function handler(req, res) {
 
     if (req.method === 'GET') {
       if (action === 'balances') {
-        // Handle GET: wallet balances with notes
-        if (!walletAddress || !walletId) {
-          console.log(`❌ [WALLET-METADATA-PROXY-${requestId}] Missing walletAddress or walletId for balances`);
-          return res.status(400).json({
-            success: false,
-            error: 'Missing walletAddress or walletId parameters'
-          });
-        }
-
-        backendPath = `/api/wallet-notes/balances?walletAddress=${encodeURIComponent(walletAddress)}&walletId=${encodeURIComponent(walletId)}`;
-        backendUrl = `https://api.lexiecrypto.com${backendPath}`;
-        
-        console.log(`📊 [WALLET-METADATA-PROXY-${requestId}] GET balances for wallet ${walletAddress?.slice(0, 8)}...`);
+        // Disabled: note-based balance endpoint removed
+        console.log(`🚫 [WALLET-METADATA-PROXY-${requestId}] GET balances disabled (note system removed)`);
+        return res.status(410).json({ success: false, error: 'balances endpoint disabled' });
 
       } else {
         // Handle GET: retrieve wallet metadata (original functionality)
@@ -243,40 +233,15 @@ export default async function handler(req, res) {
 
     } else if (req.method === 'POST') {
       // Detect POST endpoint based on action parameter or body content
-      if (action === 'unspent') {
-        // Handle POST: get unspent notes for token
-        backendPath = '/api/wallet-notes/unspent';
-        console.log(`🔍 [WALLET-METADATA-PROXY-${requestId}] POST unspent notes request`);
-
-      } else if (action === 'capture-shield') {
-        // Handle POST: capture shield note
-        backendPath = '/api/wallet-notes/capture-shield';
-        console.log(`🛡️ [WALLET-METADATA-PROXY-${requestId}] POST capture shield note`);
-
-      } else if (action === 'capture-change') {
-        // Handle POST: capture change note
-        backendPath = '/api/wallet-notes/capture-change';
-        console.log(`🔄 [WALLET-METADATA-PROXY-${requestId}] POST capture change note`);
-
-      } else if (action === 'credit-transfer') {
-        // Handle POST: credit recipient after private transfer (reverse index)
-        backendPath = '/api/wallet-notes/credit-transfer';
-        console.log(`💳 [WALLET-METADATA-PROXY-${requestId}] POST credit transfer`);
-
-      } else if (action === 'mark-spent') {
-        // Handle POST: mark note as spent
-        backendPath = '/api/wallet-notes/mark-spent';
-        console.log(`✅ [WALLET-METADATA-PROXY-${requestId}] POST mark note as spent`);
-
-      } else if (action === 'process-unshield') {
-        // Handle POST: atomic unshield operation (mark spent + capture change)
-        backendPath = '/api/wallet-notes/process-unshield';
-        console.log(`⚛️ [WALLET-METADATA-PROXY-${requestId}] POST atomic unshield operation`);
+      if (action === 'store-balances') {
+        // Handle POST: store balances only
+        backendPath = '/api/store-wallet-balances';
+        console.log(`💾 [WALLET-METADATA-PROXY-${requestId}] POST store balances`);
 
       } else {
-        // Handle POST: store wallet metadata (original functionality)
-        backendPath = '/api/store-wallet-metadata';
-        console.log(`💾 [WALLET-METADATA-PROXY-${requestId}] POST store wallet metadata`);
+        // Disabled: prevent balance writes via proxy
+        console.log(`🚫 [WALLET-METADATA-PROXY-${requestId}] POST store-wallet-metadata disabled`);
+        return res.status(410).json({ success: false, error: 'store-wallet-metadata disabled' });
       }
 
       backendUrl = `https://api.lexiecrypto.com${backendPath}`;

@@ -170,49 +170,7 @@ const getKnownTokenDecimals = (tokenAddress, chainId) => {
   return chainTokens[address] || null;
 };
 
-/**
- * Get unspent notes for unshield operation using Redis/Graph data
- */
-const getUnspentNotesForUnshield = async (walletAddress, railgunWalletID, tokenAddress, requiredAmount) => {
-  try {
-    console.log('📝 [UNSHIELD] Getting unspent notes from Redis...', {
-      walletAddress: walletAddress?.slice(0, 8) + '...',
-      tokenAddress: tokenAddress?.slice(0, 10) + '...',
-      requiredAmount,
-    });
-
-    const response = await fetch(`/api/wallet-metadata?action=unspent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        walletAddress,
-        walletId: railgunWalletID,
-        tokenAddress,
-        requiredAmount
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to get unspent notes: ${response.status}`);
-    }
-
-    const result = await response.json();
-    if (!result.success) {
-      throw new Error(`Note retrieval failed: ${result.error}`);
-    }
-
-    const unspentNotes = result.notes || [];
-    console.log('✅ [UNSHIELD] Retrieved unspent notes:', {
-      noteCount: unspentNotes.length,
-      totalValue: unspentNotes.reduce((sum, note) => sum + BigInt(note.value), BigInt(0)).toString(),
-    });
-    
-    return unspentNotes;
-  } catch (error) {
-    console.error('❌ [UNSHIELD] Failed to get unspent notes:', error.message);
-    throw new Error(`Cannot get unspent notes: ${error.message}`);
-  }
-};
+// Note management removed - SDK handles internally
 
 /**
  * Create ERC20AmountRecipient object for unshield
@@ -387,35 +345,7 @@ export const unshieldTokens = async ({
       throw new Error(`Failed to rescan network: ${rescanError.message}`);
     }
 
-    // STEP 3: Get unspent notes
-    console.log('📝 [UNSHIELD] Step 3: Getting unspent notes...');
-    
-    const unspentNotes = await getUnspentNotesForUnshield(walletAddress, railgunWalletID, tokenAddress, amount);
-    
-    if (unspentNotes.length === 0) {
-      throw new Error('No unspent notes available for this token');
-    }
-
-    const totalAvailable = unspentNotes.reduce((sum, note) => sum + BigInt(note.value), BigInt(0));
-    const requiredAmount = BigInt(amount);
-    
-    if (totalAvailable < requiredAmount) {
-      throw new Error(`Insufficient unspent notes. Available: ${totalAvailable.toString()}, Required: ${requiredAmount.toString()}`);
-    }
-
-    console.log('✅ [UNSHIELD] Note validation passed:', {
-      availableNotes: unspentNotes.length,
-      totalValue: totalAvailable.toString(),
-    });
-
-    // Try to infer the spent commitment hash when obvious (single-note wallet for token)
-    let spentCommitmentHashCandidate = null;
-    try {
-      if (Array.isArray(unspentNotes) && unspentNotes.length === 1 && unspentNotes[0]?.commitmentHash) {
-        spentCommitmentHashCandidate = unspentNotes[0].commitmentHash;
-        console.log('🧭 [UNSHIELD] Using single-note commitmentHash as spent candidate:', spentCommitmentHashCandidate?.slice?.(0, 10) + '...');
-      }
-    } catch (_) {}
+    // STEP 3: SDK handles note selection internally
 
     // STEP 4: Determine transaction method and prepare recipients
     console.log('🔧 [UNSHIELD] Step 4: Determining transaction method...');
@@ -549,20 +479,7 @@ export const unshieldTokens = async ({
     let recipientBn = afterFee;
     let feeTokenDetails = null;
     
-    // Private balance coverage precheck (include relayer fee)
-    if (useRelayer) {
-      // Calculate potential relayer fee to check total requirement
-      const potentialRelayerFee = (afterFee * RELAYER_FEE_BPS) / 10000n;
-      const requiredPrivate = unshieldIn + potentialRelayerFee; // unshielded amount + SDK private fee
-      if (totalAvailable < requiredPrivate) {
-        throw new Error(`Insufficient private balance for unshield + relayer fee. Available: ${totalAvailable.toString()}, Required: ${requiredPrivate.toString()}`);
-      }
-    } else {
-      const requiredPrivate = unshieldIn;
-      if (totalAvailable < requiredPrivate) {
-        throw new Error(`Insufficient private balance for unshield. Available: ${totalAvailable.toString()}, Required: ${requiredPrivate.toString()}`);
-      }
-    }
+    // SDK will validate balance internally
     
     if (useRelayer) {
       console.log('🔧 [UNSHIELD] Preparing RelayAdapt mode with cross-contract calls...');
@@ -1375,56 +1292,7 @@ export const unshieldTokens = async ({
       privacyLevel,
     });
 
-    // STEP 8: Start transaction monitoring
-    if (transactionHash && typeof transactionHash === 'string' && transactionHash.startsWith('0x')) {
-      console.log('🔍 [UNSHIELD] Starting transaction monitoring...');
-      
-      try {
-        const { monitorTransactionInGraph } = await import('./transactionMonitor.js');
-        
-        // Get token decimals and symbol
-        let tokenDecimals = decimals || 18;
-        let tokenSymbol = 'Unknown';
-        
-        if (decimals !== undefined && decimals !== null) {
-          tokenDecimals = decimals;
-          console.log('✅ [UNSHIELD] Using decimals from UI:', tokenDecimals);
-        } else {
-          const knownToken = getKnownTokenDecimals(tokenAddress, chain.id);
-          if (knownToken) {
-            tokenDecimals = knownToken.decimals;
-            tokenSymbol = knownToken.symbol;
-            console.log('🔧 [UNSHIELD] Using known token info:', { tokenDecimals, tokenSymbol });
-          }
-        }
-
-        // Start monitoring (non-blocking)
-        monitorTransactionInGraph({
-          txHash: transactionHash,
-          chainId: chain.id,
-          transactionType: 'unshield',
-          transactionDetails: {
-            amount,
-            tokenAddress,
-            tokenSymbol,
-            recipientAddress,
-            walletAddress,
-            walletId: railgunWalletID,
-            decimals: tokenDecimals,
-            // Hint for backend to mark the correct note as spent
-            spentCommitmentHash: spentCommitmentHashCandidate || undefined,
-          },
-          listener: (event) => {
-            console.log(`🎉 [UNSHIELD] Transaction ${transactionHash} confirmed!`);
-          }
-        }).catch(monitorError => {
-          console.warn('⚠️ [UNSHIELD] Transaction monitoring failed:', monitorError.message);
-        });
-        
-      } catch (importError) {
-        console.warn('⚠️ [UNSHIELD] Could not start transaction monitoring:', importError.message);
-      }
-    }
+    // Transaction monitoring removed - SDK handles balance updates
 
     return {
       transactionHash,
@@ -1594,24 +1462,7 @@ export const privateTransferWithRelayer = async ({
       gasEstimate: transactionGasDetails.gasEstimate?.toString?.(),
     });
 
-    // Start monitoring so recipient’s private balance is persisted to Redis and UI updates
-    try {
-      const { monitorTransferTransaction } = await import('./transactionMonitor.js');
-      await monitorTransferTransaction(
-        relayed.transactionHash,
-        chainId,
-        railgunWalletID,
-        {
-          walletId: railgunWalletID,
-          walletAddress: null, // sender UI may not need overwrite; recipient will refresh with their own wallet
-          tokenAddress,
-          amount: String(erc20AmountRecipients[0].amount),
-          recipientRailgunAddress: erc20AmountRecipients?.[0]?.recipientAddress,
-          // Best-effort decimals to allow backend to compute numeric credit accurately
-          decimals: (getKnownTokenDecimals(tokenAddress, chainId)?.decimals) ?? 18,
-        }
-      );
-    } catch (_) {}
+    // Transaction monitoring removed - SDK handles balance updates
 
     return { transactionHash: relayed.transactionHash, relayed: true };
   } catch (e) {
