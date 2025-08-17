@@ -400,15 +400,9 @@ export function useBalances() {
       setPublicBalances(publicWithUSD);
       setLastUpdated(Date.now());
 
-      // Refresh private balances via centralized SDK refresh + persist, then load from backend
+            // Refresh private balances from backend (no SDK refresh here - only on explicit Refresh button)
       try {
         if (railgunWalletId) {
-                  try {
-          const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
-          await syncBalancesAfterTransaction({ walletAddress: address, walletId: railgunWalletId, chainId });
-        } catch (e) {
-          console.warn('[useBalances] Central syncBalancesAfterTransaction failed:', e?.message);
-        }
           const resp = await fetch(`/api/wallet-metadata?action=balances&walletAddress=${address}&walletId=${railgunWalletId}`);
           if (resp.ok) {
             const json = await resp.json();
