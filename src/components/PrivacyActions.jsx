@@ -530,7 +530,13 @@ const PrivacyActions = () => {
           txHash: tx.txHash,
           chainId,
           transactionType: 'transfer',
-          transactionDetails: { walletId: railgunWalletId },
+          transactionDetails: {
+            walletId: railgunWalletId,
+            walletAddress: address,
+            tokenAddress: selectedToken.address || selectedToken.tokenAddress,
+            decimals: selectedToken.decimals,
+            amount: amountInUnits,
+          },
         }).catch(() => {});
       } catch {}
 
