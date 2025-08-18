@@ -96,16 +96,7 @@ const WalletPage = () => {
     try {
       console.log('[WalletPage] 🔄 Hybrid refresh - Public from blockchain + Private from Redis...');
       
-      // 0) Centralized SDK refresh → overwrite Redis
-      try {
-        const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
-        console.log('[WalletPage] ⚙️ Calling syncBalancesAfterTransaction utility');
-        await syncBalancesAfterTransaction({ walletAddress: address, walletId: railgunWalletId, chainId });
-      } catch (e) {
-        console.warn('[WalletPage] refreshAndOverwriteBalances failed:', e?.message);
-      }
-
-      // 1) Single entry point for UI/state refresh (also re-fetches from backend)
+      // Single entry point for UI/state refresh (public from chain + private from Redis)
       await refreshAllBalances();
       
       toast.success('Balances refreshed successfully');
