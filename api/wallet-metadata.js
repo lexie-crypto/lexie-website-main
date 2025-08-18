@@ -205,6 +205,16 @@ export default async function handler(req, res) {
         console.log(`🚫 [WALLET-METADATA-PROXY-${requestId}] GET balances disabled (note system removed)`);
         return res.status(410).json({ success: false, error: 'balances endpoint disabled' });
 
+      } else if (action === 'lexie-status') {
+        const lexieID = req.query.lexieID;
+        backendPath = `/lexie/status?lexieID=${encodeURIComponent(lexieID)}`;
+        backendUrl = `https://api.lexiecrypto.com${backendPath}`;
+        console.log(`🔍 [WALLET-METADATA-PROXY-${requestId}] GET Lexie status for ${lexieID}`);
+      } else if (action === 'lexie-resolve') {
+        const lexieID = req.query.lexieID;
+        backendPath = `/lexie/resolve?lexieID=${encodeURIComponent(lexieID)}`;
+        backendUrl = `https://api.lexiecrypto.com${backendPath}`;
+        console.log(`🔍 [WALLET-METADATA-PROXY-${requestId}] GET Lexie resolve for ${lexieID}`);
       } else {
         // Handle GET: retrieve wallet metadata (original functionality)
         if (!walletAddress) {
@@ -238,13 +248,23 @@ export default async function handler(req, res) {
         backendPath = '/api/store-wallet-balances';
         console.log(`💾 [WALLET-METADATA-PROXY-${requestId}] POST store balances`);
 
+      } else if (action === 'lexie-link-start') {
+        backendPath = '/lexie/link/start';
+        backendUrl = `https://api.lexiecrypto.com${backendPath}`;
+        console.log(`🔗 [WALLET-METADATA-PROXY-${requestId}] POST Lexie link start`);
+
+      } else if (action === 'lexie-link-verify') {
+        backendPath = '/lexie/link/verify';
+        backendUrl = `https://api.lexiecrypto.com${backendPath}`;
+        console.log(`✅ [WALLET-METADATA-PROXY-${requestId}] POST Lexie link verify`);
+
       } else {
         // Default: store wallet metadata (signature, encryptedMnemonic, reverse index, balances merge)
         backendPath = '/api/store-wallet-metadata';
         console.log(`💾 [WALLET-METADATA-PROXY-${requestId}] POST store wallet metadata`);
       }
 
-      backendUrl = `https://api.lexiecrypto.com${backendPath}`;
+      backendUrl = backendUrl || `https://api.lexiecrypto.com${backendPath}`;
       
       const signature = generateHmacSignature('POST', backendPath, timestamp, hmacSecret);
       
