@@ -91,48 +91,34 @@ const WalletPage = () => {
     return () => { mounted = false; };
   }, [canUseRailgun, railgunWalletId, address, chainId]);
 
-  // Hybrid refresh: Public from blockchain + Private from Redis  
+  // Full refresh: SDK refresh + Redis persist, then UI reload (public from chain + private from Redis)
   const refreshBalances = useCallback(async () => {
     try {
-      console.log('[WalletPage] 🔄 Hybrid refresh - Public from blockchain + Private from Redis...');
-      
-      // Single entry point for UI/state refresh (public from chain + private from Redis)
+      console.log('[WalletPage] 🔄 Full refresh — SDK refresh + Redis persist, then UI fetch...');
+
+      // Step 1: Trigger SDK refresh + persist authoritative balances to Redis
+      try {
+        if (railgunWalletId && address && chainId) {
+          const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
+          await syncBalancesAfterTransaction({
+            walletAddress: address,
+            walletId: railgunWalletId,
+            chainId,
+          });
+        }
+      } catch (sdkErr) {
+        console.warn('[WalletPage] ⚠️ SDK refresh + persist failed (continuing to UI refresh):', sdkErr?.message);
+      }
+
+      // Step 2: Refresh UI from sources of truth
       await refreshAllBalances();
 
-      // After UI shows latest private balances, persist them to Redis (no SDK callback)
-      try {
-        if (address && railgunWalletId && Array.isArray(privateBalances) && privateBalances.length > 0) {
-          const balancesPayload = privateBalances.map((t) => ({
-            symbol: t.symbol,
-            tokenAddress: t.address || t.tokenAddress,
-            decimals: t.decimals ?? 18,
-            chainId,
-            numericBalance: Number(t.numericBalance || 0),
-            lastUpdated: new Date().toISOString(),
-          }));
-
-          await fetch('/api/wallet-metadata?action=store-balances', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              walletAddress: address,
-              walletId: railgunWalletId,
-              chainId,
-              balances: balancesPayload,
-            }),
-          });
-          console.log('[WalletPage] 💾 Persisted current private balances to Redis (refresh path)');
-        }
-      } catch (e) {
-        console.warn('[WalletPage] ⚠️ Persist private balances after refresh failed:', e?.message);
-      }
-      
       toast.success('Balances refreshed successfully');
     } catch (error) {
-      console.error('[WalletPage] Hybrid refresh failed:', error);
+      console.error('[WalletPage] Full refresh failed:', error);
       toast.error('Failed to refresh balances');
     }
-  }, [refreshAllBalances]);
+  }, [refreshAllBalances, railgunWalletId, address, chainId]);
 
   // Auto-refresh public balances when wallet connects
   useEffect(() => {
