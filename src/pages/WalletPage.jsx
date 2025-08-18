@@ -98,6 +98,34 @@ const WalletPage = () => {
       
       // Single entry point for UI/state refresh (public from chain + private from Redis)
       await refreshAllBalances();
+
+      // After UI shows latest private balances, persist them to Redis (no SDK callback)
+      try {
+        if (address && railgunWalletId && Array.isArray(privateBalances) && privateBalances.length > 0) {
+          const balancesPayload = privateBalances.map((t) => ({
+            symbol: t.symbol,
+            tokenAddress: t.address || t.tokenAddress,
+            decimals: t.decimals ?? 18,
+            chainId,
+            numericBalance: Number(t.numericBalance || 0),
+            lastUpdated: new Date().toISOString(),
+          }));
+
+          await fetch('/api/wallet-metadata?action=store-balances', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              walletAddress: address,
+              walletId: railgunWalletId,
+              chainId,
+              balances: balancesPayload,
+            }),
+          });
+          console.log('[WalletPage] 💾 Persisted current private balances to Redis (refresh path)');
+        }
+      } catch (e) {
+        console.warn('[WalletPage] ⚠️ Persist private balances after refresh failed:', e?.message);
+      }
       
       toast.success('Balances refreshed successfully');
     } catch (error) {
