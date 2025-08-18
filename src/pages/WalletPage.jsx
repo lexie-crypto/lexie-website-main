@@ -130,6 +130,15 @@ const WalletPage = () => {
     }
   }, [canUseRailgun, railgunWalletId]);
 
+  // Re-check readiness immediately after scan completes and Redis updates
+  useEffect(() => {
+    const onScanComplete = () => {
+      checkChainReady().then((ready) => setIsChainReady(!!ready)).catch(() => {});
+    };
+    window.addEventListener('railgun-scan-complete', onScanComplete);
+    return () => window.removeEventListener('railgun-scan-complete', onScanComplete);
+  }, [checkChainReady]);
+
   // Show signature guide on first-time EOA connection
   useEffect(() => {
     if (isConnected && address && !canUseRailgun && !isInitializingRailgun) {
