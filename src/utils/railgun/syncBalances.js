@@ -94,9 +94,9 @@ export const syncBalancesAfterTransaction = async ({
     console.log('[syncBalances] Waiting for SDK balance callback...');
     const balanceCallback = await callbackPromise;
     
-    if (!balanceCallback || !Array.isArray(balanceCallback.erc20Amounts)) {
-      console.warn('[syncBalances] No SDK callback received, but proceeding with empty balances to ensure Redis write');
-      // Continue with empty array to ensure we always write to Redis
+    if (!balanceCallback || !Array.isArray(balanceCallback.erc20Amounts) || balanceCallback.erc20Amounts.length === 0) {
+      console.warn('[syncBalances] No usable SDK balance callback received; skipping persist to avoid overwriting Redis with empty data');
+      return false; // Do NOT overwrite Redis with empty balances
     }
 
     // STEP 4: Convert SDK callback data to our storage format
@@ -137,7 +137,7 @@ export const syncBalancesAfterTransaction = async ({
       console.warn('[syncBalances] Failed to get railgunAddress:', metaError.message);
     }
 
-    // STEP 6: ALWAYS persist to Redis - try store endpoint first, fallback to overwrite
+    // STEP 6: Persist to Redis - try store endpoint first, fallback to overwrite
     let persistSuccess = false;
     
     // Try store-wallet-metadata endpoint (requires railgunAddress)
