@@ -1653,12 +1653,21 @@ const WalletContextProvider = ({ children }) => {
     checkChainReady: async () => {
       try {
         if (!address || !railgunWalletID || !chainId) return false;
-        const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-        if (!resp.ok) return false;
-        const data = await resp.json();
-        const meta = data?.keys?.find((k) => k.walletId === railgunWalletID);
-        const scannedChains = meta?.scannedChains || [];
-        return Array.isArray(scannedChains) && scannedChains.includes(chainId);
+        // Prefer Redis flag when available
+        try {
+          const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+          if (resp.ok) {
+            const data = await resp.json();
+            const meta = data?.keys?.find((k) => k.walletId === railgunWalletID);
+            const scannedChains = meta?.scannedChains || [];
+            if (Array.isArray(scannedChains) && scannedChains.includes(chainId)) return true;
+          }
+        } catch {}
+        // Fallback: use SDK in-memory scan marker
+        const scannedInWindow = (typeof window !== 'undefined') &&
+          window.__RAILGUN_INITIAL_SCAN_DONE &&
+          window.__RAILGUN_INITIAL_SCAN_DONE[chainId];
+        return !!scannedInWindow;
       } catch {
         return false;
       }
