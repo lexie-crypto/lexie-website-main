@@ -207,13 +207,13 @@ export default async function handler(req, res) {
 
       } else if (action === 'lexie-status') {
         const lexieID = req.query.lexieID;
-        backendPath = `/lexie/status?lexieID=${encodeURIComponent(lexieID)}`;
+        backendPath = `/api/status?lexieID=${encodeURIComponent(lexieID)}`;
         backendUrl = `https://api.lexiecrypto.com${backendPath}`;
         console.log(`🔍 [WALLET-METADATA-PROXY-${requestId}] GET Lexie status for ${lexieID}`);
 
       } else if (action === 'lexie-resolve') {
         const lexieID = req.query.lexieID;
-        backendPath = `/lexie/resolve?lexieID=${encodeURIComponent(lexieID)}`;
+        backendPath = `/api/resolve?lexieID=${encodeURIComponent(lexieID)}`;
         backendUrl = `https://api.lexiecrypto.com${backendPath}`;
         console.log(`🔍 [WALLET-METADATA-PROXY-${requestId}] GET Lexie resolve for ${lexieID}`);
 
@@ -251,12 +251,12 @@ export default async function handler(req, res) {
         console.log(`💾 [WALLET-METADATA-PROXY-${requestId}] POST store balances`);
 
       } else if (action === 'lexie-link-start') {
-        backendPath = '/lexie/link/start';
+        backendPath = '/api/start';
         backendUrl = `https://api.lexiecrypto.com${backendPath}`;
         console.log(`🔗 [WALLET-METADATA-PROXY-${requestId}] POST Lexie link start`);
 
       } else if (action === 'lexie-link-verify') {
-        backendPath = '/lexie/link/verify';
+        backendPath = '/api/verify';
         backendUrl = `https://api.lexiecrypto.com${backendPath}`;
         console.log(`✅ [WALLET-METADATA-PROXY-${requestId}] POST Lexie link verify`);
 
