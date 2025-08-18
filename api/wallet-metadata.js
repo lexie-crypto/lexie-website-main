@@ -239,9 +239,9 @@ export default async function handler(req, res) {
         console.log(`💾 [WALLET-METADATA-PROXY-${requestId}] POST store balances`);
 
       } else {
-        // Disabled: prevent balance writes via proxy
-        console.log(`🚫 [WALLET-METADATA-PROXY-${requestId}] POST store-wallet-metadata disabled`);
-        return res.status(410).json({ success: false, error: 'store-wallet-metadata disabled' });
+        // Default: store wallet metadata (signature, encryptedMnemonic, reverse index, balances merge)
+        backendPath = '/api/store-wallet-metadata';
+        console.log(`💾 [WALLET-METADATA-PROXY-${requestId}] POST store wallet metadata`);
       }
 
       backendUrl = `https://api.lexiecrypto.com${backendPath}`;
