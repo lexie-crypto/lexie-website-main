@@ -17,35 +17,36 @@
 import { waitForRailgunReady } from './engine.js';
 
 /**
- * Wait for SDK balance callback for specific wallet/chain
- * Returns the first Spendable callback, or latest callback as fallback
+ * Wait for SDK balance callback for specific wallet/chain.
+ * Mirrors the resilient logic used in transactionMonitor QuickSync:
+ * - Resolves on any balance update event for the target wallet/chain
+ * - Tracks the latest callback as fallback
+ * - Times out but still resolves with latest callback (does not reject)
  */
-const waitForSDKBalanceCallback = (walletId, chainId, timeoutMs = 30000) => {
+const waitForSDKBalanceCallback = (walletId, chainId, timeoutMs = 60000) => {
   return new Promise((resolve) => {
     let latestCallback = null;
-    
+
     const handler = (event) => {
       const callback = event.detail;
-      
+
       // Only process callbacks for our target wallet and chain
       if (callback.railgunWalletID !== walletId || callback.chain?.id !== chainId) {
         return;
       }
-      
-      // Store latest callback as fallback
+
+      // Track latest callback for fallback usage
       latestCallback = callback;
-      
-      // Prefer Spendable bucket (contains spendable balances)
-      if (callback.balanceBucket === 'Spendable') {
-        window.removeEventListener('railgun-balance-update', handler);
-        resolve(callback);
-      }
+
+      // Resolve immediately on any balance update for this wallet/chain
+      window.removeEventListener('railgun-balance-update', handler);
+      resolve(callback);
     };
-    
+
     // Attach listener
     window.addEventListener('railgun-balance-update', handler);
-    
-    // Timeout: return latest callback or null
+
+    // Timeout: resolve with latest callback (may be null)
     setTimeout(() => {
       window.removeEventListener('railgun-balance-update', handler);
       resolve(latestCallback);
@@ -84,7 +85,7 @@ export const syncBalancesAfterTransaction = async ({
 
     // STEP 1: Attach SDK callback listener BEFORE triggering refresh
     console.log('[syncBalances] Attaching SDK balance callback listener...');
-    const callbackPromise = waitForSDKBalanceCallback(walletId, chainId, 45000);
+    const callbackPromise = waitForSDKBalanceCallback(walletId, chainId, 60000);
 
     // STEP 2: Trigger official SDK refresh (same as post-shield pattern)
     console.log('[syncBalances] Triggering SDK refreshBalances...');
@@ -94,14 +95,15 @@ export const syncBalancesAfterTransaction = async ({
     console.log('[syncBalances] Waiting for SDK balance callback...');
     const balanceCallback = await callbackPromise;
     
-    if (!balanceCallback || !Array.isArray(balanceCallback.erc20Amounts) || balanceCallback.erc20Amounts.length === 0) {
-      console.warn('[syncBalances] No usable SDK balance callback received; skipping persist to avoid overwriting Redis with empty data');
-      return false; // Do NOT overwrite Redis with empty balances
+    if (!balanceCallback) {
+      console.warn('[syncBalances] No SDK balance callback received within timeout; proceeding cautiously');
     }
 
     // STEP 4: Convert SDK callback data to our storage format
     const erc20Amounts = balanceCallback?.erc20Amounts || [];
-    const privateBalances = erc20Amounts.map((token) => {
+    const privateBalances = erc20Amounts
+      .filter((t) => t && t.tokenAddress)
+      .map((token) => {
       const tokenAddress = String(token.tokenAddress || '').toLowerCase();
       const decimals = getTokenDecimals(tokenAddress, chainId) ?? 18;
       const tokenInfo = getTokenInfo(tokenAddress, chainId);
@@ -118,6 +120,11 @@ export const syncBalancesAfterTransaction = async ({
         lastUpdated: new Date().toISOString(),
       };
     });
+
+    if (!privateBalances.length) {
+      console.warn('[syncBalances] SDK callback contained no ERC20 amounts; not overwriting Redis with empty balances');
+      return false;
+    }
 
     console.log('[syncBalances] Converted SDK callback to storage format:', {
       tokenCount: privateBalances.length,
@@ -162,10 +169,46 @@ export const syncBalancesAfterTransaction = async ({
             persistSuccess = true;
             console.log('[syncBalances] ✅ Successfully persisted via store-wallet-metadata');
           }
+        } else {
+          console.warn('[syncBalances] Store endpoint HTTP error:', storeResponse.status);
         }
       } catch (storeError) {
         console.warn('[syncBalances] Store endpoint failed:', storeError.message);
       }
+    }
+
+    // Fallback to store-balances endpoint if needed
+    if (!persistSuccess) {
+      try {
+        console.log('[syncBalances] Persisting via store-balances fallback endpoint...');
+        const overwriteResponse = await fetch('/api/wallet-metadata?action=store-balances', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            walletAddress,
+            walletId,
+            chainId,
+            balances: privateBalances,
+          }),
+        });
+
+        if (!overwriteResponse.ok) {
+          throw new Error(`Fallback HTTP ${overwriteResponse.status}`);
+        }
+        const overwriteResult = await overwriteResponse.json();
+        if (!overwriteResult?.success) {
+          throw new Error(`Fallback JSON error: ${overwriteResult?.error || 'unknown'}`);
+        }
+        persistSuccess = true;
+        console.log('[syncBalances] ✅ Successfully persisted via store-balances');
+      } catch (fallbackErr) {
+        console.error('[syncBalances] ❌ Fallback persistence failed:', fallbackErr.message);
+      }
+    }
+
+    if (!persistSuccess) {
+      console.warn('[syncBalances] ⚠️ Persistence did not succeed; not overwriting Redis');
+      return false;
     }
 
     console.log('[syncBalances] ✅ SDK refresh + Redis persist completed successfully');
