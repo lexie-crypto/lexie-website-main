@@ -920,6 +920,25 @@ export function useBalances() {
     };
   }, []);
 
+  // Listen for explicit public refresh trigger (after SDK persist completes)
+  useEffect(() => {
+    const onPublicRefresh = async () => {
+      try {
+        const freshPublicBalances = await fetchPublicBalances();
+        const publicWithUSD = freshPublicBalances.map(token => ({
+          ...token,
+          balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
+        }));
+        setPublicBalances(publicWithUSD);
+        console.log('[useBalances] ✅ Public balances refreshed (event)');
+      } catch (e) {
+        console.warn('[useBalances] ⚠️ Public refresh failed:', e?.message);
+      }
+    };
+    window.addEventListener('railgun-public-refresh', onPublicRefresh);
+    return () => window.removeEventListener('railgun-public-refresh', onPublicRefresh);
+  }, [fetchPublicBalances, calculateUSDValue]);
+
   return {
     // Balance data
     publicBalances,

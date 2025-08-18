@@ -169,6 +169,12 @@ export const syncBalancesAfterTransaction = async ({
     }
 
     console.log('[syncBalances] ✅ SDK refresh + Redis persist completed successfully');
+    // Notify UI to refresh public balances as well
+    try {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('railgun-public-refresh', { detail: { chainId } }));
+      }
+    } catch {}
     return true;
 
   } catch (error) {
