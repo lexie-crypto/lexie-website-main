@@ -333,14 +333,31 @@ const WalletContextProvider = ({ children }) => {
               railgunAddress: metaKey.railgunAddress,
               signature: metaKey.signature,
               encryptedMnemonic: metaKey.encryptedMnemonic,
-              // IMPORTANT: Never include privateBalances on init/refresh writes
+              privateBalances: metaKey.privateBalances,
               scannedChains: Array.from(new Set([...(metaKey.scannedChains || []), railgunChain.id]))
             };
           }
         }
 
-        // Disabled: Never write to Redis on page load/refresh
-        console.log('[Railgun Init] 🔒 Skipping scannedChains persistence on load (read-only mode)');
+        // Post updated metadata back via existing endpoint
+        const persistResp = await fetch('/api/wallet-metadata', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            walletAddress: address,
+            walletId: railgunWalletID,
+            ...existing,
+            scannedChains: Array.from(new Set([...(existing.scannedChains || []), railgunChain.id]))
+          })
+        });
+        if (persistResp.ok) {
+          console.log('[Railgun Init] 💾 Persisted scannedChains to Redis:', {
+            chainId: railgunChain.id,
+            walletId: railgunWalletID?.slice(0,8) + '...'
+          });
+        } else {
+          console.warn('[Railgun Init] ⚠️ Failed to persist scannedChains to Redis:', await persistResp.text());
+        }
       } catch {}
 
       console.log('[Railgun Init] ✅ Initial scan complete for chain', railgunChain.id);
@@ -939,13 +956,22 @@ const WalletContextProvider = ({ children }) => {
                         railgunAddress: metaKey.railgunAddress,
                         signature: metaKey.signature,
                         encryptedMnemonic: metaKey.encryptedMnemonic,
-                        // IMPORTANT: Never include privateBalances on init/refresh writes
+                        privateBalances: metaKey.privateBalances,
                         scannedChains,
                       };
                     }
                   }
-                  // Disabled: Never write to Redis on page load/refresh
-                  console.log('[Railgun Init] 🔒 Skipping scannedChains persistence on load (read-only mode)');
+                  const persistResp = await fetch('/api/wallet-metadata', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ walletAddress: address, walletId: railgunWalletInfo.id, ...existing })
+                  });
+                  if (persistResp.ok) {
+                    console.log('[Railgun Init] 💾 Persisted scannedChains to Redis:', {
+                      chainId: railgunChain.id,
+                      walletId: railgunWalletInfo.id?.slice(0,8) + '...'
+                    });
+                  }
                 } catch {}
                 console.log('[Railgun Init] ✅ Initial scan complete for chain', railgunChain.id);
               }
@@ -1371,13 +1397,24 @@ const WalletContextProvider = ({ children }) => {
                     railgunAddress: metaKey.railgunAddress,
                     signature: metaKey.signature,
                     encryptedMnemonic: metaKey.encryptedMnemonic,
-                    // IMPORTANT: Never include privateBalances on init/refresh writes
+                    privateBalances: metaKey.privateBalances,
                     scannedChains,
                   };
                 }
               }
-            // Disabled: Never write to Redis on page load/refresh
-            console.log('[Railgun Init] 🔒 Skipping scannedChains persistence on load (read-only mode)');
+            const persistResp = await fetch('/api/wallet-metadata', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ walletAddress: address, walletId: railgunWalletInfo.id, ...existing })
+            });
+            if (persistResp.ok) {
+              console.log('[Railgun Init] 💾 Persisted scannedChains to Redis:', {
+                chainId: railgunChain.id,
+                walletId: railgunWalletInfo.id?.slice(0,8) + '...'
+              });
+            } else {
+              console.warn('[Railgun Init] ⚠️ Failed to persist scannedChains to Redis:', await persistResp.text());
+            }
             } catch {}
             console.log('[Railgun Init] ✅ Initial scan complete for chain', railgunChain.id);
           } else {
@@ -1653,21 +1690,12 @@ const WalletContextProvider = ({ children }) => {
     checkChainReady: async () => {
       try {
         if (!address || !railgunWalletID || !chainId) return false;
-        // Prefer Redis flag when available
-        try {
-          const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-          if (resp.ok) {
-            const data = await resp.json();
-            const meta = data?.keys?.find((k) => k.walletId === railgunWalletID);
-            const scannedChains = meta?.scannedChains || [];
-            if (Array.isArray(scannedChains) && scannedChains.includes(chainId)) return true;
-          }
-        } catch {}
-        // Fallback: use SDK in-memory scan marker
-        const scannedInWindow = (typeof window !== 'undefined') &&
-          window.__RAILGUN_INITIAL_SCAN_DONE &&
-          window.__RAILGUN_INITIAL_SCAN_DONE[chainId];
-        return !!scannedInWindow;
+        const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+        if (!resp.ok) return false;
+        const data = await resp.json();
+        const meta = data?.keys?.find((k) => k.walletId === railgunWalletID);
+        const scannedChains = meta?.scannedChains || [];
+        return Array.isArray(scannedChains) && scannedChains.includes(chainId);
       } catch {
         return false;
       }
