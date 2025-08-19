@@ -231,7 +231,53 @@ export const privateTransfer = async ({
 }) => {
   try {
     const networkName = getRailgunNetworkName(chainId);
-    const erc20AmountRecipients = [{ tokenAddress, amount: BigInt(amount), recipientAddress: recipientRailgunAddress }];
+    
+    // Resolve recipient: could be Lexie ID, Railgun address, or ENS
+    let resolvedRecipient = recipientRailgunAddress;
+    
+    // Check if it's a Lexie ID and resolve to Railgun address
+    if (recipientRailgunAddress && typeof recipientRailgunAddress === 'string') {
+      const input = recipientRailgunAddress.trim();
+      
+      // If it's not already a Railgun address (0zk...), try to resolve it
+      if (!input.startsWith('0zk')) {
+        console.log('🔎 [PRIVATE_TRANSFER] Resolving recipient:', input);
+        
+        // Check if it's a Lexie ID pattern
+        const lexieIdPattern = /^[a-zA-Z0-9_]{3,20}$/;
+        if (lexieIdPattern.test(input.toLowerCase())) {
+          try {
+            console.log('🔎 [PRIVATE_TRANSFER] Attempting Lexie ID resolution:', input);
+            const response = await fetch(`/api/wallet-metadata?action=lexie-resolve&lexieID=${encodeURIComponent(input.toLowerCase())}`);
+            const data = await response.json();
+            
+            if (data.success && data.walletAddress) {
+              resolvedRecipient = data.walletAddress;
+              console.log('✅ [PRIVATE_TRANSFER] Lexie ID resolved to Railgun address:', { 
+                lexieID: input, 
+                railgunAddress: resolvedRecipient 
+              });
+            } else {
+              throw new Error(`Lexie ID "${input}" not found or not linked to a wallet`);
+            }
+          } catch (lexieError) {
+            console.error('❌ [PRIVATE_TRANSFER] Lexie ID resolution failed:', lexieError.message);
+            throw new Error(`Could not resolve Lexie ID "${input}": ${lexieError.message}`);
+          }
+        } else {
+          throw new Error(`Invalid recipient format: "${input}". Must be a Lexie ID (3-20 chars) or Railgun address (0zk...)`);
+        }
+      }
+    }
+    
+    // Validate final recipient is a Railgun address
+    if (!resolvedRecipient || !resolvedRecipient.startsWith('0zk')) {
+      throw new Error(`Invalid Railgun address: "${resolvedRecipient}". Private transfers require a Railgun address (0zk...)`);
+    }
+    
+    console.log('✅ [PRIVATE_TRANSFER] Final recipient address:', resolvedRecipient);
+    
+    const erc20AmountRecipients = [{ tokenAddress, amount: BigInt(amount), recipientAddress: resolvedRecipient }];
 
     // Use our relayer path for private transfers
     const { transactionHash } = await privateTransferWithRelayer({

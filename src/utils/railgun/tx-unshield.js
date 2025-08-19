@@ -66,19 +66,52 @@ import { generateUnshieldProof } from './tx-proof-unshield.js';
 
 /**
  * Resolve recipient input into a valid 0x address.
- * - Accepts an ENS name or 0x address
+ * - Accepts an ENS name, 0x address, or Lexie ID
  * - Uses provided wallet provider (if available) to resolve ENS
+ * - Resolves Lexie IDs to Railgun addresses via backend API
  */
 const resolveRecipient = async (recipientInput, walletProvider) => {
   if (!recipientInput || typeof recipientInput !== 'string') return null;
   try {
     const { ethers } = await import('ethers');
+    
     // Already a 0x address
     if (recipientInput.startsWith('0x') && ethers.isAddress(recipientInput)) {
       return recipientInput;
     }
 
+    // Check if it's a Railgun address (0zk...)
+    if (recipientInput.startsWith('0zk')) {
+      console.log('🔎 [RESOLVE] Input is already a Railgun address:', recipientInput);
+      return recipientInput;
+    }
+
     const name = recipientInput.trim().toLowerCase();
+
+    // Check if it's a Lexie ID (no @ prefix, alphanumeric)
+    const lexieIdPattern = /^[a-zA-Z0-9_]{3,20}$/;
+    if (lexieIdPattern.test(name)) {
+      console.log('🔎 [RESOLVE] Attempting Lexie ID resolution:', name);
+      try {
+        // Call backend API to resolve Lexie ID to Railgun address
+        const response = await fetch(`/api/wallet-metadata?action=lexie-resolve&lexieID=${encodeURIComponent(name)}`);
+        const data = await response.json();
+        
+        if (data.success && data.walletAddress) {
+          console.log('✅ [RESOLVE] Lexie ID resolved to Railgun address:', { 
+            lexieID: name, 
+            railgunAddress: data.walletAddress 
+          });
+          return data.walletAddress;
+        } else {
+          console.warn('⚠️ [RESOLVE] Lexie ID not found or not linked:', name);
+          // Continue to ENS resolution
+        }
+      } catch (lexieError) {
+        console.warn('⚠️ [RESOLVE] Lexie ID resolution failed:', lexieError.message);
+        // Continue to ENS resolution
+      }
+    }
 
     // Try ENS resolution via connected provider first
     try {
