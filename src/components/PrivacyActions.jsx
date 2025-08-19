@@ -489,9 +489,15 @@ const PrivacyActions = () => {
       return;
     }
 
+    // Allow Railgun address (0zk...) OR Lexie ID (3-20 alphanumeric/_)
     if (!isValidRailgunAddress(recipientAddress)) {
-      toast.error('Please enter a valid Railgun recipient address (starts with 0zk)');
-      return;
+      const input = (recipientAddress || '').trim().toLowerCase();
+      const isLikelyLexieID = /^[a-z0-9_]{3,20}$/.test(input);
+      if (!isLikelyLexieID) {
+        toast.error('Please enter a Railgun address (0zk...) or a Lexie ID');
+        return;
+      }
+      // Proceed: resolution will happen in privateTransfer()
     }
 
     setIsProcessing(true);
@@ -791,7 +797,7 @@ const PrivacyActions = () => {
                 Processing...
               </div>
             ) : (
-              `${activeTab === 'shield' ? 'Shield' : 'Unshield'} ${selectedToken?.symbol || 'Token'}`
+              `${activeTab === 'shield' ? 'Shield' : activeTab === 'unshield' ? 'Unshield' : 'Transfer'} ${selectedToken?.symbol || 'Token'}`
             )}
           </button>
         </form>
