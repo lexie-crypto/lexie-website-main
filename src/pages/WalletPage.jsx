@@ -547,6 +547,19 @@ const WalletPage = () => {
               </div>
             </div>
 
+            {/* Boot log style intro */}
+            <div className="mt-6 bg-black/60 border border-green-500/20 rounded-lg p-4">
+              <div className="text-xs text-green-300/80 tracking-wide">LEXIE AI SYSTEM BOOT v2.1.3</div>
+              <div className="mt-2 space-y-1 text-green-200/90 text-sm font-mono leading-6">
+                <div>✓ Wallet interface loaded</div>
+                <div>✓ Network: {network?.name || 'Unknown'}</div>
+                <div>✓ Public balances: {Array.isArray(publicBalances) ? publicBalances.length : 0}</div>
+                <div>✓ Private balances: {Array.isArray(privateBalances) ? privateBalances.length : 0}</div>
+                <div>{canUseRailgun ? '✓ AI privacy engine online' : '… Initializing privacy engine'}</div>
+                <div className="pt-1">Ready for commands...</div>
+              </div>
+            </div>
+
             {/* Command Panel */}
             <div className="mt-6 bg-black/60 border border-green-500/30 rounded-lg p-3">
               <div className="text-xs text-green-400/80 mb-2">LEXIE TERMINAL • commands</div>
@@ -602,6 +615,15 @@ const WalletPage = () => {
                 </button>
               </div>
             </div>
+          </div>
+          {/* Terminal footer status bar */}
+          <div className="flex items-center justify-between px-4 py-2 border-t border-green-500/20 bg-black/80 text-xs">
+            <div className="flex items-center gap-4 text-green-300/80">
+              <span>Process: lexie-wallet</span>
+              <span>•</span>
+              <span>Status: {canUseRailgun ? 'Active' : 'Idle'}</span>
+            </div>
+            <div className="text-emerald-400">Connected</div>
           </div>
         </div>
 
