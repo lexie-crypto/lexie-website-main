@@ -76,6 +76,8 @@ const WalletPage = () => {
   const [lexieCode, setLexieCode] = useState('');
   const [lexieNeedsCode, setLexieNeedsCode] = useState(false);
   const [lexieMessage, setLexieMessage] = useState('');
+  const [showLexieModal, setShowLexieModal] = useState(false);
+  const [currentLexieId, setCurrentLexieId] = useState('');
 
   const network = getCurrentNetwork();
   const [isChainReady, setIsChainReady] = useState(false);
@@ -149,6 +151,28 @@ const WalletPage = () => {
     window.addEventListener('railgun-scan-complete', onScanComplete);
     return () => window.removeEventListener('railgun-scan-complete', onScanComplete);
   }, [checkChainReady]);
+
+  // Resolve linked Lexie ID for this Railgun address from server (Redis-backed)
+  useEffect(() => {
+    if (!railgunAddress) {
+      setCurrentLexieId('');
+      return;
+    }
+    (async () => {
+      try {
+        const resp = await fetch(`/api/wallet-metadata?action=lexie-by-wallet&railgunAddress=${encodeURIComponent(railgunAddress)}`);
+        if (resp.ok) {
+          const json = await resp.json().catch(() => ({}));
+          const id = json?.lexieID || json?.lexieId || json?.id || '';
+          setCurrentLexieId(id || '');
+        } else {
+          setCurrentLexieId('');
+        }
+      } catch {
+        setCurrentLexieId('');
+      }
+    })();
+  }, [railgunAddress]);
 
   // Show signature guide on first-time EOA connection
   useEffect(() => {
@@ -542,9 +566,34 @@ const WalletPage = () => {
             <div className="flex items-center justify-between border-b border-green-500/20 pb-4">
               <div>
                 <h1 className="text-xl font-bold text-emerald-300">Lexie Privacy Wallet</h1>
-                <p className="text-green-400/80 text-sm">
-                  {address?.slice(0, 6)}...{address?.slice(-4)} • {network?.name || 'Unknown Network'}
-                </p>
+                <div className="flex items-center space-x-2 text-sm">
+                  <span className="text-green-400/80">
+                    {address?.slice(0, 6)}...{address?.slice(-4)}
+                  </span>
+                  <span className="text-green-400/60">•</span>
+                  {currentLexieId ? (
+                    <div className="flex items-center space-x-2">
+                      <span className="text-emerald-300 font-medium">@{currentLexieId}</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(currentLexieId);
+                          toast.success('Lexie ID copied to clipboard!');
+                        }}
+                        className="text-green-400/70 hover:text-green-300 text-xs"
+                        title="Copy Lexie ID"
+                      >
+                        📋
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setShowLexieModal(true)}
+                      className="text-purple-300 hover:text-purple-200 font-medium underline"
+                    >
+                      Get a Lexie ID
+                    </button>
+                  )}
+                </div>
               </div>
               <div className="flex items-center space-x-3">
                 <select
@@ -585,106 +634,7 @@ const WalletPage = () => {
               </div>
             )}
 
-            {/* Lexie ID */}
-            {canUseRailgun && railgunAddress && (
-              <div className="bg-black/40 border border-green-500/20 rounded p-3">
-                <div className="text-green-400/80 text-xs mb-2">Lexie ID:</div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={lexieIdInput}
-                    onChange={(e) => setLexieIdInput(e.target.value)}
-                    placeholder="e.g. mkmillions"
-                    className="bg-black text-green-200 rounded px-2 py-1 text-sm border border-green-500/40 focus:border-emerald-400 focus:outline-none flex-1"
-                    disabled={lexieLinking}
-                  />
-                  {!lexieNeedsCode ? (
-                    <button
-                      onClick={async () => {
-                        try {
-                          setLexieMessage('');
-                          setLexieLinking(true);
-                          const chosen = (lexieIdInput || '').trim().toLowerCase();
-                          if (!chosen || chosen.length < 3) {
-                            setLexieMessage('Please enter a valid Lexie ID (3-20 chars).');
-                            setLexieLinking(false);
-                            return;
-                          }
-                          // Check status
-                          const statusResp = await fetch(`/api/wallet-metadata?action=lexie-status&lexieID=${encodeURIComponent(chosen)}`, { method: 'GET' });
-                          if (!statusResp.ok) { setLexieMessage('Failed to check Lexie ID status.'); setLexieLinking(false); return; }
-                          const statusJson = await statusResp.json();
-                          if (!statusJson.success) { setLexieMessage('Failed to check Lexie ID status.'); setLexieLinking(false); return; }
-                          const exists = !!statusJson.exists; const linked = !!statusJson.linked;
-                          if (!exists) {
-                            setLexieMessage('This Lexie ID does not exist yet. Please claim it via Telegram.');
-                            toast((t) => (
-                              <span>
-                                Claim your Lexie ID via Telegram →{' '}
-                                <a className="underline" href="https://t.me/lexie_crypto_bot" target="_blank" rel="noreferrer">@lexie_crypto_bot</a>
-                              </span>
-                            ));
-                            setLexieLinking(false);
-                            return;
-                          }
-                          if (linked) { setLexieMessage('This ID is taken. Please try another one.'); setLexieLinking(false); return; }
-                          // Start linking
-                          const startResp = await fetch('/api/wallet-metadata?action=lexie-link-start', {
-                            method: 'POST', headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ lexieID: chosen, railgunAddress })
-                          });
-                          const startJson = await startResp.json().catch(() => ({}));
-                          if (startResp.status === 404) { setLexieMessage('Lexie ID not found. Please claim it via Telegram.'); setLexieLinking(false); return; }
-                          if (!startResp.ok || !startJson.success) { setLexieMessage('Failed to start verification.'); setLexieLinking(false); return; }
-                          setLexieNeedsCode(true); setLexieMessage('We sent a 4‑digit code to your Telegram. Enter it below to confirm.');
-                        } catch (_) { setLexieMessage('Unexpected error starting Lexie link.'); } finally { setLexieLinking(false); }
-                      }}
-                      disabled={lexieLinking || !lexieIdInput}
-                      className="bg-emerald-600/30 hover:bg-emerald-600/50 disabled:bg-black/40 text-emerald-200 px-3 py-1 rounded text-sm border border-emerald-400/40"
-                    >
-                      {lexieLinking ? 'Working...' : 'Add'}
-                    </button>
-                  ) : (
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={lexieCode}
-                        onChange={(e) => setLexieCode(e.target.value)}
-                        placeholder="4-digit code"
-                        className="bg-black text-green-200 rounded px-2 py-1 text-sm border border-green-500/40 focus:border-emerald-400 focus:outline-none w-20"
-                        disabled={lexieLinking}
-                      />
-                      <button
-                        onClick={async () => {
-                          try {
-                            setLexieLinking(true); setLexieMessage('');
-                            const chosen = (lexieIdInput || '').trim().toLowerCase();
-                            const verifyResp = await fetch('/api/wallet-metadata?action=lexie-link-verify', {
-                              method: 'POST', headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ lexieID: chosen, code: (lexieCode || '').trim() })
-                            });
-                            const json = await verifyResp.json().catch(() => ({}));
-                            if (!verifyResp.ok || !json.success) { setLexieMessage('Verification failed. Check the code and try again.'); return; }
-                            setLexieNeedsCode(false); setLexieCode(''); setLexieMessage('✅ Linked successfully to your Railgun wallet.');
-                          } catch (_) { setLexieMessage('Unexpected verification error.'); } finally { setLexieLinking(false); }
-                        }}
-                        disabled={lexieLinking || !lexieCode}
-                        className="bg-green-600/30 hover:bg-green-600/50 disabled:bg-black/40 text-green-200 px-2 py-1 rounded text-sm border border-green-400/40"
-                      >
-                        Verify
-                      </button>
-                      <button
-                        onClick={() => { setLexieNeedsCode(false); setLexieCode(''); setLexieMessage(''); }}
-                        className="bg-gray-600/30 hover:bg-gray-500/30 text-gray-300 px-2 py-1 rounded text-sm border border-gray-500/40"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  )}
-                </div>
-                {lexieMessage && <div className="mt-2 text-xs text-green-300/80">{lexieMessage}</div>}
-              </div>
-            )}
+
 
             {/* Boot log */}
             <div className="bg-black/40 border border-green-500/20 rounded p-3">
@@ -972,6 +922,174 @@ const WalletPage = () => {
         )}
 
       </div>
+
+      {/* Lexie ID Modal */}
+      {showLexieModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 font-mono">
+          <div className="bg-black border border-green-500/40 rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
+            {/* Modal Terminal Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-green-500/20 bg-black/90">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-red-500/80" />
+                  <span className="w-3 h-3 rounded-full bg-yellow-400/80" />
+                  <span className="w-3 h-3 rounded-full bg-green-500/80" />
+                </div>
+                <span className="text-sm tracking-wide text-green-200">lexie-id-setup</span>
+              </div>
+              <button
+                onClick={() => {
+                  setShowLexieModal(false);
+                  setLexieNeedsCode(false);
+                  setLexieCode('');
+                  setLexieMessage('');
+                  setLexieIdInput('');
+                }}
+                className="text-green-400/70 hover:text-green-300 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 text-green-300 space-y-4">
+              <div>
+                <h3 className="text-lg font-bold text-emerald-300 mb-2">Get Your Lexie ID</h3>
+                <p className="text-green-400/80 text-sm">
+                  Link your Railgun wallet to a Lexie ID for easy identification and social features.
+                </p>
+              </div>
+
+              {canUseRailgun && railgunAddress ? (
+                <div className="space-y-4">
+                  <div className="bg-black/40 border border-green-500/20 rounded p-3">
+                    <div className="text-green-400/80 text-xs mb-2">Enter your Lexie ID:</div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={lexieIdInput}
+                        onChange={(e) => setLexieIdInput(e.target.value)}
+                        placeholder="e.g. mkmillions"
+                        className="bg-black text-green-200 rounded px-2 py-1 text-sm border border-green-500/40 focus:border-emerald-400 focus:outline-none flex-1"
+                        disabled={lexieLinking}
+                      />
+                      {!lexieNeedsCode ? (
+                        <button
+                          onClick={async () => {
+                            try {
+                              setLexieMessage('');
+                              setLexieLinking(true);
+                              const chosen = (lexieIdInput || '').trim().toLowerCase();
+                              if (!chosen || chosen.length < 3) {
+                                setLexieMessage('Please enter a valid Lexie ID (3-20 chars).');
+                                setLexieLinking(false);
+                                return;
+                              }
+                              // Check status
+                              const statusResp = await fetch(`/api/wallet-metadata?action=lexie-status&lexieID=${encodeURIComponent(chosen)}`, { method: 'GET' });
+                              if (!statusResp.ok) { setLexieMessage('Failed to check Lexie ID status.'); setLexieLinking(false); return; }
+                              const statusJson = await statusResp.json();
+                              if (!statusJson.success) { setLexieMessage('Failed to check Lexie ID status.'); setLexieLinking(false); return; }
+                              const exists = !!statusJson.exists; const linked = !!statusJson.linked;
+                              if (!exists) {
+                                setLexieMessage('This Lexie ID does not exist yet. Please claim it via Telegram.');
+                                setLexieLinking(false);
+                                return;
+                              }
+                              if (linked) { setLexieMessage('This ID is taken. Please try another one.'); setLexieLinking(false); return; }
+                              // Start linking
+                              const startResp = await fetch('/api/wallet-metadata?action=lexie-link-start', {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ lexieID: chosen, railgunAddress })
+                              });
+                              const startJson = await startResp.json().catch(() => ({}));
+                              if (startResp.status === 404) { setLexieMessage('Lexie ID not found. Please claim it via Telegram.'); setLexieLinking(false); return; }
+                              if (!startResp.ok || !startJson.success) { setLexieMessage('Failed to start verification.'); setLexieLinking(false); return; }
+                              setLexieNeedsCode(true); setLexieMessage('We sent a 4‑digit code to your Telegram. Enter it below to confirm.');
+                            } catch (_) { setLexieMessage('Unexpected error starting Lexie link.'); } finally { setLexieLinking(false); }
+                          }}
+                          disabled={lexieLinking || !lexieIdInput}
+                          className="bg-emerald-600/30 hover:bg-emerald-600/50 disabled:bg-black/40 text-emerald-200 px-3 py-1 rounded text-sm border border-emerald-400/40"
+                        >
+                          {lexieLinking ? 'Working...' : 'Add'}
+                        </button>
+                      ) : (
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={lexieCode}
+                            onChange={(e) => setLexieCode(e.target.value)}
+                            placeholder="4-digit code"
+                            className="bg-black text-green-200 rounded px-2 py-1 text-sm border border-green-500/40 focus:border-emerald-400 focus:outline-none w-20"
+                            disabled={lexieLinking}
+                          />
+                          <button
+                            onClick={async () => {
+                              try {
+                                setLexieLinking(true); setLexieMessage('');
+                                const chosen = (lexieIdInput || '').trim().toLowerCase();
+                                const verifyResp = await fetch('/api/wallet-metadata?action=lexie-link-verify', {
+                                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ lexieID: chosen, code: (lexieCode || '').trim() })
+                                });
+                                const json = await verifyResp.json().catch(() => ({}));
+                                if (!verifyResp.ok || !json.success) { setLexieMessage('Verification failed. Check the code and try again.'); return; }
+                                setLexieNeedsCode(false); setLexieCode(''); setLexieMessage('✅ Linked successfully to your Railgun wallet.');
+                                setCurrentLexieId(chosen);
+                                setTimeout(() => {
+                                  setShowLexieModal(false);
+                                  setLexieIdInput('');
+                                  setLexieMessage('');
+                                }, 2000);
+                              } catch (_) { setLexieMessage('Unexpected verification error.'); } finally { setLexieLinking(false); }
+                            }}
+                            disabled={lexieLinking || !lexieCode}
+                            className="bg-green-600/30 hover:bg-green-600/50 disabled:bg-black/40 text-green-200 px-2 py-1 rounded text-sm border border-green-400/40"
+                          >
+                            Verify
+                          </button>
+                          <button
+                            onClick={() => { setLexieNeedsCode(false); setLexieCode(''); setLexieMessage(''); }}
+                            className="bg-gray-600/30 hover:bg-gray-500/30 text-gray-300 px-2 py-1 rounded text-sm border border-gray-500/40"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    {lexieMessage && <div className="mt-2 text-xs text-green-300/80">{lexieMessage}</div>}
+                  </div>
+
+                  {/* Instructions */}
+                  <div className="bg-purple-900/20 border border-purple-500/40 rounded p-3">
+                    <div className="text-purple-300 text-xs font-medium mb-2">Don't have a Lexie ID?</div>
+                    <p className="text-purple-200/80 text-xs mb-3">
+                      Check Lexie on Telegram to claim your unique Lexie ID:
+                    </p>
+                    <div className="flex items-center space-x-2">
+                      <a
+                        href="https://t.me/lexie_crypto_bot"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 px-3 py-1 rounded text-xs border border-purple-400/40 transition-colors"
+                      >
+                        Open Telegram Bot
+                      </a>
+                      <span className="text-purple-300/60 text-xs">→ Use /lex command</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-yellow-900/20 border border-yellow-500/40 rounded p-3">
+                  <div className="text-yellow-300 text-xs">
+                    Please connect your Railgun wallet first to link a Lexie ID.
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Signature Guide Popup */}
       {showSignatureGuide && (
