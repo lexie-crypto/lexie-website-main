@@ -16,6 +16,7 @@ import {
   XCircleIcon,
   ShieldCheckIcon,
   CurrencyDollarIcon,
+  ClipboardDocumentIcon,
 } from '@heroicons/react/24/outline';
 
 import { useWallet } from '../contexts/WalletContext';
@@ -577,16 +578,17 @@ const WalletPage = () => {
                   <span className="text-green-400/60">•</span>
                   {currentLexieId ? (
                     <div className="flex items-center space-x-2">
-                      <span className="text-emerald-300 font-medium">@{currentLexieId}</span>
+                      <span className="text-purple-300 font-medium">@{currentLexieId}</span>
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(currentLexieId);
                           toast.success('Lexie ID copied to clipboard!');
                         }}
-                        className="text-green-400/70 hover:text-green-300 text-xs"
+                        className="inline-flex items-center gap-1 bg-purple-300 hover:bg-purple-400 text-black px-2 py-0.5 rounded text-xs font-medium transition-colors"
                         title="Copy Lexie ID"
                       >
-                        📋
+                        <ClipboardDocumentIcon className="h-3.5 w-3.5" />
+                        <span>Copy</span>
                       </button>
                     </div>
                   ) : (
@@ -619,16 +621,6 @@ const WalletPage = () => {
                 </button>
               </div>
             </div>
-
-            {/* Railgun Address */}
-            {railgunAddress && (
-              <div className="bg-black/40 border border-green-500/20 rounded p-3">
-                <div className="text-green-400/80 text-xs mb-1">Railgun Address:</div>
-                <div className="text-green-200 text-sm break-all">{railgunAddress}</div>
-              </div>
-            )}
-
-
 
             {/* Boot log */}
             <div className="bg-black/40 border border-green-500/20 rounded p-3">
