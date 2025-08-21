@@ -470,8 +470,54 @@ const WalletPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
+      {/* Navigation (same as LandingPage) */}
+      <nav className="sticky top-0 z-40 w-full p-6 bg-black">
+        <div className="max-w-7xl mx-auto flex justify-between items-center">
+          <div className="text-4xl font-bold text-purple-300">
+            LEXIE AI
+          </div>
+          <div className="hidden md:flex space-x-6">
+            <a href="/#features" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Features</a>
+            <a href="/#security" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Security</a>
+            <a href="/#beta" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Beta</a>
+          </div>
+        </div>
+      </nav>
+
+      {/* Background overlays (match LandingPage) */}
+      <div className="fixed inset-0 z-0">
+        {/* Base gradient layers */}
+        <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
+        {/* Futuristic cityscape silhouette */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60"></div>
+        <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-purple-900/40 via-purple-800/20 to-transparent"></div>
+        {/* Dynamic grid system */}
+        <div className="absolute inset-0 opacity-30">
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(147,51,234,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(147,51,234,0.2)_1px,transparent_1px)] bg-[size:40px_40px] animate-pulse"></div>
+          <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.1)_1px,transparent_1px)] bg-[size:80px_80px] animate-pulse" style={{animationDelay: '1s'}}></div>
+        </div>
+        {/* Subtle ambient orbs */}
+        <div className="absolute inset-0 overflow-hidden">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div 
+              key={i} 
+              className="absolute rounded-full animate-pulse"
+              style={{ 
+                left: `${20 + i * 30}%`,
+                top: `${20 + i * 20}%`,
+                width: `${200 + i * 100}px`,
+                height: `${200 + i * 100}px`,
+                background: `radial-gradient(circle, rgba(147, 51, 234, 0.1) 0%, rgba(147, 51, 234, 0.05) 50%, transparent 100%)`,
+                animationDelay: `${i * 2}s`,
+                animationDuration: `${6 + i * 2}s`,
+              }}
+            />
+          ))}
+        </div>
+      </div>
+
+      <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Terminal Window */}
         <div className="rounded-xl overflow-hidden shadow-2xl border border-green-500/30 bg-black">
           {/* Terminal chrome */}
@@ -712,78 +758,6 @@ const WalletPage = () => {
             {/* Wallet Balances */}
             {selectedView === 'balances' && (
               <div className="space-y-4">
-                {/* Public Balances */}
-                <div className="bg-black/40 border border-green-500/20 rounded p-3">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="text-green-300 text-sm font-medium">Public Balances</div>
-                    <button
-                      onClick={refreshBalances}
-                      disabled={isLoading || !isConnected}
-                      className="text-emerald-400 hover:text-emerald-300 text-xs disabled:opacity-50"
-                    >
-                      {isLoading ? 'Refreshing...' : 'Refresh'}
-                    </button>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    {publicBalances.map((token) => {
-                      const isSupported = isTokenSupportedByRailgun(token.address, chainId);
-                      const isShieldingThis = shieldingTokens.has(token.symbol);
-                      
-                      return (
-                        <div key={token.symbol} className="flex items-center justify-between p-2 bg-black/60 rounded text-xs">
-                          <div className="flex items-center space-x-2">
-                            <div className="text-green-200 font-medium">{token.symbol}</div>
-                            <div className="text-green-400/70">{token.name}</div>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <div className="text-right">
-                              <div className="text-green-200">{token.formattedBalance}</div>
-                              <div className="text-green-400/70">${token.balanceUSD}</div>
-                            </div>
-                            {canUseRailgun && isSupported && token.hasBalance && (
-                              <div className="flex items-center space-x-1">
-                                <input
-                                  type="number"
-                                  placeholder="Amount"
-                                  value={shieldAmounts[token.symbol] || ''}
-                                  onChange={(e) => setShieldAmounts(prev => ({
-                                    ...prev,
-                                    [token.symbol]: e.target.value
-                                  }))}
-                                  disabled={isShieldingThis}
-                                  className="w-20 bg-black text-green-200 rounded px-1 py-0.5 text-xs border border-green-500/40 focus:border-emerald-400 focus:outline-none"
-                                />
-                                <button
-                                  onClick={() => setShieldAmounts(prev => ({
-                                    ...prev,
-                                    [token.symbol]: token.numericBalance.toString()
-                                  }))}
-                                  disabled={isShieldingThis || !isChainReady}
-                                  className="bg-black hover:bg-green-900/20 disabled:bg-black/40 text-green-200 px-1 py-0.5 rounded text-xs border border-green-500/40"
-                                >
-                                  Max
-                                </button>
-                                <button
-                                  onClick={() => handleShieldToken(token)}
-                                  disabled={isShieldingThis || !shieldAmounts[token.symbol] || !isChainReady}
-                                  className="bg-emerald-600/30 hover:bg-emerald-600/50 disabled:bg-black/40 text-emerald-200 px-2 py-0.5 rounded text-xs border border-emerald-400/40"
-                                >
-                                  {isShieldingThis ? 'Shielding...' : 'Shield'}
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                    
-                    {publicBalances.length === 0 && !isLoading && (
-                      <div className="text-center py-4 text-green-400/70 text-xs">No tokens found</div>
-                    )}
-                  </div>
-                </div>
-
                 {/* Private Balances */}
                 <div className="bg-black/40 border border-green-500/20 rounded p-3">
                   <div className="flex items-center justify-between mb-3">
@@ -877,6 +851,78 @@ const WalletPage = () => {
                       </div>
                     </div>
                   )}
+                </div>
+
+                {/* Public Balances */}
+                <div className="bg-black/40 border border-green-500/20 rounded p-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="text-green-300 text-sm font-medium">Public Balances</div>
+                    <button
+                      onClick={refreshBalances}
+                      disabled={isLoading || !isConnected}
+                      className="text-emerald-400 hover:text-emerald-300 text-xs disabled:opacity-50"
+                    >
+                      {isLoading ? 'Refreshing...' : 'Refresh'}
+                    </button>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    {publicBalances.map((token) => {
+                      const isSupported = isTokenSupportedByRailgun(token.address, chainId);
+                      const isShieldingThis = shieldingTokens.has(token.symbol);
+                      
+                      return (
+                        <div key={token.symbol} className="flex items-center justify-between p-2 bg-black/60 rounded text-xs">
+                          <div className="flex items-center space-x-2">
+                            <div className="text-green-200 font-medium">{token.symbol}</div>
+                            <div className="text-green-400/70">{token.name}</div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <div className="text-right">
+                              <div className="text-green-200">{token.formattedBalance}</div>
+                              <div className="text-green-400/70">${token.balanceUSD}</div>
+                            </div>
+                            {canUseRailgun && isSupported && token.hasBalance && (
+                              <div className="flex items-center space-x-1">
+                                <input
+                                  type="number"
+                                  placeholder="Amount"
+                                  value={shieldAmounts[token.symbol] || ''}
+                                  onChange={(e) => setShieldAmounts(prev => ({
+                                    ...prev,
+                                    [token.symbol]: e.target.value
+                                  }))}
+                                  disabled={isShieldingThis}
+                                  className="w-20 bg-black text-green-200 rounded px-1 py-0.5 text-xs border border-green-500/40 focus:border-emerald-400 focus:outline-none"
+                                />
+                                <button
+                                  onClick={() => setShieldAmounts(prev => ({
+                                    ...prev,
+                                    [token.symbol]: token.numericBalance.toString()
+                                  }))}
+                                  disabled={isShieldingThis || !isChainReady}
+                                  className="bg-black hover:bg-green-900/20 disabled:bg-black/40 text-green-200 px-1 py-0.5 rounded text-xs border border-green-500/40"
+                                >
+                                  Max
+                                </button>
+                                <button
+                                  onClick={() => handleShieldToken(token)}
+                                  disabled={isShieldingThis || !shieldAmounts[token.symbol] || !isChainReady}
+                                  className="bg-emerald-600/30 hover:bg-emerald-600/50 disabled:bg-black/40 text-emerald-200 px-2 py-0.5 rounded text-xs border border-emerald-400/40"
+                                >
+                                  {isShieldingThis ? 'Shielding...' : 'Shield'}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    
+                    {publicBalances.length === 0 && !isLoading && (
+                      <div className="text-center py-4 text-green-400/70 text-xs">No tokens found</div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
