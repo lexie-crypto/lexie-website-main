@@ -569,7 +569,7 @@ const WalletPage = () => {
             {/* Header */}
             <div className="flex items-center justify-between border-b border-green-500/20 pb-4">
               <div>
-                <h1 className="text-xl font-bold text-emerald-300">Lexie Privacy Wallet</h1>
+                <h1 className="text-xl font-bold text-emerald-300">Lexie Vault</h1>
                 <div className="flex items-center space-x-2 text-sm">
                   <span className="text-green-400/80">
                     {address?.slice(0, 6)}...{address?.slice(-4)}
