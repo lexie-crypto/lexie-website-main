@@ -161,7 +161,7 @@ const WalletPage = () => {
     (async () => {
       try {
         // Check if this railgun address has a linked Lexie ID
-        const resp = await fetch(`/api/lexie/by-wallet?railgunAddress=${encodeURIComponent(railgunAddress)}`);
+        const resp = await fetch(`/api/wallet-metadata?action=by-wallet&railgunAddress=${encodeURIComponent(railgunAddress)}`);
         if (resp.ok) {
           const json = await resp.json().catch(() => ({}));
           if (json.success && json.lexieID) {
@@ -569,7 +569,7 @@ const WalletPage = () => {
             {/* Header */}
             <div className="flex items-center justify-between border-b border-green-500/20 pb-4">
               <div>
-                <h1 className="text-xl font-bold text-emerald-300">Lexie Vault</h1>
+                <h1 className="text-xl font-bold text-emerald-300">Lexie Secure Vault</h1>
                 <div className="flex items-center space-x-2 text-sm">
                   <span className="text-green-400/80">
                     {address?.slice(0, 6)}...{address?.slice(-4)}

@@ -216,6 +216,15 @@ export default async function handler(req, res) {
         backendPath = `/api/resolve?lexieID=${encodeURIComponent(lexieID)}`;
         backendUrl = `https://api.lexiecrypto.com${backendPath}`;
         console.log(`🔍 [WALLET-METADATA-PROXY-${requestId}] GET Lexie resolve for ${lexieID}`);
+      } else if (action === 'by-wallet') {
+        const railgunAddress = req.query.railgunAddress || req.query.walletAddress;
+        if (!railgunAddress) {
+          console.log(`❌ [WALLET-METADATA-PROXY-${requestId}] Missing railgunAddress for by-wallet`);
+          return res.status(400).json({ success: false, error: 'Missing railgunAddress' });
+        }
+        backendPath = `/api/by-wallet?railgunAddress=${encodeURIComponent(railgunAddress)}`;
+        backendUrl = `https://api.lexiecrypto.com${backendPath}`;
+        console.log(`🔍 [WALLET-METADATA-PROXY-${requestId}] GET Lexie by-wallet for ${String(railgunAddress).slice(0,8)}...`);
 
       } else {
         // Handle GET: retrieve wallet metadata (original functionality)
