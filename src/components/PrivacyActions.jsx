@@ -37,7 +37,6 @@ import {
   getCurrentWalletID,
   getCurrentWallet,
 } from '../utils/railgun/wallet';
-import { initializeRailgun } from '../utils/railgun/engine';
 
 const PrivacyActions = () => {
   const {
@@ -67,19 +66,19 @@ const PrivacyActions = () => {
   const [recipientAddress, setRecipientAddress] = useState('');
   const [memoText, setMemoText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [railgunSetupComplete, setRailgunSetupComplete] = useState(false);
+  // We now rely on WalletContext for initialization status
 
   // Available tabs
   const tabs = [
     { 
       id: 'shield', 
-      name: 'Shield', 
+      name: 'Add', 
       icon: ArrowDownIcon,
-      description: 'Move tokens into your private balance'
+      description: 'Move tokens into your vault balance'
     },
     { 
       id: 'unshield', 
-      name: 'Unshield', 
+      name: 'Remove', 
       icon: ArrowUpIcon,
       description: 'Move tokens back to your public wallet'
     },
@@ -87,28 +86,11 @@ const PrivacyActions = () => {
       id: 'transfer',
       name: 'Transfer',
       icon: ArrowRightIcon,
-      description: 'Send privately to another Railgun address (with optional memo)'
+      description: 'Send transaction (with optional memo)'
     },
   ];
 
-  // Initialize Railgun on component mount
-  useEffect(() => {
-    const setupRailgun = async () => {
-      if (isConnected && address && !railgunSetupComplete) {
-        try {
-          console.log('[PrivacyActions] Initializing Railgun...');
-          await initializeRailgun();
-          setRailgunSetupComplete(true);
-          console.log('[PrivacyActions] Railgun initialized successfully');
-        } catch (error) {
-          console.error('[PrivacyActions] Failed to initialize Railgun:', error);
-          toast.error('Failed to initialize Railgun privacy system');
-        }
-      }
-    };
-
-    setupRailgun();
-  }, [isConnected, address, railgunSetupComplete]);
+  // No local initialization here – WalletContext owns engine lifecycle
 
   // Get available tokens based on current tab
   const availableTokens = useMemo(() => {
@@ -206,7 +188,7 @@ const PrivacyActions = () => {
     } catch (error) {
       console.error('[PrivacyActions] Failed to get encryption key:', error);
       if (error.code === 4001 || error.message.includes('rejected')) {
-        throw new Error('Signature required for privacy operations. Please approve the signature request.');
+        throw new Error('Signature required for vault operations. Please approve the signature request.');
       }
       throw new Error('Failed to get encryption key');
     }
@@ -240,7 +222,7 @@ const PrivacyActions = () => {
         railgunAddress,
       });
 
-      toast.loading('Shielding tokens into private balance...', { id: toastId });
+      toast.loading('Adding tokens to vault...', { id: toastId });
 
       // Get wallet signer (not provider to avoid re-wrapping)
       const walletSigner = await walletProvider(); // This now returns a signer
@@ -504,7 +486,7 @@ const PrivacyActions = () => {
     let toastId;
 
     try {
-      toastId = toast.loading('Preparing private transfer...');
+      toastId = toast.loading('Preparing transaction...');
 
       const encryptionKey = await getEncryptionKey();
       const amountInUnits = parseTokenAmount(amount, selectedToken.decimals);
@@ -521,7 +503,7 @@ const PrivacyActions = () => {
       });
 
       toast.dismiss(toastId);
-      toast.success(`Private transfer sent! TX: ${tx.txHash}`);
+      toast.success(`Transaction sent! TX: ${tx.txHash}`);
 
       // Reset
       setAmount('');
@@ -590,7 +572,7 @@ const PrivacyActions = () => {
             Connect Your Wallet
           </h3>
           <p className="text-gray-600 dark:text-gray-400">
-            Connect your wallet to access Railgun privacy features
+            Connect your wallet to access vault features
           </p>
         </div>
       </div>
@@ -607,7 +589,7 @@ const PrivacyActions = () => {
             Unsupported Network
           </h3>
           <p className="text-gray-600 dark:text-gray-400 mb-4">
-            Railgun privacy is not available on this network
+            Vault is not available on this network
           </p>
           <p className="text-sm text-gray-500 dark:text-gray-500">
             Supported networks: Ethereum, Arbitrum, Polygon, BNB Smart Chain
@@ -617,35 +599,31 @@ const PrivacyActions = () => {
     );
   }
 
-  // Show setup incomplete
-  if (!railgunSetupComplete) {
+  // Show setup incomplete - driven by canUseRailgun from context
+  if (!canUseRailgun) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
+      <div className="bg-black/40 border border-green-500/20 rounded p-6">
         <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
-            Initializing Railgun
-          </h3>
-          <p className="text-gray-600 dark:text-gray-400">
-            Setting up privacy system...
-          </p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-400 mx-auto mb-4"></div>
+          <h3 className="text-lg font-medium text-emerald-300 mb-2">Initializing Vault</h3>
+          <p className="text-green-400/80">Setting up vault system...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
+    <div className="bg-black/40 border border-green-500/20 rounded shadow-lg overflow-hidden">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-        <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 flex items-center gap-2">
-          <ShieldCheckIcon className="h-6 w-6 text-blue-600" />
-          Privacy Actions
+      <div className="px-6 py-4 border-b border-green-500/20">
+        <h2 className="text-xl font-semibold text-emerald-300 flex items-center gap-2">
+          <ShieldCheckIcon className="h-6 w-6 text-emerald-300" />
+          Vault Actions
         </h2>
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200 dark:border-gray-700">
+      <div className="border-b border-green-500/20">
         <nav className="flex space-x-8 px-6" aria-label="Tabs">
           {tabs.map((tab) => {
             const isActive = activeTab === tab.id;
@@ -657,9 +635,9 @@ const PrivacyActions = () => {
                 onClick={() => setActiveTab(tab.id)}
                 className={`${
                   isActive
-                    ? 'border-blue-500 text-blue-600 dark:text-blue-400'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 dark:text-gray-400 dark:hover:text-gray-300'
-                } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+                    ? 'border-emerald-400 text-emerald-300'
+                    : 'border-transparent text-green-400/70 hover:text-green-300 hover:border-green-400/40'
+                } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
               >
                 <Icon className="h-5 w-5" />
                 {tab.name}
@@ -670,11 +648,11 @@ const PrivacyActions = () => {
       </div>
 
       {/* Content */}
-      <div className="p-6">
+      <div className="p-6 text-green-300">
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Token Selection */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-green-300 mb-2">
               Select Token
             </label>
             <select
@@ -683,7 +661,7 @@ const PrivacyActions = () => {
                 const token = availableTokens.find(t => t.address === e.target.value);
                 setSelectedToken(token || null);
               }}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+              className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
               disabled={availableTokens.length === 0}
             >
               {availableTokens.length === 0 ? (
@@ -700,7 +678,7 @@ const PrivacyActions = () => {
 
           {/* Amount Input */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            <label className="block text-sm font-medium text-green-300 mb-2">
               Amount
             </label>
             <div className="relative">
@@ -712,21 +690,21 @@ const PrivacyActions = () => {
                 step="any"
                 min="0"
                 max={selectedToken?.numericBalance || 0}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
                 disabled={!selectedToken}
               />
               {selectedToken && (
                 <button
                   type="button"
                   onClick={() => setAmount(selectedToken.numericBalance.toString())}
-                  className="absolute right-2 top-2 px-2 py-1 text-xs bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
+                  className="absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded hover:bg-green-900/20"
                 >
                   Max
                 </button>
               )}
             </div>
             {selectedToken && (
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1 text-sm text-green-400/70">
                 Available: {formatBalance(selectedToken.numericBalance)} {selectedToken.symbol}
               </p>
             )}
@@ -746,7 +724,7 @@ const PrivacyActions = () => {
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
               />
               <p className="mt-1 text-sm text-gray-500">
-                Leave empty to unshield to your connected wallet
+                Leave empty to remove from your vault to your connected wallet
               </p>
             </div>
           )}
@@ -797,7 +775,7 @@ const PrivacyActions = () => {
                 Processing...
               </div>
             ) : (
-              `${activeTab === 'shield' ? 'Shield' : activeTab === 'unshield' ? 'Unshield' : 'Transfer'} ${selectedToken?.symbol || 'Token'}`
+              `${activeTab === 'shield' ? 'Add' : activeTab === 'unshield' ? 'Remove' : 'Transfer'} ${selectedToken?.symbol || 'Token'}`
             )}
           </button>
         </form>
