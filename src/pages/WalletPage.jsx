@@ -160,8 +160,8 @@ const WalletPage = () => {
     }
     (async () => {
       try {
-        // Use the same status endpoint that works in the modal
-        const resp = await fetch(`/api/wallet-metadata?action=wallet-to-lexie&railgunAddress=${encodeURIComponent(railgunAddress)}`);
+        // Check if this railgun address has a linked Lexie ID
+        const resp = await fetch(`/api/lexie/by-wallet?railgunAddress=${encodeURIComponent(railgunAddress)}`);
         if (resp.ok) {
           const json = await resp.json().catch(() => ({}));
           if (json.success && json.lexieID) {
