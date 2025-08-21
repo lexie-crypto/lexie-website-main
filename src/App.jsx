@@ -14,7 +14,7 @@ function App() {
         <div className="App">
           <Routes>
             <Route path="/" element={<LandingPage />} />
-            <Route path="/wallet" element={<WalletPage />} />
+            <Route path="/vault" element={<WalletPage />} />
           </Routes>
           
           {/* Toast notifications */}
