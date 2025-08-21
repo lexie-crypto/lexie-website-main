@@ -699,7 +699,6 @@ const WalletPage = () => {
                   <div className="flex items-center justify-between mb-3">
                     <div className="text-green-300 text-sm font-medium">Vault Balances</div>
                     <div className="flex items-center space-x-2">
-                      <div className="text-emerald-300 text-xs">Railgun</div>
                       {canUseRailgun && privateBalances.length > 0 && (
                         <button
                           onClick={() => setShowPrivateBalances(!showPrivateBalances)}
