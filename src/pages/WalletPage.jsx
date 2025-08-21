@@ -612,16 +612,6 @@ const WalletPage = () => {
                   ))}
                 </select>
                 <button
-                  onClick={() => setShowPrivateMode(!showPrivateMode)}
-                  className={`px-3 py-1 rounded text-sm border ${
-                    showPrivateMode 
-                      ? 'bg-emerald-600/20 text-emerald-300 border-emerald-400/40' 
-                      : 'bg-black text-green-300 hover:bg-emerald-900/20 border-green-500/40'
-                  }`}
-                >
-                  Privacy Mode
-                </button>
-                <button
                   onClick={disconnectWallet}
                   className="bg-black hover:bg-red-900/30 text-red-300 px-3 py-1 rounded text-sm border border-red-500/40"
                 >
