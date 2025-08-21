@@ -152,7 +152,7 @@ const WalletPage = () => {
     return () => window.removeEventListener('railgun-scan-complete', onScanComplete);
   }, [checkChainReady]);
 
-  // Resolve linked Lexie ID for this Railgun address from server (Redis-backed)
+  // Check if this Railgun address already has a linked Lexie ID
   useEffect(() => {
     if (!railgunAddress) {
       setCurrentLexieId('');
@@ -160,21 +160,18 @@ const WalletPage = () => {
     }
     (async () => {
       try {
-        const queries = [
-          `/api/wallet-metadata?action=lexie-by-wallet&railgunAddress=${encodeURIComponent(railgunAddress)}`,
-          `/api/wallet-metadata?action=lexie-by-wallet&walletAddress=${encodeURIComponent(railgunAddress)}`,
-        ];
-        let foundId = '';
-        for (const url of queries) {
-          try {
-            const resp = await fetch(url);
-            if (!resp.ok) continue;
-            const json = await resp.json().catch(() => ({}));
-            const id = json?.lexieID || json?.lexieId || json?.id || json?.alias || '';
-            if (id) { foundId = id; break; }
-          } catch {}
+        // Use the same status endpoint that works in the modal
+        const resp = await fetch(`/api/wallet-metadata?action=wallet-to-lexie&railgunAddress=${encodeURIComponent(railgunAddress)}`);
+        if (resp.ok) {
+          const json = await resp.json().catch(() => ({}));
+          if (json.success && json.lexieID) {
+            setCurrentLexieId(json.lexieID);
+          } else {
+            setCurrentLexieId('');
+          }
+        } else {
+          setCurrentLexieId('');
         }
-        setCurrentLexieId(foundId);
       } catch {
         setCurrentLexieId('');
       }
