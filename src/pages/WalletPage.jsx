@@ -160,14 +160,21 @@ const WalletPage = () => {
     }
     (async () => {
       try {
-        const resp = await fetch(`/api/wallet-metadata?action=lexie-by-wallet&railgunAddress=${encodeURIComponent(railgunAddress)}`);
-        if (resp.ok) {
-          const json = await resp.json().catch(() => ({}));
-          const id = json?.lexieID || json?.lexieId || json?.id || '';
-          setCurrentLexieId(id || '');
-        } else {
-          setCurrentLexieId('');
+        const queries = [
+          `/api/wallet-metadata?action=lexie-by-wallet&railgunAddress=${encodeURIComponent(railgunAddress)}`,
+          `/api/wallet-metadata?action=lexie-by-wallet&walletAddress=${encodeURIComponent(railgunAddress)}`,
+        ];
+        let foundId = '';
+        for (const url of queries) {
+          try {
+            const resp = await fetch(url);
+            if (!resp.ok) continue;
+            const json = await resp.json().catch(() => ({}));
+            const id = json?.lexieID || json?.lexieId || json?.id || json?.alias || '';
+            if (id) { foundId = id; break; }
+          } catch {}
         }
+        setCurrentLexieId(foundId);
       } catch {
         setCurrentLexieId('');
       }
