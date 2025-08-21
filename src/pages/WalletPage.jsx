@@ -626,11 +626,11 @@ const WalletPage = () => {
             <div className="bg-black/40 border border-green-500/20 rounded p-3">
               <div className="text-xs text-green-300/80 tracking-wide mb-2">LEXIE AI SYSTEM BOOT v2.1.3</div>
               <div className="space-y-1 text-green-200/90 text-xs leading-5">
-                <div>✓ Wallet interface loaded</div>
+                <div>✓ Vault interface loaded</div>
                 <div>✓ Network: {network?.name || 'Unknown'}</div>
                 <div>✓ Public balances: {Array.isArray(publicBalances) ? publicBalances.length : 0}</div>
-                <div>✓ Private balances: {Array.isArray(privateBalances) ? privateBalances.length : 0}</div>
-                <div>{canUseRailgun ? '✓ AI privacy engine online' : '… Initializing privacy engine'}</div>
+                <div>✓ Vault balances: {Array.isArray(privateBalances) ? privateBalances.length : 0}</div>
+                <div>{canUseRailgun ? '✓ Secure vault online' : '… Initializing secure vault'}</div>
                 <div className="pt-1 text-green-300">Ready for commands...</div>
               </div>
             </div>
@@ -656,7 +656,7 @@ const WalletPage = () => {
                   onClick={() => setSelectedView('privacy')}
                   className="px-2 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 text-xs"
                 >
-                  privacy
+                  add
                 </button>
                 <button
                   onClick={() => {
@@ -668,7 +668,7 @@ const WalletPage = () => {
                   }}
                   className="px-2 py-1 rounded border border-cyan-400/40 bg-cyan-900/20 hover:bg-cyan-900/40 text-xs"
                 >
-                  transfer
+                  send
                 </button>
                 <button
                   onClick={() => {
@@ -680,7 +680,7 @@ const WalletPage = () => {
                   }}
                   className="px-2 py-1 rounded border border-amber-400/40 bg-amber-900/20 hover:bg-amber-900/40 text-xs"
                 >
-                  unshield
+                  remove
                 </button>
                 <button
                   onClick={() => setSelectedView('history')}
@@ -697,7 +697,7 @@ const WalletPage = () => {
                 {/* Private Balances */}
                 <div className="bg-black/40 border border-green-500/20 rounded p-3">
                   <div className="flex items-center justify-between mb-3">
-                    <div className="text-green-300 text-sm font-medium">Private Balances</div>
+                    <div className="text-green-300 text-sm font-medium">Vault Balances</div>
                     <div className="flex items-center space-x-2">
                       <div className="text-emerald-300 text-xs">Railgun</div>
                       {canUseRailgun && privateBalances.length > 0 && (
@@ -717,17 +717,17 @@ const WalletPage = () => {
                   
                   {!canUseRailgun ? (
                     <div className="text-center py-4 text-green-400/70 text-xs">
-                      Railgun privacy engine not ready
+                      Secure vault engine not ready
                     </div>
                   ) : privateBalances.length === 0 ? (
                     <div className="text-center py-4 text-green-300 text-xs">
-                      No private tokens yet
-                      <div className="text-green-400/70 mt-1">Shield some tokens to start using privacy features</div>
+                      No vault tokens yet
+                      <div className="text-green-400/70 mt-1">Add some tokens to start using secure vault</div>
                     </div>
                   ) : (
                     <div className="space-y-2">
                       <div className="text-green-200 text-xs">
-                        {privateBalances.length} Private Token{privateBalances.length !== 1 ? 's' : ''}
+                        {privateBalances.length} Vault Token{privateBalances.length !== 1 ? 's' : ''}
                       </div>
 
                       {(showPrivateBalances || privateBalances.length <= 3) && 
@@ -735,7 +735,7 @@ const WalletPage = () => {
                           <div key={token.symbol} className="flex items-center justify-between p-2 bg-black/60 rounded text-xs">
                             <div className="flex items-center space-x-2">
                               <div className="text-green-200 font-medium">{token.symbol}</div>
-                              <div className="text-green-400/70">Private • {token.name || `${token.symbol} Token` || 'Unknown Token'}</div>
+                              <div className="text-green-400/70">Vault • {token.name || `${token.symbol} Token` || 'Unknown Token'}</div>
                             </div>
                             <div className="text-right">
                               <div className="text-green-200">{token.formattedBalance}</div>
@@ -751,40 +751,10 @@ const WalletPage = () => {
                             onClick={() => setShowPrivateBalances(true)}
                             className="text-emerald-300 hover:text-emerald-200 text-xs"
                           >
-                            Show {privateBalances.length - 3} more private tokens
+                            Show {privateBalances.length - 3} more vault tokens
                           </button>
                         </div>
                       )}
-
-                      <div className="flex items-center justify-between pt-2 border-t border-green-500/20">
-                        <div className="text-green-200 text-xs">Quick Actions</div>
-                        <div className="flex items-center space-x-1">
-                          <button
-                            onClick={() => {
-                              setSelectedView('privacy');
-                              setTimeout(() => {
-                                const transferButton = document.querySelector('[data-tab="transfer"]');
-                                if (transferButton) transferButton.click();
-                              }, 100);
-                            }}
-                            className="bg-cyan-600/30 hover:bg-cyan-600/50 text-cyan-200 px-2 py-0.5 rounded text-xs border border-cyan-400/40"
-                          >
-                            Transfer
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedView('privacy');
-                              setTimeout(() => {
-                                const unshieldButton = document.querySelector('[data-tab="unshield"]');
-                                if (unshieldButton) unshieldButton.click();
-                              }, 100);
-                            }}
-                            className="bg-amber-600/30 hover:bg-amber-600/50 text-amber-200 px-2 py-0.5 rounded text-xs border border-amber-400/40"
-                          >
-                            Unshield
-                          </button>
-                        </div>
-                      </div>
                     </div>
                   )}
                 </div>
@@ -846,7 +816,7 @@ const WalletPage = () => {
                                   disabled={isShieldingThis || !shieldAmounts[token.symbol] || !isChainReady}
                                   className="bg-emerald-600/30 hover:bg-emerald-600/50 disabled:bg-black/40 text-emerald-200 px-2 py-0.5 rounded text-xs border border-emerald-400/40"
                                 >
-                                  {isShieldingThis ? 'Shielding...' : 'Shield'}
+                                  {isShieldingThis ? 'Adding…' : 'Add to Vault'}
                                 </button>
                               </div>
                             )}
@@ -883,7 +853,7 @@ const WalletPage = () => {
           {/* Terminal footer status bar */}
           <div className="flex items-center justify-between px-4 py-2 border-t border-green-500/20 bg-black/90 text-xs font-mono">
             <div className="flex items-center gap-4 text-green-300/80">
-              <span>Process: lexie-wallet</span>
+              <span>Process: lexie-vault</span>
               <span>•</span>
               <span>Status: {canUseRailgun ? 'Active' : 'Idle'}</span>
             </div>
