@@ -578,7 +578,7 @@ const WalletPage = () => {
                   <span className="text-green-400/60">•</span>
                   {currentLexieId ? (
                     <div className="flex items-center space-x-2">
-                      <span className="text-purple-300 font-medium">@{currentLexieId}</span>
+                      <span className="text-purple-300 font-medium">{currentLexieId}</span>
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(currentLexieId);
