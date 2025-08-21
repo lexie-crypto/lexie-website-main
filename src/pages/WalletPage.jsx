@@ -592,7 +592,7 @@ const WalletPage = () => {
                   ) : (
                     <button
                       onClick={() => setShowLexieModal(true)}
-                      className="bg-purple-300 hover:bg-purple-400 text-black px-3 py-1 rounded font-medium transition-colors"
+                      className="bg-purple-300 hover:bg-purple-400 text-black px-2 py-0.5 rounded text-xs font-medium transition-colors"
                     >
                       Get a Lexie ID
                     </button>
