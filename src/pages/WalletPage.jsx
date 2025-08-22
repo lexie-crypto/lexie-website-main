@@ -170,22 +170,7 @@ const WalletPage = () => {
     const onInitStarted = () => {
       setIsInitInProgress(true);
       setInitFailedMessage('');
-      // Start 3-minute synthetic baseline progress (0-99%)
-      try { if (syntheticTicker) clearInterval(syntheticTicker); } catch {}
-      const start = Date.now();
-      const id = setInterval(() => {
-        const elapsed = Date.now() - start;
-        const baseline = Math.min(99, Math.floor((elapsed / 180000) * 99));
-        setInitProgress((prev) => ({
-          percent: Math.max(prev.percent || 0, baseline),
-          current: prev.current || 0,
-          total: prev.total || 0,
-          message: prev.message || 'Preparing vault...'
-        }));
-      }, 1000);
-      setSyntheticTicker(id);
-
-      // Start Redis scan status polling every 15s
+      // Start Redis scan status polling every 15s and increment progress by 8% each poll up to 92%
       const poll = async () => {
         try {
           if (!address) return;
@@ -203,11 +188,16 @@ const WalletPage = () => {
           }
           const ready = !!(target && Array.isArray(target.scannedChains) && target.scannedChains.includes(chainId));
           if (ready) {
-            try { if (syntheticTicker) clearInterval(syntheticTicker); } catch {}
             setInitProgress({ percent: 100, current: 1, total: 1, message: 'Initialization complete' });
             setIsInitInProgress(false);
+            try { if (window.__LEXIE_INIT_POLL_ID) { clearInterval(window.__LEXIE_INIT_POLL_ID); window.__LEXIE_INIT_POLL_ID = null; } } catch {}
           }
         } catch {}
+        // Increment by 8% per poll, capped at 92% while not ready
+        setInitProgress((prev) => {
+          const next = Math.min(92, (prev.percent || 0) + 8);
+          return { ...prev, percent: next, message: prev.message || 'Preparing vault...' };
+        });
       };
       // immediate check, then interval
       poll();
@@ -221,16 +211,15 @@ const WalletPage = () => {
     const onInitProgress = (e) => {
       const detail = e?.detail || {};
       setInitProgress((prev) => ({
-        percent: typeof detail.percent === 'number' ? detail.percent : prev.percent,
+        percent: prev.percent,
         current: typeof detail.current === 'number' ? detail.current : prev.current,
         total: typeof detail.total === 'number' ? detail.total : prev.total,
         message: typeof detail.message === 'string' ? detail.message : prev.message,
       }));
     };
     const onInitCompleted = () => {
-      try { if (syntheticTicker) clearInterval(syntheticTicker); } catch {}
-      setInitProgress({ percent: 100, current: initProgress.total || 1, total: initProgress.total || 1, message: 'Initialization complete' });
-      setIsInitInProgress(false);
+      // Do not set to 100% here; wait for Redis scannedChains to confirm
+      setInitProgress((prev) => ({ ...prev, message: prev.message || 'Finalizing...' }));
     };
     const onInitFailed = (e) => {
       try { if (syntheticTicker) clearInterval(syntheticTicker); } catch {}
