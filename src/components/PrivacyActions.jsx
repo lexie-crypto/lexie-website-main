@@ -38,7 +38,7 @@ import {
   getCurrentWallet,
 } from '../utils/railgun/wallet';
 
-const PrivacyActions = () => {
+const PrivacyActions = ({ activeAction = 'shield' }) => {
   const {
     isConnected,
     address,
@@ -59,8 +59,8 @@ const PrivacyActions = () => {
     formatBalance,
   } = useBalances();
 
-  // Component state
-  const [activeTab, setActiveTab] = useState('shield');
+  // Component state - controlled by parent
+  const activeTab = activeAction;
   const [selectedToken, setSelectedToken] = useState(null);
   const [amount, setAmount] = useState('');
   const [recipientAddress, setRecipientAddress] = useState('');
@@ -110,12 +110,13 @@ const PrivacyActions = () => {
     return [];
   }, [activeTab, publicBalances, privateBalances, isConnected, chainId]);
 
-  // Reset form when switching tabs
+  // Reset form when switching actions
   useEffect(() => {
     setSelectedToken(null);
     setAmount('');
     setRecipientAddress('');
-  }, [activeTab]);
+    setMemoText('');
+  }, [activeAction]);
 
   // Auto-select first available token
   useEffect(() => {
@@ -622,29 +623,21 @@ const PrivacyActions = () => {
         </h2>
       </div>
 
-      {/* Tabs */}
-      <div className="border-b border-green-500/20">
-        <nav className="flex space-x-8 px-6" aria-label="Tabs">
-          {tabs.map((tab) => {
-            const isActive = activeTab === tab.id;
-            const Icon = tab.icon;
-            
+      {/* Current Action Display */}
+      <div className="border-b border-green-500/20 px-6 py-3">
+        <div className="flex items-center gap-2 text-emerald-300">
+          {(() => {
+            const currentTab = tabs.find(t => t.id === activeTab);
+            const Icon = currentTab?.icon || ShieldCheckIcon;
             return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`${
-                  isActive
-                    ? 'border-emerald-400 text-emerald-300'
-                    : 'border-transparent text-green-400/70 hover:text-green-300 hover:border-green-400/40'
-                } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
-              >
+              <>
                 <Icon className="h-5 w-5" />
-                {tab.name}
-              </button>
+                <span className="font-medium">{currentTab?.name || 'Action'}</span>
+                <span className="text-green-400/70 text-sm">• {currentTab?.description}</span>
+              </>
             );
-          })}
-        </nav>
+          })()}
+        </div>
       </div>
 
       {/* Content */}
