@@ -911,6 +911,8 @@ const WalletContextProvider = ({ children }) => {
         setRailgunAddress(railgunWalletInfo.railgunAddress);
         setRailgunWalletID(railgunWalletInfo.id);
         setIsRailgunInitialized(true);
+        // Notify UI that wallet metadata already exists and is ready for polling
+        try { window.dispatchEvent(new CustomEvent('railgun-wallet-metadata-ready', { detail: { address, walletId: railgunWalletInfo.id } })); } catch {}
         
         console.log('✅ Fast path successful - existing wallet loaded:', {
           userAddress: address,
@@ -1361,6 +1363,8 @@ const WalletContextProvider = ({ children }) => {
               });
               
               console.log('🎉 Wallet is now accessible from ANY device/browser!');
+              // Notify UI that wallet metadata has been persisted and polling can start
+              try { window.dispatchEvent(new CustomEvent('railgun-wallet-metadata-ready', { detail: { address, walletId: railgunWalletInfo.id } })); } catch {}
             } else {
               console.warn('⚠️ Redis storage failed - wallet will only work on this device');
             }

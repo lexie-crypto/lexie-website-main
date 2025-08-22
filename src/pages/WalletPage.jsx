@@ -240,6 +240,7 @@ const WalletPage = () => {
       console.warn('[Vault Init] Initialization failed:', msg);
     };
     window.addEventListener('railgun-signature-requested', onSignRequest);
+    window.addEventListener('railgun-wallet-metadata-ready', onInitStarted);
     window.addEventListener('railgun-init-started', onInitStarted);
     window.addEventListener('railgun-init-progress', onInitProgress);
     window.addEventListener('railgun-init-completed', onInitCompleted);
@@ -247,6 +248,7 @@ const WalletPage = () => {
     return () => {
       window.removeEventListener('railgun-signature-requested', onSignRequest);
       window.removeEventListener('railgun-init-started', onInitStarted);
+      window.removeEventListener('railgun-wallet-metadata-ready', onInitStarted);
       window.removeEventListener('railgun-init-progress', onInitProgress);
       window.removeEventListener('railgun-init-completed', onInitCompleted);
       window.removeEventListener('railgun-init-failed', onInitFailed);
