@@ -80,10 +80,10 @@ const TransactionHistory = () => {
 
   if (loading && !hasTransactions) {
     return (
-      <div className="bg-gray-800 rounded-lg p-6">
+      <div className="bg-black/40 border border-green-500/20 rounded p-6">
         <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500"></div>
-          <span className="ml-3 text-gray-400">Loading transaction history...</span>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-emerald-400"></div>
+          <span className="ml-3 text-green-400/80">Loading transaction history...</span>
         </div>
       </div>
     );
@@ -91,13 +91,13 @@ const TransactionHistory = () => {
 
   if (error) {
     return (
-      <div className="bg-gray-800 rounded-lg p-6">
+      <div className="bg-black/40 border border-green-500/20 rounded p-6">
         <div className="text-center py-8">
-          <div className="text-red-400 mb-4">⚠️ Failed to load transaction history</div>
-          <p className="text-gray-400 mb-4">{error}</p>
+          <div className="text-red-300 mb-4">⚠️ Failed to load transaction history</div>
+          <p className="text-green-400/80 mb-4">{error}</p>
           <button
             onClick={refreshHistory}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+            className="px-4 py-2 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 rounded border border-emerald-400/40 transition-colors"
           >
             Try Again
           </button>
@@ -107,14 +107,14 @@ const TransactionHistory = () => {
   }
 
   return (
-    <div className="bg-gray-800 rounded-lg p-6">
+    <div className="bg-black/40 border border-green-500/20 rounded p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-xl font-semibold text-white flex items-center">
+          <h3 className="text-xl font-semibold text-emerald-300 flex items-center">
             🕐 Transaction History
           </h3>
-          <p className="text-gray-400 text-sm mt-1">
+          <p className="text-green-400/80 text-sm mt-1">
             {statistics.total} total transactions
             {lastUpdated && ` • Updated ${lastUpdated.toLocaleTimeString()}`}
           </p>
@@ -122,7 +122,7 @@ const TransactionHistory = () => {
         <button
           onClick={refreshHistory}
           disabled={loading}
-          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
+          className="px-4 py-2 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 rounded border border-emerald-400/40 transition-colors disabled:opacity-50"
         >
           {loading ? 'Refreshing...' : 'Refresh'}
         </button>
@@ -135,12 +135,12 @@ const TransactionHistory = () => {
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
-            className="bg-gray-700 text-white rounded-lg px-3 py-2 border border-gray-600 focus:border-purple-500 focus:outline-none"
+            className="bg-black text-green-300 rounded px-3 py-2 border border-green-500/40 focus:border-emerald-400 focus:outline-none"
           >
             <option value="all">All Transactions ({statistics.total})</option>
-            <option value="shield">Shields ({statistics.shields})</option>
-            <option value="unshield">Unshields ({statistics.unshields})</option>
-            <option value="transfers">Private Transfers ({statistics.privateTransfers})</option>
+            <option value="shield">Add to Vault ({statistics.shields})</option>
+            <option value="unshield">Remove from Vault ({statistics.unshields})</option>
+            <option value="transfers">Send Transaction ({statistics.privateTransfers})</option>
           </select>
 
           {/* Search */}
@@ -149,7 +149,7 @@ const TransactionHistory = () => {
             placeholder="Search by token, type, or TX ID..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-gray-700 text-white rounded-lg px-3 py-2 border border-gray-600 focus:border-purple-500 focus:outline-none flex-1 min-w-64"
+            className="bg-black text-green-200 rounded px-3 py-2 border border-green-500/40 focus:border-emerald-400 focus:outline-none flex-1 min-w-64"
           />
         </div>
       </div>
@@ -157,15 +157,15 @@ const TransactionHistory = () => {
       {/* Transaction List */}
       {isEmpty ? (
         <div className="text-center py-8">
-          <div className="text-gray-400 mb-4">📋 No transactions found</div>
-          <p className="text-gray-500">
-            Start using RAILGUN privacy features to see your transaction history here.
+          <div className="text-green-400/70 mb-4">📋 No transactions found</div>
+          <p className="text-green-400/60">
+            Start using vault features to see your transaction history here.
           </p>
         </div>
       ) : displayTransactions.length === 0 ? (
         <div className="text-center py-8">
-          <div className="text-gray-400 mb-4">🔍 No transactions match your search</div>
-          <p className="text-gray-500">
+          <div className="text-green-400/70 mb-4">🔍 No transactions match your search</div>
+          <p className="text-green-400/60">
             Try adjusting your search query or filter criteria.
           </p>
         </div>
@@ -174,7 +174,7 @@ const TransactionHistory = () => {
           {displayTransactions.map((tx) => (
             <div
               key={tx.txid}
-              className="bg-gray-700 rounded-lg p-4 hover:bg-gray-650 transition-colors"
+              className="bg-black/60 border border-green-500/20 rounded p-4 hover:bg-black/80 transition-colors"
             >
               {/* Transaction Header */}
               <div className="flex items-center justify-between mb-3">
@@ -184,14 +184,14 @@ const TransactionHistory = () => {
                     <div className={`font-medium ${getStatusColor(tx.transactionType)}`}>
                       {tx.transactionType}
                     </div>
-                    <div className="text-gray-400 text-sm">
+                    <div className="text-green-400/70 text-sm">
                       {tx.date ? tx.date.toLocaleString() : 'Unknown time'}
                     </div>
                   </div>
                 </div>
                 <button
                   onClick={() => toggleDetails(tx.txid)}
-                  className="text-purple-400 hover:text-purple-300 text-sm"
+                  className="text-purple-300 hover:text-purple-200 text-sm"
                 >
                   {showDetails[tx.txid] ? 'Hide Details' : 'Show Details'}
                 </button>
@@ -202,15 +202,15 @@ const TransactionHistory = () => {
                 {tx.tokenAmounts.map((token, index) => (
                   <div key={index} className="flex items-center justify-between py-1">
                     <div className="flex items-center space-x-2">
-                      <span className="text-white font-medium">{token.symbol}</span>
-                      <span className="text-gray-400 text-sm">
+                      <span className="text-green-200 font-medium">{token.symbol}</span>
+                      <span className="text-green-400/70 text-sm">
                         {token.tokenAddress ? 
                           `${token.tokenAddress.slice(0, 6)}...${token.tokenAddress.slice(-4)}` : 
                           'Native'
                         }
                       </span>
                     </div>
-                    <div className="text-white font-medium">
+                    <div className="text-green-200 font-medium">
                       {token.formattedAmount}
                     </div>
                   </div>
@@ -218,10 +218,10 @@ const TransactionHistory = () => {
               </div>
 
               {/* Description + Memo */}
-              <div className="text-gray-400 text-sm mb-3">
+              <div className="text-green-400/80 text-sm mb-3">
                 <div>{tx.description}</div>
                 {tx.memo && (
-                  <div className="mt-1 text-blue-300 break-words">
+                  <div className="mt-1 text-cyan-300 break-words">
                     Memo: {tx.memo}
                   </div>
                 )}
@@ -229,29 +229,29 @@ const TransactionHistory = () => {
 
               {/* Details */}
               {showDetails[tx.txid] && (
-                <div className="border-t border-gray-600 pt-3 mt-3">
+                <div className="border-t border-green-500/20 pt-3 mt-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                     <div>
-                      <span className="text-gray-400">Transaction ID:</span>
-                      <div className="text-white font-mono break-all">
+                      <span className="text-green-400/70">Transaction ID:</span>
+                      <div className="text-green-200 font-mono break-all">
                         {tx.txid}
                       </div>
                     </div>
                     <div>
-                      <span className="text-gray-400">Block Number:</span>
-                      <div className="text-white">
+                      <span className="text-green-400/70">Block Number:</span>
+                      <div className="text-green-200">
                         {tx.blockNumber || 'Unknown'}
                       </div>
                     </div>
                     <div>
-                      <span className="text-gray-400">Category:</span>
-                      <div className="text-white">
+                      <span className="text-green-400/70">Category:</span>
+                      <div className="text-green-200">
                         {tx.category}
                       </div>
                     </div>
                     <div>
-                      <span className="text-gray-400">Chain ID:</span>
-                      <div className="text-white">
+                      <span className="text-green-400/70">Chain ID:</span>
+                      <div className="text-green-200">
                         {tx.chainId}
                       </div>
                     </div>
@@ -268,7 +268,7 @@ const TransactionHistory = () => {
         <div className="text-center mt-6">
           <button
             onClick={() => {/* Implement load more */}}
-            className="px-6 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-colors"
+            className="px-6 py-2 bg-black hover:bg-green-900/20 text-green-200 rounded border border-green-500/40 transition-colors"
           >
             Load More Transactions
           </button>
