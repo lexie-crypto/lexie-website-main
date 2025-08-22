@@ -524,6 +524,17 @@ const WalletPage = () => {
           </div>
         </div>
       ), { duration: 2000 });
+
+      // After switch: if new chain isn't ready/scanned, show initialization popup (spinner)
+      try {
+        const ready = await checkChainReady();
+        if (!ready) {
+          setShowSignRequestPopup(true);
+          setIsInitInProgress(true);
+          const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
+          setInitProgress({ percent: 0, message: `Setting up your Lexie Vault on ${chainLabel} Network...` });
+        }
+      } catch {}
     } catch (error) {
       toast.error(`Failed to switch network: ${error.message}`);
     }
