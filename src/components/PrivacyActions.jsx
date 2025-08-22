@@ -38,7 +38,7 @@ import {
   getCurrentWallet,
 } from '../utils/railgun/wallet';
 
-const PrivacyActions = ({ defaultTab = 'shield' }) => {
+const PrivacyActions = () => {
   const {
     isConnected,
     address,
@@ -60,7 +60,7 @@ const PrivacyActions = ({ defaultTab = 'shield' }) => {
   } = useBalances();
 
   // Component state
-  const [activeTab, setActiveTab] = useState(defaultTab);
+  const [activeTab, setActiveTab] = useState('shield');
   const [selectedToken, setSelectedToken] = useState(null);
   const [amount, setAmount] = useState('');
   const [recipientAddress, setRecipientAddress] = useState('');
@@ -91,9 +91,6 @@ const PrivacyActions = ({ defaultTab = 'shield' }) => {
   ];
 
   // No local initialization here – WalletContext owns engine lifecycle
-  useEffect(() => {
-    setActiveTab(defaultTab);
-  }, [defaultTab]);
 
   // Get available tokens based on current tab
   const availableTokens = useMemo(() => {
@@ -623,9 +620,31 @@ const PrivacyActions = ({ defaultTab = 'shield' }) => {
           <ShieldCheckIcon className="h-6 w-6 text-emerald-300" />
           Vault Actions
         </h2>
-        <div className="mt-1 text-xs text-green-400/80">
-          {tabs.find(t => t.id === activeTab)?.name} • {tabs.find(t => t.id === activeTab)?.description}
-        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="border-b border-green-500/20">
+        <nav className="flex space-x-8 px-6" aria-label="Tabs">
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            const Icon = tab.icon;
+            
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`${
+                  isActive
+                    ? 'border-emerald-400 text-emerald-300'
+                    : 'border-transparent text-green-400/70 hover:text-green-300 hover:border-green-400/40'
+                } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
+              >
+                <Icon className="h-5 w-5" />
+                {tab.name}
+              </button>
+            );
+          })}
+        </nav>
       </div>
 
       {/* Content */}
