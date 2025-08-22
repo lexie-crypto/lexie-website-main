@@ -945,6 +945,7 @@ const WalletContextProvider = ({ children }) => {
                 console.log('[Railgun Init] ⏭️ Skipping initial scan (found in Redis) for chain', railgunChain.id);
               } else {
                 console.log('[Railgun Init] 🔄 Performing initial balance refresh for chain', railgunChain.id);
+                try { window.dispatchEvent(new CustomEvent('railgun-scan-started', { detail: { chainId: railgunChain.id } })); } catch {}
                 await refreshBalances(railgunChain, [railgunWalletInfo.id]);
                 if (typeof window !== 'undefined') {
                   window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};

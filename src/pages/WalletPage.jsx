@@ -240,8 +240,7 @@ const WalletPage = () => {
       console.warn('[Vault Init] Initialization failed:', msg);
     };
     window.addEventListener('railgun-signature-requested', onSignRequest);
-    // Begin polling only after metadata is persisted OR when scan starts
-    window.addEventListener('railgun-wallet-metadata-ready', onInitStarted);
+    // Begin polling ONLY when scan starts
     window.addEventListener('railgun-scan-started', onInitStarted);
     window.addEventListener('railgun-init-started', onInitStarted);
     window.addEventListener('railgun-init-progress', onInitProgress);
@@ -250,7 +249,6 @@ const WalletPage = () => {
     return () => {
       window.removeEventListener('railgun-signature-requested', onSignRequest);
       window.removeEventListener('railgun-init-started', onInitStarted);
-      window.removeEventListener('railgun-wallet-metadata-ready', onInitStarted);
       window.removeEventListener('railgun-scan-started', onInitStarted);
       window.removeEventListener('railgun-init-progress', onInitProgress);
       window.removeEventListener('railgun-init-completed', onInitCompleted);
