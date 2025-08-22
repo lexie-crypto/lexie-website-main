@@ -10,7 +10,6 @@ import { mainnet, polygon, arbitrum, bsc } from 'wagmi/chains';
 import { metaMask, walletConnect } from 'wagmi/connectors';
 import { WagmiProvider, useAccount, useConnect, useDisconnect, useSwitchChain, useConnectorClient, useSignMessage } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { toast } from 'react-hot-toast';
 import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/environment';
 import { NetworkName } from '@railgun-community/shared-models';
 
@@ -1191,17 +1190,10 @@ const WalletContextProvider = ({ children }) => {
       // Get or create signature for this EOA - Redis-only approach
       let signature = existingSignature; // From Redis
       
-              if (!signature) {
-          // First time for this EOA or migration needed - request signature
-          const signatureMessage = `Lexie Vault Creation\nAddress: ${address}\n\nSign this message to create your Lexie Vault.`;
-          
-          // Notify user about signature request
-          toast.info('Please sign the message in your wallet to create your Lexie Vault', {
-            duration: 6000,
-            icon: '🔐'
-          });
-          
-          signature = await signMessageAsync({ message: signatureMessage });
+      if (!signature) {
+        // First time for this EOA or migration needed - request signature
+        const signatureMessage = `Lexie Vault Creation\nAddress: ${address}\n\nSign this message to create your Lexie Vault.`;
+        signature = await signMessageAsync({ message: signatureMessage });
         console.log('✅ New signature created for cross-device wallet access:', address);
       } else {
         console.log('✅ Using existing signature from Redis:', address);
