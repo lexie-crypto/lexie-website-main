@@ -3,7 +3,7 @@
  * Integrates external wallet connection and Railgun privacy functionality
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import { 
   WalletIcon, 
@@ -537,6 +537,24 @@ const WalletPage = () => {
   ];
 
   const [isChainMenuOpen, setIsChainMenuOpen] = useState(false);
+  const chainMenuRef = useRef(null);
+
+  // Close custom chain menu on outside click or ESC
+  useEffect(() => {
+    if (!isChainMenuOpen) return;
+    const onClickOutside = (e) => {
+      if (chainMenuRef.current && !chainMenuRef.current.contains(e.target)) {
+        setIsChainMenuOpen(false);
+      }
+    };
+    const onKey = (e) => { if (e.key === 'Escape') setIsChainMenuOpen(false); };
+    document.addEventListener('mousedown', onClickOutside);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [isChainMenuOpen]);
 
   if (!isConnected) {
     return (
@@ -661,12 +679,6 @@ const WalletPage = () => {
 
   return (
     <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
-      {/* Custom style to color native select option highlight to Lexie pink */}
-      <style>{`
-        .lexie-chain-select option:checked { background-color: #d8b4fe !important; color: #000 !important; }
-        .lexie-chain-select option:hover { background-color: #d8b4fe !important; color: #000 !important; }
-        .lexie-chain-select:focus { outline: none; box-shadow: 0 0 0 2px rgba(216,180,254,0.35); }
-      `}</style>
       {/* Navigation (same as LandingPage) */}
       <nav className="sticky top-0 z-40 w-full p-6 bg-black">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
@@ -769,23 +781,28 @@ const WalletPage = () => {
                 </div>
               </div>
               <div className="flex items-center space-x-3">
-              <div className="relative">
-                <select
-                  value={chainId || ''}
-                  onChange={(e) => handleNetworkSwitch(parseInt(e.target.value))}
-                    onClick={() => setIsChainMenuOpen(true)}
-                    onBlur={() => setTimeout(() => setIsChainMenuOpen(false), 150)}
-                    className="lexie-chain-select bg-black text-green-300 rounded px-2 py-1 text-sm border border-green-500/40 focus:border-emerald-400 focus:outline-none relative z-10"
+              <div className="relative" ref={chainMenuRef}>
+                <button
+                  onClick={() => setIsChainMenuOpen((v) => !v)}
+                  className="px-2 py-1 text-sm bg-black text-green-300 rounded border border-green-500/40 hover:border-emerald-400"
                 >
-                  {supportedNetworks.map((net) => (
-                      <option key={net.id} value={net.id} className="bg-black">
-                      {net.name}
-                    </option>
-                  ))}
-                </select>
-                  {isChainMenuOpen && (
-                    <div className="absolute left-0 right-0 -bottom-1 h-1 bg-green-500/40 rounded-b" />
-                  )}
+                  {supportedNetworks.find(n => n.id === chainId)?.name || 'Select'}
+                  <span className="ml-1">▾</span>
+                </button>
+                {isChainMenuOpen && (
+                  <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden">
+                    {supportedNetworks.map((net) => (
+                      <button
+                        key={net.id}
+                        onClick={() => { setIsChainMenuOpen(false); handleNetworkSwitch(net.id); }}
+                        className="w-full text-left px-3 py-2 hover:bg-emerald-900/30 focus:bg-emerald-900/30 focus:outline-none"
+                      >
+                        {net.name}
+                      </button>
+                    ))}
+                    <div className="h-[1px] bg-green-500/40" />
+                  </div>
+                )}
               </div>
               <button
                 onClick={disconnectWallet}
