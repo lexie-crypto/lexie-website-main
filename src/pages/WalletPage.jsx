@@ -174,7 +174,7 @@ const WalletPage = () => {
       initAddressRef.current = e?.detail?.address || address || initAddressRef.current;
       // Set friendly, chain-aware message
       const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
-      setInitProgress({ percent: 0, message: `Setting up your personal vault on ${chainLabel}...` });
+      setInitProgress({ percent: 0, message: `Setting up your Lexie Vault on ${chainLabel} Network...` });
       console.log('[Vault Init] Initialization started');
     };
     const onInitProgress = () => {
@@ -1274,7 +1274,7 @@ const WalletPage = () => {
                   <h3 className="text-lg font-bold text-emerald-300">Initializing Your Vault</h3>
                   <p className="text-green-400/80 text-sm">This may take a few minutes. Do not close this window.</p>
                   <div className="bg-black/40 border border-green-500/20 rounded p-4 flex items-center gap-3">
-                    <div className="h-5 w-5 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
+                    <div className={`h-5 w-5 rounded-full border-2 border-emerald-400 border-t-transparent ${isInitInProgress ? 'animate-spin' : ''}`} />
                     <div className="text-xs text-green-400/80 truncate" title={initProgress.message}>
                       {initProgress.message || 'Scanning...'}
                     </div>
