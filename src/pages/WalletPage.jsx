@@ -832,9 +832,7 @@ const WalletPage = () => {
 
                         {/* Privacy Actions */}
             {selectedView === 'privacy' && (
-              <div className="bg-black/40 border border-green-500/20 rounded p-3">
-                <PrivacyActions activeAction={activeAction} />
-              </div>
+              <PrivacyActions activeAction={activeAction} />
             )}
 
             {/* Transaction History */}
