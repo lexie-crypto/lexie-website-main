@@ -172,25 +172,7 @@ const WalletPage = () => {
       setIsInitInProgress(true);
       setInitFailedMessage('');
       initAddressRef.current = e?.detail?.address || address || initAddressRef.current;
-      console.log('[Vault Init] Initialization started', { addressPreview: (initAddressRef.current||'').slice(0,8)+'...', chainId });
-      // Spinwheel mode: no progress increments; unlock when chain is ready like privacy actions
-      const poll = async () => {
-        try {
-          const isReady = await checkChainReady();
-          if (isReady) {
-            setInitProgress({ percent: 100, message: 'Initialization complete' });
-            setIsInitInProgress(false);
-            try { if (window.__LEXIE_INIT_POLL_ID) { clearInterval(window.__LEXIE_INIT_POLL_ID); window.__LEXIE_INIT_POLL_ID = null; } } catch {}
-            return;
-          }
-        } catch {}
-      };
-      const pollId = setInterval(poll, 15000);
-      // Store pollId inside window symbol for cleanup in closure
-      // eslint-disable-next-line no-undef
-      window.__LEXIE_INIT_POLL_ID && clearInterval(window.__LEXIE_INIT_POLL_ID);
-      // eslint-disable-next-line no-undef
-      window.__LEXIE_INIT_POLL_ID = pollId;
+      console.log('[Vault Init] Initialization started');
     };
     const onInitProgress = (e) => {
       const detail = e?.detail || {};
@@ -234,6 +216,14 @@ const WalletPage = () => {
       try { if (window.__LEXIE_INIT_POLL_ID) { clearInterval(window.__LEXIE_INIT_POLL_ID); window.__LEXIE_INIT_POLL_ID = null; } } catch {}
     };
   }, [address, chainId, railgunWalletId]);
+
+  // Unlock modal using the same readiness flag as Privacy Actions
+  useEffect(() => {
+    if (showSignRequestPopup && isInitInProgress && isChainReady) {
+      setInitProgress({ percent: 100, message: 'Initialization complete' });
+      setIsInitInProgress(false);
+    }
+  }, [isChainReady, isInitInProgress, showSignRequestPopup]);
 
   // Check if this Railgun address already has a linked Lexie ID
   useEffect(() => {
@@ -1284,16 +1274,10 @@ const WalletPage = () => {
                 <>
                   <h3 className="text-lg font-bold text-emerald-300">Initializing Your Vault</h3>
                   <p className="text-green-400/80 text-sm">This may take a few minutes. Do not close this window.</p>
-                  <div className="bg-black/40 border border-green-500/20 rounded p-4">
-                    <div className="w-full h-2 bg-green-900/20 rounded">
-                      <div
-                        className="h-2 bg-emerald-400 rounded transition-all"
-                        style={{ width: `${Math.max(0, Math.min(100, initProgress.percent || 0))}%` }}
-                      />
-                    </div>
-                    <div className="mt-2 flex items-center justify-between text-xs text-green-400/80">
-                      <span>{initProgress.percent || 0}%</span>
-                      <span className="truncate max-w-[70%]" title={initProgress.message}>{initProgress.message || 'Scanning...'}</span>
+                  <div className="bg-black/40 border border-green-500/20 rounded p-4 flex items-center gap-3">
+                    <div className="h-5 w-5 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
+                    <div className="text-xs text-green-400/80 truncate" title={initProgress.message}>
+                      {initProgress.message || 'Scanning...'}
                     </div>
                   </div>
                 </>
