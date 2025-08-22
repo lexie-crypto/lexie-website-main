@@ -73,10 +73,9 @@ const WalletPage = () => {
   const [shieldAmounts, setShieldAmounts] = useState({});
   const [showSignatureGuide, setShowSignatureGuide] = useState(false);
   const [showSignRequestPopup, setShowSignRequestPopup] = useState(false);
-  const [initProgress, setInitProgress] = useState({ percent: 0, current: 0, total: 0, message: '' });
+  const [initProgress, setInitProgress] = useState({ percent: 0, message: '' });
   const [isInitInProgress, setIsInitInProgress] = useState(false);
   const [initFailedMessage, setInitFailedMessage] = useState('');
-  const [syntheticTicker, setSyntheticTicker] = useState(null);
   const initAddressRef = React.useRef(null);
   // Lexie ID linking state
   const [lexieIdInput, setLexieIdInput] = useState('');
@@ -165,7 +164,7 @@ const WalletPage = () => {
     const onSignRequest = () => {
       setShowSignRequestPopup(true);
       setIsInitInProgress(false);
-      setInitProgress({ percent: 0, current: 0, total: 0, message: '' });
+      setInitProgress({ percent: 0, message: '' });
       setInitFailedMessage('');
       console.log('[Vault Init] Signature requested - showing modal');
     };
@@ -174,39 +173,18 @@ const WalletPage = () => {
       setInitFailedMessage('');
       initAddressRef.current = e?.detail?.address || address || initAddressRef.current;
       console.log('[Vault Init] Initialization started', { addressPreview: (initAddressRef.current||'').slice(0,8)+'...', chainId });
-      // Start Redis scan status polling every 15s and increment progress by 8% each poll up to 92%
+      // Spinwheel mode: no progress increments; unlock when chain is ready like privacy actions
       const poll = async () => {
         try {
-          const walletAddr = initAddressRef.current || address;
-          const preview = walletAddr ? walletAddr.slice(0, 8) + '...' : 'unknown';
-          console.log('[Vault Init] 🔄 Polling Redis for scannedChains...', { walletPreview: preview, chainId });
-          const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(walletAddr || '')}`);
-          if (!resp.ok) return;
-          const data = await resp.json();
-          const keys = Array.isArray(data?.keys) ? data.keys : [];
-          // Prefer matching current walletId if available; otherwise any that shows scannedChains includes current chain
-          let target = null;
-          if (railgunWalletId) {
-            target = keys.find((k) => k.walletId === railgunWalletId);
-          }
-          if (!target) {
-            target = keys.find((k) => Array.isArray(k.scannedChains) && k.scannedChains.includes(chainId));
-          }
-          const ready = !!(target && Array.isArray(target.scannedChains) && target.scannedChains.includes(chainId));
-          if (ready) {
-            console.log('[Vault Init] ✅ scannedChains includes chain - completing');
-            setInitProgress({ percent: 100, current: 1, total: 1, message: 'Initialization complete' });
+          const isReady = await checkChainReady();
+          if (isReady) {
+            setInitProgress({ percent: 100, message: 'Initialization complete' });
             setIsInitInProgress(false);
             try { if (window.__LEXIE_INIT_POLL_ID) { clearInterval(window.__LEXIE_INIT_POLL_ID); window.__LEXIE_INIT_POLL_ID = null; } } catch {}
+            return;
           }
         } catch {}
-        // Increment by 8% per poll, capped at 92% while not ready
-        setInitProgress((prev) => {
-          const next = Math.min(92, (prev.percent || 0) + 8);
-          return { ...prev, percent: next, message: prev.message || 'Preparing vault...' };
-        });
       };
-      // Start interval aligned to 15s cadence; UI advances by +8% on each tick
       const pollId = setInterval(poll, 15000);
       // Store pollId inside window symbol for cleanup in closure
       // eslint-disable-next-line no-undef
