@@ -172,18 +172,17 @@ const WalletPage = () => {
       setIsInitInProgress(true);
       setInitFailedMessage('');
       initAddressRef.current = e?.detail?.address || address || initAddressRef.current;
+      // Set friendly, chain-aware message
+      const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
+      setInitProgress({ percent: 0, message: `Setting up your personal vault on ${chainLabel}...` });
       console.log('[Vault Init] Initialization started');
     };
-    const onInitProgress = (e) => {
-      const detail = e?.detail || {};
-      if (detail && detail.message) {
-        console.log('[Vault Init] SDK progress:', detail.message);
-      }
+    const onInitProgress = () => {
+      // Keep a stable, chain-aware message instead of noisy SDK text
+      const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
       setInitProgress((prev) => ({
         percent: prev.percent,
-        current: typeof detail.current === 'number' ? detail.current : prev.current,
-        total: typeof detail.total === 'number' ? detail.total : prev.total,
-        message: typeof detail.message === 'string' ? detail.message : prev.message,
+        message: prev.message || `Setting up your personal vault on ${chainLabel}...`,
       }));
     };
     const onInitCompleted = () => {
@@ -215,7 +214,7 @@ const WalletPage = () => {
       window.removeEventListener('railgun-init-failed', onInitFailed);
       try { if (window.__LEXIE_INIT_POLL_ID) { clearInterval(window.__LEXIE_INIT_POLL_ID); window.__LEXIE_INIT_POLL_ID = null; } } catch {}
     };
-  }, [address, chainId, railgunWalletId]);
+  }, [address, chainId, railgunWalletId, network]);
 
   // Unlock modal using the same readiness flag as Privacy Actions
   useEffect(() => {
