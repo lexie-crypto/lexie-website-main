@@ -170,15 +170,53 @@ const WalletPage = () => {
     const onInitStarted = () => {
       setIsInitInProgress(true);
       setInitFailedMessage('');
-      // Start synthetic, gentle progress that caps at 95%
+      // Start 3-minute synthetic baseline progress (0-99%)
       try { if (syntheticTicker) clearInterval(syntheticTicker); } catch {}
+      const start = Date.now();
       const id = setInterval(() => {
-        setInitProgress((prev) => {
-          const next = Math.min(95, (prev.percent || 0) + 0.5);
-          return { ...prev, percent: next };
-        });
-      }, 500);
+        const elapsed = Date.now() - start;
+        const baseline = Math.min(99, Math.floor((elapsed / 180000) * 99));
+        setInitProgress((prev) => ({
+          percent: Math.max(prev.percent || 0, baseline),
+          current: prev.current || 0,
+          total: prev.total || 0,
+          message: prev.message || 'Preparing vault...'
+        }));
+      }, 1000);
       setSyntheticTicker(id);
+
+      // Start Redis scan status polling every 15s
+      const poll = async () => {
+        try {
+          if (!address) return;
+          const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+          if (!resp.ok) return;
+          const data = await resp.json();
+          const keys = Array.isArray(data?.keys) ? data.keys : [];
+          // Prefer matching current walletId if available; otherwise any that shows scannedChains includes current chain
+          let target = null;
+          if (railgunWalletId) {
+            target = keys.find((k) => k.walletId === railgunWalletId);
+          }
+          if (!target) {
+            target = keys.find((k) => Array.isArray(k.scannedChains) && k.scannedChains.includes(chainId));
+          }
+          const ready = !!(target && Array.isArray(target.scannedChains) && target.scannedChains.includes(chainId));
+          if (ready) {
+            try { if (syntheticTicker) clearInterval(syntheticTicker); } catch {}
+            setInitProgress({ percent: 100, current: 1, total: 1, message: 'Initialization complete' });
+            setIsInitInProgress(false);
+          }
+        } catch {}
+      };
+      // immediate check, then interval
+      poll();
+      const pollId = setInterval(poll, 15000);
+      // Store pollId inside window symbol for cleanup in closure
+      // eslint-disable-next-line no-undef
+      window.__LEXIE_INIT_POLL_ID && clearInterval(window.__LEXIE_INIT_POLL_ID);
+      // eslint-disable-next-line no-undef
+      window.__LEXIE_INIT_POLL_ID = pollId;
     };
     const onInitProgress = (e) => {
       const detail = e?.detail || {};
@@ -212,8 +250,9 @@ const WalletPage = () => {
       window.removeEventListener('railgun-init-completed', onInitCompleted);
       window.removeEventListener('railgun-init-failed', onInitFailed);
       try { if (syntheticTicker) clearInterval(syntheticTicker); } catch {}
+      try { if (window.__LEXIE_INIT_POLL_ID) { clearInterval(window.__LEXIE_INIT_POLL_ID); window.__LEXIE_INIT_POLL_ID = null; } } catch {}
     };
-  }, []);
+  }, [address, chainId, railgunWalletId, syntheticTicker, initProgress.total]);
 
   // Check if this Railgun address already has a linked Lexie ID
   useEffect(() => {
