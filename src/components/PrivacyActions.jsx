@@ -554,10 +554,10 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
   // Show loading state
   if (isLoading) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
+      <div className="bg-black/40 border border-green-500/20 rounded p-6">
         <div className="animate-pulse">
-          <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded mb-4"></div>
-          <div className="h-32 bg-gray-200 dark:bg-gray-700 rounded"></div>
+          <div className="h-6 bg-green-500/20 rounded mb-4"></div>
+          <div className="h-32 bg-green-500/20 rounded"></div>
         </div>
       </div>
     );
@@ -566,13 +566,13 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
   // Show connection required
   if (!isConnected) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
+      <div className="bg-black/40 border border-green-500/20 rounded p-6">
         <div className="text-center py-8">
-          <EyeSlashIcon className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+          <EyeSlashIcon className="mx-auto h-12 w-12 text-green-400/70 mb-4" />
+          <h3 className="text-lg font-medium text-emerald-300 mb-2">
             Connect Your Wallet
           </h3>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-green-400/80">
             Connect your wallet to access vault features
           </p>
         </div>
@@ -583,16 +583,16 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
   // Show unsupported chain
   if (!isChainSupported) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg">
+      <div className="bg-black/40 border border-green-500/20 rounded p-6">
         <div className="text-center py-8">
-          <ExclamationTriangleIcon className="mx-auto h-12 w-12 text-yellow-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+          <ExclamationTriangleIcon className="mx-auto h-12 w-12 text-yellow-300 mb-4" />
+          <h3 className="text-lg font-medium text-emerald-300 mb-2">
             Unsupported Network
           </h3>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
+          <p className="text-green-400/80 mb-4">
             Vault is not available on this network
           </p>
-          <p className="text-sm text-gray-500 dark:text-gray-500">
+          <p className="text-sm text-green-400/60">
             Supported networks: Ethereum, Arbitrum, Polygon, BNB Smart Chain
           </p>
         </div>
@@ -706,7 +706,7 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
           {/* Recipient Address */}
           {activeTab === 'unshield' && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+              <label className="block text-sm font-medium text-green-300 mb-2">
                 Recipient Address (optional)
               </label>
               <input
@@ -714,9 +714,9 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
                 value={recipientAddress}
                 onChange={(e) => setRecipientAddress(e.target.value)}
                 placeholder={`${address?.slice(0, 6)}...${address?.slice(-4)} (your wallet)`}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
               />
-              <p className="mt-1 text-sm text-gray-500">
+              <p className="mt-1 text-sm text-green-400/70">
                 Leave empty to remove from your vault to your connected wallet
               </p>
             </div>
@@ -725,7 +725,7 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
           {activeTab === 'transfer' && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-green-300 mb-2">
                   Recipient Railgun Address
                 </label>
                 <input
@@ -733,11 +733,11 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
                   value={recipientAddress}
                   onChange={(e) => setRecipientAddress(e.target.value)}
                   placeholder={`0zk... (recipient Railgun address)`}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                <label className="block text-sm font-medium text-green-300 mb-2">
                   Memo (optional)
                 </label>
                 <input
@@ -745,9 +745,9 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
                   value={memoText}
                   onChange={(e) => setMemoText(e.target.value)}
                   placeholder="Thanks for dinner! 🍝😋"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
                 />
-                <p className="mt-1 text-sm text-gray-500">Memo is encrypted; only sender and recipient can read it.</p>
+                <p className="mt-1 text-sm text-green-400/70">Memo is encrypted; only sender and recipient can read it.</p>
               </div>
             </div>
           )}
@@ -756,15 +756,15 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
           <button
             type="submit"
             disabled={!isValidAmount || isProcessing || !selectedToken}
-            className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
+            className={`w-full py-3 px-4 rounded font-medium transition-colors ${
               isValidAmount && !isProcessing && selectedToken
-                ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                ? 'bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 border border-emerald-400/40'
+                : 'bg-black/40 text-green-400/50 border border-green-500/20 cursor-not-allowed'
             }`}
           >
             {isProcessing ? (
               <div className="flex items-center justify-center gap-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-emerald-400"></div>
                 Processing...
               </div>
             ) : (
@@ -774,14 +774,14 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
         </form>
 
         {/* Info */}
-        <div className="mt-6 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+        <div className="mt-6 p-4 bg-black/60 border border-green-500/20 rounded">
           <div className="flex">
-            <ShieldCheckIcon className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            <ShieldCheckIcon className="h-5 w-5 text-emerald-300 flex-shrink-0 mt-0.5" />
             <div className="ml-3">
-              <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200">
+              <h4 className="text-sm font-medium text-emerald-300">
                 {tabs.find(t => t.id === activeTab)?.name} Information
               </h4>
-              <p className="mt-1 text-sm text-blue-700 dark:text-blue-300">
+              <p className="mt-1 text-sm text-green-300/80">
                 {tabs.find(t => t.id === activeTab)?.description}
               </p>
             </div>
