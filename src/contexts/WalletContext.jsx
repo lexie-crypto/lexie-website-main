@@ -1392,6 +1392,8 @@ const WalletContextProvider = ({ children }) => {
       setIsRailgunInitialized(true);
 
       console.log('✅ Wallet state updated - all data persisted in Redis for cross-device access');
+      // Notify UI that metadata is persisted; polling may begin
+      try { window.dispatchEvent(new CustomEvent('railgun-wallet-metadata-ready', { detail: { address, walletId: railgunWalletInfo.id } })); } catch {}
 
       // 🔄 Run initial Merkle-tree scan and balance refresh for CURRENT chain only (prevent infinite polling)
       try {
@@ -1406,6 +1408,8 @@ const WalletContextProvider = ({ children }) => {
           const alreadyScanned = typeof window !== 'undefined' && (window.__RAILGUN_INITIAL_SCAN_DONE?.[railgunChain.id] || localStorage.getItem(scanKey) === '1');
           if (!alreadyScanned) {
             console.log('[Railgun Init] 🔄 Performing initial balance refresh for chain', railgunChain.id);
+            // Signal scan start to allow UI to start progress modal if not already
+            try { window.dispatchEvent(new CustomEvent('railgun-scan-started', { detail: { chainId: railgunChain.id } })); } catch {}
             await refreshBalances(railgunChain, [railgunWalletInfo.id]);
             if (typeof window !== 'undefined') {
               window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
