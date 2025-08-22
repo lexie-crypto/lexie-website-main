@@ -202,6 +202,7 @@ const WalletPage = () => {
     const onPollStart = (e) => onInitStarted(e);
     window.addEventListener('vault-poll-start', onPollStart);
     window.addEventListener('railgun-init-started', onInitStarted);
+    window.addEventListener('railgun-scan-started', onInitStarted);
     window.addEventListener('railgun-init-progress', onInitProgress);
     window.addEventListener('railgun-init-completed', onInitCompleted);
     window.addEventListener('railgun-init-failed', onInitFailed);
@@ -210,6 +211,7 @@ const WalletPage = () => {
       window.removeEventListener('railgun-init-started', onInitStarted);
       window.removeEventListener('vault-poll-start', onPollStart);
       window.removeEventListener('railgun-init-progress', onInitProgress);
+      window.removeEventListener('railgun-scan-started', onInitStarted);
       window.removeEventListener('railgun-init-completed', onInitCompleted);
       window.removeEventListener('railgun-init-failed', onInitFailed);
       try { if (window.__LEXIE_INIT_POLL_ID) { clearInterval(window.__LEXIE_INIT_POLL_ID); window.__LEXIE_INIT_POLL_ID = null; } } catch {}
