@@ -38,7 +38,7 @@ import {
   getCurrentWallet,
 } from '../utils/railgun/wallet';
 
-const PrivacyActions = () => {
+const PrivacyActions = ({ defaultTab = 'shield' }) => {
   const {
     isConnected,
     address,
@@ -60,7 +60,7 @@ const PrivacyActions = () => {
   } = useBalances();
 
   // Component state
-  const [activeTab, setActiveTab] = useState('shield');
+  const [activeTab, setActiveTab] = useState(defaultTab);
   const [selectedToken, setSelectedToken] = useState(null);
   const [amount, setAmount] = useState('');
   const [recipientAddress, setRecipientAddress] = useState('');
@@ -261,7 +261,7 @@ const PrivacyActions = () => {
       console.log('[PrivacyActions] Transaction sent:', txResponse);
 
       toast.dismiss(toastId);
-      toast.success(`Successfully shielded ${amount} ${selectedToken.symbol}! TX: ${txResponse}`);
+      toast.success(`Successfully added ${amount} ${selectedToken.symbol} to vault! TX: ${txResponse}`);
 
       // Reset form
       setAmount('');
@@ -404,7 +404,7 @@ const PrivacyActions = () => {
       const result = await unshieldTokens(unshieldParams);
 
       toast.dismiss(toastId);
-      toast.success(`Successfully unshielded ${amount} ${selectedToken.symbol}!`);
+      toast.success(`Successfully removed ${amount} ${selectedToken.symbol} from vault!`);
 
       // Reset form
       setAmount('');
@@ -622,30 +622,7 @@ const PrivacyActions = () => {
         </h2>
       </div>
 
-      {/* Tabs */}
-      <div className="border-b border-green-500/20">
-        <nav className="flex space-x-8 px-6" aria-label="Tabs">
-          {tabs.map((tab) => {
-            const isActive = activeTab === tab.id;
-            const Icon = tab.icon;
-            
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`${
-                  isActive
-                    ? 'border-emerald-400 text-emerald-300'
-                    : 'border-transparent text-green-400/70 hover:text-green-300 hover:border-green-400/40'
-                } whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm flex items-center gap-2`}
-              >
-                <Icon className="h-5 w-5" />
-                {tab.name}
-              </button>
-            );
-          })}
-        </nav>
-      </div>
+
 
       {/* Content */}
       <div className="p-6 text-green-300">

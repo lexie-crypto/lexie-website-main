@@ -79,6 +79,7 @@ const WalletPage = () => {
   const [lexieMessage, setLexieMessage] = useState('');
   const [showLexieModal, setShowLexieModal] = useState(false);
   const [currentLexieId, setCurrentLexieId] = useState('');
+  const [privacyTab, setPrivacyTab] = useState('shield');
 
   const network = getCurrentNetwork();
   const [isChainReady, setIsChainReady] = useState(false);
@@ -653,7 +654,10 @@ const WalletPage = () => {
                   balances
                 </button>
                 <button
-                  onClick={() => setSelectedView('privacy')}
+                  onClick={() => {
+                    setSelectedView('privacy');
+                    setPrivacyTab('shield');
+                  }}
                   className="px-2 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 text-xs"
                 >
                   add
@@ -661,10 +665,7 @@ const WalletPage = () => {
                 <button
                   onClick={() => {
                     setSelectedView('privacy');
-                    setTimeout(() => {
-                      const el = document.querySelector('[data-tab="transfer"]');
-                      if (el) el.click();
-                    }, 100);
+                    setPrivacyTab('transfer');
                   }}
                   className="px-2 py-1 rounded border border-cyan-400/40 bg-cyan-900/20 hover:bg-cyan-900/40 text-xs"
                 >
@@ -673,10 +674,7 @@ const WalletPage = () => {
                 <button
                   onClick={() => {
                     setSelectedView('privacy');
-                    setTimeout(() => {
-                      const el = document.querySelector('[data-tab="unshield"]');
-                      if (el) el.click();
-                    }, 100);
+                    setPrivacyTab('unshield');
                   }}
                   className="px-2 py-1 rounded border border-amber-400/40 bg-amber-900/20 hover:bg-amber-900/40 text-xs"
                 >
@@ -834,10 +832,7 @@ const WalletPage = () => {
 
             {/* Privacy Actions */}
             {selectedView === 'privacy' && (
-              <div className="bg-black/40 border border-green-500/20 rounded p-3">
-                <div className="text-green-300 text-sm font-medium mb-2">Privacy Actions</div>
-                <PrivacyActions />
-              </div>
+              <PrivacyActions defaultTab={privacyTab} />
             )}
 
             {/* Transaction History */}
