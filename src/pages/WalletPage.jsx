@@ -833,7 +833,6 @@ const WalletPage = () => {
                         {/* Privacy Actions */}
             {selectedView === 'privacy' && (
               <div className="bg-black/40 border border-green-500/20 rounded p-3">
-                <div className="text-green-300 text-sm font-medium mb-2">Vault Actions</div>
                 <PrivacyActions activeAction={activeAction} />
               </div>
             )}
