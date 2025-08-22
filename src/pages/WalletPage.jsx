@@ -72,6 +72,7 @@ const WalletPage = () => {
   const [shieldingTokens, setShieldingTokens] = useState(new Set());
   const [shieldAmounts, setShieldAmounts] = useState({});
   const [showSignatureGuide, setShowSignatureGuide] = useState(false);
+  const [showSignRequestPopup, setShowSignRequestPopup] = useState(false);
   // Lexie ID linking state
   const [lexieIdInput, setLexieIdInput] = useState('');
   const [lexieLinking, setLexieLinking] = useState(false);
@@ -153,6 +154,15 @@ const WalletPage = () => {
     window.addEventListener('railgun-scan-complete', onScanComplete);
     return () => window.removeEventListener('railgun-scan-complete', onScanComplete);
   }, [checkChainReady]);
+
+  // Listen for signature request event from WalletContext
+  useEffect(() => {
+    const onSignRequest = () => {
+      setShowSignRequestPopup(true);
+    };
+    window.addEventListener('railgun-signature-requested', onSignRequest);
+    return () => window.removeEventListener('railgun-signature-requested', onSignRequest);
+  }, []);
 
   // Check if this Railgun address already has a linked Lexie ID
   useEffect(() => {
@@ -1157,6 +1167,48 @@ const WalletPage = () => {
                   className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors font-medium"
                 >
                   Continue
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Sign-in Request Popup (terminal style) */}
+      {showSignRequestPopup && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center z-50 p-4 font-mono">
+          <div className="bg-black border border-green-500/40 rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-green-500/20 bg-black/90">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-red-500/80" />
+                  <span className="w-3 h-3 rounded-full bg-yellow-400/80" />
+                  <span className="w-3 h-3 rounded-full bg-green-500/80" />
+                </div>
+                <span className="text-sm tracking-wide text-green-200">vault-sign</span>
+              </div>
+              <button
+                onClick={() => setShowSignRequestPopup(false)}
+                className="text-green-400/70 hover:text-green-300 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-6 text-green-300 space-y-4">
+              <h3 className="text-lg font-bold text-emerald-300">Sign to Create Your Lexie Vault</h3>
+              <p className="text-green-400/80 text-sm">
+                A signature request was sent to your wallet. Please open your wallet and approve the message to initialize your secure vault.
+              </p>
+              <div className="bg-black/40 border border-green-500/20 rounded p-3 text-xs">
+                <div>Message preview:</div>
+                <pre className="mt-2 whitespace-pre-wrap text-green-200">Lexie Vault Creation\nAddress: {address}\n\nSign this message to create your Lexie Vault.</pre>
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  onClick={() => setShowSignRequestPopup(false)}
+                  className="px-3 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 text-xs"
+                >
+                  Got it
                 </button>
               </div>
             </div>

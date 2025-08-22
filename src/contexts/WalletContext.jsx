@@ -1193,6 +1193,10 @@ const WalletContextProvider = ({ children }) => {
       if (!signature) {
         // First time for this EOA or migration needed - request signature
         const signatureMessage = `Lexie Vault Creation\nAddress: ${address}\n\nSign this message to create your Lexie Vault.`;
+        // Notify UI that a signature is being requested
+        try {
+          window.dispatchEvent(new CustomEvent('railgun-signature-requested', { detail: { address } }));
+        } catch (_) {}
         signature = await signMessageAsync({ message: signatureMessage });
         console.log('✅ New signature created for cross-device wallet access:', address);
       } else {
