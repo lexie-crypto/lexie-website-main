@@ -86,7 +86,7 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
       id: 'transfer',
       name: 'Send',
       icon: ArrowRightIcon,
-      description: 'Send to any address (EOA, Railgun, or Lexie ID)'
+      description: 'Send to any address (EOA or Lexie ID)'
     },
   ];
 
@@ -746,7 +746,7 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
                   {recipientType === 'railgun' && '🔒 Will send privately via Railgun'}
                   {recipientType === 'lexie' && '🔒 Will send privately to Lexie ID'}
                   {recipientType === 'invalid' && recipientAddress && '❌ Invalid address format'}
-                  {recipientType === 'none' && 'Enter recipient address, Railgun address, or Lexie ID'}
+                  {recipientType === 'none' && 'Enter recipient address or Lexie ID'}
                 </div>
               </div>
               

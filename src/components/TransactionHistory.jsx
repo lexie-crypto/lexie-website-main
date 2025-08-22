@@ -112,7 +112,7 @@ const TransactionHistory = () => {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h3 className="text-xl font-semibold text-emerald-300 flex items-center">
-            🕐 Transaction History
+            Transaction History
           </h3>
           <p className="text-green-400/80 text-sm mt-1">
             {statistics.total} total transactions
@@ -157,7 +157,7 @@ const TransactionHistory = () => {
       {/* Transaction List */}
       {isEmpty ? (
         <div className="text-center py-8">
-          <div className="text-green-400/70 mb-4">📋 No transactions found</div>
+          <div className="text-green-400/70 mb-4">No transactions found</div>
           <p className="text-green-400/60">
             Start using vault features to see your transaction history here.
           </p>
