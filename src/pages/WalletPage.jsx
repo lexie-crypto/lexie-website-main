@@ -535,7 +535,7 @@ const WalletPage = () => {
                 <button
                   onClick={() => connectWallet('metamask')}
                   disabled={isConnecting}
-                  className="w-full bg-orange-600/80 hover:bg-orange-600 disabled:bg-black/40 disabled:cursor-not-allowed text-white py-3 px-6 rounded font-medium transition-colors flex items-center justify-center space-x-2 border border-orange-500/40"
+                  className="w-full bg-emerald-600/30 hover:bg-emerald-600/50 disabled:bg-black/40 disabled:cursor-not-allowed text-emerald-200 py-3 px-6 rounded font-medium transition-colors flex items-center justify-center space-x-2 border border-emerald-400/40"
                 >
                   <span>🦊</span>
                   <span>
@@ -547,7 +547,7 @@ const WalletPage = () => {
                 <button
                   onClick={() => connectWallet('walletconnect')}
                   disabled={isConnecting}
-                  className="w-full bg-blue-600/80 hover:bg-blue-600 disabled:bg-black/40 text-white py-3 px-6 rounded font-medium transition-colors flex items-center justify-center space-x-2 border border-blue-500/40"
+                  className="w-full bg-emerald-600/30 hover:bg-emerald-600/50 disabled:bg-black/40 text-emerald-200 py-3 px-6 rounded font-medium transition-colors flex items-center justify-center space-x-2 border border-emerald-400/40"
                 >
                   <span>🔗</span>
                   <span>{isConnecting ? 'Connecting...' : 'WalletConnect'}</span>
