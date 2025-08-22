@@ -65,13 +65,13 @@ const TransactionHistory = () => {
   // Get status color
   const getStatusColor = (type) => {
     switch (type) {
-      case 'Shield':
+      case 'Add to Vault':
         return 'text-green-400';
-      case 'Unshield':
+      case 'Remove from Vault':
         return 'text-blue-400';
-      case 'Private Send':
+      case 'Send Transaction':
         return 'text-red-400';
-      case 'Private Receive':
+      case 'Receive Transaction':
         return 'text-green-400';
       default:
         return 'text-gray-400';
