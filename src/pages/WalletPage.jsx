@@ -511,7 +511,19 @@ const WalletPage = () => {
     try {
       await switchNetwork(targetChainId);
       const targetNetwork = supportedNetworks.find(net => net.id === targetChainId);
-      toast.success(`Switched to ${targetNetwork?.name || `Chain ${targetChainId}`}`);
+      toast.custom((t) => (
+        <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+          <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+            <div className="px-4 py-3 flex items-center gap-3">
+              <div className="h-3 w-3 rounded-full bg-emerald-400" />
+              <div>
+                <div className="text-sm">Network switched</div>
+                <div className="text-xs text-green-400/80">{targetNetwork?.name || `Chain ${targetChainId}`}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ), { duration: 2000 });
     } catch (error) {
       toast.error(`Failed to switch network: ${error.message}`);
     }
@@ -695,7 +707,7 @@ const WalletPage = () => {
 
       <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Terminal Window */}
-        <div className="rounded-xl overflow-hidden shadow-2xl border border-green-500/30 bg-black">
+        <div className="rounded-xl overflow-visible shadow-2xl border border-green-500/30 bg-black">
           {/* Terminal chrome */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-green-500/20 bg-black/90">
             <div className="flex items-center gap-3">
@@ -706,7 +718,7 @@ const WalletPage = () => {
               </div>
               <span className="text-sm tracking-wide text-green-200 font-mono">lexie-ai</span>
             </div>
-            <div className="flex items-center gap-2 text-xs font-mono">
+            <div className="flex items-center gap-2 text-xs font-mono overflow-visible">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-emerald-400">ONLINE</span>
             </div>
@@ -752,7 +764,7 @@ const WalletPage = () => {
                 <select
                   value={chainId || ''}
                   onChange={(e) => handleNetworkSwitch(parseInt(e.target.value))}
-                  className="bg-black text-green-300 rounded px-2 py-1 text-sm border border-green-500/40 focus:border-emerald-400 focus:outline-none"
+                  className="bg-black text-green-300 rounded px-2 py-1 text-sm border border-green-500/40 focus:border-emerald-400 focus:outline-none relative z-10"
                 >
                   {supportedNetworks.map((net) => (
                     <option key={net.id} value={net.id} className="bg-black">
@@ -1271,7 +1283,7 @@ const WalletPage = () => {
                 </>
               ) : (
                 <>
-                  <h3 className="text-lg font-bold text-emerald-300">Initializing Your Lexie Vault on {network?.name || 'network'}</h3>
+                  <h3 className="text-lg font-bold text-emerald-300">Initializing Your Lexie Vault on {network?.name || 'network'} Network</h3>
                   <p className="text-green-400/80 text-sm">This may take a few minutes. Do not close this window.</p>
                   <div className="bg-black/40 border border-green-500/20 rounded p-4 flex items-center gap-3">
                     <div className={`h-5 w-5 rounded-full border-2 ${isInitInProgress ? 'border-emerald-400 border-t-transparent animate-spin' : 'border-emerald-400'}`} />
