@@ -456,42 +456,118 @@ const WalletPage = () => {
 
   if (!isConnected) {
     return (
-      <div className="min-h-screen bg-gray-900 py-12">
-        <div className="max-w-md mx-auto text-center">
-          <div className="bg-gray-800 rounded-lg shadow-lg p-8">
-            <WalletIcon className="h-16 w-16 text-purple-500 mx-auto mb-6" />
-            <h1 className="text-2xl font-bold text-white mb-4">Connect Wallet</h1>
-            <p className="text-gray-300 mb-8">
-              Connect your wallet to access Lexie's privacy features powered by Railgun.
-            </p>
-            
-            <div className="space-y-4">
-              {/* MetaMask */}
-              <button
-                onClick={() => connectWallet('metamask')}
-                disabled={isConnecting}
-                className="w-full bg-orange-600 hover:bg-orange-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white py-3 px-6 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2"
-              >
-                <span>🦊</span>
-                <span>
-                  {isConnecting ? 'Connecting...' : 'Connect MetaMask'}
-                </span>
-              </button>
-              
-              {/* WalletConnect */}
-              <button
-                onClick={() => connectWallet('walletconnect')}
-                disabled={isConnecting}
-                className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white py-3 px-6 rounded-lg font-medium transition-colors flex items-center justify-center space-x-2"
-              >
-                <span>🔗</span>
-                <span>{isConnecting ? 'Connecting...' : 'WalletConnect'}</span>
-              </button>
+      <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
+        {/* Navigation (same as LandingPage) */}
+        <nav className="sticky top-0 z-40 w-full p-6 bg-black">
+          <div className="max-w-7xl mx-auto flex justify-between items-center">
+            <div className="text-4xl font-bold text-purple-300">
+              LEXIE AI
+            </div>
+            <div className="hidden md:flex space-x-6">
+              <a href="/#features" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Features</a>
+              <a href="/#security" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Security</a>
+              <a href="/#beta" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Beta</a>
+            </div>
+          </div>
+        </nav>
+
+        {/* Background overlays (match LandingPage) */}
+        <div className="fixed inset-0 z-0">
+          {/* Base gradient layers */}
+          <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
+          {/* Futuristic cityscape silhouette */}
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60"></div>
+          <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-purple-900/40 via-purple-800/20 to-transparent"></div>
+          {/* Dynamic grid system */}
+          <div className="absolute inset-0 opacity-30">
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(147,51,234,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(147,51,234,0.2)_1px,transparent_1px)] bg-[size:40px_40px] animate-pulse"></div>
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.1)_1px,transparent_1px)] bg-[size:80px_80px] animate-pulse" style={{animationDelay: '1s'}}></div>
+          </div>
+          {/* Subtle ambient orbs */}
+          <div className="absolute inset-0 overflow-hidden">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div 
+                key={i} 
+                className="absolute rounded-full animate-pulse"
+                style={{ 
+                  left: `${20 + i * 30}%`,
+                  top: `${20 + i * 20}%`,
+                  width: `${200 + i * 100}px`,
+                  height: `${200 + i * 100}px`,
+                  background: `radial-gradient(circle, rgba(147, 51, 234, 0.1) 0%, rgba(147, 51, 234, 0.05) 50%, transparent 100%)`,
+                  animationDelay: `${i * 2}s`,
+                  animationDuration: `${6 + i * 2}s`,
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div className="relative z-10 max-w-md mx-auto px-4 py-12">
+          {/* Terminal Window */}
+          <div className="rounded-xl overflow-hidden shadow-2xl border border-green-500/30 bg-black">
+            {/* Terminal chrome */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-green-500/20 bg-black/90">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-red-500/80" />
+                  <span className="w-3 h-3 rounded-full bg-yellow-400/80" />
+                  <span className="w-3 h-3 rounded-full bg-green-500/80" />
+                </div>
+                <span className="text-sm tracking-wide text-green-200 font-mono">lexie-connect</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs font-mono">
+                <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
+                <span className="text-yellow-400">WAITING</span>
+              </div>
             </div>
 
-            <div className="mt-4 text-sm text-gray-400 text-center">
-              <p>Choose your preferred wallet to connect</p>
-              <p className="mt-1 text-xs">Clean wagmi-based connection system</p>
+            {/* Terminal content */}
+            <div className="p-8 font-mono text-green-300 text-center">
+              <WalletIcon className="h-16 w-16 text-emerald-300 mx-auto mb-6" />
+              <h1 className="text-2xl font-bold text-emerald-300 mb-4">Connect Wallet</h1>
+              <p className="text-green-400/80 mb-8">
+                Connect your wallet to access Lexie's vault features powered by Railgun.
+              </p>
+              
+              <div className="space-y-4">
+                {/* MetaMask */}
+                <button
+                  onClick={() => connectWallet('metamask')}
+                  disabled={isConnecting}
+                  className="w-full bg-orange-600/80 hover:bg-orange-600 disabled:bg-black/40 disabled:cursor-not-allowed text-white py-3 px-6 rounded font-medium transition-colors flex items-center justify-center space-x-2 border border-orange-500/40"
+                >
+                  <span>🦊</span>
+                  <span>
+                    {isConnecting ? 'Connecting...' : 'Connect MetaMask'}
+                  </span>
+                </button>
+                
+                {/* WalletConnect */}
+                <button
+                  onClick={() => connectWallet('walletconnect')}
+                  disabled={isConnecting}
+                  className="w-full bg-blue-600/80 hover:bg-blue-600 disabled:bg-black/40 text-white py-3 px-6 rounded font-medium transition-colors flex items-center justify-center space-x-2 border border-blue-500/40"
+                >
+                  <span>🔗</span>
+                  <span>{isConnecting ? 'Connecting...' : 'WalletConnect'}</span>
+                </button>
+              </div>
+
+              <div className="mt-6 text-sm text-green-400/70 text-center">
+                <p>Choose your preferred wallet to connect</p>
+                <p className="mt-1 text-xs">Secure connection system</p>
+              </div>
+            </div>
+
+            {/* Terminal footer */}
+            <div className="flex items-center justify-between px-4 py-2 border-t border-green-500/20 bg-black/90 text-xs font-mono">
+              <div className="flex items-center gap-4 text-green-300/80">
+                <span>Process: wallet-connect</span>
+                <span>•</span>
+                <span>Status: Waiting</span>
+              </div>
+              <div className="text-yellow-400">Ready</div>
             </div>
           </div>
         </div>
