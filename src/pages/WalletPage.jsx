@@ -556,6 +556,7 @@ const WalletPage = () => {
 
               <div className="mt-6 text-sm text-green-400/70 text-center">
                 <p>Choose your preferred wallet to connect</p>
+                <p className="mt-1 text-xs">Connection is zk-secured and encrypted</p>
               </div>
             </div>
 
