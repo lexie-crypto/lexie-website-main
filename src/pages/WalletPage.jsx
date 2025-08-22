@@ -206,8 +206,7 @@ const WalletPage = () => {
           return { ...prev, percent: next, message: prev.message || 'Preparing vault...' };
         });
       };
-      // immediate check, then interval
-      poll();
+      // Start interval aligned to 15s cadence; UI advances by +8% on each tick
       const pollId = setInterval(poll, 15000);
       // Store pollId inside window symbol for cleanup in closure
       // eslint-disable-next-line no-undef
@@ -240,8 +239,9 @@ const WalletPage = () => {
       console.warn('[Vault Init] Initialization failed:', msg);
     };
     window.addEventListener('railgun-signature-requested', onSignRequest);
-    // Begin polling ONLY when scan starts
-    window.addEventListener('railgun-scan-started', onInitStarted);
+    // Begin polling exactly when refreshBalances starts in context
+    const onPollStart = (e) => onInitStarted(e);
+    window.addEventListener('vault-poll-start', onPollStart);
     window.addEventListener('railgun-init-started', onInitStarted);
     window.addEventListener('railgun-init-progress', onInitProgress);
     window.addEventListener('railgun-init-completed', onInitCompleted);
@@ -249,7 +249,7 @@ const WalletPage = () => {
     return () => {
       window.removeEventListener('railgun-signature-requested', onSignRequest);
       window.removeEventListener('railgun-init-started', onInitStarted);
-      window.removeEventListener('railgun-scan-started', onInitStarted);
+      window.removeEventListener('vault-poll-start', onPollStart);
       window.removeEventListener('railgun-init-progress', onInitProgress);
       window.removeEventListener('railgun-init-completed', onInitCompleted);
       window.removeEventListener('railgun-init-failed', onInitFailed);

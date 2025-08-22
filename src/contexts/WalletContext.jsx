@@ -945,8 +945,10 @@ const WalletContextProvider = ({ children }) => {
                 console.log('[Railgun Init] ⏭️ Skipping initial scan (found in Redis) for chain', railgunChain.id);
               } else {
                 console.log('[Railgun Init] 🔄 Performing initial balance refresh for chain', railgunChain.id);
-                try { window.dispatchEvent(new CustomEvent('railgun-scan-started', { detail: { chainId: railgunChain.id } })); } catch {}
+                // Start UI polling exactly when refresh begins
+                try { window.dispatchEvent(new CustomEvent('vault-poll-start', { detail: { address, walletId: railgunWalletInfo.id, chainId: railgunChain.id } })); } catch {}
                 await refreshBalances(railgunChain, [railgunWalletInfo.id]);
+                try { window.dispatchEvent(new CustomEvent('vault-poll-complete', { detail: { address, walletId: railgunWalletInfo.id, chainId: railgunChain.id } })); } catch {}
                 if (typeof window !== 'undefined') {
                   window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
                   window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id] = true;
@@ -1409,9 +1411,10 @@ const WalletContextProvider = ({ children }) => {
           const alreadyScanned = typeof window !== 'undefined' && (window.__RAILGUN_INITIAL_SCAN_DONE?.[railgunChain.id] || localStorage.getItem(scanKey) === '1');
           if (!alreadyScanned) {
             console.log('[Railgun Init] 🔄 Performing initial balance refresh for chain', railgunChain.id);
-            // Signal scan start to allow UI to start progress modal if not already
-            try { window.dispatchEvent(new CustomEvent('railgun-scan-started', { detail: { chainId: railgunChain.id } })); } catch {}
+            // Start UI polling exactly when refresh begins
+            try { window.dispatchEvent(new CustomEvent('vault-poll-start', { detail: { address, walletId: railgunWalletInfo.id, chainId: railgunChain.id } })); } catch {}
             await refreshBalances(railgunChain, [railgunWalletInfo.id]);
+            try { window.dispatchEvent(new CustomEvent('vault-poll-complete', { detail: { address, walletId: railgunWalletInfo.id, chainId: railgunChain.id } })); } catch {}
             if (typeof window !== 'undefined') {
               window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
               window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id] = true;
