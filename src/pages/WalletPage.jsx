@@ -77,6 +77,7 @@ const WalletPage = () => {
   const [isInitInProgress, setIsInitInProgress] = useState(false);
   const [initFailedMessage, setInitFailedMessage] = useState('');
   const [syntheticTicker, setSyntheticTicker] = useState(null);
+  const initAddressRef = React.useRef(null);
   // Lexie ID linking state
   const [lexieIdInput, setLexieIdInput] = useState('');
   const [lexieLinking, setLexieLinking] = useState(false);
@@ -166,15 +167,20 @@ const WalletPage = () => {
       setIsInitInProgress(false);
       setInitProgress({ percent: 0, current: 0, total: 0, message: '' });
       setInitFailedMessage('');
+      console.log('[Vault Init] Signature requested - showing modal');
     };
-    const onInitStarted = () => {
+    const onInitStarted = (e) => {
       setIsInitInProgress(true);
       setInitFailedMessage('');
+      initAddressRef.current = e?.detail?.address || address || initAddressRef.current;
+      console.log('[Vault Init] Initialization started', { addressPreview: (initAddressRef.current||'').slice(0,8)+'...', chainId });
       // Start Redis scan status polling every 15s and increment progress by 8% each poll up to 92%
       const poll = async () => {
         try {
-          if (!address) return;
-          const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+          const walletAddr = initAddressRef.current || address;
+          const preview = walletAddr ? walletAddr.slice(0, 8) + '...' : 'unknown';
+          console.log('[Vault Init] 🔄 Polling Redis for scannedChains...', { walletPreview: preview, chainId });
+          const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(walletAddr || '')}`);
           if (!resp.ok) return;
           const data = await resp.json();
           const keys = Array.isArray(data?.keys) ? data.keys : [];
@@ -188,6 +194,7 @@ const WalletPage = () => {
           }
           const ready = !!(target && Array.isArray(target.scannedChains) && target.scannedChains.includes(chainId));
           if (ready) {
+            console.log('[Vault Init] ✅ scannedChains includes chain - completing');
             setInitProgress({ percent: 100, current: 1, total: 1, message: 'Initialization complete' });
             setIsInitInProgress(false);
             try { if (window.__LEXIE_INIT_POLL_ID) { clearInterval(window.__LEXIE_INIT_POLL_ID); window.__LEXIE_INIT_POLL_ID = null; } } catch {}
@@ -210,6 +217,9 @@ const WalletPage = () => {
     };
     const onInitProgress = (e) => {
       const detail = e?.detail || {};
+      if (detail && detail.message) {
+        console.log('[Vault Init] SDK progress:', detail.message);
+      }
       setInitProgress((prev) => ({
         percent: prev.percent,
         current: typeof detail.current === 'number' ? detail.current : prev.current,
@@ -219,6 +229,7 @@ const WalletPage = () => {
     };
     const onInitCompleted = () => {
       // Do not set to 100% here; wait for Redis scannedChains to confirm
+      console.log('[Vault Init] SDK reported completed; awaiting Redis confirmation');
       setInitProgress((prev) => ({ ...prev, message: prev.message || 'Finalizing...' }));
     };
     const onInitFailed = (e) => {
@@ -226,6 +237,7 @@ const WalletPage = () => {
       const msg = e?.detail?.error || 'Initialization failed';
       setInitFailedMessage(msg);
       setIsInitInProgress(false);
+      console.warn('[Vault Init] Initialization failed:', msg);
     };
     window.addEventListener('railgun-signature-requested', onSignRequest);
     window.addEventListener('railgun-init-started', onInitStarted);
