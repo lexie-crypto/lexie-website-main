@@ -75,6 +75,8 @@ const WalletPage = () => {
   const [showSignRequestPopup, setShowSignRequestPopup] = useState(false);
   const [initProgress, setInitProgress] = useState({ percent: 0, current: 0, total: 0, message: '' });
   const [isInitInProgress, setIsInitInProgress] = useState(false);
+  const [initFailedMessage, setInitFailedMessage] = useState('');
+  const [syntheticTicker, setSyntheticTicker] = useState(null);
   // Lexie ID linking state
   const [lexieIdInput, setLexieIdInput] = useState('');
   const [lexieLinking, setLexieLinking] = useState(false);
@@ -157,15 +159,26 @@ const WalletPage = () => {
     return () => window.removeEventListener('railgun-scan-complete', onScanComplete);
   }, [checkChainReady]);
 
-  // Listen for signature request event from WalletContext
+  // Listen for signature request and init lifecycle events from WalletContext
   useEffect(() => {
     const onSignRequest = () => {
       setShowSignRequestPopup(true);
       setIsInitInProgress(false);
       setInitProgress({ percent: 0, current: 0, total: 0, message: '' });
+      setInitFailedMessage('');
     };
     const onInitStarted = () => {
       setIsInitInProgress(true);
+      setInitFailedMessage('');
+      // Start synthetic, gentle progress that caps at 95%
+      try { if (syntheticTicker) clearInterval(syntheticTicker); } catch {}
+      const id = setInterval(() => {
+        setInitProgress((prev) => {
+          const next = Math.min(95, (prev.percent || 0) + 0.5);
+          return { ...prev, percent: next };
+        });
+      }, 500);
+      setSyntheticTicker(id);
     };
     const onInitProgress = (e) => {
       const detail = e?.detail || {};
@@ -177,18 +190,28 @@ const WalletPage = () => {
       }));
     };
     const onInitCompleted = () => {
+      try { if (syntheticTicker) clearInterval(syntheticTicker); } catch {}
       setInitProgress({ percent: 100, current: initProgress.total || 1, total: initProgress.total || 1, message: 'Initialization complete' });
+      setIsInitInProgress(false);
+    };
+    const onInitFailed = (e) => {
+      try { if (syntheticTicker) clearInterval(syntheticTicker); } catch {}
+      const msg = e?.detail?.error || 'Initialization failed';
+      setInitFailedMessage(msg);
       setIsInitInProgress(false);
     };
     window.addEventListener('railgun-signature-requested', onSignRequest);
     window.addEventListener('railgun-init-started', onInitStarted);
     window.addEventListener('railgun-init-progress', onInitProgress);
     window.addEventListener('railgun-init-completed', onInitCompleted);
+    window.addEventListener('railgun-init-failed', onInitFailed);
     return () => {
       window.removeEventListener('railgun-signature-requested', onSignRequest);
       window.removeEventListener('railgun-init-started', onInitStarted);
       window.removeEventListener('railgun-init-progress', onInitProgress);
       window.removeEventListener('railgun-init-completed', onInitCompleted);
+      window.removeEventListener('railgun-init-failed', onInitFailed);
+      try { if (syntheticTicker) clearInterval(syntheticTicker); } catch {}
     };
   }, []);
 
@@ -1221,16 +1244,21 @@ const WalletPage = () => {
               ) : null}
             </div>
             <div className="p-6 text-green-300 space-y-4">
-              {!isInitInProgress ? (
+              {!isInitInProgress && initProgress.percent < 100 && !initFailedMessage ? (
                 <>
                   <h3 className="text-lg font-bold text-emerald-300">Sign to Create Your Lexie Vault</h3>
                   <p className="text-green-400/80 text-sm">
-                    A signature request was sent to your wallet. Please approve the message to begin initialization.
+                    A signature request was sent to your wallet. Please approve this message to begin creating your Lexie Vault.
                   </p>
                   <div className="bg-black/40 border border-green-500/20 rounded p-3 text-xs">
                     <div>Message preview:</div>
-                    <pre className="mt-2 whitespace-pre-wrap text-green-200">Lexie Vault Creation\nAddress: {address}\n\nSign this message to create your Lexie Vault.</pre>
+                    <pre className="mt-2 whitespace-pre-wrap text-green-200">Lexie Vault Creation Address: {address}. Sign this message to create your Lexie Vault.</pre>
                   </div>
+                </>
+              ) : initFailedMessage ? (
+                <>
+                  <h3 className="text-lg font-bold text-red-300">Vault Initialization Failed</h3>
+                  <p className="text-red-300/80 text-sm">{initFailedMessage}</p>
                 </>
               ) : (
                 <>
@@ -1251,12 +1279,19 @@ const WalletPage = () => {
                 </>
               )}
               <div className="flex items-center justify-end gap-2 pt-2">
-                {!isInitInProgress && initProgress.percent >= 100 ? (
+                {!isInitInProgress && initProgress.percent >= 100 && !initFailedMessage ? (
                   <button
                     onClick={() => setShowSignRequestPopup(false)}
                     className="px-3 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 text-xs"
                   >
                     Close
+                  </button>
+                ) : initFailedMessage ? (
+                  <button
+                    onClick={() => setShowSignRequestPopup(false)}
+                    className="px-3 py-1 rounded border border-red-500/40 bg-black hover:bg-red-900/20 text-xs text-red-300"
+                  >
+                    Dismiss
                   </button>
                 ) : (
                   <button

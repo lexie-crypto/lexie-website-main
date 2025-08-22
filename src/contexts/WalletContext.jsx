@@ -1472,6 +1472,7 @@ const WalletContextProvider = ({ children }) => {
       setIsRailgunInitialized(false);
       setRailgunAddress(null);
       setRailgunWalletID(null);
+      try { window.dispatchEvent(new CustomEvent('railgun-init-failed', { detail: { error: error?.message || String(error) } })); } catch {}
     } finally {
       setIsInitializing(false);
     }
