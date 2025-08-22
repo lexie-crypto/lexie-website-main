@@ -231,10 +231,9 @@ const WalletPage = () => {
       window.removeEventListener('railgun-init-progress', onInitProgress);
       window.removeEventListener('railgun-init-completed', onInitCompleted);
       window.removeEventListener('railgun-init-failed', onInitFailed);
-      try { if (syntheticTicker) clearInterval(syntheticTicker); } catch {}
       try { if (window.__LEXIE_INIT_POLL_ID) { clearInterval(window.__LEXIE_INIT_POLL_ID); window.__LEXIE_INIT_POLL_ID = null; } } catch {}
     };
-  }, [address, chainId, railgunWalletId, syntheticTicker, initProgress.total]);
+  }, [address, chainId, railgunWalletId]);
 
   // Check if this Railgun address already has a linked Lexie ID
   useEffect(() => {
