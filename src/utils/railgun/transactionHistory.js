@@ -80,27 +80,27 @@ const formatTransactionHistoryItem = (historyItem, chainId) => {
 
   switch (category) {
     case TransactionCategory.SHIELD:
-      transactionType = 'Shield';
+      transactionType = 'Add to Vault';
       primaryAmounts = receiveERC20Amounts;
-      description = 'Shielded tokens for privacy';
+      description = 'Add tokens to vault for privacy';
       break;
       
     case TransactionCategory.UNSHIELD:
-      transactionType = 'Unshield';
+      transactionType = 'Remove from Vault';
       primaryAmounts = unshieldERC20Amounts;
-      description = 'Unshielded tokens to public';
+      description = 'Remove tokens from vault';
       break;
       
     case TransactionCategory.TRANSFER_SEND:
-      transactionType = 'Private Send';
+      transactionType = 'Send Transaction';
       primaryAmounts = transferERC20Amounts;
-      description = 'Private transfer sent';
+      description = 'Send transaction';
       break;
       
     case TransactionCategory.TRANSFER_RECEIVE:
-      transactionType = 'Private Receive';
+      transactionType = 'Receive Transaction';
       primaryAmounts = receiveERC20Amounts;
-      description = 'Private transfer received';
+      description = 'Receive transaction';
       break;
       
     default:
