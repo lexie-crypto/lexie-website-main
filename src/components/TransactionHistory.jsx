@@ -49,13 +49,13 @@ const TransactionHistory = () => {
   // Format transaction type for display
   const getTransactionIcon = (type) => {
     switch (type) {
-      case 'Shield':
+      case 'Add to Vault':
         return '🛡️';
-      case 'Unshield':
+      case 'Remove from Vault':
         return '🔓';
-      case 'Private Send':
+      case 'Send Transaction':
         return '📤';
-      case 'Private Receive':
+      case 'Receive Transaction':
         return '📥';
       default:
         return '❓';
