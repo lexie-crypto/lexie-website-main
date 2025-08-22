@@ -80,13 +80,13 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
       id: 'unshield', 
       name: 'Remove', 
       icon: ArrowUpIcon,
-      description: 'Move tokens back to your public wallet'
+      description: 'Move tokens back to your connected wallet'
     },
     {
       id: 'transfer',
-      name: 'Transfer',
+      name: 'Send',
       icon: ArrowRightIcon,
-      description: 'Send transaction (with optional memo)'
+      description: 'Send to any address (EOA, Railgun, or Lexie ID)'
     },
   ];
 
@@ -97,13 +97,13 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
     if (!isConnected || !chainId) return [];
 
     if (activeTab === 'shield') {
-      // Show public tokens for shielding
+      // Show public tokens for adding to vault
       return publicBalances.filter(token => 
         token.hasBalance && 
         isTokenSupportedByRailgun(token.address, chainId)
       );
     } else if (activeTab === 'unshield' || activeTab === 'transfer') {
-      // Show private tokens for unshielding
+      // Show private tokens for removing or sending
       return privateBalances.filter(token => token.hasBalance);
     }
 
@@ -142,6 +142,22 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
       return false;
     }
   }, [amount, selectedToken]);
+
+  // Detect recipient address type for smart handling
+  const recipientType = useMemo(() => {
+    if (!recipientAddress) return 'none';
+    const addr = recipientAddress.trim();
+    
+    if (addr.startsWith('0x') && addr.length === 42) return 'eoa';
+    if (addr.startsWith('0zk') && addr.length > 50) return 'railgun';
+    if (/^[a-zA-Z0-9_]{3,20}$/.test(addr)) return 'lexie';
+    return 'invalid';
+  }, [recipientAddress]);
+
+  // Show memo field only for railgun/lexie recipients
+  const shouldShowMemo = useMemo(() => {
+    return activeTab === 'transfer' && (recipientType === 'railgun' || recipientType === 'lexie');
+  }, [activeTab, recipientType]);
 
   // Get encryption key for operations - Use same Redis source as WalletContext
   const getEncryptionKey = useCallback(async () => {
@@ -352,8 +368,8 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
       // Get chain configuration
       const chainConfig = { id: chainId };
 
-      // Use connected address as recipient for unshield
-      const toAddress = recipientAddress || address;
+      // Smart recipient selection
+      const toAddress = activeTab === 'unshield' ? address : (recipientAddress || address);
 
       console.log('[PrivacyActions] Starting unshield operation:', {
         token: selectedToken.symbol,
@@ -538,18 +554,26 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
     }
   }, [selectedToken, amount, recipientAddress, memoText, isValidAmount, railgunAddress, railgunWalletId, chainId, walletProvider, getEncryptionKey, availableTokens]);
 
-  // Handle form submission
+  // Handle form submission with smart routing
   const handleSubmit = useCallback((e) => {
     e.preventDefault();
     
     if (activeTab === 'shield') {
       handleShield();
     } else if (activeTab === 'unshield') {
+      // Remove tab: always unshield to connected wallet
       handleUnshield();
     } else if (activeTab === 'transfer') {
-      handleTransfer();
+      // Send tab: smart routing based on recipient type
+      if (recipientType === 'eoa') {
+        // EOA address: unshield to that address
+        handleUnshield();
+      } else if (recipientType === 'railgun' || recipientType === 'lexie') {
+        // Railgun/Lexie: private transfer
+        handleTransfer();
+      }
     }
-  }, [activeTab, handleShield, handleUnshield]);
+  }, [activeTab, recipientType, handleShield, handleUnshield, handleTransfer]);
 
   // Show loading state
   if (isLoading) {
@@ -703,61 +727,54 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
             )}
           </div>
 
-          {/* Recipient Address */}
-          {activeTab === 'unshield' && (
-            <div>
-              <label className="block text-sm font-medium text-green-300 mb-2">
-                Recipient Address (optional)
-              </label>
-              <input
-                type="text"
-                value={recipientAddress}
-                onChange={(e) => setRecipientAddress(e.target.value)}
-                placeholder={`${address?.slice(0, 6)}...${address?.slice(-4)} (your wallet)`}
-                className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
-              />
-              <p className="mt-1 text-sm text-green-400/70">
-                Leave empty to remove from your vault to your connected wallet
-              </p>
-            </div>
-          )}
-
+          {/* Recipient Address - only for send tab */}
           {activeTab === 'transfer' && (
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-green-300 mb-2">
-                  Recipient Railgun Address
+                  Send To
                 </label>
                 <input
                   type="text"
                   value={recipientAddress}
                   onChange={(e) => setRecipientAddress(e.target.value)}
-                  placeholder={`0zk... (recipient Railgun address)`}
+                  placeholder="0x...or Lexie ID"
                   className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
                 />
+                <div className="mt-1 text-xs text-green-400/70">
+                  {recipientType === 'eoa' && '📤 Will unshield to public wallet'}
+                  {recipientType === 'railgun' && '🔒 Will send privately via Railgun'}
+                  {recipientType === 'lexie' && '🔒 Will send privately to Lexie ID'}
+                  {recipientType === 'invalid' && recipientAddress && '❌ Invalid address format'}
+                  {recipientType === 'none' && 'Enter recipient address, Railgun address, or Lexie ID'}
+                </div>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-green-300 mb-2">
-                  Memo (optional)
-                </label>
-                <input
-                  type="text"
-                  value={memoText}
-                  onChange={(e) => setMemoText(e.target.value)}
-                  placeholder="Thanks for dinner! 🍝😋"
-                  className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
-                />
-                <p className="mt-1 text-sm text-green-400/70">Memo is encrypted; only sender and recipient can read it.</p>
-              </div>
+              
+              {/* Memo - only for private transfers */}
+              {shouldShowMemo && (
+                <div>
+                  <label className="block text-sm font-medium text-green-300 mb-2">
+                    Memo (optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={memoText}
+                    onChange={(e) => setMemoText(e.target.value)}
+                    placeholder="Thanks for dinner! 🍝😋"
+                    className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
+                  />
+                  <p className="mt-1 text-sm text-green-400/70">Memo is encrypted; only sender and recipient can read it.</p>
+                </div>
+              )}
             </div>
           )}
 
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={!isValidAmount || isProcessing || !selectedToken}
+            disabled={!isValidAmount || isProcessing || !selectedToken || (activeTab === 'transfer' && (!recipientAddress || recipientType === 'invalid'))}
             className={`w-full py-3 px-4 rounded font-medium transition-colors ${
-              isValidAmount && !isProcessing && selectedToken
+              isValidAmount && !isProcessing && selectedToken && (activeTab !== 'transfer' || (recipientAddress && recipientType !== 'invalid'))
                 ? 'bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 border border-emerald-400/40'
                 : 'bg-black/40 text-green-400/50 border border-green-500/20 cursor-not-allowed'
             }`}
@@ -768,7 +785,7 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
                 Processing...
               </div>
             ) : (
-              `${activeTab === 'shield' ? 'Add' : activeTab === 'unshield' ? 'Remove' : 'Transfer'} ${selectedToken?.symbol || 'Token'}`
+              `${activeTab === 'shield' ? 'Add' : activeTab === 'unshield' ? 'Remove' : 'Send'} ${selectedToken?.symbol || 'Token'}`
             )}
           </button>
         </form>
