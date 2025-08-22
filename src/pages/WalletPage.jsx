@@ -527,7 +527,7 @@ const WalletPage = () => {
               <WalletIcon className="h-16 w-16 text-emerald-300 mx-auto mb-6" />
               <h1 className="text-2xl font-bold text-emerald-300 mb-4">Connect Wallet</h1>
               <p className="text-green-400/80 mb-8">
-                Connect your wallet to access Lexie's vault features powered by Railgun.
+                Connect your wallet to gain access to the Lexie Vault features.
               </p>
               
               <div className="space-y-4">
@@ -556,7 +556,6 @@ const WalletPage = () => {
 
               <div className="mt-6 text-sm text-green-400/70 text-center">
                 <p>Choose your preferred wallet to connect</p>
-                <p className="mt-1 text-xs">Secure connection system</p>
               </div>
             </div>
 
