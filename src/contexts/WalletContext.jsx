@@ -1035,11 +1035,26 @@ const WalletContextProvider = ({ children }) => {
       
       // Set up official SDK logging
       setLoggers(
-        (message) => console.log(`🔍 [RAILGUN-SDK] ${message}`),
+        (message) => {
+          try {
+            // Parse simple progress hints like: "Trying to decrypt commitment. Current index 23151/1999"
+            const match = /Current index\s+(\d+)\/(\d+)/i.exec(message || '');
+            if (match) {
+              const current = Number(match[1]);
+              const total = Number(match[2]) || 1;
+              const percent = Math.max(0, Math.min(100, Math.floor((current / total) * 100)));
+              window.dispatchEvent(new CustomEvent('railgun-init-progress', { detail: { current, total, percent, message } }));
+            }
+          } catch (_) {}
+          console.log(`🔍 [RAILGUN-SDK] ${message}`);
+        },
         (error) => console.error(`🚨 [RAILGUN-SDK] ${error}`)
       );
 
       // Start engine with official SDK
+      // Signal init starting for UI
+      try { window.dispatchEvent(new CustomEvent('railgun-init-started', { detail: { address } })); } catch {}
+
       await startRailgunEngine(
         'lexiewebsite',
         db,
@@ -1444,6 +1459,9 @@ const WalletContextProvider = ({ children }) => {
         storage: 'Redis-only',
         crossDevice: true
       });
+
+      // Signal init completed for UI with 100%
+      try { window.dispatchEvent(new CustomEvent('railgun-init-completed', { detail: { address } })); } catch {}
 
       // 🎯 FIXED: Don't auto-resume polling after init - let useBalances hook control when to poll
       console.log('⏸️ Providers remain paused after init - will resume only when balance refresh needed');

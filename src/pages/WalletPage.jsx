@@ -73,6 +73,8 @@ const WalletPage = () => {
   const [shieldAmounts, setShieldAmounts] = useState({});
   const [showSignatureGuide, setShowSignatureGuide] = useState(false);
   const [showSignRequestPopup, setShowSignRequestPopup] = useState(false);
+  const [initProgress, setInitProgress] = useState({ percent: 0, current: 0, total: 0, message: '' });
+  const [isInitInProgress, setIsInitInProgress] = useState(false);
   // Lexie ID linking state
   const [lexieIdInput, setLexieIdInput] = useState('');
   const [lexieLinking, setLexieLinking] = useState(false);
@@ -159,9 +161,35 @@ const WalletPage = () => {
   useEffect(() => {
     const onSignRequest = () => {
       setShowSignRequestPopup(true);
+      setIsInitInProgress(false);
+      setInitProgress({ percent: 0, current: 0, total: 0, message: '' });
+    };
+    const onInitStarted = () => {
+      setIsInitInProgress(true);
+    };
+    const onInitProgress = (e) => {
+      const detail = e?.detail || {};
+      setInitProgress((prev) => ({
+        percent: typeof detail.percent === 'number' ? detail.percent : prev.percent,
+        current: typeof detail.current === 'number' ? detail.current : prev.current,
+        total: typeof detail.total === 'number' ? detail.total : prev.total,
+        message: typeof detail.message === 'string' ? detail.message : prev.message,
+      }));
+    };
+    const onInitCompleted = () => {
+      setInitProgress({ percent: 100, current: initProgress.total || 1, total: initProgress.total || 1, message: 'Initialization complete' });
+      setIsInitInProgress(false);
     };
     window.addEventListener('railgun-signature-requested', onSignRequest);
-    return () => window.removeEventListener('railgun-signature-requested', onSignRequest);
+    window.addEventListener('railgun-init-started', onInitStarted);
+    window.addEventListener('railgun-init-progress', onInitProgress);
+    window.addEventListener('railgun-init-completed', onInitCompleted);
+    return () => {
+      window.removeEventListener('railgun-signature-requested', onSignRequest);
+      window.removeEventListener('railgun-init-started', onInitStarted);
+      window.removeEventListener('railgun-init-progress', onInitProgress);
+      window.removeEventListener('railgun-init-completed', onInitCompleted);
+    };
   }, []);
 
   // Check if this Railgun address already has a linked Lexie ID
@@ -1174,7 +1202,7 @@ const WalletPage = () => {
         </div>
       )}
 
-      {/* Sign-in Request Popup (terminal style) */}
+      {/* Sign-in & Initialization Popup (terminal style; locked until completed) */}
       {showSignRequestPopup && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center z-50 p-4 font-mono">
           <div className="bg-black border border-green-500/40 rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
@@ -1187,29 +1215,57 @@ const WalletPage = () => {
                 </div>
                 <span className="text-sm tracking-wide text-green-200">vault-sign</span>
               </div>
-              <button
-                onClick={() => setShowSignRequestPopup(false)}
-                className="text-green-400/70 hover:text-green-300 transition-colors"
-              >
-                ✕
-              </button>
+              {/* No close button until init completes */}
+              {isInitInProgress ? (
+                <div className="text-yellow-400 text-xs">LOCKED</div>
+              ) : null}
             </div>
             <div className="p-6 text-green-300 space-y-4">
-              <h3 className="text-lg font-bold text-emerald-300">Sign to Create Your Lexie Vault</h3>
-              <p className="text-green-400/80 text-sm">
-                A signature request was sent to your wallet. Please open your wallet and approve the message to initialize your secure vault.
-              </p>
-              <div className="bg-black/40 border border-green-500/20 rounded p-3 text-xs">
-                <div>Message preview:</div>
-                <pre className="mt-2 whitespace-pre-wrap text-green-200">Lexie Vault Creation\nAddress: {address}\n\nSign this message to create your Lexie Vault.</pre>
-              </div>
+              {!isInitInProgress ? (
+                <>
+                  <h3 className="text-lg font-bold text-emerald-300">Sign to Create Your Lexie Vault</h3>
+                  <p className="text-green-400/80 text-sm">
+                    A signature request was sent to your wallet. Please approve the message to begin initialization.
+                  </p>
+                  <div className="bg-black/40 border border-green-500/20 rounded p-3 text-xs">
+                    <div>Message preview:</div>
+                    <pre className="mt-2 whitespace-pre-wrap text-green-200">Lexie Vault Creation\nAddress: {address}\n\nSign this message to create your Lexie Vault.</pre>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <h3 className="text-lg font-bold text-emerald-300">Initializing Your Vault</h3>
+                  <p className="text-green-400/80 text-sm">This may take a few minutes. Do not close this window.</p>
+                  <div className="bg-black/40 border border-green-500/20 rounded p-4">
+                    <div className="w-full h-2 bg-green-900/20 rounded">
+                      <div
+                        className="h-2 bg-emerald-400 rounded transition-all"
+                        style={{ width: `${Math.max(0, Math.min(100, initProgress.percent || 0))}%` }}
+                      />
+                    </div>
+                    <div className="mt-2 flex items-center justify-between text-xs text-green-400/80">
+                      <span>{initProgress.percent || 0}%</span>
+                      <span className="truncate max-w-[70%]" title={initProgress.message}>{initProgress.message || 'Scanning...'}</span>
+                    </div>
+                  </div>
+                </>
+              )}
               <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  onClick={() => setShowSignRequestPopup(false)}
-                  className="px-3 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 text-xs"
-                >
-                  Got it
-                </button>
+                {!isInitInProgress && initProgress.percent >= 100 ? (
+                  <button
+                    onClick={() => setShowSignRequestPopup(false)}
+                    className="px-3 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 text-xs"
+                  >
+                    Close
+                  </button>
+                ) : (
+                  <button
+                    disabled
+                    className="px-3 py-1 rounded border border-green-500/40 bg-black/40 text-xs text-green-400/60 cursor-not-allowed"
+                  >
+                    Please wait…
+                  </button>
+                )}
               </div>
             </div>
           </div>
