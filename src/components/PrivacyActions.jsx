@@ -221,7 +221,6 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
     let toastId;
 
     try {
-      toastId = toast.loading('Initializing shield operation...');
 
       // Get encryption key
       const encryptionKey = await getEncryptionKey();

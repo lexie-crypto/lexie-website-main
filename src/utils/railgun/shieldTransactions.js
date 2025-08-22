@@ -5,6 +5,7 @@
  */
 
 import { getAddress, isAddress, keccak256, Contract } from 'ethers';
+import { toast } from 'react-hot-toast';
 import {
   gasEstimateForShield,
   populateShield,
@@ -55,6 +56,26 @@ const WRAPPED_BASE_TOKEN_BY_CHAIN = {
 };
 
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
+
+/**
+ * Terminal-themed toast helper
+ */
+const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
+  const color = type === 'error' ? 'bg-red-400' : type === 'success' ? 'bg-emerald-400' : 'bg-yellow-400';
+  return toast.custom((t) => (
+    <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+      <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl max-w-sm">
+        <div className="px-4 py-3 flex items-center gap-3">
+          <div className={`h-3 w-3 rounded-full ${color}`} />
+          <div>
+            <div className="text-sm">{title}</div>
+            {subtitle ? <div className="text-xs text-green-400/80">{subtitle}</div> : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  ), { duration: type === 'error' ? 4000 : 2500, ...opts });
+};
 
 /**
  * Check and ensure token approval for RAILGUN contract
@@ -120,7 +141,8 @@ const ensureTokenApproval = async (tokenAddress, ownerAddress, amount, walletPro
     // If allowance is insufficient, request approval
     if (currentAllowance < amountBigInt) {
       console.log('[ShieldTransactions] Requesting token approval...');
-      
+      const toastId = showTerminalToast('info', 'Approval required', 'Please approve token spend to add funds to your vault', { duration: 5000 });
+
       const approveTx = await tokenContract.approve(railgunContractAddress, amountBigInt);
       console.log('[ShieldTransactions] Approval transaction sent:', approveTx.hash);
       
@@ -131,6 +153,8 @@ const ensureTokenApproval = async (tokenAddress, ownerAddress, amount, walletPro
         blockNumber: receipt.blockNumber,
         gasUsed: receipt.gasUsed.toString()
       });
+      try { toast.dismiss(toastId); } catch {}
+      showTerminalToast('success', 'Approval confirmed', 'Continue in your wallet to complete');
       
       return true;
     }
@@ -140,10 +164,12 @@ const ensureTokenApproval = async (tokenAddress, ownerAddress, amount, walletPro
     
   } catch (error) {
     console.error('[ShieldTransactions] Token approval failed:', error);
-    if (error.code === 4001 || error.message.includes('rejected')) {
-      throw new Error('Token approval required. Please approve the transaction in your wallet.');
+    if (error.code === 4001 || /rejected/i.test(error?.message || '')) {
+      showTerminalToast('error', 'Rejected by User');
+      throw new Error('Rejected by User');
     }
-    throw new Error(`Token approval failed: ${error.message}`);
+    showTerminalToast('error', 'Approval failed', 'Please try again');
+    throw new Error(`Approval failed: ${error.message}`);
   }
 };
 
@@ -171,18 +197,22 @@ const generateShieldPrivateKey = async (fromAddress, walletSigner) => {
     }
 
     console.log('[ShieldTransactions] Requesting shield signature from wallet...');
-    
+    const toastId = showTerminalToast('info', 'Sign to add funds to your vault', 'Approve the signature in your wallet', { duration: 6000 });
     const message = getShieldPrivateKeySignatureMessage();
     // Use signer.signMessage instead of provider.request
     const signature = await walletSigner.signMessage(message);
 
     console.log('[ShieldTransactions] Shield signature received');
+    try { toast.dismiss(toastId); } catch {}
+    showTerminalToast('success', 'Signature received');
     return keccak256(signature);
   } catch (error) {
     console.error('[ShieldTransactions] Failed to generate shield private key:', error);
-    if (error.code === 4001 || error.message.includes('rejected')) {
-      throw new Error('Shield signature required. Please approve the signature request.');
+    if (error.code === 4001 || /rejected/i.test(error?.message || '')) {
+      showTerminalToast('error', 'Rejected by User');
+      throw new Error('Rejected by User');
     }
+    showTerminalToast('error', 'Signature failed', 'Please try again');
     throw new Error(`Failed to generate shield private key: ${error.message}`);
   }
 };
