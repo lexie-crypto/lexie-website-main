@@ -91,6 +91,9 @@ const PrivacyActions = ({ defaultTab = 'shield' }) => {
   ];
 
   // No local initialization here – WalletContext owns engine lifecycle
+  useEffect(() => {
+    setActiveTab(defaultTab);
+  }, [defaultTab]);
 
   // Get available tokens based on current tab
   const availableTokens = useMemo(() => {
@@ -261,7 +264,7 @@ const PrivacyActions = ({ defaultTab = 'shield' }) => {
       console.log('[PrivacyActions] Transaction sent:', txResponse);
 
       toast.dismiss(toastId);
-      toast.success(`Successfully added ${amount} ${selectedToken.symbol} to vault! TX: ${txResponse}`);
+      toast.success(`Successfully shielded ${amount} ${selectedToken.symbol}! TX: ${txResponse}`);
 
       // Reset form
       setAmount('');
@@ -404,7 +407,7 @@ const PrivacyActions = ({ defaultTab = 'shield' }) => {
       const result = await unshieldTokens(unshieldParams);
 
       toast.dismiss(toastId);
-      toast.success(`Successfully removed ${amount} ${selectedToken.symbol} from vault!`);
+      toast.success(`Successfully unshielded ${amount} ${selectedToken.symbol}!`);
 
       // Reset form
       setAmount('');
@@ -620,9 +623,10 @@ const PrivacyActions = ({ defaultTab = 'shield' }) => {
           <ShieldCheckIcon className="h-6 w-6 text-emerald-300" />
           Vault Actions
         </h2>
+        <div className="mt-1 text-xs text-green-400/80">
+          {tabs.find(t => t.id === activeTab)?.name} • {tabs.find(t => t.id === activeTab)?.description}
+        </div>
       </div>
-
-
 
       {/* Content */}
       <div className="p-6 text-green-300">
