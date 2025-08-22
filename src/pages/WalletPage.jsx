@@ -178,7 +178,11 @@ const WalletPage = () => {
       console.log('[Vault Init] Initialization started');
     };
     const onInitProgress = () => {
-      // Keep a stable, chain-aware message instead of noisy SDK text
+      // If scanning kicks off without our start event, open the modal now
+      if (!showSignRequestPopup && !isChainReady) {
+        setShowSignRequestPopup(true);
+        setIsInitInProgress(true);
+      }
       const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
       setInitProgress((prev) => ({
         percent: prev.percent,
