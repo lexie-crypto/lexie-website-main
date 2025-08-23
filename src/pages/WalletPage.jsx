@@ -356,8 +356,6 @@ const WalletPage = () => {
       // Log token type for debugging
       const tokenType = isNativeToken ? 'NATIVE' : 'ERC20';
       console.log('[WalletPage] About to shield', tokenType, 'token:', token.symbol);
-
-      toast.loading(`Shielding ${amount} ${token.symbol}...`);
       
       const result = await shieldTokens({
         tokenAddress: token.address,
@@ -446,7 +444,6 @@ const WalletPage = () => {
     } catch (error) {
       console.error('[WalletPage] Shield failed:', error);
       toast.dismiss();
-      toast.error(`Shield failed: ${error.message}`);
     } finally {
       setIsShielding(false);
       setShieldingTokens(prev => {
