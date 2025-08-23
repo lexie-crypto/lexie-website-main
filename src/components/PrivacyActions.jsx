@@ -583,7 +583,19 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
     let toastId;
 
     try {
-      toastId = toast.loading('Preparing transaction...');
+      toastId = toast.custom((t) => (
+        <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+          <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+            <div className="px-4 py-3 flex items-center gap-3">
+              <div className="h-3 w-3 rounded-full bg-emerald-400" />
+              <div>
+                <div className="text-sm">Preparing private transfer…</div>
+                <div className="text-xs text-green-400/80">Encrypting and preparing proofs</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ));
 
       const encryptionKey = await getEncryptionKey();
       const amountInUnits = parseTokenAmount(amount, selectedToken.decimals);
@@ -600,7 +612,19 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
       });
 
       toast.dismiss(toastId);
-      toast.success(`Transaction sent! TX: ${tx.txHash}`);
+      toast.custom((t) => (
+        <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+          <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+            <div className="px-4 py-3 flex items-center gap-3">
+              <div className="h-3 w-3 rounded-full bg-emerald-400" />
+              <div>
+                <div className="text-sm">Private transfer sent</div>
+                <div className="text-xs text-green-400/80">TX: {tx.txHash}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ), { duration: 3000 });
 
       // Reset
       setAmount('');
@@ -628,7 +652,35 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
     } catch (error) {
       console.error('[PrivacyActions] Private transfer failed:', error);
       toast.dismiss(toastId);
-      toast.error(`Failed to send transaction: ${error.message}`);
+      const msg = (error?.message || '').toLowerCase();
+      if (msg.includes('rejected') || error?.code === 4001) {
+        toast.custom((t) => (
+          <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+            <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+              <div className="px-4 py-3 flex items-center gap-3">
+                <div className="h-3 w-3 rounded-full bg-red-400" />
+                <div>
+                  <div className="text-sm">Rejected by User</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ), { duration: 3000 });
+      } else {
+        toast.custom((t) => (
+          <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+            <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+              <div className="px-4 py-3 flex items-center gap-3">
+                <div className="h-3 w-3 rounded-full bg-red-400" />
+                <div>
+                  <div className="text-sm">Failed to send transaction</div>
+                  <div className="text-xs text-green-400/80">{error.message}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ), { duration: 4000 });
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -822,7 +874,7 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
                   className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
                 />
                 <div className="mt-1 text-xs text-green-400/70">
-                  {recipientType === 'eoa' && 'Will send to EOA address'}
+                  {recipientType === 'eoa' && 'Will send to public address'}
                   {recipientType === 'railgun' && 'Will send to zk-shielded address (0zk...)'}
                   {recipientType === 'lexie' && 'Will send to Lexie ID'}
                   {recipientType === 'invalid' && recipientAddress && '❌ Invalid address format'}

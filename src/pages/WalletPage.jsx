@@ -1126,7 +1126,7 @@ const WalletPage = () => {
                         type="text"
                         value={lexieIdInput}
                         onChange={(e) => setLexieIdInput(e.target.value)}
-                        placeholder="e.g. mkmillions"
+                        placeholder="e.g. LexieLaine123"
                         className="bg-black text-green-200 rounded px-2 py-1 text-sm border border-green-500/40 focus:border-emerald-400 focus:outline-none flex-1"
                         disabled={lexieLinking}
                       />
