@@ -341,7 +341,7 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
         
         // Start monitoring in background with new API specification
         monitorTransactionInGraph({
-          txHash: txResponse,
+          txHash: txResponse?.hash || txResponse,
           chainId: chainConfig.id,
           transactionType: 'shield',
           // Pass transaction details for note capture with wallet context
@@ -354,7 +354,7 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
             amount: amount,
           },
           listener: async (event) => {
-            console.log(`[PrivacyActions] ✅ Shield tx ${txResponse} indexed on chain ${chainConfig.id}`);
+            console.log(`[PrivacyActions] ✅ Shield tx ${txResponse?.hash || txResponse} indexed on chain ${chainConfig.id}`);
             
             // 🎯 FIXED: Just show success message - let useBalances hook handle refresh when appropriate
             toast.custom((t) => (
