@@ -394,7 +394,6 @@ const WalletPage = () => {
       
       // Enhanced transaction monitoring
       toast.dismiss();
-      toast.success('Shield transaction sent! Monitoring for confirmation...');
       console.log('[WalletPage] Starting Graph-based shield monitoring...');
       
       try {
@@ -418,8 +417,6 @@ const WalletPage = () => {
           listener: async (event) => {
             console.log(`[WalletPage] ✅ Shield tx ${txResponse.hash} indexed on chain ${chainConfig.id}`);
             
-            // The useBalances hook will handle optimistic update automatically
-            toast.success(`Shield confirmed! Your private balance has been updated.`);
           }
         })
         .then((result) => {
@@ -427,7 +424,6 @@ const WalletPage = () => {
             console.log(`[WalletPage] Shield monitoring completed in ${result.elapsedTime/1000}s`);
           } else {
             console.warn('[WalletPage] Shield monitoring timed out');
-            toast.info('Shield successful! Balance will update automatically.');
           }
         })
         .catch((error) => {

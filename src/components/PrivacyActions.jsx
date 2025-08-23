@@ -589,9 +589,10 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
             <div className="px-4 py-3 flex items-center gap-3">
               <div className="h-3 w-3 rounded-full bg-emerald-400" />
               <div>
-                <div className="text-sm">Preparing private transfer…</div>
+                <div className="text-sm">Preparing transaction…</div>
                 <div className="text-xs text-green-400/80">Encrypting and preparing proofs</div>
               </div>
+              <button onClick={() => toast.dismiss(t.id)} className="ml-3 text-xs px-2 py-1 rounded border border-green-500/40 hover:bg-green-900/30">Close</button>
             </div>
           </div>
         </div>
@@ -618,9 +619,10 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
             <div className="px-4 py-3 flex items-center gap-3">
               <div className="h-3 w-3 rounded-full bg-emerald-400" />
               <div>
-                <div className="text-sm">Private transfer sent</div>
+                <div className="text-sm">Transaction sent</div>
                 <div className="text-xs text-green-400/80">TX: {tx.txHash}</div>
               </div>
+              <button onClick={() => toast.dismiss(t.id)} className="ml-3 text-xs px-2 py-1 rounded border border-green-500/40 hover:bg-green-900/30">Close</button>
             </div>
           </div>
         </div>
@@ -662,6 +664,7 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
                 <div>
                   <div className="text-sm">Rejected by User</div>
                 </div>
+                <button onClick={() => toast.dismiss(t.id)} className="ml-3 text-xs px-2 py-1 rounded border border-green-500/40 hover:bg-green-900/30">Close</button>
               </div>
             </div>
           </div>
@@ -676,6 +679,7 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
                   <div className="text-sm">Failed to send transaction</div>
                   <div className="text-xs text-green-400/80">{error.message}</div>
                 </div>
+                <button onClick={() => toast.dismiss(t.id)} className="ml-3 text-xs px-2 py-1 rounded border border-green-500/40 hover:bg-green-900/30">Close</button>
               </div>
             </div>
           </div>

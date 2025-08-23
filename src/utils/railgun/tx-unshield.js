@@ -59,6 +59,11 @@ const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
                 subtitle ? React.createElement('div', { key: 'sub', className: 'text-xs text-green-400/80' }, subtitle) : null,
               ]
             ),
+            React.createElement(
+              'button',
+              { key: 'close', onClick: () => toast.dismiss(t.id), className: 'ml-3 text-xs px-2 py-1 rounded border border-green-500/40 hover:bg-green-900/30' },
+              'Close'
+            )
           ]
         )
       )
