@@ -5,6 +5,7 @@
  */
 
 import { getAddress, isAddress, keccak256, Contract } from 'ethers';
+import React from 'react';
 import { toast } from 'react-hot-toast';
 import {
   gasEstimateForShield,
@@ -63,17 +64,29 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
   const color = type === 'error' ? 'bg-red-400' : type === 'success' ? 'bg-emerald-400' : 'bg-yellow-400';
   return toast.custom((t) => (
-    <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-      <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl max-w-sm">
-        <div className="px-4 py-3 flex items-center gap-3">
-          <div className={`h-3 w-3 rounded-full ${color}`} />
-          <div>
-            <div className="text-sm">{title}</div>
-            {subtitle ? <div className="text-xs text-green-400/80">{subtitle}</div> : null}
-          </div>
-        </div>
-      </div>
-    </div>
+    React.createElement(
+      'div',
+      { className: `font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}` },
+      React.createElement(
+        'div',
+        { className: 'rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl max-w-sm' },
+        React.createElement(
+          'div',
+          { className: 'px-4 py-3 flex items-center gap-3' },
+          [
+            React.createElement('div', { key: 'dot', className: `h-3 w-3 rounded-full ${color}` }),
+            React.createElement(
+              'div',
+              { key: 'text' },
+              [
+                React.createElement('div', { key: 'title', className: 'text-sm' }, title),
+                subtitle ? React.createElement('div', { key: 'sub', className: 'text-xs text-green-400/80' }, subtitle) : null,
+              ]
+            ),
+          ]
+        )
+      )
+    )
   ), { duration: type === 'error' ? 4000 : 2500, ...opts });
 };
 
