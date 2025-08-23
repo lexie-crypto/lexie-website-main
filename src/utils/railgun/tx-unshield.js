@@ -33,6 +33,11 @@ import { assertNotSanctioned } from '../sanctions/chainalysis-oracle.js';
  * Terminal-themed toast helper (no JSX; compatible with .js files)
  */
 const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
+  // Allow calling with (type, title, opts) by detecting object in 3rd arg
+  if (subtitle && typeof subtitle === 'object' && !Array.isArray(subtitle)) {
+    opts = subtitle;
+    subtitle = '';
+  }
   const color = type === 'error' ? 'bg-red-400' : type === 'success' ? 'bg-emerald-400' : 'bg-yellow-400';
   return toast.custom((t) => (
     React.createElement(
