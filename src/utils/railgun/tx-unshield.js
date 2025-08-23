@@ -1372,7 +1372,7 @@ export const unshieldTokens = async ({
       usedRelayer,
       privacyLevel,
     });
-    showTerminalToast('success', 'Removed funds from your vault', 'Balance will update automatically');
+    showTerminalToast('success', 'Removed funds from your vault', 'Balance will update automatically', { duration: 4000 });
 
     // Transaction monitoring removed - SDK handles balance updates
 
