@@ -6,6 +6,8 @@
  * - No Waku/broadcaster dependencies
  */
 
+import React from 'react';
+import { toast } from 'react-hot-toast';
 import {
   populateProvedUnshield,
 } from '@railgun-community/wallet';
@@ -26,6 +28,38 @@ import {
 } from '@railgun-community/shared-models';
 import { waitForRailgunReady } from './engine.js';
 import { assertNotSanctioned } from '../sanctions/chainalysis-oracle.js';
+
+/**
+ * Terminal-themed toast helper (no JSX; compatible with .js files)
+ */
+const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
+  const color = type === 'error' ? 'bg-red-400' : type === 'success' ? 'bg-emerald-400' : 'bg-yellow-400';
+  return toast.custom((t) => (
+    React.createElement(
+      'div',
+      { className: `font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}` },
+      React.createElement(
+        'div',
+        { className: 'rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl max-w-sm' },
+        React.createElement(
+          'div',
+          { className: 'px-4 py-3 flex items-center gap-3' },
+          [
+            React.createElement('div', { key: 'dot', className: `h-3 w-3 rounded-full ${color}` }),
+            React.createElement(
+              'div',
+              { key: 'text' },
+              [
+                React.createElement('div', { key: 'title', className: 'text-sm' }, title),
+                subtitle ? React.createElement('div', { key: 'sub', className: 'text-xs text-green-400/80' }, subtitle) : null,
+              ]
+            ),
+          ]
+        )
+      )
+    )
+  ), { duration: type === 'error' ? 4000 : 2500, ...opts });
+};
 
 // Gas Relayer Integration
 import { 
@@ -307,6 +341,8 @@ export const unshieldTokens = async ({
   });
 
   try {
+    // Notify user that signing will be required
+    const startToast = showTerminalToast('info', 'Preparing to remove funds from your vault', { duration: 4000 });
     // Validate required parameters (preliminary)
     if (!encryptionKey || !railgunWalletID || !amount || !walletAddress) {
       throw new Error('Missing required parameters');
@@ -332,6 +368,7 @@ export const unshieldTokens = async ({
     console.log('[Sanctions] Screening passed for resolved recipient (unshield)');
 
     console.log('✅ [UNSHIELD] Resolved recipient:', { recipientEVM });
+    try { toast.dismiss(startToast); } catch {}
     
     if (!tokenAddress || typeof tokenAddress !== 'string' || tokenAddress.length < 10) {
       throw new Error(`Invalid tokenAddress: "${tokenAddress}"`);
@@ -1199,6 +1236,7 @@ export const unshieldTokens = async ({
 
     // STEP 7: Transaction submission
     console.log('📡 [UNSHIELD] Step 7: Submitting transaction...');
+    showTerminalToast('info', 'Submitting transaction', { duration: 4000 });
     
     let transactionHash;
     let usedRelayer = false;
@@ -1324,6 +1362,7 @@ export const unshieldTokens = async ({
       usedRelayer,
       privacyLevel,
     });
+    showTerminalToast('success', 'Removed funds from your vault', 'Balance will update automatically');
 
     // Transaction monitoring removed - SDK handles balance updates
 
@@ -1338,6 +1377,11 @@ export const unshieldTokens = async ({
       error: error.message,
       stack: error.stack,
     });
+    // Normalize user reject
+    if ((error?.message || '').toLowerCase().includes('rejected') || error?.code === 4001) {
+      showTerminalToast('error', 'Rejected by User');
+      throw new Error('Rejected by User');
+    }
     
     // Decode CallError for better debugging
     try {
