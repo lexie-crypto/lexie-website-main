@@ -822,9 +822,9 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
                   className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
                 />
                 <div className="mt-1 text-xs text-green-400/70">
-                  {recipientType === 'eoa' && '📤 Will unshield to public wallet'}
-                  {recipientType === 'railgun' && '🔒 Will send privately via Railgun'}
-                  {recipientType === 'lexie' && '🔒 Will send privately to Lexie ID'}
+                  {recipientType === 'eoa' && 'Will send to EOA address'}
+                  {recipientType === 'railgun' && 'Will send to private address'}
+                  {recipientType === 'lexie' && 'Will send to Lexie ID'}
                   {recipientType === 'invalid' && recipientAddress && '❌ Invalid address format'}
                   {recipientType === 'none' && 'Enter recipient address or Lexie ID'}
                 </div>
