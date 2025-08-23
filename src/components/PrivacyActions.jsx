@@ -823,7 +823,7 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
                 />
                 <div className="mt-1 text-xs text-green-400/70">
                   {recipientType === 'eoa' && 'Will send to EOA address'}
-                  {recipientType === 'railgun' && 'Will send to private address'}
+                  {recipientType === 'railgun' && 'Will send to zk-shielded address (0zk...)'}
                   {recipientType === 'lexie' && 'Will send to Lexie ID'}
                   {recipientType === 'invalid' && recipientAddress && '❌ Invalid address format'}
                   {recipientType === 'none' && 'Enter recipient address or Lexie ID'}
