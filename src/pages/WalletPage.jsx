@@ -368,7 +368,6 @@ const WalletPage = () => {
 
       // Send the transaction to the blockchain
       toast.dismiss();
-      toast.loading(`Sending shield transaction...`);
       
       console.log('[WalletPage] Sending shield transaction:', result.transaction);
       
