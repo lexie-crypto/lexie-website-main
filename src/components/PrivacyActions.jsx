@@ -442,7 +442,6 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
     let toastId;
 
     try {
-      toastId = toast.loading('Initializing unshield operation...');
 
       // Get encryption key
       const encryptionKey = await getEncryptionKey();
@@ -470,8 +469,6 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
           tokenAddressValid: selectedToken.tokenAddress?.startsWith('0x') && selectedToken.tokenAddress.length === 42
         }
       });
-
-      toast.loading('Generating proof and unshielding tokens...', { id: toastId });
 
       // 🔍 CRITICAL: Verify all parameters before unshield call
       const unshieldParams = {
@@ -506,7 +503,6 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
       const result = await unshieldTokens(unshieldParams);
 
       toast.dismiss(toastId);
-      toast.success(`Successfully unshielded ${amount} ${selectedToken.symbol}!`);
 
       // Reset form
       setAmount('');
@@ -538,7 +534,7 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
             console.log(`[PrivacyActions] ✅ Unshield tx ${result.transactionHash} indexed on chain ${chainConfig.id}`);
             
             // 🎯 FIXED: Just show success message - let useBalances hook handle refresh when appropriate
-            toast.success(`Unshield confirmed and indexed! Balance will update automatically.`);
+
           }
         })
         .then((monitorResult) => {
@@ -561,7 +557,6 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
     } catch (error) {
       console.error('[PrivacyActions] Unshield operation failed:', error);
       toast.dismiss(toastId);
-      toast.error(`Unshield failed: ${error.message}`);
     } finally {
       setIsProcessing(false);
     }
@@ -578,7 +573,7 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
       const input = (recipientAddress || '').trim().toLowerCase();
       const isLikelyLexieID = /^[a-z0-9_]{3,20}$/.test(input);
       if (!isLikelyLexieID) {
-        toast.error('Please enter a Railgun address (0zk...) or a Lexie ID');
+        toast.error('Please enter a valid EVM address or a Lexie ID');
         return;
       }
       // Proceed: resolution will happen in privateTransfer()
@@ -633,7 +628,7 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
     } catch (error) {
       console.error('[PrivacyActions] Private transfer failed:', error);
       toast.dismiss(toastId);
-      toast.error(`Transfer failed: ${error.message}`);
+      toast.error(`Failed to send transaction: ${error.message}`);
     } finally {
       setIsProcessing(false);
     }
