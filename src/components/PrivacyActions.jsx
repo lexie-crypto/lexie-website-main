@@ -434,7 +434,6 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
     
     // 🚨 CRITICAL: Validate tokenAddress to prevent USDT decimals miscalculation
     if (!selectedToken.tokenAddress || typeof selectedToken.tokenAddress !== 'string') {
-      toast.error('Invalid token selected. Please select a valid token.');
       return;
     }
 
