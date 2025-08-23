@@ -238,7 +238,19 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
         railgunAddress,
       });
 
-      toast.loading('Adding tokens to vault...', { id: toastId });
+      toast.custom((t) => (
+        <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+          <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+            <div className="px-4 py-3 flex items-center gap-3">
+              <div className="h-3 w-3 rounded-full bg-emerald-400" />
+              <div>
+                <div className="text-sm">Adding tokens to vault...</div>
+                <div className="text-xs text-green-400/80">Approve in your wallet</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ), { id: toastId, duration: 3000 });
 
       // Get wallet signer (not provider to avoid re-wrapping)
       const walletSigner = await walletProvider(); // This now returns a signer
@@ -255,7 +267,18 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
 
       // Send the transaction to the blockchain
       toast.dismiss(toastId);
-      toast.loading('Sending shield transaction...', { id: toastId });
+      toast.custom((t) => (
+        <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+          <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+            <div className="px-4 py-3 flex items-center gap-3">
+              <div className="h-3 w-3 rounded-full bg-emerald-400" />
+              <div>
+                <div className="text-sm">Adding {amount} {selectedToken.symbol} to your vault...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ), { id: toastId, duration: 2500 });
       
       console.log('[PrivacyActions] Sending shield transaction:', result.transaction);
       
@@ -277,7 +300,19 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
       console.log('[PrivacyActions] Transaction sent:', txResponse);
 
       toast.dismiss(toastId);
-      toast.success(`Successfully shielded ${amount} ${selectedToken.symbol}! TX: ${txResponse}`);
+      toast.custom((t) => (
+        <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+          <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+            <div className="px-4 py-3 flex items-center gap-3">
+              <div className="h-3 w-3 rounded-full bg-emerald-400" />
+              <div>
+                <div className="text-sm">Added {amount} {selectedToken.symbol} to your vault</div>
+                <div className="text-xs text-green-400/80">TX sent</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ), { duration: 3000 });
 
       // Reset form
       setAmount('');
@@ -285,7 +320,19 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
 
       // ✅ ENHANCED: Graph-based transaction monitoring with new API
       toast.dismiss(toastId);
-      toast.success('Shield transaction sent! Monitoring for confirmation...');
+      toast.custom((t) => (
+        <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+          <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+            <div className="px-4 py-3 flex items-center gap-3">
+              <div className="h-3 w-3 rounded-full bg-emerald-400" />
+              <div>
+                <div className="text-sm">Adding {amount} {selectedToken.symbol} to your vault...</div>
+                <div className="text-xs text-green-400/80">Monitoring for confirmation...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ), { duration: 2500 });
       console.log('[PrivacyActions] Starting Graph-based shield monitoring...');
       
       try {
@@ -310,7 +357,19 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
             console.log(`[PrivacyActions] ✅ Shield tx ${txResponse} indexed on chain ${chainConfig.id}`);
             
             // 🎯 FIXED: Just show success message - let useBalances hook handle refresh when appropriate
-            toast.success(`Shield confirmed and indexed! Balance will update automatically.`);
+            toast.custom((t) => (
+              <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+                <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+                  <div className="px-4 py-3 flex items-center gap-3">
+                    <div className="h-3 w-3 rounded-full bg-emerald-400" />
+                    <div>
+                      <div className="text-sm">Added {amount} {selectedToken.symbol} to your vault</div>
+                      <div className="text-xs text-green-400/80">Balance will update automatically</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ), { duration: 3000 });
           }
         })
         .then((result) => {
@@ -334,7 +393,34 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
     } catch (error) {
       console.error('[PrivacyActions] Shield operation failed:', error);
       toast.dismiss(toastId);
-      toast.error(`Shield failed: ${error.message}`);
+      if ((error?.message || '').toLowerCase().includes('rejected') || error?.code === 4001) {
+        toast.custom((t) => (
+          <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+            <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+              <div className="px-4 py-3 flex items-center gap-3">
+                <div className="h-3 w-3 rounded-full bg-red-400" />
+                <div>
+                  <div className="text-sm">Rejected by User</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ), { duration: 3000 });
+      } else {
+        toast.custom((t) => (
+          <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+            <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+              <div className="px-4 py-3 flex items-center gap-3">
+                <div className="h-3 w-3 rounded-full bg-red-400" />
+                <div>
+                  <div className="text-sm">Failed to add {amount} {selectedToken.symbol} to your vault</div>
+                  <div className="text-xs text-green-400/80">Please try again</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ), { duration: 3000 });
+      }
     } finally {
       setIsProcessing(false);
     }
