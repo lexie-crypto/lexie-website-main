@@ -109,6 +109,7 @@ const WalletPage = () => {
   // Full refresh: SDK refresh + Redis persist, then UI reload (public from chain + private from Redis)
   const refreshBalances = useCallback(async () => {
     try {
+      try { window.dispatchEvent(new CustomEvent('vault-balances-refresh-start')); } catch {}
       console.log('[WalletPage] 🔄 Full refresh — SDK refresh + Redis persist, then UI fetch...');
 
       // Step 1: Trigger SDK refresh + persist authoritative balances to Redis
@@ -158,6 +159,8 @@ const WalletPage = () => {
           </div>
         </div>
       ), { duration: 3500 });
+    } finally {
+      try { window.dispatchEvent(new CustomEvent('vault-balances-refresh-complete')); } catch {}
     }
   }, [refreshAllBalances, railgunWalletId, address, chainId]);
 
