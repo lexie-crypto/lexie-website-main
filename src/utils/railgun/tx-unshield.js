@@ -68,8 +68,20 @@ const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
                 onClick: (e) => { 
                   e.preventDefault(); 
                   e.stopPropagation(); 
-                  console.log('Dismissing toast:', t.id);
-                  toast.dismiss(t.id);
+                  console.log('[tx-unshield] Dismissing toast:', t.id);
+                  try {
+                    toast.dismiss(t.id);
+                    console.log('[tx-unshield] Dismiss called for toast:', t.id);
+                    // Alternative approach if dismiss doesn't work
+                    setTimeout(() => {
+                      if (document.querySelector(`[data-toast-id="${t.id}"]`)) {
+                        console.log('[tx-unshield] Toast still exists, trying remove');
+                        toast.remove(t.id);
+                      }
+                    }, 100);
+                  } catch (error) {
+                    console.error('[tx-unshield] Error dismissing toast:', error);
+                  }
                 }, 
                 className: 'ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer' 
               },
