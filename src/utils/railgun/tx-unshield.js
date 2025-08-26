@@ -493,11 +493,7 @@ export const unshieldTokens = async ({
           case EVMGasType.Type0:
           case EVMGasType.Type1:
             let gasPrice = networkGasPrices?.gasPrice || BigInt('0x100000');
-            // Enforce BNB Chain 6 gwei minimum for base token too
-            if (chain.id === 56) {
-              const minBNBGas = BigInt('6000000000'); // 6 gwei
-              if (gasPrice < minBNBGas) gasPrice = minBNBGas;
-            }
+            // No special floor for BNB - treat like other L2s
             originalGasDetails = {
               evmGasType,
               originalGasEstimate: 0n,
@@ -507,11 +503,7 @@ export const unshieldTokens = async ({
           case EVMGasType.Type2:
             let maxFeePerGas = networkGasPrices?.maxFeePerGas || BigInt('0x100000');
             let maxPriorityFeePerGas = networkGasPrices?.maxPriorityFeePerGas || BigInt('0x010000');
-            // Enforce BNB Chain 6 gwei minimum for base token too
-            if (chain.id === 56) {
-              const minBNBGas = BigInt('6000000000'); // 6 gwei
-              if (maxFeePerGas < minBNBGas) maxFeePerGas = minBNBGas;
-            }
+            // No special floor for BNB - treat like other L2s
             originalGasDetails = {
               evmGasType,
               originalGasEstimate: 0n,
@@ -541,14 +533,14 @@ export const unshieldTokens = async ({
             originalGasDetails = {
               evmGasType,
               originalGasEstimate: 0n,
-              gasPrice: chain.id === 56 ? BigInt('6000000000') : BigInt('0x100000'),
+              gasPrice: BigInt('0x100000'),
             };
             break;
           case EVMGasType.Type2:
             originalGasDetails = {
               evmGasType,
               originalGasEstimate: 0n,
-              maxFeePerGas: chain.id === 56 ? BigInt('6000000000') : BigInt('0x100000'),
+              maxFeePerGas: BigInt('0x100000'),
               maxPriorityFeePerGas: BigInt('0x010000'),
             };
             break;
@@ -793,11 +785,7 @@ export const unshieldTokens = async ({
         case EVMGasType.Type0:
         case EVMGasType.Type1:
           let gasPrice = networkGasPrices?.gasPrice || BigInt('0x100000');
-          // Enforce BNB Chain 6 gwei minimum
-          if (chain.id === 56) {
-            const minBNBGas = BigInt('6000000000'); // 6 gwei
-            if (gasPrice < minBNBGas) gasPrice = minBNBGas;
-          }
+          // No special gas price floor for BNB - treat like other L2s
           originalGasDetails = {
             evmGasType,
             originalGasEstimate: 0n,
@@ -807,11 +795,7 @@ export const unshieldTokens = async ({
         case EVMGasType.Type2:
           let maxFeePerGas = networkGasPrices?.maxFeePerGas || BigInt('0x100000');
           let maxPriorityFeePerGas = networkGasPrices?.maxPriorityFeePerGas || BigInt('0x010000');
-          // Enforce BNB Chain 6 gwei minimum
-          if (chain.id === 56) {
-            const minBNBGas = BigInt('6000000000'); // 6 gwei
-            if (maxFeePerGas < minBNBGas) maxFeePerGas = minBNBGas;
-          }
+          // No special gas price floor for BNB - treat like other L2s
           originalGasDetails = {
             evmGasType,
             originalGasEstimate: 0n,
@@ -841,14 +825,14 @@ export const unshieldTokens = async ({
           originalGasDetails = {
             evmGasType,
             originalGasEstimate: 0n,
-            gasPrice: chain.id === 56 ? BigInt('6000000000') : BigInt('0x100000'),
+            gasPrice: BigInt('0x100000'),
           };
           break;
         case EVMGasType.Type2:
           originalGasDetails = {
             evmGasType,
             originalGasEstimate: 0n,
-            maxFeePerGas: chain.id === 56 ? BigInt('6000000000') : BigInt('0x100000'),
+            maxFeePerGas: BigInt('0x100000'),
             maxPriorityFeePerGas: BigInt('0x010000'),
           };
           break;
@@ -1142,10 +1126,10 @@ export const unshieldTokens = async ({
         gasPriceFallback = BigInt('20000000000'); // 20 gwei
         maxFeeFallback = BigInt('25000000000'); // 25 gwei
         priorityFeeFallback = BigInt('2000000000'); // 2 gwei
-      } else if (chain.id === 56) { // BNB Chain
-        gasPriceFallback = BigInt('6000000000'); // 6 gwei floor
-        maxFeeFallback = BigInt('6000000000'); // legacy path still needs a value
-        priorityFeeFallback = 0n; // not used for legacy
+      } else if (chain.id === 56) { // BNB Chain - L2-like tiny fallbacks
+        gasPriceFallback = BigInt('100000000'); // 0.1 gwei (same as Arbitrum)
+        maxFeeFallback = BigInt('1000000000'); // 1 gwei (same as Arbitrum)
+        priorityFeeFallback = BigInt('10000000'); // 0.01 gwei (same as Arbitrum)
       } else { // Default for other networks
         gasPriceFallback = BigInt('5000000000'); // 5 gwei
         maxFeeFallback = BigInt('6000000000'); // 6 gwei
@@ -1164,11 +1148,7 @@ export const unshieldTokens = async ({
         case EVMGasType.Type0:
         case EVMGasType.Type1:
           let finalGasPrice = networkGasPrices?.gasPrice || gasPriceFallback;
-          // Enforce BNB Chain 6 gwei minimum in final gasDetails
-          if (chain.id === 56) {
-            const minBNBGas = BigInt('6000000000'); // 6 gwei
-            if (finalGasPrice < minBNBGas) finalGasPrice = minBNBGas;
-          }
+          // No special gas price floor for BNB - treat like other L2s
           gasDetails = {
             evmGasType,
             gasEstimate: finalGasEstimate, // Use padded estimate
@@ -1177,11 +1157,7 @@ export const unshieldTokens = async ({
           break;
         case EVMGasType.Type2:
           let finalMaxFee = networkGasPrices?.maxFeePerGas || maxFeeFallback;
-          // Enforce BNB Chain 6 gwei minimum in final gasDetails
-          if (chain.id === 56) {
-            const minBNBGas = BigInt('6000000000'); // 6 gwei
-            if (finalMaxFee < minBNBGas) finalMaxFee = minBNBGas;
-          }
+          // No special gas price floor for BNB - treat like other L2s
           gasDetails = {
             evmGasType,
             gasEstimate: finalGasEstimate, // Use padded estimate
@@ -1216,10 +1192,10 @@ export const unshieldTokens = async ({
         gasPriceFallback = BigInt('20000000000'); // 20 gwei
         maxFeeFallback = BigInt('25000000000'); // 25 gwei
         priorityFeeFallback = BigInt('2000000000'); // 2 gwei
-      } else if (chain.id === 56) { // BNB Chain
-        gasPriceFallback = BigInt('6000000000'); // 6 gwei floor
-        maxFeeFallback = BigInt('6000000000'); // legacy path still needs a value
-        priorityFeeFallback = 0n; // not used for legacy
+      } else if (chain.id === 56) { // BNB Chain - L2-like tiny fallbacks
+        gasPriceFallback = BigInt('100000000'); // 0.1 gwei (same as Arbitrum)
+        maxFeeFallback = BigInt('1000000000'); // 1 gwei (same as Arbitrum)
+        priorityFeeFallback = BigInt('10000000'); // 0.01 gwei (same as Arbitrum)
       } else {
         gasPriceFallback = BigInt('5000000000'); // 5 gwei
         maxFeeFallback = BigInt('6000000000'); // 6 gwei
@@ -1230,11 +1206,7 @@ export const unshieldTokens = async ({
         case EVMGasType.Type0:
         case EVMGasType.Type1:
           let fallbackGasPrice = gasPriceFallback;
-          // Enforce BNB Chain 6 gwei minimum in fallback gasDetails
-          if (chain.id === 56) {
-            const minBNBGas = BigInt('6000000000'); // 6 gwei
-            if (fallbackGasPrice < minBNBGas) fallbackGasPrice = minBNBGas;
-          }
+          // No special gas price floor for BNB - treat like other L2s
           gasDetails = {
             evmGasType,
             gasEstimate: finalGasEstimate, // Use padded estimate
@@ -1243,11 +1215,7 @@ export const unshieldTokens = async ({
           break;
         case EVMGasType.Type2:
           let fallbackMaxFee = maxFeeFallback;
-          // Enforce BNB Chain 6 gwei minimum in fallback gasDetails
-          if (chain.id === 56) {
-            const minBNBGas = BigInt('6000000000'); // 6 gwei
-            if (fallbackMaxFee < minBNBGas) fallbackMaxFee = minBNBGas;
-          }
+          // No special gas price floor for BNB - treat like other L2s
           gasDetails = {
             evmGasType,
             gasEstimate: finalGasEstimate, // Use padded estimate
