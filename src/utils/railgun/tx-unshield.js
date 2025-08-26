@@ -474,28 +474,87 @@ export const unshieldTokens = async ({
       // Prepare wrapped ERC20 amount object (tokenAddress must be the wrapped base token used privately)
       const wrappedERC20Amount = { tokenAddress, amount: BigInt(amount) };
 
-      // Gas details
+      // Gas details with network prices and BNB floor
       const evmGasType = getEVMGasTypeForTransaction(networkName, true);
       let originalGasDetails;
-      switch (evmGasType) {
-        case EVMGasType.Type0:
-        case EVMGasType.Type1:
-          originalGasDetails = {
-            evmGasType,
-            originalGasEstimate: 0n,
-            gasPrice: BigInt('0x100000'),
-          };
-          break;
-        case EVMGasType.Type2:
-          originalGasDetails = {
-            evmGasType,
-            originalGasEstimate: 0n,
-            maxFeePerGas: BigInt('0x100000'),
-            maxPriorityFeePerGas: BigInt('0x010000'),
-          };
-          break;
-        default:
-          throw new Error(`Unsupported EVM gas type`);
+      
+      try {
+        // Get current network gas prices for base token unshield too
+        const signer = await walletProvider();
+        const provider = signer?.provider;
+        let networkGasPrices = null;
+        
+        if (provider) {
+          const feeData = await provider.getFeeData();
+          networkGasPrices = feeData;
+        }
+        
+        switch (evmGasType) {
+          case EVMGasType.Type0:
+          case EVMGasType.Type1:
+            let gasPrice = networkGasPrices?.gasPrice || BigInt('0x100000');
+            // Enforce BNB Chain 6 gwei minimum for base token too
+            if (chain.id === 56) {
+              const minBNBGas = BigInt('6000000000'); // 6 gwei
+              if (gasPrice < minBNBGas) gasPrice = minBNBGas;
+            }
+            originalGasDetails = {
+              evmGasType,
+              originalGasEstimate: 0n,
+              gasPrice,
+            };
+            break;
+          case EVMGasType.Type2:
+            let maxFeePerGas = networkGasPrices?.maxFeePerGas || BigInt('0x100000');
+            let maxPriorityFeePerGas = networkGasPrices?.maxPriorityFeePerGas || BigInt('0x010000');
+            // Enforce BNB Chain 6 gwei minimum for base token too
+            if (chain.id === 56) {
+              const minBNBGas = BigInt('6000000000'); // 6 gwei
+              if (maxFeePerGas < minBNBGas) maxFeePerGas = minBNBGas;
+            }
+            originalGasDetails = {
+              evmGasType,
+              originalGasEstimate: 0n,
+              maxFeePerGas,
+              maxPriorityFeePerGas,
+            };
+            break;
+          default:
+            throw new Error(`Unsupported EVM gas type`);
+        }
+        
+        console.log('💰 [UNSHIELD] Base-token gas details with network prices:', {
+          evmGasType,
+          gasPrice: originalGasDetails.gasPrice?.toString(),
+          maxFeePerGas: originalGasDetails.maxFeePerGas?.toString(),
+          maxPriorityFeePerGas: originalGasDetails.maxPriorityFeePerGas?.toString(),
+          chainId: chain.id
+        });
+        
+      } catch (gasError) {
+        console.warn('⚠️ [UNSHIELD] Failed to get network gas prices for base token, using fallbacks:', gasError.message);
+        
+        // Fallback with BNB floor
+        switch (evmGasType) {
+          case EVMGasType.Type0:
+          case EVMGasType.Type1:
+            originalGasDetails = {
+              evmGasType,
+              originalGasEstimate: 0n,
+              gasPrice: chain.id === 56 ? BigInt('6000000000') : BigInt('0x100000'),
+            };
+            break;
+          case EVMGasType.Type2:
+            originalGasDetails = {
+              evmGasType,
+              originalGasEstimate: 0n,
+              maxFeePerGas: chain.id === 56 ? BigInt('6000000000') : BigInt('0x100000'),
+              maxPriorityFeePerGas: BigInt('0x010000'),
+            };
+            break;
+          default:
+            throw new Error(`Unsupported EVM gas type`);
+        }
       }
 
       // Estimate
@@ -525,22 +584,14 @@ export const unshieldTokens = async ({
         (p) => console.log(`[UNSHIELD] Base token proof progress: ${(p * 100).toFixed(1)}%`),
       );
 
-      // Gas details for populate
-      let gasDetails;
-      if (evmGasType === EVMGasType.Type2) {
-        gasDetails = {
-          evmGasType,
-          gasEstimate: 0n,
-          maxFeePerGas: BigInt('0x100000'),
-          maxPriorityFeePerGas: BigInt('0x010000'),
-        };
-      } else {
-        gasDetails = {
-          evmGasType,
-          gasEstimate: 0n,
-          gasPrice: BigInt('0x100000'),
-        };
-      }
+      // Gas details for populate - use same network prices as originalGasDetails
+      let gasDetails = {
+        evmGasType,
+        gasEstimate: 0n,
+        gasPrice: originalGasDetails.gasPrice,
+        maxFeePerGas: originalGasDetails.maxFeePerGas,
+        maxPriorityFeePerGas: originalGasDetails.maxPriorityFeePerGas,
+      };
 
       const populateResponse = await populateProvedUnshieldBaseToken(
         TXIDVersion.V2_PoseidonMerkle,
@@ -574,7 +625,7 @@ export const unshieldTokens = async ({
     // CRITICAL: SDK handles protocol fee automatically - don't subtract it manually
     const UNSHIELD_FEE_BPS = 25n; // 0.25%
     const RELAYER_FEE_BPS = 50n; // 0.5% (or from relayer quote)
-    const MIN_GAS_LIMIT = 2400000n; // Consistent gas limit for cross-contract calls
+    const MIN_GAS_LIMIT = 1600000n; // Lower floor - real txs land ~1.1-1.3M
     
     const unshieldIn = BigInt(amount); // what we unshield to RelayAdapt
     const afterFee = (unshieldIn * (10000n - UNSHIELD_FEE_BPS)) / 10000n; // spendable at RelayAdapt
@@ -719,27 +770,85 @@ export const unshieldTokens = async ({
     const networkName = getRailgunNetworkName(chain.id);
     const evmGasType = getEVMGasTypeForTransaction(networkName, sendWithPublicWallet);
     
-    // Create original gas details with EXACT official docs pattern
+    // Get current network gas prices for realistic originalGasDetails
     let originalGasDetails;
-    switch (evmGasType) {
-      case EVMGasType.Type0:
-      case EVMGasType.Type1:
-        originalGasDetails = {
-          evmGasType,
-          originalGasEstimate: 0n, // CRITICAL: Must be originalGasEstimate, not gasEstimate
-          gasPrice: BigInt('0x100000'), // 1.048M wei ≈ 0.001 gwei - official docs value
-        };
-        break;
-      case EVMGasType.Type2:
-        originalGasDetails = {
-          evmGasType,
-          originalGasEstimate: 0n, // CRITICAL: Must be originalGasEstimate, not gasEstimate
-          maxFeePerGas: BigInt('0x100000'), // 1.048M wei ≈ 0.001 gwei - official docs value
-          maxPriorityFeePerGas: BigInt('0x010000'), // 65K wei (~0.065 gwei) - official docs value
-        };
-        break;
-      default:
-        throw new Error(`Unsupported EVM gas type: ${evmGasType}`);
+    try {
+      const signer = await walletProvider();
+      const provider = signer?.provider;
+      let networkGasPrices = null;
+      
+      if (provider) {
+        const feeData = await provider.getFeeData();
+        networkGasPrices = feeData;
+      }
+      
+      // Create original gas details based on network conditions
+      switch (evmGasType) {
+        case EVMGasType.Type0:
+        case EVMGasType.Type1:
+          let gasPrice = networkGasPrices?.gasPrice || BigInt('0x100000');
+          // Enforce BNB Chain 6 gwei minimum
+          if (chain.id === 56) {
+            const minBNBGas = BigInt('6000000000'); // 6 gwei
+            if (gasPrice < minBNBGas) gasPrice = minBNBGas;
+          }
+          originalGasDetails = {
+            evmGasType,
+            originalGasEstimate: 0n,
+            gasPrice,
+          };
+          break;
+        case EVMGasType.Type2:
+          let maxFeePerGas = networkGasPrices?.maxFeePerGas || BigInt('0x100000');
+          let maxPriorityFeePerGas = networkGasPrices?.maxPriorityFeePerGas || BigInt('0x010000');
+          // Enforce BNB Chain 6 gwei minimum
+          if (chain.id === 56) {
+            const minBNBGas = BigInt('6000000000'); // 6 gwei
+            if (maxFeePerGas < minBNBGas) maxFeePerGas = minBNBGas;
+          }
+          originalGasDetails = {
+            evmGasType,
+            originalGasEstimate: 0n,
+            maxFeePerGas,
+            maxPriorityFeePerGas,
+          };
+          break;
+        default:
+          throw new Error(`Unsupported EVM gas type: ${evmGasType}`);
+      }
+      
+      console.log('💰 [UNSHIELD] Original gas details with network prices:', {
+        evmGasType,
+        gasPrice: originalGasDetails.gasPrice?.toString(),
+        maxFeePerGas: originalGasDetails.maxFeePerGas?.toString(),
+        maxPriorityFeePerGas: originalGasDetails.maxPriorityFeePerGas?.toString(),
+        chainId: chain.id
+      });
+      
+    } catch (gasError) {
+      console.warn('⚠️ [UNSHIELD] Failed to get network gas prices, using fallbacks:', gasError.message);
+      
+      // Fallback to hardcoded values if network call fails
+      switch (evmGasType) {
+        case EVMGasType.Type0:
+        case EVMGasType.Type1:
+          originalGasDetails = {
+            evmGasType,
+            originalGasEstimate: 0n,
+            gasPrice: chain.id === 56 ? BigInt('6000000000') : BigInt('0x100000'),
+          };
+          break;
+        case EVMGasType.Type2:
+          originalGasDetails = {
+            evmGasType,
+            originalGasEstimate: 0n,
+            maxFeePerGas: chain.id === 56 ? BigInt('6000000000') : BigInt('0x100000'),
+            maxPriorityFeePerGas: BigInt('0x010000'),
+          };
+          break;
+        default:
+          throw new Error(`Unsupported EVM gas type: ${evmGasType}`);
+      }
     }
     
     console.log('🧮 [UNSHIELD] Attempting official gas estimation with correct method...');
@@ -778,7 +887,7 @@ export const unshieldTokens = async ({
           crossContractCalls: crossContractCalls.length,
           feeTokenDetails: { tokenAddress: feeTokenDetails.tokenAddress, feePerUnitGas: feeTokenDetails.feePerUnitGas.toString() },
           sendWithPublicWallet,
-          minGasLimit: MIN_GAS_LIMIT.toString()
+          minGasLimit: minGasForSDK.toString()
         });
         
         const gasEstimateResponse = await gasEstimateForUnprovenCrossContractCalls(
@@ -794,7 +903,7 @@ export const unshieldTokens = async ({
           originalGasDetails,
           feeTokenDetails, // Official SDK pattern for relayer fees
           sendWithPublicWallet,
-          MIN_GAS_LIMIT // Consistent with proof generation
+          minGasForSDK // Dynamic minimum based on estimate
         );
         
         accurateGasEstimate = gasEstimateResponse.gasEstimate;
@@ -835,17 +944,20 @@ export const unshieldTokens = async ({
     } catch (gasError) {
       console.warn('⚠️ [UNSHIELD] Official gas estimation failed, using conservative fallback:', gasError.message);
       
-      // Use very high conservative gas estimates for complex SNARK verification
-      if (useRelayer) {
-        accurateGasEstimate = BigInt('2000000'); // Very high for RelayAdapt SNARK verification (2M gas)
-      } else {
-        accurateGasEstimate = BigInt('1200000'); // High for self-signing SNARK verification (1.2M gas)
+      // Use network-appropriate conservative estimates instead of blanket high values
+      if (chain.id === 56) { // BNB Chain
+        accurateGasEstimate = useRelayer ? BigInt('1200000') : BigInt('800000'); // More reasonable for BNB
+      } else if (chain.id === 42161) { // Arbitrum
+        accurateGasEstimate = useRelayer ? BigInt('1200000') : BigInt('800000'); // Arbitrum estimates
+      } else { // Other chains
+        accurateGasEstimate = useRelayer ? BigInt('2000000') : BigInt('1200000'); // Conservative fallback
       }
       
-      console.log('📊 [UNSHIELD] Using fallback gas estimate:', {
+      console.log('📊 [UNSHIELD] Using network-specific fallback gas estimate:', {
         gasEstimate: accurateGasEstimate.toString(),
         reason: 'official-estimation-failed',
-        mode: useRelayer ? 'relayer' : 'self-signing'
+        mode: useRelayer ? 'relayer' : 'self-signing',
+        chainId: chain.id
       });
     }
     
@@ -934,7 +1046,7 @@ export const unshieldTokens = async ({
         broadcasterFeeERC20AmountRecipient, // Official SDK pattern for relayer fees
         sendWithPublicWallet,
         OVERALL_BATCH_MIN_GAS_PRICE,
-        MIN_GAS_LIMIT,
+        minGasForSDK,
         (progress) => {
           console.log(`📊 [UNSHIELD] Cross-contract calls Proof Progress: ${(progress * 100).toFixed(2)}%`);
         } // progressCallback
@@ -964,10 +1076,17 @@ export const unshieldTokens = async ({
       console.log('✅ [UNSHIELD] Regular Unshield proof generated for self-signing mode');
     }
     
-    // Use the accurate gas estimate from official SDK
-    const finalGasEstimate = accurateGasEstimate;
-    console.log('✅ [UNSHIELD] Proof generation completed:', {
-      gasEstimate: finalGasEstimate.toString(),
+    // Add buffer to gas estimate (25% padding)
+    const finalGasEstimate = (accurateGasEstimate * 125n) / 100n;
+    
+    // Dynamic minimum for SDK calls - use padded estimate when greater
+    const minGasForSDK = finalGasEstimate > MIN_GAS_LIMIT ? finalGasEstimate : MIN_GAS_LIMIT;
+    
+    console.log('✅ [UNSHIELD] Proof generation completed with gas padding:', {
+      originalGasEstimate: accurateGasEstimate.toString(),
+      paddedGasEstimate: finalGasEstimate.toString(),
+      minGasForSDK: minGasForSDK.toString(),
+      padding: '25%',
       evmGasType,
       hasProof: !!proofResponse,
       method: 'official-sdk-gas-estimation'
@@ -1038,17 +1157,29 @@ export const unshieldTokens = async ({
       switch (evmGasType) {
         case EVMGasType.Type0:
         case EVMGasType.Type1:
+          let finalGasPrice = networkGasPrices?.gasPrice || gasPriceFallback;
+          // Enforce BNB Chain 6 gwei minimum in final gasDetails
+          if (chain.id === 56) {
+            const minBNBGas = BigInt('6000000000'); // 6 gwei
+            if (finalGasPrice < minBNBGas) finalGasPrice = minBNBGas;
+          }
           gasDetails = {
             evmGasType,
-            gasEstimate: accurateGasEstimate,
-            gasPrice: networkGasPrices?.gasPrice || gasPriceFallback,
+            gasEstimate: finalGasEstimate, // Use padded estimate
+            gasPrice: finalGasPrice,
           };
           break;
         case EVMGasType.Type2:
+          let finalMaxFee = networkGasPrices?.maxFeePerGas || maxFeeFallback;
+          // Enforce BNB Chain 6 gwei minimum in final gasDetails
+          if (chain.id === 56) {
+            const minBNBGas = BigInt('6000000000'); // 6 gwei
+            if (finalMaxFee < minBNBGas) finalMaxFee = minBNBGas;
+          }
           gasDetails = {
             evmGasType,
-            gasEstimate: accurateGasEstimate,
-            maxFeePerGas: networkGasPrices?.maxFeePerGas || maxFeeFallback,
+            gasEstimate: finalGasEstimate, // Use padded estimate
+            maxFeePerGas: finalMaxFee,
             maxPriorityFeePerGas: networkGasPrices?.maxPriorityFeePerGas || priorityFeeFallback,
           };
           break;
@@ -1092,17 +1223,29 @@ export const unshieldTokens = async ({
       switch (evmGasType) {
         case EVMGasType.Type0:
         case EVMGasType.Type1:
+          let fallbackGasPrice = gasPriceFallback;
+          // Enforce BNB Chain 6 gwei minimum in fallback gasDetails
+          if (chain.id === 56) {
+            const minBNBGas = BigInt('6000000000'); // 6 gwei
+            if (fallbackGasPrice < minBNBGas) fallbackGasPrice = minBNBGas;
+          }
           gasDetails = {
             evmGasType,
-            gasEstimate: accurateGasEstimate,
-            gasPrice: gasPriceFallback,
+            gasEstimate: finalGasEstimate, // Use padded estimate
+            gasPrice: fallbackGasPrice,
           };
           break;
         case EVMGasType.Type2:
+          let fallbackMaxFee = maxFeeFallback;
+          // Enforce BNB Chain 6 gwei minimum in fallback gasDetails
+          if (chain.id === 56) {
+            const minBNBGas = BigInt('6000000000'); // 6 gwei
+            if (fallbackMaxFee < minBNBGas) fallbackMaxFee = minBNBGas;
+          }
           gasDetails = {
             evmGasType,
-            gasEstimate: accurateGasEstimate,
-            maxFeePerGas: maxFeeFallback,
+            gasEstimate: finalGasEstimate, // Use padded estimate
+            maxFeePerGas: fallbackMaxFee,
             maxPriorityFeePerGas: priorityFeeFallback,
           };
           break;
