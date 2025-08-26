@@ -286,20 +286,20 @@ export const RelayerConfig = {
   // Contract addresses
   contracts: {
     1: {
-      railgun: '0xfa7093cdd9ee6932b4eb2c9e1cde7ce2cc9c174e', // Ethereum mainnet Railgun proxy
-      poi: '0x8c3f50c9b03b4645fb2186c652a03dabb0c1b9c8'  // Ethereum mainnet POI
+      railgun: '0xfa7093cdd9ee6932b4eb2c9e1cde7ce00b1fa4b9', // Ethereum - Official Railgun Protocol
+      poi: '0xc480f68a3dcc3edd82134fab45c14a0fcf1da3cc'     // Ethereum - Official POI
     },
     42161: {
       railgun: '0x892E3471CF11b412eAC6AfcaC5A43201D1bD496d', // Arbitrum - Custom zero-delay deployment
       poi: '0x75b1aa53479Ad1F22078ec24Fbc151EB94dE47e8'     // Arbitrum - Custom zero-delay POI
     },
     56: {
-      railgun: '0xf30ce5ca17ede3b8f244b6ad06dfb5e7d42e8e40', // BSC Railgun proxy (if deployed)
-      poi: '0x68a23c18cdb1ff1c4a2dc1f40edcc88afe9f5e20'      // BSC POI (if deployed)
+      railgun: '0x590162bf4b50f6576a459b75309ee21d92178a10', // BNB Chain - Official Railgun Protocol
+      poi: '0xc3f2c8f9d5f0705de706b1302b7a039e1e11ac88'     // BNB Chain - Official POI
     },
     137: {
-      railgun: '0x19b620929f97b7b990801496c3b361ca5def8c71', // Polygon Railgun proxy
-      poi: '0x8c3f50c9b03b4645fb2186c652a03dabb0c1b9c8'      // Polygon POI
+      railgun: '0x19b620929f97b7b990801496c3b361ca5def8c71', // Polygon - Official Railgun Protocol
+      poi: '0xc3f2c8f9d5f0705de706b1302b7a039e1e11ac88'     // Polygon - Official POI
     }
   }
 };
