@@ -1271,6 +1271,7 @@ export const unshieldTokens = async ({
     // STEP 7: Transaction submission
     console.log('📡 [UNSHIELD] Step 7: Submitting transaction...');
     submittingToast = showTerminalToast('info', 'Submitting transaction', { duration: 4000 });
+    submittingToast = showTerminalToast('info', 'Transaction confirmed. Balance will update automatically', { duration: 4000 });
     
     let transactionHash;
     let usedRelayer = false;
@@ -1370,6 +1371,8 @@ export const unshieldTokens = async ({
         transactionHash = relayerResult.transactionHash;
         usedRelayer = true;
         privacyLevel = 'transparent-relayer';
+
+        submittingToast = showTerminalToast('info', 'Transaction confirmed. Balance will update automatically', { duration: 4000 });
         
         console.log('✅ [GAS RELAYER] Transaction submitted successfully!', {
           transactionHash,
@@ -1390,7 +1393,7 @@ export const unshieldTokens = async ({
       console.log('🔐 [UNSHIELD] Using self-signing mode');
       transactionHash = await submitTransactionSelfSigned(populatedTransaction, walletProvider);
     }
-    
+
     return {
       transactionHash,
       usedRelayer,
