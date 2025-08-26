@@ -241,7 +241,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       });
 
       toast.custom((t) => (
-        <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+        <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
           <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
             <div className="px-4 py-3 flex items-center gap-3">
               <div className="h-3 w-3 rounded-full bg-emerald-400" />
@@ -249,7 +249,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div className="text-sm">Adding tokens to vault...</div>
                 <div className="text-xs text-green-400/80">Approve in your wallet</div>
               </div>
-              <button type="button" aria-label="Dismiss" onClick={() => toast.dismiss(t.id)} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
+              <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
             </div>
           </div>
         </div>
@@ -271,7 +271,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       // Send the transaction to the blockchain
       toast.dismiss(toastId);
       toast.custom((t) => (
-        <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+        <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
           <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
             <div className="px-4 py-3 flex items-center gap-3">
               <div className="h-3 w-3 rounded-full bg-emerald-400" />
@@ -305,7 +305,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
       toast.dismiss(toastId);
       toast.custom((t) => (
-        <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+        <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
           <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
             <div className="px-4 py-3 flex items-center gap-3">
               <div className="h-3 w-3 rounded-full bg-emerald-400" />
@@ -326,7 +326,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       // ✅ ENHANCED: Graph-based transaction monitoring with new API
       toast.dismiss(toastId);
       toast.custom((t) => (
-        <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+        <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
           <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
             <div className="px-4 py-3 flex items-center gap-3">
               <div className="h-3 w-3 rounded-full bg-emerald-400" />
@@ -401,7 +401,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       toast.dismiss(toastId);
       if ((error?.message || '').toLowerCase().includes('rejected') || error?.code === 4001) {
         toast.custom((t) => (
-          <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
             <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
               <div className="px-4 py-3 flex items-center gap-3">
                 <div className="h-3 w-3 rounded-full bg-red-400" />
@@ -414,7 +414,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         ), { duration: 3000 });
       } else {
         toast.custom((t) => (
-          <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
             <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
               <div className="px-4 py-3 flex items-center gap-3">
                 <div className="h-3 w-3 rounded-full bg-red-400" />

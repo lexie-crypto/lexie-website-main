@@ -85,7 +85,7 @@ const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
             ),
             React.createElement(
               'button',
-              { key: 'close', onClick: () => toast.dismiss(t.id), className: 'ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80' },
+              { key: 'close', type: 'button', 'aria-label': 'Dismiss', onClick: (e) => { e.stopPropagation(); toast.dismiss(t.id); }, className: 'ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80' },
               '×'
             )
           ]

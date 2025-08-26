@@ -153,7 +153,7 @@ const WalletPage = () => {
       await refreshAllBalances();
 
       toast.custom((t) => (
-        <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+        <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
           <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
             <div className="px-4 py-3 flex items-center gap-3">
               <div className="h-3 w-3 rounded-full bg-emerald-400" />
@@ -161,7 +161,7 @@ const WalletPage = () => {
                 <div className="text-sm">Balances refreshed</div>
                 <div className="text-xs text-green-400/80">Public and vault balances updated</div>
               </div>
-              <button onClick={() => toast.dismiss(t.id)} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
+              <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
             </div>
           </div>
         </div>
@@ -169,7 +169,7 @@ const WalletPage = () => {
     } catch (error) {
       console.error('[WalletPage] Full refresh failed:', error);
       toast.custom((t) => (
-        <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+        <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
           <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
             <div className="px-4 py-3 flex items-center gap-3">
               <div className="h-3 w-3 rounded-full bg-red-400" />
@@ -177,7 +177,7 @@ const WalletPage = () => {
                 <div className="text-sm">Failed to refresh balances</div>
                 <div className="text-xs text-green-400/80">Please try again</div>
               </div>
-              <button onClick={() => toast.dismiss(t.id)} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
+              <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
             </div>
           </div>
         </div>
