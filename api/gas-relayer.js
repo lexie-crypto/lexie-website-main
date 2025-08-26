@@ -108,7 +108,7 @@ export default async function handler(req, res) {
           req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.connection.remoteAddress,
       },
       body: req.method === 'POST' ? JSON.stringify(req.body) : undefined,
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(120000), // 2 minutes for Ethereum mainnet
     });
 
     console.log(`📤 [PROXY-${requestId}] Backend response`, {
