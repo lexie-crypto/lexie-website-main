@@ -35,13 +35,14 @@ let lastScanTime = new Map(); // networkName -> timestamp
  * @returns {string} Railgun network name
  */
 export const getRailgunNetworkName = (chainId) => {
+  // Return enum values from shared-models to match NETWORK_CONFIG keys exactly
   const mapping = {
-    1: 'Ethereum',
-    42161: 'Arbitrum', 
-    137: 'Polygon',
-    56: 'BNBChain'
+    1: NetworkName.Ethereum,
+    42161: NetworkName.Arbitrum,
+    137: NetworkName.Polygon,
+    56: NetworkName.BSC, // Important: SDK uses BSC, not BNBChain
   };
-  return mapping[chainId] || 'Ethereum';
+  return mapping[chainId] || NetworkName.Ethereum;
 };
 
 /**

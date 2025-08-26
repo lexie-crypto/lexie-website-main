@@ -597,7 +597,7 @@ const WalletPage = () => {
     { id: 1, name: 'Ethereum', symbol: 'ETH' },
     { id: 137, name: 'Polygon', symbol: 'MATIC' },
     { id: 42161, name: 'Arbitrum', symbol: 'ETH' },
-    { id: 56, name: 'BSC', symbol: 'BNB' },
+    { id: 56, name: 'BNB Chain', symbol: 'BNB' },
   ];
 
   const [isChainMenuOpen, setIsChainMenuOpen] = useState(false);
