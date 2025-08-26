@@ -375,6 +375,7 @@ export function useBalances() {
     }
 
     setLoading(true);
+    try { window.dispatchEvent(new CustomEvent('vault-balances-refresh-start')); } catch {}
     try {
       console.log('[useBalances] 🔄 Refreshing balances...');
 
@@ -440,6 +441,7 @@ export function useBalances() {
       setError(error.message);
     } finally {
       setLoading(false);
+      try { window.dispatchEvent(new CustomEvent('vault-balances-refresh-complete')); } catch {}
     }
   }, [address, chainId, fetchAndCachePrices, fetchPublicBalances]);
 
@@ -804,6 +806,7 @@ export function useBalances() {
       
       // Auto-refresh UI after confirmed transactions for good UX
       if (event.detail?.chainId === currentChainId && currentWalletId) {
+        try { window.dispatchEvent(new CustomEvent('vault-balances-refresh-start')); } catch {}
         const { transactionType, amount, tokenAddress, tokenSymbol } = event.detail;
         const currentWalletAddress = stableRefs.current.address;
         
@@ -911,6 +914,7 @@ export function useBalances() {
             console.error('[useBalances] Failed to update balances after unshield/transfer:', error);
           }
         }
+        try { window.dispatchEvent(new CustomEvent('vault-balances-refresh-complete')); } catch {}
       }
     };
 

@@ -59,6 +59,19 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
     formatBalance,
   } = useBalances();
 
+  // Local state to show a refreshing indicator for Vault Balances
+  const [isRefreshingBalances, setIsRefreshingBalances] = useState(false);
+  useEffect(() => {
+    const onStart = () => setIsRefreshingBalances(true);
+    const onComplete = () => setIsRefreshingBalances(false);
+    window.addEventListener('vault-balances-refresh-start', onStart);
+    window.addEventListener('vault-balances-refresh-complete', onComplete);
+    return () => {
+      window.removeEventListener('vault-balances-refresh-start', onStart);
+      window.removeEventListener('vault-balances-refresh-complete', onComplete);
+    };
+  }, []);
+
   // Component state - controlled by parent
   const activeTab = activeAction;
   const [selectedToken, setSelectedToken] = useState(null);
@@ -807,6 +820,12 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
           <h3 className="text-emerald-300 font-semibold">Vault Balances</h3>
         </div>
         <div className="mt-3 text-green-300/80">
+          {isRefreshingBalances && (
+            <div className="mb-3 flex items-center gap-2 text-sm text-green-300">
+              <div className="h-4 w-4 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
+              Refreshing balances...
+            </div>
+          )}
           {privateBalances && privateBalances.length > 0 ? (
             <div className="space-y-2">
               <div className="text-sm text-green-400/70">{privateBalances.length} Vault Token{privateBalances.length !== 1 ? 's' : ''}</div>
