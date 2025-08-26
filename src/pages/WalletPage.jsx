@@ -825,7 +825,20 @@ const WalletPage = () => {
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(currentLexieId);
-                          toast.success('Lexie ID copied to clipboard!');
+                          toast.custom((t) => (
+                            <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+                              <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+                                <div className="px-4 py-3 flex items-center gap-3">
+                                  <div className="h-3 w-3 rounded-full bg-emerald-400" />
+                                  <div>
+                                    <div className="text-sm">Lexie ID copied to clipboard</div>
+                                    <div className="text-xs text-green-400/80">{currentLexieId}</div>
+                                  </div>
+                                  <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
+                                </div>
+                              </div>
+                            </div>
+                          ), { duration: 2500 });
                         }}
                         className="inline-flex items-center gap-1 bg-purple-300 hover:bg-purple-400 text-black px-2 py-0.5 rounded text-xs font-medium transition-colors"
                         title="Copy Lexie ID"
