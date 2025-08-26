@@ -1270,7 +1270,6 @@ export const unshieldTokens = async ({
 
     // STEP 7: Transaction submission
     console.log('📡 [UNSHIELD] Step 7: Submitting transaction...');
-    submittingToast = showTerminalToast('info', 'Submitting transaction', { duration: 4000 });
     submittingToast = showTerminalToast('info', 'Transaction confirmed. Balance will update automatically', { duration: 4000 });
     
     let transactionHash;
