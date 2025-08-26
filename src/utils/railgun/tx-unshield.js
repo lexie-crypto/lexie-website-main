@@ -1371,8 +1371,7 @@ export const unshieldTokens = async ({
         transactionHash = relayerResult.transactionHash;
         usedRelayer = true;
         privacyLevel = 'transparent-relayer';
-
-        submittingToast = showTerminalToast('info', 'Transaction confirmed. Balance will update automatically', { duration: 4000 });
+        
         
         console.log('✅ [GAS RELAYER] Transaction submitted successfully!', {
           transactionHash,
