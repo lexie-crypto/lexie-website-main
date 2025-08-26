@@ -408,8 +408,10 @@ export function useBalances() {
           if (resp.ok) {
             const json = await resp.json();
             const list = json?.balances?.balances || [];
-            if (Array.isArray(list) && list.length > 0) {
-              const privateWithUSD = list.map(token => {
+            // Per-network view: only keep balances for the active chain
+            const listForChain = list.filter(t => Number(t.chainId) === Number(chainId));
+            if (Array.isArray(listForChain) && listForChain.length > 0) {
+              const privateWithUSD = listForChain.map(token => {
                 const numeric = Number(token.numericBalance || 0);
                 return {
                   ...token,
@@ -424,6 +426,9 @@ export function useBalances() {
                 };
               });
               setPrivateBalances(privateWithUSD);
+            } else {
+              // No balances for this chain from backend; clear to avoid cross-chain carryover
+              setPrivateBalances([]);
             }
           }
         }

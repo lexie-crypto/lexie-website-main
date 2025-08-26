@@ -922,7 +922,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div key={token.tokenAddress || token.address || token.symbol} className="flex items-center justify-between p-2 bg-black/60 rounded text-sm border border-green-500/10">
                   <div className="flex items-center gap-2">
                     <span className="text-green-200 font-medium">{token.symbol}</span>
-                    <span className="text-green-400/70">Vault • {token.name || `${token.symbol} Token`}</span>
+                    <span className="text-green-400/70">{(typeof window !== 'undefined' && window?.lexieActiveNetworkName) ? `${window.lexieActiveNetworkName} ` : ''}Vault • {token.name || `${token.symbol} Token`}</span>
                   </div>
                   <div className="text-right">
                     <div className="text-green-200">{formatBalance ? formatBalance(token.numericBalance) : token.formattedBalance || token.numericBalance}</div>
