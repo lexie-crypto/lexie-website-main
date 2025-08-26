@@ -38,7 +38,7 @@ import {
   getCurrentWallet,
 } from '../utils/railgun/wallet';
 
-const PrivacyActions = ({ activeAction = 'shield' }) => {
+const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false }) => {
   const {
     isConnected,
     address,
@@ -59,24 +59,7 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
     formatBalance,
   } = useBalances();
 
-  // Local state to show a refreshing indicator for Vault Balances
-  const [isRefreshingBalances, setIsRefreshingBalances] = useState(false);
-  useEffect(() => {
-    const onStart = () => {
-      console.log('[PrivacyActions] Vault balances refresh started');
-      setIsRefreshingBalances(true);
-    };
-    const onComplete = () => {
-      console.log('[PrivacyActions] Vault balances refresh completed');
-      setIsRefreshingBalances(false);
-    };
-    window.addEventListener('vault-balances-refresh-start', onStart);
-    window.addEventListener('vault-balances-refresh-complete', onComplete);
-    return () => {
-      window.removeEventListener('vault-balances-refresh-start', onStart);
-      window.removeEventListener('vault-balances-refresh-complete', onComplete);
-    };
-  }, []);
+  // isRefreshingBalances is now passed as a prop from WalletPage
 
   // Component state - controlled by parent
   const activeTab = activeAction;

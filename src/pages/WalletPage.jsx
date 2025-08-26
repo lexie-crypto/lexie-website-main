@@ -85,6 +85,8 @@ const WalletPage = () => {
   const [lexieMessage, setLexieMessage] = useState('');
   const [showLexieModal, setShowLexieModal] = useState(false);
   const [currentLexieId, setCurrentLexieId] = useState('');
+  // Local state to show a refreshing indicator for Vault Balances (always available)
+  const [isRefreshingBalances, setIsRefreshingBalances] = useState(false);
 
   const network = getCurrentNetwork();
   const [isChainReady, setIsChainReady] = useState(false);
@@ -105,6 +107,24 @@ const WalletPage = () => {
     })();
     return () => { mounted = false; };
   }, [canUseRailgun, railgunWalletId, address, chainId]);
+
+  // Event listeners for vault balance refresh state (always available in WalletPage)
+  useEffect(() => {
+    const onStart = () => {
+      console.log('[WalletPage] Vault balances refresh started - showing spinner');
+      setIsRefreshingBalances(true);
+    };
+    const onComplete = () => {
+      console.log('[WalletPage] Vault balances refresh completed - hiding spinner');
+      setIsRefreshingBalances(false);
+    };
+    window.addEventListener('vault-balances-refresh-start', onStart);
+    window.addEventListener('vault-balances-refresh-complete', onComplete);
+    return () => {
+      window.removeEventListener('vault-balances-refresh-start', onStart);
+      window.removeEventListener('vault-balances-refresh-complete', onComplete);
+    };
+  }, []);
 
   // Full refresh: SDK refresh + Redis persist, then UI reload (public from chain + private from Redis)
   const refreshBalances = useCallback(async () => {
@@ -946,6 +966,13 @@ const WalletPage = () => {
               </div>
             </div>
 
+                  {isRefreshingBalances && (
+                    <div className="mb-3 flex items-center gap-2 text-sm text-green-300">
+                      <div className="h-4 w-4 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
+                      Refreshing balances...
+                    </div>
+                  )}
+
                   {!canUseRailgun ? (
                     <div className="text-center py-4 text-green-400/70 text-xs">
                       Secure vault engine not ready
@@ -1066,7 +1093,7 @@ const WalletPage = () => {
 
                         {/* Privacy Actions */}
             {selectedView === 'privacy' && (
-              <PrivacyActions activeAction={activeAction} />
+              <PrivacyActions activeAction={activeAction} isRefreshingBalances={isRefreshingBalances} />
             )}
 
             {/* Transaction History */}
