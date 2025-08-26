@@ -268,7 +268,7 @@ export function calculateTotalAmountWithFees(baseAmount, feeEstimate) {
 export const RelayerConfig = {
   url: RELAYER_PROXY_URL,
   enabled: process.env.REACT_APP_RELAYER_ENABLED === 'true' && !!HMAC_SECRET,
-  supportedNetworks: [42161, 1], // Arbitrum, Ethereum
+  supportedNetworks: [42161, 1, 56, 137], // Arbitrum, Ethereum, BNB Chain, Polygon
   
   // Fee structure
   fees: {
@@ -285,9 +285,21 @@ export const RelayerConfig = {
   
   // Contract addresses
   contracts: {
+    1: {
+      railgun: '0xfa7093cdd9ee6932b4eb2c9e1cde7ce2cc9c174e', // Ethereum mainnet Railgun proxy
+      poi: '0x8c3f50c9b03b4645fb2186c652a03dabb0c1b9c8'  // Ethereum mainnet POI
+    },
     42161: {
-      railgun: '0x892E3471CF11b412eAC6AfcaC5A43201D1bD496d',
-      poi: '0x75b1aa53479Ad1F22078ec24Fbc151EB94dE47e8'
+      railgun: '0x892E3471CF11b412eAC6AfcaC5A43201D1bD496d', // Arbitrum - Custom zero-delay deployment
+      poi: '0x75b1aa53479Ad1F22078ec24Fbc151EB94dE47e8'     // Arbitrum - Custom zero-delay POI
+    },
+    56: {
+      railgun: '0xf30ce5ca17ede3b8f244b6ad06dfb5e7d42e8e40', // BSC Railgun proxy (if deployed)
+      poi: '0x68a23c18cdb1ff1c4a2dc1f40edcc88afe9f5e20'      // BSC POI (if deployed)
+    },
+    137: {
+      railgun: '0x19b620929f97b7b990801496c3b361ca5def8c71', // Polygon Railgun proxy
+      poi: '0x8c3f50c9b03b4645fb2186c652a03dabb0c1b9c8'      // Polygon POI
     }
   }
 };
