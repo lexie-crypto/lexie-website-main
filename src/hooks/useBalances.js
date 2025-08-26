@@ -337,7 +337,8 @@ export function useBalances() {
       const balancesForCurrentChain = metadata.privateBalances.filter(balance => balance.chainId === chainId);
       if (balancesForCurrentChain.length === 0) {
         console.log(`[useBalances] No private balances found for chain ${chainId} (metadata fallback)`);
-        // Do NOT clear state here to avoid flashing 0 balances; just return
+        // Per-network view: clear stale balances from previous chain
+        setPrivateBalances([]);
         return false;
       }
       const privateBalancesFromRedis = balancesForCurrentChain.map(balance => ({
@@ -697,6 +698,15 @@ export function useBalances() {
       hasAutoRefreshed.current = false;
     }
   }, [address, chainId]);
+
+  // Clear stale private balances when switching networks; reload from Redis for the new chain
+  useEffect(() => {
+    if (!address || !railgunWalletId) return;
+    // Clear immediately to avoid showing previous-chain balances
+    setPrivateBalances([]);
+    // Load for the active chain
+    loadPrivateBalancesFromMetadata(address, railgunWalletId);
+  }, [chainId]);
 
   // Load private balances from Redis when Railgun wallet is ready
   useEffect(() => {
