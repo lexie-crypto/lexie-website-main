@@ -66,7 +66,7 @@ const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
   return toast.custom((t) => (
     React.createElement(
       'div',
-      { className: `font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}` },
+      { className: `font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}` },
       React.createElement(
         'div',
         { className: 'rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl max-w-sm' },
