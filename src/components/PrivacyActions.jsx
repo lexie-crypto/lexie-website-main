@@ -593,7 +593,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div className="text-sm">Preparing transaction…</div>
                 <div className="text-xs text-green-400/80">Encrypting and preparing proofs</div>
               </div>
-              <button onClick={() => toast.dismiss(t.id)} className="ml-3 text-xs px-2 py-1 rounded border border-green-500/40 hover:bg-green-900/30">Close</button>
+              <button onClick={() => toast.dismiss(t.id)} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
             </div>
           </div>
         </div>
@@ -623,7 +623,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div className="text-sm">Transaction sent</div>
                 <div className="text-xs text-green-400/80">TX: {tx.txHash}</div>
               </div>
-              <button onClick={() => toast.dismiss(t.id)} className="ml-3 text-xs px-2 py-1 rounded border border-green-500/40 hover:bg-green-900/30">Close</button>
+              <button onClick={() => toast.dismiss(t.id)} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
             </div>
           </div>
         </div>
@@ -665,7 +665,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div>
                   <div className="text-sm">Rejected by User</div>
                 </div>
-                <button onClick={() => toast.dismiss(t.id)} className="ml-3 text-xs px-2 py-1 rounded border border-green-500/40 hover:bg-green-900/30">Close</button>
+                <button onClick={() => toast.dismiss(t.id)} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
               </div>
             </div>
           </div>
@@ -680,7 +680,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                   <div className="text-sm">Failed to send transaction</div>
                   <div className="text-xs text-green-400/80">{error.message}</div>
                 </div>
-                <button onClick={() => toast.dismiss(t.id)} className="ml-3 text-xs px-2 py-1 rounded border border-green-500/40 hover:bg-green-900/30">Close</button>
+                <button onClick={() => toast.dismiss(t.id)} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
               </div>
             </div>
           </div>

@@ -161,7 +161,7 @@ const WalletPage = () => {
                 <div className="text-sm">Balances refreshed</div>
                 <div className="text-xs text-green-400/80">Public and vault balances updated</div>
               </div>
-              <button onClick={() => toast.dismiss(t.id)} className="ml-3 text-xs px-2 py-1 rounded border border-green-500/40 hover:bg-green-900/30">Close</button>
+              <button onClick={() => toast.dismiss(t.id)} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
             </div>
           </div>
         </div>
@@ -177,7 +177,7 @@ const WalletPage = () => {
                 <div className="text-sm">Failed to refresh balances</div>
                 <div className="text-xs text-green-400/80">Please try again</div>
               </div>
-              <button onClick={() => toast.dismiss(t.id)} className="ml-3 text-xs px-2 py-1 rounded border border-green-500/40 hover:bg-green-900/30">Close</button>
+              <button onClick={() => toast.dismiss(t.id)} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
             </div>
           </div>
         </div>
@@ -1402,7 +1402,7 @@ const WalletPage = () => {
                     onClick={() => setShowSignRequestPopup(false)}
                     className="px-3 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 text-xs"
                   >
-                    Close
+                    ×
                   </button>
                 ) : initFailedMessage ? (
                   <button
