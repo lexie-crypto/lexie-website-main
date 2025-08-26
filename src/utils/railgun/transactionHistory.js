@@ -11,25 +11,25 @@
 
 import { getWalletTransactionHistory } from '@railgun-community/wallet';
 import { formatUnits } from 'ethers';
-import { NETWORK_CONFIG } from '@railgun-community/shared-models';
+import { NetworkName, NETWORK_CONFIG } from '@railgun-community/shared-models';
 import { waitForRailgunReady } from './engine.js';
 import { getCurrentWalletID } from './wallet.js';
 
 /**
- * Network mapping for Railgun
+ * Network mapping for Railgun - using proper NetworkName enum values
  */
-const NETWORK_MAPPING = {
-  1: 'Ethereum',
-  42161: 'Arbitrum', 
-  137: 'Polygon',
-  56: 'BNBChain',
+const RAILGUN_NETWORK_NAMES = {
+  1: NetworkName.Ethereum,
+  42161: NetworkName.Arbitrum, 
+  137: NetworkName.Polygon,
+  56: NetworkName.BNBChain,
 };
 
 /**
  * Get Railgun network name from chain ID
  */
 const getRailgunNetworkName = (chainId) => {
-  const networkName = NETWORK_MAPPING[chainId];
+  const networkName = RAILGUN_NETWORK_NAMES[chainId];
   if (!networkName) {
     throw new Error(`Unsupported chain ID: ${chainId}`);
   }
@@ -154,13 +154,39 @@ const getTokenSymbol = (tokenAddress, chainId) => {
     return nativeSymbols[chainId] || 'ETH';
   }
   
-  // Known tokens on Arbitrum
-  if (chainId === 42161) {
-    const knownTokens = {
+  // Known tokens by network
+  const knownTokens = {
+    // Arbitrum
+    42161: {
       '0xaf88d065e77c8cc2239327c5edb3a432268e5831': 'USDC',
       '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': 'USDT',
-    };
-    return knownTokens[tokenAddress.toLowerCase()] || 'UNKNOWN';
+      '0xda10009cbd5d07dd0cecc66161fc93d7c9000da1': 'DAI',
+      '0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f': 'WBTC',
+    },
+    // BNB Chain
+    56: {
+      '0x55d398326f99059ff775485246999027b3197955': 'USDT',
+      '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': 'USDC',
+      '0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3': 'DAI',
+    },
+    // Polygon
+    137: {
+      '0xc2132d05d31c914a87c6611c10748aeb04b58e8f': 'USDT',
+      '0x2791bca1f2de4661ed88a30c99a7a9449aa84174': 'USDC',
+      '0x8f3cf7ad23cd3cadbd9735aff958023239c6a063': 'DAI',
+    },
+    // Ethereum
+    1: {
+      '0xdac17f958d2ee523a2206206994597c13d831ec7': 'USDT',
+      '0xa0b86a33e6416a86f2016c97db4ad0a23a5b7b73': 'USDC',
+      '0x6b175474e89094c44da98b954eedeac495271d0f': 'DAI',
+      '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599': 'WBTC',
+    }
+  };
+  
+  const chainTokens = knownTokens[chainId];
+  if (chainTokens) {
+    return chainTokens[tokenAddress.toLowerCase()] || 'UNKNOWN';
   }
   
   return 'UNKNOWN';
@@ -175,13 +201,39 @@ const getTokenSymbol = (tokenAddress, chainId) => {
 const getTokenDecimals = (tokenAddress, chainId) => {
   if (!tokenAddress) return 18; // Native tokens
   
-  // Known tokens on Arbitrum
-  if (chainId === 42161) {
-    const knownTokens = {
-      '0xaf88d065e77c8cc2239327c5edb3a432268e5831': 6, // USDC
-      '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': 6, // USDT
-    };
-    return knownTokens[tokenAddress.toLowerCase()] || 18;
+  // Known token decimals by network
+  const knownDecimals = {
+    // Arbitrum
+    42161: {
+      '0xaf88d065e77c8cc2239327c5edb3a432268e5831': 6,  // USDC
+      '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': 6,  // USDT
+      '0xda10009cbd5d07dd0cecc66161fc93d7c9000da1': 18, // DAI
+      '0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f': 8,  // WBTC
+    },
+    // BNB Chain
+    56: {
+      '0x55d398326f99059ff775485246999027b3197955': 18, // USDT
+      '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': 18, // USDC
+      '0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3': 18, // DAI
+    },
+    // Polygon
+    137: {
+      '0xc2132d05d31c914a87c6611c10748aeb04b58e8f': 6,  // USDT
+      '0x2791bca1f2de4661ed88a30c99a7a9449aa84174': 6,  // USDC
+      '0x8f3cf7ad23cd3cadbd9735aff958023239c6a063': 18, // DAI
+    },
+    // Ethereum
+    1: {
+      '0xdac17f958d2ee523a2206206994597c13d831ec7': 6,  // USDT
+      '0xa0b86a33e6416a86f2016c97db4ad0a23a5b7b73': 6,  // USDC
+      '0x6b175474e89094c44da98b954eedeac495271d0f': 18, // DAI
+      '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599': 8,  // WBTC
+    }
+  };
+  
+  const chainDecimals = knownDecimals[chainId];
+  if (chainDecimals) {
+    return chainDecimals[tokenAddress.toLowerCase()] || 18;
   }
   
   return 18; // Default
