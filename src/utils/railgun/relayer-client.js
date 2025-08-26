@@ -156,9 +156,10 @@ export async function submitRelayedTransaction({
       gasEstimate
     };
 
-    // Single-route proxy with endpoint query
+    // Single-route proxy with endpoint query - longer timeout for complex operations
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes timeout
+    // Use 3 minutes for potentially complex unshield operations
+    const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minutes timeout
     
     try {
       const response = await fetch(`${RELAYER_PROXY_URL}?endpoint=submit`, {
@@ -173,7 +174,7 @@ export async function submitRelayedTransaction({
     } catch (error) {
       clearTimeout(timeoutId);
       if (error.name === 'AbortError') {
-        throw new Error('Transaction submission timed out after 2 minutes. The transaction may still be processed.');
+        throw new Error('Transaction submission timed out after 3 minutes. The transaction may still be processed.');
       }
       throw error;
     }
