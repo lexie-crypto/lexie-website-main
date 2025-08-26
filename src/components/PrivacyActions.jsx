@@ -240,7 +240,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         railgunAddress,
       });
 
-      toast.custom((t) => (
+      toastId = toast.custom((t) => (
         <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
           <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
             <div className="px-4 py-3 flex items-center gap-3">
@@ -249,11 +249,23 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div className="text-sm">Adding tokens to vault...</div>
                 <div className="text-xs text-green-400/80">Approve in your wallet</div>
               </div>
-              <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
+              <button 
+                type="button" 
+                aria-label="Dismiss" 
+                onClick={(e) => { 
+                  e.preventDefault(); 
+                  e.stopPropagation(); 
+                  console.log('Dismissing toast:', t.id);
+                  toast.dismiss(t.id);
+                }} 
+                className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer"
+              >
+                ×
+              </button>
             </div>
           </div>
         </div>
-      ), { id: toastId, duration: 3000 });
+      ), { duration: 3000 });
 
       // Get wallet signer (not provider to avoid re-wrapping)
       const walletSigner = await walletProvider(); // This now returns a signer
@@ -270,7 +282,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
       // Send the transaction to the blockchain
       toast.dismiss(toastId);
-      toast.custom((t) => (
+      toastId = toast.custom((t) => (
         <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
           <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
             <div className="px-4 py-3 flex items-center gap-3">
@@ -278,11 +290,23 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               <div>
                 <div className="text-sm">Adding {amount} {selectedToken.symbol} to your vault...</div>
               </div>
-              <button type="button" aria-label="Dismiss" onClick={() => toast.dismiss(t.id)} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
+              <button 
+                type="button" 
+                aria-label="Dismiss" 
+                onClick={(e) => { 
+                  e.preventDefault(); 
+                  e.stopPropagation(); 
+                  console.log('Dismissing toast:', t.id);
+                  toast.dismiss(t.id);
+                }} 
+                className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer"
+              >
+                ×
+              </button>
             </div>
           </div>
         </div>
-      ), { id: toastId, duration: 2500 });
+      ), { duration: 2500 });
       
       console.log('[PrivacyActions] Sending shield transaction:', result.transaction);
       
@@ -313,7 +337,19 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div className="text-sm">Added {amount} {selectedToken.symbol} to your vault</div>
                 <div className="text-xs text-green-400/80">TX sent</div>
               </div>
-              <button type="button" aria-label="Dismiss" onClick={() => toast.dismiss(t.id)} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
+              <button 
+                type="button" 
+                aria-label="Dismiss" 
+                onClick={(e) => { 
+                  e.preventDefault(); 
+                  e.stopPropagation(); 
+                  console.log('Dismissing toast:', t.id);
+                  toast.dismiss(t.id);
+                }} 
+                className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer"
+              >
+                ×
+              </button>
             </div>
           </div>
         </div>
@@ -371,7 +407,19 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                       <div className="text-sm">Added {amount} {selectedToken.symbol} to your vault</div>
                       <div className="text-xs text-green-400/80">Balance will update automatically</div>
                     </div>
-                    <button type="button" aria-label="Dismiss" onClick={() => toast.dismiss(t.id)} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
+                    <button 
+                      type="button" 
+                      aria-label="Dismiss" 
+                      onClick={(e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation(); 
+                        console.log('Dismissing toast:', t.id);
+                        toast.dismiss(t.id);
+                      }} 
+                      className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer"
+                    >
+                      ×
+                    </button>
                   </div>
                 </div>
               </div>
@@ -597,7 +645,19 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div className="text-sm">Preparing transaction…</div>
                 <div className="text-xs text-green-400/80">Encrypting and preparing proofs</div>
               </div>
-              <button onClick={() => toast.dismiss(t.id)} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
+              <button 
+                type="button" 
+                aria-label="Dismiss" 
+                onClick={(e) => { 
+                  e.preventDefault(); 
+                  e.stopPropagation(); 
+                  console.log('Dismissing toast:', t.id);
+                  toast.dismiss(t.id);
+                }} 
+                className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer"
+              >
+                ×
+              </button>
             </div>
           </div>
         </div>
@@ -627,7 +687,19 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div className="text-sm">Transaction sent</div>
                 <div className="text-xs text-green-400/80">TX: {tx.txHash}</div>
               </div>
-              <button onClick={() => toast.dismiss(t.id)} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
+              <button 
+                type="button" 
+                aria-label="Dismiss" 
+                onClick={(e) => { 
+                  e.preventDefault(); 
+                  e.stopPropagation(); 
+                  console.log('Dismissing toast:', t.id);
+                  toast.dismiss(t.id);
+                }} 
+                className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer"
+              >
+                ×
+              </button>
             </div>
           </div>
         </div>
@@ -669,7 +741,19 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div>
                   <div className="text-sm">Rejected by User</div>
                 </div>
-                <button onClick={() => toast.dismiss(t.id)} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
+                <button 
+                type="button" 
+                aria-label="Dismiss" 
+                onClick={(e) => { 
+                  e.preventDefault(); 
+                  e.stopPropagation(); 
+                  console.log('Dismissing toast:', t.id);
+                  toast.dismiss(t.id);
+                }} 
+                className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer"
+              >
+                ×
+              </button>
               </div>
             </div>
           </div>
@@ -684,7 +768,19 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                   <div className="text-sm">Failed to send transaction</div>
                   <div className="text-xs text-green-400/80">{error.message}</div>
                 </div>
-                <button onClick={() => toast.dismiss(t.id)} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
+                <button 
+                type="button" 
+                aria-label="Dismiss" 
+                onClick={(e) => { 
+                  e.preventDefault(); 
+                  e.stopPropagation(); 
+                  console.log('Dismissing toast:', t.id);
+                  toast.dismiss(t.id);
+                }} 
+                className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer"
+              >
+                ×
+              </button>
               </div>
             </div>
           </div>
