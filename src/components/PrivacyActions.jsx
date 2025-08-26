@@ -782,7 +782,26 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
         </h2>
       </div>
 
-      {/* Vault Balances - static across tabs, shown under actions header */}
+      
+
+      {/* Current Action Display */}
+      <div className="border-b border-green-500/20 px-6 py-3">
+        <div className="flex items-center gap-2 text-emerald-300">
+          {(() => {
+            const currentTab = tabs.find(t => t.id === activeTab);
+            const Icon = currentTab?.icon || ShieldCheckIcon;
+            return (
+              <>
+                <Icon className="h-5 w-5" />
+                <span className="font-medium">{currentTab?.name || 'Action'}</span>
+                <span className="text-green-400/70 text-sm">• {currentTab?.description}</span>
+              </>
+            );
+          })()}
+        </div>
+      </div>
+
+      {/* Vault Balances - static across tabs, shown after action title as per design */}
       <div className="px-6 py-4 border-b border-green-500/20">
         <div className="flex items-center justify-between">
           <h3 className="text-emerald-300 font-semibold">Vault Balances</h3>
@@ -809,23 +828,6 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
           ) : (
             <div className="text-sm text-green-400/70">No vault tokens yet</div>
           )}
-        </div>
-      </div>
-
-      {/* Current Action Display */}
-      <div className="border-b border-green-500/20 px-6 py-3">
-        <div className="flex items-center gap-2 text-emerald-300">
-          {(() => {
-            const currentTab = tabs.find(t => t.id === activeTab);
-            const Icon = currentTab?.icon || ShieldCheckIcon;
-            return (
-              <>
-                <Icon className="h-5 w-5" />
-                <span className="font-medium">{currentTab?.name || 'Action'}</span>
-                <span className="text-green-400/70 text-sm">• {currentTab?.description}</span>
-              </>
-            );
-          })()}
         </div>
       </div>
 
