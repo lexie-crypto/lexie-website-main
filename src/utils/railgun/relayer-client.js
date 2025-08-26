@@ -75,34 +75,50 @@ export async function estimateRelayerFee({
     console.log(`💰 [RELAYER] Calling fee estimation at: ${feeUrl}`);
     console.log(`💰 [RELAYER] Full URL: ${window.location.origin}${feeUrl}`);
     
-    const response = await fetch(feeUrl, {
-      method: 'POST',
-      headers: createHeaders(),
-      body: JSON.stringify(payload)
-    });
-
-    console.log(`💰 [RELAYER] Fee response status: ${response.status}`);
-    console.log(`💰 [RELAYER] Fee response headers:`, Object.fromEntries(response.headers.entries()));
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ [RELAYER] Fee estimation failed - Status: ${response.status}, Response: ${errorText.substring(0, 200)}...`);
-      
-      // Try to parse as JSON, but fallback to text if it fails
-      let error;
-      try {
-        error = JSON.parse(errorText);
-      } catch {
-        error = { error: errorText };
-      }
-      throw new Error(`Fee estimation failed: ${error.error || 'Unknown error'}`);
-    }
-
-    const result = await response.json();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 1 minute for fee estimation
     
-    console.log('✅ [RELAYER] Fee estimated:', result.feeEstimate);
-    return result.feeEstimate;
+    try {
+      const response = await fetch(feeUrl, {
+        method: 'POST',
+        headers: createHeaders(),
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      console.log(`💰 [RELAYER] Fee response status: ${response.status}`);
+      console.log(`💰 [RELAYER] Fee response headers:`, Object.fromEntries(response.headers.entries()));
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ [RELAYER] Fee estimation failed - Status: ${response.status}, Response: ${errorText.substring(0, 200)}...`);
+        
+        // Try to parse as JSON, but fallback to text if it fails
+        let error;
+        try {
+          error = JSON.parse(errorText);
+        } catch {
+          error = { error: errorText };
+        }
+        throw new Error(`Fee estimation failed: ${error.error || 'Unknown error'}`);
+      }
+
+      const result = await response.json();
+      
+      console.log('✅ [RELAYER] Fee estimated:', result.feeEstimate);
+      return result.feeEstimate;
+      
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        console.error('❌ [RELAYER] Fee estimation timed out after 1 minute');
+        throw new Error('Fee estimation timed out after 1 minute. Please try again.');
+      }
+      console.error('❌ [RELAYER] Fee estimation failed:', error);
+      throw new Error(`Failed to estimate relayer fees: ${error.message}`);
+    }
   } catch (error) {
     console.error('❌ [RELAYER] Fee estimation failed:', error);
     throw new Error(`Failed to estimate relayer fees: ${error.message}`);
@@ -141,26 +157,43 @@ export async function submitRelayedTransaction({
     };
 
     // Single-route proxy with endpoint query
-    const response = await fetch(`${RELAYER_PROXY_URL}?endpoint=submit`, {
-      method: 'POST',
-      headers: createHeaders(),
-      body: JSON.stringify(payload)
-    });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(`Transaction submission failed: ${error.error}`);
-    }
-
-    const result = await response.json();
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 120000); // 2 minutes timeout
     
-    console.log('✅ [RELAYER] Transaction submitted successfully:', {
-      transactionHash: result.transactionHash,
-      gasUsed: result.gasUsed,
-      totalFee: result.totalFee
-    });
+    try {
+      const response = await fetch(`${RELAYER_PROXY_URL}?endpoint=submit`, {
+        method: 'POST',
+        headers: createHeaders(),
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      return await handleResponse(response);
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error.name === 'AbortError') {
+        throw new Error('Transaction submission timed out after 2 minutes. The transaction may still be processed.');
+      }
+      throw error;
+    }
+    
+    async function handleResponse(response) {
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(`Transaction submission failed: ${error.error}`);
+      }
 
-    return result;
+      const result = await response.json();
+      
+      console.log('✅ [RELAYER] Transaction submitted successfully:', {
+        transactionHash: result.transactionHash,
+        gasUsed: result.gasUsed,
+        totalFee: result.totalFee
+      });
+
+      return result;
+    }
 
   } catch (error) {
     console.error('❌ [RELAYER] Transaction submission failed:', error);
