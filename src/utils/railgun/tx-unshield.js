@@ -961,6 +961,12 @@ export const unshieldTokens = async ({
       });
     }
     
+    // Add buffer to gas estimate (25% padding)
+    const finalGasEstimate = (accurateGasEstimate * 125n) / 100n;
+    
+    // Dynamic minimum for SDK calls - use padded estimate when greater
+    const minGasForSDK = finalGasEstimate > MIN_GAS_LIMIT ? finalGasEstimate : MIN_GAS_LIMIT;
+    
     // Derive overallBatchMinGasPrice from transaction gas details (per docs)
     const txGasForBatchPrice = {
       evmGasType,
@@ -1075,12 +1081,6 @@ export const unshieldTokens = async ({
       
       console.log('✅ [UNSHIELD] Regular Unshield proof generated for self-signing mode');
     }
-    
-    // Add buffer to gas estimate (25% padding)
-    const finalGasEstimate = (accurateGasEstimate * 125n) / 100n;
-    
-    // Dynamic minimum for SDK calls - use padded estimate when greater
-    const minGasForSDK = finalGasEstimate > MIN_GAS_LIMIT ? finalGasEstimate : MIN_GAS_LIMIT;
     
     console.log('✅ [UNSHIELD] Proof generation completed with gas padding:', {
       originalGasEstimate: accurateGasEstimate.toString(),
