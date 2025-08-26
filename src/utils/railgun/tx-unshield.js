@@ -1017,6 +1017,10 @@ export const unshieldTokens = async ({
         gasPriceFallback = BigInt('20000000000'); // 20 gwei
         maxFeeFallback = BigInt('25000000000'); // 25 gwei
         priorityFeeFallback = BigInt('2000000000'); // 2 gwei
+      } else if (chain.id === 56) { // BNB Chain
+        gasPriceFallback = BigInt('6000000000'); // 6 gwei floor
+        maxFeeFallback = BigInt('6000000000'); // legacy path still needs a value
+        priorityFeeFallback = 0n; // not used for legacy
       } else { // Default for other networks
         gasPriceFallback = BigInt('5000000000'); // 5 gwei
         maxFeeFallback = BigInt('6000000000'); // 6 gwei
@@ -1075,6 +1079,10 @@ export const unshieldTokens = async ({
         gasPriceFallback = BigInt('20000000000'); // 20 gwei
         maxFeeFallback = BigInt('25000000000'); // 25 gwei
         priorityFeeFallback = BigInt('2000000000'); // 2 gwei
+      } else if (chain.id === 56) { // BNB Chain
+        gasPriceFallback = BigInt('6000000000'); // 6 gwei floor
+        maxFeeFallback = BigInt('6000000000'); // legacy path still needs a value
+        priorityFeeFallback = 0n; // not used for legacy
       } else {
         gasPriceFallback = BigInt('5000000000'); // 5 gwei
         maxFeeFallback = BigInt('6000000000'); // 6 gwei
