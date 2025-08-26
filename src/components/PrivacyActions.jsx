@@ -774,6 +774,37 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
 
   return (
     <div className="bg-black/40 border border-green-500/20 rounded shadow-lg overflow-hidden">
+      {/* Vault Balances - static across tabs */}
+      <div className="px-6 py-4 border-b border-green-500/20">
+        <div className="flex items-center justify-between">
+          <h3 className="text-emerald-300 font-semibold">Vault Balances</h3>
+          {/* Optional show/hide could be added later */}
+        </div>
+        <div className="mt-3 text-green-300/80">
+          {privateBalances && privateBalances.length > 0 ? (
+            <div className="space-y-2">
+              <div className="text-sm text-green-400/70">{privateBalances.length} Vault Token{privateBalances.length !== 1 ? 's' : ''}</div>
+              {privateBalances.map((token) => (
+                <div key={token.tokenAddress || token.address || token.symbol} className="flex items-center justify-between p-2 bg-black/60 rounded text-sm border border-green-500/10">
+                  <div className="flex items-center gap-2">
+                    <span className="text-green-200 font-medium">{token.symbol}</span>
+                    <span className="text-green-400/70">Vault • {token.name || `${token.symbol} Token`}</span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-green-200">{formatBalance ? formatBalance(token.numericBalance) : token.formattedBalance || token.numericBalance}</div>
+                    {token.balanceUSD !== undefined && (
+                      <div className="text-green-400/70">${token.balanceUSD}</div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm text-green-400/70">No vault tokens yet</div>
+          )}
+        </div>
+      </div>
+
       {/* Header */}
       <div className="px-6 py-4 border-b border-green-500/20">
         <h2 className="text-xl font-semibold text-emerald-300 flex items-center gap-2">
