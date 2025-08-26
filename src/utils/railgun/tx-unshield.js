@@ -939,6 +939,8 @@ export const unshieldTokens = async ({
         accurateGasEstimate = useRelayer ? BigInt('1200000') : BigInt('800000'); // More reasonable for BNB
       } else if (chain.id === 42161) { // Arbitrum
         accurateGasEstimate = useRelayer ? BigInt('1200000') : BigInt('800000'); // Arbitrum estimates
+      } else if (chain.id === 137) { // Polygon
+        accurateGasEstimate = useRelayer ? BigInt('1200000') : BigInt('800000'); // Polygon estimates (similar to Arbitrum)
       } else { // Other chains
         accurateGasEstimate = useRelayer ? BigInt('2000000') : BigInt('1200000'); // Conservative fallback
       }
@@ -1130,6 +1132,10 @@ export const unshieldTokens = async ({
         gasPriceFallback = BigInt('100000000'); // 0.1 gwei (same as Arbitrum)
         maxFeeFallback = BigInt('1000000000'); // 1 gwei (same as Arbitrum)
         priorityFeeFallback = BigInt('10000000'); // 0.01 gwei (same as Arbitrum)
+      } else if (chain.id === 137) { // Polygon - L2-like tiny fallbacks
+        gasPriceFallback = BigInt('100000000'); // 0.1 gwei (same as Arbitrum)
+        maxFeeFallback = BigInt('1000000000'); // 1 gwei (same as Arbitrum)
+        priorityFeeFallback = BigInt('10000000'); // 0.01 gwei (same as Arbitrum)
       } else { // Default for other networks
         gasPriceFallback = BigInt('5000000000'); // 5 gwei
         maxFeeFallback = BigInt('6000000000'); // 6 gwei
@@ -1193,6 +1199,10 @@ export const unshieldTokens = async ({
         maxFeeFallback = BigInt('25000000000'); // 25 gwei
         priorityFeeFallback = BigInt('2000000000'); // 2 gwei
       } else if (chain.id === 56) { // BNB Chain - L2-like tiny fallbacks
+        gasPriceFallback = BigInt('100000000'); // 0.1 gwei (same as Arbitrum)
+        maxFeeFallback = BigInt('1000000000'); // 1 gwei (same as Arbitrum)
+        priorityFeeFallback = BigInt('10000000'); // 0.01 gwei (same as Arbitrum)
+      } else if (chain.id === 137) { // Polygon - L2-like tiny fallbacks
         gasPriceFallback = BigInt('100000000'); // 0.1 gwei (same as Arbitrum)
         maxFeeFallback = BigInt('1000000000'); // 1 gwei (same as Arbitrum)
         priorityFeeFallback = BigInt('10000000'); // 0.01 gwei (same as Arbitrum)
