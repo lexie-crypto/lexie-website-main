@@ -249,6 +249,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div className="text-sm">Adding tokens to vault...</div>
                 <div className="text-xs text-green-400/80">Approve in your wallet</div>
               </div>
+              <button type="button" aria-label="Dismiss" onClick={() => toast.dismiss(t.id)} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
             </div>
           </div>
         </div>
@@ -277,6 +278,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               <div>
                 <div className="text-sm">Adding {amount} {selectedToken.symbol} to your vault...</div>
               </div>
+              <button type="button" aria-label="Dismiss" onClick={() => toast.dismiss(t.id)} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
             </div>
           </div>
         </div>
@@ -311,6 +313,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div className="text-sm">Added {amount} {selectedToken.symbol} to your vault</div>
                 <div className="text-xs text-green-400/80">TX sent</div>
               </div>
+              <button type="button" aria-label="Dismiss" onClick={() => toast.dismiss(t.id)} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
             </div>
           </div>
         </div>
@@ -368,6 +371,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                       <div className="text-sm">Added {amount} {selectedToken.symbol} to your vault</div>
                       <div className="text-xs text-green-400/80">Balance will update automatically</div>
                     </div>
+                    <button type="button" aria-label="Dismiss" onClick={() => toast.dismiss(t.id)} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
                   </div>
                 </div>
               </div>
