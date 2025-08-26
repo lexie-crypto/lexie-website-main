@@ -557,8 +557,8 @@ export const unshieldTokens = async ({
         }
       }
 
-      // Estimate
-      await gasEstimateForUnprovenUnshieldBaseToken(
+      // Estimate (dummy tx via SDK) and add a small 20% buffer for headroom
+      const { gasEstimate: baseTokenGasEstimate } = await gasEstimateForUnprovenUnshieldBaseToken(
         TXIDVersion.V2_PoseidonMerkle,
         networkName,
         recipientEVM,
@@ -569,6 +569,12 @@ export const unshieldTokens = async ({
         null,
         true,
       );
+
+      const paddedBaseTokenGasEstimate = (baseTokenGasEstimate * 120n) / 100n;
+      console.log('✅ [UNSHIELD] Base-token gas estimate (padded 20%):', {
+        base: baseTokenGasEstimate.toString(),
+        padded: paddedBaseTokenGasEstimate.toString()
+      });
 
       // Proof
       await generateUnshieldBaseTokenProof(
@@ -587,7 +593,7 @@ export const unshieldTokens = async ({
       // Gas details for populate - use same network prices as originalGasDetails
       let gasDetails = {
         evmGasType,
-        gasEstimate: 0n,
+        gasEstimate: paddedBaseTokenGasEstimate,
         gasPrice: originalGasDetails.gasPrice,
         maxFeePerGas: originalGasDetails.maxFeePerGas,
         maxPriorityFeePerGas: originalGasDetails.maxPriorityFeePerGas,
@@ -961,8 +967,8 @@ export const unshieldTokens = async ({
       });
     }
     
-    // Add buffer to gas estimate (25% padding)
-    const finalGasEstimate = (accurateGasEstimate * 125n) / 100n;
+    // Add buffer to gas estimate (20% padding to match SDK usage)
+    const finalGasEstimate = (accurateGasEstimate * 120n) / 100n;
     
     // Dynamic minimum for SDK calls - use padded estimate when greater
     const minGasForSDK = finalGasEstimate > MIN_GAS_LIMIT ? finalGasEstimate : MIN_GAS_LIMIT;
