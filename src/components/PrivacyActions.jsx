@@ -774,11 +774,18 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
 
   return (
     <div className="bg-black/40 border border-green-500/20 rounded shadow-lg overflow-hidden">
-      {/* Vault Balances - static across tabs */}
+      {/* Header */}
+      <div className="px-6 py-4 border-b border-green-500/20">
+        <h2 className="text-xl font-semibold text-emerald-300 flex items-center gap-2">
+          <ShieldCheckIcon className="h-6 w-6 text-emerald-300" />
+          Vault Actions
+        </h2>
+      </div>
+
+      {/* Vault Balances - static across tabs, shown under actions header */}
       <div className="px-6 py-4 border-b border-green-500/20">
         <div className="flex items-center justify-between">
           <h3 className="text-emerald-300 font-semibold">Vault Balances</h3>
-          {/* Optional show/hide could be added later */}
         </div>
         <div className="mt-3 text-green-300/80">
           {privateBalances && privateBalances.length > 0 ? (
@@ -803,14 +810,6 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
             <div className="text-sm text-green-400/70">No vault tokens yet</div>
           )}
         </div>
-      </div>
-
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-green-500/20">
-        <h2 className="text-xl font-semibold text-emerald-300 flex items-center gap-2">
-          <ShieldCheckIcon className="h-6 w-6 text-emerald-300" />
-          Vault Actions
-        </h2>
       </div>
 
       {/* Current Action Display */}
