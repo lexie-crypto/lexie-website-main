@@ -39,7 +39,12 @@ const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
     subtitle = '';
   }
   const color = type === 'error' ? 'bg-red-400' : type === 'success' ? 'bg-emerald-400' : 'bg-yellow-400';
-  return toast.custom((t) => (
+  
+  // Create a unique ID for this toast
+  const toastId = Date.now().toString();
+  
+  // Store the toast ID so we can dismiss it
+  const id = toast.custom((t) => (
     React.createElement(
       'div',
       { className: `font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}` },
@@ -68,20 +73,8 @@ const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
                 onClick: (e) => { 
                   e.preventDefault(); 
                   e.stopPropagation(); 
-                  console.log('[tx-unshield] Dismissing toast:', t.id);
-                  try {
-                    toast.dismiss(t.id);
-                    console.log('[tx-unshield] Dismiss called for toast:', t.id);
-                    // Alternative approach if dismiss doesn't work
-                    setTimeout(() => {
-                      if (document.querySelector(`[data-toast-id="${t.id}"]`)) {
-                        console.log('[tx-unshield] Toast still exists, trying remove');
-                        toast.remove(t.id);
-                      }
-                    }, 100);
-                  } catch (error) {
-                    console.error('[tx-unshield] Error dismissing toast:', error);
-                  }
+                  console.log('[tx-unshield] Dismissing toast with ID:', toastId);
+                  toast.dismiss(toastId);
                 }, 
                 className: 'ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer' 
               },
@@ -91,7 +84,9 @@ const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
         )
       )
     )
-  ), { duration: type === 'error' ? 4000 : 2500, ...opts });
+  ), { duration: type === 'error' ? 4000 : 2500, id: toastId, ...opts });
+  
+  return id;
 };
 
 // Gas Relayer Integration
