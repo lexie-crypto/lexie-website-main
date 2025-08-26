@@ -75,6 +75,9 @@ const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
                   e.stopPropagation(); 
                   console.log('[tx-unshield] Dismissing toast with ID:', toastId);
                   toast.dismiss(toastId);
+                  // Force dismiss after short delay if first attempt doesn't work
+                  setTimeout(() => toast.dismiss(toastId), 50);
+                  setTimeout(() => toast.dismiss(), 100);
                 }, 
                 className: 'ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer' 
               },
@@ -367,6 +370,9 @@ export const unshieldTokens = async ({
     chainId: chain.id,
     decimals,
   });
+
+  // Track transient toasts to close them when the step completes
+  let submittingToast = null;
 
   try {
     // Notify user that signing will be required
@@ -1264,7 +1270,7 @@ export const unshieldTokens = async ({
 
     // STEP 7: Transaction submission
     console.log('📡 [UNSHIELD] Step 7: Submitting transaction...');
-    showTerminalToast('info', 'Submitting transaction', { duration: 4000 });
+    submittingToast = showTerminalToast('info', 'Submitting transaction', { duration: 4000 });
     
     let transactionHash;
     let usedRelayer = false;
@@ -1390,7 +1396,8 @@ export const unshieldTokens = async ({
       usedRelayer,
       privacyLevel,
     });
-    showTerminalToast('success', 'Removed funds from your vault', 'Balance will update automatically', { duration: 4000 });
+    try { if (submittingToast) toast.dismiss(submittingToast); } catch {}
+    const successToast = showTerminalToast('success', 'Removed funds from your vault', 'Balance will update automatically', { duration: 4000 });
 
     // Transaction monitoring removed - SDK handles balance updates
 
