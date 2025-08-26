@@ -1390,52 +1390,7 @@ export const unshieldTokens = async ({
       console.log('🔐 [UNSHIELD] Using self-signing mode');
       transactionHash = await submitTransactionSelfSigned(populatedTransaction, walletProvider);
     }
-
-    // Transaction monitoring removed - SDK handles balance updates
-    try { if (submittingToast) toast.dismiss(submittingToast); } catch {}
-    toast.custom((t) => (
-      React.createElement(
-        'div',
-        { className: `font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}` },
-        React.createElement(
-          'div',
-          { className: 'rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl max-w-sm' },
-          React.createElement(
-            'div',
-            { className: 'px-4 py-3 flex items-center gap-3' },
-            [
-              React.createElement('div', { key: 'dot', className: 'h-3 w-3 rounded-full bg-emerald-400' }),
-              React.createElement(
-                'div',
-                { key: 'text' },
-                [
-                  React.createElement('div', { key: 'title', className: 'text-sm' }, 'Removed funds from your vault'),
-                  React.createElement('div', { key: 'sub', className: 'text-xs text-green-400/80' }, 'Balance will update automatically'),
-                ]
-              ),
-              React.createElement(
-                'button',
-                { 
-                  key: 'close', 
-                  type: 'button', 
-                  'aria-label': 'Dismiss', 
-                  onClick: (e) => { 
-                    e.preventDefault(); 
-                    e.stopPropagation(); 
-                    toast.dismiss(t.id);
-                    setTimeout(() => toast.dismiss(t.id), 50);
-                    setTimeout(() => toast.dismiss(), 100);
-                  }, 
-                  className: 'ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer' 
-                },
-                '×'
-              )
-            ]
-          )
-        )
-      )
-    ), { duration: 4000 });
-
+    
     return {
       transactionHash,
       usedRelayer,
