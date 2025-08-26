@@ -62,8 +62,14 @@ const PrivacyActions = ({ activeAction = 'shield' }) => {
   // Local state to show a refreshing indicator for Vault Balances
   const [isRefreshingBalances, setIsRefreshingBalances] = useState(false);
   useEffect(() => {
-    const onStart = () => setIsRefreshingBalances(true);
-    const onComplete = () => setIsRefreshingBalances(false);
+    const onStart = () => {
+      console.log('[PrivacyActions] Vault balances refresh started');
+      setIsRefreshingBalances(true);
+    };
+    const onComplete = () => {
+      console.log('[PrivacyActions] Vault balances refresh completed');
+      setIsRefreshingBalances(false);
+    };
     window.addEventListener('vault-balances-refresh-start', onStart);
     window.addEventListener('vault-balances-refresh-complete', onComplete);
     return () => {
