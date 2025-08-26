@@ -93,7 +93,7 @@ const queryNullifiers = async (chainId, fromBlock, txHash = null) => {
     `;
 
     const variables = {
-      blockNumber: fromBlock.toString(),
+      blockNumber: fromBlock ? fromBlock.toString() : "0",
       ...(txHash && { txHash: txHash.toLowerCase() })
     };
 
@@ -215,7 +215,7 @@ const queryUnshields = async (chainId, fromBlock, txHash = null) => {
     `;
 
     const variables = {
-      blockNumber: fromBlock.toString(),
+      blockNumber: fromBlock ? fromBlock.toString() : "0",
       ...(txHash && { txHash: txHash.toLowerCase() })
     };
 
@@ -345,7 +345,7 @@ const queryCommitments = async (chainId, fromBlock, txHash = null) => {
     `;
 
     const variables = {
-      blockNumber: fromBlock.toString(),
+      blockNumber: fromBlock ? fromBlock.toString() : "0",
       ...(txHash && { txHash: txHash.toLowerCase() })
     };
 
@@ -511,12 +511,59 @@ export const monitorTransactionInGraph = async ({
     const provider = new ethers.JsonRpcProvider(rpcUrl);
 
     if (!blockNumber) {
-      const receipt = await provider.getTransactionReceipt(txHash);
-      blockNumber = receipt?.blockNumber;
+      try {
+        console.log(`[TransactionMonitor] Fetching transaction receipt for ${txHash} on chain ${chainId}...`);
+        console.log(`[TransactionMonitor] Using RPC URL: ${rpcUrl?.slice(0, 50)}...`);
+        
+        // Add extra delay for Polygon network due to potential RPC sync issues
+        if (chainId === 137) {
+          console.log(`[TransactionMonitor] Adding 5s delay for Polygon network sync...`);
+          await new Promise(resolve => setTimeout(resolve, 5000));
+        }
+        
+        const receipt = await provider.getTransactionReceipt(txHash);
+        blockNumber = receipt?.blockNumber;
+        
+        console.log(`[TransactionMonitor] Transaction receipt result:`, {
+          txHash,
+          chainId,
+          hasReceipt: !!receipt,
+          blockNumber: receipt?.blockNumber,
+          status: receipt?.status,
+          logs: receipt?.logs?.length || 0
+        });
+        
+        if (!receipt) {
+          console.warn(`[TransactionMonitor] ⚠️ No receipt found for ${txHash} on chain ${chainId} - transaction may not be mined yet`);
+        }
+        
+        if (!blockNumber) {
+          console.warn(`[TransactionMonitor] ⚠️ No block number in receipt for ${txHash} on chain ${chainId}`);
+          // Use current block number as fallback
+          const currentBlock = await provider.getBlockNumber();
+          blockNumber = currentBlock;
+          console.log(`[TransactionMonitor] Using current block number as fallback: ${blockNumber}`);
+        }
+      } catch (receiptError) {
+        console.error(`[TransactionMonitor] ❌ Failed to fetch transaction receipt for ${txHash} on chain ${chainId}:`, receiptError);
+        // Use current block number as fallback
+        try {
+          const currentBlock = await provider.getBlockNumber();
+          blockNumber = currentBlock;
+          console.log(`[TransactionMonitor] Using current block number as fallback after receipt error: ${blockNumber}`);
+        } catch (blockError) {
+          console.error(`[TransactionMonitor] ❌ Failed to fetch current block number on chain ${chainId}:`, blockError);
+          // Last resort: use a recent block number
+          blockNumber = chainId === 137 ? 50000000 : 1000000; // Approximate recent block numbers
+          console.log(`[TransactionMonitor] Using hardcoded fallback block number: ${blockNumber}`);
+        }
+      }
     }
 
     if (blockNumber) {
-      console.log(`[TransactionMonitor] Cached block number for ${txHash}: ${blockNumber}`);
+      console.log(`[TransactionMonitor] Using block number for ${txHash}: ${blockNumber}`);
+    } else {
+      console.error(`[TransactionMonitor] ❌ Still no block number available for ${txHash} on chain ${chainId}`);
     }
 
     console.log('[TransactionMonitor] ⏳ Starting Graph polling...');
@@ -536,6 +583,12 @@ export const monitorTransactionInGraph = async ({
       isProxy,
       chainId
     });
+
+    // Final validation before polling
+    if (!blockNumber || blockNumber === null || blockNumber === undefined) {
+      console.error(`[TransactionMonitor] ❌ Invalid block number for polling: ${blockNumber}`);
+      throw new Error(`Cannot poll Graph API without valid block number. Got: ${blockNumber}`);
+    }
 
     while (attempts < maxAttempts) {
       attempts++;
