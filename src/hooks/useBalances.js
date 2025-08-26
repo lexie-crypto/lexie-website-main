@@ -699,6 +699,33 @@ export function useBalances() {
     }
   }, [address, chainId]);
 
+  // Proactively refresh PUBLIC balances on chain switch to avoid stale dropdowns in Add tab
+  useEffect(() => {
+    if (!address || !chainId) {
+      setPublicBalances([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        console.log('[useBalances] 🔁 Chain changed → refreshing public balances for chain', chainId);
+        const freshPublicBalances = await fetchPublicBalances();
+        if (cancelled) return;
+        const publicWithUSD = freshPublicBalances.map(token => ({
+          ...token,
+          balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
+        }));
+        setPublicBalances(publicWithUSD);
+        setLastUpdated(Date.now());
+      } catch (e) {
+        if (!cancelled) {
+          console.warn('[useBalances] ⚠️ Public balance refresh on chain switch failed:', e?.message);
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [chainId, address, fetchPublicBalances, calculateUSDValue]);
+
   // Clear stale private balances when switching networks; reload from Redis for the new chain
   useEffect(() => {
     if (!address || !railgunWalletId) return;

@@ -120,6 +120,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     setMemoText('');
   }, [activeAction]);
 
+  // Also reset selection when the active chain changes to avoid stale tokens
+  useEffect(() => {
+    setSelectedToken(null);
+    setAmount('');
+  }, [chainId]);
+
   // Auto-select first available token
   useEffect(() => {
     if (availableTokens.length > 0 && !selectedToken) {
