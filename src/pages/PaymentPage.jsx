@@ -18,6 +18,36 @@ import { shieldTokens } from '../utils/railgun/shieldTransactions';
 import { assertNotSanctioned } from '../utils/sanctions/chainalysis-oracle';
 import { isTokenSupportedByRailgun } from '../utils/railgun/actions';
 
+// Terminal-themed toast helper (matches tx-unshield.js and PrivacyActions.jsx)
+const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
+  if (subtitle && typeof subtitle === 'object' && !Array.isArray(subtitle)) {
+    opts = subtitle;
+    subtitle = '';
+  }
+  const color = type === 'error' ? 'bg-red-400' : type === 'success' ? 'bg-emerald-400' : 'bg-yellow-400';
+  return toast.custom((t) => (
+    <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+      <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl max-w-sm">
+        <div className="px-4 py-3 flex items-center gap-3">
+          <div className={`h-3 w-3 rounded-full ${color}`} />
+          <div>
+            <div className="text-sm">{title}</div>
+            {subtitle ? <div className="text-xs text-green-400/80">{subtitle}</div> : null}
+          </div>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); toast.dismiss(t.id); }}
+            className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+    </div>
+  ), { duration: type === 'error' ? 4000 : 2500, ...opts });
+};
+
 const PaymentPage = () => {
   const [searchParams] = useSearchParams();
   const recipientVaultAddress = searchParams.get('to');
@@ -192,17 +222,17 @@ const PaymentPage = () => {
     e.preventDefault();
     
     if (!selectedToken || !amount || parseFloat(amount) <= 0) {
-      toast.error('Please select a token and enter a valid amount');
+      showTerminalToast('error', 'Please select a token and enter a valid amount');
       return;
     }
 
     if (!isConnected || !address) {
-      toast.error('Please connect your wallet first');
+      showTerminalToast('error', 'Please connect your wallet first');
       return;
     }
 
     if (!isCorrectNetwork) {
-      toast.error(`Please switch to ${networks[targetChainId]?.name || 'the correct network'}`);
+      showTerminalToast('error', `Please switch to ${networks[targetChainId]?.name || 'the correct network'}`);
       return;
     }
 
@@ -255,8 +285,10 @@ const PaymentPage = () => {
       const walletSigner = await walletProvider();
       const txResponse = await walletSigner.sendTransaction(result.transaction);
 
-      toast.success(
-        `Payment sent! Shielding ${amount} ${selectedToken.symbol} to recipient's vault. TX: ${txResponse.hash}`,
+      showTerminalToast(
+        'success',
+        'Payment sent',
+        `Shielding ${amount} ${selectedToken.symbol} to recipient's vault. TX: ${txResponse.hash}`,
         { duration: 6000 }
       );
 
@@ -267,11 +299,11 @@ const PaymentPage = () => {
       console.error('[PaymentPage] Payment failed:', error);
       
       if (error.message.includes('sanctions') || error.message.includes('sanctioned')) {
-        toast.error('Transaction blocked: Address appears on sanctions list');
+        showTerminalToast('error', 'Transaction blocked', 'Address appears on sanctions list');
       } else if (error.code === 4001 || /rejected/i.test(error?.message || '')) {
-        toast.error('Transaction cancelled by user');
+        showTerminalToast('error', 'Transaction cancelled by user');
       } else {
-        toast.error(`Payment failed: ${error.message}`);
+        showTerminalToast('error', `Payment failed: ${error.message}`);
       }
     } finally {
       setIsProcessing(false);
@@ -282,9 +314,9 @@ const PaymentPage = () => {
   const handleNetworkSwitch = async () => {
     try {
       await switchNetwork(targetChainId);
-      toast.success(`Switched to ${networks[targetChainId]?.name || 'target network'}`);
+      showTerminalToast('success', `Switched to ${networks[targetChainId]?.name || 'target network'}`);
     } catch (error) {
-      toast.error(`Failed to switch network: ${error.message}`);
+      showTerminalToast('error', `Failed to switch network: ${error.message}`);
     }
   };
 
