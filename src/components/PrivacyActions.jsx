@@ -99,7 +99,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       id: 'receive',
       name: 'Receive',
       icon: CurrencyDollarIcon,
-      description: 'Generate payment link for others to fund your vault'
+      description: 'Use the link below for others to send funds to your vault'
     },
   ];
 
