@@ -4,7 +4,7 @@
  * Using the new clean Railgun implementation
  */
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import { 
   ShieldCheckIcon, 
@@ -70,6 +70,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   const [recipientAddress, setRecipientAddress] = useState('');
   const [memoText, setMemoText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isTokenMenuOpen, setIsTokenMenuOpen] = useState(false);
+  const tokenMenuRef = useRef(null);
   // Receive tab state
   const [paymentLink, setPaymentLink] = useState('');
   // We now rely on WalletContext for initialization status
@@ -143,6 +145,23 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     setSelectedToken(null);
     setAmount('');
   }, [chainId]);
+
+  // Close token menu on outside click or ESC
+  useEffect(() => {
+    if (!isTokenMenuOpen) return;
+    const onClickOutside = (e) => {
+      if (tokenMenuRef.current && !tokenMenuRef.current.contains(e.target)) {
+        setIsTokenMenuOpen(false);
+      }
+    };
+    const onKey = (e) => { if (e.key === 'Escape') setIsTokenMenuOpen(false); };
+    document.addEventListener('mousedown', onClickOutside);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [isTokenMenuOpen]);
 
   // Generate payment link when receive tab parameters change (uses active network)
   useEffect(() => {
@@ -1074,25 +1093,39 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             <label className="block text-sm font-medium text-green-300 mb-2">
               Select Token
             </label>
-            <select
-              value={selectedToken?.address || ''}
-              onChange={(e) => {
-                const token = availableTokens.find(t => t.address === e.target.value);
-                setSelectedToken(token || null);
-              }}
-              className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
-              disabled={availableTokens.length === 0}
-            >
-              {availableTokens.length === 0 ? (
-                <option value="">No tokens available</option>
-              ) : (
-                availableTokens.map((token) => (
-                  <option key={token.address || 'native'} value={token.address || ''}>
-                    {token.symbol} - {formatBalance(token.numericBalance)} available
-                  </option>
-                ))
+            <div className="relative" ref={tokenMenuRef}>
+              <button
+                type="button"
+                onClick={() => { if (availableTokens.length > 0) setIsTokenMenuOpen((v) => !v); }}
+                disabled={availableTokens.length === 0}
+                className={`w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200 flex items-center justify-between ${
+                  availableTokens.length === 0 ? 'cursor-not-allowed opacity-60' : 'hover:bg-green-900/20'
+                }`}
+              >
+                <span>
+                  {selectedToken
+                    ? `${selectedToken.symbol} - ${formatBalance(selectedToken.numericBalance)} available`
+                    : availableTokens.length === 0
+                      ? 'No tokens available'
+                      : 'Select token'}
+                </span>
+                <span className="ml-2">▾</span>
+              </button>
+              {isTokenMenuOpen && (
+                <div className="absolute z-20 mt-1 left-0 right-0 bg-black text-green-300 border border-green-500/40 rounded shadow-xl max-h-60 overflow-auto">
+                  {availableTokens.map((token) => (
+                    <button
+                      key={token.address || 'native'}
+                      type="button"
+                      onClick={() => { setSelectedToken(token); setIsTokenMenuOpen(false); }}
+                      className="w-full text-left px-3 py-2 hover:bg-emerald-900/30 focus:bg-emerald-900/30 focus:outline-none"
+                    >
+                      {token.symbol} - {formatBalance(token.numericBalance)} available
+                    </button>
+                  ))}
+                </div>
               )}
-            </select>
+            </div>
           </div>
 
           {/* Amount Input */}
