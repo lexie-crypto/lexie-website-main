@@ -1022,7 +1022,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                     type="button"
                     onClick={() => {
                       navigator.clipboard.writeText(paymentLink);
-                      toast.success('Payment link copied to clipboard!');
+                      toast.success('✔ link >> copied // transmit to sender');
                     }}
                     className="px-3 py-2 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 rounded border border-emerald-400/40 flex items-center gap-1"
                   >

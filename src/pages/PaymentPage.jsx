@@ -339,7 +339,7 @@ const PaymentPage = () => {
 
             {/* Recipient Info */}
             <div className="bg-black/40 border border-green-500/20 rounded p-3 mb-6">
-              <div className="text-green-400/80 text-xs mb-1">Recipient:</div>
+              <div className="text-green-400/80 text-xs mb-1">Recipient Lexie ID:</div>
               {recipientLexieId ? (
                 <div className="text-green-200 text-sm font-mono break-all">
                   @{recipientLexieId}
