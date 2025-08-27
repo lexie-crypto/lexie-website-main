@@ -280,6 +280,25 @@ const PaymentPage = () => {
     );
   }
 
+  // Try to resolve recipient Lexie ID from their vault address
+  const [recipientLexieId, setRecipientLexieId] = useState(null);
+  useEffect(() => {
+    const resolveLexie = async () => {
+      try {
+        if (!recipientVaultAddress) return;
+        const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(recipientVaultAddress)}`);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        const keys = data?.keys || [];
+        const match = keys.find(k => (k.railgunAddress || '').toLowerCase() === recipientVaultAddress.toLowerCase());
+        if (match?.lexieID) setRecipientLexieId(match.lexieID);
+      } catch (e) {
+        console.warn('[PaymentPage] Failed to resolve Lexie ID for recipient:', e?.message);
+      }
+    };
+    resolveLexie();
+  }, [recipientVaultAddress]);
+
   return (
     <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
       {/* Background overlays (match other pages) */}
@@ -320,10 +339,16 @@ const PaymentPage = () => {
 
             {/* Recipient Info */}
             <div className="bg-black/40 border border-green-500/20 rounded p-3 mb-6">
-              <div className="text-green-400/80 text-xs mb-1">Recipient Vault:</div>
-              <div className="text-green-200 text-sm font-mono break-all">
-                {recipientVaultAddress}
-              </div>
+              <div className="text-green-400/80 text-xs mb-1">Recipient:</div>
+              {recipientLexieId ? (
+                <div className="text-green-200 text-sm font-mono break-all">
+                  @{recipientLexieId}
+                </div>
+              ) : (
+                <div className="text-green-300 text-sm">
+                  They didn’t claim a Lexie ID yet — might as well be faxing ETH.
+                </div>
+              )}
               <div className="text-green-400/80 text-xs mt-1">
                 Network: {networks[targetChainId]?.name || `Chain ${targetChainId}`}
               </div>
