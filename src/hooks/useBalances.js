@@ -287,11 +287,13 @@ export function useBalances() {
 
           if (Array.isArray(balancesForCurrentChain) && balancesForCurrentChain.length > 0) {
             const privateBalancesFromRedis = balancesForCurrentChain.map(balance => {
+              const tokenInfo = getTokenInfo(balance.tokenAddress, chainId);
               const numeric = Number(balance.numericBalance) || 0;
               return {
                 symbol: balance.symbol,
                 address: balance.tokenAddress,
                 tokenAddress: balance.tokenAddress,
+                name: tokenInfo?.name || `${balance.symbol} Token`,
                 numericBalance: numeric,
                 formattedBalance: numeric.toFixed(6),
                 balance: String(balance.numericBalance ?? '0'),
@@ -346,11 +348,13 @@ export function useBalances() {
         return false;
       }
       const privateBalancesFromRedis = balancesForCurrentChain.map(balance => {
+        const tokenInfo = getTokenInfo(balance.tokenAddress, chainId);
         const numeric = Number(balance.numericBalance) || 0;
         return {
           symbol: balance.symbol,
           address: balance.tokenAddress,
           tokenAddress: balance.tokenAddress,
+          name: tokenInfo?.name || `${balance.symbol} Token`,
           numericBalance: numeric,
           formattedBalance: numeric.toFixed(6),
           balance: String(numeric),
@@ -422,10 +426,12 @@ export function useBalances() {
             if (Array.isArray(listForChain) && listForChain.length > 0) {
               const privateWithUSD = listForChain.map(token => {
                 const numeric = Number(token.numericBalance || 0);
+                const tokenInfo = getTokenInfo(token.tokenAddress, chainId);
                 return {
                   ...token,
                   address: token.tokenAddress,
                   tokenAddress: token.tokenAddress,
+                  name: tokenInfo?.name || `${token.symbol} Token`,
                   numericBalance: numeric,
                   hasBalance: numeric > 0,
                   decimals: token.decimals ?? 18,
@@ -659,7 +665,7 @@ export function useBalances() {
           address: publicToken.address,
           tokenAddress: publicToken.address,
           decimals: validatedDecimals,
-          name: publicToken.name,
+          name: publicToken.name || `${publicToken.symbol} Token`,
           numericBalance: accumulatedBalance,
           balance: accumulatedBalance.toString(),
           formattedBalance: accumulatedBalance.toFixed(6),
