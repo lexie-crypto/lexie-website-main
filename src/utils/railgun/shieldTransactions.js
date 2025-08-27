@@ -544,7 +544,35 @@ export const shieldTokens = async ({
     });
 
     // Create real gas details for shield operation
-    const gasDetails = createShieldGasDetails(networkName, gasEstimate);
+    let gasDetails;
+    if (networkName === NetworkName.Ethereum) {
+      // For Ethereum, avoid static high defaults. Use live fee data with light padding,
+      // mirroring our L2 approach of small sensible fallbacks.
+      try {
+        const signer = walletProvider; // signer provided by caller
+        const provider = signer.provider;
+        const feeData = await provider.getFeeData();
+        const latestBlock = await provider.getBlock('latest').catch(() => null);
+
+        const baseFee = latestBlock?.baseFeePerGas ? BigInt(latestBlock.baseFeePerGas) : undefined;
+        const priority = feeData.maxPriorityFeePerGas ? BigInt(feeData.maxPriorityFeePerGas) : BigInt('1000000000'); // 1 gwei
+
+        // Ensure maxFee >= baseFee * 1.15 + priority for headroom
+        const networkMax = feeData.maxFeePerGas ? BigInt(feeData.maxFeePerGas) : 0n;
+        const minRequired = baseFee ? ((baseFee * 115n) / 100n) + priority : 0n;
+        let desiredMax = networkMax > minRequired ? networkMax : (minRequired || (priority * 2n));
+
+        gasDetails = createShieldGasDetails(networkName, gasEstimate, {
+          maxFeePerGas: desiredMax,
+          maxPriorityFeePerGas: priority,
+        });
+      } catch (ethFeeErr) {
+        console.warn('[ShieldTransactions] Ethereum fee data failed, using defaults:', ethFeeErr?.message);
+        gasDetails = createShieldGasDetails(networkName, gasEstimate);
+      }
+    } else {
+      gasDetails = createShieldGasDetails(networkName, gasEstimate);
+    }
     
     const broadcasterFeeInfo = null; // No broadcaster for shield
     const iterations = 1; // Direct estimation
