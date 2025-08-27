@@ -971,7 +971,7 @@ const WalletPage = () => {
                 {/* Private Balances */}
                 <div className="bg-black/40 border border-green-500/20 rounded p-3">
                   <div className="flex items-center justify-between mb-3">
-                    <div className="text-green-300 text-sm font-medium">Vault Balances</div>
+                    <div className="text-green-300 text-sm font-medium">{network?.name || 'Network'} Vault Balances</div>
                     <div className="flex items-center space-x-2">
                       {canUseRailgun && privateBalances.length > 0 && (
                         <button
@@ -1015,11 +1015,11 @@ const WalletPage = () => {
                           <div key={token.symbol} className="flex items-center justify-between p-2 bg-black/60 rounded text-xs">
                             <div className="flex items-center space-x-2">
                               <div className="text-green-200 font-medium">{token.symbol}</div>
-                              <div className="text-green-400/70">{network?.name ? `${network.name} ` : ''}Vault • {token.symbol} Token</div>
+                              <div className="text-green-400/70">• {token.name || `${token.symbol} Token`}</div>
           </div>
                             <div className="text-right">
                               <div className="text-green-200">{token.formattedBalance}</div>
-                              <div className="text-green-400/70">${token.balanceUSD}</div>
+                              <div className="text-green-400/70">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
                             </div>
                           </div>
                         ))
@@ -1066,7 +1066,7 @@ const WalletPage = () => {
                           <div className="flex items-center space-x-2">
                             <div className="text-right">
                               <div className="text-green-200">{token.formattedBalance}</div>
-                              <div className="text-green-400/70">${token.balanceUSD}</div>
+                              <div className="text-green-400/70">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
                             </div>
                           {canUseRailgun && isSupported && token.hasBalance && (
                               <div className="flex items-center space-x-1">

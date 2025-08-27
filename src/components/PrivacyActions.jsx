@@ -950,7 +950,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       {/* Vault Balances - static across tabs, shown after action title as per design */}
       <div className="px-6 py-4 border-b border-green-500/20">
         <div className="flex items-center justify-between">
-          <h3 className="text-emerald-300 font-semibold">Vault Balances</h3>
+          <h3 className="text-emerald-300 font-semibold">{(typeof window !== 'undefined' && window?.lexieActiveNetworkName) ? `${window.lexieActiveNetworkName}` : 'Network'} Vault Balances</h3>
         </div>
         <div className="mt-3 text-green-300/80">
           {isRefreshingBalances && (
@@ -966,12 +966,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div key={token.tokenAddress || token.address || token.symbol} className="flex items-center justify-between p-2 bg-black/60 rounded text-sm border border-green-500/10">
                   <div className="flex items-center gap-2">
                     <span className="text-green-200 font-medium">{token.symbol}</span>
-                    <span className="text-green-400/70">{(typeof window !== 'undefined' && window?.lexieActiveNetworkName) ? `${window.lexieActiveNetworkName} ` : ''}Vault • {token.symbol} Token</span>
+                    <span className="text-green-400/70">• {token.name || `${token.symbol} Token`}</span>
                   </div>
                   <div className="text-right">
                     <div className="text-green-200">{formatBalance ? formatBalance(token.numericBalance) : token.formattedBalance || token.numericBalance}</div>
                     {token.balanceUSD !== undefined && (
-                      <div className="text-green-400/70">${token.balanceUSD}</div>
+                      <div className="text-green-400/70">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
                     )}
                   </div>
                 </div>
