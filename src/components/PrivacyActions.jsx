@@ -1005,28 +1005,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               </select>
             </div>
 
-            {/* Token Selection (optional) */}
-            <div>
-              <label className="block text-sm font-medium text-green-300 mb-2">
-                Preferred Token (optional)
-              </label>
-              <select
-                value={selectedToken?.address || ''}
-                onChange={(e) => {
-                  const token = availableTokens.find(t => (t.address || '') === e.target.value);
-                  setSelectedToken(token || null);
-                }}
-                className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
-              >
-                <option value="">Any supported token</option>
-                {availableTokens.map((token) => (
-                  <option key={token.address || 'native'} value={token.address || ''}>
-                    {token.symbol} - {token.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
             {/* Payment Link */}
             {paymentLink && (
               <div className="space-y-4">
