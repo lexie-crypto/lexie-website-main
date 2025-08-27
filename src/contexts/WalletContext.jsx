@@ -609,6 +609,14 @@ const WalletContextProvider = ({ children }) => {
       return;
     }
 
+    // Suppression flag for pages that only need public EOA + light engine (e.g., PaymentPage)
+    try {
+      if (typeof window !== 'undefined' && window.__LEXIE_SUPPRESS_RAILGUN_INIT) {
+        console.log('[Railgun Init] ⏭️ Suppressed by page flag (__LEXIE_SUPPRESS_RAILGUN_INIT)');
+        return;
+      }
+    } catch {}
+
     setIsInitializing(true);
     setRailgunError(null);
     
@@ -1490,6 +1498,72 @@ const WalletContextProvider = ({ children }) => {
     }
   };
 
+  // Minimal engine bootstrap for client-only shielding (no wallet creation/signature)
+  const ensureEngineForShield = useCallback(async () => {
+    try {
+      if (typeof window !== 'undefined' && window.__LEXIE_ENGINE_READY) {
+        return true;
+      }
+
+      console.log('[Railgun Engine] 🔧 Starting light engine (no wallet init)...');
+      const { startRailgunEngine, loadProvider, setLoggers, pauseAllPollingProviders } = await import('@railgun-community/wallet');
+      const { NetworkName } = await import('@railgun-community/shared-models');
+      const LevelJS = (await import('level-js')).default;
+      const db = new LevelJS('railgun-engine-db');
+
+      const { createEnhancedArtifactStore } = await import('../utils/railgun/artifactStore.js');
+      const artifactManager = await createEnhancedArtifactStore(false);
+
+      setLoggers(
+        (message) => console.log(`🔍 [RAILGUN-SDK] ${message}`),
+        (error) => console.error(`🚨 [RAILGUN-SDK] ${error}`)
+      );
+
+      await startRailgunEngine(
+        'lexiewebsite',
+        db,
+        true,
+        artifactManager.store,
+        false,
+        true, // skipMerkletreeScans for light mode
+        ['https://ppoi.fdi.network/'],
+        [],
+        false
+      );
+
+      // Load provider for current chain only (required for populateShield/gasEstimate)
+      const currentChainId = chainId || 1;
+      const networkMap = {
+        1: { networkName: NetworkName.Ethereum, rpcUrl: RPC_URLS.ethereum },
+        137: { networkName: NetworkName.Polygon, rpcUrl: RPC_URLS.polygon },
+        42161: { networkName: NetworkName.Arbitrum, rpcUrl: RPC_URLS.arbitrum },
+        56: { networkName: NetworkName.BNBChain, rpcUrl: RPC_URLS.bsc },
+      };
+      const cfg = networkMap[currentChainId];
+      if (cfg) {
+        try {
+          const fallbackProviderConfig = {
+            chainId: currentChainId,
+            providers: [
+              { provider: cfg.rpcUrl, priority: 2, weight: 1, maxLogsPerBatch: 5, stallTimeout: 2500 },
+            ]
+          };
+          await loadProvider(fallbackProviderConfig, cfg.networkName, 15000);
+        } catch (e) {
+          console.warn('[Railgun Engine] ⚠️ Light provider load failed:', e?.message);
+        }
+      }
+
+      try { pauseAllPollingProviders(); } catch {}
+      if (typeof window !== 'undefined') window.__LEXIE_ENGINE_READY = true;
+      console.log('[Railgun Engine] ✅ Light engine ready');
+      return true;
+    } catch (err) {
+      console.error('[Railgun Engine] ❌ Light engine start failed:', err);
+      return false;
+    }
+  }, [chainId]);
+
   // Auto-initialize Railgun when wallet connects (only if not already initialized)
   useEffect(() => {
     // 🛡️ Prevent force reinitialization if already initialized
@@ -1501,6 +1575,12 @@ const WalletContextProvider = ({ children }) => {
       return;
     }
     
+    // Respect suppression flag (PaymentPage)
+    if (typeof window !== 'undefined' && window.__LEXIE_SUPPRESS_RAILGUN_INIT) {
+      console.log('[Railgun Init] ⏭️ Suppressed auto-init due to page flag');
+      return;
+    }
+
     if (isConnected && address && !isInitializing) {
       console.log('🚀 Auto-initializing Railgun for connected wallet:', address);
       initializeRailgun();
@@ -1723,6 +1803,7 @@ const WalletContextProvider = ({ children }) => {
     // 🔑 Wallet signer for SDK operations (avoids re-wrapping in BrowserProvider)
     getWalletSigner,
     walletProvider: getWalletSigner, // Backwards compatibility - but this returns a signer now
+    ensureEngineForShield,
     
     getCurrentNetwork: () => {
       const networkNames = { 1: 'Ethereum', 137: 'Polygon', 42161: 'Arbitrum', 56: 'BNB Chain' };

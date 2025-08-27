@@ -65,6 +65,7 @@ const PaymentPage = () => {
     disconnectWallet,
     switchNetwork,
     walletProvider,
+    ensureEngineForShield,
   } = useWallet();
 
   const [selectedToken, setSelectedToken] = useState(null);
@@ -92,6 +93,12 @@ const PaymentPage = () => {
   // Check if user is on correct network
   const isCorrectNetwork = chainId === targetChainId;
 
+  // Suppress vault init on PaymentPage and prepare light engine
+  useEffect(() => {
+    try { if (typeof window !== 'undefined') window.__LEXIE_SUPPRESS_RAILGUN_INIT = true; } catch {}
+    return () => { try { if (typeof window !== 'undefined') delete window.__LEXIE_SUPPRESS_RAILGUN_INIT; } catch {} };
+  }, []);
+
   // Fetch public balances when connected and on correct network
   useEffect(() => {
     if (!isConnected || !address || !isCorrectNetwork) {
@@ -102,6 +109,9 @@ const PaymentPage = () => {
     const fetchBalances = async () => {
       setIsLoadingBalances(true);
       try {
+        // Ensure light Railgun engine is up (no wallet init)
+        await ensureEngineForShield().catch(() => {});
+
         // Use ethers to get balances directly
         const provider = await walletProvider();
         const providerInstance = provider.provider;
