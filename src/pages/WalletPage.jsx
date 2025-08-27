@@ -1063,8 +1063,8 @@ const WalletPage = () => {
                         <div key={token.symbol} className="flex items-center justify-between p-2 bg-black/60 rounded text-xs">
                           <div className="flex items-center space-x-2">
                             <div className="text-green-200 font-medium">{token.symbol}</div>
-                            <div className="text-green-400/70">{token.name}</div>
-                              </div>
+                            <div className="text-green-400/70">• {token.name || `${token.symbol} Token`}</div>
+                          </div>
                           <div className="flex items-center space-x-2">
                             <div className="text-right">
                               <div className="text-green-200">{token.formattedBalance}</div>
