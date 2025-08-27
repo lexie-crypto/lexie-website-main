@@ -1022,7 +1022,30 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                     type="button"
                     onClick={() => {
                       navigator.clipboard.writeText(paymentLink);
-                      toast.success('✔ link >> copied // transmit to sender');
+                      toast.custom((t) => (
+                        <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+                          <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+                            <div className="px-4 py-3 flex items-center gap-3">
+                              <div className="h-3 w-3 rounded-full bg-emerald-400" />
+                              <div>
+                                <div className="text-sm">link &gt;&gt; copied // transmit to sender</div>
+                              </div>
+                              <button 
+                                type="button" 
+                                aria-label="Dismiss" 
+                                onClick={(e) => { 
+                                  e.preventDefault(); 
+                                  e.stopPropagation(); 
+                                  toast.dismiss(t.id);
+                                }} 
+                                className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer"
+                              >
+                                ×
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ), { duration: 2000 });
                     }}
                     className="px-3 py-2 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 rounded border border-emerald-400/40 flex items-center gap-1"
                   >
