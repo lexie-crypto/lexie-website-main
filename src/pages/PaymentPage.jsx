@@ -518,7 +518,7 @@ const PaymentPage = () => {
 
           {/* Terminal footer */}
           <div className="flex items-center justify-between px-4 py-2 border-t border-green-500/20 bg-black/90 text-xs font-mono">
-            <div className="flex items-center gap-4 text-green-300/80">
+            <div className="flex items-center gap-4 pl-2 text-green-300/80">
               <span>Process: payment</span>
               <span>•</span>
               <span>Status: {isConnected ? 'Connected' : 'Waiting'}</span>
