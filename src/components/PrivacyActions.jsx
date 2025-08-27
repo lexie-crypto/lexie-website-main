@@ -948,7 +948,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       {/* Vault Balances - static across tabs, shown after action title as per design */}
       <div className="px-6 py-4 border-b border-green-500/20">
         <div className="flex items-center justify-between">
-          <h3 className="text-emerald-300 font-semibold">{(typeof window !== 'undefined' && window?.lexieActiveNetworkName) ? `${window.lexieActiveNetworkName}` : 'Network'} Vault Balances</h3>
+          <h3 className="text-emerald-300 font-semibold">{getCurrentNetwork()?.name || 'Network'} Vault Balances</h3>
         </div>
         <div className="mt-3 text-green-300/80">
           {isRefreshingBalances && (
@@ -992,7 +992,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 Network
               </label>
               <div className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200">
-                {(typeof window !== 'undefined' && window?.lexieActiveNetworkName) ? window.lexieActiveNetworkName : 'Active Network'}
+                {getCurrentNetwork()?.name || 'Active Network'}
               </div>
             </div>
 
