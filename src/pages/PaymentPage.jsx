@@ -353,16 +353,16 @@ const PaymentPage = () => {
             {/* Recipient Info */}
             <div className="bg-black/40 border border-green-500/20 rounded p-3 mb-6">
               {/* Labels row */}
-              <div className="flex items-center justify-between px-4">
+              <div className="flex items-center justify-between px-3 text-center">
                 <div className="text-green-400/80 text-xs">Recipient:</div>
                 <div className="text-green-400/80 text-xs">Network:</div>
               </div>
               {/* Values row */}
-              <div className="mt-1 flex items-center justify-between px-4">
-                <div className="text-green-200 text-sm font-mono break-all">
+              <div className="mt-1 flex items-center justify-between px-3 text-center">
+                <div className="text-green-200 text-sm font-mono break-all w-1/2">
                   {recipientLexieId ? `@${recipientLexieId}` : '—'}
                 </div>
-                <div className="text-green-200 text-sm font-mono">
+                <div className="text-green-200 text-sm font-mono w-1/2">
                   {networks[targetChainId]?.name || `Chain ${targetChainId}`}
                 </div>
               </div>
