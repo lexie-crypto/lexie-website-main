@@ -516,6 +516,7 @@ const PaymentPage = () => {
               <span>Process: payment</span>
               <span>•</span>
               <span>Status: {isConnected ? 'Connected' : 'Waiting'}</span>
+              <span>•</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
