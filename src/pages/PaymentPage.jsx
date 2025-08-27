@@ -108,7 +108,7 @@ const PaymentPage = () => {
         const commonTokens = {
           1: [ // Ethereum
             { symbol: 'ETH', address: null, name: 'Ethereum', decimals: 18 },
-            { symbol: 'USDC', address: '0xA0b86a33E6441c0086ec7a4dC2c7c37C1A5e01b4', name: 'USD Coin', decimals: 6 },
+            { symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', name: 'USD Coin', decimals: 6 },
             { symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', name: 'Tether USD', decimals: 6 },
           ],
           137: [ // Polygon
@@ -117,7 +117,10 @@ const PaymentPage = () => {
           ],
           42161: [ // Arbitrum
             { symbol: 'ETH', address: null, name: 'Ethereum', decimals: 18 },
-            { symbol: 'USDC', address: '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8', name: 'USD Coin', decimals: 6 },
+            // Native USDC
+            { symbol: 'USDC', address: '0xaf88d065e77c8cc2239327c5edb3a432268e5831', name: 'USD Coin', decimals: 6 },
+            // Bridged USDC.e
+            { symbol: 'USDC.e', address: '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8', name: 'USD Coin (USDC.e)', decimals: 6 },
           ],
           56: [ // BNB Chain
             { symbol: 'BNB', address: null, name: 'BNB', decimals: 18 },
@@ -150,20 +153,30 @@ const PaymentPage = () => {
               return {
                 ...token,
                 numericBalance: Number(numericBalance.toFixed(6)),
+                hasBalance: Number(numericBalance) > 0,
               };
             } catch (error) {
               console.warn(`Failed to get balance for ${token.symbol}:`, error);
               return {
                 ...token,
                 numericBalance: 0,
+                hasBalance: false,
               };
             }
           })
         );
 
-        setPublicBalances(balancesWithData.filter(token => 
-          isTokenSupportedByRailgun(token.address, chainId)
-        ));
+        setPublicBalances(
+          balancesWithData
+            .filter(token => isTokenSupportedByRailgun(token.address, chainId))
+            // Prefer native USDC over USDC.e when both present
+            .filter((t, idx, arr) => {
+              if (chainId !== 42161) return true;
+              if (t.symbol !== 'USDC.e') return true;
+              const hasNativeUSDC = arr.some(x => x.symbol === 'USDC');
+              return !hasNativeUSDC;
+            })
+        );
       } catch (error) {
         console.error('Failed to fetch balances:', error);
         // Fallback to basic token structure
