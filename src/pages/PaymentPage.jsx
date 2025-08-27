@@ -280,20 +280,23 @@ const PaymentPage = () => {
     );
   }
 
-  // Try to resolve recipient Lexie ID from their vault address
+  // Try to resolve recipient Lexie ID from their vault address (same approach as WalletPage)
   const [recipientLexieId, setRecipientLexieId] = useState(null);
   useEffect(() => {
     const resolveLexie = async () => {
       try {
         if (!recipientVaultAddress) return;
-        const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(recipientVaultAddress)}`);
-        if (!resp.ok) return;
-        const data = await resp.json();
-        const keys = data?.keys || [];
-        const match = keys.find(k => (k.railgunAddress || '').toLowerCase() === recipientVaultAddress.toLowerCase());
-        if (match?.lexieID) setRecipientLexieId(match.lexieID);
+        const resp = await fetch(`/api/wallet-metadata?action=by-wallet&railgunAddress=${encodeURIComponent(recipientVaultAddress)}`);
+        if (!resp.ok) { setRecipientLexieId(null); return; }
+        const json = await resp.json().catch(() => ({}));
+        if (json.success && json.lexieID) {
+          setRecipientLexieId(json.lexieID);
+        } else {
+          setRecipientLexieId(null);
+        }
       } catch (e) {
         console.warn('[PaymentPage] Failed to resolve Lexie ID for recipient:', e?.message);
+        setRecipientLexieId(null);
       }
     };
     resolveLexie();
@@ -323,7 +326,7 @@ const PaymentPage = () => {
             </div>
             <div className="flex items-center gap-2 text-xs font-mono">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-emerald-400">SECURE</span>
+              <span className="text-emerald-400">ONLINE</span>
             </div>
           </div>
 
@@ -504,7 +507,7 @@ const PaymentPage = () => {
               <span>•</span>
               <span>Status: {isConnected ? 'Connected' : 'Waiting'}</span>
             </div>
-            <div className="text-emerald-400">Secure</div>
+            <div className="text-emerald-400">Lexie AI</div>
           </div>
         </div>
       </div>
