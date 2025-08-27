@@ -305,6 +305,12 @@ const PaymentPage = () => {
 
   return (
     <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
+      {/* Dropdown styling to match chain menu */}
+      <style>{`
+        .lexie-select option { background-color: #000000; color: rgb(187, 247, 208); }
+        .lexie-select option:checked { background-color: rgba(6, 95, 70, 0.6); color: rgb(209, 250, 229); }
+        .lexie-select option:hover { background-color: rgba(6, 95, 70, 0.3); color: rgb(209, 250, 229); }
+      `}</style>
       {/* Background overlays (match other pages) */}
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
@@ -421,12 +427,12 @@ const PaymentPage = () => {
                     Token
                   </label>
                   <select
+                    className="lexie-select w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
                     value={selectedToken?.address || ''}
                     onChange={(e) => {
                       const token = publicBalances.find(t => (t.address || '') === e.target.value);
                       setSelectedToken(token || null);
                     }}
-                    className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
                     disabled={isLoadingBalances || publicBalances.length === 0}
                   >
                     {isLoadingBalances ? (
