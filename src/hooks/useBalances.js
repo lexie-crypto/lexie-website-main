@@ -286,18 +286,22 @@ export function useBalances() {
           const balancesForCurrentChain = allBalances.filter(b => b.chainId === chainId);
 
           if (Array.isArray(balancesForCurrentChain) && balancesForCurrentChain.length > 0) {
-            const privateBalancesFromRedis = balancesForCurrentChain.map(balance => ({
-              symbol: balance.symbol,
-              address: balance.tokenAddress,
-              tokenAddress: balance.tokenAddress,
-              numericBalance: Number(balance.numericBalance) || 0,
-              formattedBalance: (Number(balance.numericBalance) || 0).toFixed(6),
-              balance: String(balance.numericBalance ?? '0'),
-              decimals: balance.decimals ?? 18,
-              hasBalance: (Number(balance.numericBalance) || 0) > 0,
-              isPrivate: true,
-              lastUpdated: balance.lastUpdated
-            }));
+            const privateBalancesFromRedis = balancesForCurrentChain.map(balance => {
+              const numeric = Number(balance.numericBalance) || 0;
+              return {
+                symbol: balance.symbol,
+                address: balance.tokenAddress,
+                tokenAddress: balance.tokenAddress,
+                numericBalance: numeric,
+                formattedBalance: numeric.toFixed(6),
+                balance: String(balance.numericBalance ?? '0'),
+                decimals: balance.decimals ?? 18,
+                hasBalance: numeric > 0,
+                isPrivate: true,
+                lastUpdated: balance.lastUpdated,
+                balanceUSD: calculateUSDValue(numeric, balance.symbol)
+              };
+            });
 
             console.log('[useBalances] ✅ Loaded private balances via balances endpoint:', {
               chainId,
@@ -341,18 +345,22 @@ export function useBalances() {
         setPrivateBalances([]);
         return false;
       }
-      const privateBalancesFromRedis = balancesForCurrentChain.map(balance => ({
-        symbol: balance.symbol,
-        address: balance.tokenAddress,
-        tokenAddress: balance.tokenAddress,
-        numericBalance: balance.numericBalance,
-        formattedBalance: balance.numericBalance.toFixed(6),
-        balance: balance.numericBalance.toString(),
-        decimals: balance.decimals,
-        hasBalance: balance.numericBalance > 0,
-        isPrivate: true,
-        lastUpdated: balance.lastUpdated
-      }));
+      const privateBalancesFromRedis = balancesForCurrentChain.map(balance => {
+        const numeric = Number(balance.numericBalance) || 0;
+        return {
+          symbol: balance.symbol,
+          address: balance.tokenAddress,
+          tokenAddress: balance.tokenAddress,
+          numericBalance: numeric,
+          formattedBalance: numeric.toFixed(6),
+          balance: String(numeric),
+          decimals: balance.decimals,
+          hasBalance: numeric > 0,
+          isPrivate: true,
+          lastUpdated: balance.lastUpdated,
+          balanceUSD: calculateUSDValue(numeric, balance.symbol)
+        };
+      });
       console.log('[useBalances] ✅ Loaded private balances from Redis (metadata fallback):', {
         chainId,
         count: privateBalancesFromRedis.length,
@@ -634,7 +642,8 @@ export function useBalances() {
         hasBalance: true,
         balance: accumulatedBalance.toString(),
         formattedBalance: accumulatedBalance.toFixed(6),
-        lastUpdated: new Date().toISOString()
+        lastUpdated: new Date().toISOString(),
+        balanceUSD: calculateUSDValue(accumulatedBalance, updatedPrivate[currentUIIndex].symbol)
       };
     } else {
       // Create new token entry
@@ -657,7 +666,8 @@ export function useBalances() {
           hasBalance: true,
           isPrivate: true,
           chainId: currentChainId,
-          lastUpdated: new Date().toISOString()
+          lastUpdated: new Date().toISOString(),
+          balanceUSD: calculateUSDValue(accumulatedBalance, publicToken.symbol)
         });
       }
     }
