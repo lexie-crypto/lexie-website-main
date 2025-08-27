@@ -274,7 +274,7 @@ const startEngine = async () => {
     console.log('[RAILGUN] ⚡ Zero-Delay POI active: Real-time sanctions checking + instant spendability');
     
     await startRailgunEngine(
-      'lexie-pay',
+      'lexiepay',
       db,
       true,
       artifactManager.store,  // Pass the actual ArtifactStore instance
