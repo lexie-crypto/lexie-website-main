@@ -948,6 +948,15 @@ const WalletPage = () => {
                   remove
               </button>
               <button
+                onClick={() => {
+                  setActiveAction('receive');
+                  setSelectedView('privacy');
+                }}
+                className="px-2 py-1 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40 text-xs"
+              >
+                receive
+              </button>
+              <button
                 onClick={() => setSelectedView('history')}
                   className="px-2 py-1 rounded border border-purple-400/40 bg-purple-900/20 hover:bg-purple-900/40 text-xs"
                 >

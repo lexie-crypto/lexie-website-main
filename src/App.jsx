@@ -6,6 +6,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { WalletProvider } from './contexts/WalletContext';
 import LandingPage from './pages/LandingPage';
 import WalletPage from './pages/WalletPage';
+import PaymentPage from './pages/PaymentPage';
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/vault" element={<WalletPage />} />
+            <Route path="/pay" element={<PaymentPage />} />
           </Routes>
           
           {/* Toast notifications */}

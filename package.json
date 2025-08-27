@@ -27,6 +27,7 @@
     "ethers": "6.13.4",
     "level-js": "6.1.0",
     "localforage": "1.10.0",
+    "qrcode": "^1.5.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hot-toast": "2.4.1",

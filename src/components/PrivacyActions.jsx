@@ -14,6 +14,7 @@ import {
   CurrencyDollarIcon,
   ExclamationTriangleIcon,
   ArrowRightIcon,
+  ClipboardDocumentIcon,
 } from '@heroicons/react/24/outline';
 
 import { useWallet } from '../contexts/WalletContext';
@@ -26,6 +27,7 @@ import {
   getSupportedChainIds,
   privateTransfer,
 } from '../utils/railgun/actions';
+import QRCodeGenerator from './QRCodeGenerator';
 import { 
   getPrivateBalances,
   parseTokenAmount,
@@ -68,6 +70,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   const [recipientAddress, setRecipientAddress] = useState('');
   const [memoText, setMemoText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  // Receive tab state
+  const [selectedChainId, setSelectedChainId] = useState(chainId);
+  const [paymentLink, setPaymentLink] = useState('');
   // We now rely on WalletContext for initialization status
 
   // Available tabs
@@ -90,6 +95,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       icon: ArrowRightIcon,
       description: 'Send to any address (EOA or Lexie ID)'
     },
+    {
+      id: 'receive',
+      name: 'Receive',
+      icon: CurrencyDollarIcon,
+      description: 'Generate payment link for others to fund your vault'
+    },
   ];
 
   // No local initialization here – WalletContext owns engine lifecycle
@@ -107,10 +118,18 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     } else if (activeTab === 'unshield' || activeTab === 'transfer') {
       // Show private tokens for removing or sending
       return privateBalances.filter(token => token.hasBalance);
+    } else if (activeTab === 'receive') {
+      // For receive tab, show all supported tokens for this chain (for link generation)
+      return [
+        { symbol: 'ETH', address: null, name: 'Ethereum' },
+        { symbol: 'USDC', address: '0xA0b86a33E6441c0086ec7a4dC2c7c37C1A5e01b4', name: 'USD Coin' },
+        { symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', name: 'Tether USD' },
+        // Add more supported tokens as needed
+      ].filter(token => isTokenSupportedByRailgun(token.address, selectedChainId || chainId));
     }
 
     return [];
-  }, [activeTab, publicBalances, privateBalances, isConnected, chainId]);
+  }, [activeTab, publicBalances, privateBalances, isConnected, chainId, selectedChainId]);
 
   // Reset form when switching actions
   useEffect(() => {
@@ -124,7 +143,26 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   useEffect(() => {
     setSelectedToken(null);
     setAmount('');
+    setSelectedChainId(chainId);
   }, [chainId]);
+
+  // Generate payment link when receive tab parameters change
+  useEffect(() => {
+    if (activeTab === 'receive' && railgunAddress && selectedChainId) {
+      const baseUrl = window.location.origin;
+      const params = new URLSearchParams({
+        to: railgunAddress,
+        chainId: selectedChainId.toString(),
+      });
+      
+      if (selectedToken?.address) {
+        params.set('token', selectedToken.address);
+      }
+      
+      const link = `${baseUrl}/pay?${params.toString()}`;
+      setPaymentLink(link);
+    }
+  }, [activeTab, railgunAddress, selectedChainId, selectedToken]);
 
   // Auto-select first available token
   useEffect(() => {
@@ -947,7 +985,105 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
       {/* Content */}
       <div className="p-6 text-green-300">
-        <form onSubmit={handleSubmit} className="space-y-6">
+        {activeTab === 'receive' ? (
+          // Receive tab content - Payment link generator
+          <div className="space-y-6">
+            {/* Network Selection */}
+            <div>
+              <label className="block text-sm font-medium text-green-300 mb-2">
+                Network
+              </label>
+              <select
+                value={selectedChainId}
+                onChange={(e) => setSelectedChainId(parseInt(e.target.value))}
+                className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
+              >
+                <option value={1}>Ethereum</option>
+                <option value={137}>Polygon</option>
+                <option value={42161}>Arbitrum</option>
+                <option value={56}>BNB Chain</option>
+              </select>
+            </div>
+
+            {/* Token Selection (optional) */}
+            <div>
+              <label className="block text-sm font-medium text-green-300 mb-2">
+                Preferred Token (optional)
+              </label>
+              <select
+                value={selectedToken?.address || ''}
+                onChange={(e) => {
+                  const token = availableTokens.find(t => (t.address || '') === e.target.value);
+                  setSelectedToken(token || null);
+                }}
+                className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
+              >
+                <option value="">Any supported token</option>
+                {availableTokens.map((token) => (
+                  <option key={token.address || 'native'} value={token.address || ''}>
+                    {token.symbol} - {token.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Payment Link */}
+            {paymentLink && (
+              <div className="space-y-4">
+                <label className="block text-sm font-medium text-green-300">
+                  Payment Link
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={paymentLink}
+                    readOnly
+                    className="flex-1 px-3 py-2 border border-green-500/40 rounded bg-black text-green-200 text-sm"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(paymentLink);
+                      toast.success('Payment link copied to clipboard!');
+                    }}
+                    className="px-3 py-2 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 rounded border border-emerald-400/40 flex items-center gap-1"
+                  >
+                    <ClipboardDocumentIcon className="h-4 w-4" />
+                    Copy
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* QR Code */}
+            {paymentLink && (
+              <div className="space-y-4">
+                <label className="block text-sm font-medium text-green-300">
+                  QR Code
+                </label>
+                <div className="flex justify-center">
+                  <QRCodeGenerator value={paymentLink} size={200} />
+                </div>
+                <p className="text-center text-sm text-green-400/70">
+                  Share this QR code for others to scan and fund your vault
+                </p>
+              </div>
+            )}
+
+            {/* Instructions */}
+            <div className="bg-black/60 border border-green-500/20 rounded p-4">
+              <h4 className="text-sm font-medium text-emerald-300 mb-2">How it works</h4>
+              <ul className="text-sm text-green-300/80 space-y-1">
+                <li>• Share the payment link or QR code with others</li>
+                <li>• They can click the link to fund your vault directly</li>
+                <li>• Funds are shielded into your Railgun vault automatically</li>
+                <li>• All transactions are private and secure</li>
+              </ul>
+            </div>
+          </div>
+        ) : (
+          // Original form content for other tabs
+          <form onSubmit={handleSubmit} className="space-y-6">
           {/* Token Selection */}
           <div>
             <label className="block text-sm font-medium text-green-300 mb-2">
@@ -1070,6 +1206,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             )}
           </button>
         </form>
+        )}
 
         {/* Info */}
         <div className="mt-6 p-4 bg-black/60 border border-green-500/20 rounded">
