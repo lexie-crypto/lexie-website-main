@@ -71,7 +71,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   const [memoText, setMemoText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   // Receive tab state
-  const [selectedChainId, setSelectedChainId] = useState(chainId);
   const [paymentLink, setPaymentLink] = useState('');
   // We now rely on WalletContext for initialization status
 
@@ -129,7 +128,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     }
 
     return [];
-  }, [activeTab, publicBalances, privateBalances, isConnected, chainId, selectedChainId]);
+  }, [activeTab, publicBalances, privateBalances, isConnected, chainId]);
 
   // Reset form when switching actions
   useEffect(() => {
@@ -143,16 +142,15 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   useEffect(() => {
     setSelectedToken(null);
     setAmount('');
-    setSelectedChainId(chainId);
   }, [chainId]);
 
-  // Generate payment link when receive tab parameters change
+  // Generate payment link when receive tab parameters change (uses active network)
   useEffect(() => {
-    if (activeTab === 'receive' && railgunAddress && selectedChainId) {
+    if (activeTab === 'receive' && railgunAddress && chainId) {
       const baseUrl = window.location.origin;
       const params = new URLSearchParams({
         to: railgunAddress,
-        chainId: selectedChainId.toString(),
+        chainId: chainId.toString(),
       });
       
       if (selectedToken?.address) {
@@ -162,7 +160,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       const link = `${baseUrl}/pay?${params.toString()}`;
       setPaymentLink(link);
     }
-  }, [activeTab, railgunAddress, selectedChainId, selectedToken]);
+  }, [activeTab, railgunAddress, chainId, selectedToken]);
 
   // Auto-select first available token
   useEffect(() => {
@@ -988,21 +986,14 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         {activeTab === 'receive' ? (
           // Receive tab content - Payment link generator
           <div className="space-y-6">
-            {/* Network Selection */}
+            {/* Active Network Display (no selection) */}
             <div>
               <label className="block text-sm font-medium text-green-300 mb-2">
                 Network
               </label>
-              <select
-                value={selectedChainId}
-                onChange={(e) => setSelectedChainId(parseInt(e.target.value))}
-                className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
-              >
-                <option value={1}>Ethereum</option>
-                <option value={137}>Polygon</option>
-                <option value={42161}>Arbitrum</option>
-                <option value={56}>BNB Chain</option>
-              </select>
+              <div className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200">
+                {(typeof window !== 'undefined' && window?.lexieActiveNetworkName) ? window.lexieActiveNetworkName : 'Active Network'}
+              </div>
             </div>
 
             {/* Payment Link */}
