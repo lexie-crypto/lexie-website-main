@@ -124,7 +124,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         { symbol: 'USDC', address: '0xA0b86a33E6441c0086ec7a4dC2c7c37C1A5e01b4', name: 'USD Coin' },
         { symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', name: 'Tether USD' },
         // Add more supported tokens as needed
-      ].filter(token => isTokenSupportedByRailgun(token.address, selectedChainId || chainId));
+      ].filter(token => isTokenSupportedByRailgun(token.address, chainId));
     }
 
     return [];
