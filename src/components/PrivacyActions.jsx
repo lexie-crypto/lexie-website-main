@@ -986,15 +986,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         {activeTab === 'receive' ? (
           // Receive tab content - Payment link generator
           <div className="space-y-6">
-            {/* Active Network Display (no selection) */}
-            <div>
-              <label className="block text-sm font-medium text-green-300 mb-2">
-                Network
-              </label>
-              <div className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200">
-                {getCurrentNetwork()?.name || 'Active Network'}
-              </div>
-            </div>
+            {/* Network selection removed – link uses active network automatically */}
 
             {/* Payment Link */}
             {paymentLink && (
