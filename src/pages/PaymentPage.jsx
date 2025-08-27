@@ -509,7 +509,7 @@ const PaymentPage = () => {
                 <div className="ml-3">
                   <h4 className="text-sm font-medium text-emerald-300">Secure Transaction</h4>
                   <p className="mt-1 text-sm text-green-300/80">
-                    Funds will be deposited into the recipient's vault.
+                    Funds will be deposited into this recipient's vault.
                   </p>
                 </div>
               </div>
@@ -517,14 +517,12 @@ const PaymentPage = () => {
           </div>
 
           {/* Terminal footer */}
-          <div className="grid grid-cols-3 items-center px-4 py-2 border-t border-green-500/20 bg-black/90 text-xs font-mono">
-            <div className="flex items-center justify-start text-green-300/80">
+          <div className="flex items-center justify-between px-4 py-2 border-t border-green-500/20 bg-black/90 text-xs font-mono">
+            <div className="flex items-center gap-4 text-green-300/80">
               <span>Process: payment</span>
-            </div>
-            <div className="flex items-center justify-center text-green-300/80">
+              <span>•</span>
               <span>Status: {isConnected ? 'Connected' : 'Waiting'}</span>
-            </div>
-            <div className="flex items-center justify-end gap-2">
+            <span className="text-green-300/80">•</span>
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-emerald-400">ONLINE</span>
             </div>
