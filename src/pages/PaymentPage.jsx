@@ -196,7 +196,7 @@ const PaymentPage = () => {
 
       // Check if token is supported by Railgun
       if (!isTokenSupportedByRailgun(selectedToken.address, chainId)) {
-        throw new Error(`${selectedToken.symbol} is not supported by Railgun on this network`);
+        throw new Error(`${selectedToken.symbol} is not supported on this network`);
       }
 
       // Check sufficient balance
@@ -314,7 +314,7 @@ const PaymentPage = () => {
               <ShieldCheckIcon className="h-16 w-16 text-emerald-300 mx-auto mb-4" />
               <h1 className="text-2xl font-bold text-emerald-300 mb-2">Fund Vault</h1>
               <p className="text-green-400/80 text-sm">
-                Send tokens to a private Railgun vault
+                Send tokens to my vault
               </p>
             </div>
 
@@ -465,7 +465,7 @@ const PaymentPage = () => {
                 <div className="ml-3">
                   <h4 className="text-sm font-medium text-emerald-300">Secure Transaction</h4>
                   <p className="mt-1 text-sm text-green-300/80">
-                    Funds will be privately shielded into the recipient's Railgun vault.
+                    Funds will be deposited into the recipient's vault.
                   </p>
                 </div>
               </div>
