@@ -102,6 +102,7 @@ const PaymentPage = () => {
         // Use ethers to get balances directly
         const provider = await walletProvider();
         const providerInstance = provider.provider;
+        const ethersLib = await import('ethers');
         
         // Common tokens per chain
         const commonTokens = {
@@ -139,11 +140,13 @@ const PaymentPage = () => {
                 // Native token
                 balance = nativeBalance.toString();
               } else {
-                // ERC20 token - simplified check
-                balance = '0'; // For now, just show 0 for ERC20s to avoid complexity
+                // ERC20 token balance via minimal ABI
+                const erc20Abi = ['function balanceOf(address) view returns (uint256)'];
+                const contract = new ethersLib.Contract(token.address, erc20Abi, providerInstance);
+                const erc20Bal = await contract.balanceOf(address);
+                balance = erc20Bal.toString();
               }
-              
-              const numericBalance = parseFloat(balance) / Math.pow(10, token.decimals);
+              const numericBalance = Number(ethersLib.formatUnits(balance, token.decimals));
               return {
                 ...token,
                 numericBalance: Number(numericBalance.toFixed(6)),
