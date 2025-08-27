@@ -14,9 +14,12 @@ import {
 } from '@heroicons/react/24/outline';
 
 import { useWallet } from '../contexts/WalletContext';
-import { shieldTokens } from '../utils/railgun/shieldTransactions';
+// Client-only shield flow (avoid initializing recipient vault)
 import { assertNotSanctioned } from '../utils/sanctions/chainalysis-oracle';
 import { isTokenSupportedByRailgun } from '../utils/railgun/actions';
+import { TXIDVersion, EVMGasType, NetworkName, getEVMGasTypeForTransaction } from '@railgun-community/shared-models';
+import { gasEstimateForShield, populateShield } from '@railgun-community/wallet';
+import { Contract, parseUnits } from 'ethers';
 
 // Terminal-themed toast helper (matches tx-unshield.js and PrivacyActions.jsx)
 const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
@@ -48,82 +51,6 @@ const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
   ), { duration: type === 'error' ? 4000 : 2500, ...opts });
 };
 
-/**
- * Get payment credentials for recipient's vault using existing wallet-metadata API
- */
-async function getPaymentCredentials(recipientRailgunAddress, chainId) {
-  try {
-    console.log('🔐 [PaymentPage] Fetching payment credentials for recipient:', {
-      recipient: recipientRailgunAddress.slice(0, 8) + '...',
-      chainId
-    });
-    
-    const response = await fetch(`/api/wallet-metadata?action=payment-credentials&railgunAddress=${encodeURIComponent(recipientRailgunAddress)}&chainId=${chainId}`);
-    
-    if (!response.ok) {
-      if (response.status === 404) {
-        throw new Error('Recipient vault not found or not properly initialized');
-      } else if (response.status === 400) {
-        throw new Error('Invalid payment request parameters');
-      } else {
-        throw new Error(`Payment credentials request failed: ${response.status}`);
-      }
-    }
-    
-    const result = await response.json();
-    
-    if (!result.success) {
-      throw new Error(result.error || 'Failed to retrieve payment credentials');
-    }
-    
-    console.log('✅ [PaymentPage] Payment credentials retrieved successfully');
-    return result;
-    
-  } catch (error) {
-    console.error('❌ [PaymentPage] Failed to get payment credentials:', error);
-    throw error;
-  }
-}
-
-/**
- * Initialize recipient's Railgun wallet for payment processing
- */
-async function initializeRecipientVault(credentials) {
-  try {
-    console.log('🛡️ [PaymentPage] Initializing recipient vault for payment processing...');
-    
-    // Import Railgun utilities
-    const { loadRailgunWallet, deriveWalletFromMnemonic } = await import('../utils/railgun/wallet');
-    
-    // Derive encryption key for the recipient
-    const { deriveEncryptionKey } = await import('../utils/railgun/wallet');
-    const salt = `lexie-railgun-${credentials.eoaAddress.toLowerCase()}-${credentials.railgunAddress}`;
-    const encryptionKey = await deriveEncryptionKey(credentials.eoaAddress.toLowerCase(), salt);
-    
-    // Initialize Railgun wallet for the recipient
-    const railgunWallet = await deriveWalletFromMnemonic(
-      credentials.mnemonic,
-      encryptionKey,
-      credentials.railgunAddress
-    );
-    
-    console.log('✅ [PaymentPage] Recipient vault initialized:', {
-      railgunAddress: credentials.railgunAddress.slice(0, 8) + '...',
-      walletId: credentials.walletId.slice(0, 8) + '...'
-    });
-    
-    return {
-      railgunWallet,
-      railgunWalletId: credentials.walletId,
-      railgunAddress: credentials.railgunAddress
-    };
-    
-  } catch (error) {
-    console.error('❌ [PaymentPage] Failed to initialize recipient vault:', error);
-    throw new Error(`Failed to initialize recipient vault: ${error.message}`);
-  }
-}
-
 const PaymentPage = () => {
   const [searchParams] = useSearchParams();
   const recipientVaultAddress = searchParams.get('to');
@@ -146,8 +73,6 @@ const PaymentPage = () => {
   const [publicBalances, setPublicBalances] = useState([]);
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
   const [isTokenMenuOpen, setIsTokenMenuOpen] = useState(false);
-  const [recipientCredentials, setRecipientCredentials] = useState(null);
-  const [isLoadingCredentials, setIsLoadingCredentials] = useState(false);
   const tokenMenuRef = useRef(null);
 
   // Parse target chain ID
@@ -294,37 +219,6 @@ const PaymentPage = () => {
     setSelectedToken(tokenWithBalance || publicBalances[0]);
   }, [publicBalances, preferredToken]);
 
-  // Load recipient credentials when payment link is valid and network is correct
-  useEffect(() => {
-    if (!isValidPaymentLink || !isCorrectNetwork) {
-      setRecipientCredentials(null);
-      return;
-    }
-
-    const loadRecipientCredentials = async () => {
-      setIsLoadingCredentials(true);
-      try {
-        console.log('🔐 [PaymentPage] Loading recipient credentials...');
-        const result = await getPaymentCredentials(recipientVaultAddress, targetChainId);
-        
-        if (result.success) {
-          setRecipientCredentials(result.credentials);
-          console.log('✅ [PaymentPage] Recipient credentials loaded successfully');
-        } else {
-          throw new Error('Failed to load recipient credentials');
-        }
-      } catch (error) {
-        console.error('❌ [PaymentPage] Failed to load recipient credentials:', error);
-        showTerminalToast('error', 'Recipient vault not found', 'This payment link may be invalid or the recipient has not set up their vault yet');
-        setRecipientCredentials(null);
-      } finally {
-        setIsLoadingCredentials(false);
-      }
-    };
-
-    loadRecipientCredentials();
-  }, [isValidPaymentLink, isCorrectNetwork, recipientVaultAddress, targetChainId]);
-
   // Close token menu on outside click or ESC
   useEffect(() => {
     if (!isTokenMenuOpen) return;
@@ -361,11 +255,6 @@ const PaymentPage = () => {
       return;
     }
 
-    if (!recipientCredentials) {
-      showTerminalToast('error', 'Recipient vault not ready', 'Please wait for the recipient vault to load or check if the payment link is valid');
-      return;
-    }
-
     setIsProcessing(true);
 
     try {
@@ -373,8 +262,12 @@ const PaymentPage = () => {
       console.log('[PaymentPage] Screening payer wallet:', address);
       await assertNotSanctioned(chainId, address);
       console.log('[PaymentPage] Payer screening passed');
+      // Only support ERC-20 for payment page flow
+      if (!selectedToken.address) {
+        throw new Error('Native token shielding is not supported on this payment flow. Please select an ERC-20 token.');
+      }
 
-      // Check if token is supported by Railgun
+      // Check token support
       if (!isTokenSupportedByRailgun(selectedToken.address, chainId)) {
         throw new Error(`${selectedToken.symbol} is not supported on this network`);
       }
@@ -385,60 +278,131 @@ const PaymentPage = () => {
         throw new Error(`Insufficient balance. Available: ${selectedToken.numericBalance} ${selectedToken.symbol}`);
       }
 
-      // Convert amount to token units
-      const amountInUnits = (BigInt(Math.floor(requestedAmount * Math.pow(10, selectedToken.decimals)))).toString();
+      // Connect signer and gather network info
+      const signer = await walletProvider();
+      const payerEOA = await signer.getAddress();
+      const provider = signer.provider;
 
-      // Prepare shield transaction using recipient's vault credentials
-      const chainConfig = { 
-        type: networks[chainId]?.name?.toLowerCase() || 'ethereum', 
-        id: chainId 
+      // Map chainId to Railgun NetworkName
+      const railgunNetwork = {
+        1: NetworkName.Ethereum,
+        42161: NetworkName.Arbitrum,
+        137: NetworkName.Polygon,
+        56: NetworkName.BNBChain,
+      }[chainId];
+      if (!railgunNetwork) throw new Error(`Unsupported network: ${chainId}`);
+
+      // Parse amount to base units
+      const weiAmount = parseUnits(amount, selectedToken.decimals);
+
+      // Prepare recipients
+      const erc20AmountRecipients = [
+        { tokenAddress: selectedToken.address, amount: weiAmount, recipientAddress: recipientVaultAddress },
+      ];
+
+      // Create ephemeral shield private key
+      const getRandomHex32 = () => {
+        const bytes = new Uint8Array(32);
+        (window.crypto || globalThis.crypto).getRandomValues(bytes);
+        return '0x' + Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
       };
+      const shieldPrivateKey = getRandomHex32();
 
-      console.log('[PaymentPage] Initiating shield transaction to recipient vault:', {
-        recipientVault: recipientCredentials.railgunAddress,
-        recipientEOA: recipientCredentials.eoaAddress?.slice(0, 8) + '...',
-        token: selectedToken.symbol,
-        amount: requestedAmount,
-        chainId
-      });
+      // Determine gas type and preliminary gas details (to discover spender address)
+      const evmGasType = getEVMGasTypeForTransaction(railgunNetwork, true);
+      const feeData = await provider.getFeeData();
+      let prelimGasDetails;
+      if (evmGasType === EVMGasType.Type2) {
+        prelimGasDetails = {
+          evmGasType,
+          gasEstimate: BigInt(300000),
+          maxFeePerGas: feeData.maxFeePerGas || BigInt('1000000'),
+          maxPriorityFeePerGas: feeData.maxPriorityFeePerGas || BigInt('100000'),
+        };
+      } else {
+        prelimGasDetails = {
+          evmGasType,
+          gasEstimate: BigInt(300000),
+          gasPrice: feeData.gasPrice || BigInt('1000000'),
+        };
+      }
 
-      // IMPORTANT: Initialize recipient's vault for payment processing
-      // This ensures the payment goes to the recipient's vault, not the payer's
-      console.log('[PaymentPage] Initializing recipient vault for payment...');
-      const recipientVault = await initializeRecipientVault(recipientCredentials);
+      // Build a preliminary shield tx to get the RAILGUN shield contract (spender)
+      const { transaction: prelimTx } = await populateShield(
+        TXIDVersion.V2_PoseidonMerkle,
+        railgunNetwork,
+        shieldPrivateKey,
+        erc20AmountRecipients,
+        [],
+        prelimGasDetails,
+      );
+      const spender = prelimTx.to;
+      if (!spender) throw new Error('Failed to resolve Railgun shield contract address');
 
-      // Execute shield operation using recipient's vault as destination
-      const result = await shieldTokens({
-        tokenAddress: selectedToken.address,
-        amount: amountInUnits,
-        chain: chainConfig,
-        fromAddress: address, // Payer's EOA wallet (for transaction signing)
-        railgunAddress: recipientCredentials.railgunAddress, // Recipient's vault address
-        walletProvider: await walletProvider(), // Payer's wallet provider for signing
-        // Override: Use recipient's Railgun wallet for the shielding destination
-        recipientWalletId: recipientCredentials.walletId
-      });
+      // Ensure ERC-20 allowance
+      const erc20Abi = [
+        'function allowance(address owner,address spender) view returns (uint256)',
+        'function approve(address spender,uint256 amount) returns (bool)',
+      ];
+      const erc20 = new Contract(selectedToken.address, erc20Abi, signer);
+      const currentAllowance = await erc20.allowance(payerEOA, spender);
+      if (currentAllowance < weiAmount) {
+        const approveTx = await erc20.approve(spender, weiAmount);
+        await approveTx.wait();
+      }
 
-      // Send transaction using payer's wallet (they pay gas + provide tokens)
-      const walletSigner = await walletProvider();
-      const txResponse = await walletSigner.sendTransaction(result.transaction);
-
-      showTerminalToast(
-        'success',
-        'Payment sent successfully',
-        `Depositing ${amount} ${selectedToken.symbol} into recipient's vault. TX: ${txResponse.hash}`,
-        { duration: 6000 }
+      // Final gas estimate for shield
+      const { gasEstimate } = await gasEstimateForShield(
+        TXIDVersion.V2_PoseidonMerkle,
+        railgunNetwork,
+        shieldPrivateKey,
+        erc20AmountRecipients,
+        [],
+        payerEOA,
       );
 
-      // Reset form
+      // Final gas details
+      const refreshedFee = await provider.getFeeData();
+      let gasDetails;
+      if (evmGasType === EVMGasType.Type2) {
+        gasDetails = {
+          evmGasType,
+          gasEstimate,
+          maxFeePerGas: refreshedFee.maxFeePerGas || feeData.maxFeePerGas || BigInt('1000000'),
+          maxPriorityFeePerGas: refreshedFee.maxPriorityFeePerGas || feeData.maxPriorityFeePerGas || BigInt('100000'),
+        };
+      } else {
+        gasDetails = {
+          evmGasType,
+          gasEstimate,
+          gasPrice: refreshedFee.gasPrice || feeData.gasPrice || BigInt('1000000'),
+        };
+      }
+
+      // Build final shield transaction
+      const { transaction } = await populateShield(
+        TXIDVersion.V2_PoseidonMerkle,
+        railgunNetwork,
+        shieldPrivateKey,
+        erc20AmountRecipients,
+        [],
+        gasDetails,
+      );
+      transaction.from = payerEOA;
+
+      // Send from payer's EOA
+      const sent = await signer.sendTransaction(transaction);
+      const receipt = await sent.wait();
+
+      showTerminalToast('success', 'Payment sent', `Shielded ${amount} ${selectedToken.symbol} to recipient's vault. TX: ${sent.hash}`, { duration: 6000 });
+
+      // Reset form amount
       setAmount('');
       
     } catch (error) {
       console.error('[PaymentPage] Payment failed:', error);
       
-      if (error.message.includes('vault') && error.message.includes('not ready')) {
-        showTerminalToast('error', 'Recipient vault not ready', 'The recipient may need to initialize their vault first');
-      } else if (error.message.includes('sanctions') || error.message.includes('sanctioned')) {
+      if (error.message.includes('sanctions') || error.message.includes('sanctioned')) {
         showTerminalToast('error', 'Transaction blocked', 'Address appears on sanctions list');
       } else if (error.code === 4001 || /rejected/i.test(error?.message || '')) {
         showTerminalToast('error', 'Transaction cancelled by user');
@@ -559,27 +523,7 @@ const PaymentPage = () => {
               </div>
               {!recipientLexieId && (
                 <div className="text-green-300 text-xs mt-2">
-                  They didn't claim a Lexie ID yet — might as well be faxing ETH.
-                </div>
-              )}
-              
-              {/* Credential loading status */}
-              {isLoadingCredentials && (
-                <div className="mt-3 flex items-center gap-2 text-yellow-400 text-xs">
-                  <div className="h-3 w-3 rounded-full border border-yellow-400 border-t-transparent animate-spin" />
-                  Loading recipient vault...
-                </div>
-              )}
-              {!isLoadingCredentials && recipientCredentials && (
-                <div className="mt-3 flex items-center gap-2 text-emerald-400 text-xs">
-                  <div className="h-3 w-3 rounded-full bg-emerald-400" />
-                  Recipient vault ready
-                </div>
-              )}
-              {!isLoadingCredentials && !recipientCredentials && isValidPaymentLink && isCorrectNetwork && (
-                <div className="mt-3 flex items-center gap-2 text-red-400 text-xs">
-                  <div className="h-3 w-3 rounded-full bg-red-400" />
-                  Recipient vault not found
+                  They didn’t claim a Lexie ID yet — might as well be faxing ETH.
                 </div>
               )}
             </div>
