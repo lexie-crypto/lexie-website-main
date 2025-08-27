@@ -1018,12 +1018,10 @@ const WalletPage = () => {
                               <div className="text-green-400/70">• {token.name || `${token.symbol} Token`}</div>
           </div>
                             <div className="text-right">
-                              <div className="text-green-200">
-                                {token.formattedBalance}
-                                {token.balanceUSD !== undefined && (
-                                  <span className="text-green-400/70 ml-2">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</span>
-                                )}
-                              </div>
+                              <div className="text-green-200">{token.formattedBalance}</div>
+                              {token.balanceUSD !== undefined && (
+                                <div className="text-green-400/70">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
+                              )}
                             </div>
                           </div>
                         ))
