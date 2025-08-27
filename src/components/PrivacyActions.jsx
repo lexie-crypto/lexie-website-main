@@ -988,6 +988,21 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           <div className="space-y-6">
             {/* Network selection removed – link uses active network automatically */}
 
+            {/* QR Code */}
+            {paymentLink && (
+              <div className="space-y-4">
+                <label className="block text-sm font-medium text-green-300">
+                  QR Code
+                </label>
+                <div className="flex justify-center">
+                  <QRCodeGenerator value={paymentLink} size={200} />
+                </div>
+                <p className="text-center text-sm text-green-400/70">
+                  Share this QR code for others to scan and fund your vault
+                </p>
+              </div>
+            )}
+
             {/* Payment Link */}
             {paymentLink && (
               <div className="space-y-4">
@@ -1016,29 +1031,13 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               </div>
             )}
 
-            {/* QR Code */}
-            {paymentLink && (
-              <div className="space-y-4">
-                <label className="block text-sm font-medium text-green-300">
-                  QR Code
-                </label>
-                <div className="flex justify-center">
-                  <QRCodeGenerator value={paymentLink} size={200} />
-                </div>
-                <p className="text-center text-sm text-green-400/70">
-                  Share this QR code for others to scan and fund your vault
-                </p>
-              </div>
-            )}
-
             {/* Instructions */}
             <div className="bg-black/60 border border-green-500/20 rounded p-4">
               <h4 className="text-sm font-medium text-emerald-300 mb-2">How it works</h4>
               <ul className="text-sm text-green-300/80 space-y-1">
                 <li>• Share the payment link or QR code with others</li>
                 <li>• They can click the link to fund your vault directly</li>
-                <li>• Funds are shielded into your Railgun vault automatically</li>
-                <li>• All transactions are private and secure</li>
+                <li>• Funds are deposited into your vault automatically</li>
               </ul>
             </div>
           </div>
