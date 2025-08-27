@@ -925,7 +925,7 @@ const WalletPage = () => {
                     setActiveAction('shield');
                     setSelectedView('privacy');
                   }}
-                  className="px-2 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 text-xs"
+                  className="px-2 py-1 rounded border border-rose-400/40 bg-rose-900/10 hover:bg-rose-900/30 text-xs"
                 >
                   add
                     </button>
