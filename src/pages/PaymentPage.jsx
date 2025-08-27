@@ -346,7 +346,7 @@ const PaymentPage = () => {
               <ShieldCheckIcon className="h-16 w-16 text-emerald-300 mx-auto mb-4" />
               <h1 className="text-2xl font-bold text-emerald-300 mb-2">Fund Vault</h1>
               <p className="text-green-400/80 text-sm">
-                Send tokens to my vault
+                Send tokens to this vault
               </p>
             </div>
 
@@ -517,8 +517,10 @@ const PaymentPage = () => {
               <span>•</span>
               <span>Status: {isConnected ? 'Connected' : 'Waiting'}</span>
             </div>
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="text-emerald-400">ONLINE</span>
+            <div className="flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-emerald-400">ONLINE</span>
+            </div>
           </div>
         </div>
       </div>
