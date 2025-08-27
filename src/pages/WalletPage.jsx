@@ -929,6 +929,15 @@ const WalletPage = () => {
                 >
                   add
                     </button>
+                    <button
+                onClick={() => {
+                  setActiveAction('receive');
+                  setSelectedView('privacy');
+                }}
+                className="px-2 py-1 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40 text-xs"
+              >
+                receive
+              </button>
               <button
                   onClick={() => {
                     setActiveAction('transfer');
@@ -946,15 +955,6 @@ const WalletPage = () => {
                   className="px-2 py-1 rounded border border-amber-400/40 bg-amber-900/20 hover:bg-amber-900/40 text-xs"
                 >
                   remove
-              </button>
-              <button
-                onClick={() => {
-                  setActiveAction('receive');
-                  setSelectedView('privacy');
-                }}
-                className="px-2 py-1 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40 text-xs"
-              >
-                receive
               </button>
               <button
                 onClick={() => setSelectedView('history')}
