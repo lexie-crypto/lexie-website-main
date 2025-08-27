@@ -1028,7 +1028,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                             <div className="px-4 py-3 flex items-center gap-3">
                               <div className="h-3 w-3 rounded-full bg-emerald-400" />
                               <div>
-                                <div className="text-sm">link &gt;&gt; copied // transmit to sender</div>
+                                <div className="text-sm">link &gt;&gt; copied</div>
                               </div>
                               <button 
                                 type="button" 
