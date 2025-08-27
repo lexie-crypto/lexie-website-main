@@ -3,7 +3,7 @@
  * Integrates shieldTransactions.js with Chainalysis screening
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import { 
@@ -39,6 +39,8 @@ const PaymentPage = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [publicBalances, setPublicBalances] = useState([]);
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
+  const [isTokenMenuOpen, setIsTokenMenuOpen] = useState(false);
+  const tokenMenuRef = useRef(null);
 
   // Parse target chain ID
   const targetChainId = chainIdParam ? parseInt(chainIdParam) : 1;
@@ -167,6 +169,23 @@ const PaymentPage = () => {
     const tokenWithBalance = publicBalances.find(t => t.numericBalance > 0);
     setSelectedToken(tokenWithBalance || publicBalances[0]);
   }, [publicBalances, preferredToken]);
+
+  // Close token menu on outside click or ESC
+  useEffect(() => {
+    if (!isTokenMenuOpen) return;
+    const onClickOutside = (e) => {
+      if (tokenMenuRef.current && !tokenMenuRef.current.contains(e.target)) {
+        setIsTokenMenuOpen(false);
+      }
+    };
+    const onKey = (e) => { if (e.key === 'Escape') setIsTokenMenuOpen(false); };
+    document.addEventListener('mousedown', onClickOutside);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [isTokenMenuOpen]);
 
   // Handle payment processing
   const handlePayment = async (e) => {
@@ -305,12 +324,6 @@ const PaymentPage = () => {
 
   return (
     <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
-      {/* Dropdown styling to match chain menu */}
-      <style>{`
-        .lexie-select option { background-color: #000000; color: rgb(187, 247, 208); }
-        .lexie-select option:checked { background-color: rgba(6, 95, 70, 0.6); color: rgb(209, 250, 229); }
-        .lexie-select option:hover { background-color: rgba(6, 95, 70, 0.3); color: rgb(209, 250, 229); }
-      `}</style>
       {/* Background overlays (match other pages) */}
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
@@ -426,27 +439,41 @@ const PaymentPage = () => {
                   <label className="block text-sm font-medium text-green-300 mb-2">
                     Token
                   </label>
-                  <select
-                    className="lexie-select w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
-                    value={selectedToken?.address || ''}
-                    onChange={(e) => {
-                      const token = publicBalances.find(t => (t.address || '') === e.target.value);
-                      setSelectedToken(token || null);
-                    }}
-                    disabled={isLoadingBalances || publicBalances.length === 0}
-                  >
-                    {isLoadingBalances ? (
-                      <option value="">Loading tokens...</option>
-                    ) : publicBalances.length === 0 ? (
-                      <option value="">No tokens available</option>
-                    ) : (
-                      publicBalances.map((token) => (
-                        <option key={token.address || 'native'} value={token.address || ''}>
-                          {token.symbol} - {token.numericBalance} available
-                        </option>
-                      ))
+                  <div className="relative" ref={tokenMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!isLoadingBalances && publicBalances.length > 0) setIsTokenMenuOpen((v) => !v);
+                      }}
+                      disabled={isLoadingBalances || publicBalances.length === 0}
+                      className={`w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200 flex items-center justify-between ${
+                        isLoadingBalances || publicBalances.length === 0 ? 'cursor-not-allowed opacity-60' : 'hover:bg-green-900/20'
+                      }`}
+                    >
+                      <span>
+                        {selectedToken
+                          ? `${selectedToken.symbol} - ${selectedToken.numericBalance} available`
+                          : isLoadingBalances
+                            ? 'Loading tokens...'
+                            : 'Select token'}
+                      </span>
+                      <span className="ml-2">▾</span>
+                    </button>
+                    {isTokenMenuOpen && (
+                      <div className="absolute z-20 mt-1 left-0 right-0 bg-black text-green-300 border border-green-500/40 rounded shadow-xl max-h-60 overflow-auto">
+                        {publicBalances.map((token) => (
+                          <button
+                            key={token.address || 'native'}
+                            type="button"
+                            onClick={() => { setSelectedToken(token); setIsTokenMenuOpen(false); }}
+                            className="w-full text-left px-3 py-2 hover:bg-emerald-900/30 focus:bg-emerald-900/30 focus:outline-none"
+                          >
+                            {token.symbol} - {token.numericBalance} available
+                          </button>
+                        ))}
+                      </div>
                     )}
-                  </select>
+                  </div>
                 </div>
 
                 {/* Amount Input */}
