@@ -29,6 +29,7 @@ const PaymentPage = () => {
     address,
     chainId,
     connectWallet,
+    disconnectWallet,
     switchNetwork,
     walletProvider,
   } = useWallet();
@@ -324,7 +325,18 @@ const PaymentPage = () => {
               </div>
               <span className="text-sm tracking-wide text-green-200 font-mono">lexie-pay</span>
             </div>
-            <div className="flex items-center gap-2 text-xs font-mono">
+            <div className="flex items-center gap-3 text-xs font-mono">
+              {isConnected && address ? (
+                <>
+                  <span className="text-green-400/80 hidden sm:inline">{address.slice(0,6)}...{address.slice(-4)}</span>
+                  <button
+                    onClick={disconnectWallet}
+                    className="bg-black hover:bg-red-900/30 text-red-300 px-2 py-1 rounded border border-red-500/40"
+                  >
+                    Disconnect
+                  </button>
+                </>
+              ) : null}
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               <span className="text-emerald-400">ONLINE</span>
             </div>
@@ -342,7 +354,7 @@ const PaymentPage = () => {
 
             {/* Recipient Info */}
             <div className="bg-black/40 border border-green-500/20 rounded p-3 mb-6">
-              <div className="text-green-400/80 text-xs mb-1">Recipient Lexie ID:</div>
+              <div className="text-green-400/80 text-xs mb-1">Recipient:</div>
               {recipientLexieId ? (
                 <div className="text-green-200 text-sm font-mono break-all">
                   @{recipientLexieId}
