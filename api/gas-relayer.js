@@ -63,6 +63,7 @@ export default async function handler(req, res) {
       if (e === 'submit') targetPath = '/api/relay/submit';
       else if (e === 'estimate-fee' || e === 'estimatefee') targetPath = '/api/relay/estimate-fee';
       else if (e === 'address') targetPath = '/api/relayer/address';
+      else if (e === 'presign') targetPath = '/api/relay/submit';
       else if (e === 'ping') targetPath = '/ping';
       else if (e === 'health') targetPath = '/health';
       else targetPath = '/health';
@@ -90,6 +91,22 @@ export default async function handler(req, res) {
     if (!hmacSecret) {
       console.error('LEXIE_HMAC_SECRET not configured');
       return res.status(500).json({ error: 'Server configuration error', requestId });
+    }
+
+    // Lightweight presign endpoint: returns HMAC headers so client can call Railway directly
+    if (endpoint && endpoint.toLowerCase() === 'presign') {
+      const timestamp = Date.now().toString();
+      const payload = `${'POST'}:${targetPath}:${timestamp}`;
+      const signature = 'sha256=' + crypto.createHmac('sha256', hmacSecret).update(payload).digest('hex');
+      return res.status(200).json({
+        ok: true,
+        requestId,
+        targetPath,
+        headers: {
+          'X-Lexie-Signature': signature,
+          'X-Lexie-Timestamp': timestamp,
+        }
+      });
     }
 
     const timestamp = Date.now().toString();

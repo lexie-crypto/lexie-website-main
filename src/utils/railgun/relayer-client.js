@@ -156,19 +156,51 @@ export async function submitRelayedTransaction({
       gasEstimate
     };
 
-    // Single-route proxy with endpoint query - longer timeout for complex operations
-    const controller = new AbortController();
-    // Use 3 minutes for potentially complex unshield operations
-    const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minutes timeout
-    
+    // 1) Get presigned HMAC headers from proxy to avoid exposing secrets
+    console.log('🔐 [RELAYER] Requesting presigned headers from proxy...');
+    const presignController = new AbortController();
+    const presignTimeout = setTimeout(() => presignController.abort(), 15000); // 15s
+    let presign;
     try {
-      const response = await fetch(`${RELAYER_PROXY_URL}?endpoint=submit`, {
+      const presignResp = await fetch(`${RELAYER_PROXY_URL}?endpoint=presign`, {
         method: 'POST',
         headers: createHeaders(),
+        body: JSON.stringify({}),
+        signal: presignController.signal
+      });
+      clearTimeout(presignTimeout);
+      if (!presignResp.ok) {
+        const errTxt = await presignResp.text();
+        throw new Error(`Presign failed: ${errTxt.substring(0, 200)}...`);
+      }
+      presign = await presignResp.json();
+      if (!presign?.headers?.['X-Lexie-Signature'] || !presign?.headers?.['X-Lexie-Timestamp']) {
+        throw new Error('Presign response missing required headers');
+      }
+      console.log('🔐 [RELAYER] Presign headers acquired');
+    } catch (e) {
+      clearTimeout(presignTimeout);
+      console.error('❌ [RELAYER] Presign step failed:', e);
+      throw new Error(`Failed to obtain presigned headers: ${e.message}`);
+    }
+
+    // 2) Submit directly to Railway backend with HMAC headers (bypass proxy limits)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 180000); // 3 minutes timeout
+    try {
+      const directUrl = `${RELAYER_BACKEND_URL}/api/relay/submit`;
+      console.log('🚀 [RELAYER] Submitting directly to backend:', directUrl);
+      const response = await fetch(directUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Lexie-Signature': presign.headers['X-Lexie-Signature'],
+          'X-Lexie-Timestamp': presign.headers['X-Lexie-Timestamp'],
+        },
         body: JSON.stringify(payload),
         signal: controller.signal
       });
-      
       clearTimeout(timeoutId);
       return await handleResponse(response);
     } catch (error) {
