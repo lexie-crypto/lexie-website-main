@@ -1505,58 +1505,11 @@ const WalletContextProvider = ({ children }) => {
         return true;
       }
 
-      console.log('[Railgun Engine] 🔧 Starting light engine (no wallet init)...');
-      const { startRailgunEngine, loadProvider, setLoggers, pauseAllPollingProviders } = await import('@railgun-community/wallet');
-      const { NetworkName } = await import('@railgun-community/shared-models');
-      const LevelJS = (await import('level-js')).default;
-      const db = new LevelJS('railgun-engine-db');
-
-      const { createEnhancedArtifactStore } = await import('../utils/railgun/artifactStore.js');
-      const artifactManager = await createEnhancedArtifactStore(false);
-
-      setLoggers(
-        (message) => console.log(`🔍 [RAILGUN-SDK] ${message}`),
-        (error) => console.error(`🚨 [RAILGUN-SDK] ${error}`)
-      );
-
-      await startRailgunEngine(
-        'lexiewebsite',
-        db,
-        true,
-        artifactManager.store,
-        false,
-        true, // skipMerkletreeScans for light mode
-        ['https://ppoi.fdi.network/'],
-        [],
-        false
-      );
-
-      // Load provider for current chain only (required for populateShield/gasEstimate)
-      const currentChainId = chainId || 1;
-      const networkMap = {
-        1: { networkName: NetworkName.Ethereum, rpcUrl: RPC_URLS.ethereum },
-        137: { networkName: NetworkName.Polygon, rpcUrl: RPC_URLS.polygon },
-        42161: { networkName: NetworkName.Arbitrum, rpcUrl: RPC_URLS.arbitrum },
-        56: { networkName: NetworkName.BNBChain, rpcUrl: RPC_URLS.bsc },
-      };
-      const cfg = networkMap[currentChainId];
-      if (cfg) {
-        try {
-          const fallbackProviderConfig = {
-            chainId: currentChainId,
-            providers: [
-              { provider: cfg.rpcUrl, priority: 2, weight: 1, maxLogsPerBatch: 5, stallTimeout: 2500 },
-            ]
-          };
-          await loadProvider(fallbackProviderConfig, cfg.networkName, 15000);
-        } catch (e) {
-          console.warn('[Railgun Engine] ⚠️ Light provider load failed:', e?.message);
-        }
-      }
-
-      try { pauseAllPollingProviders(); } catch {}
+      console.log('[Railgun Engine] 🔧 Initializing via engine.js (patched config, no wallet init)...');
+      const { initializeRailgun } = await import('../utils/railgun/engine.js');
+      await initializeRailgun();
       if (typeof window !== 'undefined') window.__LEXIE_ENGINE_READY = true;
-      console.log('[Railgun Engine] ✅ Light engine ready');
+      console.log('[Railgun Engine] ✅ Engine ready (engine.js)');
       return true;
     } catch (err) {
       console.error('[Railgun Engine] ❌ Light engine start failed:', err);
