@@ -585,7 +585,7 @@ const PaymentPage = () => {
                   <label className="block text-sm font-medium text-green-300 mb-2">
                     Token
                   </label>
-                  <div className="relative" ref={tokenMenuRef}>
+                  <div className="relative min-w-0" ref={tokenMenuRef}>
                     <button
                       type="button"
                       onClick={() => {
@@ -596,7 +596,7 @@ const PaymentPage = () => {
                         isLoadingBalances || publicBalances.length === 0 ? 'cursor-not-allowed opacity-60' : 'hover:bg-green-900/20'
                       }`}
                     >
-                      <span>
+                      <span className="flex-1 min-w-0 truncate text-left">
                         {selectedToken
                           ? `${selectedToken.symbol} - ${selectedToken.numericBalance} available`
                           : isLoadingBalances
@@ -614,7 +614,7 @@ const PaymentPage = () => {
                             onClick={() => { setSelectedToken(token); setIsTokenMenuOpen(false); }}
                             className="w-full text-left px-3 py-2 hover:bg-emerald-900/30 focus:bg-emerald-900/30 focus:outline-none"
                           >
-                            {token.symbol} - {token.numericBalance} available
+                            <span className="block truncate">{token.symbol} - {token.numericBalance} available</span>
                           </button>
                         ))}
                       </div>

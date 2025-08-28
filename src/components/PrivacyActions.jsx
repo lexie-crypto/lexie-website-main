@@ -1030,13 +1030,16 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <label className="block text-sm font-medium text-green-300">
                   Payment Link
                 </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={paymentLink}
-                    readOnly
-                    className="flex-1 px-3 py-2 border border-green-500/40 rounded bg-black text-green-200 text-sm"
-                  />
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="flex-1 min-w-0 overflow-hidden">
+                    <input
+                      type="text"
+                      value={paymentLink}
+                      readOnly
+                      title={paymentLink}
+                      className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200 text-xs sm:text-sm truncate"
+                    />
+                  </div>
                   <button
                     type="button"
                     onClick={() => {
