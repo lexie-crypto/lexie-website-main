@@ -12,7 +12,7 @@ function App() {
   return (
     <WalletProvider>
       <Router>
-        <div className="App min-h-[100dvh] flex flex-col">
+        <div className="App">
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/vault" element={<WalletPage />} />

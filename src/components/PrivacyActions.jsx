@@ -936,7 +936,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   }
 
   return (
-    <div className="bg-black/40 border border-green-500/20 rounded shadow-lg overflow-x-hidden">
+    <div className="bg-black/40 border border-green-500/20 rounded shadow-lg overflow-hidden">
       {/* Header */}
       <div className="px-6 py-4 border-b border-green-500/20">
         <h2 className="text-xl font-semibold text-emerald-300 flex items-center gap-2">
@@ -949,7 +949,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
       {/* Current Action Display */}
       <div className="border-b border-green-500/20 px-6 py-3">
-        <div className="flex items-center gap-2 text-emerald-300 flex-wrap max-w-[92vw]">
+        <div className="flex items-center gap-2 text-emerald-300">
           {(() => {
             const currentTab = tabs.find(t => t.id === activeTab);
             const Icon = currentTab?.icon || ShieldCheckIcon;
@@ -957,7 +957,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               <>
                 <Icon className="h-5 w-5" />
                 <span className="font-medium">{currentTab?.name || 'Action'}</span>
-                <span className="text-green-400/70 text-sm break-words">• {currentTab?.description}</span>
+                <span className="text-green-400/70 text-sm">• {currentTab?.description}</span>
               </>
             );
           })()}
@@ -1030,16 +1030,13 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <label className="block text-sm font-medium text-green-300">
                   Payment Link
                 </label>
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="flex-1 min-w-0 overflow-hidden">
-                    <input
-                      type="text"
-                      value={paymentLink}
-                      readOnly
-                      title={paymentLink}
-                      className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200 text-xs sm:text-sm truncate"
-                    />
-                  </div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={paymentLink}
+                    readOnly
+                    className="flex-1 px-3 py-2 border border-green-500/40 rounded bg-black text-green-200 text-sm"
+                  />
                   <button
                     type="button"
                     onClick={() => {

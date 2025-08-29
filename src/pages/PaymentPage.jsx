@@ -436,7 +436,7 @@ const PaymentPage = () => {
 
   if (!isValidPaymentLink) {
     return (
-      <div className="min-h-[100dvh] bg-black text-white flex items-center justify-center">
+      <div className="min-h-screen bg-black text-white flex items-center justify-center">
         <div className="text-center">
           <ExclamationTriangleIcon className="h-16 w-16 text-red-400 mx-auto mb-4" />
           <h1 className="text-xl font-bold text-red-300 mb-2">Invalid Payment Link</h1>
@@ -469,15 +469,15 @@ const PaymentPage = () => {
   }, [recipientVaultAddress]);
 
   return (
-    <div className="relative min-h-[100dvh] w-full bg-black text-white overflow-x-hidden">
+    <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
       {/* Background overlays (match other pages) */}
-      <div className="fixed inset-0 z-0 pointer-events-none">
+      <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
         <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60"></div>
         <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-purple-900/40 via-purple-800/20 to-transparent"></div>
       </div>
 
-      <div className="relative z-10 mx-auto w-full max-w-[560px] min-h-[100dvh] overflow-y-auto px-4 pt-6 pb-[calc(env(safe-area-inset-bottom)+88px)]">
+      <div className="relative z-10 max-w-md mx-auto px-4 py-12">
         {/* Terminal Window */}
         <div className="rounded-xl overflow-hidden shadow-2xl border border-green-500/30 bg-black">
           {/* Terminal chrome */}
@@ -585,7 +585,7 @@ const PaymentPage = () => {
                   <label className="block text-sm font-medium text-green-300 mb-2">
                     Token
                   </label>
-                  <div className="relative min-w-0" ref={tokenMenuRef}>
+                  <div className="relative" ref={tokenMenuRef}>
                     <button
                       type="button"
                       onClick={() => {
@@ -596,7 +596,7 @@ const PaymentPage = () => {
                         isLoadingBalances || publicBalances.length === 0 ? 'cursor-not-allowed opacity-60' : 'hover:bg-green-900/20'
                       }`}
                     >
-                      <span className="flex-1 min-w-0 truncate text-left">
+                      <span>
                         {selectedToken
                           ? `${selectedToken.symbol} - ${selectedToken.numericBalance} available`
                           : isLoadingBalances
@@ -614,7 +614,7 @@ const PaymentPage = () => {
                             onClick={() => { setSelectedToken(token); setIsTokenMenuOpen(false); }}
                             className="w-full text-left px-3 py-2 hover:bg-emerald-900/30 focus:bg-emerald-900/30 focus:outline-none"
                           >
-                            <span className="block truncate">{token.symbol} - {token.numericBalance} available</span>
+                            {token.symbol} - {token.numericBalance} available
                           </button>
                         ))}
                       </div>
