@@ -1069,7 +1069,7 @@ const WalletPage = () => {
                             <div className="flex items-center space-x-2">
                               <div className="text-green-200">{Number(token.numericBalance).toFixed(6).replace(/\.?0+$/, '')}</div>
                               {canUseRailgun && isSupported && token.hasBalance && (
-                                <div className="flex items-center space-x-1 flex-wrap">
+                                <div className="hidden sm:flex items-center space-x-1 flex-wrap">
                                   <input
                                     type="number"
                                     placeholder="Amount"
