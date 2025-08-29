@@ -856,8 +856,41 @@ const WalletPage = () => {
                     </button>
                   )}
                 </div>
+                {/* Mobile controls under Lexie ID */}
+                <div className="flex items-center gap-2 mt-2 sm:hidden">
+                  <div className="relative" ref={chainMenuRef}>
+                    <button
+                      onClick={() => setIsChainMenuOpen((v) => !v)}
+                      className="px-2 py-1 text-sm bg-black text-green-300 rounded border border-green-500/40 hover:border-emerald-400"
+                    >
+                      {supportedNetworks.find(n => n.id === chainId)?.name || 'Select'}
+                      <span className="ml-1">▾</span>
+                    </button>
+                    {isChainMenuOpen && (
+                      <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden z-50">
+                        {supportedNetworks.map((net) => (
+                          <button
+                            key={net.id}
+                            onClick={() => { setIsChainMenuOpen(false); handleNetworkSwitch(net.id); }}
+                            className="w-full text-left px-3 py-2 hover:bg-emerald-900/30 focus:bg-emerald-900/30 focus:outline-none"
+                          >
+                            {net.name}
+                          </button>
+                        ))}
+                        <div className="h-[1px] bg-green-500/40" />
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={disconnectWallet}
+                    className="bg-black hover:bg-red-900/30 text-red-300 px-3 py-1 rounded text-sm border border-red-500/40"
+                  >
+                    Disconnect
+                  </button>
+                </div>
               </div>
-              <div className="flex items-center space-x-3 flex-wrap gap-2 justify-end">
+              {/* Desktop controls in original position */}
+              <div className="hidden sm:flex items-center space-x-3">
               <div className="relative" ref={chainMenuRef}>
                 <button
                   onClick={() => setIsChainMenuOpen((v) => !v)}
@@ -867,7 +900,7 @@ const WalletPage = () => {
                   <span className="ml-1">▾</span>
                 </button>
                 {isChainMenuOpen && (
-                  <div className="absolute mt-1 right-0 sm:left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden z-50">
+                  <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden z-50">
                     {supportedNetworks.map((net) => (
                       <button
                         key={net.id}
@@ -883,7 +916,7 @@ const WalletPage = () => {
               </div>
               <button
                 onClick={disconnectWallet}
-                  className="bg-black hover:bg-red-900/30 text-red-300 px-3 py-1 rounded text-sm border border-red-500/40 shrink-0"
+                  className="bg-black hover:bg-red-900/30 text-red-300 px-3 py-1 rounded text-sm border border-red-500/40"
               >
                 Disconnect
               </button>
