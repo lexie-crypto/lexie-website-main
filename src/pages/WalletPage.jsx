@@ -746,7 +746,7 @@ const WalletPage = () => {
       {/* Navigation (same as LandingPage) */}
       <nav className="sticky top-0 z-40 w-full px-3 md:px-6 py-4 md:py-6 bg-black">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="text-3xl md:text-5xl font-bold text-purple-300">
+          <div className="text-3xl md:text-4xl font-bold text-purple-300">
             LEXIE AI
               </div>
           <div className="hidden md:flex space-x-6">
@@ -789,11 +789,11 @@ const WalletPage = () => {
         </div>
       </div>
 
-      <div className="relative z-10 mx-auto w-full max-w-[560px] min-h-[100dvh] overflow-y-auto px-4 pt-[calc(env(safe-area-inset-top)+16px)] md:pt-8 pb-[calc(env(safe-area-inset-bottom)+88px)]">
+      <div className="relative z-10 mx-auto w-full max-w-[560px] min-h-[100dvh] overflow-y-auto px-4 pt-6 pb-[calc(env(safe-area-inset-bottom)+88px)]">
         {/* Terminal Window */}
         <div className="rounded-xl overflow-visible shadow-2xl border border-green-500/30 bg-black">
           {/* Terminal chrome */}
-          <div className="flex items-center justify-between px-3 md:px-4 py-2.5 md:py-3 border-b border-green-500/20 bg-black/90">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-green-500/20 bg-black/90">
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-1.5">
                 <span className="w-3 h-3 rounded-full bg-red-500/80" />
@@ -809,7 +809,7 @@ const WalletPage = () => {
           </div>
 
           {/* Terminal content */}
-          <div className="p-4 md:p-6 font-mono text-green-300 space-y-4">
+          <div className="p-6 font-mono text-green-300 space-y-4">
             {/* Header */}
             <div className="flex items-center justify-between border-b border-green-500/20 pb-3 md:pb-4 gap-2 flex-wrap">
               <div>
@@ -857,7 +857,7 @@ const WalletPage = () => {
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-wrap justify-end max-w-[92vw]">
+              <div className="flex items-center gap-2 flex-wrap justify-end">
               <div className="relative" ref={chainMenuRef}>
                 <button
                   onClick={() => setIsChainMenuOpen((v) => !v)}
@@ -1012,12 +1012,12 @@ const WalletPage = () => {
 
                       {(showPrivateBalances || privateBalances.length <= 3) && 
                         privateBalances.map((token) => (
-                          <div key={token.symbol} className="grid grid-cols-2 md:grid-cols-6 gap-2 p-2 bg-black/60 rounded text-xs items-center">
-                            <div className="col-span-2 md:col-span-3 flex items-center space-x-2">
+                          <div key={token.symbol} className="grid grid-cols-2 md:flex md:items-center md:justify-between gap-2 p-2 bg-black/60 rounded text-xs">
+                            <div className="col-span-2 md:col-auto flex items-center space-x-2">
                               <div className="text-green-200 font-medium">{token.symbol}</div>
                               <div className="text-green-400/70">• {token.name || `${token.symbol} Token`}</div>
-                            </div>
-                            <div className="col-span-2 md:col-span-3 text-right">
+          </div>
+                            <div className="col-span-2 md:col-auto text-right">
                               <div className="text-green-200">{token.formattedBalance}</div>
                               {token.balanceUSD !== undefined && (
                                 <div className="text-green-400/70">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
@@ -1060,47 +1060,49 @@ const WalletPage = () => {
                       const isShieldingThis = shieldingTokens.has(token.symbol);
                       
                       return (
-                        <div key={token.symbol} className="grid grid-cols-2 md:grid-cols-6 gap-2 p-2 bg-black/60 rounded text-xs items-center">
-                          <div className="col-span-2 md:col-span-2 flex items-center space-x-2 min-w-0">
+                        <div key={token.symbol} className="grid grid-cols-2 md:flex md:items-center md:justify-between gap-2 p-2 bg-black/60 rounded text-xs">
+                          <div className="col-span-2 md:col-auto flex items-center space-x-2 min-w-0">
                             <div className="text-green-200 font-medium">{token.symbol}</div>
                             <div className="text-green-400/70 truncate">• {token.name || `${token.symbol} Token`}</div>
                           </div>
-                          <div className="col-span-2 md:col-span-2 text-right">
-                            <div className="text-green-200">{token.formattedBalance}</div>
-                            <div className="text-green-400/70">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
-                          </div>
-                          {canUseRailgun && isSupported && token.hasBalance && (
-                            <div className="col-span-2 md:col-span-2 flex items-center justify-end gap-1 flex-wrap">
-                              <input
-                                type="number"
-                                placeholder="Amount"
-                                value={shieldAmounts[token.symbol] || ''}
-                                onChange={(e) => setShieldAmounts(prev => ({
-                                  ...prev,
-                                  [token.symbol]: e.target.value
-                                }))}
-                                disabled={isShieldingThis}
-                                className="w-28 md:w-20 bg-black text-green-200 rounded px-1 py-0.5 text-xs border border-green-500/40 focus:border-emerald-400 focus:outline-none"
-                              />
-                              <button
-                                onClick={() => setShieldAmounts(prev => ({
-                                  ...prev,
-                                  [token.symbol]: token.numericBalance.toString()
-                                }))}
-                                disabled={isShieldingThis || !isChainReady}
-                                className="bg-black hover:bg-green-900/20 disabled:bg-black/40 text-green-200 px-1 py-0.5 rounded text-xs border border-green-500/40"
-                              >
-                                Max
-                              </button>
-                              <button
-                                onClick={() => handleShieldToken(token)}
-                                disabled={isShieldingThis || !shieldAmounts[token.symbol] || !isChainReady}
-                                className="bg-emerald-600/30 hover:bg-emerald-600/50 disabled:bg-black/40 text-emerald-200 px-2 py-0.5 rounded text-xs border border-emerald-400/40 max-w-[92vw]"
-                              >
-                                {isShieldingThis ? 'Adding…' : 'Add to Vault'}
-                              </button>
+                          <div className="col-span-2 md:col-auto flex items-center space-x-2 md:justify-end">
+                            <div className="text-right">
+                              <div className="text-green-200">{token.formattedBalance}</div>
+                              <div className="text-green-400/70">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
                             </div>
-                          )}
+                            {canUseRailgun && isSupported && token.hasBalance && (
+                              <div className="flex items-center gap-1 flex-wrap justify-end">
+                                <input
+                                  type="number"
+                                  placeholder="Amount"
+                                  value={shieldAmounts[token.symbol] || ''}
+                                  onChange={(e) => setShieldAmounts(prev => ({
+                                    ...prev,
+                                    [token.symbol]: e.target.value
+                                  }))}
+                                  disabled={isShieldingThis}
+                                  className="w-28 md:w-20 bg-black text-green-200 rounded px-1 py-0.5 text-xs border border-green-500/40 focus:border-emerald-400 focus:outline-none"
+                                />
+                                <button
+                                  onClick={() => setShieldAmounts(prev => ({
+                                    ...prev,
+                                    [token.symbol]: token.numericBalance.toString()
+                                  }))}
+                                  disabled={isShieldingThis || !isChainReady}
+                                  className="bg-black hover:bg-green-900/20 disabled:bg-black/40 text-green-200 px-1 py-0.5 rounded text-xs border border-green-500/40"
+                                >
+                                  Max
+                                </button>
+                                <button
+                                  onClick={() => handleShieldToken(token)}
+                                  disabled={isShieldingThis || !shieldAmounts[token.symbol] || !isChainReady}
+                                  className="bg-emerald-600/30 hover:bg-emerald-600/50 disabled:bg-black/40 text-emerald-200 px-2 py-0.5 rounded text-xs border border-emerald-400/40 max-w-[92vw]"
+                                >
+                                  {isShieldingThis ? 'Adding…' : 'Add to Vault'}
+                                </button>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
