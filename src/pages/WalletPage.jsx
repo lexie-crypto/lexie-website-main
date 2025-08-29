@@ -742,7 +742,7 @@ const WalletPage = () => {
   }
 
   return (
-    <div className="relative min-h-[100svh] w-full bg-black text-white overflow-hidden">
+    <div className="relative min-h-[100dvh] w-full bg-black text-white overflow-x-hidden">
       {/* Navigation (same as LandingPage) */}
       <nav className="sticky top-0 z-40 w-full p-6 bg-black">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
@@ -789,7 +789,7 @@ const WalletPage = () => {
         </div>
       </div>
 
-      <div className="relative z-10 mx-auto w-full max-w-[560px] min-h-[100svh] overflow-y-auto px-4 pt-6 pb-[calc(env(safe-area-inset-bottom)+88px)]">
+      <div className="relative z-10 mx-auto w-full max-w-[560px] min-h-[100dvh] overflow-y-auto px-4 pt-6 pb-[calc(env(safe-area-inset-bottom)+88px)]">
         {/* Terminal Window */}
         <div className="rounded-xl overflow-visible shadow-2xl border border-green-500/30 bg-black">
           {/* Terminal chrome */}
@@ -969,7 +969,7 @@ const WalletPage = () => {
             {selectedView === 'balances' && (
               <div className="space-y-4">
                 {/* Private Balances */}
-                <div className="bg-black/40 border border-green-500/20 rounded p-3">
+                <div className="bg-black/40 border border-green-500/20 rounded p-3 max-h-[75dvh] overflow-y-auto">
                   <div className="flex items-center justify-between mb-3">
                     <div className="text-green-300 text-sm font-medium">{network?.name || 'Network'} Vault Balances</div>
                     <div className="flex items-center space-x-2">
@@ -1042,7 +1042,7 @@ const WalletPage = () => {
             </div>
 
               {/* Public Balances */}
-                <div className="bg-black/40 border border-green-500/20 rounded p-3">
+                <div className="bg-black/40 border border-green-500/20 rounded p-3 max-h-[75dvh] overflow-y-auto">
                   <div className="flex items-center justify-between mb-3">
                     <div className="text-green-300 text-sm font-medium">Public Balances</div>
                     <button

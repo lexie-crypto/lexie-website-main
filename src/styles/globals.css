@@ -57,6 +57,12 @@
   }
 }
 
+/* Mobile-safe viewport and horizontal overflow guard */
+html, body, #__next, #root {
+  min-height: 100dvh;
+  overflow-x: hidden;
+}
+
 @keyframes fadeIn {
   from {
     opacity: 0;

@@ -936,7 +936,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   }
 
   return (
-    <div className="bg-black/40 border border-green-500/20 rounded shadow-lg overflow-hidden">
+    <div className="bg-black/40 border border-green-500/20 rounded shadow-lg overflow-x-hidden">
       {/* Header */}
       <div className="px-6 py-4 border-b border-green-500/20">
         <h2 className="text-xl font-semibold text-emerald-300 flex items-center gap-2">
@@ -949,7 +949,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
       {/* Current Action Display */}
       <div className="border-b border-green-500/20 px-6 py-3">
-        <div className="flex items-center gap-2 text-emerald-300">
+        <div className="flex items-center gap-2 text-emerald-300 flex-wrap max-w-[92vw]">
           {(() => {
             const currentTab = tabs.find(t => t.id === activeTab);
             const Icon = currentTab?.icon || ShieldCheckIcon;
@@ -957,7 +957,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               <>
                 <Icon className="h-5 w-5" />
                 <span className="font-medium">{currentTab?.name || 'Action'}</span>
-                <span className="text-green-400/70 text-sm">• {currentTab?.description}</span>
+                <span className="text-green-400/70 text-sm break-words">• {currentTab?.description}</span>
               </>
             );
           })()}
