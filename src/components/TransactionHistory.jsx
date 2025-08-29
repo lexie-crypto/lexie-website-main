@@ -6,11 +6,26 @@
 import React, { useState } from 'react';
 import useTransactionHistory from '../hooks/useTransactionHistory';
 import { TransactionCategory } from '../utils/railgun/transactionHistory';
+import { useWallet } from '../contexts/WalletContext';
 
 const TransactionHistory = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showDetails, setShowDetails] = useState({});
+
+  // Debug wallet context values
+  const { chainId, railgunWalletId, isRailgunInitialized, canUseRailgun } = useWallet();
+  
+  React.useEffect(() => {
+    console.log('[TransactionHistory] Wallet context debug:', {
+      chainId,
+      hasRailgunWalletId: !!railgunWalletId,
+      railgunWalletId: railgunWalletId?.slice(0, 8) + '...' || 'null',
+      isRailgunInitialized,
+      canUseRailgun,
+      userAgent: navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop'
+    });
+  }, [chainId, railgunWalletId, isRailgunInitialized, canUseRailgun]);
 
   const {
     transactions,
