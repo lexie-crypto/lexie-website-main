@@ -601,24 +601,34 @@ const WalletPage = () => {
   ];
 
   const [isChainMenuOpen, setIsChainMenuOpen] = useState(false);
+  const [isMobileChainMenuOpen, setIsMobileChainMenuOpen] = useState(false);
   const chainMenuRef = useRef(null);
+  const mobileChainMenuRef = useRef(null);
 
   // Close custom chain menu on outside click or ESC
   useEffect(() => {
-    if (!isChainMenuOpen) return;
+    if (!isChainMenuOpen && !isMobileChainMenuOpen) return;
     const onClickOutside = (e) => {
       if (chainMenuRef.current && !chainMenuRef.current.contains(e.target)) {
         setIsChainMenuOpen(false);
       }
+      if (mobileChainMenuRef.current && !mobileChainMenuRef.current.contains(e.target)) {
+        setIsMobileChainMenuOpen(false);
+      }
     };
-    const onKey = (e) => { if (e.key === 'Escape') setIsChainMenuOpen(false); };
+    const onKey = (e) => { 
+      if (e.key === 'Escape') {
+        setIsChainMenuOpen(false);
+        setIsMobileChainMenuOpen(false);
+      }
+    };
     document.addEventListener('mousedown', onClickOutside);
     document.addEventListener('keydown', onKey);
     return () => {
       document.removeEventListener('mousedown', onClickOutside);
       document.removeEventListener('keydown', onKey);
     };
-  }, [isChainMenuOpen]);
+  }, [isChainMenuOpen, isMobileChainMenuOpen]);
 
   if (!isConnected) {
     return (
@@ -858,20 +868,20 @@ const WalletPage = () => {
                 </div>
                 {/* Mobile controls under Lexie ID */}
                 <div className="flex items-center gap-2 mt-2 sm:hidden">
-                  <div className="relative" ref={chainMenuRef}>
+                  <div className="relative" ref={mobileChainMenuRef}>
                     <button
-                      onClick={() => setIsChainMenuOpen((v) => !v)}
+                      onClick={() => setIsMobileChainMenuOpen((v) => !v)}
                       className="px-2 py-1 text-sm bg-black text-green-300 rounded border border-green-500/40 hover:border-emerald-400"
                     >
                       {supportedNetworks.find(n => n.id === chainId)?.name || 'Select'}
                       <span className="ml-1">▾</span>
                     </button>
-                    {isChainMenuOpen && (
+                    {isMobileChainMenuOpen && (
                       <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden z-50">
                         {supportedNetworks.map((net) => (
                           <button
                             key={net.id}
-                            onClick={() => { setIsChainMenuOpen(false); handleNetworkSwitch(net.id); }}
+                            onClick={() => { setIsMobileChainMenuOpen(false); handleNetworkSwitch(net.id); }}
                             className="w-full text-left px-3 py-2 hover:bg-emerald-900/30 focus:bg-emerald-900/30 focus:outline-none"
                           >
                             {net.name}
