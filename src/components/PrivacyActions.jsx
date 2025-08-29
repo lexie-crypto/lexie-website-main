@@ -987,7 +987,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                       <span className="text-green-400/70 truncate">• {token.name || `${token.symbol} Token`}</span>
                     </div>
                     <div className="text-right">
-                      <div className="text-green-200">{formatBalance ? formatBalance(token.numericBalance) : token.formattedBalance || token.numericBalance}</div>
+                      <div className="text-green-200">{Number(token.numericBalance).toFixed(6).replace(/\.?0+$/, '')}</div>
                       {token.balanceUSD !== undefined && (
                         <div className="text-green-400/70">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
                       )}

@@ -1018,7 +1018,7 @@ const WalletPage = () => {
                               <div className="text-green-400/70">• {token.name || `${token.symbol} Token`}</div>
           </div>
                             <div className="text-right">
-                              <div className="text-green-200">{token.formattedBalance}</div>
+                              <div className="text-green-200">{Number(token.numericBalance).toFixed(6).replace(/\.?0+$/, '')}</div>
                               {token.balanceUSD !== undefined && (
                                 <div className="text-green-400/70">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
                               )}
@@ -1067,7 +1067,7 @@ const WalletPage = () => {
                           </div>
                           <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 gap-2">
                             <div className="text-right">
-                              <div className="text-green-200">{token.formattedBalance}</div>
+                              <div className="text-green-200">{Number(token.numericBalance).toFixed(6).replace(/\.?0+$/, '')}</div>
                               <div className="text-green-400/70">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
                             </div>
                           {canUseRailgun && isSupported && token.hasBalance && (
