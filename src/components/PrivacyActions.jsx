@@ -981,17 +981,17 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               <div className="space-y-2">
                 <div className="text-sm text-green-400/70">{privateBalances.length} Vault Token{privateBalances.length !== 1 ? 's' : ''}</div>
                 {privateBalances.map((token) => (
-                  <div key={token.tokenAddress || token.address || token.symbol} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-2 bg-black/60 rounded text-sm border border-green-500/10">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-green-200 font-medium">{token.symbol}</span>
-                      <span className="text-green-400/70 truncate">• {token.name || `${token.symbol} Token`}</span>
-                    </div>
-                    <div className="text-right">
+                  <div key={token.tokenAddress || token.address || token.symbol} className="p-2 bg-black/60 rounded text-sm border border-green-500/10">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-green-200 font-medium">{token.symbol}</span>
+                        <span className="text-green-400/70 truncate">• {token.name || `${token.symbol} Token`}</span>
+                      </div>
                       <div className="text-green-200">{Number(token.numericBalance).toFixed(6).replace(/\.?0+$/, '')}</div>
-                      {token.balanceUSD !== undefined && (
-                        <div className="text-green-400/70">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
-                      )}
                     </div>
+                    {token.balanceUSD !== undefined && (
+                      <div className="text-right text-green-400/70 mt-1">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
+                    )}
                   </div>
                 ))}
               </div>

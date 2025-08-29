@@ -1012,18 +1012,18 @@ const WalletPage = () => {
 
                       {(showPrivateBalances || privateBalances.length <= 3) && 
                         privateBalances.map((token) => (
-                          <div key={token.symbol} className="flex items-center justify-between p-2 bg-black/60 rounded text-xs">
+                          <div key={token.symbol} className="p-2 bg-black/60 rounded text-xs">
+                          <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-2">
                               <div className="text-green-200 font-medium">{token.symbol}</div>
                               <div className="text-green-400/70">• {token.name || `${token.symbol} Token`}</div>
-          </div>
-                            <div className="text-right">
-                              <div className="text-green-200">{Number(token.numericBalance).toFixed(6).replace(/\.?0+$/, '')}</div>
-                              {token.balanceUSD !== undefined && (
-                                <div className="text-green-400/70">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
-                              )}
                             </div>
+                            <div className="text-green-200">{Number(token.numericBalance).toFixed(6).replace(/\.?0+$/, '')}</div>
                           </div>
+                          {token.balanceUSD !== undefined && (
+                            <div className="text-right text-green-400/70 mt-1">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
+                          )}
+                        </div>
                         ))
                       }
 
@@ -1060,49 +1060,49 @@ const WalletPage = () => {
                       const isShieldingThis = shieldingTokens.has(token.symbol);
                       
                       return (
-                        <div key={token.symbol} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-2 bg-black/60 rounded text-xs">
-                          <div className="flex items-center space-x-2 min-w-0">
-                            <div className="text-green-200 font-medium">{token.symbol}</div>
-                            <div className="text-green-400/70 truncate">• {token.name || `${token.symbol} Token`}</div>
-                          </div>
-                          <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 gap-2">
-                            <div className="text-right">
+                        <div key={token.symbol} className="p-2 bg-black/60 rounded text-xs">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2 min-w-0">
+                              <div className="text-green-200 font-medium">{token.symbol}</div>
+                              <div className="text-green-400/70 truncate">• {token.name || `${token.symbol} Token`}</div>
+                            </div>
+                            <div className="flex items-center space-x-2">
                               <div className="text-green-200">{Number(token.numericBalance).toFixed(6).replace(/\.?0+$/, '')}</div>
-                              <div className="text-green-400/70">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
+                              {canUseRailgun && isSupported && token.hasBalance && (
+                                <div className="flex items-center space-x-1 flex-wrap">
+                                  <input
+                                    type="number"
+                                    placeholder="Amount"
+                                    value={shieldAmounts[token.symbol] || ''}
+                                    onChange={(e) => setShieldAmounts(prev => ({
+                                      ...prev,
+                                      [token.symbol]: e.target.value
+                                    }))}
+                                    disabled={isShieldingThis}
+                                    className="w-20 bg-black text-green-200 rounded px-1 py-0.5 text-xs border border-green-500/40 focus:border-emerald-400 focus:outline-none"
+                                  />
+                                  <button
+                                    onClick={() => setShieldAmounts(prev => ({
+                                      ...prev,
+                                      [token.symbol]: token.numericBalance.toString()
+                                    }))}
+                                    disabled={isShieldingThis || !isChainReady}
+                                    className="bg-black hover:bg-green-900/20 disabled:bg-black/40 text-green-200 px-1 py-0.5 rounded text-xs border border-green-500/40"
+                                  >
+                                    Max
+                                  </button>
+                                  <button
+                                    onClick={() => handleShieldToken(token)}
+                                    disabled={isShieldingThis || !shieldAmounts[token.symbol] || !isChainReady}
+                                    className="bg-emerald-600/30 hover:bg-emerald-600/50 disabled:bg-black/40 text-emerald-200 px-2 py-0.5 rounded text-xs border border-emerald-400/40"
+                                  >
+                                    {isShieldingThis ? 'Adding…' : 'Add to Vault'}
+                                  </button>
+                                </div>
+                              )}
                             </div>
-                          {canUseRailgun && isSupported && token.hasBalance && (
-                              <div className="flex items-center space-x-1 flex-wrap justify-end">
-                              <input
-                                type="number"
-                                  placeholder="Amount"
-                                value={shieldAmounts[token.symbol] || ''}
-                                onChange={(e) => setShieldAmounts(prev => ({
-                                  ...prev,
-                                  [token.symbol]: e.target.value
-                                }))}
-                                disabled={isShieldingThis}
-                                  className="w-24 sm:w-20 bg-black text-green-200 rounded px-1 py-0.5 text-xs border border-green-500/40 focus:border-emerald-400 focus:outline-none"
-                              />
-                              <button
-                                onClick={() => setShieldAmounts(prev => ({
-                                  ...prev,
-                                  [token.symbol]: token.numericBalance.toString()
-                                }))}
-                                disabled={isShieldingThis || !isChainReady}
-                                  className="bg-black hover:bg-green-900/20 disabled:bg-black/40 text-green-200 px-1 py-0.5 rounded text-xs border border-green-500/40"
-                              >
-                                Max
-                              </button>
-                              <button
-                                onClick={() => handleShieldToken(token)}
-                                disabled={isShieldingThis || !shieldAmounts[token.symbol] || !isChainReady}
-                                  className="bg-emerald-600/30 hover:bg-emerald-600/50 disabled:bg-black/40 text-emerald-200 px-2 py-0.5 rounded text-xs border border-emerald-400/40"
-                                >
-                                  {isShieldingThis ? 'Adding…' : 'Add to Vault'}
-                              </button>
-                            </div>
-                          )}
-                            </div>
+                          </div>
+                          <div className="text-right text-green-400/70 mt-1">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
                         </div>
                       );
                     })}
