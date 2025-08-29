@@ -744,9 +744,9 @@ const WalletPage = () => {
   return (
     <div className="relative min-h-[100dvh] w-full bg-black text-white overflow-x-hidden">
       {/* Navigation (same as LandingPage) */}
-      <nav className="sticky top-0 z-40 w-full px-3 md:px-6 py-4 md:py-6 bg-black">
+      <nav className="sticky top-0 z-40 w-full p-6 bg-black">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="text-3xl md:text-4xl font-bold text-purple-300">
+          <div className="text-4xl font-bold text-purple-300">
             LEXIE AI
               </div>
           <div className="hidden md:flex space-x-6">
@@ -811,16 +811,16 @@ const WalletPage = () => {
           {/* Terminal content */}
           <div className="p-6 font-mono text-green-300 space-y-4">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-green-500/20 pb-3 md:pb-4 gap-2 flex-wrap">
+            <div className="flex items-center justify-between border-b border-green-500/20 pb-4">
               <div>
-                <h1 className="text-lg md:text-xl font-bold text-emerald-300">Lexie Secure Vault</h1>
-                <div className="flex items-center space-x-2 text-sm flex-wrap">
+                <h1 className="text-xl font-bold text-emerald-300">Lexie Secure Vault</h1>
+                <div className="flex items-center space-x-2 text-sm">
                   <span className="text-green-400/80">
                     {address?.slice(0, 6)}...{address?.slice(-4)}
                   </span>
                   <span className="text-green-400/60">•</span>
                   {currentLexieId ? (
-                    <div className="flex items-center space-x-2 max-w-[92vw]">
+                    <div className="flex items-center space-x-2">
                       <span className="text-purple-300 font-medium">{currentLexieId}</span>
                       <button
                         onClick={() => {
@@ -840,7 +840,7 @@ const WalletPage = () => {
                             </div>
                           ), { duration: 2500 });
                         }}
-                        className="inline-flex items-center gap-1 bg-purple-300 hover:bg-purple-400 text-black px-2 py-0.5 rounded text-xs font-medium transition-colors max-w-[92vw]"
+                        className="inline-flex items-center gap-1 bg-purple-300 hover:bg-purple-400 text-black px-2 py-0.5 rounded text-xs font-medium transition-colors"
                         title="Copy Lexie ID"
                       >
                         <ClipboardDocumentIcon className="h-3.5 w-3.5" />
@@ -850,14 +850,14 @@ const WalletPage = () => {
                   ) : (
                     <button
                       onClick={() => setShowLexieModal(true)}
-                      className="bg-purple-300 hover:bg-purple-400 text-black px-2 py-0.5 rounded text-xs font-medium transition-colors max-w-[92vw]"
+                      className="bg-purple-300 hover:bg-purple-400 text-black px-2 py-0.5 rounded text-xs font-medium transition-colors"
                     >
                       Get a Lexie ID
                     </button>
                   )}
                 </div>
               </div>
-              <div className="flex items-center gap-2 flex-wrap justify-end">
+              <div className="flex items-center space-x-3">
               <div className="relative" ref={chainMenuRef}>
                 <button
                   onClick={() => setIsChainMenuOpen((v) => !v)}
@@ -1012,12 +1012,12 @@ const WalletPage = () => {
 
                       {(showPrivateBalances || privateBalances.length <= 3) && 
                         privateBalances.map((token) => (
-                          <div key={token.symbol} className="grid grid-cols-2 md:flex md:items-center md:justify-between gap-2 p-2 bg-black/60 rounded text-xs">
-                            <div className="col-span-2 md:col-auto flex items-center space-x-2">
+                          <div key={token.symbol} className="flex items-center justify-between p-2 bg-black/60 rounded text-xs">
+                            <div className="flex items-center space-x-2">
                               <div className="text-green-200 font-medium">{token.symbol}</div>
                               <div className="text-green-400/70">• {token.name || `${token.symbol} Token`}</div>
           </div>
-                            <div className="col-span-2 md:col-auto text-right">
+                            <div className="text-right">
                               <div className="text-green-200">{token.formattedBalance}</div>
                               {token.balanceUSD !== undefined && (
                                 <div className="text-green-400/70">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
@@ -1060,49 +1060,49 @@ const WalletPage = () => {
                       const isShieldingThis = shieldingTokens.has(token.symbol);
                       
                       return (
-                        <div key={token.symbol} className="grid grid-cols-2 md:flex md:items-center md:justify-between gap-2 p-2 bg-black/60 rounded text-xs">
-                          <div className="col-span-2 md:col-auto flex items-center space-x-2 min-w-0">
+                        <div key={token.symbol} className="flex items-center justify-between p-2 bg-black/60 rounded text-xs">
+                          <div className="flex items-center space-x-2">
                             <div className="text-green-200 font-medium">{token.symbol}</div>
-                            <div className="text-green-400/70 truncate">• {token.name || `${token.symbol} Token`}</div>
+                            <div className="text-green-400/70">• {token.name || `${token.symbol} Token`}</div>
                           </div>
-                          <div className="col-span-2 md:col-auto flex items-center space-x-2 md:justify-end">
+                          <div className="flex items-center space-x-2">
                             <div className="text-right">
                               <div className="text-green-200">{token.formattedBalance}</div>
                               <div className="text-green-400/70">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
                             </div>
-                            {canUseRailgun && isSupported && token.hasBalance && (
-                              <div className="flex items-center gap-1 flex-wrap justify-end">
-                                <input
-                                  type="number"
+                          {canUseRailgun && isSupported && token.hasBalance && (
+                              <div className="flex items-center space-x-1">
+                              <input
+                                type="number"
                                   placeholder="Amount"
-                                  value={shieldAmounts[token.symbol] || ''}
-                                  onChange={(e) => setShieldAmounts(prev => ({
-                                    ...prev,
-                                    [token.symbol]: e.target.value
-                                  }))}
-                                  disabled={isShieldingThis}
-                                  className="w-28 md:w-20 bg-black text-green-200 rounded px-1 py-0.5 text-xs border border-green-500/40 focus:border-emerald-400 focus:outline-none"
-                                />
-                                <button
-                                  onClick={() => setShieldAmounts(prev => ({
-                                    ...prev,
-                                    [token.symbol]: token.numericBalance.toString()
-                                  }))}
-                                  disabled={isShieldingThis || !isChainReady}
+                                value={shieldAmounts[token.symbol] || ''}
+                                onChange={(e) => setShieldAmounts(prev => ({
+                                  ...prev,
+                                  [token.symbol]: e.target.value
+                                }))}
+                                disabled={isShieldingThis}
+                                  className="w-20 bg-black text-green-200 rounded px-1 py-0.5 text-xs border border-green-500/40 focus:border-emerald-400 focus:outline-none"
+                              />
+                              <button
+                                onClick={() => setShieldAmounts(prev => ({
+                                  ...prev,
+                                  [token.symbol]: token.numericBalance.toString()
+                                }))}
+                                disabled={isShieldingThis || !isChainReady}
                                   className="bg-black hover:bg-green-900/20 disabled:bg-black/40 text-green-200 px-1 py-0.5 rounded text-xs border border-green-500/40"
-                                >
-                                  Max
-                                </button>
-                                <button
-                                  onClick={() => handleShieldToken(token)}
-                                  disabled={isShieldingThis || !shieldAmounts[token.symbol] || !isChainReady}
-                                  className="bg-emerald-600/30 hover:bg-emerald-600/50 disabled:bg-black/40 text-emerald-200 px-2 py-0.5 rounded text-xs border border-emerald-400/40 max-w-[92vw]"
+                              >
+                                Max
+                              </button>
+                              <button
+                                onClick={() => handleShieldToken(token)}
+                                disabled={isShieldingThis || !shieldAmounts[token.symbol] || !isChainReady}
+                                  className="bg-emerald-600/30 hover:bg-emerald-600/50 disabled:bg-black/40 text-emerald-200 px-2 py-0.5 rounded text-xs border border-emerald-400/40"
                                 >
                                   {isShieldingThis ? 'Adding…' : 'Add to Vault'}
-                                </button>
-                              </div>
-                            )}
-                          </div>
+                              </button>
+                            </div>
+                          )}
+                            </div>
                         </div>
                       );
                     })}
