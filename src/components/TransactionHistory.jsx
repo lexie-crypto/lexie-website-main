@@ -109,7 +109,7 @@ const TransactionHistory = () => {
   return (
     <div className="bg-black/40 border border-green-500/20 rounded p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6 gap-3">
         <div>
           <h3 className="text-xl font-semibold text-emerald-300 flex items-center">
             Transaction History
@@ -122,7 +122,7 @@ const TransactionHistory = () => {
         <button
           onClick={refreshHistory}
           disabled={loading}
-          className="px-4 py-2 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 rounded border border-emerald-400/40 transition-colors disabled:opacity-50"
+          className="px-4 py-2 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 rounded border border-emerald-400/40 transition-colors disabled:opacity-50 self-start sm:self-auto"
         >
           {loading ? 'Refreshing...' : 'Refresh'}
         </button>
@@ -130,12 +130,12 @@ const TransactionHistory = () => {
 
       {/* Filters */}
       <div className="mb-6">
-        <div className="flex flex-wrap gap-4 mb-4">
+        <div className="flex flex-col sm:flex-row gap-3 mb-4">
           {/* Category Filter */}
           <select
             value={selectedCategory}
             onChange={(e) => setSelectedCategory(e.target.value)}
-            className="bg-black text-green-300 rounded px-3 py-2 border border-green-500/40 focus:border-emerald-400 focus:outline-none"
+            className="bg-black text-green-300 rounded px-3 py-2 border border-green-500/40 focus:border-emerald-400 focus:outline-none w-full sm:w-auto"
           >
             <option value="all">All Transactions ({statistics.total})</option>
             <option value="shield">Add to Vault ({statistics.shields})</option>
@@ -149,7 +149,7 @@ const TransactionHistory = () => {
             placeholder="Search by token, type, or TX ID..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="bg-black text-green-200 rounded px-3 py-2 border border-green-500/40 focus:border-emerald-400 focus:outline-none flex-1 min-w-64"
+            className="bg-black text-green-200 rounded px-3 py-2 border border-green-500/40 focus:border-emerald-400 focus:outline-none flex-1"
           />
         </div>
       </div>
@@ -177,7 +177,7 @@ const TransactionHistory = () => {
               className="bg-black/60 border border-green-500/20 rounded p-4 hover:bg-black/80 transition-colors"
             >
               {/* Transaction Header */}
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-3 gap-2">
                 <div className="flex items-center space-x-3">
                   <span className="text-2xl">{getTransactionIcon(tx.transactionType)}</span>
                   <div>
@@ -191,7 +191,7 @@ const TransactionHistory = () => {
                 </div>
                 <button
                   onClick={() => toggleDetails(tx.txid)}
-                  className="text-purple-300 hover:text-purple-200 text-sm"
+                  className="text-purple-300 hover:text-purple-200 text-sm self-start sm:self-auto"
                 >
                   {showDetails[tx.txid] ? 'Hide Details' : 'Show Details'}
                 </button>
@@ -200,17 +200,17 @@ const TransactionHistory = () => {
               {/* Token Amounts */}
               <div className="mb-3">
                 {tx.tokenAmounts.map((token, index) => (
-                  <div key={index} className="flex items-center justify-between py-1">
-                    <div className="flex items-center space-x-2">
+                  <div key={index} className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-1 gap-1">
+                    <div className="flex items-center space-x-2 min-w-0">
                       <span className="text-green-200 font-medium">{token.symbol}</span>
-                      <span className="text-green-400/70 text-sm">
+                      <span className="text-green-400/70 text-sm truncate">
                         {token.tokenAddress ? 
                           `${token.tokenAddress.slice(0, 6)}...${token.tokenAddress.slice(-4)}` : 
                           'Native'
                         }
                       </span>
                     </div>
-                    <div className="text-green-200 font-medium">
+                    <div className="text-green-200 font-medium text-right">
                       {token.formattedAmount}
                     </div>
                   </div>
@@ -219,7 +219,7 @@ const TransactionHistory = () => {
 
               {/* Description + Memo */}
               <div className="text-green-400/80 text-sm mb-3">
-                <div>{tx.description}</div>
+                <div className="break-words">{tx.description}</div>
                 {tx.memo && (
                   <div className="mt-1 text-cyan-300 break-words">
                     Memo: {tx.memo}
