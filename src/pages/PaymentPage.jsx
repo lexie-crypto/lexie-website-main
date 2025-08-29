@@ -436,7 +436,7 @@ const PaymentPage = () => {
 
   if (!isValidPaymentLink) {
     return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
+      <div className="min-h-[100svh] bg-black text-white flex items-center justify-center">
         <div className="text-center">
           <ExclamationTriangleIcon className="h-16 w-16 text-red-400 mx-auto mb-4" />
           <h1 className="text-xl font-bold text-red-300 mb-2">Invalid Payment Link</h1>
@@ -469,15 +469,15 @@ const PaymentPage = () => {
   }, [recipientVaultAddress]);
 
   return (
-    <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
+    <div className="relative min-h-[100svh] w-full bg-black text-white overflow-hidden">
       {/* Background overlays (match other pages) */}
-      <div className="fixed inset-0 z-0">
+      <div className="fixed inset-0 z-0 pointer-events-none">
         <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
         <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60"></div>
         <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-purple-900/40 via-purple-800/20 to-transparent"></div>
       </div>
 
-      <div className="relative z-10 max-w-md mx-auto px-4 py-12">
+      <div className="relative z-10 mx-auto w-full max-w-[560px] min-h-[100svh] overflow-y-auto px-4 pt-6 pb-[calc(env(safe-area-inset-bottom)+88px)]">
         {/* Terminal Window */}
         <div className="rounded-xl overflow-hidden shadow-2xl border border-green-500/30 bg-black">
           {/* Terminal chrome */}
