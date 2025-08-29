@@ -949,7 +949,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
       {/* Current Action Display */}
       <div className="border-b border-green-500/20 px-6 py-3">
-        <div className="flex items-center gap-2 text-emerald-300">
+        <div className="flex items-center gap-2 text-emerald-300 flex-wrap">
           {(() => {
             const currentTab = tabs.find(t => t.id === activeTab);
             const Icon = currentTab?.icon || ShieldCheckIcon;
@@ -957,7 +957,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               <>
                 <Icon className="h-5 w-5" />
                 <span className="font-medium">{currentTab?.name || 'Action'}</span>
-                <span className="text-green-400/70 text-sm">• {currentTab?.description}</span>
+                <span className="text-green-400/70 text-sm break-words">• {currentTab?.description}</span>
               </>
             );
           })()}
@@ -981,10 +981,10 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               <div className="space-y-2">
                 <div className="text-sm text-green-400/70">{privateBalances.length} Vault Token{privateBalances.length !== 1 ? 's' : ''}</div>
                 {privateBalances.map((token) => (
-                  <div key={token.tokenAddress || token.address || token.symbol} className="flex items-center justify-between p-2 bg-black/60 rounded text-sm border border-green-500/10">
-                    <div className="flex items-center gap-2">
+                  <div key={token.tokenAddress || token.address || token.symbol} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-2 bg-black/60 rounded text-sm border border-green-500/10">
+                    <div className="flex items-center gap-2 min-w-0">
                       <span className="text-green-200 font-medium">{token.symbol}</span>
-                      <span className="text-green-400/70">• {token.name || `${token.symbol} Token`}</span>
+                      <span className="text-green-400/70 truncate">• {token.name || `${token.symbol} Token`}</span>
                     </div>
                     <div className="text-right">
                       <div className="text-green-200">{formatBalance ? formatBalance(token.numericBalance) : token.formattedBalance || token.numericBalance}</div>

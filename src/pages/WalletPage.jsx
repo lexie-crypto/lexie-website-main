@@ -811,10 +811,10 @@ const WalletPage = () => {
           {/* Terminal content */}
           <div className="p-6 font-mono text-green-300 space-y-4">
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-green-500/20 pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-green-500/20 pb-4 gap-2">
               <div>
                 <h1 className="text-xl font-bold text-emerald-300">Lexie Secure Vault</h1>
-                <div className="flex items-center space-x-2 text-sm">
+                <div className="flex items-center space-x-2 text-sm flex-wrap">
                   <span className="text-green-400/80">
                     {address?.slice(0, 6)}...{address?.slice(-4)}
                   </span>
@@ -857,7 +857,7 @@ const WalletPage = () => {
                   )}
                 </div>
               </div>
-              <div className="flex items-center space-x-3">
+              <div className="flex items-center space-x-3 flex-wrap gap-2 justify-end">
               <div className="relative" ref={chainMenuRef}>
                 <button
                   onClick={() => setIsChainMenuOpen((v) => !v)}
@@ -867,7 +867,7 @@ const WalletPage = () => {
                   <span className="ml-1">▾</span>
                 </button>
                 {isChainMenuOpen && (
-                  <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden">
+                  <div className="absolute mt-1 right-0 sm:left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden z-50">
                     {supportedNetworks.map((net) => (
                       <button
                         key={net.id}
@@ -883,7 +883,7 @@ const WalletPage = () => {
               </div>
               <button
                 onClick={disconnectWallet}
-                  className="bg-black hover:bg-red-900/30 text-red-300 px-3 py-1 rounded text-sm border border-red-500/40"
+                  className="bg-black hover:bg-red-900/30 text-red-300 px-3 py-1 rounded text-sm border border-red-500/40 shrink-0"
               >
                 Disconnect
               </button>
@@ -1060,18 +1060,18 @@ const WalletPage = () => {
                       const isShieldingThis = shieldingTokens.has(token.symbol);
                       
                       return (
-                        <div key={token.symbol} className="flex items-center justify-between p-2 bg-black/60 rounded text-xs">
-                          <div className="flex items-center space-x-2">
+                        <div key={token.symbol} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 p-2 bg-black/60 rounded text-xs">
+                          <div className="flex items-center space-x-2 min-w-0">
                             <div className="text-green-200 font-medium">{token.symbol}</div>
-                            <div className="text-green-400/70">• {token.name || `${token.symbol} Token`}</div>
+                            <div className="text-green-400/70 truncate">• {token.name || `${token.symbol} Token`}</div>
                           </div>
-                          <div className="flex items-center space-x-2">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 gap-2">
                             <div className="text-right">
                               <div className="text-green-200">{token.formattedBalance}</div>
                               <div className="text-green-400/70">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
                             </div>
                           {canUseRailgun && isSupported && token.hasBalance && (
-                              <div className="flex items-center space-x-1">
+                              <div className="flex items-center space-x-1 flex-wrap justify-end">
                               <input
                                 type="number"
                                   placeholder="Amount"
@@ -1081,7 +1081,7 @@ const WalletPage = () => {
                                   [token.symbol]: e.target.value
                                 }))}
                                 disabled={isShieldingThis}
-                                  className="w-20 bg-black text-green-200 rounded px-1 py-0.5 text-xs border border-green-500/40 focus:border-emerald-400 focus:outline-none"
+                                  className="w-24 sm:w-20 bg-black text-green-200 rounded px-1 py-0.5 text-xs border border-green-500/40 focus:border-emerald-400 focus:outline-none"
                               />
                               <button
                                 onClick={() => setShieldAmounts(prev => ({
