@@ -287,6 +287,19 @@ export const getTransactionHistory = async (walletID, chainId, startingBlock = n
       startingBlock
     });
     
+    // Check wallet scanning status before fetching history
+    try {
+      const { getWalletScanningProgress } = await import('@railgun-community/wallet');
+      const scanProgress = await getWalletScanningProgress(chain, walletID);
+      console.log('[TransactionHistory] Wallet scan progress:', {
+        walletID: walletID?.slice(0, 8) + '...',
+        chainId,
+        scanProgress: scanProgress || 'unknown'
+      });
+    } catch (scanError) {
+      console.warn('[TransactionHistory] Could not check scan progress:', scanError.message);
+    }
+    
     // Get raw transaction history from RAILGUN
     const rawHistory = await getWalletTransactionHistory(
       chain,
@@ -296,7 +309,8 @@ export const getTransactionHistory = async (walletID, chainId, startingBlock = n
     
     console.log('[TransactionHistory] Raw history received:', {
       count: rawHistory.length,
-      types: rawHistory.map(item => item.category)
+      types: rawHistory.map(item => item.category),
+      userAgent: navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop'
     });
     
     // Format for UI display

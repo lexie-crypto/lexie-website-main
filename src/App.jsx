@@ -49,16 +49,6 @@ function App() {
             <Route path="/pay" element={<PaymentPage />} />
           </Routes>
           
-          {/* Mobile Debug Gear Icon */}
-          {isMobile && (
-            <button
-              onClick={toggleMobileDebug}
-              className="fixed top-4 right-4 z-50 w-10 h-10 bg-gray-800/90 hover:bg-gray-700/90 text-white rounded-full flex items-center justify-center border border-gray-600/50 backdrop-blur-sm"
-              title="Toggle Debug Console"
-            >
-              ⚙️
-            </button>
-          )}
           
           {/* Toast notifications */}
           <Toaster
