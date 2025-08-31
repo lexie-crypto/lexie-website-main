@@ -1030,12 +1030,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <label className="block text-sm font-medium text-green-300">
                   Payment Link
                 </label>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
                   <input
                     type="text"
                     value={paymentLink}
                     readOnly
-                    className="flex-1 px-3 py-2 border border-green-500/40 rounded bg-black text-green-200 text-sm"
+                    className="flex-1 w-full min-w-0 px-3 py-2 border border-green-500/40 rounded bg-black text-green-200 text-sm"
                   />
                   <button
                     type="button"
@@ -1066,7 +1066,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                         </div>
                       ), { duration: 2000 });
                     }}
-                    className="px-3 py-2 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 rounded border border-emerald-400/40 flex items-center gap-1"
+                    className="w-full sm:w-auto px-3 py-2 bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 rounded border border-emerald-400/40 flex items-center justify-center gap-1"
                   >
                     <ClipboardDocumentIcon className="h-4 w-4" />
                     Copy
