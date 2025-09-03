@@ -37,15 +37,15 @@ const InjectedProviderButtons = ({ disabled }) => {
 
   return (
     <div className="mt-6">
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-3 gap-6">
         {providersSorted.map((p) => (
           <button
             key={p.info?.uuid || p.info?.rdns || p.info?.name}
             onClick={() => handleClick(p.provider, { name: p.info?.name, id: p.info?.uuid || p.info?.rdns })}
             disabled={disabled || busyKey === (p.info?.uuid || p.info?.rdns || p.info?.name)}
             className={[
-              'flex items-center gap-3 rounded-xl border border-white/10 bg-white/5',
-              'px-4 py-3 h-14',
+              'flex items-center gap-4 rounded-xl border border-white/10 bg-white/5',
+              'px-6 py-4 h-16',
               'hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400',
               'disabled:opacity-60 disabled:cursor-not-allowed',
             ].join(' ')}
@@ -56,7 +56,7 @@ const InjectedProviderButtons = ({ disabled }) => {
             ) : (
               <span className="h-6 w-6" aria-hidden>🦊</span>
             )}
-            <span className="text-emerald-200 font-medium truncate">{p.info?.name}</span>
+            <span className="text-emerald-200 font-medium whitespace-nowrap">{p.info?.name}</span>
           </button>
         ))}
 
@@ -64,11 +64,11 @@ const InjectedProviderButtons = ({ disabled }) => {
         <button
           onClick={() => { setBusyKey('walletconnect'); onWalletConnect(); }}
           disabled={busyKey === 'walletconnect'}
-          className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 h-14 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60"
+          className="flex items-center gap-4 rounded-xl border border-white/10 bg-white/5 px-6 py-4 h-16 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60"
           aria-label="Connect with WalletConnect"
         >
           <span className="h-6 w-6" aria-hidden>🔗</span>
-          <span className="text-emerald-200 font-medium">WalletConnect</span>
+          <span className="text-emerald-200 font-medium whitespace-nowrap">WalletConnect</span>
         </button>
       </div>
     </div>
