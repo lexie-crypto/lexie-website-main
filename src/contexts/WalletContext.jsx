@@ -7,7 +7,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { createConfig, custom } from 'wagmi';
 import { mainnet, polygon, arbitrum, bsc } from 'wagmi/chains';
-import { metaMask, walletConnect } from 'wagmi/connectors';
+import { metaMask, walletConnect, injected } from 'wagmi/connectors';
 import { WagmiProvider, useAccount, useConnect, useDisconnect, useSwitchChain, useConnectorClient, useSignMessage } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/environment';
@@ -154,6 +154,7 @@ const queryClient = new QueryClient();
 const wagmiConfig = createConfig({
   chains: [mainnet, polygon, arbitrum, bsc],
   connectors: [
+    injected({ shimDisconnect: true }),
     metaMask(),
     walletConnect({
       projectId: WALLETCONNECT_CONFIG.projectId,
@@ -260,6 +261,8 @@ const WalletContextProvider = ({ children }) => {
 
   // Track chains currently undergoing an initial scan to prevent overlaps
   const chainsScanningRef = useRef(new Set());
+  // Capture explicitly selected injected provider (e.g., Rabby/Trust) from UI
+  const selectedInjectedProviderRef = useRef(null);
 
   // Ensure initial full scan is completed for a given chain before user transacts
   const ensureChainScanned = useCallback(async (targetChainId) => {
@@ -529,40 +532,71 @@ const WalletContextProvider = ({ children }) => {
   };
 
   // Get wallet signer for SDK operations using actual connected wallet
-  const getWalletSigner = async () => {
-    if (!connector) {
-      throw new Error('No connector available');
+  const getWalletSigner = async (overrideProvider) => {
+    // Prefer explicit injected provider when provided
+    let selectedProvider = overrideProvider || selectedInjectedProviderRef.current;
+    if (!selectedProvider) {
+      if (!connector) {
+        throw new Error('No connector available');
+      }
+      selectedProvider = await connector.getProvider();
     }
-
-    // Get the actual EIP-1193 provider from the connector
-    const eip1193Provider = await connector.getProvider();
-    if (!eip1193Provider) {
-      throw new Error('Failed to get EIP-1193 provider from connector');
+    if (!selectedProvider) {
+      throw new Error('Failed to get EIP-1193 provider');
     }
 
     const { BrowserProvider } = await import('ethers');
-    const provider = new BrowserProvider(eip1193Provider);
+    const provider = new BrowserProvider(selectedProvider);
     const signer = await provider.getSigner();
     
     console.log('✅ Wallet signer created using actual EIP-1193 provider:', {
-      connectorId: connector.id,
-      connectorName: connector.name,
+      connectorId: connector?.id,
+      connectorName: connector?.name,
       address: await signer.getAddress(),
-      providerType: eip1193Provider.constructor?.name || 'EIP1193Provider'
+      providerType: selectedProvider.constructor?.name || 'EIP1193Provider'
     });
     return signer;
   };
 
   // Simple wallet connection - UI layer only
-  const connectWallet = async (connectorType = 'metamask') => {
+  const connectWallet = async (connectorType = 'metamask', options = {}) => {
     try {
-      const targetConnector = connectors.find(c => 
-        connectorType === 'metamask' ? c.id === 'metaMask' : c.id === 'walletConnect'
-      );
+      let targetConnector = null;
+
+      // If UI passed a specific injected provider, capture it for signer preference
+      if (connectorType === 'injected' && options?.provider) {
+        selectedInjectedProviderRef.current = options.provider;
+      } else {
+        selectedInjectedProviderRef.current = null;
+      }
+
+      // Map well-known brands to dedicated connectors when available
+      const brandName = (options?.name || '').toLowerCase();
+      const providerObj = options?.provider || {};
+      const isMetaMaskBrand = providerObj.isMetaMask || brandName.includes('metamask');
+
+      if (connectorType === 'metamask' || isMetaMaskBrand) {
+        targetConnector = connectors.find(c => c.id === 'metaMask');
+        // explicit brand path uses official connector only
+        selectedInjectedProviderRef.current = null;
+      } else if (connectorType === 'walletconnect') {
+        targetConnector = connectors.find(c => c.id === 'walletConnect');
+      } else if (connectorType === 'injected') {
+        if (options?.provider) {
+          // Bind wagmi to the clicked provider through a minimal connector
+          const { clickedInjectedConnector } = await import('../connectors/clickedInjected.js');
+          const connector = clickedInjectedConnector(options.provider, options?.name);
+          await connect({ connector });
+          console.log('✅ Connected via clicked injected provider:', options?.name || 'Injected');
+          return;
+        }
+        // No provider supplied: fallback to generic injected connector
+        targetConnector = connectors.find(c => c.id === 'injected');
+      }
       
       if (targetConnector) {
         await connect({ connector: targetConnector });
-        console.log('✅ Connected via wagmi:', targetConnector.id);
+        console.log('✅ Connected via wagmi:', targetConnector.id, options?.name || '');
       }
     } catch (error) {
       console.error('❌ Wagmi connection failed:', error);
@@ -591,6 +625,7 @@ const WalletContextProvider = ({ children }) => {
       setRailgunAddress(null);
       setRailgunWalletID(null);
       setRailgunError(null);
+      selectedInjectedProviderRef.current = null;
       
       // 💾 Keep encrypted Railgun data in localStorage for next connection
       // DON'T clear: railgun-walletID-${address} or railgun-mnemonic-${address}

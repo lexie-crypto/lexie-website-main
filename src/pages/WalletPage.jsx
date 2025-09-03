@@ -23,6 +23,7 @@ import { useWallet } from '../contexts/WalletContext';
 import useBalances from '../hooks/useBalances';
 import PrivacyActions from '../components/PrivacyActions';
 import TransactionHistory from '../components/TransactionHistory';
+import InjectedProviderButtons from '../components/InjectedProviderButtons.jsx';
 import {
   shieldTokens,
   parseTokenAmount,
@@ -707,23 +708,14 @@ const WalletPage = () => {
             </p>
             
             <div className="space-y-4">
-              {/* MetaMask */}
-              <button
-                onClick={() => connectWallet('metamask')}
-                disabled={isConnecting}
-                  className="w-full bg-emerald-600/30 hover:bg-emerald-600/50 disabled:bg-black/40 disabled:cursor-not-allowed text-emerald-200 py-3 px-6 rounded font-medium transition-colors flex items-center justify-center space-x-2 border border-emerald-400/40"
-              >
-                <span>🦊</span>
-                <span>
-                  {isConnecting ? 'Connecting...' : 'Connect MetaMask'}
-                </span>
-              </button>
-              
-              {/* WalletConnect */}
+              {/* Auto-detected injected providers (EIP-6963 + legacy) */}
+              <InjectedProviderButtons disabled={isConnecting} />
+
+              {/* WalletConnect fallback */}
               <button
                 onClick={() => connectWallet('walletconnect')}
                 disabled={isConnecting}
-                  className="w-full bg-emerald-600/30 hover:bg-emerald-600/50 disabled:bg-black/40 text-emerald-200 py-3 px-6 rounded font-medium transition-colors flex items-center justify-center space-x-2 border border-emerald-400/40"
+                className="w-full bg-emerald-600/30 hover:bg-emerald-600/50 disabled:bg-black/40 text-emerald-200 py-3 px-6 rounded font-medium transition-colors flex items-center justify-center space-x-2 border border-emerald-400/40"
               >
                 <span>🔗</span>
                 <span>{isConnecting ? 'Connecting...' : 'WalletConnect'}</span>
