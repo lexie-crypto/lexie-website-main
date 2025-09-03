@@ -68,7 +68,7 @@ const InjectedProviderButtons = ({ disabled }) => {
           aria-label="Connect with WalletConnect"
         >
           <img src="/walletconnect.svg" alt="" aria-hidden="true" className="h-7 w-7" />
-          <span className="text-emerald-200 font-medium whitespace-nowrap">WC</span>
+          <span className="text-emerald-200 font-medium whitespace-nowrap">WalletConnect</span>
         </button>
       </div>
     </div>
