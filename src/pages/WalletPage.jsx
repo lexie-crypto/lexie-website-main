@@ -680,9 +680,11 @@ const WalletPage = () => {
           </div>
         </div>
 
-        <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="relative z-10 max-w-lg mx-auto px-4 sm:px-6 lg:px-8 py-12">
           {/* Terminal Window */}
-          <div className="rounded-xl overflow-hidden shadow-2xl border border-green-500/30 bg-black">
+          <div className="flex justify-center">
+            <div className="scale-75 origin-top">
+              <div className="rounded-xl overflow-hidden shadow-2xl border border-green-500/30 bg-black">
             {/* Terminal chrome */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-green-500/20 bg-black/90">
               <div className="flex items-center gap-3">
@@ -736,6 +738,8 @@ const WalletPage = () => {
                 <span>Status: Waiting</span>
               </div>
               <div className="text-yellow-400">Ready</div>
+            </div>
+              </div>
             </div>
           </div>
         </div>
