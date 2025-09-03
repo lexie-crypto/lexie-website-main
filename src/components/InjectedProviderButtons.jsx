@@ -67,9 +67,7 @@ const InjectedProviderButtons = ({ disabled }) => {
           className="flex items-center gap-4 rounded-xl border border-white/10 bg-white/5 px-6 py-4 h-16 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60"
           aria-label="Connect with WalletConnect"
         >
-          <svg viewBox="0 0 24 24" className="h-7 w-7 text-blue-400" aria-hidden="true">
-            <path fill="currentColor" d="M3.6 8.4c3.4-3.4 8.9-3.4 12.3 0l.5.5.5-.5c3.4-3.4 8.9-3.4 12.3 0l.6.6c.3.3.3.8 0 1.1l-1.9 1.9c-.3.3-.8.3-1.1 0l-.3-.3c-2.5-2.5-6.6-2.5-9.1 0l-.4.4c-.3.3-.8.3-1.1 0l-.4-.4c-2.5-2.5-6.6-2.5-9.1 0l-.3.3c-.3.3-.8.3-1.1 0L3 10.1c-.3-.3-.3-.8 0-1.1l.6-.6zm16 5.5 1.9 1.9c.3.3.3.8 0 1.1l-3.9 3.9c-.3.3-.8.3-1.1 0l-2.2-2.2a.3.3 0 0 0-.4 0l-.5.5a3 3 0 0 1-4.2 0l-.5-.5a.3.3 0 0 0-.4 0L6 20.8c-.3.3-.8.3-1.1 0l-3.9-3.9c-.3-.3-.3-.8 0-1.1l1.9-1.9c.3-.3.8-.3 1.1 0l3.9 3.9c.3.3.8.3 1.1 0L11.2 16a.3.3 0 0 1 .4 0l.5.5a3 3 0 0 0 4.2 0l.5-.5a.3.3 0 0 1 .4 0l2.2 2.2c.3.3.8.3 1.1 0l3.9-3.9c.3-.3.3-.8 0-1.1l-1.9-1.9c-.3-.3-.8-.3-1.1 0z"/>
-          </svg>
+          <img src="/walletconnect.svg" alt="" aria-hidden="true" className="h-7 w-7" />
           <span className="text-emerald-200 font-medium whitespace-nowrap">WalletConnect</span>
         </button>
       </div>
