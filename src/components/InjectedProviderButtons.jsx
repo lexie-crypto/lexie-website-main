@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import useInjectedProviders from '../hooks/useInjectedProviders';
 import { useWallet } from '../contexts/WalletContext';
 
@@ -9,36 +9,57 @@ import { useWallet } from '../contexts/WalletContext';
 const InjectedProviderButtons = ({ disabled }) => {
   const { providers } = useInjectedProviders();
   const { connectWallet } = useWallet();
+  const [busyKey, setBusyKey] = useState(null);
 
   const handleClick = async (provider, meta) => {
     try {
+      const key = meta?.id || meta?.name;
+      setBusyKey(key);
       await provider.request({ method: 'eth_requestAccounts' });
       // Use generic injected connector and pass through provider metadata
       await connectWallet('injected', { provider, name: meta?.name, id: meta?.id });
     } catch (err) {
       console.error('Failed to connect provider:', err);
+    } finally {
+      setBusyKey(null);
     }
   };
 
   if (!providers || providers.length === 0) return null;
 
+  const onWalletConnect = () => {
+    try { connectWallet('walletconnect'); } catch (e) { console.error(e); }
+  };
+
   return (
-    <div className="space-y-3">
-      {providers.map((p) => (
+    <div className="mt-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
+        {providers.map((p) => (
+          <button
+            key={p.info?.uuid || p.info?.rdns || p.info?.name}
+            onClick={() => handleClick(p.provider, { name: p.info?.name, id: p.info?.uuid || p.info?.rdns })}
+            disabled={disabled || busyKey === (p.info?.uuid || p.info?.rdns || p.info?.name)}
+            className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10 transition focus:outline-none focus:ring-2 focus:ring-emerald-400"
+            aria-label={`Connect ${p.info?.name}`}
+          >
+            {p.info?.icon ? (
+              <img src={p.info.icon} alt="" className="h-6 w-6 rounded-md" />
+            ) : (
+              <span className="h-6 w-6" aria-hidden>🦊</span>
+            )}
+            <span className="text-emerald-200 font-medium truncate">{p.info?.name}</span>
+          </button>
+        ))}
+
         <button
-          key={`${p.id || p.name}`}
-          onClick={() => handleClick(p.provider, p)}
-          disabled={disabled}
-          className="w-full bg-emerald-600/30 hover:bg-emerald-600/50 disabled:bg-black/40 disabled:cursor-not-allowed text-emerald-200 py-3 px-6 rounded font-medium transition-colors flex items-center justify-center space-x-2 border border-emerald-400/40"
+          onClick={onWalletConnect}
+          className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10 transition focus:outline-none focus:ring-2 focus:ring-emerald-400"
+          aria-label="Connect with WalletConnect"
         >
-          {p.icon && (p.icon.startsWith('data:') || p.icon.startsWith('http')) ? (
-            <img src={p.icon} alt={p.name} className="w-5 h-5" />
-          ) : (
-            <span>{p.icon || '💼'}</span>
-          )}
-          <span>Connect {p.name}</span>
+          <span className="h-6 w-6" aria-hidden>🔗</span>
+          <span className="text-emerald-200 font-medium">WalletConnect</span>
         </button>
-      ))}
+      </div>
     </div>
   );
 };

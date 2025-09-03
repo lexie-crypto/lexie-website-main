@@ -1,72 +1,33 @@
 /**
  * useInjectedProviders
- * Detects EIP-6963 announced providers and falls back to legacy injected providers.
- * ESM-only.
+ * Detects EIP-6963 announced providers and legacy injected providers.
+ * Dedupes by brand (prefer EIP-6963), and normalizes names.
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-const pickProviderMeta = (provider, info) => {
-  // Prefer EIP-6963 info
-  const nameFromInfo = info?.name;
-  const uuid = info?.uuid;
-  const icon = info?.icon; // Data URI per EIP-6963 (optional)
-
-  // Legacy flags
-  const p = provider || {};
-  const isMetaMask = !!p.isMetaMask;
-  const isRabby = !!p.isRabby;
-  const isTrust = !!p.isTrust || !!p.isTrustWallet;
-  const isCoinbase = !!p.isCoinbaseWallet || !!p.isCoinbaseBrowser;
-  const isOKX = !!p.isOkxWallet || !!p.isOKExWallet || !!p.isOKXWallet;
-  const isBitget = !!p.isBitget || !!p.isBitgetWallet || !!p.isBitKeep;
-
-  const detectedName =
-    nameFromInfo ||
-    (isMetaMask ? 'MetaMask' :
-    isRabby ? 'Rabby' :
-    isTrust ? 'Trust Wallet' :
-    isCoinbase ? 'Coinbase Wallet' :
-    isOKX ? 'OKX Wallet' :
-    isBitget ? 'Bitget Wallet' :
-    'Injected Wallet');
-
-  const emojiIcon =
-    (detectedName === 'MetaMask' && '🦊') ||
-    (detectedName === 'Rabby' && '🐰') ||
-    (detectedName === 'Trust Wallet' && '🔷') ||
-    (detectedName === 'Coinbase Wallet' && '🟦') ||
-    (detectedName === 'OKX Wallet' && '⚫') ||
-    (detectedName === 'Bitget Wallet' && '🟢') ||
-    '💼';
-
-  return {
-    id: uuid || detectedName,
-    name: detectedName,
-    // Prefer EIP-6963 icon if available, otherwise emoji fallback
-    icon: icon || emojiIcon,
-  };
-};
-
 export default function useInjectedProviders() {
-  const [providers, setProviders] = useState([]);
-  const seenRef = useRef(new Set());
+  const [providers6963, setProviders6963] = useState([]); // [{ info, provider }]
+  const [legacyProviders, setLegacyProviders] = useState([]); // [{ info, provider }]
 
   useEffect(() => {
-    const addProvider = (provider, info) => {
-      if (!provider) return;
-      const meta = pickProviderMeta(provider, info);
-      const key = meta.id || meta.name;
-      if (seenRef.current.has(key)) return;
-      seenRef.current.add(key);
-      setProviders((prev) => [...prev, { ...meta, provider }]);
-    };
+    const legacyList = [];
 
     // EIP-6963 discovery
     const onAnnounce = (event) => {
       try {
         const { info, provider } = event?.detail || {};
-        addProvider(provider, info);
+        if (!provider || !info) return;
+        setProviders6963((prev) => {
+          const next = [...prev, { info, provider }];
+          const seen = new Set();
+          return next.filter((d) => {
+            const key = (d?.info?.rdns?.toLowerCase?.() || d?.info?.name?.toLowerCase?.() || '');
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+        });
       } catch {}
     };
     try { window.addEventListener('eip6963:announceProvider', onAnnounce); } catch {}
@@ -75,30 +36,116 @@ export default function useInjectedProviders() {
     // Legacy discovery (single or multiple providers)
     try {
       const eth = typeof window !== 'undefined' ? window.ethereum : undefined;
-      const potential = [];
-      if (eth?.providers && Array.isArray(eth.providers)) {
-        potential.push(...eth.providers);
-      } else if (eth) {
-        potential.push(eth);
-      }
-      potential.forEach((p) => addProvider(p));
+      const potentials = [];
+      if (eth?.providers && Array.isArray(eth.providers)) potentials.push(...eth.providers);
+      else if (eth) potentials.push(eth);
+
+      const toLegacyInfo = (p) => {
+        const isMetaMask = !!p?.isMetaMask;
+        const isRabby = !!p?.isRabby;
+        const isTrust = !!p?.isTrust || !!p?.isTrustWallet;
+        const isCoinbase = !!p?.isCoinbaseWallet || !!p?.isCoinbaseBrowser;
+        const isOKX = !!p?.isOkxWallet || !!p?.isOKExWallet || !!p?.isOKXWallet;
+        const isBitget = !!p?.isBitget || !!p?.isBitgetWallet || !!p?.isBitKeep;
+        const isBrave = !!p?.isBraveWallet;
+
+        // Map legacy flags to rdns for dedupe
+        const rdns = (
+          (isMetaMask && 'io.metamask') ||
+          (isBrave && 'com.brave.wallet') ||
+          (isRabby && 'io.rabby') ||
+          (isOKX && 'com.okx.wallet') ||
+          (isTrust && 'com.trustwallet.app') ||
+          (isCoinbase && 'com.coinbase.wallet') ||
+          (isBitget && 'com.bitget.wallet') ||
+          ''
+        );
+
+        const name = (
+          (isMetaMask && 'MetaMask') ||
+          (isBrave && 'Brave Wallet') ||
+          (isRabby && 'Rabby Wallet') ||
+          (isOKX && 'OKX Wallet') ||
+          (isTrust && 'Trust Wallet') ||
+          (isCoinbase && 'Coinbase Wallet') ||
+          (isBitget && 'Bitget Wallet') ||
+          'Injected Wallet'
+        );
+
+        return { info: { uuid: undefined, rdns, name, icon: undefined }, provider: p };
+      };
+
+      potentials.forEach((p) => legacyList.push(toLegacyInfo(p)));
     } catch {}
+
+    // Commit legacy once gathered
+    setLegacyProviders(legacyList);
 
     return () => {
       try { window.removeEventListener('eip6963:announceProvider', onAnnounce); } catch {}
     };
   }, []);
 
-  const uniqueProviders = useMemo(() => {
-    // Keep stable order: EIP-6963 announcements then legacy
-    const map = new Map();
-    for (const p of providers) {
-      if (!map.has(p.id)) map.set(p.id, p);
-    }
-    return Array.from(map.values());
-  }, [providers]);
+  const providers = useMemo(() => {
+    const BRAND_BY_RDNS = {
+      'io.metamask': 'MetaMask',
+      'com.brave.wallet': 'Brave Wallet',
+      'io.rabby': 'Rabby Wallet',
+      'com.okx.wallet': 'OKX Wallet',
+      'com.trustwallet.app': 'Trust Wallet',
+      'com.coinbase.wallet': 'Coinbase Wallet',
+      'com.bitget.wallet': 'Bitget Wallet',
+    };
 
-  return { providers: uniqueProviders };
+    const canonicalKey = (d) => {
+      const rdns = d?.info?.rdns?.toLowerCase();
+      const name = d?.info?.name?.toLowerCase();
+      return rdns || name || '';
+    };
+    const normalizeName = (d) => {
+      const rdns = d?.info?.rdns?.toLowerCase() || '';
+      return BRAND_BY_RDNS[rdns] || d?.info?.name || 'Injected Wallet';
+    };
+
+    // 1) Prefer 6963
+    const seen = new Set();
+    const prefer = [];
+    for (const d of providers6963) {
+      const key = canonicalKey(d);
+      if (!seen.has(key)) { seen.add(key); prefer.push(d); }
+    }
+
+    // 2) Add legacy only if not already seen
+    const merged = [...prefer];
+    for (const d of legacyProviders) {
+      const key = canonicalKey(d);
+      if (!seen.has(key)) { seen.add(key); merged.push(d); }
+    }
+
+    // 3) Normalize display name and flatten to minimal shape for UI
+    const ORDER = ['Brave Wallet','Rabby Wallet','MetaMask','Coinbase Wallet','Trust Wallet','OKX Wallet','Bitget Wallet'];
+    const finalProviders = merged.map((d) => ({
+      info: {
+        uuid: d?.info?.uuid,
+        rdns: d?.info?.rdns,
+        name: normalizeName(d),
+        icon: d?.info?.icon,
+      },
+      provider: d.provider,
+    }));
+
+    finalProviders.sort((a, b) => {
+      const an = a.info.name;
+      const bn = b.info.name;
+      const ai = ORDER.indexOf(an);
+      const bi = ORDER.indexOf(bn);
+      return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+    });
+
+    return finalProviders;
+  }, [providers6963, legacyProviders]);
+
+  return { providers };
 }
 
 
