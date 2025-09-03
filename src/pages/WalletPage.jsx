@@ -680,7 +680,7 @@ const WalletPage = () => {
           </div>
         </div>
 
-        <div className="relative z-10 max-w-lg mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        <div className="relative z-10 max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
           {/* Terminal Window */}
           <div className="flex justify-center">
             <div className="scale-75 origin-top">
@@ -704,8 +704,8 @@ const WalletPage = () => {
             {/* Terminal content */}
             <div className="p-8 font-mono text-green-300 text-center">
               <WalletIcon className="h-16 w-16 text-emerald-300 mx-auto mb-6" />
-              <h1 className="text-2xl font-bold text-emerald-300 mb-4">Connect Wallet</h1>
-              <p className="text-green-400/80 mb-8">
+              <h2 className="text-2xl font-semibold text-emerald-300 tracking-tight">Connect Wallet</h2>
+              <p className="mt-2 text-emerald-300/80 text-center text-sm leading-6">
                 Connect your wallet to gain access to the Lexie Vault features.
             </p>
             
@@ -713,15 +713,7 @@ const WalletPage = () => {
               {/* Auto-detected injected providers (EIP-6963 + legacy) */}
               <InjectedProviderButtons disabled={isConnecting} />
 
-              {/* WalletConnect fallback */}
-              <button
-                onClick={() => connectWallet('walletconnect')}
-                disabled={isConnecting}
-                className="w-full bg-emerald-600/30 hover:bg-emerald-600/50 disabled:bg-black/40 text-emerald-200 py-3 px-6 rounded font-medium transition-colors flex items-center justify-center space-x-2 border border-emerald-400/40"
-              >
-                <span>🔗</span>
-                <span>{isConnecting ? 'Connecting...' : 'WalletConnect'}</span>
-              </button>
+              {/* WalletConnect tile is rendered within InjectedProviderButtons */}
             </div>
 
               <div className="mt-6 text-sm text-green-400/70 text-center">

@@ -31,15 +31,24 @@ const InjectedProviderButtons = ({ disabled }) => {
     try { connectWallet('walletconnect'); } catch (e) { console.error(e); }
   };
 
+  // Safe-style ordering
+  const ORDER = ['Brave Wallet','Rabby Wallet','MetaMask','Coinbase Wallet','Trust Wallet','OKX Wallet','Bitget Wallet','Phantom'];
+  const providersSorted = (providers || []).slice().sort((a, b) => ORDER.indexOf(a.info?.name) - ORDER.indexOf(b.info?.name));
+
   return (
     <div className="mt-6">
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 sm:gap-4">
-        {providers.map((p) => (
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+        {providersSorted.map((p) => (
           <button
             key={p.info?.uuid || p.info?.rdns || p.info?.name}
             onClick={() => handleClick(p.provider, { name: p.info?.name, id: p.info?.uuid || p.info?.rdns })}
             disabled={disabled || busyKey === (p.info?.uuid || p.info?.rdns || p.info?.name)}
-            className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10 transition focus:outline-none focus:ring-2 focus:ring-emerald-400"
+            className={[
+              'flex items-center gap-3 rounded-xl border border-white/10 bg-white/5',
+              'px-4 py-3 h-14',
+              'hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400',
+              'disabled:opacity-60 disabled:cursor-not-allowed',
+            ].join(' ')}
             aria-label={`Connect ${p.info?.name}`}
           >
             {p.info?.icon ? (
@@ -51,9 +60,11 @@ const InjectedProviderButtons = ({ disabled }) => {
           </button>
         ))}
 
+        {/* WalletConnect tile */}
         <button
-          onClick={onWalletConnect}
-          className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 hover:bg-white/10 transition focus:outline-none focus:ring-2 focus:ring-emerald-400"
+          onClick={() => { setBusyKey('walletconnect'); onWalletConnect(); }}
+          disabled={busyKey === 'walletconnect'}
+          className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 px-4 py-3 h-14 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60"
           aria-label="Connect with WalletConnect"
         >
           <span className="h-6 w-6" aria-hidden>🔗</span>
