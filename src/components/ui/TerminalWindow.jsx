@@ -40,7 +40,7 @@ export default function TerminalWindow({
         {variant === 'connect' ? (
           <div className="absolute inset-0 bg-gradient-to-b from-blue-600/15 via-blue-600/10 to-blue-700/8 blur-sm pointer-events-none"></div>
         ) : (
-          <div className="absolute inset-0 bg-blue-900/10 pointer-events-none"></div>
+          <div className="absolute inset-0 bg-blue-900/15 pointer-events-none"></div>
         )}
       </div>
 
