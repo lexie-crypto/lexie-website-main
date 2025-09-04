@@ -67,7 +67,7 @@ const InjectedProviderButtons = ({ disabled }) => {
           className="flex items-center gap-4 rounded-xl border border-white/10 bg-white/5 px-6 py-4 h-16 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60"
           aria-label="Connect with WalletConnect"
         >
-          <img src="/walletconnect.svg" alt="" aria-hidden="true" className="h-7 w-7" />
+          <img src="/walletconnect.svg" alt="" aria-hidden="true" className="h-6 w-6" />
           <span className="text-emerald-200 font-medium whitespace-nowrap">WalletConnect</span>
         </button>
       </div>
