@@ -36,7 +36,7 @@ export default function TerminalWindow({
       <div className="relative bg-black">
         <div className="px-8 pt-4 pb-6">{children}</div>
         {/* Solid blue background */}
-        <div className="absolute inset-0 bg-blue-800/10 pointer-events-none"></div>
+        <div className="absolute inset-0 bg-blue-900/10 pointer-events-none"></div>
       </div>
 
       {(footerLeft || footerRight) && (
