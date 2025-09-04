@@ -27,9 +27,9 @@ export function Navbar({ variant = 'website' }) {
   return (
     <nav className={baseClasses}>
       <div className={containerClasses}>
-        <div className="text-4xl font-bold text-purple-300">
+        <a href="https://www.lexiecrypto.com" className="text-4xl font-bold text-purple-300 hover:text-white transition-colors">
           LEXIE AI
-        </div>
+        </a>
         {renderLinks()}
       </div>
     </nav>
