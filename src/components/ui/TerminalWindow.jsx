@@ -7,6 +7,7 @@ export default function TerminalWindow({
   children,
   footerLeft,
   footerRight,
+  variant = 'vault',
   className = '',
 }) {
   const toneDot = statusTone === 'online' ? 'bg-green-400' : 'bg-yellow-400';
@@ -35,8 +36,12 @@ export default function TerminalWindow({
 
       <div className="relative bg-black">
         <div className="px-8 pt-4 pb-6">{children}</div>
-        {/* Solid blue background */}
-        <div className="absolute inset-0 bg-blue-900/10 pointer-events-none"></div>
+        {/* Variant-specific background overlay */}
+        {variant === 'connect' ? (
+          <div className="absolute inset-0 bg-gradient-to-b from-blue-600/15 via-blue-600/10 to-blue-700/8 blur-sm pointer-events-none"></div>
+        ) : (
+          <div className="absolute inset-0 bg-blue-900/10 pointer-events-none"></div>
+        )}
       </div>
 
       {(footerLeft || footerRight) && (
