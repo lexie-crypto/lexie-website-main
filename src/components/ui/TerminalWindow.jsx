@@ -15,12 +15,12 @@ export default function TerminalWindow({
 
   // Cyberpunk status mapping for footer
   const statusMapping = {
-    'READY': 'CYPHERED',
-    'WAITING': 'INITIATING',
-    'ONLINE': 'CONNECTED',
-    'CONNECTED': 'CONNECTED',
-    'COMPLETE': 'CONNECTED',
-    'IDLE': 'STANDBY'
+    'READY': 'Primed',
+    'WAITING': 'Initiating',
+    'ONLINE': 'Connected',
+    'CONNECTED': 'Connected',
+    'COMPLETE': 'Connected',
+    'IDLE': 'Standby'
   };
 
   const headerKey = String(statusLabel).toUpperCase();
