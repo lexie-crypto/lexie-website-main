@@ -13,6 +13,23 @@ export default function TerminalWindow({
   const toneDot = statusTone === 'online' ? 'bg-green-400' : 'bg-yellow-400';
   const toneText = statusTone === 'online' ? 'text-green-400' : 'text-yellow-300';
 
+  // Cyberpunk status mapping for footer
+  const statusMapping = {
+    'READY': 'CYPHERED',
+    'WAITING': 'INITIATING',
+    'CONNECTED': 'CONNECTED',
+    'COMPLETE': 'CONNECTED',
+    'IDLE': 'STANDBY'
+  };
+
+  // Transform footerRight text using cyberpunk mapping
+  const getFooterStatusText = (text) => {
+    if (typeof text === 'string') {
+      return statusMapping[text] || text;
+    }
+    return text;
+  };
+
   return (
     <div
       className={[
@@ -47,7 +64,7 @@ export default function TerminalWindow({
       {(footerLeft || footerRight) && (
         <div className="flex items-center justify-between px-4 py-2 border-t border-gray-700 bg-gray-800 font-mono text-xs">
           <div className="truncate text-gray-400">{footerLeft}</div>
-          <div className={["truncate", toneText].join(' ')}>{footerRight}</div>
+          <div className={["truncate", toneText].join(' ')}>{getFooterStatusText(footerRight)}</div>
         </div>
       )}
     </div>
