@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Navbar } from '../../shared/components/Navbar';
+import { Navbar } from '@shared/components/Navbar';
 
 export default function LandingPage() {
   const [bgLoaded, setBgLoaded] = useState(false);

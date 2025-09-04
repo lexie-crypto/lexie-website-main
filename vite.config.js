@@ -17,6 +17,11 @@ export default defineConfig({
       protocolImports: true,
     }),
   ],
+  resolve: {
+    alias: {
+      '@shared': resolve(__dirname, '../shared'),
+    },
+  },
   server: {
     port: 3001,
     host: '0.0.0.0',
