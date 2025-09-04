@@ -40,9 +40,9 @@ export default function TerminalWindow({
       </div>
 
       {(footerLeft || footerRight) && (
-        <div className="flex items-center justify-between px-4 py-2 border-t border-gray-700 bg-gray-800 text-gray-400 font-mono text-xs">
-          <div className="truncate">{footerLeft}</div>
-          <div className="truncate">{footerRight}</div>
+        <div className="flex items-center justify-between px-4 py-2 border-t border-gray-700 bg-gray-800 font-mono text-xs">
+          <div className="truncate text-gray-400">{footerLeft}</div>
+          <div className={["truncate", toneText].join(' ')}>{footerRight}</div>
         </div>
       )}
     </div>
