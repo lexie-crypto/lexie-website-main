@@ -35,8 +35,8 @@ export default function TerminalWindow({
 
       <div className="relative bg-black">
         <div className="px-8 pt-4 pb-0">{children}</div>
-        {/* Subtle blue gradient effect - matches LandingPage hero top color */}
-        <div className="absolute inset-0 bg-gradient-to-b from-blue-700/10 via-blue-700/10 to-blue-700/9 blur-sm pointer-events-none"></div>
+        {/* Solid blue background */}
+        <div className="absolute inset-0 bg-blue-700/10 pointer-events-none"></div>
       </div>
 
       {(footerLeft || footerRight) && (
