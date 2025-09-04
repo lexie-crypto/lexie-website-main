@@ -16,7 +16,7 @@ export default function TerminalWindow({
   // Cyberpunk status mapping for footer
   const statusMapping = {
     'READY': 'Primed',
-    'WAITING': 'Initiating',
+    'WAITING': 'Initializing',
     'ONLINE': 'Connected',
     'CONNECTED': 'Connected',
     'COMPLETE': 'Connected',
