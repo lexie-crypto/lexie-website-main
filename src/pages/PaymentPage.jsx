@@ -486,7 +486,7 @@ const PaymentPage = () => {
           statusTone={isConnected ? "online" : "waiting"}
           footerLeft={<span>Process: payment</span>}
           footerRight={isConnected ? "Active" : "Initializing"}
-          variant="connect"
+          variant="vault"
         >
           <div className="p-8 font-mono text-green-300">
             <div className="text-center mb-6">
