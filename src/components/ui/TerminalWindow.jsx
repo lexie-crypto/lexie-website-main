@@ -17,9 +17,9 @@ export default function TerminalWindow({
   const statusMapping = {
     'READY': 'Primed',
     'WAITING': 'Initializing',
-    'ONLINE': 'Connected',
-    'CONNECTED': 'Connected',
-    'COMPLETE': 'Connected',
+    'ONLINE': 'Active',
+    'CONNECTED': 'Active',
+    'COMPLETE': 'Active',
     'IDLE': 'Standby'
   };
 
