@@ -20,6 +20,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 import { useWallet } from '../contexts/WalletContext';
+import TerminalWindow from '../components/ui/TerminalWindow.jsx';
 import useBalances from '../hooks/useBalances';
 import PrivacyActions from '../components/PrivacyActions';
 import TransactionHistory from '../components/TransactionHistory';
@@ -681,26 +682,15 @@ const WalletPage = () => {
         </div>
 
         <div className="relative z-10 max-w-3xl mx-auto px-6 sm:px-8 lg:px-12 py-12">
-          {/* Terminal Window */}
-          <div className="rounded-xl overflow-hidden shadow-2xl border border-green-500/30 bg-black">
-            {/* Terminal chrome */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-green-500/20 bg-black/90">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-red-500/80" />
-                  <span className="w-3 h-3 rounded-full bg-yellow-400/80" />
-                  <span className="w-3 h-3 rounded-full bg-green-500/80" />
-                </div>
-                <span className="text-sm tracking-wide text-green-200 font-mono">lexie-connect</span>
-              </div>
-              <div className="flex items-center gap-2 text-xs font-mono">
-                <span className="w-2 h-2 rounded-full bg-yellow-400 animate-pulse" />
-                <span className="text-yellow-400">WAITING</span>
-              </div>
-            </div>
-
-            {/* Terminal content */}
-            <div className="p-8 font-mono text-green-300 text-center">
+          <TerminalWindow
+            title="lexie-connect"
+            statusLabel={isConnecting ? 'WAITING' : 'READY'}
+            statusTone={isConnecting ? 'waiting' : 'online'}
+            footerLeft={<span>Process: wallet-connect</span>}
+            footerRight={<span>{isConnecting ? 'Waiting' : 'Ready'}</span>}
+            className="overflow-hidden"
+          >
+            <div className="font-mono text-green-300 text-center">
               <WalletIcon className="h-16 w-16 text-emerald-300 mx-auto mb-6" />
               <h2 className="text-2xl font-semibold text-emerald-300 tracking-tight">Connect Wallet</h2>
               <p className="mt-2 text-emerald-300/80 text-center text-sm leading-6">
@@ -719,17 +709,7 @@ const WalletPage = () => {
                 <p className="mt-1 text-xs">Connection is zk-secured and encrypted</p>
             </div>
           </div>
-
-            {/* Terminal footer */}
-            <div className="flex items-center justify-between px-4 py-2 border-t border-green-500/20 bg-black/90 text-xs font-mono">
-              <div className="flex items-center gap-4 text-green-300/80">
-                <span>Process: wallet-connect</span>
-                <span>•</span>
-                <span>Status: Waiting</span>
-              </div>
-              <div className="text-yellow-400">Ready</div>
-            </div>
-          </div>
+          </TerminalWindow>
         </div>
       </div>
     );
@@ -784,26 +764,15 @@ const WalletPage = () => {
       </div>
 
       <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Terminal Window */}
-        <div className="rounded-xl overflow-visible shadow-2xl border border-green-500/30 bg-black">
-          {/* Terminal chrome */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-green-500/20 bg-black/90">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <span className="w-3 h-3 rounded-full bg-red-500/80" />
-                <span className="w-3 h-3 rounded-full bg-yellow-400/80" />
-                <span className="w-3 h-3 rounded-full bg-green-500/80" />
-              </div>
-              <span className="text-sm tracking-wide text-green-200 font-mono">lexie-ai</span>
-            </div>
-            <div className="flex items-center gap-2 text-xs font-mono overflow-visible">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="text-emerald-400">ONLINE</span>
-            </div>
-          </div>
-
-          {/* Terminal content */}
-          <div className="p-6 font-mono text-green-300 space-y-4">
+        <TerminalWindow
+          title="lexie-ai"
+          statusLabel={canUseRailgun ? 'ONLINE' : 'WAITING'}
+          statusTone={canUseRailgun ? 'online' : 'waiting'}
+          footerLeft={<span>Process: lexie-vault</span>}
+          footerRight={<span>{canUseRailgun ? 'Connected' : 'Idle'}</span>}
+          className="overflow-visible"
+        >
+          <div className="font-mono text-green-300 space-y-4">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-green-500/20 pb-4 gap-2">
               <div>
@@ -1154,18 +1123,9 @@ const WalletPage = () => {
                 <TransactionHistory />
                       </div>
                       )}
-                    </div>
-          
-          {/* Terminal footer status bar */}
-          <div className="flex items-center justify-between px-4 py-2 border-t border-green-500/20 bg-black/90 text-xs font-mono">
-            <div className="flex items-center gap-4 text-green-300/80">
-              <span>Process: lexie-vault</span>
-              <span>•</span>
-              <span>Status: {canUseRailgun ? 'Active' : 'Idle'}</span>
-                            </div>
-            <div className="text-emerald-400">Connected</div>
-                  </div>
-                </div>
+
+          </div>
+        </TerminalWindow>
                 
         {/* Error Messages */}
         {balanceErrors && (
