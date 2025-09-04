@@ -687,7 +687,6 @@ const WalletPage = () => {
             statusLabel={isConnecting ? 'WAITING' : 'READY'}
             statusTone={isConnecting ? 'waiting' : 'online'}
             footerLeft={<span>Process: wallet-connect</span>}
-            footerRight={<span>{isConnecting ? 'Waiting' : 'Ready'}</span>}
             variant="connect"
             className="overflow-hidden"
           >
@@ -770,7 +769,6 @@ const WalletPage = () => {
           statusLabel={canUseRailgun ? 'ONLINE' : 'WAITING'}
           statusTone={canUseRailgun ? 'online' : 'waiting'}
           footerLeft={<span>Process: lexie-vault</span>}
-          footerRight={<span>{canUseRailgun ? 'Connected' : 'Idle'}</span>}
           variant="vault"
           className="overflow-visible"
         >

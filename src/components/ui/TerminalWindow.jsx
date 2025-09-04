@@ -17,18 +17,14 @@ export default function TerminalWindow({
   const statusMapping = {
     'READY': 'CYPHERED',
     'WAITING': 'INITIATING',
+    'ONLINE': 'CONNECTED',
     'CONNECTED': 'CONNECTED',
     'COMPLETE': 'CONNECTED',
     'IDLE': 'STANDBY'
   };
 
-  // Transform footerRight text using cyberpunk mapping
-  const getFooterStatusText = (text) => {
-    if (typeof text === 'string') {
-      return statusMapping[text] || text;
-    }
-    return text;
-  };
+  const headerKey = String(statusLabel).toUpperCase();
+  const computedFooter = footerMap[headerKey] ?? headerKey; // default to header label
 
   return (
     <div
@@ -61,10 +57,13 @@ export default function TerminalWindow({
         )}
       </div>
 
-      {(footerLeft || footerRight) && (
+      {(footerLeft || footerRight !== undefined) && (
         <div className="flex items-center justify-between px-4 py-2 border-t border-gray-700 bg-gray-800 font-mono text-xs">
           <div className="truncate text-gray-400">{footerLeft}</div>
-          <div className={["truncate", toneText].join(' ')}>{getFooterStatusText(footerRight)}</div>
+          <div className={["truncate", toneText].join(' ')}>
+            {/* Use override if provided, else computed mapping */}
+            {footerRight ?? computedFooter}
+          </div>
         </div>
       )}
     </div>
