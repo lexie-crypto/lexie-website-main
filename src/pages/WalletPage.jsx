@@ -887,22 +887,25 @@ const WalletPage = () => {
         </div>
 
             {/* Boot log */}
-            <div className="bg-black/40 border border-green-500/20 rounded p-3">
-              <div className="text-xs text-green-300/80 tracking-wide mb-2">LEXIE AI SYSTEM BOOT v2.1.3</div>
-              <div className="space-y-1 text-green-200/90 text-xs leading-5">
+            <div className="mb-6">
+              <div className="text-xs text-green-400/60 tracking-wide mb-3">LEXIE AI SYSTEM BOOT v2.1.3</div>
+              <div className="space-y-1 text-green-300/80 text-xs leading-5 font-mono">
                 <div>✓ Vault interface loaded</div>
                 <div>✓ Network: {network?.name || 'Unknown'}</div>
                 <div>✓ Public balances: {Array.isArray(publicBalances) ? publicBalances.length : 0}</div>
                 <div>✓ Vault balances: {Array.isArray(privateBalances) ? privateBalances.length : 0}</div>
                 <div>{canUseRailgun ? '✓ Secure vault online' : '… Initializing secure vault'}</div>
-                <div className="pt-1 text-green-300">Ready for commands...</div>
+                <div className="pt-1 text-emerald-300">Ready for commands...</div>
               </div>
             </div>
 
+            {/* Divider */}
+            <div className="border-t border-teal-500/10 my-6"></div>
+
             {/* Command Panel */}
-            <div className="bg-black/40 border border-green-500/20 rounded p-3">
-              <div className="text-xs text-green-400/80 mb-2">LEXIE TERMINAL • commands</div>
-              <div className="flex flex-wrap gap-2">
+            <div className="mb-6">
+              <div className="text-xs text-green-400/60 mb-3 font-mono">LEXIE TERMINAL • commands</div>
+              <div className="flex flex-wrap gap-2 mb-2">
                   <button
                   onClick={refreshBalances}
                   disabled={isLoading || !isConnected}
@@ -961,13 +964,16 @@ const WalletPage = () => {
           </div>
         </div>
 
+            {/* Divider */}
+            <div className="border-t border-teal-500/10 my-6"></div>
+
             {/* Wallet Balances */}
             {selectedView === 'balances' && (
-              <div className="space-y-4">
+              <>
                 {/* Private Balances */}
-                <div className="bg-black/40 border border-green-500/20 rounded p-3">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="text-green-300 text-sm font-medium">{network?.name || 'Network'} Vault Balances</div>
+                <div className="mb-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="text-emerald-300 text-sm font-medium font-mono">{network?.name || 'Network'} Vault Balances</div>
                     <div className="flex items-center space-x-2">
                       {canUseRailgun && privateBalances.length > 0 && (
                         <button
@@ -1037,10 +1043,10 @@ const WalletPage = () => {
                   )}
             </div>
 
-              {/* Public Balances */}
-                <div className="bg-black/40 border border-green-500/20 rounded p-3">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="text-green-300 text-sm font-medium">Public Balances</div>
+                {/* Public Balances */}
+                <div className="border-t border-teal-500/10 pt-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="text-emerald-300 text-sm font-medium font-mono">Public Balances</div>
                     <button
                       onClick={refreshBalances}
                       disabled={isLoading || !isConnected}
@@ -1108,7 +1114,7 @@ const WalletPage = () => {
                     )}
                   </div>
                 </div>
-              </div>
+              </>
             )}
 
                         {/* Privacy Actions */}
@@ -1118,11 +1124,11 @@ const WalletPage = () => {
 
             {/* Transaction History */}
             {selectedView === 'history' && (
-              <div className="bg-black/40 border border-green-500/20 rounded p-3">
-                <div className="text-green-300 text-sm font-medium mb-2">Transaction History</div>
+              <div className="border-t border-teal-500/10 pt-6">
+                <div className="text-emerald-300 text-sm font-medium font-mono mb-4">Transaction History</div>
                 <TransactionHistory />
-                      </div>
-                      )}
+              </div>
+            )}
 
           </div>
         </TerminalWindow>
