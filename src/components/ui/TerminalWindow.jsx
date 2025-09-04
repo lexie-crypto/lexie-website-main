@@ -33,10 +33,10 @@ export default function TerminalWindow({
         </div>
       </div>
 
-      <div className="relative bg-black">
+      <div className="relative bg-gradient-to-b from-[#06090a] via-[#0b1012] to-[#0d1416]">
         <div className="px-8 pt-4 pb-0">{children}</div>
-        {/* Subtle blue gradient effect - matches LandingPage hero top color */}
-        <div className="absolute inset-0 bg-gradient-to-b from-blue-500/15 via-blue-600/10 to-blue-700/8 blur-sm pointer-events-none"></div>
+        {/* Subtle vignette effect for depth */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/30 pointer-events-none"></div>
       </div>
 
       {(footerLeft || footerRight) && (
