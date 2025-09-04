@@ -1148,16 +1148,16 @@ const WalletPage = () => {
       {/* Lexie ID Modal */}
       {showLexieModal && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 font-mono">
-          <div className="bg-black border border-green-500/40 rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden">
             {/* Modal Terminal Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-green-500/20 bg-black/90">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-red-500/80" />
-                  <span className="w-3 h-3 rounded-full bg-yellow-400/80" />
-                  <span className="w-3 h-3 rounded-full bg-green-500/80" />
+                  <span className="w-3 h-3 rounded-full bg-red-500" />
+                  <span className="w-3 h-3 rounded-full bg-yellow-500" />
+                  <span className="w-3 h-3 rounded-full bg-green-500" />
                             </div>
-                <span className="text-sm tracking-wide text-green-200">lexie-id-setup</span>
+                <span className="text-sm tracking-wide text-gray-400">lexie-id-setup</span>
                             </div>
                             <button
                 onClick={() => {
@@ -1363,15 +1363,15 @@ const WalletPage = () => {
       {/* Sign-in & Initialization Popup (terminal style; locked until completed) */}
       {showSignRequestPopup && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center z-50 p-4 font-mono">
-          <div className="bg-black border border-green-500/40 rounded-xl shadow-2xl max-w-md w-full overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-green-500/20 bg-black/90">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-red-500/80" />
-                  <span className="w-3 h-3 rounded-full bg-yellow-400/80" />
-                  <span className="w-3 h-3 rounded-full bg-green-500/80" />
+                  <span className="w-3 h-3 rounded-full bg-red-500" />
+                  <span className="w-3 h-3 rounded-full bg-yellow-500" />
+                  <span className="w-3 h-3 rounded-full bg-green-500" />
                 </div>
-                <span className="text-sm tracking-wide text-green-200">vault-sign</span>
+                <span className="text-sm tracking-wide text-gray-400">vault-sign</span>
               </div>
               {/* No close button until init completes */}
               {isInitInProgress ? (

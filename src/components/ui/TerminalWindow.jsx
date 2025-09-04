@@ -9,24 +9,23 @@ export default function TerminalWindow({
   footerRight,
   className = '',
 }) {
-  const toneDot = statusTone === 'online' ? 'bg-emerald-400' : 'bg-yellow-400';
-  const toneText = statusTone === 'online' ? 'text-emerald-300' : 'text-yellow-300';
+  const toneDot = statusTone === 'online' ? 'bg-green-400' : 'bg-yellow-400';
+  const toneText = statusTone === 'online' ? 'text-green-400' : 'text-yellow-300';
 
   return (
     <div
       className={[
-        'relative rounded-xl border',
-        'border-teal-500/30 bg-[#0b1012] shadow-2xl',
-        'ring-1 ring-teal-400/10 backdrop-blur-sm',
+        'relative rounded-lg border border-gray-700',
+        'bg-gray-900 shadow-2xl overflow-hidden',
         className,
       ].join(' ')}
     >
-      <div className="flex items-center justify-between px-4 py-3 border-b border-teal-500/20 bg-[#0d1416]">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-red-500" />
           <div className="w-3 h-3 rounded-full bg-yellow-500" />
           <div className="w-3 h-3 rounded-full bg-green-500" />
-          <span className="ml-4 font-mono text-sm text-teal-200/80">{title}</span>
+          <span className="ml-4 font-mono text-sm text-gray-400">{title}</span>
         </div>
         <div className="flex items-center gap-2">
           <div className={["w-2 h-2 rounded-full animate-pulse", toneDot].join(' ')} />
@@ -34,12 +33,12 @@ export default function TerminalWindow({
         </div>
       </div>
 
-      <div className="relative bg-[#06090a]">
-        <div className="px-6 py-5">{children}</div>
+      <div className="relative bg-black">
+        <div className="px-8 pt-4 pb-0">{children}</div>
       </div>
 
       {(footerLeft || footerRight) && (
-        <div className="flex items-center justify-between px-4 py-2 border-t border-teal-500/20 bg-[#0d1416] text-teal-300/80 font-mono text-xs">
+        <div className="flex items-center justify-between px-4 py-2 border-t border-gray-700 bg-gray-800 text-gray-400 font-mono text-xs">
           <div className="truncate">{footerLeft}</div>
           <div className="truncate">{footerRight}</div>
         </div>
