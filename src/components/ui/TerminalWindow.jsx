@@ -24,7 +24,7 @@ export default function TerminalWindow({
   };
 
   const headerKey = String(statusLabel).toUpperCase();
-  const computedFooter = footerMap[headerKey] ?? headerKey; // default to header label
+  const computedFooter = statusMapping[headerKey] ?? headerKey; // default to header label
 
   return (
     <div
