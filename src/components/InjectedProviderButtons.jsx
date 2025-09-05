@@ -25,8 +25,15 @@ const InjectedProviderButtons = ({ disabled }) => {
     }
   };
 
-  const onWalletConnect = () => {
-    try { connectWallet('walletconnect'); } catch (e) { console.error(e); }
+  const onWalletConnect = async () => {
+    try {
+      setBusyKey('walletconnect');
+      await connectWallet('walletconnect');
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setBusyKey(null);
+    }
   };
 
   // Safe-style ordering
@@ -39,7 +46,7 @@ const InjectedProviderButtons = ({ disabled }) => {
         // Center WalletConnect button when no other providers detected
         <div className="flex justify-center">
           <button
-            onClick={() => { setBusyKey('walletconnect'); onWalletConnect(); }}
+            onClick={onWalletConnect}
             disabled={busyKey === 'walletconnect'}
             className="flex items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/5 px-6 py-4 h-16 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60"
             aria-label="Connect with WalletConnect"
@@ -53,7 +60,7 @@ const InjectedProviderButtons = ({ disabled }) => {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6">
           {/* Always show WalletConnect first */}
           <button
-            onClick={() => { setBusyKey('walletconnect'); onWalletConnect(); }}
+            onClick={onWalletConnect}
             disabled={busyKey === 'walletconnect'}
             className="flex items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/5 px-6 py-4 h-16 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60"
             aria-label="Connect with WalletConnect"
