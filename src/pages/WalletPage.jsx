@@ -231,7 +231,7 @@ const WalletPage = () => {
       initAddressRef.current = e?.detail?.address || address || initAddressRef.current;
       // Set friendly, chain-aware message
       const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
-      setInitProgress({ percent: 0, message: `Setting up your Lexie Vault on ${chainLabel} Network...` });
+      setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
       console.log('[Vault Init] Initialization started');
     };
     const onInitProgress = () => {
@@ -243,7 +243,7 @@ const WalletPage = () => {
       const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
       setInitProgress((prev) => ({
         percent: prev.percent,
-        message: prev.message || `Setting up your personal vault on ${chainLabel}...`,
+        message: prev.message || `Setting up your LexieVault on ${chainLabel}...`,
       }));
     };
     const onInitCompleted = () => {
@@ -256,7 +256,7 @@ const WalletPage = () => {
       const msg = e?.detail?.error || 'Initialization failed';
       setInitFailedMessage(msg);
       setIsInitInProgress(false);
-      console.warn('[Vault Init] Initialization failed:', msg);
+      console.warn('[LexieVault Init] Initialization failed:', msg);
     };
     window.addEventListener('railgun-signature-requested', onSignRequest);
     // Begin polling exactly when refreshBalances starts in context
@@ -587,7 +587,7 @@ const WalletPage = () => {
           setShowSignRequestPopup(true);
           setIsInitInProgress(true);
           const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
-          setInitProgress({ percent: 0, message: `Setting up your Lexie Vault on ${chainLabel} Network...` });
+          setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
         }
       } catch {}
     } catch (error) {
@@ -683,7 +683,7 @@ const WalletPage = () => {
 
         <div className="relative z-10 max-w-3xl mx-auto px-6 sm:px-8 lg:px-12 py-12">
           <TerminalWindow
-            title="lexie-connect"
+            title="LexieVault-connect"
             statusLabel={isConnecting ? 'WAITING' : 'READY'}
             statusTone={isConnecting ? 'waiting' : 'online'}
             footerLeft={<span>Process: wallet-connect</span>}
@@ -694,7 +694,7 @@ const WalletPage = () => {
               <WalletIcon className="h-16 w-16 text-emerald-300 mx-auto mb-6" />
               <h2 className="text-2xl font-semibold text-emerald-300 tracking-tight">Connect Wallet</h2>
               <p className="mt-2 text-emerald-300/80 text-center text-sm leading-6">
-                Connect your wallet to gain access to the Lexie Vault features.
+                Connect your wallet to gain access to the LexieVault features.
             </p>
             
             <div className="space-y-4">
@@ -1387,13 +1387,13 @@ const WalletPage = () => {
             <div className="p-6 text-green-300 space-y-4">
               {!isInitInProgress && initProgress.percent < 100 && !initFailedMessage ? (
                 <>
-                  <h3 className="text-lg font-bold text-emerald-300">Sign to Create Your Lexie Vault</h3>
+                  <h3 className="text-lg font-bold text-emerald-300">Sign to Create Your LexieVault</h3>
                   <p className="text-green-400/80 text-sm">
-                    A signature request was sent to your wallet. Please approve this message to begin creating your Lexie Vault.
+                    A signature request was sent to your wallet. Please approve this message to begin creating your LexieVault.
                   </p>
                   <div className="bg-black/40 border border-green-500/20 rounded p-3 text-xs">
                     <div>Message preview:</div>
-                    <pre className="mt-2 whitespace-pre-wrap text-green-200">Lexie Vault Creation Address: {address}. Sign this message to create your Lexie Vault.</pre>
+                    <pre className="mt-2 whitespace-pre-wrap text-green-200">LexieVault Creation Address: {address}. Sign this message to create your LexieVault.</pre>
                   </div>
                 </>
               ) : initFailedMessage ? (
@@ -1403,7 +1403,7 @@ const WalletPage = () => {
                 </>
               ) : (
                 <>
-                  <h3 className="text-lg font-bold text-emerald-300">Initializing Your Lexie Vault on {network?.name || 'network'} Network</h3>
+                  <h3 className="text-lg font-bold text-emerald-300">Initializing Your LexieVault on {network?.name || 'network'} Network</h3>
                   <p className="text-green-400/80 text-sm">This may take a few minutes. Do not close this window.</p>
                   <div className="bg-black/40 border border-green-500/20 rounded p-4 flex items-center gap-3">
                     <div className={`h-5 w-5 rounded-full border-2 ${isInitInProgress ? 'border-emerald-400 border-t-transparent animate-spin' : 'border-emerald-400'}`} />

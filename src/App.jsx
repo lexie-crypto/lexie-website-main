@@ -45,7 +45,7 @@ function App() {
         <div className="App">
           <Routes>
             <Route path="/" element={<LandingPage />} />
-            <Route path="/vault" element={<WalletPage />} />
+            <Route path="/lexie-vault" element={<WalletPage />} />
             <Route path="/pay" element={<PaymentPage />} />
           </Routes>
           
