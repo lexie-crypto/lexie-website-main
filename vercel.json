@@ -1,6 +1,7 @@
 {
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
+  "domains": ["staging.lexiecrypto.com"],
   "rewrites": [
     {
       "source": "/api/gas-relayer/(.*)",
