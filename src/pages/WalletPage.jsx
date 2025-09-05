@@ -639,7 +639,7 @@ const WalletPage = () => {
         <nav className="sticky top-0 z-40 w-full p-6 bg-black">
           <div className="max-w-7xl mx-auto flex justify-between items-center">
             <div className="text-4xl font-bold text-purple-300">
-              LEXIE AI
+              LEXIEAI
             </div>
             <div className="hidden md:flex space-x-6">
               <a href="/#features" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Features</a>
@@ -721,7 +721,7 @@ const WalletPage = () => {
       <nav className="sticky top-0 z-40 w-full p-6 bg-black">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="text-4xl font-bold text-purple-300">
-            LEXIE AI
+            LEXIEAI
               </div>
           <div className="hidden md:flex space-x-6">
             <a href="/#features" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Features</a>
@@ -888,7 +888,7 @@ const WalletPage = () => {
 
             {/* Boot log */}
             <div className="mb-6">
-              <div className="text-xs text-green-400/60 tracking-wide mb-3">LEXIE AI SYSTEM BOOT v2.1.3</div>
+              <div className="text-xs text-green-400/60 tracking-wide mb-3">LEXIEAI SYSTEM BOOT v2.1.3</div>
               <div className="space-y-1 text-green-300/80 text-xs leading-5 font-mono">
                 <div>✓ Vault interface loaded</div>
                 <div>✓ Network: {network?.name || 'Unknown'}</div>

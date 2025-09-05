@@ -97,7 +97,7 @@ export default function LandingPage() {
 
   const productTerminalLines = [
     'root@lexie:~$ ./initialize_ai_protocols.sh',
-    'Loading Lexie AI Wallet v2.1.3...',
+    'Loading LexieAI Wallet v2.1.3...',
     'Neural network status: ONLINE',
     'Privacy protocols: ACTIVATED',
     '',
@@ -125,7 +125,7 @@ export default function LandingPage() {
   ];
 
   const bootSequenceTerminalLines = [
-    'LEXIE AI SYSTEM BOOT v2.1.3',
+    'LEXIEAI SYSTEM BOOT v2.1.3',
     'Initializing neural networks...',
     '✓ Core systems loaded',
     '✓ Security protocols active',
@@ -458,7 +458,7 @@ export default function LandingPage() {
                   <div className="pixel-distortion-container">
                     <img
                       src="/lexie.png"
-                      alt="Lexie AI Avatar"
+                      alt="LexieAI Avatar"
                       className={`relative z-10 h-full w-auto mx-auto object-contain transition-opacity duration-1000 ${imageVisible ? 'opacity-100' : 'opacity-0'}`}
                     />
                     
@@ -1116,7 +1116,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="text-center md:text-left">
-              <div className="text-2xl font-bold text-purple-300 mb-2">LEXIE AI</div>
+              <div className="text-2xl font-bold text-purple-300 mb-2">LEXIEAI</div>
               <p className="text-gray-400">
                 Trade smarter. Quest deeper. Stay private.  
               </p>
@@ -1131,7 +1131,7 @@ export default function LandingPage() {
           </div>
           
           <div className="mt-8 pt-8 border-t border-gray-800 text-center text-gray-500">
-            <p>&copy; 2025 Lexie AI. All rights reserved.</p>
+            <p>&copy; 2025 LexieAI. All rights reserved.</p>
           </div>
         </div>
       </footer>
