@@ -52,6 +52,17 @@ const TransactionHistory = () => {
 
   const displayTransactions = getDisplayTransactions();
 
+  // Get block explorer URL for transaction
+  const getBlockExplorerUrl = (chainId, txid) => {
+    const explorers = {
+      1: 'https://etherscan.io/tx/', // Ethereum
+      42161: 'https://arbiscan.io/tx/', // Arbitrum
+      137: 'https://polygonscan.com/tx/', // Polygon
+      56: 'https://bscscan.com/tx/' // BNB Chain
+    };
+    return explorers[chainId] ? `${explorers[chainId]}${txid}` : null;
+  };
+
   // Format transaction type for display
   const getTransactionIcon = (type) => {
     switch (type) {
@@ -228,7 +239,7 @@ const TransactionHistory = () => {
               </div>
 
               {/* Transaction ID */}
-              <div className="text-green-400/70 text-sm font-mono break-all">
+              <div className="text-green-400/70 text-sm font-mono break-all flex items-center gap-2">
                 <span className="text-green-400/80">Transaction ID: </span>
                 <span
                   onClick={() => tx.copyTxId()}
@@ -237,6 +248,17 @@ const TransactionHistory = () => {
                 >
                   {tx.txid}
                 </span>
+                {getBlockExplorerUrl(tx.chainId, tx.txid) && (
+                  <a
+                    href={getBlockExplorerUrl(tx.chainId, tx.txid)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-purple-300 hover:text-purple-200 transition-colors text-xs"
+                    title="View in Block Explorer"
+                  >
+                    □↗
+                  </a>
+                )}
               </div>
 
             </div>
