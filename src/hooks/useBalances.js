@@ -78,7 +78,7 @@ const CHAIN_RPC_MAPPING = {
 
 export function useBalances() {
   const { address, chainId, railgunWalletId, isRailgunInitialized } = useWallet();
-  
+
   // State
   const [publicBalances, setPublicBalances] = useState([]);
   const [privateBalances, setPrivateBalances] = useState([]);
@@ -91,7 +91,46 @@ export function useBalances() {
   const stableRefs = useRef({});
   const lastSpendableUpdateRef = useRef(0); // timestamp of last SDK Spendable update
   const hasAutoRefreshed = useRef(false);
-  
+
+  // AbortController for managing ongoing requests
+  const abortControllerRef = useRef(null);
+
+  // Function to abort all ongoing requests
+  const abortOngoingRequests = useCallback(() => {
+    if (abortControllerRef.current) {
+      console.log('[useBalances] 🛑 Aborting ongoing requests...');
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  }, []);
+
+  // Function to create new AbortController for requests
+  const getAbortController = useCallback(() => {
+    // Abort any existing controller
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    // Create new controller
+    abortControllerRef.current = new AbortController();
+    return abortControllerRef.current;
+  }, []);
+
+  // Listen for wallet disconnecting event
+  useEffect(() => {
+    const handleWalletDisconnecting = () => {
+      console.log('[useBalances] 📡 Received wallet disconnecting event - aborting all requests');
+      abortOngoingRequests();
+      setLoading(false);
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('wallet-disconnecting', handleWalletDisconnecting);
+      return () => {
+        window.removeEventListener('wallet-disconnecting', handleWalletDisconnecting);
+      };
+    }
+  }, [abortOngoingRequests]);
+
   useEffect(() => {
     stableRefs.current = {
       address,
@@ -242,8 +281,9 @@ export function useBalances() {
       console.log('[useBalances] 🔄 Fetching public balances from blockchain...');
       setError(null);
 
+      const controller = getAbortController();
       const tokenList = TOKEN_LISTS[chainId] || [];
-      
+
       // Fetch native token and ERC20 tokens in parallel
       const balancePromises = [
         fetchNativeBalance(address, chainId),
@@ -251,7 +291,13 @@ export function useBalances() {
       ];
 
       const results = await Promise.allSettled(balancePromises);
-      
+
+      // Check if request was aborted
+      if (controller.signal.aborted) {
+        console.log('[useBalances] 🛑 Public balance fetch aborted');
+        return [];
+      }
+
       const balances = results
         .filter(result => result.status === 'fulfilled' && result.value !== null)
         .map(result => result.value);
@@ -263,11 +309,23 @@ export function useBalances() {
 
       return balances;
     } catch (error) {
+      if (error.name === 'AbortError') {
+        console.log('[useBalances] 🛑 Public balance fetch aborted');
+        return [];
+      }
       console.error('[useBalances] Failed to fetch public balances:', error);
       setError(error.message);
       return [];
     }
-  }, [address, chainId, fetchNativeBalance, fetchTokenBalance]);
+  }, [address, chainId, fetchNativeBalance, fetchTokenBalance, getAbortController]);
+
+  // Cleanup effect for component unmount
+  useEffect(() => {
+    return () => {
+      console.log('[useBalances] 🧹 Component unmounting - aborting ongoing requests');
+      abortOngoingRequests();
+    };
+  }, [abortOngoingRequests]);
 
   // Load private balances from Redis ONLY
   const loadPrivateBalancesFromMetadata = useCallback(async (walletAddress, railgunWalletId) => {
@@ -276,10 +334,18 @@ export function useBalances() {
 
       // 1) Prefer the dedicated balances endpoint (authoritative, chain-aware)
       try {
+        const controller = getAbortController();
         const balancesResp = await fetch(`/api/wallet-metadata?action=balances&walletAddress=${encodeURIComponent(walletAddress)}&walletId=${encodeURIComponent(railgunWalletId)}`, {
           method: 'GET',
-          headers: { 'Content-Type': 'application/json' }
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal
         });
+
+        // Check if request was aborted
+        if (controller.signal.aborted) {
+          console.log('[useBalances] 🛑 Private balance fetch aborted');
+          return [];
+        }
         if (balancesResp.ok) {
           const balancesJson = await balancesResp.json();
           const allBalances = balancesJson?.balances?.balances || balancesJson?.balances || [];
@@ -378,7 +444,7 @@ export function useBalances() {
       console.error('[useBalances] Failed to load private balances from Redis:', error);
       return false;
     }
-  }, [chainId]);
+  }, [chainId, getAbortController]);
 
   // Refresh all balances
   const refreshAllBalances = useCallback(async () => {
