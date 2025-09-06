@@ -217,19 +217,19 @@ const TransactionHistory = () => {
                 ))}
               </div>
 
-              {/* Transaction ID */}
-              <div className="text-green-400/70 text-sm mb-3 font-mono break-all">
-                {tx.txid}
-              </div>
-
               {/* Description + Memo */}
-              <div className="text-green-400/80 text-sm">
+              <div className="text-green-400/80 text-sm mb-3">
                 <div className="break-words">{tx.description}</div>
                 {tx.memo && (
                   <div className="mt-1 text-cyan-300 break-words">
                     Memo: {tx.memo}
                   </div>
                 )}
+              </div>
+
+              {/* Transaction ID */}
+              <div className="text-green-400/70 text-sm font-mono break-all">
+                <span className="text-green-400/80">Transaction ID:</span> {tx.txid}
               </div>
 
             </div>
