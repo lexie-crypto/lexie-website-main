@@ -56,15 +56,15 @@ const TransactionHistory = () => {
   const getTransactionIcon = (type) => {
     switch (type) {
       case 'Add to Vault':
-        return '🛡️';
+        return '+';
       case 'Remove from Vault':
-        return '🔓';
+        return '-';
       case 'Send Transaction':
-        return '📤';
+        return '⟡>>>';
       case 'Receive Transaction':
-        return '📥';
+        return '<<<⟡';
       default:
-        return '❓';
+        return '[?]';
     }
   };
 
@@ -228,8 +228,16 @@ const TransactionHistory = () => {
               </div>
 
               {/* Transaction ID */}
-              <div className="text-green-400/70 text-sm font-mono break-all">
-                <span className="text-green-400/80">Transaction ID:</span> {tx.txid}
+              <div className="text-green-400/70 text-sm font-mono break-all flex items-center gap-2">
+                <span className="text-green-400/80">Transaction ID:</span>
+                <span>{tx.txid}</span>
+                <button
+                  onClick={() => tx.copyTxId()}
+                  className="text-purple-300 hover:text-purple-200 text-xs px-2 py-1 bg-purple-500/10 hover:bg-purple-500/20 rounded border border-purple-500/20 transition-colors ml-2"
+                  title="Copy Transaction ID"
+                >
+                  📋
+                </button>
               </div>
 
             </div>
