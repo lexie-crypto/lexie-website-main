@@ -208,13 +208,13 @@ export default async function handler(req, res) {
       } else if (action === 'lexie-status') {
         const lexieID = req.query.lexieID;
         backendPath = `/api/status?lexieID=${encodeURIComponent(lexieID)}`;
-        backendUrl = `https://api.lexiecrypto.com${backendPath}`;
+        backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
         console.log(`🔍 [WALLET-METADATA-PROXY-${requestId}] GET Lexie status for ${lexieID}`);
 
       } else if (action === 'lexie-resolve') {
         const lexieID = req.query.lexieID;
         backendPath = `/api/resolve?lexieID=${encodeURIComponent(lexieID)}`;
-        backendUrl = `https://api.lexiecrypto.com${backendPath}`;
+        backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
         console.log(`🔍 [WALLET-METADATA-PROXY-${requestId}] GET Lexie resolve for ${lexieID}`);
       } else if (action === 'by-wallet') {
         const railgunAddress = req.query.railgunAddress || req.query.walletAddress;
@@ -223,7 +223,7 @@ export default async function handler(req, res) {
           return res.status(400).json({ success: false, error: 'Missing railgunAddress' });
         }
         backendPath = `/api/by-wallet?railgunAddress=${encodeURIComponent(railgunAddress)}`;
-        backendUrl = `https://api.lexiecrypto.com${backendPath}`;
+        backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
         console.log(`🔍 [WALLET-METADATA-PROXY-${requestId}] GET Lexie by-wallet for ${String(railgunAddress).slice(0,8)}...`);
 
       } else {
@@ -237,7 +237,7 @@ export default async function handler(req, res) {
         }
 
         backendPath = `/api/get-wallet-metadata/${walletAddress}`;
-        backendUrl = `https://api.lexiecrypto.com${backendPath}`;
+        backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
         
         console.log(`🔍 [WALLET-METADATA-PROXY-${requestId}] GET request for wallet ${walletAddress?.slice(0, 8)}...`);
       }
@@ -248,7 +248,7 @@ export default async function handler(req, res) {
         'Accept': 'application/json',
         'X-Lexie-Timestamp': timestamp,
         'X-Lexie-Signature': signature,
-        'Origin': 'https://lexiecrypto.com',
+        'Origin': 'https://staging.lexiecrypto.com',
         'User-Agent': 'Lexie-Wallet-Proxy/1.0',
       };
 
@@ -261,12 +261,12 @@ export default async function handler(req, res) {
 
       } else if (action === 'lexie-link-start') {
         backendPath = '/api/start';
-        backendUrl = `https://api.lexiecrypto.com${backendPath}`;
+        backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
         console.log(`🔗 [WALLET-METADATA-PROXY-${requestId}] POST Lexie link start`);
 
       } else if (action === 'lexie-link-verify') {
         backendPath = '/api/verify';
-        backendUrl = `https://api.lexiecrypto.com${backendPath}`;
+        backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
         console.log(`✅ [WALLET-METADATA-PROXY-${requestId}] POST Lexie link verify`);
 
       } else {
@@ -275,7 +275,7 @@ export default async function handler(req, res) {
         console.log(`💾 [WALLET-METADATA-PROXY-${requestId}] POST store wallet metadata`);
       }
 
-      backendUrl = backendUrl || `https://api.lexiecrypto.com${backendPath}`;
+      backendUrl = backendUrl || `https://staging.api.lexiecrypto.com${backendPath}`;
       
       const signature = generateHmacSignature('POST', backendPath, timestamp, hmacSecret);
       
@@ -284,7 +284,7 @@ export default async function handler(req, res) {
         'Accept': 'application/json',
         'X-Lexie-Timestamp': timestamp,
         'X-Lexie-Signature': signature,
-        'Origin': 'https://lexiecrypto.com',
+        'Origin': 'https://staging.lexiecrypto.com',
         'User-Agent': 'Lexie-Wallet-Proxy/1.0',
       };
     }
