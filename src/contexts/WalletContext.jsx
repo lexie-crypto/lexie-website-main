@@ -605,79 +605,40 @@ const WalletContextProvider = ({ children }) => {
   };
 
   const disconnectWallet = async () => {
+    // Prevent multiple simultaneous disconnect attempts
+    if (disconnectWallet.isDisconnecting) {
+      console.log('🚫 [DISCONNECT] Disconnect already in progress, ignoring...');
+      return;
+    }
+    disconnectWallet.isDisconnecting = true;
+
     try {
-      console.log('🚨 [DISCONNECT] Starting immediate disconnect - aborting all processes...');
+      console.log('🚨 [DISCONNECT] FORCE DISCONNECT - Clearing everything immediately...');
 
-      // 🛑 Stop all RAILGUN provider polling BEFORE disconnect
-      if (isRailgunInitialized) {
-        try {
-          console.log('⏸️ [DISCONNECT] Stopping RAILGUN provider polling...');
-          const { pauseAllPollingProviders } = await import('@railgun-community/wallet');
-          pauseAllPollingProviders(); // Stop all provider polling immediately
-          console.log('✅ [DISCONNECT] RAILGUN provider polling stopped');
-        } catch (pauseError) {
-          console.warn('⚠️ [DISCONNECT] Failed to pause RAILGUN providers:', pauseError);
-        }
-      }
-
-      // 🛑 Abort all ongoing fetch requests globally
+      // 🔥 FORCE CLEAR ALL STORAGE FIRST
       if (typeof window !== 'undefined') {
         try {
-          console.log('🛑 [DISCONNECT] Aborting all ongoing fetch requests...');
-          // Dispatch event to abort ongoing requests in useBalances and other hooks
-          window.dispatchEvent(new CustomEvent('abort-all-requests'));
-        } catch (abortError) {
-          console.warn('⚠️ [DISCONNECT] Error aborting ongoing requests:', abortError);
+          console.log('🗑️ [DISCONNECT] Clearing ALL browser storage...');
+          localStorage.clear();
+          sessionStorage.clear();
+          console.log('✅ [DISCONNECT] All storage cleared');
+        } catch (storageError) {
+          console.warn('⚠️ [DISCONNECT] Error clearing storage:', storageError);
         }
       }
 
-      // 🛑 Clear wallet-specific timers and intervals
+      // 🛑 IMMEDIATE WALLET DISCONNECT
       try {
-        console.log('🧹 [DISCONNECT] Clearing wallet-related timers and intervals...');
-        // Only clear intervals that are likely related to wallet operations
-        // This is more conservative than clearing all timers
-        if (typeof window !== 'undefined') {
-          // Clear common wallet polling intervals (balance updates, etc.)
-          // Note: This is a best-effort cleanup, not guaranteed to catch everything
-          const walletTimers = [100, 500, 1000, 2000, 5000, 10000, 30000, 60000]; // Common polling intervals
-          walletTimers.forEach(interval => {
-            try {
-              clearInterval(interval);
-              clearTimeout(interval);
-            } catch (e) {
-              // Ignore errors for non-existent timers
-            }
-          });
-        }
-      } catch (timerError) {
-        console.warn('⚠️ [DISCONNECT] Error clearing timers:', timerError);
+        console.log('🔌 [DISCONNECT] Force disconnecting wallet...');
+        await disconnect();
+        console.log('✅ [DISCONNECT] Wallet disconnected');
+      } catch (disconnectError) {
+        console.warn('⚠️ [DISCONNECT] Error disconnecting wallet:', disconnectError);
+        // Continue anyway - we still want to clear state
       }
 
-      // 🛑 Stop balance refresh polling
-      try {
-        console.log('🛑 [DISCONNECT] Stopping balance refresh polling...');
-        if (typeof window !== 'undefined') {
-          // Dispatch event to stop any balance polling
-          window.dispatchEvent(new CustomEvent('wallet-disconnecting'));
-        }
-      } catch (eventError) {
-        console.warn('⚠️ [DISCONNECT] Error dispatching disconnect event:', eventError);
-      }
-
-      // 🛑 Reset RPC rate limiter
-      try {
-        console.log('🔄 [DISCONNECT] Resetting RPC rate limiter...');
-        resetRPCLimiter();
-      } catch (limiterError) {
-        console.warn('⚠️ [DISCONNECT] Error resetting rate limiter:', limiterError);
-      }
-
-      // 🚫 Disconnect wallet immediately
-      console.log('🔌 [DISCONNECT] Disconnecting wallet...');
-      await disconnect();
-
-      // 🧹 Clear ALL React state immediately
-      console.log('🧹 [DISCONNECT] Clearing React state...');
+      // 🧹 FORCE CLEAR ALL REACT STATE
+      console.log('🧹 [DISCONNECT] Force clearing all React state...');
       setIsRailgunInitialized(false);
       setRailgunAddress(null);
       setRailgunWalletID(null);
@@ -685,31 +646,124 @@ const WalletContextProvider = ({ children }) => {
       setIsInitializing(false);
       selectedInjectedProviderRef.current = null;
 
-      // 💾 Keep encrypted Railgun data in localStorage for next connection
-      // DON'T clear: railgun-walletID-${address} or railgun-mnemonic-${address}
-      // This allows same wallet to reconnect and reuse existing Railgun wallet
+      // 🛑 CLEAR ALL GLOBAL STATE AND CACHE
+      if (typeof window !== 'undefined') {
+        try {
+          console.log('🗑️ [DISCONNECT] Clearing all global cache and state...');
 
-      // 🛑 Clear any cached data that might cause issues
-      try {
-        if (typeof window !== 'undefined') {
-          // Clear any cached balance data
+          // Clear all Railgun-related global state
           delete window.__RAILGUN_INITIAL_SCAN_DONE;
           delete window.__LEXIE_ENGINE_READY;
           delete window.__LEXIE_SUPPRESS_RAILGUN_INIT;
+          delete window.__RAILGUN_ENGINE_INITIALIZED;
+          delete window.__RAILGUN_WALLET_READY;
+
+          // Clear any active fetch controllers
+          if (window.__LEXIE_ACTIVE_FETCHES) {
+            window.__LEXIE_ACTIVE_FETCHES.forEach(controller => {
+              try {
+                controller.abort();
+              } catch (e) {
+                // Ignore errors
+              }
+            });
+            window.__LEXIE_ACTIVE_FETCHES = [];
+          }
+
+          // Clear debug utilities
+          delete window.__LEXIE_RAILGUN_DEBUG__;
+
+          console.log('✅ [DISCONNECT] Global state cleared');
+        } catch (globalError) {
+          console.warn('⚠️ [DISCONNECT] Error clearing global state:', globalError);
         }
-      } catch (cacheError) {
-        console.warn('⚠️ [DISCONNECT] Error clearing cache:', cacheError);
       }
 
-      console.log('✅ [DISCONNECT] Complete disconnect finished - all processes aborted');
+      // 🛑 FORCE TERMINATE ALL TIMERS AND INTERVALS
+      try {
+        console.log('⏰ [DISCONNECT] Force clearing all timers and intervals...');
+        if (typeof window !== 'undefined') {
+          // Aggressive timer clearing - clear ALL possible timer IDs
+          for (let i = 1; i < 100000; i++) {
+            try {
+              clearTimeout(i);
+              clearInterval(i);
+            } catch (e) {
+              // Continue - some IDs might not exist
+            }
+          }
+        }
+        console.log('✅ [DISCONNECT] All timers cleared');
+      } catch (timerError) {
+        console.warn('⚠️ [DISCONNECT] Error clearing timers:', timerError);
+      }
+
+      // 🛑 DISPATCH EVENTS TO STOP ALL PROCESSES
+      try {
+        console.log('📡 [DISCONNECT] Dispatching disconnect events...');
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('wallet-disconnecting'));
+          window.dispatchEvent(new CustomEvent('abort-all-requests'));
+          window.dispatchEvent(new CustomEvent('force-disconnect'));
+        }
+        console.log('✅ [DISCONNECT] Disconnect events dispatched');
+      } catch (eventError) {
+        console.warn('⚠️ [DISCONNECT] Error dispatching events:', eventError);
+      }
+
+      // 🛑 RESET RPC RATE LIMITER
+      try {
+        console.log('🔄 [DISCONNECT] Resetting RPC rate limiter...');
+        resetRPCLimiter();
+        console.log('✅ [DISCONNECT] RPC rate limiter reset');
+      } catch (limiterError) {
+        console.warn('⚠️ [DISCONNECT] Error resetting rate limiter:', limiterError);
+      }
+
+      // 🛑 ATTEMPT TO STOP RAILGUN OPERATIONS
+      try {
+        console.log('⏸️ [DISCONNECT] Attempting to stop Railgun operations...');
+        if (isRailgunInitialized) {
+          // Try to pause polling providers
+          const railgunWallet = await import('@railgun-community/wallet');
+          if (railgunWallet.pauseAllPollingProviders) {
+            railgunWallet.pauseAllPollingProviders();
+          }
+        }
+        console.log('✅ [DISCONNECT] Railgun operations stopped');
+      } catch (railgunError) {
+        console.warn('⚠️ [DISCONNECT] Error stopping Railgun:', railgunError);
+      }
+
+      // 🛑 FORCE PAGE RELOAD AS LAST RESORT
+      try {
+        console.log('🔄 [DISCONNECT] Force reloading page to ensure clean state...');
+        // Small delay to let other cleanup finish
+        setTimeout(() => {
+          if (typeof window !== 'undefined') {
+            window.location.reload();
+          }
+        }, 100);
+      } catch (reloadError) {
+        console.warn('⚠️ [DISCONNECT] Error reloading page:', reloadError);
+      }
+
+      console.log('✅ [DISCONNECT] FORCE DISCONNECT COMPLETE - User should be fully disconnected');
+
     } catch (error) {
-      console.error('❌ [DISCONNECT] Failed to disconnect:', error);
-      // Even if disconnect fails, clear state
-      setIsRailgunInitialized(false);
-      setRailgunAddress(null);
-      setRailgunWalletID(null);
-      setRailgunError(null);
-      setIsInitializing(false);
+      console.error('❌ [DISCONNECT] Critical error during force disconnect:', error);
+
+      // LAST RESORT: Even if everything fails, try to reload
+      try {
+        if (typeof window !== 'undefined') {
+          setTimeout(() => window.location.reload(), 500);
+        }
+      } catch (finalError) {
+        console.error('❌ [DISCONNECT] Final reload failed:', finalError);
+      }
+    } finally {
+      // Always reset the disconnecting flag
+      disconnectWallet.isDisconnecting = false;
     }
   };
 

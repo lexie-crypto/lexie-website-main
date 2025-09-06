@@ -118,6 +118,30 @@ const formatTransactionHistoryItem = (historyItem, chainId) => {
     formattedAmount: formatTokenAmount(amount.amount?.toString() || '0', getTokenDecimals(amount.tokenAddress, chainId))
   }));
 
+  // Determine if this is a private transfer (send or receive)
+  const isPrivateTransfer = category === TransactionCategory.TRANSFER_SEND || category === TransactionCategory.TRANSFER_RECEIVE;
+
+  // Get memo for private transfers
+  let memoText = null;
+  if (isPrivateTransfer) {
+    if (typeof historyItem.memoText === 'string' && historyItem.memoText.length > 0) {
+      memoText = historyItem.memoText;
+    } else if (typeof historyItem.memo === 'string' && historyItem.memo.length > 0) {
+      memoText = historyItem.memo;
+    }
+  }
+
+  // Copy function for transaction ID
+  const copyTxId = async () => {
+    try {
+      await navigator.clipboard.writeText(txid);
+      console.log('[TransactionHistory] ✅ Transaction ID copied to clipboard:', txid);
+      // You can add a toast notification here if desired
+    } catch (error) {
+      console.error('[TransactionHistory] ❌ Failed to copy transaction ID:', error);
+    }
+  };
+
   return {
     txid,
     blockNumber,
@@ -126,15 +150,16 @@ const formatTransactionHistoryItem = (historyItem, chainId) => {
     transactionType,
     category,
     description,
-    memo: (typeof memoText === 'string' && memoText.length > 0)
-      ? memoText
-      : (typeof memo === 'string' && memo.length > 0 ? memo : null),
+    memo: memoText,
+    isPrivateTransfer,
     tokenAmounts,
     chainId,
+    // Copy functionality
+    copyTxId,
     // Raw data for detailed view
     raw: {
       transferERC20Amounts,
-      receiveERC20Amounts, 
+      receiveERC20Amounts,
       unshieldERC20Amounts,
       broadcasterFeeERC20Amount: historyItem.broadcasterFeeERC20Amount,
       changeERC20Amounts: historyItem.changeERC20Amounts || []
@@ -267,11 +292,11 @@ const formatTokenAmount = (amount, decimals) => {
 };
 
 /**
- * Get transaction history for a RAILGUN wallet
+ * Get transaction history for a RAILGUN wallet (filtered by chain)
  * @param {string} walletID - RAILGUN wallet ID
- * @param {number} chainId - Chain ID
+ * @param {number} chainId - Chain ID to filter by
  * @param {number} startingBlock - Optional starting block number
- * @returns {Array} Array of formatted transaction history items
+ * @returns {Array} Array of formatted transaction history items for the specified chain
  */
 export const getTransactionHistory = async (walletID, chainId, startingBlock = null) => {
   try {
@@ -280,11 +305,13 @@ export const getTransactionHistory = async (walletID, chainId, startingBlock = n
     const networkName = getRailgunNetworkName(chainId);
     const { chain } = getChainConfig(networkName);
     
-    console.log('[TransactionHistory] Fetching transaction history:', {
+    console.log('[TransactionHistory] Fetching transaction history for chain:', {
       walletID: walletID?.slice(0, 8) + '...',
       chainId,
       networkName,
-      startingBlock
+      chainConfig: `${chain.id}-${chain.type}`,
+      startingBlock,
+      note: 'Only transactions for this specific chain will be returned'
     });
     
     // Check wallet scanning status before fetching history
@@ -326,13 +353,20 @@ export const getTransactionHistory = async (walletID, chainId, startingBlock = n
       return b.timestamp - a.timestamp;
     });
     
-    console.log('[TransactionHistory] ✅ Formatted transaction history:', {
+    console.log('[TransactionHistory] ✅ Formatted transaction history for chain:', {
+      chainId,
       count: formattedHistory.length,
       types: formattedHistory.map(item => item.transactionType),
+      privateTransfersWithMemo: formattedHistory.filter(item => item.isPrivateTransfer && item.memo).length,
       dateRange: formattedHistory.length > 0 ? {
         latest: formattedHistory[0]?.date?.toLocaleString(),
         earliest: formattedHistory[formattedHistory.length - 1]?.date?.toLocaleString()
-      } : null
+      } : null,
+      features: {
+        copyTxId: true,
+        chainFiltered: true,
+        privateTransferMemos: true
+      }
     });
     
     return formattedHistory;
@@ -377,9 +411,9 @@ export const getTransactionHistoryByCategory = async (walletID, chainId, categor
 };
 
 /**
- * Get transaction history for current wallet (convenience function)
- * @param {number} chainId - Chain ID
- * @returns {Array} Transaction history for current wallet
+ * Get transaction history for current wallet on specific chain (convenience function)
+ * @param {number} chainId - Chain ID to get transactions for
+ * @returns {Array} Transaction history for current wallet on specified chain
  */
 export const getCurrentWalletTransactionHistory = async (chainId) => {
   try {
@@ -387,12 +421,67 @@ export const getCurrentWalletTransactionHistory = async (chainId) => {
     if (!walletID) {
       throw new Error('No active RAILGUN wallet');
     }
-    
+
+    console.log('[TransactionHistory] Getting current wallet history for chain:', chainId);
     return await getTransactionHistory(walletID, chainId);
   } catch (error) {
     console.error('[TransactionHistory] Failed to get current wallet history:', error);
     return [];
   }
+};
+
+/**
+ * Get transaction history for current wallet on current chain only
+ * @param {number} chainId - Current chain ID
+ * @returns {Array} Transaction history filtered to current chain
+ */
+export const getCurrentChainTransactionHistory = async (chainId) => {
+  console.log('[TransactionHistory] 🔍 Getting transaction history for current chain only:', chainId);
+  return await getCurrentWalletTransactionHistory(chainId);
+};
+
+/**
+ * Create UI-ready transaction item with copy functionality and memo display
+ * @param {Object} transaction - Raw transaction object
+ * @returns {Object} UI-ready transaction with enhanced features
+ */
+export const createUITransactionItem = (transaction) => {
+  return {
+    ...transaction,
+    // Transaction ID with copy functionality
+    txIdDisplay: {
+      id: transaction.txid,
+      shortId: `${transaction.txid.slice(0, 8)}...${transaction.txid.slice(-6)}`,
+      fullId: transaction.txid,
+      copy: transaction.copyTxId
+    },
+    // Memo display for private transfers
+    memoDisplay: transaction.isPrivateTransfer && transaction.memo ? {
+      text: transaction.memo,
+      truncated: transaction.memo.length > 50 ? `${transaction.memo.slice(0, 50)}...` : transaction.memo,
+      full: transaction.memo
+    } : null,
+    // Chain information
+    chainInfo: {
+      id: transaction.chainId,
+      name: getChainName(transaction.chainId)
+    }
+  };
+};
+
+/**
+ * Get chain name for display
+ * @param {number} chainId - Chain ID
+ * @returns {string} Human-readable chain name
+ */
+const getChainName = (chainId) => {
+  const chainNames = {
+    1: 'Ethereum',
+    42161: 'Arbitrum',
+    137: 'Polygon',
+    56: 'BNB Chain'
+  };
+  return chainNames[chainId] || `Chain ${chainId}`;
 };
 
 /**
@@ -435,8 +524,10 @@ export default {
   getRecentTransactionHistory,
   getTransactionHistoryByCategory,
   getCurrentWalletTransactionHistory,
+  getCurrentChainTransactionHistory,
   getShieldTransactions,
   getUnshieldTransactions,
   getPrivateTransfers,
+  createUITransactionItem,
   TransactionCategory,
 }; 

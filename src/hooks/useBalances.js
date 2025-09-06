@@ -92,11 +92,10 @@ export function useBalances() {
   const lastSpendableUpdateRef = useRef(0); // timestamp of last SDK Spendable update
   const hasAutoRefreshed = useRef(false);
 
-  // Listen for wallet disconnecting event to abort ongoing requests
+  // Listen for disconnect events to abort ongoing requests
   useEffect(() => {
     const handleWalletDisconnecting = () => {
       console.log('[useBalances] 📡 Received wallet disconnecting event - aborting all requests');
-      // Abort any ongoing fetch requests by dispatching abort signal
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('abort-all-requests'));
       }
@@ -106,15 +105,27 @@ export function useBalances() {
     const handleAbortAllRequests = () => {
       console.log('[useBalances] 🛑 Received abort-all-requests event - stopping all operations');
       setLoading(false);
-      // Additional cleanup can be added here if needed
+    };
+
+    const handleForceDisconnect = () => {
+      console.log('[useBalances] 💥 Received force-disconnect event - IMMEDIATE ABORT');
+      // Force clear all state immediately
+      setPublicBalances([]);
+      setPrivateBalances([]);
+      setLoading(false);
+      setError(null);
+      setLastUpdated(null);
+      setTokenPrices({});
     };
 
     if (typeof window !== 'undefined') {
       window.addEventListener('wallet-disconnecting', handleWalletDisconnecting);
       window.addEventListener('abort-all-requests', handleAbortAllRequests);
+      window.addEventListener('force-disconnect', handleForceDisconnect);
       return () => {
         window.removeEventListener('wallet-disconnecting', handleWalletDisconnecting);
         window.removeEventListener('abort-all-requests', handleAbortAllRequests);
+        window.removeEventListener('force-disconnect', handleForceDisconnect);
       };
     }
   }, []);
