@@ -112,13 +112,32 @@ const formatTransactionHistoryItem = (historyItem, chainId) => {
   }
 
   // Format token amounts for display
-  const tokenAmounts = primaryAmounts.map(amount => ({
-    tokenAddress: amount.tokenAddress,
-    amount: amount.amount?.toString() || '0',
-    symbol: getTokenSymbol(amount.tokenAddress, chainId),
-    decimals: getTokenDecimals(amount.tokenAddress, chainId),
-    formattedAmount: formatTokenAmount(amount.amount?.toString() || '0', getTokenDecimals(amount.tokenAddress, chainId))
-  }));
+  console.log('[TransactionHistory] Processing amounts for category:', category, {
+    primaryAmountsCount: primaryAmounts?.length || 0,
+    transferERC20AmountsCount: transferERC20Amounts?.length || 0,
+    receiveERC20AmountsCount: receiveERC20Amounts?.length || 0,
+    unshieldERC20AmountsCount: unshieldERC20Amounts?.length || 0,
+    firstAmount: primaryAmounts?.[0]
+  });
+
+  const tokenAmounts = primaryAmounts.map(amount => {
+    const tokenAddress = amount.tokenAddress || amount.address;
+    const rawAmount = amount.amount || amount.value || '0';
+
+    console.log('[TransactionHistory] Processing token amount:', {
+      tokenAddress,
+      rawAmount,
+      amountType: typeof rawAmount
+    });
+
+    return {
+      tokenAddress,
+      amount: rawAmount?.toString() || '0',
+      symbol: getTokenSymbol(tokenAddress, chainId),
+      decimals: getTokenDecimals(tokenAddress, chainId),
+      formattedAmount: formatTokenAmount(rawAmount?.toString() || '0', getTokenDecimals(tokenAddress, chainId))
+    };
+  });
 
   // Determine if this is a private transfer (send or receive)
   const isPrivateTransfer = category === TransactionCategory.TRANSFER_SEND || category === TransactionCategory.TRANSFER_RECEIVE;
@@ -179,46 +198,62 @@ const formatTransactionHistoryItem = (historyItem, chainId) => {
  * @returns {string} Token symbol
  */
 const getTokenSymbol = (tokenAddress, chainId) => {
-  if (!tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000') {
+  if (!tokenAddress) return 'UNKNOWN';
+
+  // Handle native token (zero address)
+  if (tokenAddress === '0x0000000000000000000000000000000000000000' ||
+      tokenAddress === '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee') {
     const nativeSymbols = { 1: 'ETH', 42161: 'ETH', 137: 'MATIC', 56: 'BNB' };
     return nativeSymbols[chainId] || 'ETH';
   }
-  
-  // Known tokens by network
+
+  // Normalize address for comparison
+  const normalizedAddress = tokenAddress.toLowerCase();
+
+  // Known tokens by network (expanded list)
   const knownTokens = {
+    // Ethereum
+    1: {
+      '0xdac17f958d2ee523a2206206994597c13d831ec7': 'USDT',
+      '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': 'USDC', // This is the address from the user's screenshot
+      '0x6b175474e89094c44da98b954eedeac495271d0f': 'DAI',
+      '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599': 'WBTC',
+      '0x514910771af9ca656af840dff83e8264ecf986ca': 'LINK',
+      '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984': 'UNI',
+      '0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9': 'AAVE',
+    },
     // Arbitrum
     42161: {
       '0xaf88d065e77c8cc2239327c5edb3a432268e5831': 'USDC',
       '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': 'USDT',
       '0xda10009cbd5d07dd0cecc66161fc93d7c9000da1': 'DAI',
       '0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f': 'WBTC',
+      '0xfa7f8980b0f1e64a2062791cc3b087ef6cd93df': 'UNI',
     },
     // BNB Chain
     56: {
       '0x55d398326f99059ff775485246999027b3197955': 'USDT',
       '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': 'USDC',
       '0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3': 'DAI',
+      '0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c': 'BTCB',
     },
     // Polygon
     137: {
       '0xc2132d05d31c914a87c6611c10748aeb04b58e8f': 'USDT',
       '0x2791bca1f2de4661ed88a30c99a7a9449aa84174': 'USDC',
       '0x8f3cf7ad23cd3cadbd9735aff958023239c6a063': 'DAI',
-    },
-    // Ethereum
-    1: {
-      '0xdac17f958d2ee523a2206206994597c13d831ec7': 'USDT',
-      '0xa0b86a33e6416a86f2016c97db4ad0a23a5b7b73': 'USDC',
-      '0x6b175474e89094c44da98b954eedeac495271d0f': 'DAI',
-      '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599': 'WBTC',
+      '0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6': 'WBTC',
     }
   };
-  
+
   const chainTokens = knownTokens[chainId];
-  if (chainTokens) {
-    return chainTokens[tokenAddress.toLowerCase()] || 'UNKNOWN';
+  if (chainTokens && chainTokens[normalizedAddress]) {
+    return chainTokens[normalizedAddress];
   }
-  
+
+  // Try to extract symbol from contract if possible (fallback)
+  console.warn('[TransactionHistory] Unknown token:', { tokenAddress, chainId });
+
   return 'UNKNOWN';
 };
 
@@ -233,31 +268,37 @@ const getTokenDecimals = (tokenAddress, chainId) => {
   
   // Known token decimals by network
   const knownDecimals = {
+    // Ethereum
+    1: {
+      '0xdac17f958d2ee523a2206206994597c13d831ec7': 6,  // USDT
+      '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': 6,  // USDC
+      '0x6b175474e89094c44da98b954eedeac495271d0f': 18, // DAI
+      '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599': 8,  // WBTC
+      '0x514910771af9ca656af840dff83e8264ecf986ca': 18, // LINK
+      '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984': 18, // UNI
+      '0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9': 18, // AAVE
+    },
     // Arbitrum
     42161: {
       '0xaf88d065e77c8cc2239327c5edb3a432268e5831': 6,  // USDC
       '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': 6,  // USDT
       '0xda10009cbd5d07dd0cecc66161fc93d7c9000da1': 18, // DAI
       '0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f': 8,  // WBTC
+      '0xfa7f8980b0f1e64a2062791cc3b087ef6cd93df': 18, // UNI
     },
     // BNB Chain
     56: {
       '0x55d398326f99059ff775485246999027b3197955': 18, // USDT
       '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': 18, // USDC
       '0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3': 18, // DAI
+      '0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c': 18, // BTCB
     },
     // Polygon
     137: {
       '0xc2132d05d31c914a87c6611c10748aeb04b58e8f': 6,  // USDT
       '0x2791bca1f2de4661ed88a30c99a7a9449aa84174': 6,  // USDC
       '0x8f3cf7ad23cd3cadbd9735aff958023239c6a063': 18, // DAI
-    },
-    // Ethereum
-    1: {
-      '0xdac17f958d2ee523a2206206994597c13d831ec7': 6,  // USDT
-      '0xa0b86a33e6416a86f2016c97db4ad0a23a5b7b73': 6,  // USDC
-      '0x6b175474e89094c44da98b954eedeac495271d0f': 18, // DAI
-      '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599': 8,  // WBTC
+      '0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6': 8,  // WBTC
     }
   };
   
