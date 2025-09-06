@@ -11,7 +11,6 @@ import { useWallet } from '../contexts/WalletContext';
 const TransactionHistory = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [showDetails, setShowDetails] = useState({});
 
   // Debug wallet context values
   const { chainId, railgunWalletId, isRailgunInitialized, canUseRailgun } = useWallet();
@@ -52,14 +51,6 @@ const TransactionHistory = () => {
   };
 
   const displayTransactions = getDisplayTransactions();
-
-  // Toggle transaction details
-  const toggleDetails = (txid) => {
-    setShowDetails(prev => ({
-      ...prev,
-      [txid]: !prev[txid]
-    }));
-  };
 
   // Format transaction type for display
   const getTransactionIcon = (type) => {
@@ -204,12 +195,6 @@ const TransactionHistory = () => {
                     </div>
                   </div>
                 </div>
-                <button
-                  onClick={() => toggleDetails(tx.txid)}
-                  className="text-purple-300 hover:text-purple-200 text-sm self-start sm:self-auto"
-                >
-                  {showDetails[tx.txid] ? 'Hide Details' : 'Show Details'}
-                </button>
               </div>
 
               {/* Token Amounts */}
@@ -219,8 +204,8 @@ const TransactionHistory = () => {
                     <div className="flex items-center space-x-2 min-w-0">
                       <span className="text-green-200 font-medium">{token.symbol}</span>
                       <span className="text-green-400/70 text-sm truncate">
-                        {token.tokenAddress ? 
-                          `${token.tokenAddress.slice(0, 6)}...${token.tokenAddress.slice(-4)}` : 
+                        {token.tokenAddress ?
+                          `${token.tokenAddress.slice(0, 6)}...${token.tokenAddress.slice(-4)}` :
                           'Native'
                         }
                       </span>
@@ -232,8 +217,13 @@ const TransactionHistory = () => {
                 ))}
               </div>
 
+              {/* Transaction ID */}
+              <div className="text-green-400/70 text-sm mb-3 font-mono break-all">
+                {tx.txid}
+              </div>
+
               {/* Description + Memo */}
-              <div className="text-green-400/80 text-sm mb-3">
+              <div className="text-green-400/80 text-sm">
                 <div className="break-words">{tx.description}</div>
                 {tx.memo && (
                   <div className="mt-1 text-cyan-300 break-words">
@@ -242,37 +232,6 @@ const TransactionHistory = () => {
                 )}
               </div>
 
-              {/* Details */}
-              {showDetails[tx.txid] && (
-                <div className="border-t border-green-500/20 pt-3 mt-3">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-green-400/70">Transaction ID:</span>
-                      <div className="text-green-200 font-mono break-all">
-                        {tx.txid}
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-green-400/70">Block Number:</span>
-                      <div className="text-green-200">
-                        {tx.blockNumber || 'Unknown'}
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-green-400/70">Category:</span>
-                      <div className="text-green-200">
-                        {tx.category}
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-green-400/70">Chain ID:</span>
-                      <div className="text-green-200">
-                        {tx.chainId}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           ))}
         </div>

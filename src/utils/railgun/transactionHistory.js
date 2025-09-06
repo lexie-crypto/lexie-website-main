@@ -84,7 +84,7 @@ const formatTransactionHistoryItem = (historyItem, chainId) => {
     case TransactionCategory.SHIELD:
       transactionType = 'Add to Vault';
       primaryAmounts = receiveERC20Amounts;
-      description = 'Add tokens to vault for privacy';
+      description = 'Add tokens to vault';
       break;
       
     case TransactionCategory.UNSHIELD:
@@ -112,23 +112,9 @@ const formatTransactionHistoryItem = (historyItem, chainId) => {
   }
 
   // Format token amounts for display
-  console.log('[TransactionHistory] Processing amounts for category:', category, {
-    primaryAmountsCount: primaryAmounts?.length || 0,
-    transferERC20AmountsCount: transferERC20Amounts?.length || 0,
-    receiveERC20AmountsCount: receiveERC20Amounts?.length || 0,
-    unshieldERC20AmountsCount: unshieldERC20Amounts?.length || 0,
-    firstAmount: primaryAmounts?.[0]
-  });
-
   const tokenAmounts = primaryAmounts.map(amount => {
     const tokenAddress = amount.tokenAddress || amount.address;
     const rawAmount = amount.amount || amount.value || '0';
-
-    console.log('[TransactionHistory] Processing token amount:', {
-      tokenAddress,
-      rawAmount,
-      amountType: typeof rawAmount
-    });
 
     return {
       tokenAddress,
