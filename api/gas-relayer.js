@@ -19,6 +19,8 @@ export default async function handler(req, res) {
     'https://www.lexiecrypto.com/wallet',
     'http://localhost:3000',
     'http://localhost:5173',
+    'https://staging.lexiecrypto.com',
+    'https://staging.chatroom.lexiecrypto.com',
   ];
 
   if (allowedOrigins.includes(origin)) {
