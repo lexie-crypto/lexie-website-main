@@ -228,16 +228,15 @@ const TransactionHistory = () => {
               </div>
 
               {/* Transaction ID */}
-              <div className="text-green-400/70 text-sm font-mono break-all flex items-center gap-2">
+              <div className="text-green-400/70 text-sm font-mono break-all">
                 <span className="text-green-400/80">Transaction ID:</span>
-                <span>{tx.txid}</span>
-                <button
+                <span
                   onClick={() => tx.copyTxId()}
-                  className="text-purple-300 hover:text-purple-200 text-xs px-2 py-1 bg-purple-500/10 hover:bg-purple-500/20 rounded border border-purple-500/20 transition-colors ml-2"
-                  title="Copy Transaction ID"
+                  className="cursor-pointer hover:text-green-300 transition-colors select-all"
+                  title="Click to copy Transaction ID"
                 >
-                  Copy
-                </button>
+                  {tx.txid}
+                </span>
               </div>
 
             </div>
