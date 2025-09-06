@@ -229,7 +229,7 @@ const TransactionHistory = () => {
 
               {/* Transaction ID */}
               <div className="text-green-400/70 text-sm font-mono break-all">
-                <span className="text-green-400/80">Transaction ID:</span>
+                <span className="text-green-400/80">Transaction ID: </span>
                 <span
                   onClick={() => tx.copyTxId()}
                   className="cursor-pointer hover:text-green-300 transition-colors select-all"
