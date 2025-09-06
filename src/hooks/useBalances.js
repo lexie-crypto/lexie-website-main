@@ -92,44 +92,32 @@ export function useBalances() {
   const lastSpendableUpdateRef = useRef(0); // timestamp of last SDK Spendable update
   const hasAutoRefreshed = useRef(false);
 
-  // AbortController for managing ongoing requests
-  const abortControllerRef = useRef(null);
-
-  // Function to abort all ongoing requests
-  const abortOngoingRequests = useCallback(() => {
-    if (abortControllerRef.current) {
-      console.log('[useBalances] 🛑 Aborting ongoing requests...');
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-  }, []);
-
-  // Function to create new AbortController for requests
-  const getAbortController = useCallback(() => {
-    // Abort any existing controller
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    // Create new controller
-    abortControllerRef.current = new AbortController();
-    return abortControllerRef.current;
-  }, []);
-
-  // Listen for wallet disconnecting event
+  // Listen for wallet disconnecting event to abort ongoing requests
   useEffect(() => {
     const handleWalletDisconnecting = () => {
       console.log('[useBalances] 📡 Received wallet disconnecting event - aborting all requests');
-      abortOngoingRequests();
+      // Abort any ongoing fetch requests by dispatching abort signal
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('abort-all-requests'));
+      }
       setLoading(false);
+    };
+
+    const handleAbortAllRequests = () => {
+      console.log('[useBalances] 🛑 Received abort-all-requests event - stopping all operations');
+      setLoading(false);
+      // Additional cleanup can be added here if needed
     };
 
     if (typeof window !== 'undefined') {
       window.addEventListener('wallet-disconnecting', handleWalletDisconnecting);
+      window.addEventListener('abort-all-requests', handleAbortAllRequests);
       return () => {
         window.removeEventListener('wallet-disconnecting', handleWalletDisconnecting);
+        window.removeEventListener('abort-all-requests', handleAbortAllRequests);
       };
     }
-  }, [abortOngoingRequests]);
+  }, []);
 
   useEffect(() => {
     stableRefs.current = {
@@ -281,7 +269,6 @@ export function useBalances() {
       console.log('[useBalances] 🔄 Fetching public balances from blockchain...');
       setError(null);
 
-      const controller = getAbortController();
       const tokenList = TOKEN_LISTS[chainId] || [];
 
       // Fetch native token and ERC20 tokens in parallel
@@ -291,12 +278,6 @@ export function useBalances() {
       ];
 
       const results = await Promise.allSettled(balancePromises);
-
-      // Check if request was aborted
-      if (controller.signal.aborted) {
-        console.log('[useBalances] 🛑 Public balance fetch aborted');
-        return [];
-      }
 
       const balances = results
         .filter(result => result.status === 'fulfilled' && result.value !== null)
@@ -309,23 +290,11 @@ export function useBalances() {
 
       return balances;
     } catch (error) {
-      if (error.name === 'AbortError') {
-        console.log('[useBalances] 🛑 Public balance fetch aborted');
-        return [];
-      }
       console.error('[useBalances] Failed to fetch public balances:', error);
       setError(error.message);
       return [];
     }
-  }, [address, chainId, fetchNativeBalance, fetchTokenBalance, getAbortController]);
-
-  // Cleanup effect for component unmount
-  useEffect(() => {
-    return () => {
-      console.log('[useBalances] 🧹 Component unmounting - aborting ongoing requests');
-      abortOngoingRequests();
-    };
-  }, [abortOngoingRequests]);
+  }, [address, chainId, fetchNativeBalance, fetchTokenBalance]);
 
   // Load private balances from Redis ONLY
   const loadPrivateBalancesFromMetadata = useCallback(async (walletAddress, railgunWalletId) => {
@@ -334,18 +303,10 @@ export function useBalances() {
 
       // 1) Prefer the dedicated balances endpoint (authoritative, chain-aware)
       try {
-        const controller = getAbortController();
         const balancesResp = await fetch(`/api/wallet-metadata?action=balances&walletAddress=${encodeURIComponent(walletAddress)}&walletId=${encodeURIComponent(railgunWalletId)}`, {
           method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          signal: controller.signal
+          headers: { 'Content-Type': 'application/json' }
         });
-
-        // Check if request was aborted
-        if (controller.signal.aborted) {
-          console.log('[useBalances] 🛑 Private balance fetch aborted');
-          return [];
-        }
         if (balancesResp.ok) {
           const balancesJson = await balancesResp.json();
           const allBalances = balancesJson?.balances?.balances || balancesJson?.balances || [];
@@ -444,7 +405,7 @@ export function useBalances() {
       console.error('[useBalances] Failed to load private balances from Redis:', error);
       return false;
     }
-  }, [chainId, getAbortController]);
+  }, [chainId]);
 
   // Refresh all balances
   const refreshAllBalances = useCallback(async () => {

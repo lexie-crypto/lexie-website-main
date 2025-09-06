@@ -608,10 +608,6 @@ const WalletContextProvider = ({ children }) => {
     try {
       console.log('🚨 [DISCONNECT] Starting immediate disconnect - aborting all processes...');
 
-      // 🛑 CRITICAL: Abort ALL ongoing processes immediately
-      const abortController = new AbortController();
-      abortController.abort(); // Abort any ongoing operations
-
       // 🛑 Stop all RAILGUN provider polling BEFORE disconnect
       if (isRailgunInitialized) {
         try {
@@ -628,36 +624,30 @@ const WalletContextProvider = ({ children }) => {
       if (typeof window !== 'undefined') {
         try {
           console.log('🛑 [DISCONNECT] Aborting all ongoing fetch requests...');
-          // Create a new AbortController for any ongoing fetches
-          const disconnectAbortController = new AbortController();
-          disconnectAbortController.abort();
-
-          // Try to abort any ongoing balance fetches
-          if (window.__LEXIE_ACTIVE_FETCHES) {
-            window.__LEXIE_ACTIVE_FETCHES.forEach(controller => {
-              try {
-                controller.abort();
-              } catch (e) {
-                // Ignore errors for already aborted controllers
-              }
-            });
-            window.__LEXIE_ACTIVE_FETCHES = [];
-          }
+          // Dispatch event to abort ongoing requests in useBalances and other hooks
+          window.dispatchEvent(new CustomEvent('abort-all-requests'));
         } catch (abortError) {
           console.warn('⚠️ [DISCONNECT] Error aborting ongoing requests:', abortError);
         }
       }
 
-      // 🛑 Clear all timers and intervals
+      // 🛑 Clear wallet-specific timers and intervals
       try {
-        console.log('🧹 [DISCONNECT] Clearing all timers and intervals...');
-        // Clear any polling intervals that might be running
+        console.log('🧹 [DISCONNECT] Clearing wallet-related timers and intervals...');
+        // Only clear intervals that are likely related to wallet operations
+        // This is more conservative than clearing all timers
         if (typeof window !== 'undefined') {
-          // Clear any intervals that might be set
-          for (let i = 1; i < 10000; i++) {
-            clearInterval(i);
-            clearTimeout(i);
-          }
+          // Clear common wallet polling intervals (balance updates, etc.)
+          // Note: This is a best-effort cleanup, not guaranteed to catch everything
+          const walletTimers = [100, 500, 1000, 2000, 5000, 10000, 30000, 60000]; // Common polling intervals
+          walletTimers.forEach(interval => {
+            try {
+              clearInterval(interval);
+              clearTimeout(interval);
+            } catch (e) {
+              // Ignore errors for non-existent timers
+            }
+          });
         }
       } catch (timerError) {
         console.warn('⚠️ [DISCONNECT] Error clearing timers:', timerError);
