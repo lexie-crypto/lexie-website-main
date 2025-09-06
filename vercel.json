@@ -7,6 +7,10 @@
       "destination": "/api/gas-relayer/$1"
     },
     {
+      "source": "/api/(.*)",
+      "destination": "https://staging.api.lexiecrypto.com/api/$1"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
