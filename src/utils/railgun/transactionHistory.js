@@ -122,13 +122,16 @@ const formatTransactionHistoryItem = (historyItem, chainId) => {
   const isPrivateTransfer = category === TransactionCategory.TRANSFER_SEND || category === TransactionCategory.TRANSFER_RECEIVE;
 
   // Get memo for private transfers
-  let memoText = null;
   if (isPrivateTransfer) {
     if (typeof historyItem.memoText === 'string' && historyItem.memoText.length > 0) {
       memoText = historyItem.memoText;
     } else if (typeof historyItem.memo === 'string' && historyItem.memo.length > 0) {
       memoText = historyItem.memo;
+    } else {
+      memoText = null; // Set to null if no memo found
     }
+  } else {
+    memoText = null; // Not a private transfer, so no memo
   }
 
   // Copy function for transaction ID
