@@ -74,13 +74,13 @@ const TransactionHistory = () => {
       case 'Add to Vault':
         return 'text-green-400';
       case 'Remove from Vault':
-        return 'text-blue-400';
+        return 'text-green-400';
       case 'Send Transaction':
-        return 'text-red-400';
+        return 'text-green-400';
       case 'Receive Transaction':
         return 'text-green-400';
       default:
-        return 'text-gray-400';
+        return 'text-green-400';
     }
   };
 
@@ -236,7 +236,7 @@ const TransactionHistory = () => {
                   className="text-purple-300 hover:text-purple-200 text-xs px-2 py-1 bg-purple-500/10 hover:bg-purple-500/20 rounded border border-purple-500/20 transition-colors ml-2"
                   title="Copy Transaction ID"
                 >
-                  📋
+                  Copy
                 </button>
               </div>
 
