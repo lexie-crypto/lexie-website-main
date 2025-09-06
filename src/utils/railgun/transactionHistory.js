@@ -69,9 +69,11 @@ const formatTransactionHistoryItem = (historyItem, chainId) => {
     receiveERC20Amounts = [],
     unshieldERC20Amounts = [],
     category,
-    memoText,
     memo,
   } = historyItem;
+
+  // Extract memoText from historyItem (not as const since we may reassign it)
+  let memoText = historyItem.memoText;
 
   // Determine transaction type and primary amounts
   let transactionType = 'Unknown';
@@ -327,7 +329,7 @@ export const getTransactionHistory = async (walletID, chainId, startingBlock = n
         scanProgress: scanProgress || 'unknown'
       });
     } catch (scanError) {
-      console.warn('[TransactionHistory] Could not check scan progress:', scanError.message);
+      console.warn('[TransactionHistory] Could not check scan progress:', scanError?.message || scanError);
     }
     
     // Get raw transaction history from RAILGUN
