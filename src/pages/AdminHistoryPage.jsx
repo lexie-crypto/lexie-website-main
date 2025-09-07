@@ -64,7 +64,7 @@ const AdminHistoryPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [generateAuthHeaders]);
+  }, []);
 
   /**
    * Fetch transaction history for a wallet
@@ -111,7 +111,7 @@ const AdminHistoryPage = () => {
     } finally {
       setLoading(false);
     }
-  }, [generateAuthHeaders]);
+  }, []);
 
   /**
    * Load more transactions
