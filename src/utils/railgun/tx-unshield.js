@@ -1722,20 +1722,77 @@ export const privateTransferWithRelayer = async ({
     let relayerFeePerUnitGas = originalGasDetails.gasPrice || originalGasDetails.maxFeePerGas || BigInt('20000000000'); // 20 gwei fallback instead of 1 gwei
     let feeQuote = null;
     try {
+      // Use the original amount for fee estimation (before our BigInt conversion)
       feeQuote = await estimateRelayerFee({ chainId, tokenAddress, amount: String(erc20AmountRecipients[0].amount) });
-      if (feeQuote?.feeEstimate?.feePerUnitGas) relayerFeePerUnitGas = BigInt(feeQuote.feeEstimate.feePerUnitGas);
-    } catch {}
+      if (feeQuote?.feeEstimate?.feePerUnitGas) {
+        // Safely convert feePerUnitGas to BigInt
+        try {
+          const feePerUnitGasValue = feeQuote.feeEstimate.feePerUnitGas;
+          if (typeof feePerUnitGasValue === 'string') {
+            const cleanFee = feePerUnitGasValue.replace(/[^0-9]/g, '');
+            if (cleanFee && cleanFee !== '0') {
+              relayerFeePerUnitGas = BigInt(cleanFee);
+            }
+          } else if (typeof feePerUnitGasValue === 'number') {
+            relayerFeePerUnitGas = BigInt(Math.floor(feePerUnitGasValue));
+          } else {
+            relayerFeePerUnitGas = BigInt(feePerUnitGasValue);
+          }
+        } catch (gasFeeError) {
+          console.warn('⚠️ [PRIVATE TRANSFER] Failed to parse feePerUnitGas, using fallback:', gasFeeError.message);
+        }
+      }
+    } catch (feeEstimateError) {
+      console.warn('⚠️ [PRIVATE TRANSFER] Fee estimation failed:', feeEstimateError.message);
+    }
     const feeTokenDetails = { tokenAddress, feePerUnitGas: relayerFeePerUnitGas };
 
     // STEP 4: STANDARD TRANSFER PATH (no RelayAdapt): estimate → proof → populate
-    const amountBn = BigInt(erc20AmountRecipients[0].amount);
+    // Safely convert amount to BigInt
+    let amountBn;
+    try {
+      const amountValue = erc20AmountRecipients[0].amount;
+      if (typeof amountValue === 'string') {
+        // Remove any non-numeric characters and convert
+        const cleanAmount = amountValue.replace(/[^0-9]/g, '');
+        amountBn = BigInt(cleanAmount);
+      } else if (typeof amountValue === 'number') {
+        amountBn = BigInt(Math.floor(amountValue)); // Ensure it's an integer
+      } else {
+        amountBn = BigInt(amountValue);
+      }
+    } catch (amountError) {
+      console.error('❌ [PRIVATE TRANSFER] Failed to parse transfer amount:', erc20AmountRecipients[0].amount);
+      throw new Error(`Invalid transfer amount: ${erc20AmountRecipients[0].amount}`);
+    }
     const relayerRailgunAddress = await getRelayerAddress();
 
     // Calculate fees the same way as unshield (deduct from transfer amount)
     const RELAYER_FEE_BPS = 50n; // 0.5% (same as unshield)
-    const relayerFeeAmount = feeQuote && (feeQuote.relayerFee || feeQuote.feeEstimate?.relayerFee)
-      ? BigInt(feeQuote.relayerFee || feeQuote.feeEstimate.relayerFee)
-      : (amountBn * RELAYER_FEE_BPS) / 10000n; // 0.5% fallback
+
+    // Safely extract and convert fee amount to BigInt
+    let relayerFeeAmount = (amountBn * RELAYER_FEE_BPS) / 10000n; // Default fallback: 0.5%
+
+    try {
+      if (feeQuote) {
+        // Try different possible fee field locations
+        const feeValue = feeQuote.relayerFee ||
+                        feeQuote.feeEstimate?.relayerFee ||
+                        feeQuote.fee ||
+                        feeQuote.amount;
+
+        if (feeValue !== undefined && feeValue !== null) {
+          // Convert to string first, then to BigInt to handle various input types
+          const feeString = String(feeValue).replace(/[^0-9]/g, ''); // Remove non-numeric chars
+          if (feeString && feeString !== '0') {
+            relayerFeeAmount = BigInt(feeString);
+          }
+        }
+      }
+    } catch (feeError) {
+      console.warn('⚠️ [PRIVATE TRANSFER] Fee parsing failed, using fallback:', feeError.message);
+      // Keep the fallback value
+    }
 
     // Deduct fee from transfer amount (like unshield does)
     const netRecipientAmount = amountBn - relayerFeeAmount;
@@ -1747,8 +1804,39 @@ export const privateTransferWithRelayer = async ({
       verification: `${netRecipientAmount.toString()} + ${relayerFeeAmount.toString()} = ${(netRecipientAmount + relayerFeeAmount).toString()}`
     });
 
+    // Additional debugging for BigInt operations
+    console.log('🔍 [PRIVATE TRANSFER] BigInt types check:', {
+      amountBn_type: typeof amountBn,
+      relayerFeeAmount_type: typeof relayerFeeAmount,
+      netRecipientAmount_type: typeof netRecipientAmount,
+      amountBn_value: amountBn.toString(),
+      relayerFeeAmount_value: relayerFeeAmount.toString(),
+      netRecipientAmount_value: netRecipientAmount.toString()
+    });
+
     // Update the recipient amount to be net of fees
     erc20AmountRecipients[0].amount = netRecipientAmount.toString();
+
+    // Log SDK inputs for debugging
+    console.log('🔧 [PRIVATE TRANSFER] SDK gasEstimateForUnprovenTransfer inputs:', {
+      networkName,
+      memoText: memoText ? 'present' : 'null',
+      erc20AmountRecipients: erc20AmountRecipients.map(r => ({
+        tokenAddress: r.tokenAddress,
+        amount: r.amount,
+        recipientAddress: r.recipientAddress?.slice(0, 10) + '...'
+      })),
+      originalGasDetails: {
+        evmGasType: originalGasDetails.evmGasType,
+        gasPrice: originalGasDetails.gasPrice?.toString(),
+        maxFeePerGas: originalGasDetails.maxFeePerGas?.toString(),
+        maxPriorityFeePerGas: originalGasDetails.maxPriorityFeePerGas?.toString()
+      },
+      feeTokenDetails: {
+        tokenAddress: feeTokenDetails.tokenAddress,
+        feePerUnitGas: feeTokenDetails.feePerUnitGas?.toString()
+      }
+    });
 
     const { gasEstimate } = await gasEstimateForUnprovenTransfer(
       TXIDVersion.V2_PoseidonMerkle,
@@ -1768,8 +1856,26 @@ export const privateTransferWithRelayer = async ({
     const relayerFeeERC20AmountRecipient = {
       tokenAddress,
       recipientAddress: relayerRailgunAddress,
-      amount: relayerFeeAmount,
+      amount: relayerFeeAmount.toString(), // Ensure it's a string for SDK compatibility
     };
+
+    // Validate all inputs before SDK calls
+    console.log('✅ [PRIVATE TRANSFER] Pre-SDK validation:', {
+      erc20AmountRecipients: erc20AmountRecipients.map(r => ({
+        tokenAddress: typeof r.tokenAddress,
+        amount: typeof r.amount,
+        recipientAddress: typeof r.recipientAddress
+      })),
+      relayerFeeERC20AmountRecipient: {
+        tokenAddress: typeof relayerFeeERC20AmountRecipient.tokenAddress,
+        amount: typeof relayerFeeERC20AmountRecipient.amount,
+        recipientAddress: typeof relayerFeeERC20AmountRecipient.recipientAddress
+      },
+      feeTokenDetails: {
+        tokenAddress: typeof feeTokenDetails.tokenAddress,
+        feePerUnitGas: typeof feeTokenDetails.feePerUnitGas
+      }
+    });
     const overallBatchMinGasPrice = await calculateGasPrice(transactionGasDetails);
     await generateTransferProof(
       TXIDVersion.V2_PoseidonMerkle,
