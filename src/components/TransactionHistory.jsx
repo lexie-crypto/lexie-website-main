@@ -214,12 +214,7 @@ const TransactionHistory = () => {
                   <div key={index} className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-1 gap-1">
                     <div className="flex items-center space-x-2 min-w-0">
                       <span className="text-green-200 font-medium">{token.symbol}</span>
-                      <span className="text-green-400/70 text-sm truncate">
-                        {token.tokenAddress ?
-                          `${token.tokenAddress.slice(0, 6)}...${token.tokenAddress.slice(-4)}` :
-                          'Native'
-                        }
-                      </span>
+                      {/* Token address hidden for cleaner display */}
                     </div>
                     <div className="text-green-200 font-medium text-right">
                       {token.formattedAmount}

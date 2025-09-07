@@ -1845,6 +1845,7 @@ export const privateTransferWithRelayer = async ({
         proofTimestamp: new Date().toISOString(),
       },
       gasEstimate: transactionGasDetails.gasEstimate?.toString?.(),
+      memoText,
     });
 
     // Transaction monitoring removed - SDK handles balance updates

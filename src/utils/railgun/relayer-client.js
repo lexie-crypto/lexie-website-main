@@ -135,7 +135,8 @@ export async function submitRelayedTransaction({
   amount,
   userAddress,
   feeDetails,
-  gasEstimate
+  gasEstimate,
+  memoText
 }) {
   try {
     console.log('🚀 [RELAYER] Submitting serialized transaction through gas relayer:', {
@@ -153,7 +154,8 @@ export async function submitRelayedTransaction({
       amount,
       userAddress,
       feeDetails,
-      gasEstimate
+      gasEstimate,
+      memoText
     };
 
     // 1) Get presigned HMAC headers from proxy to avoid exposing secrets
