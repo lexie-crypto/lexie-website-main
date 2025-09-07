@@ -202,11 +202,29 @@ export default async function handler(req, res) {
   } = req.query;
 
   // Detect admin routes based on URL path
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const pathParts = url.pathname.split('/').filter(p => p);
+  // In Vercel API routes, req.url might be just the path after /api/wallet-metadata
+  let pathname = req.url;
+  try {
+    const url = new URL(req.url, `http://${req.headers.host}`);
+    pathname = url.pathname;
+  } catch (e) {
+    // If URL parsing fails, req.url might already be just the path
+    pathname = req.url;
+  }
+  const pathParts = pathname.split('/').filter(p => p);
+
+  console.log(`🔍 [PROXY-${requestId}] Route detection:`, {
+    originalUrl: req.url,
+    finalPathname: pathname,
+    pathParts,
+    hasAdmin: pathParts.includes('admin'),
+    method: req.method
+  });
 
   // Handle admin routes
   if (pathParts.includes('admin')) {
+    console.log(`✅ [ADMIN-PROXY-${requestId}] Admin route detected, processing...`);
+
     if (req.method === 'GET') {
       if (pathParts.includes('resolve')) {
         // GET /admin/history/resolve?q=<identifier>
@@ -269,9 +287,18 @@ export default async function handler(req, res) {
         'User-Agent': 'Lexie-Wallet-Proxy/1.0',
       };
 
+      console.log(`🔐 [ADMIN-PROXY-${requestId}] HMAC headers generated:`, {
+        method: 'GET',
+        timestamp,
+        signature: signature.substring(0, 20) + '...',
+        backendPath,
+        hasTimestamp: !!headers['X-Lexie-Timestamp'],
+        hasSignature: !!headers['X-Lexie-Signature']
+      });
+
     } else if (req.method === 'POST') {
       // POST endpoints for admin (if any in future)
-      backendPath = `/admin${url.pathname}`;
+      backendPath = `/admin${pathname}`;
       backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
 
       const signature = generateHmacSignature('POST', backendPath, timestamp, hmacSecret);
@@ -334,6 +361,7 @@ export default async function handler(req, res) {
   }
 
   // Original wallet-metadata logic continues below
+  console.log(`📊 [PROXY-${requestId}] Processing as regular wallet-metadata route`);
   if (req.method === 'GET') {
       if (action === 'balances') {
         // Disabled: note-based balance endpoint removed
