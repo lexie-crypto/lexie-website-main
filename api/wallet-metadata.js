@@ -201,80 +201,65 @@ export default async function handler(req, res) {
     requiredAmount
   } = req.query;
 
-  // Detect admin routes based on URL path
-  // In Vercel API routes, req.url might be just the path after /api/wallet-metadata
-  let pathname = req.url;
-  try {
-    const url = new URL(req.url, `http://${req.headers.host}`);
-    pathname = url.pathname;
-  } catch (e) {
-    // If URL parsing fails, req.url might already be just the path
-    pathname = req.url;
-  }
-  const pathParts = pathname.split('/').filter(p => p);
+  // Detect history routes based on action parameter
 
   console.log(`🔍 [PROXY-${requestId}] Route detection:`, {
-    originalUrl: req.url,
-    finalPathname: pathname,
-    pathParts,
-    hasAdmin: pathParts.includes('admin'),
-    method: req.method
+    action,
+    method: req.method,
+    query: req.query
   });
 
-  // Handle admin routes
-  if (pathParts.includes('admin')) {
-    console.log(`✅ [ADMIN-PROXY-${requestId}] Admin route detected, processing...`);
+  // Handle history routes
+  if (action === 'history') {
+    console.log(`✅ [HISTORY-PROXY-${requestId}] History route detected, processing...`);
 
     if (req.method === 'GET') {
-      if (pathParts.includes('resolve')) {
-        // GET /admin/history/resolve?q=<identifier>
-        const q = req.query.q;
+      const { subaction, q, walletId, page = '1', pageSize = '50' } = req.query;
+
+      if (subaction === 'resolve') {
+        // GET /?action=history&subaction=resolve&q=<identifier>
         if (!q) {
-          console.log(`❌ [ADMIN-PROXY-${requestId}] Missing query parameter for resolve`);
+          console.log(`❌ [HISTORY-PROXY-${requestId}] Missing query parameter for resolve`);
           return res.status(400).json({
             success: false,
             error: 'Missing query parameter'
           });
         }
 
-        backendPath = `/admin/history/resolve?q=${encodeURIComponent(q)}`;
+        backendPath = `/?action=history&subaction=resolve&q=${encodeURIComponent(q?.toString() || '')}`;
         backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
 
-        console.log(`🔍 [ADMIN-PROXY-${requestId}] GET resolve for query: ${q.slice(0, 20)}...`);
+        console.log(`🔍 [HISTORY-PROXY-${requestId}] GET resolve for query: ${(q?.toString() || '').slice(0, 20)}...`);
 
-      } else if (pathParts.includes('export.csv')) {
-        // GET /admin/history/:walletId/export.csv
-        const walletId = pathParts[pathParts.length - 2]; // Extract walletId from path
+      } else if (subaction === 'export') {
+        // GET /?action=history&subaction=export&walletId=<walletId>
         if (!walletId) {
-          console.log(`❌ [ADMIN-PROXY-${requestId}] Missing walletId for export`);
+          console.log(`❌ [HISTORY-PROXY-${requestId}] Missing walletId for export`);
           return res.status(400).json({
             success: false,
             error: 'Missing walletId parameter'
           });
         }
 
-        backendPath = `/admin/history/${walletId}/export.csv`;
+        backendPath = `/?action=history&subaction=export&walletId=${walletId}`;
         backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
 
-        console.log(`📊 [ADMIN-PROXY-${requestId}] GET export CSV for wallet: ${walletId.slice(0, 8)}...`);
+        console.log(`📊 [HISTORY-PROXY-${requestId}] GET export CSV for wallet: ${(walletId?.toString() || '').slice(0, 8)}...`);
 
       } else {
-        // GET /admin/history/:walletId?page=&pageSize=
-        const walletId = pathParts[pathParts.length - 1]; // Extract walletId from path
+        // GET /?action=history&walletId=<walletId>&page=&pageSize=
         if (!walletId) {
-          console.log(`❌ [ADMIN-PROXY-${requestId}] Missing walletId for history`);
+          console.log(`❌ [HISTORY-PROXY-${requestId}] Missing walletId for history`);
           return res.status(400).json({
             success: false,
             error: 'Missing walletId parameter'
           });
         }
 
-        const page = req.query.page || '1';
-        const pageSize = req.query.pageSize || '50';
-        backendPath = `/admin/history/${walletId}?page=${page}&pageSize=${pageSize}`;
+        backendPath = `/?action=history&walletId=${walletId}&page=${page}&pageSize=${pageSize}`;
         backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
 
-        console.log(`📊 [ADMIN-PROXY-${requestId}] GET history for wallet: ${walletId.slice(0, 8)}... (page: ${page}, size: ${pageSize})`);
+        console.log(`📊 [HISTORY-PROXY-${requestId}] GET history for wallet: ${(walletId?.toString() || '').slice(0, 8)}... (page: ${page}, size: ${pageSize})`);
       }
 
       const signature = generateHmacSignature('GET', backendPath, timestamp, hmacSecret);
@@ -297,8 +282,9 @@ export default async function handler(req, res) {
       });
 
     } else if (req.method === 'POST') {
-      // POST endpoints for admin (if any in future)
-      backendPath = `/admin${pathname}`;
+      // POST endpoints for history (if any in future)
+      const queryString = new URLSearchParams(req.query).toString();
+      backendPath = `/?${queryString}`;
       backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
 
       const signature = generateHmacSignature('POST', backendPath, timestamp, hmacSecret);
@@ -313,14 +299,14 @@ export default async function handler(req, res) {
       };
     }
 
-    console.log(`🔐 [ADMIN-PROXY-${requestId}] Generated HMAC headers`, {
+    console.log(`🔐 [HISTORY-PROXY-${requestId}] Generated HMAC headers`, {
       method: req.method,
       timestamp,
       signature: headers['X-Lexie-Signature'].substring(0, 20) + '...',
       path: backendPath
     });
 
-    console.log(`📡 [ADMIN-PROXY-${requestId}] Forwarding to backend: ${backendUrl}`);
+    console.log(`📡 [HISTORY-PROXY-${requestId}] Forwarding to backend: ${backendUrl}`);
 
     // Make the backend request
     const fetchOptions = {
@@ -337,11 +323,11 @@ export default async function handler(req, res) {
     const backendResponse = await fetch(backendUrl, fetchOptions);
 
     // Handle CSV export (binary response)
-    if (backendPath.includes('export.csv')) {
+    if (backendPath.includes('subaction=export')) {
       const contentType = backendResponse.headers.get('content-type');
       if (contentType && contentType.includes('text/csv')) {
         const csvData = await backendResponse.text();
-        console.log(`✅ [ADMIN-PROXY-${requestId}] CSV export successful (${csvData.length} chars)`);
+        console.log(`✅ [HISTORY-PROXY-${requestId}] CSV export successful (${csvData.length} chars)`);
 
         res.setHeader('Content-Type', 'text/csv');
         res.setHeader('Content-Disposition', `attachment; filename="wallet-history.csv"`);
@@ -352,12 +338,12 @@ export default async function handler(req, res) {
     // Handle JSON responses
     const result = await backendResponse.json();
 
-    console.log(`✅ [ADMIN-PROXY-${requestId}] Backend responded with status ${backendResponse.status}`);
+    console.log(`✅ [HISTORY-PROXY-${requestId}] Backend responded with status ${backendResponse.status}`);
 
     // Forward the backend response
     res.status(backendResponse.status).json(result);
 
-    return; // Exit after handling admin routes
+    return; // Exit after handling history routes
   }
 
   // Original wallet-metadata logic continues below

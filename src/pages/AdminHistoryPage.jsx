@@ -34,7 +34,7 @@ const AdminHistoryPage = () => {
     try {
       console.log('[AdminHistory] Resolving query:', query);
 
-      const response = await fetch(`/api/wallet-metadata/admin/history/resolve?q=${encodeURIComponent(query)}`, {
+      const response = await fetch(`/api/wallet-metadata?action=history&subaction=resolve&q=${encodeURIComponent(query)}`, {
         method: 'GET'
       });
 
@@ -76,7 +76,7 @@ const AdminHistoryPage = () => {
     try {
       console.log('[AdminHistory] Fetching history:', { targetWalletId, page });
 
-      const response = await fetch(`/api/wallet-metadata/admin/history/${targetWalletId}?page=${page}&pageSize=50`, {
+      const response = await fetch(`/api/wallet-metadata?action=history&walletId=${targetWalletId}&page=${page}&pageSize=50`, {
         method: 'GET'
       });
 
@@ -131,7 +131,7 @@ const AdminHistoryPage = () => {
     try {
       console.log('[AdminHistory] Exporting CSV for wallet:', walletId);
 
-      const response = await fetch(`/api/wallet-metadata/admin/history/${walletId}/export.csv`, {
+      const response = await fetch(`/api/wallet-metadata?action=history&subaction=export&walletId=${walletId}`, {
         method: 'GET'
       });
 
@@ -165,7 +165,7 @@ const AdminHistoryPage = () => {
     try {
       console.log('[AdminHistory] Exporting JSON for wallet:', walletId);
 
-      const response = await fetch(`/api/admin/history/${walletId}?page=1&pageSize=1000`, {
+      const response = await fetch(`/api/wallet-metadata?action=history&walletId=${walletId}&page=1&pageSize=1000`, {
         method: 'GET'
       });
 
