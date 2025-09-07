@@ -227,7 +227,7 @@ const TransactionHistory = () => {
               <div className="text-green-400/80 text-sm mb-3">
                 <div className="break-words">{tx.description}</div>
                 {tx.memo && (
-                  <div className="mt-1 text-cyan-300 break-words">
+                  <div className="mt-1 text-purple-300 break-words">
                     Memo: {tx.memo}
                   </div>
                 )}
