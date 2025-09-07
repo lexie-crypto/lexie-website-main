@@ -19,32 +19,8 @@ const AdminHistoryPage = () => {
   // Note: Admin authentication is handled by backend HMAC + role verification
   // Frontend will rely on backend to enforce admin access control
 
-  /**
-   * Generate HMAC headers for API authentication
-   */
-  const generateAuthHeaders = useCallback(async (method = 'GET', path = '') => {
-    const timestamp = Date.now().toString();
-    const secret = process.env.REACT_APP_HMAC_SECRET;
-
-    if (!secret) {
-      console.error('[AdminHistory] HMAC secret not configured');
-      return {};
-    }
-
-    const payload = `${method}:${path}:${timestamp}`;
-    const signature = btoa(String.fromCharCode(...new Uint8Array(
-      new Uint8Array(await crypto.subtle.digest('SHA-256',
-        new TextEncoder().encode(payload + secret)
-      ))
-    )));
-
-    return {
-      'Content-Type': 'application/json',
-      'x-lexie-timestamp': timestamp,
-      'x-lexie-signature': `sha256=${signature}`,
-      'x-lexie-role': 'admin' // Default to admin role - backend will validate
-    };
-  }, []);
+  // Note: HMAC authentication is handled by the /api/admin proxy
+  // The proxy generates proper HMAC headers and forwards to backend
 
   /**
    * Resolve search query to wallet ID
@@ -58,10 +34,8 @@ const AdminHistoryPage = () => {
     try {
       console.log('[AdminHistory] Resolving query:', query);
 
-      const headers = await generateAuthHeaders('GET', `/admin/history/resolve?q=${encodeURIComponent(query)}`);
-      const response = await fetch(`/admin/history/resolve?q=${encodeURIComponent(query)}`, {
-        method: 'GET',
-        headers
+      const response = await fetch(`/api/admin/history/resolve?q=${encodeURIComponent(query)}`, {
+        method: 'GET'
       });
 
       if (!response.ok) {
@@ -102,10 +76,8 @@ const AdminHistoryPage = () => {
     try {
       console.log('[AdminHistory] Fetching history:', { targetWalletId, page });
 
-      const headers = await generateAuthHeaders('GET', `/admin/history/${targetWalletId}?page=${page}&pageSize=50`);
-      const response = await fetch(`/admin/history/${targetWalletId}?page=${page}&pageSize=50`, {
-        method: 'GET',
-        headers
+      const response = await fetch(`/api/admin/history/${targetWalletId}?page=${page}&pageSize=50`, {
+        method: 'GET'
       });
 
       if (!response.ok) {
@@ -159,10 +131,8 @@ const AdminHistoryPage = () => {
     try {
       console.log('[AdminHistory] Exporting CSV for wallet:', walletId);
 
-      const headers = await generateAuthHeaders('GET', `/admin/history/${walletId}/export.csv`);
-      const response = await fetch(`/admin/history/${walletId}/export.csv`, {
-        method: 'GET',
-        headers
+      const response = await fetch(`/api/admin/history/${walletId}/export.csv`, {
+        method: 'GET'
       });
 
       if (!response.ok) {
@@ -195,10 +165,8 @@ const AdminHistoryPage = () => {
     try {
       console.log('[AdminHistory] Exporting JSON for wallet:', walletId);
 
-      const headers = await generateAuthHeaders('GET', `/admin/history/${walletId}?page=1&pageSize=1000`);
-      const response = await fetch(`/admin/history/${walletId}?page=1&pageSize=1000`, {
-        method: 'GET',
-        headers
+      const response = await fetch(`/api/admin/history/${walletId}?page=1&pageSize=1000`, {
+        method: 'GET'
       });
 
       if (!response.ok) {
