@@ -276,10 +276,7 @@ export const privateTransfer = async ({
           console.log('🎯 [PRIVATE_TRANSFER] Valid Lexie ID pattern detected, attempting Redis lookup:', input.toLowerCase());
 
           try {
-            const apiUrl = `/api/lexie/resolve?lexieID=${encodeURIComponent(input.toLowerCase())}`;
-            console.log('🌐 [PRIVATE_TRANSFER] Calling Lexie API endpoint:', apiUrl);
-
-            const response = await fetch(apiUrl);
+            const response = await fetch(`/api/wallet-metadata?action=lexie-resolve&lexieID=${encodeURIComponent(input.toLowerCase())}`);
             console.log('📡 [PRIVATE_TRANSFER] API response status:', response.status);
 
             const data = await response.json();
