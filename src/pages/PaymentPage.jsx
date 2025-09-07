@@ -16,6 +16,8 @@ import {
 import TerminalWindow from '../components/ui/TerminalWindow';
 
 import { useWallet } from '../contexts/WalletContext';
+import useInjectedProviders from '../hooks/useInjectedProviders';
+import InjectedProviderButtons from '../components/InjectedProviderButtons.jsx';
 // Client-only shield flow (avoid initializing recipient vault)
 import { assertNotSanctioned } from '../utils/sanctions/chainalysis-oracle';
 import { isTokenSupportedByRailgun } from '../utils/railgun/actions';
@@ -526,20 +528,11 @@ const PaymentPage = () => {
                 <div className="text-center text-green-400/80 text-sm mb-4">
                   Connect your wallet to continue
                 </div>
-                <button
-                  onClick={() => connectWallet('metamask')}
-                  className="w-full bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 py-3 px-6 rounded font-medium transition-colors flex items-center justify-center space-x-2 border border-emerald-400/40"
-                >
-                  <span>🦊</span>
-                  <span>Connect MetaMask</span>
-                </button>
-                <button
-                  onClick={() => connectWallet('walletconnect')}
-                  className="w-full bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 py-3 px-6 rounded font-medium transition-colors flex items-center justify-center space-x-2 border border-emerald-400/40"
-                >
-                  <span>🔗</span>
-                  <span>WalletConnect</span>
-                </button>
+                <InjectedProviderButtons disabled={false} />
+                <div className="mt-6 text-sm text-green-400/70 text-center">
+                  <p>Choose your preferred wallet to connect</p>
+                  <p className="mt-1 pb-3 text-xs">Connection is zk-secured and encrypted</p>
+                </div>
               </div>
             ) : !isCorrectNetwork ? (
               /* Wrong Network Section */

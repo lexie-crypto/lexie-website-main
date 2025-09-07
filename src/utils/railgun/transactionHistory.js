@@ -154,12 +154,28 @@ const formatTransactionHistoryItem = (historyItem, chainId) => {
 
   // Get memo for private transfers
   if (isPrivateTransfer) {
+    console.log('📝 [TRANSACTION_HISTORY] Processing memo for private transfer:', {
+      txid: txid?.substring(0, 10) + '...',
+      category,
+      hasMemoText: !!historyItem.memoText,
+      hasMemo: !!historyItem.memo,
+      memoTextType: typeof historyItem.memoText,
+      memoType: typeof historyItem.memo,
+      memoTextLength: historyItem.memoText?.length || 0,
+      memoLength: historyItem.memo?.length || 0,
+      memoTextValue: historyItem.memoText,
+      memoValue: historyItem.memo
+    });
+
     if (typeof historyItem.memoText === 'string' && historyItem.memoText.length > 0) {
       memoText = historyItem.memoText;
+      console.log('📝 [TRANSACTION_HISTORY] Using memoText field:', memoText);
     } else if (typeof historyItem.memo === 'string' && historyItem.memo.length > 0) {
       memoText = historyItem.memo;
+      console.log('📝 [TRANSACTION_HISTORY] Using memo field:', memoText);
     } else {
       memoText = null; // Set to null if no memo found
+      console.log('📝 [TRANSACTION_HISTORY] No memo found for private transfer');
     }
   } else {
     memoText = null; // Not a private transfer, so no memo
@@ -393,7 +409,21 @@ export const getTransactionHistory = async (walletID, chainId, startingBlock = n
     console.log('[TransactionHistory] Raw history received:', {
       count: rawHistory.length,
       types: rawHistory.map(item => item.category),
-      userAgent: navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop'
+      userAgent: navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop',
+      // Debug memo fields for private transfers
+      privateTransfers: rawHistory.filter(item =>
+        item.category === TransactionCategory.TRANSFER_SEND ||
+        item.category === TransactionCategory.TRANSFER_RECEIVE
+      ).map(item => ({
+        category: item.category,
+        txid: item.txid?.substring(0, 10) + '...',
+        hasMemoText: !!item.memoText,
+        hasMemo: !!item.memo,
+        memoTextLength: item.memoText?.length || 0,
+        memoLength: item.memo?.length || 0,
+        memoTextPreview: item.memoText?.substring(0, 20) + (item.memoText?.length > 20 ? '...' : ''),
+        memoPreview: item.memo?.substring(0, 20) + (item.memo?.length > 20 ? '...' : '')
+      }))
     });
     
     // Format for UI display

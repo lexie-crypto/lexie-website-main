@@ -231,6 +231,15 @@ const TransactionHistory = () => {
                     Memo: {tx.memo}
                   </div>
                 )}
+                {/* Debug logging for memo data */}
+                {console.log('📝 [TransactionHistory] Rendering transaction memo:', {
+                  txid: tx.txid?.substring(0, 10) + '...',
+                  category: tx.category,
+                  isPrivateTransfer: tx.isPrivateTransfer,
+                  hasMemo: !!tx.memo,
+                  memoLength: tx.memo?.length || 0,
+                  memoValue: tx.memo
+                })}
               </div>
 
               {/* Transaction ID */}

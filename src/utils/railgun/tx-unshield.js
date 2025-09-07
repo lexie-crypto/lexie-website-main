@@ -1596,13 +1596,24 @@ export const privateTransferWithRelayer = async ({
   memoText,
   networkName,
 }) => {
+  // Ensure memoText is properly formatted
+  const processedMemoText = memoText && typeof memoText === 'string' && memoText.trim().length > 0
+    ? memoText.trim()
+    : null;
+
+  console.log('📝 [PRIVATE_TRANSFER] Memo processing:', {
+    originalMemoText: memoText,
+    processedMemoText,
+    memoType: typeof memoText,
+    memoLength: memoText?.length || 0
+  });
   try {
     console.log('🔧 [PRIVATE_TRANSFER_RElayer] ===== RELAYER FUNCTION START =====');
     console.log('🔧 [PRIVATE_TRANSFER_RElayer] Input parameters:', {
       railgunWalletID: railgunWalletID?.substring(0, 10) + '...',
       hasEncryptionKey: !!encryptionKey,
       erc20AmountRecipientsCount: erc20AmountRecipients?.length,
-      memoText: memoText || 'none',
+      memoText: processedMemoText || 'none',
       networkName,
       recipientDetails: erc20AmountRecipients?.map(r => ({
         tokenAddress: r.tokenAddress,
@@ -1828,7 +1839,7 @@ export const privateTransferWithRelayer = async ({
       originalAmountBn: originalAmountBn.toString(),
       netRecipientAmount: netRecipientAmount.toString(),
       relayerFeeAmount: relayerFeeAmount.toString(),
-      memoText: memoText || 'none'
+      memoText: processedMemoText || 'none'
     });
 
     // ===== ADOPTING OFFICIAL SDK PATTERN =====
@@ -1857,7 +1868,7 @@ export const privateTransferWithRelayer = async ({
       networkName,
       railgunWalletID,
       encryptionKey,
-      memoText,
+      processedMemoText,
       erc20AmountRecipients,
       [], // nftAmountRecipients
       originalGasDetails,
@@ -1903,7 +1914,7 @@ export const privateTransferWithRelayer = async ({
       railgunWalletID,
       encryptionKey,
       true, // showSenderAddressToRecipient
-      memoText,
+      processedMemoText,
       erc20AmountRecipients,
       [], // nftAmountRecipients
       broadcasterFeeERC20AmountRecipient, // Use broadcasterFee (not null)
@@ -1913,6 +1924,17 @@ export const privateTransferWithRelayer = async ({
     );
 
     console.log('✅ [PRIVATE TRANSFER] Proof generation complete');
+
+    // Log proof generation details including memo
+    console.log('📝 [PRIVATE TRANSFER] Proof generation summary:', {
+      memoText: processedMemoText || 'none',
+      memoTextLength: processedMemoText?.length || 0,
+      erc20Recipients: erc20AmountRecipients.length,
+      recipientAddress: erc20AmountRecipients[0]?.recipientAddress?.substring(0, 20) + '...',
+      recipientAmount: erc20AmountRecipients[0]?.amount?.toString(),
+      hasBroadcasterFee: !!broadcasterFeeERC20AmountRecipient,
+      broadcasterFeeAmount: broadcasterFeeERC20AmountRecipient?.amount?.toString()
+    });
 
     // ===== BUG FIX: COMPREHENSIVE PRIVATE TRANSFER VALIDATION =====
     // This section prevents the critical bug where private transfer outputs
@@ -2034,7 +2056,7 @@ export const privateTransferWithRelayer = async ({
     console.log('📝 [PRIVATE TRANSFER] Before populate - transaction data validation:', {
       networkName,
       railgunWalletID: railgunWalletID?.substring(0, 10) + '...',
-      memoText: memoText || 'none',
+      memoText: processedMemoText || 'none',
       sender0zk: sender0zk.substring(0, 30) + '...',
       recipient0zk: recipient0zk.substring(0, 30) + '...',
       relayer0zk: relayer0zk.substring(0, 30) + '...',
@@ -2062,7 +2084,7 @@ export const privateTransferWithRelayer = async ({
       networkName,
       railgunWalletID,
       true, // showSenderAddressToRecipient
-      memoText,
+      processedMemoText,
       erc20AmountRecipients,
       [], // nftAmountRecipients
       broadcasterFeeERC20AmountRecipient,
@@ -2205,9 +2227,20 @@ export const privateTransferWithRelayer = async ({
       recipientLength: erc20AmountRecipients[0].recipientAddress.length,
       amount: String(erc20AmountRecipients[0].amount),
       tokenAddress,
-      memoText: memoText || 'none',
+      memoText: processedMemoText || 'none',
+      memoTextLength: processedMemoText?.length || 0,
       chainId,
       networkName
+    });
+
+    // Log memo details for debugging
+    console.log('📝 [PRIVATE_TRANSFER_RElayer] Memo details before relayer submission:', {
+      processedMemoText,
+      memoType: typeof processedMemoText,
+      memoIsNull: processedMemoText === null,
+      memoIsUndefined: processedMemoText === undefined,
+      memoIsEmptyString: processedMemoText === '',
+      finalMemoValue: processedMemoText || 'NO_MEMO_PROVIDED'
     });
 
     const serializedTransaction = '0x' + Buffer.from(JSON.stringify({
@@ -2243,7 +2276,7 @@ export const privateTransferWithRelayer = async ({
         proofTimestamp: new Date().toISOString(),
       },
       gasEstimate: transactionGasDetails.gasEstimate?.toString?.(),
-      memoText,
+      processedMemoText,
     });
 
     console.log('✅ [PRIVATE_TRANSFER_RElayer] Relayer submission result:', {
