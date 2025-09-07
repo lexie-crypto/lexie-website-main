@@ -145,7 +145,9 @@ export default async function handler(req, res) {
     'https://lexiecrypto.com', 
     'http://localhost:3000', 
     'http://localhost:3001',
-    'http://localhost:5173'
+    'http://localhost:5173',
+    'https://staging.lexiecrypto.com',
+    'https://staging.chatroom.lexiecrypto.com',
   ];
   const isOriginAllowed = origin && (allowedOrigins.includes(origin) || 
     (origin && origin.endsWith('.lexiecrypto.com')));
@@ -191,15 +193,151 @@ export default async function handler(req, res) {
       // Gas relayer now has its own separate endpoint /api/gas-relayer
 
   // Detect request type based on query parameters
-  const { 
-    walletAddress, 
-    action, 
+  const {
+    walletAddress,
+    action,
     walletId,
     tokenAddress,
-    requiredAmount 
+    requiredAmount
   } = req.query;
 
+  // Detect admin routes based on URL path
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const pathParts = url.pathname.split('/').filter(p => p);
+
+  // Handle admin routes
+  if (pathParts.includes('admin')) {
     if (req.method === 'GET') {
+      if (pathParts.includes('resolve')) {
+        // GET /admin/history/resolve?q=<identifier>
+        const q = req.query.q;
+        if (!q) {
+          console.log(`❌ [ADMIN-PROXY-${requestId}] Missing query parameter for resolve`);
+          return res.status(400).json({
+            success: false,
+            error: 'Missing query parameter'
+          });
+        }
+
+        backendPath = `/admin/history/resolve?q=${encodeURIComponent(q)}`;
+        backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+
+        console.log(`🔍 [ADMIN-PROXY-${requestId}] GET resolve for query: ${q.slice(0, 20)}...`);
+
+      } else if (pathParts.includes('export.csv')) {
+        // GET /admin/history/:walletId/export.csv
+        const walletId = pathParts[pathParts.length - 2]; // Extract walletId from path
+        if (!walletId) {
+          console.log(`❌ [ADMIN-PROXY-${requestId}] Missing walletId for export`);
+          return res.status(400).json({
+            success: false,
+            error: 'Missing walletId parameter'
+          });
+        }
+
+        backendPath = `/admin/history/${walletId}/export.csv`;
+        backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+
+        console.log(`📊 [ADMIN-PROXY-${requestId}] GET export CSV for wallet: ${walletId.slice(0, 8)}...`);
+
+      } else {
+        // GET /admin/history/:walletId?page=&pageSize=
+        const walletId = pathParts[pathParts.length - 1]; // Extract walletId from path
+        if (!walletId) {
+          console.log(`❌ [ADMIN-PROXY-${requestId}] Missing walletId for history`);
+          return res.status(400).json({
+            success: false,
+            error: 'Missing walletId parameter'
+          });
+        }
+
+        const page = req.query.page || '1';
+        const pageSize = req.query.pageSize || '50';
+        backendPath = `/admin/history/${walletId}?page=${page}&pageSize=${pageSize}`;
+        backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+
+        console.log(`📊 [ADMIN-PROXY-${requestId}] GET history for wallet: ${walletId.slice(0, 8)}... (page: ${page}, size: ${pageSize})`);
+      }
+
+      const signature = generateHmacSignature('GET', backendPath, timestamp, hmacSecret);
+
+      headers = {
+        'Accept': 'application/json',
+        'X-Lexie-Timestamp': timestamp,
+        'X-Lexie-Signature': signature,
+        'X-Lexie-Role': req.headers['x-lexie-role'] || 'admin', // Forward admin role
+        'Origin': 'https://staging.lexiecrypto.com',
+        'User-Agent': 'Lexie-Admin-Proxy/1.0',
+      };
+
+    } else if (req.method === 'POST') {
+      // POST endpoints for admin (if any in future)
+      backendPath = `/admin${url.pathname}`;
+      backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+
+      const signature = generateHmacSignature('POST', backendPath, timestamp, hmacSecret);
+
+      headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Lexie-Timestamp': timestamp,
+        'X-Lexie-Signature': signature,
+        'X-Lexie-Role': req.headers['x-lexie-role'] || 'admin',
+        'Origin': 'https://staging.lexiecrypto.com',
+        'User-Agent': 'Lexie-Admin-Proxy/1.0',
+      };
+    }
+
+    console.log(`🔐 [ADMIN-PROXY-${requestId}] Generated HMAC headers`, {
+      method: req.method,
+      timestamp,
+      signature: headers['X-Lexie-Signature'].substring(0, 20) + '...',
+      path: backendPath,
+      role: headers['X-Lexie-Role']
+    });
+
+    console.log(`📡 [ADMIN-PROXY-${requestId}] Forwarding to backend: ${backendUrl}`);
+
+    // Make the backend request
+    const fetchOptions = {
+      method: req.method,
+      headers,
+      signal: AbortSignal.timeout(30000),
+    };
+
+    // Add body for POST requests
+    if (req.method === 'POST') {
+      fetchOptions.body = JSON.stringify(req.body);
+    }
+
+    const backendResponse = await fetch(backendUrl, fetchOptions);
+
+    // Handle CSV export (binary response)
+    if (backendPath.includes('export.csv')) {
+      const contentType = backendResponse.headers.get('content-type');
+      if (contentType && contentType.includes('text/csv')) {
+        const csvData = await backendResponse.text();
+        console.log(`✅ [ADMIN-PROXY-${requestId}] CSV export successful (${csvData.length} chars)`);
+
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename="wallet-history.csv"`);
+        return res.status(backendResponse.status).send(csvData);
+      }
+    }
+
+    // Handle JSON responses
+    const result = await backendResponse.json();
+
+    console.log(`✅ [ADMIN-PROXY-${requestId}] Backend responded with status ${backendResponse.status}`);
+
+    // Forward the backend response
+    res.status(backendResponse.status).json(result);
+
+    return; // Exit after handling admin routes
+  }
+
+  // Original wallet-metadata logic continues below
+  if (req.method === 'GET') {
       if (action === 'balances') {
         // Disabled: note-based balance endpoint removed
         console.log(`🚫 [WALLET-METADATA-PROXY-${requestId}] GET balances disabled (note system removed)`);
