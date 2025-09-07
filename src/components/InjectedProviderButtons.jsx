@@ -15,14 +15,11 @@ const InjectedProviderButtons = ({ disabled }) => {
     try {
       const key = meta?.id || meta?.name;
       setBusyKey(key);
-      window.dispatchEvent(new CustomEvent('wallet-connection-start'));
       await provider.request({ method: 'eth_requestAccounts' });
       // Use generic injected connector and pass through provider metadata
       await connectWallet('injected', { provider, name: meta?.name, id: meta?.id });
-      window.dispatchEvent(new CustomEvent('wallet-connection-success'));
     } catch (err) {
       console.error('Failed to connect provider:', err);
-      window.dispatchEvent(new CustomEvent('wallet-connection-error'));
     } finally {
       setBusyKey(null);
     }
@@ -31,12 +28,9 @@ const InjectedProviderButtons = ({ disabled }) => {
   const onWalletConnect = async () => {
     try {
       setBusyKey('walletconnect');
-      window.dispatchEvent(new CustomEvent('wallet-connection-start'));
       await connectWallet('walletconnect');
-      window.dispatchEvent(new CustomEvent('wallet-connection-success'));
     } catch (e) {
       console.error(e);
-      window.dispatchEvent(new CustomEvent('wallet-connection-error'));
     } finally {
       setBusyKey(null);
     }
