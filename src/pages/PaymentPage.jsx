@@ -481,7 +481,7 @@ const PaymentPage = () => {
         <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-purple-900/40 via-purple-800/20 to-transparent"></div>
       </div>
 
-      <div className="relative z-10 max-w-md mx-auto px-4 py-12">
+      <div className="relative z-10 max-w-3xl mx-auto px-6 sm:px-8 lg:px-12 py-12">
         <TerminalWindow
           title="lexie-pay"
           statusLabel={isConnected ? "CONNECTED" : "WAITING"}
@@ -656,8 +656,29 @@ const PaymentPage = () => {
               </form>
             )}
 
+            {/* WalletConnect Option - Always visible when connected */}
+            {isConnected && (
+              <div className="mt-4 p-3 bg-black/60 border border-green-500/20 rounded">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <img src="/walletconnect.svg" alt="WalletConnect" className="h-5 w-5 mr-3" />
+                    <div>
+                      <h4 className="text-sm font-medium text-green-300">Need a different wallet?</h4>
+                      <p className="text-xs text-green-400/70">Connect with WalletConnect</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => connectWallet('walletconnect')}
+                    className="px-3 py-1 bg-blue-600/30 hover:bg-blue-600/50 text-blue-200 text-xs rounded border border-blue-400/40 transition-colors"
+                  >
+                    Connect
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Info */}
-            <div className="mt-6 p-4 bg-black/60 border border-green-500/20 rounded">
+            <div className="mt-4 p-4 bg-black/60 border border-green-500/20 rounded">
               <div className="flex">
                 <ShieldCheckIcon className="h-5 w-5 text-emerald-300 flex-shrink-0 mt-0.5" />
                 <div className="ml-3">
