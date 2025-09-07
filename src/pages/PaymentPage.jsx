@@ -78,6 +78,7 @@ const PaymentPage = () => {
   const [publicBalances, setPublicBalances] = useState([]);
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
   const [isTokenMenuOpen, setIsTokenMenuOpen] = useState(false);
+  const [showWalletModal, setShowWalletModal] = useState(false);
   const tokenMenuRef = useRef(null);
 
   // Parse target chain ID
@@ -664,14 +665,14 @@ const PaymentPage = () => {
                     <img src="/walletconnect.svg" alt="WalletConnect" className="h-5 w-5 mr-3" />
                     <div>
                       <h4 className="text-sm font-medium text-green-300">Need a different wallet?</h4>
-                      <p className="text-xs text-green-400/70">Connect with WalletConnect</p>
+                      <p className="text-xs text-green-400/70">Choose from available options</p>
                     </div>
                   </div>
                   <button
-                    onClick={() => connectWallet('walletconnect')}
-                    className="px-3 py-1 bg-blue-600/30 hover:bg-blue-600/50 text-blue-200 text-xs rounded border border-blue-400/40 transition-colors"
+                    onClick={() => setShowWalletModal(true)}
+                    className="px-3 py-1 bg-green-600/30 hover:bg-green-600/50 text-green-200 text-xs rounded border border-green-400/40 transition-colors"
                   >
-                    Connect
+                    Choose Wallet
                   </button>
                 </div>
               </div>
@@ -692,6 +693,52 @@ const PaymentPage = () => {
           </div>
         </TerminalWindow>
       </div>
+
+      {/* Wallet Selection Modal */}
+      {showWalletModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 font-mono">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-2xl w-full overflow-hidden">
+            {/* Modal Terminal Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-red-500" />
+                  <span className="w-3 h-3 rounded-full bg-yellow-500" />
+                  <span className="w-3 h-3 rounded-full bg-green-500" />
+                </div>
+                <span className="text-sm tracking-wide text-gray-400">wallet-select</span>
+              </div>
+              <button
+                onClick={() => setShowWalletModal(false)}
+                className="text-green-400/70 hover:text-green-300 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 text-green-300 space-y-4">
+              <div>
+                <h3 className="text-lg font-bold text-emerald-300 mb-2">Choose Your Wallet</h3>
+                <p className="text-green-400/80 text-sm">
+                  Select from the available wallet options below to connect.
+                </p>
+              </div>
+
+              <InjectedProviderButtons disabled={false} />
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  onClick={() => setShowWalletModal(false)}
+                  className="px-3 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 text-xs"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
