@@ -1730,14 +1730,9 @@ export const privateTransferWithRelayer = async ({
     } catch {}
     const feeTokenDetails = { tokenAddress, feePerUnitGas: relayerFeePerUnitGas };
 
-    // STEP 4: Determine transaction method and prepare recipients
+    // STEP 4: STANDARD TRANSFER PATH (no RelayAdapt): estimate → proof → populate
+    // Convert amount to BigInt (same as unshield function)
     const amountBn = BigInt(erc20AmountRecipients[0].amount);
-    const useRelayer = shouldUseRelayer(chainId, amountBn.toString());
-    const sendWithPublicWallet = !useRelayer; // false when relaying, true when self-signing
-
-    console.log(`💰 [PRIVATE TRANSFER] Transaction method: ${useRelayer ? 'RelayAdapt Mode (with broadcaster fee)' : 'Self-Signing (Direct)'}`);
-    console.log(`🔧 [PRIVATE TRANSFER] sendWithPublicWallet: ${sendWithPublicWallet}`);
-
     const relayerRailgunAddress = await getRelayerAddress();
 
     // Calculate fees the same way as unshield (deduct from transfer amount)
@@ -1761,15 +1756,10 @@ export const privateTransferWithRelayer = async ({
       verification: `${netRecipientAmount.toString()} + ${relayerFeeAmount.toString()} = ${(netRecipientAmount + relayerFeeAmount).toString()}`
     });
 
-    // Update the recipient amount to be net of fees
-    erc20AmountRecipients[0].amount = netRecipientAmount.toString();
+    // Update the recipient amount to be net of fees (BigInt like unshield path)
+    erc20AmountRecipients[0].amount = netRecipientAmount;
 
-    // Gas estimation for private transfer (always use regular transfer, not cross-contract)
-    console.log('🧮 [PRIVATE TRANSFER] Using gasEstimateForUnprovenTransfer for private transfer...');
-
-    const { gasEstimateForUnprovenTransfer } = await import('@railgun-community/wallet');
-
-    const gasEstimateResponse = await gasEstimateForUnprovenTransfer(
+    const { gasEstimate } = await gasEstimateForUnprovenTransfer(
       TXIDVersion.V2_PoseidonMerkle,
       networkName,
       railgunWalletID,
@@ -1779,55 +1769,54 @@ export const privateTransferWithRelayer = async ({
       [],
       originalGasDetails,
       feeTokenDetails,
-      sendWithPublicWallet,
+      false,
     );
-
-    const gasEstimate = gasEstimateResponse.gasEstimate;
-    console.log('✅ [PRIVATE TRANSFER] Gas estimation completed');
     const transactionGasDetails = { evmGasType, gasEstimate, ...originalGasDetails };
 
-    // Create broadcaster fee recipient (separate from main transfer)
+    // Create broadcaster fee recipient (separate from main transfer) - amount as BigInt
     const relayerFeeERC20AmountRecipient = {
       tokenAddress,
       recipientAddress: relayerRailgunAddress,
-      amount: relayerFeeAmount.toString(), // Ensure it's a string for SDK compatibility
+      amount: relayerFeeAmount,
     };
     const overallBatchMinGasPrice = await calculateGasPrice(transactionGasDetails);
-
-    // Proof generation for private transfer (always use regular transfer)
-    console.log('🔐 [PRIVATE TRANSFER] Generating transfer proof...');
-
-    const { generateTransferProof, populateProvedTransfer } = await import('@railgun-community/wallet');
-
+    // Quick type sanity check before SDK proof generation
+    try {
+      console.log('🔎 [PRIVATE TRANSFER] Type sanity check before proof:', {
+        recipientAmountType: typeof erc20AmountRecipients[0].amount,
+        recipientAmountSample: erc20AmountRecipients[0].amount?.toString?.(),
+        relayerFeeAmountType: typeof relayerFeeERC20AmountRecipient.amount,
+        relayerFeeAmountSample: relayerFeeERC20AmountRecipient.amount?.toString?.(),
+      });
+    } catch {}
     await generateTransferProof(
       TXIDVersion.V2_PoseidonMerkle,
       networkName,
       railgunWalletID,
       encryptionKey,
-      sendWithPublicWallet,
+      true,
       memoText,
       erc20AmountRecipients,
       [],
-      relayerFeeERC20AmountRecipient, // Include broadcaster fee for relayer
+      relayerFeeERC20AmountRecipient,
+      false,
       overallBatchMinGasPrice,
       () => {},
     );
 
-    const result = await populateProvedTransfer(
+    const { transaction } = await populateProvedTransfer(
       TXIDVersion.V2_PoseidonMerkle,
       networkName,
       railgunWalletID,
-      sendWithPublicWallet,
+      true,
       memoText,
       erc20AmountRecipients,
       [],
-      relayerFeeERC20AmountRecipient, // Include broadcaster fee for relayer
+      relayerFeeERC20AmountRecipient,
+      false,
       overallBatchMinGasPrice,
       transactionGasDetails,
     );
-
-    const transaction = result.transaction;
-    console.log('✅ [PRIVATE TRANSFER] Proof and populate completed');
 
     // 6) Submit via our relayer
     const serializedTransaction = '0x' + Buffer.from(JSON.stringify({
