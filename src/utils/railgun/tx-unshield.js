@@ -1920,7 +1920,7 @@ export const privateTransferWithRelayer = async ({
     // to remain with the sender instead of reaching the recipient.
     //
     // VALIDATIONS PERFORMED:
-    // 1. Fetch relayer 0zk address from API (not hardcoded)
+    // 1. Get relayer 0zk address from VITE_RELAYER_ADDRESS env var
     // 2. Invariants: sender ≠ recipient, sender ≠ relayer
     // 3. Can-decrypt guard: prevent self-targeting
     // 4. Output address validation: proof outputs match expected addresses
@@ -1928,19 +1928,21 @@ export const privateTransferWithRelayer = async ({
     //
     // If any validation fails, transaction is aborted before execution.
 
-    console.log('🔍 [PRIVATE TRANSFER] Fetching relayer address from API...');
-    const relayerAddressResponse = await fetch('/api/relayer/address');
-    if (!relayerAddressResponse.ok) {
-      throw new Error(`Failed to fetch relayer address: ${relayerAddressResponse.status}`);
-    }
-    const relayerData = await relayerAddressResponse.json();
-    const relayer0zk = relayerData.railgunAddress;
+    console.log('🔍 [PRIVATE TRANSFER] Getting relayer address...');
 
-    if (!relayer0zk || !relayer0zk.startsWith('0zk')) {
-      throw new Error(`Invalid relayer 0zk address from API: ${relayer0zk}`);
+    // Use VITE_RELAYER_ADDRESS environment variable instead of API call
+    // This avoids HMAC authentication issues
+    const relayer0zk = import.meta.env.VITE_RELAYER_ADDRESS;
+
+    if (!relayer0zk) {
+      throw new Error('VITE_RELAYER_ADDRESS environment variable not set');
     }
 
-    console.log('✅ [PRIVATE TRANSFER] Relayer 0zk fetched:', relayer0zk.substring(0, 30) + '...');
+    if (!relayer0zk.startsWith('0zk')) {
+      throw new Error(`Invalid relayer 0zk address from env: ${relayer0zk}. Must start with '0zk'`);
+    }
+
+    console.log('✅ [PRIVATE TRANSFER] Relayer 0zk from env:', relayer0zk.substring(0, 30) + '...');
 
     // Get sender's Railgun address for invariants
     const { getRailgunAddress } = await import('@railgun-community/wallet');
