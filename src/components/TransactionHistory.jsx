@@ -71,9 +71,9 @@ const TransactionHistory = () => {
       case 'Remove from Vault':
         return '-';
       case 'Send Transaction':
-        return '⟡>>>';
+        return '>>>';
       case 'Receive Transaction':
-        return '<<<⟡';
+        return '<<<';
       default:
         return '[?]';
     }
