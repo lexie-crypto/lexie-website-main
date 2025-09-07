@@ -79,6 +79,7 @@ const PaymentPage = () => {
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
   const [isTokenMenuOpen, setIsTokenMenuOpen] = useState(false);
   const [showWalletModal, setShowWalletModal] = useState(false);
+  const [isConnectingWallet, setIsConnectingWallet] = useState(false);
   const tokenMenuRef = useRef(null);
 
   // Parse target chain ID
@@ -250,6 +251,39 @@ const PaymentPage = () => {
       document.removeEventListener('keydown', onKey);
     };
   }, [isTokenMenuOpen]);
+
+  // Handle wallet connection events
+  useEffect(() => {
+    const onConnectStart = () => {
+      setIsConnectingWallet(true);
+    };
+    const onConnectComplete = () => {
+      setIsConnectingWallet(false);
+      // Close modal after successful connection with a small delay for visual feedback
+      setTimeout(() => setShowWalletModal(false), 500);
+    };
+    const onConnectError = () => {
+      setIsConnectingWallet(false);
+    };
+
+    window.addEventListener('wallet-connection-start', onConnectStart);
+    window.addEventListener('wallet-connection-success', onConnectComplete);
+    window.addEventListener('wallet-connection-error', onConnectError);
+
+    return () => {
+      window.removeEventListener('wallet-connection-start', onConnectStart);
+      window.removeEventListener('wallet-connection-success', onConnectComplete);
+      window.removeEventListener('wallet-connection-error', onConnectError);
+    };
+  }, []);
+
+  // Close wallet modal when wallet connection is successful
+  useEffect(() => {
+    if (showWalletModal && isConnected && !isConnectingWallet) {
+      // Close the modal after successful connection
+      setShowWalletModal(false);
+    }
+  }, [isConnected, showWalletModal, isConnectingWallet]);
 
   // Handle payment processing
   const handlePayment = async (e) => {
@@ -721,11 +755,17 @@ const PaymentPage = () => {
               <div>
                 <h3 className="text-lg font-bold text-emerald-300 mb-2">Choose Your Wallet</h3>
                 <p className="text-green-400/80 text-sm">
-                  Select from the available wallet options below to connect.
+                  {isConnectingWallet ? 'Connecting to wallet...' : 'Select from the available wallet options below to connect.'}
                 </p>
+                {isConnectingWallet && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="h-4 w-4 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
+                    <span className="text-xs text-green-300">Please approve the connection in your wallet</span>
+                  </div>
+                )}
               </div>
 
-              <InjectedProviderButtons disabled={false} />
+              <InjectedProviderButtons disabled={isConnectingWallet} />
 
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
