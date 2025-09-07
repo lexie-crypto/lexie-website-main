@@ -16,18 +16,8 @@ const AdminHistoryPage = () => {
   const [hasMore, setHasMore] = useState(false);
   const [resolutionType, setResolutionType] = useState('');
 
-  // Admin role check
-  useEffect(() => {
-    const adminRoles = ['admin', 'compliance', 'audit'];
-    const userRole = localStorage.getItem('userRole') || 'user';
-
-    if (!adminRoles.includes(userRole)) {
-      setError('Admin access required. Please contact system administrator.');
-      return;
-    }
-
-    console.log('[AdminHistory] Admin role verified:', userRole);
-  }, []);
+  // Note: Admin authentication is handled by backend HMAC + role verification
+  // Frontend will rely on backend to enforce admin access control
 
   /**
    * Generate HMAC headers for API authentication
@@ -52,7 +42,7 @@ const AdminHistoryPage = () => {
       'Content-Type': 'application/json',
       'x-lexie-timestamp': timestamp,
       'x-lexie-signature': `sha256=${signature}`,
-      'x-lexie-role': localStorage.getItem('userRole') || 'admin'
+      'x-lexie-role': 'admin' // Default to admin role - backend will validate
     };
   }, []);
 
