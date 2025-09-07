@@ -234,58 +234,174 @@ export const privateTransfer = async ({
     
     // Resolve recipient: could be Lexie ID, Railgun address, or ENS
     let resolvedRecipient = recipientRailgunAddress;
-    
+
+    console.log('📤 [PRIVATE_TRANSFER] ===== RECIPIENT RESOLUTION START =====');
+    console.log('📤 [PRIVATE_TRANSFER] Original recipient input:', {
+      input: recipientRailgunAddress,
+      type: typeof recipientRailgunAddress,
+      isRailgunAddress: recipientRailgunAddress?.startsWith?.('0zk'),
+      inputLength: recipientRailgunAddress?.length,
+      isNull: recipientRailgunAddress === null,
+      isUndefined: recipientRailgunAddress === undefined
+    });
+
     // Check if it's a Lexie ID and resolve to Railgun address
     if (recipientRailgunAddress && typeof recipientRailgunAddress === 'string') {
       const input = recipientRailgunAddress.trim();
-      
+
+      console.log('🔍 [PRIVATE_TRANSFER] Processing recipient input:', {
+        rawInput: recipientRailgunAddress,
+        trimmedInput: input,
+        startsWith0zk: input.startsWith('0zk'),
+        length: input.length,
+        isEmpty: input === ''
+      });
+
       // If it's not already a Railgun address (0zk...), try to resolve it
       if (!input.startsWith('0zk')) {
-        console.log('🔎 [PRIVATE_TRANSFER] Resolving recipient:', input);
-        
+        console.log('🔎 [PRIVATE_TRANSFER] Input is NOT a Railgun address, attempting resolution:', input);
+
         // Check if it's a Lexie ID pattern
         const lexieIdPattern = /^[a-zA-Z0-9_]{3,20}$/;
-        if (lexieIdPattern.test(input.toLowerCase())) {
+        const isValidLexieId = lexieIdPattern.test(input.toLowerCase());
+
+        console.log('🎯 [PRIVATE_TRANSFER] Lexie ID pattern check:', {
+          input: input,
+          pattern: lexieIdPattern.toString(),
+          matchesPattern: isValidLexieId,
+          lowercaseInput: input.toLowerCase()
+        });
+
+        if (isValidLexieId) {
+          console.log('🎯 [PRIVATE_TRANSFER] Valid Lexie ID pattern detected, attempting Redis lookup:', input.toLowerCase());
+
           try {
-            console.log('🔎 [PRIVATE_TRANSFER] Attempting Lexie ID resolution:', input);
-            const response = await fetch(`/api/wallet-metadata?action=lexie-resolve&lexieID=${encodeURIComponent(input.toLowerCase())}`);
+            const apiUrl = `/api/lexie/resolve?lexieID=${encodeURIComponent(input.toLowerCase())}`;
+            console.log('🌐 [PRIVATE_TRANSFER] Calling Lexie API endpoint:', apiUrl);
+
+            const response = await fetch(apiUrl);
+            console.log('📡 [PRIVATE_TRANSFER] API response status:', response.status);
+
             const data = await response.json();
-            
+            console.log('📡 [PRIVATE_TRANSFER] API response data:', {
+              success: data.success,
+              hasWalletAddress: !!data.walletAddress,
+              walletAddressLength: data.walletAddress?.length,
+              error: data.error,
+              fullResponse: data
+            });
+
             if (data.success && data.walletAddress) {
               resolvedRecipient = data.walletAddress;
-              console.log('✅ [PRIVATE_TRANSFER] Lexie ID resolved to Railgun address:', { 
-                lexieID: input, 
-                railgunAddress: resolvedRecipient 
+              console.log('✅ [PRIVATE_TRANSFER] SUCCESS - Lexie ID resolved to Railgun address:', {
+                originalLexieID: input,
+                resolvedRailgunAddress: resolvedRecipient,
+                addressLength: resolvedRecipient.length,
+                startsWith0zk: resolvedRecipient.startsWith('0zk'),
+                first20Chars: resolvedRecipient.substring(0, 20) + '...'
               });
             } else {
+              console.error('❌ [PRIVATE_TRANSFER] API returned success=false or no wallet address:', {
+                success: data.success,
+                error: data.error,
+                hasWalletAddress: !!data.walletAddress
+              });
               throw new Error(`Lexie ID "${input}" not found or not linked to a wallet`);
             }
           } catch (lexieError) {
-            console.error('❌ [PRIVATE_TRANSFER] Lexie ID resolution failed:', lexieError.message);
+            console.error('❌ [PRIVATE_TRANSFER] Lexie ID resolution failed:', {
+              error: lexieError.message,
+              stack: lexieError.stack?.substring(0, 500),
+              input: input,
+              apiUrl: `/api/lexie/resolve?lexieID=${encodeURIComponent(input.toLowerCase())}`
+            });
             throw new Error(`Could not resolve Lexie ID "${input}": ${lexieError.message}`);
           }
         } else {
-          throw new Error(`Invalid recipient format: "${input}". Must be a Lexie ID (3-20 chars) or Railgun address (0zk...)`);
+          console.error('❌ [PRIVATE_TRANSFER] Invalid recipient format - does not match Lexie ID pattern:', {
+            input: input,
+            pattern: lexieIdPattern.toString(),
+            matchesPattern: isValidLexieId,
+            inputLength: input.length,
+            containsSpecialChars: /[^a-zA-Z0-9_]/.test(input)
+          });
+          throw new Error(`Invalid recipient format: "${input}". Must be a Lexie ID (3-20 chars, alphanumeric + underscore) or Railgun address (0zk...)`);
         }
+      } else {
+        console.log('✅ [PRIVATE_TRANSFER] Input is already a valid Railgun address - no resolution needed:', {
+          address: input,
+          length: input.length,
+          first20Chars: input.substring(0, 20) + '...',
+          last10Chars: input.substring(input.length - 10)
+        });
+        resolvedRecipient = input;
       }
+    } else {
+      console.warn('⚠️ [PRIVATE_TRANSFER] Invalid recipient input:', {
+        recipientRailgunAddress,
+        type: typeof recipientRailgunAddress,
+        isNull: recipientRailgunAddress === null,
+        isUndefined: recipientRailgunAddress === undefined
+      });
     }
     
     // Validate final recipient is a Railgun address
     if (!resolvedRecipient || !resolvedRecipient.startsWith('0zk')) {
+      console.error('❌ [PRIVATE_TRANSFER] Final recipient validation FAILED:', {
+        resolvedRecipient,
+        type: typeof resolvedRecipient,
+        isNull: resolvedRecipient === null,
+        isUndefined: resolvedRecipient === undefined,
+        startsWith0zk: resolvedRecipient?.startsWith?.('0zk'),
+        length: resolvedRecipient?.length
+      });
       throw new Error(`Invalid Railgun address: "${resolvedRecipient}". Private transfers require a Railgun address (0zk...)`);
     }
-    
-    console.log('✅ [PRIVATE_TRANSFER] Final recipient address:', resolvedRecipient);
+
+    console.log('✅ [PRIVATE_TRANSFER] ===== RECIPIENT RESOLUTION COMPLETE =====');
+    console.log('✅ [PRIVATE_TRANSFER] Final recipient address validated:', {
+      railgunAddress: resolvedRecipient,
+      length: resolvedRecipient.length,
+      startsWith0zk: resolvedRecipient.startsWith('0zk'),
+      first30Chars: resolvedRecipient.substring(0, 30) + '...',
+      last20Chars: '...' + resolvedRecipient.substring(resolvedRecipient.length - 20),
+      originalInput: recipientRailgunAddress,
+      wasResolutionNeeded: recipientRailgunAddress !== resolvedRecipient
+    });
     
     const erc20AmountRecipients = [{ tokenAddress, amount: BigInt(amount), recipientAddress: resolvedRecipient }];
 
+    console.log('🚀 [PRIVATE_TRANSFER] ===== TRANSACTION EXECUTION =====');
+    console.log('🚀 [PRIVATE_TRANSFER] Transaction parameters:', {
+      networkName,
+      tokenAddress,
+      amount: amount.toString(),
+      amountBigInt: BigInt(amount).toString(),
+      recipientAddress: resolvedRecipient,
+      recipientLength: resolvedRecipient.length,
+      memoText: memoText || 'none',
+      erc20AmountRecipients: erc20AmountRecipients.map(r => ({
+        tokenAddress: r.tokenAddress,
+        amount: r.amount.toString(),
+        recipientAddress: r.recipientAddress.substring(0, 30) + '...'
+      }))
+    });
+
     // Use our relayer path for private transfers
+    console.log('🚀 [PRIVATE_TRANSFER] Calling privateTransferWithRelayer...');
     const { transactionHash } = await privateTransferWithRelayer({
       railgunWalletID,
       encryptionKey,
       erc20AmountRecipients,
       memoText,
       networkName,
+    });
+
+    console.log('✅ [PRIVATE_TRANSFER] Transaction submitted successfully:', {
+      transactionHash,
+      recipientAddress: resolvedRecipient,
+      amount: amount.toString(),
+      networkName
     });
 
     return { txHash: transactionHash };

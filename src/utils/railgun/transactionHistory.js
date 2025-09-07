@@ -104,11 +104,35 @@ const formatTransactionHistoryItem = (historyItem, chainId) => {
       primaryAmounts = receiveERC20Amounts;
       description = 'Receive transaction';
       break;
-      
+
     default:
       transactionType = 'Unknown';
       primaryAmounts = [...transferERC20Amounts, ...receiveERC20Amounts, ...unshieldERC20Amounts];
       description = 'Unknown transaction type';
+  }
+
+  // Add detailed logging for transfer transactions
+  if (category === TransactionCategory.TRANSFER_SEND || category === TransactionCategory.TRANSFER_RECEIVE) {
+    console.log('📊 [TRANSACTION_HISTORY] Processing transfer transaction:', {
+      category,
+      transactionType,
+      transferERC20AmountsCount: transferERC20Amounts?.length || 0,
+      receiveERC20AmountsCount: receiveERC20Amounts?.length || 0,
+      primaryAmountsCount: primaryAmounts?.length || 0,
+      txid: txid?.substring(0, 10) + '...',
+      transferDetails: transferERC20Amounts?.map(amount => ({
+        tokenAddress: amount.tokenAddress,
+        amount: amount.amount?.toString(),
+        recipientAddress: amount.recipientAddress?.substring(0, 30) + '...',
+        recipientLength: amount.recipientAddress?.length
+      })),
+      receiveDetails: receiveERC20Amounts?.map(amount => ({
+        tokenAddress: amount.tokenAddress,
+        amount: amount.amount?.toString(),
+        recipientAddress: amount.recipientAddress?.substring(0, 30) + '...',
+        recipientLength: amount.recipientAddress?.length
+      }))
+    });
   }
 
   // Format token amounts for display

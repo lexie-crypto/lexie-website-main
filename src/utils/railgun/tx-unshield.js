@@ -1596,9 +1596,31 @@ export const privateTransferWithRelayer = async ({
   networkName,
 }) => {
   try {
+    console.log('🔧 [PRIVATE_TRANSFER_RElayer] ===== RELAYER FUNCTION START =====');
+    console.log('🔧 [PRIVATE_TRANSFER_RElayer] Input parameters:', {
+      railgunWalletID: railgunWalletID?.substring(0, 10) + '...',
+      hasEncryptionKey: !!encryptionKey,
+      erc20AmountRecipientsCount: erc20AmountRecipients?.length,
+      memoText: memoText || 'none',
+      networkName,
+      recipientDetails: erc20AmountRecipients?.map(r => ({
+        tokenAddress: r.tokenAddress,
+        amount: r.amount?.toString(),
+        recipientAddress: r.recipientAddress?.substring(0, 30) + '...',
+        recipientLength: r.recipientAddress?.length
+      }))
+    });
+
     const tokenAddress = erc20AmountRecipients[0].tokenAddress;
     const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
     const chainId = NETWORK_CONFIG?.[networkName]?.chain?.id;
+
+    console.log('🔧 [PRIVATE_TRANSFER_RElayer] Extracted details:', {
+      tokenAddress,
+      chainId,
+      networkName,
+      recipientAddress: erc20AmountRecipients[0]?.recipientAddress
+    });
 
     // STEP 0: Balance refresh and network scanning (same as unshield)
     console.log('🔄 [PRIVATE TRANSFER] Step 0: Refreshing balances and scanning network...');
@@ -1819,6 +1841,17 @@ export const privateTransferWithRelayer = async ({
     );
 
     // 6) Submit via our relayer
+    console.log('📤 [PRIVATE_TRANSFER_RElayer] ===== SUBMITTING TO RELAYER =====');
+    console.log('📤 [PRIVATE_TRANSFER_RElayer] Final transaction details:', {
+      recipientAddress: erc20AmountRecipients[0].recipientAddress,
+      recipientLength: erc20AmountRecipients[0].recipientAddress.length,
+      amount: String(erc20AmountRecipients[0].amount),
+      tokenAddress,
+      memoText: memoText || 'none',
+      chainId,
+      networkName
+    });
+
     const serializedTransaction = '0x' + Buffer.from(JSON.stringify({
       to: transaction.to,
       data: transaction.data,
@@ -1829,6 +1862,13 @@ export const privateTransferWithRelayer = async ({
       maxPriorityFeePerGas: transaction.maxPriorityFeePerGas?.toString(),
       type: transaction.type,
     })).toString('hex');
+
+    console.log('📤 [PRIVATE_TRANSFER_RElayer] Submitting transaction to relayer with recipient:', {
+      recipientAddress: erc20AmountRecipients[0].recipientAddress.substring(0, 30) + '...',
+      fullRecipientAddress: erc20AmountRecipients[0].recipientAddress,
+      amount: String(erc20AmountRecipients[0].amount),
+      serializedTxLength: serializedTransaction.length
+    });
 
     const relayed = await submitRelayedTransaction({
       chainId,
@@ -1846,6 +1886,12 @@ export const privateTransferWithRelayer = async ({
       },
       gasEstimate: transactionGasDetails.gasEstimate?.toString?.(),
       memoText,
+    });
+
+    console.log('✅ [PRIVATE_TRANSFER_RElayer] Relayer submission result:', {
+      transactionHash: relayed.transactionHash,
+      success: !!relayed.transactionHash,
+      recipientAddress: erc20AmountRecipients[0].recipientAddress.substring(0, 30) + '...'
     });
 
     // Transaction monitoring removed - SDK handles balance updates
