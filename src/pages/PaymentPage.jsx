@@ -78,8 +78,6 @@ const PaymentPage = () => {
   const [publicBalances, setPublicBalances] = useState([]);
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
   const [isTokenMenuOpen, setIsTokenMenuOpen] = useState(false);
-  const [showWalletModal, setShowWalletModal] = useState(false);
-  const [isConnectingWallet, setIsConnectingWallet] = useState(false);
   const tokenMenuRef = useRef(null);
 
   // Parse target chain ID
@@ -251,39 +249,6 @@ const PaymentPage = () => {
       document.removeEventListener('keydown', onKey);
     };
   }, [isTokenMenuOpen]);
-
-  // Handle wallet connection events
-  useEffect(() => {
-    const onConnectStart = () => {
-      setIsConnectingWallet(true);
-    };
-    const onConnectComplete = () => {
-      setIsConnectingWallet(false);
-      // Close modal after successful connection with a small delay for visual feedback
-      setTimeout(() => setShowWalletModal(false), 500);
-    };
-    const onConnectError = () => {
-      setIsConnectingWallet(false);
-    };
-
-    window.addEventListener('wallet-connection-start', onConnectStart);
-    window.addEventListener('wallet-connection-success', onConnectComplete);
-    window.addEventListener('wallet-connection-error', onConnectError);
-
-    return () => {
-      window.removeEventListener('wallet-connection-start', onConnectStart);
-      window.removeEventListener('wallet-connection-success', onConnectComplete);
-      window.removeEventListener('wallet-connection-error', onConnectError);
-    };
-  }, []);
-
-  // Close wallet modal when wallet connection is successful
-  useEffect(() => {
-    if (showWalletModal && isConnected && !isConnectingWallet) {
-      // Close the modal after successful connection
-      setShowWalletModal(false);
-    }
-  }, [isConnected, showWalletModal, isConnectingWallet]);
 
   // Handle payment processing
   const handlePayment = async (e) => {
@@ -691,22 +656,24 @@ const PaymentPage = () => {
               </form>
             )}
 
-            {/* WalletConnect Option - Always visible when connected */}
+            {/* Disconnect Option */}
             {isConnected && (
               <div className="mt-4 p-3 bg-black/60 border border-green-500/20 rounded">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
-                    <img src="/walletconnect.svg" alt="WalletConnect" className="h-5 w-5 mr-3" />
+                    <div className="h-5 w-5 mr-3 bg-red-500/20 rounded flex items-center justify-center">
+                      <span className="text-red-400 text-xs">⚠️</span>
+                    </div>
                     <div>
-                      <h4 className="text-sm font-medium text-green-300">Need a different wallet?</h4>
-                      <p className="text-xs text-green-400/70">Choose from available options</p>
+                      <h4 className="text-sm font-medium text-green-300">Switch wallets?</h4>
+                      <p className="text-xs text-green-400/70">Disconnect to choose a different wallet</p>
                     </div>
                   </div>
                   <button
-                    onClick={() => setShowWalletModal(true)}
-                    className="px-3 py-1 bg-green-600/30 hover:bg-green-600/50 text-green-200 text-xs rounded border border-green-400/40 transition-colors"
+                    onClick={disconnectWallet}
+                    className="px-3 py-1 bg-red-600/30 hover:bg-red-600/50 text-red-200 text-xs rounded border border-red-400/40 transition-colors"
                   >
-                    Choose Wallet
+                    Disconnect
                   </button>
                 </div>
               </div>
@@ -728,57 +695,6 @@ const PaymentPage = () => {
         </TerminalWindow>
       </div>
 
-      {/* Wallet Selection Modal */}
-      {showWalletModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 font-mono">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-2xl w-full overflow-hidden">
-            {/* Modal Terminal Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-red-500" />
-                  <span className="w-3 h-3 rounded-full bg-yellow-500" />
-                  <span className="w-3 h-3 rounded-full bg-green-500" />
-                </div>
-                <span className="text-sm tracking-wide text-gray-400">wallet-select</span>
-              </div>
-              <button
-                onClick={() => setShowWalletModal(false)}
-                className="text-green-400/70 hover:text-green-300 transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-6 text-green-300 space-y-4">
-              <div>
-                <h3 className="text-lg font-bold text-emerald-300 mb-2">Choose Your Wallet</h3>
-                <p className="text-green-400/80 text-sm">
-                  {isConnectingWallet ? 'Connecting to wallet...' : 'Select from the available wallet options below to connect.'}
-                </p>
-                {isConnectingWallet && (
-                  <div className="flex items-center gap-2 mt-2">
-                    <div className="h-4 w-4 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
-                    <span className="text-xs text-green-300">Please approve the connection in your wallet</span>
-                  </div>
-                )}
-              </div>
-
-              <InjectedProviderButtons disabled={isConnectingWallet} />
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  onClick={() => setShowWalletModal(false)}
-                  className="px-3 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 text-xs"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
