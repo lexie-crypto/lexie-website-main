@@ -1600,7 +1600,45 @@ export const privateTransferWithRelayer = async ({
     const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
     const chainId = NETWORK_CONFIG?.[networkName]?.chain?.id;
 
-    // 1) Gas details (relayer path) - Use same approach as unshield for consistency
+    // STEP 0: Balance refresh and network scanning (same as unshield)
+    console.log('🔄 [PRIVATE TRANSFER] Step 0: Refreshing balances and scanning network...');
+
+    try {
+      const { refreshBalances } = await import('@railgun-community/wallet');
+      const networkConfig = NETWORK_CONFIG[networkName];
+
+      if (!networkConfig) {
+        throw new Error(`No network config found for ${networkName}`);
+      }
+
+      await waitForRailgunReady();
+
+      const railgunChain = networkConfig.chain;
+      const walletIdFilter = [railgunWalletID];
+
+      console.log('🔄 [PRIVATE TRANSFER] Refreshing Railgun balances...');
+      await refreshBalances(railgunChain, walletIdFilter);
+
+    } catch (refreshError) {
+      console.warn('⚠️ [PRIVATE TRANSFER] Balance refresh failed:', refreshError.message);
+    }
+
+    // STEP 1: Network rescan for up-to-date Merkle tree
+    console.log('🔄 [PRIVATE TRANSFER] Step 1: Performing network rescan...');
+
+    try {
+      const { performNetworkRescan, getRailgunNetworkName } = await import('./scanning-service.js');
+      const railgunNetworkName = getRailgunNetworkName(chainId);
+
+      await performNetworkRescan(railgunNetworkName, [railgunWalletID]);
+      console.log('✅ [PRIVATE TRANSFER] Network rescan completed');
+
+    } catch (rescanError) {
+      console.error('❌ [PRIVATE TRANSFER] Network rescan failed:', rescanError.message);
+      throw new Error(`Failed to rescan network: ${rescanError.message}`);
+    }
+
+    // STEP 2: Gas details (relayer path) - Use same approach as unshield for consistency
     const evmGasType = getEVMGasTypeForTransaction(networkName, false);
 
     // Fetch real-time network gas prices like unshield function does
@@ -1680,7 +1718,7 @@ export const privateTransferWithRelayer = async ({
       }
     }
 
-    // 2) Fee token details (from our relayer; use more realistic fallback values)
+    // STEP 3: Fee token details (from our relayer; use more realistic fallback values)
     let relayerFeePerUnitGas = originalGasDetails.gasPrice || originalGasDetails.maxFeePerGas || BigInt('20000000000'); // 20 gwei fallback instead of 1 gwei
     let feeQuote = null;
     try {
@@ -1689,12 +1727,28 @@ export const privateTransferWithRelayer = async ({
     } catch {}
     const feeTokenDetails = { tokenAddress, feePerUnitGas: relayerFeePerUnitGas };
 
-    // 3) STANDARD TRANSFER PATH (no RelayAdapt): estimate → proof → populate
+    // STEP 4: STANDARD TRANSFER PATH (no RelayAdapt): estimate → proof → populate
     const amountBn = BigInt(erc20AmountRecipients[0].amount);
     const relayerRailgunAddress = await getRelayerAddress();
+
+    // Calculate fees the same way as unshield (deduct from transfer amount)
+    const RELAYER_FEE_BPS = 50n; // 0.5% (same as unshield)
     const relayerFeeAmount = feeQuote && (feeQuote.relayerFee || feeQuote.feeEstimate?.relayerFee)
       ? BigInt(feeQuote.relayerFee || feeQuote.feeEstimate.relayerFee)
-      : (amountBn / 200n); // 0.5% fallback
+      : (amountBn * RELAYER_FEE_BPS) / 10000n; // 0.5% fallback
+
+    // Deduct fee from transfer amount (like unshield does)
+    const netRecipientAmount = amountBn - relayerFeeAmount;
+
+    console.log('💰 [PRIVATE TRANSFER] Fee calculation (like unshield):', {
+      originalAmount: amountBn.toString(),
+      relayerFee: relayerFeeAmount.toString(),
+      netRecipientAmount: netRecipientAmount.toString(),
+      verification: `${netRecipientAmount.toString()} + ${relayerFeeAmount.toString()} = ${(netRecipientAmount + relayerFeeAmount).toString()}`
+    });
+
+    // Update the recipient amount to be net of fees
+    erc20AmountRecipients[0].amount = netRecipientAmount.toString();
 
     const { gasEstimate } = await gasEstimateForUnprovenTransfer(
       TXIDVersion.V2_PoseidonMerkle,
@@ -1710,6 +1764,7 @@ export const privateTransferWithRelayer = async ({
     );
     const transactionGasDetails = { evmGasType, gasEstimate, ...originalGasDetails };
 
+    // Create broadcaster fee recipient (separate from main transfer)
     const relayerFeeERC20AmountRecipient = {
       tokenAddress,
       recipientAddress: relayerRailgunAddress,
