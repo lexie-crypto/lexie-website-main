@@ -1956,13 +1956,24 @@ export const privateTransferWithRelayer = async ({
 
     // INVARIANTS CHECK: Run before populate
     console.log('🔐 [PRIVATE TRANSFER] Running invariants check...');
+    console.log('🔐 [PRIVATE TRANSFER] Invariants debug:', {
+      sender0zk: sender0zk?.substring(0, 20) + '...',
+      recipient0zk: recipient0zk?.substring(0, 20) + '...',
+      relayer0zk: relayer0zk?.substring(0, 20) + '...',
+      senderVsRecipient: sender0zk === recipient0zk,
+      senderVsRelayer: sender0zk === relayer0zk,
+      recipientVsRelayer: recipient0zk === relayer0zk,
+      senderLength: sender0zk?.length,
+      recipientLength: recipient0zk?.length,
+      relayerLength: relayer0zk?.length
+    });
 
     if (recipient0zk === sender0zk) {
-      throw new Error('❌ INVARIANT FAILED: Cannot send to self (recipient0zk === sender0zk)');
+      throw new Error(`❌ INVARIANT FAILED: Cannot send to self (recipient0zk === sender0zk)\nSender: ${sender0zk}\nRecipient: ${recipient0zk}`);
     }
 
     if (relayer0zk === sender0zk) {
-      throw new Error('❌ INVARIANT FAILED: Relayer cannot be sender (relayer0zk === sender0zk)');
+      throw new Error(`❌ INVARIANT FAILED: Relayer cannot be sender (relayer0zk === sender0zk)\nSender: ${sender0zk}\nRelayer: ${relayer0zk}`);
     }
 
     // CAN-DECRYPT GUARD: Enhanced check for self-targeting prevention
