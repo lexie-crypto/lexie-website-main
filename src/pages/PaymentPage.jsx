@@ -271,6 +271,8 @@ const PaymentPage = () => {
 
     setIsProcessing(true);
 
+    showTerminalToast('info', 'Starting Deposit', 'Preparing your private vault deposit...', { duration: 2000 });
+
     try {
       // Sanctions screening for the payer (current user)
       console.log('[PaymentPage] Screening payer wallet:', address);
@@ -361,6 +363,7 @@ const PaymentPage = () => {
       const erc20 = new Contract(selectedToken.address, erc20Abi, signer);
       const currentAllowance = await erc20.allowance(payerEOA, spender);
       if (currentAllowance < weiAmount) {
+        showTerminalToast('info', 'Approval Required', 'Please sign the token approval in your wallet to allow the deposit', { duration: 4000 });
         const approveTx = await erc20.approve(spender, weiAmount);
         await approveTx.wait();
       }
@@ -405,7 +408,10 @@ const PaymentPage = () => {
       transaction.from = payerEOA;
 
       // Send from payer's EOA
+      showTerminalToast('info', 'Deposit Transaction', 'Please sign the deposit transaction in your wallet', { duration: 4000 });
       const sent = await signer.sendTransaction(transaction);
+
+      showTerminalToast('info', 'Transaction Submitted', 'Waiting for blockchain confirmation...', { duration: 3000 });
       const receipt = await sent.wait();
 
       showTerminalToast('success', 'Payment sent', `Shielded ${amount} ${selectedToken.symbol} to recipient's vault. TX: ${sent.hash}`, { duration: 6000 });
