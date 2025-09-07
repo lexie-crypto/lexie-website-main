@@ -265,9 +265,8 @@ export default async function handler(req, res) {
         'Accept': 'application/json',
         'X-Lexie-Timestamp': timestamp,
         'X-Lexie-Signature': signature,
-        'X-Lexie-Role': req.headers['x-lexie-role'] || 'admin', // Forward admin role
         'Origin': 'https://staging.lexiecrypto.com',
-        'User-Agent': 'Lexie-Admin-Proxy/1.0',
+        'User-Agent': 'Lexie-Wallet-Proxy/1.0',
       };
 
     } else if (req.method === 'POST') {
@@ -282,9 +281,8 @@ export default async function handler(req, res) {
         'Accept': 'application/json',
         'X-Lexie-Timestamp': timestamp,
         'X-Lexie-Signature': signature,
-        'X-Lexie-Role': req.headers['x-lexie-role'] || 'admin',
         'Origin': 'https://staging.lexiecrypto.com',
-        'User-Agent': 'Lexie-Admin-Proxy/1.0',
+        'User-Agent': 'Lexie-Wallet-Proxy/1.0',
       };
     }
 
@@ -292,8 +290,7 @@ export default async function handler(req, res) {
       method: req.method,
       timestamp,
       signature: headers['X-Lexie-Signature'].substring(0, 20) + '...',
-      path: backendPath,
-      role: headers['X-Lexie-Role']
+      path: backendPath
     });
 
     console.log(`📡 [ADMIN-PROXY-${requestId}] Forwarding to backend: ${backendUrl}`);
