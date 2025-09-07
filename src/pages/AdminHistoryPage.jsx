@@ -154,7 +154,7 @@ const AdminHistoryPage = () => {
       console.error('[AdminHistory] CSV export failed:', err);
       setError(`Export failed: ${err.message}`);
     }
-  }, [walletId, generateAuthHeaders]);
+  }, [walletId]);
 
   /**
    * Export transaction history as JSON
@@ -202,7 +202,7 @@ const AdminHistoryPage = () => {
       console.error('[AdminHistory] JSON export failed:', err);
       setError(`Export failed: ${err.message}`);
     }
-  }, [walletId, resolutionType, generateAuthHeaders]);
+  }, [walletId, resolutionType]);
 
   /**
    * Format transaction amount for display
