@@ -1845,50 +1845,35 @@ export const privateTransferWithRelayer = async ({
       amount: relayerFeeAmount,
     };
 
-    // Use official SDK gas estimation pattern (like tx-transfer.ts)
-    console.log('💰 [PRIVATE TRANSFER] Using official SDK gas estimation...');
-    const { gasEstimateResponseDummyProofIterativeBroadcasterFee } = await import('@railgun-community/wallet');
+    // ===== FALLBACK: Use working gas estimation pattern =====
+    // The official SDK pattern has import/scope issues, reverting to proven working approach
+    console.log('💰 [PRIVATE TRANSFER] Using proven gas estimation pattern...');
 
-    const gasEstimateResponse = await gasEstimateResponseDummyProofIterativeBroadcasterFee(
-      (broadcasterFeeERC20Amount) => generateDummyProofTransactions(
-        ProofType.Transfer, // Use Transfer proof type (like tx-transfer.ts)
-        networkName,
-        railgunWalletID,
-        TXIDVersion.V2_PoseidonMerkle,
-        encryptionKey,
-        true, // showSenderAddressToRecipient
-        memoText,
-        erc20AmountRecipients,
-        [], // nftAmountRecipients
-        broadcasterFeeERC20Amount, // Pass broadcaster fee for iteration
-        false, // sendWithPublicWallet (relayer mode)
-        BigInt(0), // overallBatchMinGasPrice (calculated later)
-      ),
-      (txs) => generateTransact(
-        TXIDVersion.V2_PoseidonMerkle,
-        txs,
-        networkName,
-        true, // useDummyProof
-      ),
+    // Import the working gas estimation function
+    const { gasEstimateForUnprovenTransfer } = await import('@railgun-community/wallet');
+
+    const gasEstimateResponse = await gasEstimateForUnprovenTransfer(
       TXIDVersion.V2_PoseidonMerkle,
       networkName,
       railgunWalletID,
+      encryptionKey,
+      memoText,
       erc20AmountRecipients,
+      [], // nftAmountRecipients
       originalGasDetails,
       feeTokenDetails,
       false, // sendWithPublicWallet
-      false, // isCrossContractCall
     );
 
     const gasEstimate = gasEstimateResponse.gasEstimate;
     const transactionGasDetails = { evmGasType, gasEstimate, ...originalGasDetails };
     const overallBatchMinGasPrice = await calculateGasPrice(transactionGasDetails);
 
-    console.log('🔐 [PRIVATE TRANSFER] Official SDK gas estimation complete:', {
+    console.log('🔐 [PRIVATE TRANSFER] Gas estimation complete:', {
       gasEstimate: gasEstimate?.toString(),
       overallBatchMinGasPrice: overallBatchMinGasPrice?.toString(),
       evmGasType,
-      method: 'gasEstimateResponseDummyProofIterativeBroadcasterFee'
+      method: 'gasEstimateForUnprovenTransfer (proven working)'
     });
 
     console.log('🔐 [PRIVATE TRANSFER] Before proof generation - final amount check:', {
@@ -1907,16 +1892,15 @@ export const privateTransferWithRelayer = async ({
       method: 'Official SDK Pattern'
     });
 
-    // Use official SDK proof generation pattern
-    console.log('🔐 [PRIVATE TRANSFER] Using official SDK proof generation...');
-    const { generateDummyProofTransactions, generateTransact } = await import('@railgun-community/wallet');
+    // ===== FALLBACK: Use working proof generation pattern =====
+    console.log('🔐 [PRIVATE TRANSFER] Using proven proof generation pattern...');
+    const { generateTransferProof } = await import('@railgun-community/wallet');
 
-    // Generate the actual proof using official pattern
-    const dummyTxs = await generateDummyProofTransactions(
-      ProofType.Transfer,
+    // Generate proof using the proven working pattern
+    await generateTransferProof(
+      TXIDVersion.V2_PoseidonMerkle,
       networkName,
       railgunWalletID,
-      TXIDVersion.V2_PoseidonMerkle,
       encryptionKey,
       true, // showSenderAddressToRecipient
       memoText,
@@ -1925,9 +1909,10 @@ export const privateTransferWithRelayer = async ({
       broadcasterFeeERC20AmountRecipient, // Use broadcasterFee (not null)
       false, // sendWithPublicWallet
       overallBatchMinGasPrice,
+      () => {}, // progress callback
     );
 
-    console.log('✅ [PRIVATE TRANSFER] Official SDK proof generation complete');
+    console.log('✅ [PRIVATE TRANSFER] Proof generation complete');
 
     // ===== BUG FIX: COMPREHENSIVE PRIVATE TRANSFER VALIDATION =====
     // This section prevents the critical bug where private transfer outputs
@@ -2055,23 +2040,22 @@ export const privateTransferWithRelayer = async ({
       method: 'Official SDK Pattern'
     });
 
-    // Use official SDK populate pattern (like tx-transfer.ts)
-    console.log('📝 [PRIVATE TRANSFER] Using official SDK populateProvedTransaction...');
-    const { populateProvedTransaction } = await import('./proof-cache.js');
+    // ===== FALLBACK: Use working populate pattern =====
+    console.log('📝 [PRIVATE TRANSFER] Using proven populate pattern...');
+    const { populateProvedTransfer } = await import('@railgun-community/wallet');
 
-    const populateResult = await populateProvedTransaction(
+    const populateResult = await populateProvedTransfer(
       TXIDVersion.V2_PoseidonMerkle,
       networkName,
-      ProofType.Transfer, // Use Transfer proof type
       railgunWalletID,
+      true, // showSenderAddressToRecipient
+      memoText,
       erc20AmountRecipients,
       [], // nftAmountRecipients
       broadcasterFeeERC20AmountRecipient,
       false, // sendWithPublicWallet
       overallBatchMinGasPrice,
       transactionGasDetails,
-      railgunWalletID, // walletID for our cache
-      chainId // chainId for our cache
     );
 
     const { transaction } = populateResult;
