@@ -1600,14 +1600,88 @@ export const privateTransferWithRelayer = async ({
     const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
     const chainId = NETWORK_CONFIG?.[networkName]?.chain?.id;
 
-    // 1) Gas details (relayer path)
+    // 1) Gas details (relayer path) - Use same approach as unshield for consistency
     const evmGasType = getEVMGasTypeForTransaction(networkName, false);
-    const originalGasDetails = evmGasType === EVMGasType.Type2
-      ? { evmGasType, originalGasEstimate: 0n, maxFeePerGas: BigInt('0x100000'), maxPriorityFeePerGas: BigInt('0x010000') }
-      : { evmGasType, originalGasEstimate: 0n, gasPrice: BigInt('0x100000') };
 
-    // 2) Fee token details (from our relayer; fallback values ok)
-    let relayerFeePerUnitGas = BigInt('1000000000');
+    // Fetch real-time network gas prices like unshield function does
+    let originalGasDetails;
+    try {
+      // Get current network gas prices for realistic originalGasDetails
+      const { ethers } = await import('ethers');
+      let networkGasPrices = null;
+
+      // Try to get provider for gas price fetching (similar to unshield approach)
+      try {
+        // Use our proxied RPC to avoid exposing keys (same as unshield)
+        const origin = (typeof window !== 'undefined' ? window.location.origin : '');
+        const provider = new ethers.JsonRpcProvider(origin + '/api/rpc?chainId=' + chainId + '&provider=auto');
+        const feeData = await provider.getFeeData();
+        networkGasPrices = feeData;
+      } catch (providerError) {
+        console.warn('⚠️ [PRIVATE TRANSFER] Failed to get network gas prices:', providerError.message);
+      }
+
+      // Create gas details following same pattern as unshield
+      switch (evmGasType) {
+        case EVMGasType.Type0:
+        case EVMGasType.Type1:
+          let gasPrice = networkGasPrices?.gasPrice || BigInt('0x100000');
+          originalGasDetails = {
+            evmGasType,
+            originalGasEstimate: 0n,
+            gasPrice,
+          };
+          break;
+        case EVMGasType.Type2:
+          let maxFeePerGas = networkGasPrices?.maxFeePerGas || BigInt('0x100000');
+          let maxPriorityFeePerGas = networkGasPrices?.maxPriorityFeePerGas || BigInt('0x010000');
+          originalGasDetails = {
+            evmGasType,
+            originalGasEstimate: 0n,
+            maxFeePerGas,
+            maxPriorityFeePerGas,
+          };
+          break;
+        default:
+          throw new Error(`Unsupported EVM gas type: ${evmGasType}`);
+      }
+
+      console.log('💰 [PRIVATE TRANSFER] Gas details with network prices:', {
+        evmGasType,
+        gasPrice: originalGasDetails.gasPrice?.toString(),
+        maxFeePerGas: originalGasDetails.maxFeePerGas?.toString(),
+        maxPriorityFeePerGas: originalGasDetails.maxPriorityFeePerGas?.toString(),
+        chainId
+      });
+
+    } catch (gasError) {
+      console.warn('⚠️ [PRIVATE TRANSFER] Failed to get network gas prices, using fallbacks:', gasError.message);
+
+      // Fallback with network-appropriate values (same as unshield)
+      switch (evmGasType) {
+        case EVMGasType.Type0:
+        case EVMGasType.Type1:
+          originalGasDetails = {
+            evmGasType,
+            originalGasEstimate: 0n,
+            gasPrice: BigInt('0x100000'),
+          };
+          break;
+        case EVMGasType.Type2:
+          originalGasDetails = {
+            evmGasType,
+            originalGasEstimate: 0n,
+            maxFeePerGas: BigInt('0x100000'),
+            maxPriorityFeePerGas: BigInt('0x010000'),
+          };
+          break;
+        default:
+          throw new Error(`Unsupported EVM gas type: ${evmGasType}`);
+      }
+    }
+
+    // 2) Fee token details (from our relayer; use more realistic fallback values)
+    let relayerFeePerUnitGas = originalGasDetails.gasPrice || originalGasDetails.maxFeePerGas || BigInt('20000000000'); // 20 gwei fallback instead of 1 gwei
     let feeQuote = null;
     try {
       feeQuote = await estimateRelayerFee({ chainId, tokenAddress, amount: String(erc20AmountRecipients[0].amount) });
