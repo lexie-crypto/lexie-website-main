@@ -136,6 +136,20 @@ const useTransactionHistory = ({
     await loadTransactionHistory();
   }, [loadTransactionHistory]);
 
+  // Listen for global refresh events
+  useEffect(() => {
+    const handleRefreshEvent = () => {
+      console.log('[useTransactionHistory] 📡 Received global refresh event');
+      refreshHistory();
+    };
+
+    window.addEventListener('transaction-history-refresh', handleRefreshEvent);
+
+    return () => {
+      window.removeEventListener('transaction-history-refresh', handleRefreshEvent);
+    };
+  }, [refreshHistory]);
+
   /**
    * Get transactions by type
    */

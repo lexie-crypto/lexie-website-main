@@ -766,6 +766,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         </div>
       ), { duration: 3000 });
 
+      // Trigger transaction history refresh to show the new transaction with memo
+      setTimeout(() => {
+        console.log('🔄 [PrivacyActions] Triggering transaction history refresh after transfer');
+        window.dispatchEvent(new CustomEvent('transaction-history-refresh'));
+      }, 3000); // Wait 3 seconds for transaction to be mined and indexed
+
       // Reset
       setAmount('');
       setRecipientAddress('');

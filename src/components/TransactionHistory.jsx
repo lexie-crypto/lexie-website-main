@@ -238,7 +238,12 @@ const TransactionHistory = () => {
                   isPrivateTransfer: tx.isPrivateTransfer,
                   hasMemo: !!tx.memo,
                   memoLength: tx.memo?.length || 0,
-                  memoValue: tx.memo
+                  memoValue: tx.memo,
+                  // Debug amount objects to see memo location
+                  transferAmounts: tx.raw?.transferERC20Amounts?.length || 0,
+                  receiveAmounts: tx.raw?.receiveERC20Amounts?.length || 0,
+                  firstTransferMemo: tx.raw?.transferERC20Amounts?.[0]?.memoText,
+                  firstReceiveMemo: tx.raw?.receiveERC20Amounts?.[0]?.memoText
                 })}
               </div>
 

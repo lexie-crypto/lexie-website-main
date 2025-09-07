@@ -75,6 +75,23 @@ const formatTransactionHistoryItem = (historyItem, chainId) => {
   // Extract memoText from historyItem (not as const since we may reassign it)
   let memoText = historyItem.memoText;
 
+  // Debug: Log all available fields in historyItem for private transfers
+  if (category === TransactionCategory.TRANSFER_SEND || category === TransactionCategory.TRANSFER_RECEIVE) {
+    console.log('🔍 [TRANSACTION_HISTORY] Full historyItem fields for private transfer:', {
+      txid: txid?.substring(0, 10) + '...',
+      allKeys: Object.keys(historyItem),
+      memo: historyItem.memo,
+      memoText: historyItem.memoText,
+      memoTextType: typeof historyItem.memoText,
+      memoType: typeof historyItem.memo,
+      // Check for any other memo-related fields
+      ...Object.keys(historyItem).filter(key => key.toLowerCase().includes('memo')).reduce((obj, key) => {
+        obj[key] = historyItem[key];
+        return obj;
+      }, {})
+    });
+  }
+
   // Determine transaction type and primary amounts
   let transactionType = 'Unknown';
   let primaryAmounts = [];
@@ -152,29 +169,49 @@ const formatTransactionHistoryItem = (historyItem, chainId) => {
   // Determine if this is a private transfer (send or receive)
   const isPrivateTransfer = category === TransactionCategory.TRANSFER_SEND || category === TransactionCategory.TRANSFER_RECEIVE;
 
-  // Get memo for private transfers
+  // Get memo for private transfers - memo is stored in the amount objects, not at top level
   if (isPrivateTransfer) {
     console.log('📝 [TRANSACTION_HISTORY] Processing memo for private transfer:', {
       txid: txid?.substring(0, 10) + '...',
       category,
       hasMemoText: !!historyItem.memoText,
       hasMemo: !!historyItem.memo,
-      memoTextType: typeof historyItem.memoText,
-      memoType: typeof historyItem.memo,
-      memoTextLength: historyItem.memoText?.length || 0,
-      memoLength: historyItem.memo?.length || 0,
-      memoTextValue: historyItem.memoText,
-      memoValue: historyItem.memo
+      // Check memo in amount objects
+      transferAmounts: transferERC20Amounts?.length || 0,
+      receiveAmounts: receiveERC20Amounts?.length || 0,
+      firstTransferMemo: transferERC20Amounts?.[0]?.memoText,
+      firstReceiveMemo: receiveERC20Amounts?.[0]?.memoText
     });
 
-    if (typeof historyItem.memoText === 'string' && historyItem.memoText.length > 0) {
-      memoText = historyItem.memoText;
-      console.log('📝 [TRANSACTION_HISTORY] Using memoText field:', memoText);
-    } else if (typeof historyItem.memo === 'string' && historyItem.memo.length > 0) {
-      memoText = historyItem.memo;
-      console.log('📝 [TRANSACTION_HISTORY] Using memo field:', memoText);
-    } else {
-      memoText = null; // Set to null if no memo found
+    // For transfer transactions, memo is in the first transferERC20Amounts item
+    if (category === TransactionCategory.TRANSFER_SEND && transferERC20Amounts?.length > 0) {
+      const transferMemo = transferERC20Amounts[0].memoText;
+      if (typeof transferMemo === 'string' && transferMemo.length > 0) {
+        memoText = transferMemo;
+        console.log('📝 [TRANSACTION_HISTORY] Found memo in transfer amount:', memoText);
+      }
+    }
+    // For receive transactions, memo is in the first receiveERC20Amounts item
+    else if (category === TransactionCategory.TRANSFER_RECEIVE && receiveERC20Amounts?.length > 0) {
+      const receiveMemo = receiveERC20Amounts[0].memoText;
+      if (typeof receiveMemo === 'string' && receiveMemo.length > 0) {
+        memoText = receiveMemo;
+        console.log('📝 [TRANSACTION_HISTORY] Found memo in receive amount:', memoText);
+      }
+    }
+
+    // Fallback: check top-level fields (for backward compatibility)
+    if (!memoText) {
+      if (typeof historyItem.memoText === 'string' && historyItem.memoText.length > 0) {
+        memoText = historyItem.memoText;
+        console.log('📝 [TRANSACTION_HISTORY] Using top-level memoText field:', memoText);
+      } else if (typeof historyItem.memo === 'string' && historyItem.memo.length > 0) {
+        memoText = historyItem.memo;
+        console.log('📝 [TRANSACTION_HISTORY] Using top-level memo field:', memoText);
+      }
+    }
+
+    if (!memoText) {
       console.log('📝 [TRANSACTION_HISTORY] No memo found for private transfer');
     }
   } else {

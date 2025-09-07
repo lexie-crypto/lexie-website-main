@@ -414,7 +414,7 @@ const PaymentPage = () => {
       showTerminalToast('info', 'Transaction Submitted', 'Waiting for blockchain confirmation...', { duration: 3000 });
       const receipt = await sent.wait();
 
-      showTerminalToast('success', 'Payment sent', `Shielded ${amount} ${selectedToken.symbol} to recipient's vault. TX: ${sent.hash}`, { duration: 6000 });
+      showTerminalToast('success', 'Payment sent', `Deposited ${amount} ${selectedToken.symbol} to recipient's vault. TX: ${sent.hash}`, { duration: 6000 });
 
       // Reset form amount
       setAmount('');
