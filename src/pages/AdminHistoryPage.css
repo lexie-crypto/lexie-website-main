@@ -1,0 +1,433 @@
+/* Admin History Dashboard Styles */
+.admin-history-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background-color: #f8f9fa;
+  min-height: 100vh;
+}
+
+.admin-header {
+  text-align: center;
+  margin-bottom: 30px;
+  padding: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.admin-header h1 {
+  color: #2c3e50;
+  margin: 0 0 10px 0;
+  font-size: 2.5em;
+  font-weight: 600;
+}
+
+.admin-header p {
+  color: #7f8c8d;
+  margin: 0;
+  font-size: 1.1em;
+}
+
+/* Search Section */
+.search-section {
+  background: white;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 30px;
+}
+
+.search-form {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+
+.search-input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 2px solid #e1e8ed;
+  border-radius: 6px;
+  font-size: 16px;
+  transition: border-color 0.2s;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.search-button {
+  padding: 12px 24px;
+  background: #3498db;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.search-button:hover:not(:disabled) {
+  background: #2980b9;
+}
+
+.search-button:disabled {
+  background: #bdc3c7;
+  cursor: not-allowed;
+}
+
+/* Wallet Info */
+.wallet-info {
+  background: #f8f9fa;
+  padding: 20px;
+  border-radius: 6px;
+  border-left: 4px solid #3498db;
+}
+
+.wallet-info h3 {
+  margin: 0 0 15px 0;
+  color: #2c3e50;
+  font-size: 1.3em;
+}
+
+.wallet-info p {
+  margin: 8px 0;
+  color: #34495e;
+}
+
+.wallet-info strong {
+  color: #2c3e50;
+}
+
+/* Export Buttons */
+.export-buttons {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+}
+
+.export-btn {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.csv-btn {
+  background: #27ae60;
+  color: white;
+}
+
+.csv-btn:hover {
+  background: #229954;
+}
+
+.json-btn {
+  background: #e74c3c;
+  color: white;
+}
+
+.json-btn:hover {
+  background: #c0392b;
+}
+
+/* Error Message */
+.error-message {
+  background: #fee;
+  border: 1px solid #e74c3c;
+  border-radius: 6px;
+  padding: 15px;
+  margin-bottom: 20px;
+  color: #c0392b;
+}
+
+.error-message p {
+  margin: 0;
+  font-weight: 500;
+}
+
+/* History Section */
+.history-section {
+  background: white;
+  padding: 30px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.history-section h3 {
+  margin: 0 0 20px 0;
+  color: #2c3e50;
+  font-size: 1.8em;
+}
+
+/* Transactions Table */
+.transactions-table {
+  overflow-x: auto;
+  border-radius: 6px;
+  border: 1px solid #e1e8ed;
+}
+
+.transactions-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.transactions-table th {
+  background: #f8f9fa;
+  padding: 12px 8px;
+  text-align: left;
+  font-weight: 600;
+  color: #2c3e50;
+  border-bottom: 2px solid #e1e8ed;
+  white-space: nowrap;
+}
+
+.transactions-table td {
+  padding: 12px 8px;
+  border-bottom: 1px solid #e1e8ed;
+  vertical-align: top;
+}
+
+.transactions-table tr:hover {
+  background: #f8f9fa;
+}
+
+.transactions-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Clickable hashes */
+.clickable-hash {
+  color: #3498db;
+  cursor: pointer;
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+}
+
+.clickable-hash:hover {
+  text-decoration: underline;
+}
+
+/* Status indicators */
+.status-pending {
+  background: #f39c12;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-mined {
+  background: #27ae60;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-failed {
+  background: #e74c3c;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.status-unknown {
+  background: #95a5a6;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Action buttons */
+.action-btn {
+  padding: 6px 12px;
+  background: #3498db;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.action-btn:hover {
+  background: #2980b9;
+}
+
+/* Load More */
+.load-more {
+  text-align: center;
+  margin-top: 20px;
+}
+
+.load-more-btn {
+  padding: 12px 24px;
+  background: #95a5a6;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.load-more-btn:hover:not(:disabled) {
+  background: #7f8c8d;
+}
+
+.load-more-btn:disabled {
+  background: #bdc3c7;
+  cursor: not-allowed;
+}
+
+/* Empty State */
+.empty-state {
+  text-align: center;
+  background: white;
+  padding: 60px 30px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.empty-state h3 {
+  color: #2c3e50;
+  margin: 0 0 15px 0;
+  font-size: 1.5em;
+}
+
+.empty-state p {
+  color: #7f8c8d;
+  margin: 0;
+  font-size: 1.1em;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .admin-history-container {
+    padding: 10px;
+  }
+
+  .admin-header h1 {
+    font-size: 2em;
+  }
+
+  .search-form {
+    flex-direction: column;
+  }
+
+  .search-button {
+    width: 100%;
+  }
+
+  .export-buttons {
+    flex-direction: column;
+  }
+
+  .export-btn {
+    width: 100%;
+  }
+
+  .transactions-table {
+    font-size: 12px;
+  }
+
+  .transactions-table th,
+  .transactions-table td {
+    padding: 8px 4px;
+  }
+}
+
+/* Loading spinner animation */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.search-button:disabled::after,
+.load-more-btn:disabled::after {
+  content: '';
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #ffffff;
+  border-radius: 50%;
+  border-top-color: transparent;
+  animation: spin 1s ease-in-out infinite;
+  margin-left: 8px;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .admin-history-container {
+    background-color: #1a1a1a;
+    color: #ffffff;
+  }
+
+  .admin-header,
+  .search-section,
+  .history-section,
+  .empty-state {
+    background: #2d2d2d;
+    color: #ffffff;
+  }
+
+  .admin-header h1,
+  .history-section h3,
+  .empty-state h3 {
+    color: #ffffff;
+  }
+
+  .admin-header p,
+  .empty-state p {
+    color: #cccccc;
+  }
+
+  .search-input,
+  .transactions-table {
+    border-color: #404040;
+  }
+
+  .search-input {
+    background: #1a1a1a;
+    color: #ffffff;
+  }
+
+  .transactions-table th {
+    background: #404040;
+    color: #ffffff;
+    border-color: #555555;
+  }
+
+  .transactions-table td {
+    border-color: #404040;
+  }
+
+  .transactions-table tr:hover {
+    background: #404040;
+  }
+
+  .wallet-info {
+    background: #404040;
+  }
+
+  .error-message {
+    background: #2d1b1b;
+    border-color: #e74c3c;
+    color: #ff6b6b;
+  }
+}
