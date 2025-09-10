@@ -231,19 +231,47 @@ const TransactionHistory = () => {
                     Memo: {tx.memo}
                   </div>
                 )}
-                {/* Debug logging for memo data */}
-                {console.log('📝 [TransactionHistory] Rendering transaction memo:', {
+
+                {/* Recipient/Sender Address for Private Transfers */}
+                {tx.isPrivateTransfer && (tx.recipientAddress || tx.senderAddress) && (
+                  <div className="mt-1 text-blue-300 break-words">
+                    {tx.recipientAddress ? (
+                      <div>
+                        <span className="text-blue-400/80">Recipient: </span>
+                        <span
+                          onClick={() => navigator.clipboard.writeText(tx.recipientAddress)}
+                          className="cursor-pointer hover:text-blue-200 transition-colors select-all"
+                          title="Click to copy recipient address"
+                        >
+                          {`${tx.recipientAddress.slice(0, 8)}...${tx.recipientAddress.slice(-6)}`}
+                        </span>
+                      </div>
+                    ) : tx.senderAddress ? (
+                      <div>
+                        <span className="text-blue-400/80">Sender: </span>
+                        <span
+                          onClick={() => navigator.clipboard.writeText(tx.senderAddress)}
+                          className="cursor-pointer hover:text-blue-200 transition-colors select-all"
+                          title="Click to copy sender address"
+                        >
+                          {`${tx.senderAddress.slice(0, 8)}...${tx.senderAddress.slice(-6)}`}
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+
+                {/* Debug logging for memo and address data */}
+                {console.log('📧 [TransactionHistory] Rendering transaction with address info:', {
                   txid: tx.txid?.substring(0, 10) + '...',
                   category: tx.category,
                   isPrivateTransfer: tx.isPrivateTransfer,
                   hasMemo: !!tx.memo,
                   memoLength: tx.memo?.length || 0,
-                  memoValue: tx.memo,
-                  // Debug amount objects to see memo location
-                  transferAmounts: tx.raw?.transferERC20Amounts?.length || 0,
-                  receiveAmounts: tx.raw?.receiveERC20Amounts?.length || 0,
-                  firstTransferMemo: tx.raw?.transferERC20Amounts?.[0]?.memoText,
-                  firstReceiveMemo: tx.raw?.receiveERC20Amounts?.[0]?.memoText
+                  hasRecipientAddress: !!tx.recipientAddress,
+                  hasSenderAddress: !!tx.senderAddress,
+                  recipientAddress: tx.recipientAddress?.substring(0, 8) + '...',
+                  senderAddress: tx.senderAddress?.substring(0, 8) + '...'
                 })}
               </div>
 

@@ -169,34 +169,54 @@ const formatTransactionHistoryItem = (historyItem, chainId) => {
   // Determine if this is a private transfer (send or receive)
   const isPrivateTransfer = category === TransactionCategory.TRANSFER_SEND || category === TransactionCategory.TRANSFER_RECEIVE;
 
-  // Get memo for private transfers - memo is stored in the amount objects, not at top level
+  // Initialize recipient/sender address for private transfers
+  let recipientAddress = null;
+  let senderAddress = null;
+
+  // Get memo and address information for private transfers - memo is stored in the amount objects, not at top level
   if (isPrivateTransfer) {
-    console.log('📝 [TRANSACTION_HISTORY] Processing memo for private transfer:', {
+    console.log('📝 [TRANSACTION_HISTORY] Processing memo and address for private transfer:', {
       txid: txid?.substring(0, 10) + '...',
       category,
       hasMemoText: !!historyItem.memoText,
       hasMemo: !!historyItem.memo,
-      // Check memo in amount objects
+      // Check memo and address in amount objects
       transferAmounts: transferERC20Amounts?.length || 0,
       receiveAmounts: receiveERC20Amounts?.length || 0,
       firstTransferMemo: transferERC20Amounts?.[0]?.memoText,
-      firstReceiveMemo: receiveERC20Amounts?.[0]?.memoText
+      firstReceiveMemo: receiveERC20Amounts?.[0]?.memoText,
+      firstTransferRecipient: transferERC20Amounts?.[0]?.recipientAddress,
+      firstReceiveSender: receiveERC20Amounts?.[0]?.senderAddress
     });
 
-    // For transfer transactions, memo is in the first transferERC20Amounts item
+    // For transfer transactions, memo and recipient address are in the first transferERC20Amounts item
     if (category === TransactionCategory.TRANSFER_SEND && transferERC20Amounts?.length > 0) {
       const transferMemo = transferERC20Amounts[0].memoText;
+      const transferRecipient = transferERC20Amounts[0].recipientAddress;
+
       if (typeof transferMemo === 'string' && transferMemo.length > 0) {
         memoText = transferMemo;
         console.log('📝 [TRANSACTION_HISTORY] Found memo in transfer amount:', memoText);
       }
+
+      if (transferRecipient) {
+        recipientAddress = transferRecipient;
+        console.log('📧 [TRANSACTION_HISTORY] Found recipient address in transfer:', recipientAddress);
+      }
     }
-    // For receive transactions, memo is in the first receiveERC20Amounts item
+    // For receive transactions, memo and sender address are in the first receiveERC20Amounts item
     else if (category === TransactionCategory.TRANSFER_RECEIVE && receiveERC20Amounts?.length > 0) {
       const receiveMemo = receiveERC20Amounts[0].memoText;
+      const receiveSender = receiveERC20Amounts[0].senderAddress;
+
       if (typeof receiveMemo === 'string' && receiveMemo.length > 0) {
         memoText = receiveMemo;
         console.log('📝 [TRANSACTION_HISTORY] Found memo in receive amount:', memoText);
+      }
+
+      if (receiveSender) {
+        senderAddress = receiveSender;
+        console.log('📧 [TRANSACTION_HISTORY] Found sender address in receive:', senderAddress);
       }
     }
 
@@ -239,6 +259,8 @@ const formatTransactionHistoryItem = (historyItem, chainId) => {
     description,
     memo: memoText,
     isPrivateTransfer,
+    recipientAddress: recipientAddress, // For send transactions
+    senderAddress: senderAddress, // For receive transactions
     tokenAmounts,
     chainId,
     // Copy functionality
@@ -583,6 +605,19 @@ export const createUITransactionItem = (transaction) => {
       text: transaction.memo,
       truncated: transaction.memo.length > 50 ? `${transaction.memo.slice(0, 50)}...` : transaction.memo,
       full: transaction.memo
+    } : null,
+    // Recipient/Sender address display for private transfers
+    addressDisplay: transaction.isPrivateTransfer ? {
+      recipient: transaction.recipientAddress ? {
+        full: transaction.recipientAddress,
+        short: `${transaction.recipientAddress.slice(0, 8)}...${transaction.recipientAddress.slice(-6)}`,
+        type: 'recipient'
+      } : null,
+      sender: transaction.senderAddress ? {
+        full: transaction.senderAddress,
+        short: `${transaction.senderAddress.slice(0, 8)}...${transaction.senderAddress.slice(-6)}`,
+        type: 'sender'
+      } : null
     } : null,
     // Chain information
     chainInfo: {
