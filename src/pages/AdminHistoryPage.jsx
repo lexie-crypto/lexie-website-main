@@ -23,44 +23,113 @@ const AdminHistoryPage = () => {
   // The proxy generates proper HMAC headers and forwards to backend
 
   /**
-   * Resolve search query to wallet ID
+   * Process search query and get wallet data/transaction history
    */
-  const resolveWalletId = useCallback(async (query) => {
+  const processQuery = useCallback(async (query) => {
     if (!query.trim()) return;
 
     setLoading(true);
     setError('');
 
     try {
-      console.log('[AdminHistory] Resolving query:', query);
+      console.log('[AdminHistory] Processing query:', query);
 
-      const response = await fetch(`/api/wallet-metadata?action=history&subaction=resolve&q=${encodeURIComponent(query)}`, {
-        method: 'GET'
-      });
+      // Check what type of input this is
+      if (query.startsWith('0zk')) {
+        // Direct Railgun address - resolve to walletId using backend
+        console.log('[AdminHistory] Detected Railgun address, resolving to walletId...');
 
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      if (data.success) {
-        setWalletId(data.walletId);
-        setResolutionType(data.resolutionType);
-        console.log('[AdminHistory] Query resolved:', {
-          query,
-          walletId: data.walletId,
-          resolutionType: data.resolutionType
+        const response = await fetch(`/api/wallet-metadata?action=history&subaction=resolve&q=${encodeURIComponent(query)}`, {
+          method: 'GET'
         });
 
-        // Automatically fetch history for resolved wallet
-        await fetchTransactionHistory(data.walletId, 1, true);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+          setWalletId(data.walletId);
+          setResolutionType(data.resolutionType);
+          console.log('[AdminHistory] Railgun address resolved:', {
+            railgunAddress: query.slice(0, 10) + '...',
+            walletId: data.walletId?.slice(0, 10) + '...',
+            resolutionType: data.resolutionType
+          });
+
+          // Fetch transaction history for the resolved wallet
+          await fetchTransactionHistory(data.walletId, 1, true);
+        } else {
+          setError(data.error || 'Failed to resolve Railgun address');
+        }
+
+      } else if (query.startsWith('0x') && query.length === 66) {
+        // Transaction hash - use existing resolution
+        const response = await fetch(`/api/wallet-metadata?action=history&subaction=resolve&q=${encodeURIComponent(query)}`, {
+          method: 'GET'
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        if (data.success) {
+          setWalletId(data.walletId);
+          setResolutionType(data.resolutionType);
+          console.log('[AdminHistory] Transaction hash resolved:', {
+            query,
+            walletId: data.walletId,
+            resolutionType: data.resolutionType
+          });
+
+          // Fetch history for resolved wallet
+          await fetchTransactionHistory(data.walletId, 1, true);
+        } else {
+          setError(data.error || 'Failed to resolve transaction hash');
+        }
+
+      } else if (query.startsWith('0x') && (query.length === 42 || query.length === 66)) {
+        // EOA address - get wallet metadata and then transaction history
+        console.log('[AdminHistory] Detected EOA address, getting wallet metadata...');
+
+        const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(query)}`, {
+          method: 'GET'
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        if (data.success && data.keys && data.keys.length > 0) {
+          const walletInfo = data.keys[0]; // Get first wallet
+          setWalletId(walletInfo.walletId);
+          setResolutionType('eoa');
+
+          console.log('[AdminHistory] EOA resolved to wallet:', {
+            eoa: query,
+            railgunAddress: walletInfo.railgunAddress?.slice(0, 10) + '...',
+            walletId: walletInfo.walletId?.slice(0, 10) + '...',
+            scannedChains: walletInfo.scannedChains
+          });
+
+          // Fetch transaction history using the walletId
+          await fetchTransactionHistory(walletInfo.walletId, 1, true);
+        } else {
+          setError('No wallet found for this EOA address');
+        }
+
       } else {
-        setError(data.error || 'Failed to resolve query');
+        setError('Invalid input format. Please enter an EOA address (0x...), transaction hash, or Railgun address (0zk...)');
       }
+
     } catch (err) {
-      console.error('[AdminHistory] Resolution failed:', err);
-      setError(`Failed to resolve query: ${err.message}`);
+      console.error('[AdminHistory] Query processing failed:', err);
+      setError(`Failed to process query: ${err.message}`);
     } finally {
       setLoading(false);
     }
@@ -233,7 +302,7 @@ const AdminHistoryPage = () => {
    */
   const handleSearch = (e) => {
     e.preventDefault();
-    resolveWalletId(searchQuery);
+    processQuery(searchQuery);
   };
 
   /**
@@ -252,8 +321,8 @@ const AdminHistoryPage = () => {
   return (
     <div className="admin-history-container">
       <div className="admin-header">
-        <h1>Railgun Admin History Dashboard</h1>
-        <p>Compliance and audit trail for private transactions</p>
+        <h1>Railgun Wallet Inspector</h1>
+        <p>Search by transaction hash, Railgun address, or EOA address for compliance and audit</p>
       </div>
 
       <div className="search-section">
@@ -273,7 +342,7 @@ const AdminHistoryPage = () => {
 
         {walletId && (
           <div className="wallet-info">
-            <h3>Resolved Wallet</h3>
+            <h3>Wallet Information</h3>
             <p><strong>Wallet ID:</strong> {walletId}</p>
             <p><strong>Resolution Type:</strong> {resolutionType}</p>
             <div className="export-buttons">
@@ -388,7 +457,7 @@ const AdminHistoryPage = () => {
       {!walletId && !loading && !error && (
         <div className="empty-state">
           <h3>No Search Performed</h3>
-          <p>Enter a transaction hash, 0zk address, or EOA address to begin compliance audit.</p>
+          <p>Enter a transaction hash, Railgun address (0zk...), or EOA address (0x...) to view wallet information and transaction history.</p>
         </div>
       )}
     </div>
