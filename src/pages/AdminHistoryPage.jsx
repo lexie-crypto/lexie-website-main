@@ -392,7 +392,7 @@ const AdminHistoryPage = () => {
 
   /**
    * Create a view-only wallet using the viewing key from Redis
-   * Uses official Railgun SDK encryption key generation
+   * Uses Node.js crypto pbkdf2 for encryption key generation
    */
   const createViewOnlyWallet = useCallback(async (viewingKey) => {
     try {
@@ -402,16 +402,19 @@ const AdminHistoryPage = () => {
 
       // Import Railgun SDK dynamically
       const railgunWallet = await import('@railgun-community/wallet');
-      const { createViewOnlyRailgunWallet, pbkdf2 } = railgunWallet;
+      const { createViewOnlyRailgunWallet } = railgunWallet;
 
-      // Generate a unique local encryption key using official Railgun SDK method
+      // Import Node.js crypto for key derivation
+      const crypto = await import('crypto');
+
+      // Generate a unique local encryption key using Node.js crypto pbkdf2
       // This is just for local storage encryption, NOT for spending
       const password = `admin-view-${Date.now()}-${Math.random()}`;
       const salt = 'lexie-admin-view-only-v1'; // Stable salt for admin view-only wallets
 
-      // Use the official Railgun SDK pbkdf2 function
+      // Use Node.js crypto pbkdf2 function
       // Parameters: password, salt, iterations, keyLength, digest
-      const encryptionKey = pbkdf2.pbkdf2Sync(
+      const encryptionKey = crypto.pbkdf2Sync(
         password,
         salt,
         100000,  // iterations (Railgun recommended)
@@ -419,7 +422,7 @@ const AdminHistoryPage = () => {
         'sha256' // digest algorithm
       ).toString('hex');
 
-      console.log('[AdminHistory] Generated encryption key using official Railgun SDK pbkdf2');
+      console.log('[AdminHistory] Generated encryption key using Node.js crypto pbkdf2');
 
       // Create view-only wallet
       const viewOnlyWalletInfo = await createViewOnlyRailgunWallet(
