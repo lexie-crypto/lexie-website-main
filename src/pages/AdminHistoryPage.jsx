@@ -14,6 +14,7 @@ import React, { useState, useEffect } from 'react';
 import { loadViewOnlyWallet, deriveEncryptionKey } from '../utils/railgun/wallet.js';
 import { waitForRailgunReady } from '../utils/railgun/engine.js';
 
+
 const AdminDashboard = () => {
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -70,8 +71,8 @@ const AdminDashboard = () => {
     addLog(`🔍 Getting wallet metadata for: ${searchQuery}`, 'info');
 
     try {
-      // Use regular get-wallet-metadata endpoint
-      const response = await fetch(`/api/get-wallet-metadata/${encodeURIComponent(searchQuery)}`, {
+      // Use wallet-metadata proxy with proper query parameters
+      const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(searchQuery)}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
