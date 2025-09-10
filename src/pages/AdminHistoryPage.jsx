@@ -809,25 +809,27 @@ const AdminHistoryPage = () => {
     }
   };
 
-  return (
-    <div className="admin-history-container">
-      <div className="admin-header">
-        <h1>Railgun Wallet Inspector</h1>
-        <p>Search by transaction hash, Railgun address, or EOA address for compliance and audit using Railgun SDK</p>
-        {isInitializingRailgun && (
-          <div className="text-center mt-4">
-            <div className="inline-flex items-center gap-2 text-blue-400">
-              <div className="h-4 w-4 rounded-full border-2 border-blue-400 border-t-transparent animate-spin" />
-              Initializing Railgun engine...
+  // Wrap return in try-catch to handle Railgun SDK initialization errors
+  try {
+    return (
+      <div className="admin-history-container">
+        <div className="admin-header">
+          <h1>Railgun Wallet Inspector</h1>
+          <p>Search by transaction hash, Railgun address, or EOA address for compliance and audit using Railgun SDK</p>
+          {isInitializingRailgun && (
+            <div className="text-center mt-4">
+              <div className="inline-flex items-center gap-2 text-blue-400">
+                <div className="h-4 w-4 rounded-full border-2 border-blue-400 border-t-transparent animate-spin" />
+                Initializing Railgun engine...
+              </div>
             </div>
-          </div>
-        )}
-        {isRailgunInitialized && !isInitializingRailgun && (
-          <div className="text-center mt-4 text-green-400 text-sm">
-            ✅ Railgun engine ready - Ready to load view-only wallets and fetch transaction history
-          </div>
-        )}
-      </div>
+          )}
+          {isRailgunInitialized && !isInitializingRailgun && (
+            <div className="text-center mt-4 text-green-400 text-sm">
+              ✅ Railgun engine ready - Ready to load view-only wallets and fetch transaction history
+            </div>
+          )}
+        </div>
 
       <div className="search-section">
         <form onSubmit={handleSearch} className="search-form">
@@ -1054,8 +1056,36 @@ const AdminHistoryPage = () => {
         </div>
       )}
 
-    </div>
-  );
+      </div>
+    );
+  } catch (renderError) {
+    console.error('[AdminHistory] ❌ Component render error:', renderError);
+    // Return fallback UI for Railgun SDK initialization errors
+    return (
+      <div className="admin-history-container">
+        <div className="admin-header">
+          <h1>Railgun Wallet Inspector</h1>
+          <p>Search by transaction hash, Railgun address, or EOA address for compliance and audit using Railgun SDK</p>
+          <div className="text-center mt-4">
+            <div className="inline-flex items-center gap-2 text-red-400">
+              <div className="h-4 w-4 rounded-full border-2 border-red-400 border-t-transparent animate-spin" />
+              Initializing Railgun components...
+            </div>
+            <p className="text-sm text-gray-400 mt-2">
+              If this takes too long, try refreshing the page.
+            </p>
+          </div>
+        </div>
+        <div className="search-section">
+          <div className="text-center py-8">
+            <p className="text-gray-400">
+              Railgun SDK is initializing. Please wait...
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 };
 
 export default AdminHistoryPage;
