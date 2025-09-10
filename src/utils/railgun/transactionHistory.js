@@ -48,10 +48,50 @@ const getChainConfig = (networkName) => {
  */
 export const TransactionCategory = {
   SHIELD: 'ShieldERC20s',
-  UNSHIELD: 'UnshieldERC20s', 
+  UNSHIELD: 'UnshieldERC20s',
   TRANSFER_SEND: 'TransferSendERC20s',
   TRANSFER_RECEIVE: 'TransferReceiveERC20s',
   UNKNOWN: 'Unknown'
+};
+
+/**
+ * Look up Lexie ID for a Railgun address
+ * @param {string} railgunAddress - Railgun address to look up
+ * @returns {Promise<string|null>} Lexie ID or null if not found
+ */
+const lookupLexieId = async (railgunAddress) => {
+  if (!railgunAddress || typeof railgunAddress !== 'string') {
+    return null;
+  }
+
+  try {
+    console.log('🔍 [LEXIE_LOOKUP] Looking up Lexie ID for:', railgunAddress.slice(0, 10) + '...');
+
+    const response = await fetch(`/api/wallet-metadata?action=by-wallet&railgunAddress=${encodeURIComponent(railgunAddress)}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      console.warn('🔍 [LEXIE_LOOKUP] Lookup failed:', response.status, response.statusText);
+      return null;
+    }
+
+    const data = await response.json();
+
+    if (data.success && data.lexieID) {
+      console.log('✅ [LEXIE_LOOKUP] Found Lexie ID:', data.lexieID, 'for address:', railgunAddress.slice(0, 10) + '...');
+      return data.lexieID;
+    } else {
+      console.log('ℹ️ [LEXIE_LOOKUP] No Lexie ID found for address:', railgunAddress.slice(0, 10) + '...');
+      return null;
+    }
+  } catch (error) {
+    console.warn('❌ [LEXIE_LOOKUP] Error looking up Lexie ID:', error.message);
+    return null;
+  }
 };
 
 /**
@@ -60,7 +100,7 @@ export const TransactionCategory = {
  * @param {number} chainId - Chain ID
  * @returns {Object} Formatted transaction object
  */
-const formatTransactionHistoryItem = (historyItem, chainId) => {
+const formatTransactionHistoryItem = async (historyItem, chainId) => {
   const {
     txid,
     blockNumber,
@@ -169,9 +209,11 @@ const formatTransactionHistoryItem = (historyItem, chainId) => {
   // Determine if this is a private transfer (send or receive)
   const isPrivateTransfer = category === TransactionCategory.TRANSFER_SEND || category === TransactionCategory.TRANSFER_RECEIVE;
 
-  // Initialize recipient/sender address for private transfers
+  // Initialize recipient/sender address and lexie id for private transfers
   let recipientAddress = null;
   let senderAddress = null;
+  let recipientLexieId = null;
+  let senderLexieId = null;
 
   // Get memo and address information for private transfers - memo is stored in the amount objects, not at top level
   if (isPrivateTransfer) {
@@ -202,6 +244,9 @@ const formatTransactionHistoryItem = (historyItem, chainId) => {
       if (transferRecipient) {
         recipientAddress = transferRecipient;
         console.log('📧 [TRANSACTION_HISTORY] Found recipient address in transfer:', recipientAddress);
+
+        // Look up Lexie ID for recipient (this will be awaited later)
+        recipientLexieId = await lookupLexieId(transferRecipient);
       }
     }
     // For receive transactions, memo and sender address are in the first receiveERC20Amounts item
@@ -217,6 +262,9 @@ const formatTransactionHistoryItem = (historyItem, chainId) => {
       if (receiveSender) {
         senderAddress = receiveSender;
         console.log('📧 [TRANSACTION_HISTORY] Found sender address in receive:', senderAddress);
+
+        // Look up Lexie ID for sender (this will be awaited later)
+        senderLexieId = await lookupLexieId(receiveSender);
       }
     }
 
@@ -261,6 +309,8 @@ const formatTransactionHistoryItem = (historyItem, chainId) => {
     isPrivateTransfer,
     recipientAddress: recipientAddress, // For send transactions
     senderAddress: senderAddress, // For receive transactions
+    recipientLexieId: recipientLexieId, // Lexie ID for recipient
+    senderLexieId: senderLexieId, // Lexie ID for sender
     tokenAmounts,
     chainId,
     // Copy functionality
@@ -485,9 +535,9 @@ export const getTransactionHistory = async (walletID, chainId, startingBlock = n
       }))
     });
     
-    // Format for UI display
-    const formattedHistory = rawHistory.map(item => 
-      formatTransactionHistoryItem(item, chainId)
+    // Format for UI display (handle async Lexie ID lookups)
+    const formattedHistory = await Promise.all(
+      rawHistory.map(item => formatTransactionHistoryItem(item, chainId))
     );
     
     // Sort by timestamp (most recent first)
@@ -611,11 +661,15 @@ export const createUITransactionItem = (transaction) => {
       recipient: transaction.recipientAddress ? {
         full: transaction.recipientAddress,
         short: `${transaction.recipientAddress.slice(0, 8)}...${transaction.recipientAddress.slice(-6)}`,
+        lexieId: transaction.recipientLexieId,
+        display: transaction.recipientLexieId || `${transaction.recipientAddress.slice(0, 8)}...${transaction.recipientAddress.slice(-6)}`,
         type: 'recipient'
       } : null,
       sender: transaction.senderAddress ? {
         full: transaction.senderAddress,
         short: `${transaction.senderAddress.slice(0, 8)}...${transaction.senderAddress.slice(-6)}`,
+        lexieId: transaction.senderLexieId,
+        display: transaction.senderLexieId || `${transaction.senderAddress.slice(0, 8)}...${transaction.senderAddress.slice(-6)}`,
         type: 'sender'
       } : null
     } : null,

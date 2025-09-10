@@ -239,22 +239,30 @@ const TransactionHistory = () => {
                       <div>
                         <span className="text-blue-400/80">Recipient: </span>
                         <span
-                          onClick={() => navigator.clipboard.writeText(tx.recipientAddress)}
+                          onClick={() => navigator.clipboard.writeText(tx.recipientLexieId || tx.recipientAddress)}
                           className="cursor-pointer hover:text-blue-200 transition-colors select-all"
-                          title="Click to copy recipient address"
+                          title={`Click to copy ${tx.recipientLexieId ? 'Lexie ID' : 'recipient address'}`}
                         >
-                          {`${tx.recipientAddress.slice(0, 8)}...${tx.recipientAddress.slice(-6)}`}
+                          {tx.recipientLexieId ? (
+                            <span className="text-emerald-300 font-medium">{tx.recipientLexieId}</span>
+                          ) : (
+                            `${tx.recipientAddress.slice(0, 8)}...${tx.recipientAddress.slice(-6)}`
+                          )}
                         </span>
                       </div>
                     ) : tx.senderAddress ? (
                       <div>
                         <span className="text-blue-400/80">Sender: </span>
                         <span
-                          onClick={() => navigator.clipboard.writeText(tx.senderAddress)}
+                          onClick={() => navigator.clipboard.writeText(tx.senderLexieId || tx.senderAddress)}
                           className="cursor-pointer hover:text-blue-200 transition-colors select-all"
-                          title="Click to copy sender address"
+                          title={`Click to copy ${tx.senderLexieId ? 'Lexie ID' : 'sender address'}`}
                         >
-                          {`${tx.senderAddress.slice(0, 8)}...${tx.senderAddress.slice(-6)}`}
+                          {tx.senderLexieId ? (
+                            <span className="text-emerald-300 font-medium">{tx.senderLexieId}</span>
+                          ) : (
+                            `${tx.senderAddress.slice(0, 8)}...${tx.senderAddress.slice(-6)}`
+                          )}
                         </span>
                       </div>
                     ) : null}
@@ -271,7 +279,11 @@ const TransactionHistory = () => {
                   hasRecipientAddress: !!tx.recipientAddress,
                   hasSenderAddress: !!tx.senderAddress,
                   recipientAddress: tx.recipientAddress?.substring(0, 8) + '...',
-                  senderAddress: tx.senderAddress?.substring(0, 8) + '...'
+                  senderAddress: tx.senderAddress?.substring(0, 8) + '...',
+                  recipientLexieId: tx.recipientLexieId,
+                  senderLexieId: tx.senderLexieId,
+                  displayRecipient: tx.recipientLexieId || tx.recipientAddress?.substring(0, 8) + '...',
+                  displaySender: tx.senderLexieId || tx.senderAddress?.substring(0, 8) + '...'
                 })}
               </div>
 
