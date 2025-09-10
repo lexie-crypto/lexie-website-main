@@ -3,9 +3,6 @@ import { toast } from 'react-hot-toast';
 import { formatUnits } from 'ethers';
 import './AdminHistoryPage.css';
 
-// Import RAILGUN transaction history utilities
-import { getTransactionHistory, TransactionCategory } from '../utils/railgun/transactionHistory.js';
-
 // Railgun SDK components will be imported dynamically
 
 /**
@@ -657,6 +654,9 @@ const AdminHistoryPage = () => {
     setError('');
 
     try {
+      // Dynamically import transaction history utilities to avoid initialization issues
+      const { getTransactionHistory } = await import('../utils/railgun/transactionHistory.js');
+
       const allTransactions = [];
       for (const chainId of supportedChains) {
         try {
