@@ -20,13 +20,10 @@ const AdminDashboard = () => {
   const [searchType, setSearchType] = useState('zkaddress'); // 'zkaddress', 'eoa', 'txhash'
   const [isSearching, setIsSearching] = useState(false);
 
-  // Resolution state
+  // Metadata state
   const [resolvedWalletId, setResolvedWalletId] = useState(null);
-  const [resolutionType, setResolutionType] = useState(null);
-
-  // Viewing key state
+  const [resolvedWalletAddress, setResolvedWalletAddress] = useState(null);
   const [viewingKey, setViewingKey] = useState(null);
-  const [isLoadingViewingKey, setIsLoadingViewingKey] = useState(false);
 
   // View-only wallet state
   const [viewOnlyWallet, setViewOnlyWallet] = useState(null);
@@ -54,6 +51,7 @@ const AdminDashboard = () => {
   const clearState = () => {
     setResolvedWalletId(null);
     setResolutionType(null);
+    setResolvedWalletAddress(null);
     setViewingKey(null);
     setViewOnlyWallet(null);
     setEncryptionKey(null);
@@ -61,19 +59,19 @@ const AdminDashboard = () => {
     addLog('Dashboard cleared', 'info');
   };
 
-  // Step 1: Resolve wallet identifier to walletId
-  const resolveWallet = async () => {
+  // Get wallet metadata using regular endpoint
+  const getWalletMetadata = async () => {
     if (!searchQuery.trim()) {
       addLog('Search query is empty', 'error');
       return;
     }
 
     setIsSearching(true);
-    addLog(`🔍 Starting wallet resolution for: ${searchQuery} (type: ${searchType})`, 'info');
+    addLog(`🔍 Getting wallet metadata for: ${searchQuery}`, 'info');
 
     try {
-      // Use existing wallet-metadata proxy endpoint
-      const response = await fetch(`/api/wallet-metadata?action=history&subaction=resolve&q=${encodeURIComponent(searchQuery)}`, {
+      // Use regular get-wallet-metadata endpoint
+      const response = await fetch(`/api/get-wallet-metadata/${encodeURIComponent(searchQuery)}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json'
@@ -86,59 +84,30 @@ const AdminDashboard = () => {
 
       const data = await response.json();
 
-      if (data.success && data.walletId) {
-        setResolvedWalletId(data.walletId);
-        setResolutionType(data.resolutionType);
-        addLog(`✅ Wallet resolved successfully: ${data.walletId.slice(0, 8)}... (type: ${data.resolutionType})`, 'success');
+      if (data.success && data.keys && data.keys.length > 0) {
+        // Find the key with viewing key
+        const keyWithViewingKey = data.keys.find(key => key.viewingKey);
+        if (keyWithViewingKey) {
+          setResolvedWalletId(keyWithViewingKey.walletId);
+          setResolvedWalletAddress(searchQuery);
+          setViewingKey(keyWithViewingKey.viewingKey);
+          addLog(`✅ Wallet metadata retrieved successfully`, 'success');
+          addLog(`🔑 Viewing key found: ${keyWithViewingKey.viewingKey.slice(0, 20)}...`, 'success');
+          addLog(`📍 Wallet ID: ${keyWithViewingKey.walletId.slice(0, 8)}...`, 'info');
+        } else {
+          throw new Error('No viewing key found in wallet metadata');
+        }
       } else {
-        throw new Error(data.error || 'Resolution failed');
+        throw new Error(data.error || 'No wallet metadata found');
       }
 
     } catch (error) {
-      addLog(`❌ Wallet resolution failed: ${error.message}`, 'error');
+      addLog(`❌ Wallet metadata retrieval failed: ${error.message}`, 'error');
     } finally {
       setIsSearching(false);
     }
   };
 
-  // Step 2: Get viewing key using resolved walletId
-  const getViewingKey = async () => {
-    if (!resolvedWalletId) {
-      addLog('No wallet ID available for viewing key retrieval', 'error');
-      return;
-    }
-
-    setIsLoadingViewingKey(true);
-    addLog(`🔑 Retrieving viewing key for wallet: ${resolvedWalletId.slice(0, 8)}...`, 'info');
-
-    try {
-      // Use existing viewing-key-get endpoint
-      const response = await fetch(`/api/wallet-metadata?action=viewing-key-get&walletId=${encodeURIComponent(resolvedWalletId)}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      if (data.success && data.viewingKey) {
-        setViewingKey(data.viewingKey);
-        addLog(`✅ Viewing key retrieved successfully: ${data.viewingKey.slice(0, 20)}...`, 'success');
-      } else {
-        throw new Error(data.error || 'Viewing key retrieval failed');
-      }
-
-    } catch (error) {
-      addLog(`❌ Viewing key retrieval failed: ${error.message}`, 'error');
-    } finally {
-      setIsLoadingViewingKey(false);
-    }
-  };
 
   // Step 3: Generate encryption key for view-only wallet
   const generateEncryptionKey = async () => {
@@ -227,7 +196,7 @@ const AdminDashboard = () => {
 
         {/* Search Section */}
         <div className="bg-gray-800 rounded-lg p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4 text-blue-300">🔍 Step 1: Search Wallet</h2>
+          <h2 className="text-xl font-semibold mb-4 text-blue-300">🔍 Get Wallet Metadata</h2>
 
           <div className="space-y-4">
             <div>
@@ -256,11 +225,11 @@ const AdminDashboard = () => {
 
             <div className="flex gap-3">
               <button
-                onClick={resolveWallet}
+                onClick={getWalletMetadata}
                 disabled={isSearching || !searchQuery.trim()}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-md transition-colors"
               >
-                {isSearching ? '🔍 Searching...' : '🔍 Resolve Wallet'}
+                {isSearching ? '🔍 Searching...' : '🔍 Get Metadata'}
               </button>
 
               <button
@@ -272,48 +241,29 @@ const AdminDashboard = () => {
             </div>
           </div>
 
-          {/* Resolution Results */}
+          {/* Metadata Results */}
           {resolvedWalletId && (
             <div className="mt-4 p-3 bg-green-900/30 border border-green-600 rounded-md">
-              <h3 className="text-green-400 font-medium mb-2">✅ Wallet Resolved</h3>
+              <h3 className="text-green-400 font-medium mb-2">✅ Wallet Metadata Retrieved</h3>
               <p className="text-sm text-gray-300">
                 <strong>Wallet ID:</strong> {resolvedWalletId}
               </p>
               <p className="text-sm text-gray-300">
-                <strong>Resolution Type:</strong> {resolutionType}
+                <strong>Wallet Address:</strong> {resolvedWalletAddress}
               </p>
+              {viewingKey && (
+                <p className="text-sm text-gray-300 break-all">
+                  <strong>Viewing Key:</strong> {viewingKey.slice(0, 20)}...
+                </p>
+              )}
             </div>
           )}
         </div>
 
-        {/* Viewing Key Section */}
-        <div className="bg-gray-800 rounded-lg p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4 text-blue-300">🔑 Step 2: Get Viewing Key</h2>
-
-          <div className="space-y-4">
-            <button
-              onClick={getViewingKey}
-              disabled={!resolvedWalletId || isLoadingViewingKey}
-              className="px-4 py-2 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-md transition-colors"
-            >
-              {isLoadingViewingKey ? '🔄 Loading...' : '🔑 Get Viewing Key'}
-            </button>
-          </div>
-
-          {/* Viewing Key Results */}
-          {viewingKey && (
-            <div className="mt-4 p-3 bg-purple-900/30 border border-purple-600 rounded-md">
-              <h3 className="text-purple-400 font-medium mb-2">✅ Viewing Key Retrieved</h3>
-              <p className="text-sm text-gray-300 break-all">
-                <strong>Viewing Key:</strong> {viewingKey}
-              </p>
-            </div>
-          )}
-        </div>
 
         {/* View-Only Wallet Section */}
         <div className="bg-gray-800 rounded-lg p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4 text-blue-300">🏗️ Step 3: Create View-Only Wallet</h2>
+          <h2 className="text-xl font-semibold mb-4 text-blue-300">🏗️ Step 2: Create View-Only Wallet</h2>
 
           {/* Encryption Key Status */}
           {encryptionKey && (
