@@ -135,13 +135,11 @@ const AdminDashboard = () => {
     try {
       // Call the new wallet-timeline endpoint
       const timelineParams = new URLSearchParams({
-        action: 'history',
-        walletId: walletIdToLoad,
         page: '1',
-        pageSize: '100'
+        pageSize: '100' // Get up to 100 transactions
       });
 
-      const timelineResponse = await fetch(`/api/wallet-metadata?${timelineParams}`, {
+      const timelineResponse = await fetch(`/api/wallet-metadata/wallet-timeline/${walletIdToLoad}?${timelineParams}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
