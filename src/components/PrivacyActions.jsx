@@ -738,6 +738,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         walletProvider,
       });
 
+      // Use resolved recipient address for timeline (Railgun address instead of Lexie ID)
+      const timelineRecipientAddress = tx.resolvedRecipientAddress || recipientAddress;
+
       toast.dismiss(toastId);
       toast.custom((t) => (
         <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
@@ -792,7 +795,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             tokenAddress: selectedToken.address || selectedToken.tokenAddress,
             decimals: selectedToken.decimals,
             amount: amountInUnits,
-            recipientAddress: recipientAddress, // Add recipient address
+            recipientAddress: timelineRecipientAddress, // Use resolved Railgun address
             memoText: memoText, // Add memo text
           },
         }).catch(() => {});

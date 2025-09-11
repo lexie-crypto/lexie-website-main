@@ -401,7 +401,11 @@ export const privateTransfer = async ({
       networkName
     });
 
-    return { txHash: transactionHash };
+    return {
+      txHash: transactionHash,
+      resolvedRecipientAddress: resolvedRecipient, // Add resolved recipient for timeline
+      originalRecipientInput: recipientRailgunAddress // Keep original input for reference
+    };
   } catch (error) {
     console.error('[RailgunActions] Private transfer failed:', error);
     throw new Error(`Private transfer failed: ${error.message}`);
