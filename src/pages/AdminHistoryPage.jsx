@@ -63,22 +63,9 @@ const AdminDashboard = () => {
       let resolveEndpoint = '';
       let queryType = '';
 
-      // Determine which resolve endpoint to use based on search type and query format
-      if (searchType === 'eoa' || searchQuery.startsWith('0x')) {
-        // Use the previously existing query parameter approach for EOA
-        resolveEndpoint = `/api/wallet-metadata?walletAddress=${encodeURIComponent(searchQuery)}`;
-        queryType = 'EOA';
-      } else if (searchType === 'zkaddress' || searchQuery.startsWith('0zk')) {
-        resolveEndpoint = `/api/wallet-metadata/resolve-wallet-id/by-railgun/${encodeURIComponent(searchQuery)}`;
-        queryType = 'Railgun Address';
-      } else if (searchType === 'txhash' || searchQuery.startsWith('0x')) {
-        resolveEndpoint = `/api/wallet-metadata/resolve-wallet-id/by-tx/${encodeURIComponent(searchQuery)}`;
-        queryType = 'Transaction Hash';
-      } else {
-        // Fallback: try transaction hash if it looks like a tx hash
-        resolveEndpoint = `/api/wallet-metadata/resolve-wallet-id/by-tx/${encodeURIComponent(searchQuery)}`;
-        queryType = 'Transaction ID';
-      }
+      // Use the existing query parameter approach (same as WalletPage.jsx)
+      resolveEndpoint = `/api/wallet-metadata?walletAddress=${encodeURIComponent(searchQuery)}`;
+      queryType = 'Wallet Address';
 
       addLog(`🔍 Using ${queryType} resolver: ${resolveEndpoint}`, 'info');
 
@@ -97,46 +84,24 @@ const AdminDashboard = () => {
 
       const resolveData = await resolveResponse.json();
 
-      // Handle different response formats based on endpoint type
-      let walletId = null;
-      let resolutionTypeUsed = queryType;
-
-      if (queryType === 'EOA') {
-        // Old endpoint returns array of wallet metadata
-        if (!resolveData.success || !resolveData.keys || resolveData.keys.length === 0) {
-          addLog(`❌ No wallet found for: ${searchQuery}`, 'error');
-          return;
-        }
-
-        // Find the first key with a walletId
-        const walletKey = resolveData.keys.find(key => key.walletId);
-        if (!walletKey || !walletKey.walletId) {
-          addLog(`❌ No wallet ID found in metadata for: ${searchQuery}`, 'error');
-          return;
-        }
-
-        walletId = walletKey.walletId;
-        addLog(`✅ Found wallet ID from metadata: ${walletId.slice(0, 8)}...`, 'success');
-      } else {
-        // New resolver endpoints return simple format
-        if (!resolveData.success || !resolveData.walletId) {
-          addLog(`❌ No wallet found for: ${searchQuery}`, 'error');
-          return;
-        }
-
-        walletId = resolveData.walletId;
-        resolutionTypeUsed = resolveData.resolutionType || queryType;
-      }
-
-      if (!walletId) {
-        addLog(`❌ Failed to extract wallet ID for: ${searchQuery}`, 'error');
+      // Handle the existing endpoint format (same as WalletContext.jsx)
+      if (!resolveData.success || !resolveData.keys || resolveData.keys.length === 0) {
+        addLog(`❌ No wallet found for: ${searchQuery}`, 'error');
         return;
       }
 
-      setWalletId(walletId);
-      setResolutionType(resolutionTypeUsed);
+      // Find the first key with a walletId (same logic as WalletContext.jsx)
+      const walletKey = resolveData.keys.find(key => key.walletId);
+      if (!walletKey || !walletKey.walletId) {
+        addLog(`❌ No wallet ID found in metadata for: ${searchQuery}`, 'error');
+        return;
+      }
 
-      addLog(`✅ Found wallet: ${walletId.slice(0, 8)}... (${resolutionTypeUsed})`, 'success');
+      const walletId = walletKey.walletId;
+      setWalletId(walletId);
+      setResolutionType(queryType);
+
+      addLog(`✅ Found wallet: ${walletId.slice(0, 8)}... (${queryType})`, 'success');
 
       // Step 2: Get transaction history from wallet timeline endpoint
       await loadWalletTimeline(walletId);
