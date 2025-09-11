@@ -43,16 +43,17 @@ export const normalizeEncKey = (key) => {
   // Strip 0x prefix if present
   let cleanKey = key.startsWith('0x') ? key.slice(2) : key;
 
-  // Validate exactly 64 hex characters
-  if (!/^[a-f0-9]{64}$/i.test(cleanKey)) {
-    throw new Error(`Encryption key must be exactly 64 hex characters (got ${cleanKey.length} chars: ${cleanKey.slice(0, 16)}...)`);
+  // Validate exactly 64 hex characters (32 bytes)
+  if (!/^[0-9a-f]{64}$/i.test(cleanKey)) {
+    throw new Error(`Encryption key must be 64 hex chars (32 bytes). Got ${cleanKey.length} chars.`);
   }
 
   console.log('[RailgunWallet] 🔐 Normalized encryption key:', {
     originalLength: key.length,
     hadPrefix: key.startsWith('0x'),
     cleanLength: cleanKey.length,
-    prefix: cleanKey.slice(0, 8) + '...'
+    prefix: cleanKey.slice(0, 8) + '...',
+    validFormat: true
   });
 
   return cleanKey;
@@ -330,6 +331,46 @@ export const getWalletInfo = (walletID) => {
 };
 
 /**
+ * Get encryption key from current active wallet
+ * @returns {string|null} Encryption key if wallet exists, null otherwise
+ */
+export const getCurrentEncryptionKey = () => {
+  const currentWallet = getCurrentWallet();
+  if (currentWallet && currentWallet.encryptionKey) {
+    console.log('[RailgunWallet] 🔑 Retrieved encryption key from current wallet');
+    return currentWallet.encryptionKey;
+  }
+  console.log('[RailgunWallet] ⚠️ No current wallet with encryption key found');
+  return null;
+};
+
+/**
+ * Derive encryption key for wallet using deterministic approach
+ * @param {string} walletAddress - Wallet address for deterministic derivation
+ * @param {number} chainId - Chain ID for salt
+ * @returns {Promise<string>} Normalized encryption key
+ */
+export const deriveWalletEncryptionKey = async (walletAddress, chainId) => {
+  console.log('[RailgunWallet] 🔐 Deriving encryption key for wallet:', {
+    walletAddress: walletAddress?.slice(0, 10) + '...',
+    chainId
+  });
+
+  const secret = walletAddress.toLowerCase();
+  // Convert UTF-8 label to hex for proper salt handling
+  const label = `lexie-railgun-${chainId}`;
+  const saltHex = Buffer.from(label, 'utf8').toString('hex');
+
+  console.log('[RailgunWallet] 🔐 Salt generation:', {
+    label,
+    saltHex: saltHex.slice(0, 16) + '...'
+  });
+
+  const derivedKey = await deriveEncryptionKey(secret, saltHex, 100000);
+  return normalizeEncKey(derivedKey.keyHex);
+};
+
+/**
  * Get wallet mnemonic (for backup)
  * @param {string} walletID - Wallet ID
  * @param {string} encryptionKey - Encryption key
@@ -375,6 +416,8 @@ export const clearAllWallets = async () => {
 // Export for use in other modules
 export default {
   normalizeEncKey,
+  getCurrentEncryptionKey,
+  deriveWalletEncryptionKey,
   deriveEncryptionKey,
   createWallet,
   loadWallet,

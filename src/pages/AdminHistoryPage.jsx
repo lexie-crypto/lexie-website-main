@@ -11,7 +11,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { loadViewOnlyWallet, generateViewingKey, loadWallet, unloadWallet, normalizeEncKey } from '../utils/railgun/wallet.js';
+import { loadViewOnlyWallet, generateViewingKey, loadWallet, unloadWallet, normalizeEncKey, getCurrentEncryptionKey, deriveWalletEncryptionKey } from '../utils/railgun/wallet.js';
 import { waitForRailgunReady } from '../utils/railgun/engine.js';
 import { getTransactionHistory } from '../utils/railgun/transactionHistory.js';
 
@@ -112,40 +112,48 @@ const AdminDashboard = () => {
           setResolvedWalletId(keyWithViewingKey.walletId);
           setResolvedWalletAddress(searchQuery);
           setViewingKey(keyWithViewingKey.viewingKey);
-          setEncryptionKey(keyWithViewingKey.encryptionKey);
+          // Don't set encryption key from metadata - it's invalid format
 
           console.log('[AdminHistoryPage] 📦 Metadata extracted:');
           console.log('[AdminHistoryPage] 🆔 Wallet ID:', keyWithViewingKey.walletId);
           console.log('[AdminHistoryPage] 👁️ Viewing Key:', keyWithViewingKey.viewingKey ? `(length: ${keyWithViewingKey.viewingKey.length})` : 'null');
-          console.log('[AdminHistoryPage] 🔐 Encryption Key:', keyWithViewingKey.encryptionKey ? `(length: ${keyWithViewingKey.encryptionKey.length}, prefix: ${keyWithViewingKey.encryptionKey.slice(0, 16)}...)` : 'null');
+          console.log('[AdminHistoryPage] 🔐 Metadata encryption key:', keyWithViewingKey.encryptionKey ? `(length: ${keyWithViewingKey.encryptionKey.length}, INVALID - ignoring)` : 'null');
 
           addLog(`✅ Wallet metadata retrieved successfully`, 'success');
 
-          // Check if we have both viewing key and encryption key
-          if (keyWithViewingKey.encryptionKey) {
-            try {
-              // Normalize the encryption key from metadata (don't trust it blindly)
-              const normalizedKey = normalizeEncKey(keyWithViewingKey.encryptionKey);
-              setEncryptionKey(normalizedKey); // Store normalized key
+          // Ignore metadata.encryptionKey - derive locally instead
+          try {
+            let derivedEncryptionKey = null;
 
-              console.log('[AdminHistoryPage] 🔐 Encryption key normalization details:');
-              console.log('[AdminHistoryPage] 📏 Original length:', keyWithViewingKey.encryptionKey.length);
-              console.log('[AdminHistoryPage] 📏 Normalized length:', normalizedKey.length);
-              console.log('[AdminHistoryPage] ✅ Confirming: 64 hex characters?', normalizedKey.length === 64 && /^[a-f0-9]{64}$/i.test(normalizedKey));
+            // First try to get from current active wallet
+            derivedEncryptionKey = getCurrentEncryptionKey();
 
-              addLog(`🔐 Encryption key found and normalized: YES (${normalizedKey.slice(0, 16)}...)`, 'success');
-              addLog(`📝 Will create view-only wallet directly from SVK`, 'info');
-              console.log('[AdminHistoryPage] ✅ Normalized encryption key available for view-only wallet');
-            } catch (normalizeError) {
-              console.error('[AdminHistoryPage] ❌ Encryption key normalization failed:', normalizeError);
-              setEncryptionKey(null);
-              addLog(`❌ Invalid encryption key format: ${normalizeError.message}`, 'error');
+            // If no current wallet, derive using deterministic approach
+            if (!derivedEncryptionKey) {
+              console.log('[AdminHistoryPage] 🔐 Deriving encryption key locally for:', searchQuery);
+              // Use Ethereum chain (1) as default for derivation
+              derivedEncryptionKey = await deriveWalletEncryptionKey(searchQuery, 1);
             }
-          } else {
+
+            if (derivedEncryptionKey) {
+              setEncryptionKey(derivedEncryptionKey);
+
+              console.log('[AdminHistoryPage] 🔐 Local encryption key derivation details:');
+              console.log('[AdminHistoryPage] 📏 Derived key length:', derivedEncryptionKey.length);
+              console.log('[AdminHistoryPage] ✅ Valid 64 hex characters?', derivedEncryptionKey.length === 64 && /^[a-f0-9]{64}$/i.test(derivedEncryptionKey));
+
+              addLog(`🔐 Encryption key derived locally: YES (${derivedEncryptionKey.slice(0, 16)}...)`, 'success');
+              addLog(`📝 Will create view-only wallet directly from SVK`, 'info');
+              console.log('[AdminHistoryPage] ✅ Local encryption key available for view-only wallet');
+            } else {
+              setEncryptionKey(null);
+              addLog(`⚠️ Could not derive encryption key - view-only wallet creation disabled`, 'warning');
+              console.log('[AdminHistoryPage] ⚠️ Encryption key derivation failed');
+            }
+          } catch (deriveError) {
+            console.error('[AdminHistoryPage] ❌ Local encryption key derivation failed:', deriveError);
             setEncryptionKey(null);
-            addLog(`⚠️ Encryption key missing - cannot create view-only wallet`, 'warning');
-            addLog(`🔑 Stored viewing key available: ${keyWithViewingKey.viewingKey.slice(0, 20)}...`, 'info');
-            console.log('[AdminHistoryPage] ⚠️ No encryption key - view-only wallet creation disabled');
+            addLog(`❌ Could not derive encryption key: ${deriveError.message}`, 'error');
           }
 
           addLog(`📍 Wallet ID: ${keyWithViewingKey.walletId.slice(0, 8)}...`, 'info');
@@ -542,9 +550,9 @@ const AdminDashboard = () => {
               {/* Encryption Key Missing Message */}
               {!encryptionKey && resolvedWalletId && (
                 <div className="text-center py-4 text-yellow-400 bg-yellow-900/20 rounded-md border border-yellow-700/50">
-                  ⚠️ Cannot retrieve transaction history: Encryption key is missing from wallet metadata.
+                  ⚠️ Cannot create view-only wallet: Failed to derive local encryption key.
                   <br />
-                  <span className="text-sm text-yellow-300">Transaction history requires the original encryption key to load the wallet.</span>
+                  <span className="text-sm text-yellow-300">View-only wallets require a valid local encryption key derived from wallet data.</span>
                 </div>
               )}
 
