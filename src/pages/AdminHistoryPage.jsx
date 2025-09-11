@@ -69,7 +69,6 @@ const AdminDashboard = () => {
 
     setResolvedWalletId(null);
     setResolvedWalletAddress(null);
-    setViewingKey(null);
     setEncryptionKey(null);
     setViewOnlyWallet(null);
     setTransactionHistory([]);
@@ -416,11 +415,6 @@ const AdminDashboard = () => {
               <p className="text-sm text-gray-300">
                 <strong>Wallet Address:</strong> {resolvedWalletAddress}
               </p>
-              {viewingKey && (
-                <p className="text-sm text-gray-300 break-all">
-                  <strong>Viewing Key:</strong> {viewingKey.slice(0, 20)}...
-                </p>
-              )}
             </div>
           )}
         </div>
