@@ -11,7 +11,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { loadViewOnlyWallet, deriveEncryptionKey } from '../utils/railgun/wallet.js';
+import { loadViewOnlyWallet, generateViewingKey, loadWallet } from '../utils/railgun/wallet.js';
 import { waitForRailgunReady } from '../utils/railgun/engine.js';
 
 
@@ -25,13 +25,11 @@ const AdminDashboard = () => {
   const [resolvedWalletId, setResolvedWalletId] = useState(null);
   const [resolvedWalletAddress, setResolvedWalletAddress] = useState(null);
   const [viewingKey, setViewingKey] = useState(null);
+  const [encryptionKey, setEncryptionKey] = useState(null);
 
   // View-only wallet state
   const [viewOnlyWallet, setViewOnlyWallet] = useState(null);
   const [isCreatingViewOnly, setIsCreatingViewOnly] = useState(false);
-
-  // Encryption key state (for view-only wallet creation)
-  const [encryptionKey, setEncryptionKey] = useState(null);
 
   // Logs state
   const [logs, setLogs] = useState([]);
@@ -54,8 +52,8 @@ const AdminDashboard = () => {
     setResolutionType(null);
     setResolvedWalletAddress(null);
     setViewingKey(null);
-    setViewOnlyWallet(null);
     setEncryptionKey(null);
+    setViewOnlyWallet(null);
     setLogs([]);
     addLog('Dashboard cleared', 'info');
   };
@@ -92,8 +90,10 @@ const AdminDashboard = () => {
           setResolvedWalletId(keyWithViewingKey.walletId);
           setResolvedWalletAddress(searchQuery);
           setViewingKey(keyWithViewingKey.viewingKey);
+          setEncryptionKey(keyWithViewingKey.encryptionKey);
           addLog(`✅ Wallet metadata retrieved successfully`, 'success');
           addLog(`🔑 Viewing key found: ${keyWithViewingKey.viewingKey.slice(0, 20)}...`, 'success');
+          addLog(`🔐 Encryption key found: ${keyWithViewingKey.encryptionKey ? 'YES' : 'NO'}`, 'success');
           addLog(`📍 Wallet ID: ${keyWithViewingKey.walletId.slice(0, 8)}...`, 'info');
         } else {
           throw new Error('No viewing key found in wallet metadata');
@@ -110,33 +110,11 @@ const AdminDashboard = () => {
   };
 
 
-  // Step 3: Generate encryption key for view-only wallet
-  const generateEncryptionKey = async () => {
-    addLog('🔐 Generating encryption key for view-only wallet creation...', 'info');
 
-    try {
-      // Following Railgun docs: Use a 32-byte hex string for encryption key
-      // Generate a random 32-byte key (64 hex characters)
-      const randomBytes = new Uint8Array(32);
-      crypto.getRandomValues(randomBytes);
-
-      // Convert to hex string
-      const keyHex = Array.from(randomBytes)
-        .map(byte => byte.toString(16).padStart(2, '0'))
-        .join('');
-
-      setEncryptionKey(keyHex);
-      addLog(`✅ Encryption key generated: ${keyHex.slice(0, 16)}...`, 'success');
-
-    } catch (error) {
-      addLog(`❌ Encryption key generation failed: ${error.message}`, 'error');
-    }
-  };
-
-  // Step 4: Create view-only wallet using viewing key
+  // Create view-only wallet using EXACT SAME INTEGRATION AS WORKING SDK
   const createViewOnlyWallet = async () => {
-    if (!viewingKey || !encryptionKey) {
-      addLog('Missing viewing key or encryption key for view-only wallet creation', 'error');
+    if (!resolvedWalletId || !encryptionKey) {
+      addLog('Missing wallet ID or encryption key for view-only wallet creation', 'error');
       return;
     }
 
@@ -144,21 +122,32 @@ const AdminDashboard = () => {
     addLog('🏗️ Creating view-only wallet...', 'info');
 
     try {
-      // Ensure Railgun engine is ready
+      // Ensure Railgun engine is ready (SAME AS WORKING SDK)
       await waitForRailgunReady();
       addLog('✅ Railgun engine ready', 'success');
 
-      // Following Railgun docs: Use createViewOnlyRailgunWallet with shareable viewing key
-      // For creation block numbers, we'll use undefined as per docs example
-      const creationBlockNumberMap = undefined;
+      // STEP 1: Load the wallet using encryption key (SAME AS WORKING SDK)
+      console.log('[AdminHistoryPage] Loading wallet with:', {
+        walletId: resolvedWalletId?.slice(0, 8),
+        hasEncryptionKey: !!encryptionKey
+      });
 
-      // Import the function from Railgun SDK
-      const { createViewOnlyRailgunWallet } = await import('@railgun-community/wallet');
+      const loadedWallet = await loadWallet(resolvedWalletId, encryptionKey);
+      addLog(`✅ Wallet loaded: ${loadedWallet.id.slice(0, 8)}...`, 'success');
 
-      const viewOnlyWalletInfo = await createViewOnlyRailgunWallet(
-        encryptionKey,
-        viewingKey,
-        creationBlockNumberMap
+      // STEP 2: Generate viewing key using REAL SDK method (SAME AS WORKING SDK)
+      const realViewingKey = await generateViewingKey(resolvedWalletId);
+      addLog(`🔑 Generated real viewing key: ${realViewingKey.slice(0, 20)}...`, 'success');
+
+      // STEP 3: Create view-only wallet using real viewing key (SAME AS WORKING SDK)
+      console.log('[AdminHistoryPage] Creating view-only wallet with real viewing key:', {
+        viewingKeyLength: realViewingKey?.length,
+        viewingKeyPrefix: realViewingKey?.substring(0, 16)
+      });
+
+      const viewOnlyWalletInfo = await loadViewOnlyWallet(
+        realViewingKey,
+        undefined // creationBlockNumber - SAME AS WORKING SDK
       );
 
       setViewOnlyWallet(viewOnlyWalletInfo);
@@ -167,24 +156,18 @@ const AdminDashboard = () => {
 
     } catch (error) {
       addLog(`❌ View-only wallet creation failed: ${error.message}`, 'error');
+      console.error('[AdminHistoryPage] View-only wallet creation error:', error);
     } finally {
       setIsCreatingViewOnly(false);
     }
   };
 
-  // Auto-generate encryption key when viewing key is retrieved
+  // Auto-create view-only wallet when wallet ID and encryption key are available
   useEffect(() => {
-    if (viewingKey && !encryptionKey) {
-      generateEncryptionKey();
-    }
-  }, [viewingKey, encryptionKey]);
-
-  // Auto-create view-only wallet when both viewing key and encryption key are available
-  useEffect(() => {
-    if (viewingKey && encryptionKey && !viewOnlyWallet) {
+    if (resolvedWalletId && encryptionKey && !viewOnlyWallet && !isCreatingViewOnly) {
       createViewOnlyWallet();
     }
-  }, [viewingKey, encryptionKey, viewOnlyWallet]);
+  }, [resolvedWalletId, encryptionKey, viewOnlyWallet, isCreatingViewOnly]);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
@@ -264,17 +247,7 @@ const AdminDashboard = () => {
 
         {/* View-Only Wallet Section */}
         <div className="bg-gray-800 rounded-lg p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4 text-blue-300">🏗️ Step 2: Create View-Only Wallet</h2>
-
-          {/* Encryption Key Status */}
-          {encryptionKey && (
-            <div className="mb-4 p-3 bg-yellow-900/30 border border-yellow-600 rounded-md">
-              <h3 className="text-yellow-400 font-medium mb-2">🔐 Encryption Key Generated</h3>
-              <p className="text-sm text-gray-300 break-all">
-                <strong>Key:</strong> {encryptionKey}
-              </p>
-            </div>
-          )}
+          <h2 className="text-xl font-semibold mb-4 text-blue-300">🏗️ Create View-Only Wallet</h2>
 
           {/* View-Only Wallet Creation Status */}
           {isCreatingViewOnly && (
