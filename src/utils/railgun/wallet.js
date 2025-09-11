@@ -38,7 +38,9 @@ let currentWalletID = null;
  */
 export const deriveEncryptionKey = async (secret, saltHex = null, iterations = 100000) => {
   try {
-    console.log('[RailgunWallet] Deriving encryption key using PBKDF2...');
+    console.log('[RailgunWallet] 🔐 Starting encryption key derivation...');
+    console.log('[RailgunWallet] 📝 Secret provided:', !!secret, secret ? `(length: ${secret.length})` : '');
+    console.log('[RailgunWallet] 🧂 Salt provided:', !!saltHex, saltHex ? `(length: ${saltHex.length})` : 'auto-generating');
 
     // Validate inputs
     if (!secret) {
@@ -50,10 +52,14 @@ export const deriveEncryptionKey = async (secret, saltHex = null, iterations = 1
     if (saltHex) {
       // Convert hex salt back to bytes
       saltBytes = new Uint8Array(Buffer.from(saltHex, 'hex'));
+      console.log('[RailgunWallet] 🔄 Using provided salt, converted to bytes');
     } else {
       // Generate random 16-byte salt as per official docs
       saltBytes = getRandomBytes(16);
+      console.log('[RailgunWallet] 🎲 Auto-generated 16-byte salt');
     }
+
+    console.log('[RailgunWallet] ⚙️ Starting PBKDF2 with iterations:', iterations);
 
     // Use PBKDF2 to derive the encryption key (following official docs)
     // pbkdf2 returns a 64-char hex string (32 bytes). Do NOT hex it again.
@@ -67,7 +73,10 @@ export const deriveEncryptionKey = async (secret, saltHex = null, iterations = 1
     // Return both key and hex-encoded salt for storage
     const finalSaltHex = Buffer.from(saltBytes).toString('hex');
 
-    console.log('[RailgunWallet] ✅ Encryption key derived successfully using PBKDF2');
+    console.log('[RailgunWallet] ✅ Encryption key derived successfully!');
+    console.log('[RailgunWallet] 🔑 Key format valid: 64-char hex string');
+    console.log('[RailgunWallet] 📊 Key prefix:', keyHex.substring(0, 16) + '...');
+    console.log('[RailgunWallet] 🧂 Salt hex:', finalSaltHex.substring(0, 16) + '...');
 
     return {
       keyHex,
@@ -75,104 +84,67 @@ export const deriveEncryptionKey = async (secret, saltHex = null, iterations = 1
     };
 
   } catch (error) {
-    console.error('[RailgunWallet] Failed to derive encryption key:', error);
+    console.error('[RailgunWallet] ❌ Failed to derive encryption key:', error);
     throw new Error(`Failed to derive encryption key: ${error.message}`);
   }
 };
 
-/**
- * Create a new RAILGUN wallet
- * @param {string} encryptionKey - Encryption key for wallet
- * @param {string} mnemonic - Optional mnemonic (generates new one if not provided)
- * @param {number} creationBlockNumber - Optional creation block number
- * @returns {Object} Wallet creation result
- */
-export const createWallet = async (encryptionKey, mnemonic = null, creationBlockNumber = null) => {
+export const createWallet = async (encryptionKey, mnemonic, creationBlockNumber) => {
   try {
+    console.log('[RailgunWallet] 🏗️ Creating wallet with encryption key:');
+    console.log('[RailgunWallet] 🔐 Encryption Key length:', encryptionKey?.length);
+    console.log('[RailgunWallet] 🔑 Encryption Key prefix:', encryptionKey?.slice(0, 16) + '...');
+    console.log('[RailgunWallet] 📝 Mnemonic provided:', !!mnemonic);
+    console.log('[RailgunWallet] 📊 Creation Block Number:', creationBlockNumber);
+
     await waitForRailgunReady();
-    
-    console.log('[RailgunWallet] Creating new RAILGUN wallet...');
-    
+
+    console.log('[RailgunWallet] 📡 Calling createRailgunWallet...');
+
     const result = await createRailgunWallet(
       encryptionKey,
       mnemonic,
       creationBlockNumber
     );
-    
-    const walletID = result.id;
-    const railgunAddress = result.railgunAddress;
-    
-    // Store wallet info
-    activeWallets.set(walletID, {
-      id: walletID,
-      railgunAddress,
-      encryptionKey,
-      createdAt: Date.now(),
-      isViewOnly: false,
-    });
-    
-    currentWalletID = walletID;
-    
-    console.log('[RailgunWallet] Wallet created:', {
-      walletID: walletID.slice(0, 8) + '...',
-      railgunAddress: railgunAddress.slice(0, 10) + '...',
-    });
-    
-    return {
-      walletID,
-      railgunAddress,
-      mnemonic: result.mnemonic,
-    };
-    
+
+    console.log('[RailgunWallet] ✅ Wallet created successfully!');
+    console.log('[RailgunWallet] 🆔 Wallet ID:', result.id.slice(0, 8));
+    console.log('[RailgunWallet] 🚀 Railgun Address:', result.railgunAddress.slice(0, 10));
+
+    return result;
+
   } catch (error) {
-    console.error('[RailgunWallet] Failed to create wallet:', error);
+    console.error('[RailgunWallet] ❌ Wallet creation failed:', error);
     throw new Error(`Wallet creation failed: ${error.message}`);
   }
 };
 
-/**
- * Load existing RAILGUN wallet by ID
- * @param {string} walletID - Wallet ID to load
- * @param {string} encryptionKey - Encryption key for wallet
- * @returns {Object} Loaded wallet info
- */
-export const loadWallet = async (walletID, encryptionKey) => {
+export const loadWallet = async (encryptionKey, walletID, isViewOnlyWallet) => {
   try {
+    console.log('[RailgunWallet] 📥 Loading wallet with encryption key:');
+    console.log('[RailgunWallet] 🔐 Encryption Key length:', encryptionKey?.length);
+    console.log('[RailgunWallet] 🔑 Encryption Key prefix:', encryptionKey?.slice(0, 16) + '...');
+    console.log('[RailgunWallet] 🆔 Wallet ID prefix:', walletID?.slice(0, 8));
+    console.log('[RailgunWallet] 👁️ Is View-Only Wallet:', isViewOnlyWallet);
+
     await waitForRailgunReady();
-    
-    console.log('[RailgunWallet] Loading wallet:', walletID.slice(0, 8) + '...');
-    
-    const railgunWallet = await loadWalletByID(
+
+    console.log('[RailgunWallet] 📡 Calling loadWalletByID...');
+
+    const result = await loadWalletByID(
       encryptionKey,
       walletID,
-      false // isViewOnlyWallet
+      isViewOnlyWallet
     );
-    
-    const railgunAddress = railgunWallet.getAddress();
-    
-    // Store wallet info
-    activeWallets.set(walletID, {
-      id: walletID,
-      railgunAddress,
-      encryptionKey,
-      loadedAt: Date.now(),
-      isViewOnly: false,
-    });
-    
-    currentWalletID = walletID;
-    
-    console.log('[RailgunWallet] Wallet loaded:', {
-      walletID: walletID.slice(0, 8) + '...',
-      railgunAddress: railgunAddress.slice(0, 10) + '...',
-    });
-    
-    return {
-      walletID,
-      railgunAddress,
-    };
-    
+
+    console.log('[RailgunWallet] ✅ Wallet loaded successfully!');
+    console.log('[RailgunWallet] 🆔 Loaded wallet ID:', result.id.slice(0, 8));
+    console.log('[RailgunWallet] 🚀 Loaded railgun address:', result.railgunAddress.slice(0, 10));
+
+    return result;
+
   } catch (error) {
-    console.error('[RailgunWallet] Failed to load wallet:', error);
+    console.error('[RailgunWallet] ❌ Wallet loading failed:', error);
     throw new Error(`Wallet loading failed: ${error.message}`);
   }
 };
@@ -181,87 +153,38 @@ export const loadWallet = async (walletID, encryptionKey) => {
  * Load view-only wallet using shareable viewing key
  * @param {string} shareableViewingKey - Shareable viewing key
  * @param {Object} creationBlockNumbers - Map of chainId -> blockNumber when wallet was created
- * @param {string} encKeyHex - Optional 32-byte hex encryption key (will use current user's key if not provided)
+ * @param {string} encKeyHex - 32-byte hex encryption key
  * @returns {Object} View-only wallet info
  */
-export const loadViewOnlyWallet = async (shareableViewingKey, creationBlockNumbers = {}, encKeyHex = null) => {
+export const loadViewOnlyWallet = async (shareableViewingKey, creationBlockNumbers, encKeyHex) => {
   try {
+    console.log('[RailgunWallet] 👁️ Creating view-only wallet with encryption key:');
+    console.log('[RailgunWallet] 👁️ Viewing Key length:', shareableViewingKey?.length);
+    console.log('[RailgunWallet] 🔐 Encryption Key length:', encKeyHex?.length);
+    console.log('[RailgunWallet] 🔑 Encryption Key prefix:', encKeyHex?.slice(0, 16) + '...');
+    console.log('[RailgunWallet] 📊 Creation Block Numbers:', creationBlockNumbers);
+
     await waitForRailgunReady();
 
-    console.log('[RailgunWallet] Loading view-only wallet...');
-
-    if (!shareableViewingKey) {
-      throw new Error('Shareable viewing key is required');
-    }
-
-    // Use provided encryption key or get current user's encryption key
-    let encryptionKey = encKeyHex;
-
-    if (!encryptionKey) {
-      // Try to get encryption key from current loaded wallet
-      const currentWallet = getCurrentWallet();
-      if (currentWallet && currentWallet.encryptionKey) {
-        encryptionKey = currentWallet.encryptionKey;
-        console.log('[RailgunWallet] Using current wallet encryption key for view-only wallet');
-      } else {
-        throw new Error('Encryption key required: either provide encKeyHex parameter or ensure a wallet is loaded with an encryption key');
-      }
-    }
-
-    // Validate encryption key format (must be 64-character hex string = 32 bytes)
-    if (!/^[a-f0-9]{64}$/i.test(encryptionKey)) {
-      throw new Error('Encryption key must be a valid 64-character hex string (32 bytes)');
-    }
-
-    // Create proper creation block numbers map (chain-aware)
-    const formattedCreationBlocks = Object.keys(creationBlockNumbers).length > 0
-      ? creationBlockNumbers
-      : undefined;
-
-    console.log('[RailgunWallet] Creating view-only wallet with Railgun SDK', {
-      keyLength: encryptionKey.length,
-      viewingKeyLength: shareableViewingKey.length,
-      creationBlockChains: formattedCreationBlocks ? Object.keys(formattedCreationBlocks) : []
-    });
+    console.log('[RailgunWallet] 📡 Calling createViewOnlyRailgunWallet...');
 
     const result = await createViewOnlyRailgunWallet(
-      encryptionKey,                         // 32-byte hex encryption key
+      encKeyHex,
       shareableViewingKey,
-      formattedCreationBlocks                 // Chain-aware block numbers
+      creationBlockNumbers
     );
 
-    const walletID = result.id;
-    const railgunAddress = result.railgunAddress;
-
-    // Store wallet info
-    activeWallets.set(walletID, {
-      id: walletID,
-      railgunAddress,
-      encryptionKey,
-      creationBlockNumbers: formattedCreationBlocks,
-      loadedAt: Date.now(),
-      isViewOnly: true,
-    });
-
-    console.log('[RailgunWallet] View-only wallet loaded successfully', {
-      walletID: walletID.slice(0, 8) + '...',
-      railgunAddress: railgunAddress.slice(0, 10) + '...',
-      isViewOnly: true
-    });
+    console.log('[RailgunWallet] ✅ View-only wallet created successfully!');
+    console.log('[RailgunWallet] 🆔 View-only wallet ID:', result.id.slice(0, 8));
+    console.log('[RailgunWallet] 🚀 View-only railgun address:', result.railgunAddress.slice(0, 10));
 
     return {
-      id: walletID,
-      railgunAddress,
-      isViewOnly: true,
-      loadedAt: Date.now(),
+      id: result.id,
+      railgunAddress: result.railgunAddress,
     };
 
   } catch (error) {
-    console.error('[RailgunWallet] Failed to load view-only wallet', {
-      error: error.message,
-      hasViewingKey: !!shareableViewingKey,
-      hasEncKey: !!encKeyHex
-    });
+    console.error('[RailgunWallet] ❌ View-only wallet loading failed:', error);
     throw new Error(`View-only wallet loading failed: ${error.message}`);
   }
 };
