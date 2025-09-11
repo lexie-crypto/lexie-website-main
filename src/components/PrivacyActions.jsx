@@ -788,9 +788,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           transactionDetails: {
             walletId: railgunWalletId,
             walletAddress: address,
+            tokenSymbol: selectedToken.symbol,
             tokenAddress: selectedToken.address || selectedToken.tokenAddress,
             decimals: selectedToken.decimals,
             amount: amountInUnits,
+            recipientAddress: recipientAddress, // Add recipient address
+            memoText: memoText, // Add memo text
           },
         }).catch(() => {});
       } catch {}
