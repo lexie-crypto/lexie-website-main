@@ -4,15 +4,14 @@
  * BRAND NEW FILE - Not based on any existing admin dashboard code
  *
  * Features:
- * 1. Search for user's wallet metadata (encryption key + wallet ID)
- * 2. Load existing wallet as view-only using official SDK pattern
- * 3. Access transaction history directly from loaded view-only wallet
- * 4. Follow Railgun documentation for encryption keys and view-only wallets
- * 5. Comprehensive logging for each step
+ * 1. Search for user's viewing key using existing wallet-metadata routes
+ * 2. Create view-only wallet using retrieved viewing key
+ * 3. Follow Railgun documentation for encryption keys and view-only wallets
+ * 4. Comprehensive logging for each step
  */
 
 import React, { useState, useEffect } from 'react';
-import { loadWallet, unloadWallet } from '../utils/railgun/wallet.js';
+import { loadViewOnlyWallet, generateViewingKey, loadWallet, unloadWallet, normalizeEncKey, normalizeAndValidateSVK, getCurrentEncryptionKey, deriveWalletEncryptionKey, generateShareableViewingKey } from '../utils/railgun/wallet.js';
 import { waitForRailgunReady } from '../utils/railgun/engine.js';
 import { getTransactionHistory } from '../utils/railgun/transactionHistory.js';
 
@@ -26,11 +25,12 @@ const AdminDashboard = () => {
   // Metadata state
   const [resolvedWalletId, setResolvedWalletId] = useState(null);
   const [resolvedWalletAddress, setResolvedWalletAddress] = useState(null);
+  const [viewingKey, setViewingKey] = useState(null);
   const [encryptionKey, setEncryptionKey] = useState(null);
 
   // View-only wallet state
   const [viewOnlyWallet, setViewOnlyWallet] = useState(null);
-  const [isLoadingViewOnly, setIsLoadingViewOnly] = useState(false);
+  const [isCreatingViewOnly, setIsCreatingViewOnly] = useState(false);
 
   // Transaction history state
   const [transactionHistory, setTransactionHistory] = useState([]);
@@ -70,6 +70,7 @@ const AdminDashboard = () => {
 
     setResolvedWalletId(null);
     setResolvedWalletAddress(null);
+    setViewingKey(null);
     setEncryptionKey(null);
     setViewOnlyWallet(null);
     setTransactionHistory([]);
@@ -105,23 +106,59 @@ const AdminDashboard = () => {
       const data = await response.json();
 
       if (data.success && data.keys && data.keys.length > 0) {
-        // Find any key with wallet metadata
-        const keyWithMetadata = data.keys.find(key => key.walletId && key.encryptionKey);
-        if (keyWithMetadata) {
-          setResolvedWalletId(keyWithMetadata.walletId);
+        // Find the key with viewing key
+        const keyWithViewingKey = data.keys.find(key => key.viewingKey);
+        if (keyWithViewingKey) {
+          setResolvedWalletId(keyWithViewingKey.walletId);
           setResolvedWalletAddress(searchQuery);
-          setEncryptionKey(keyWithMetadata.encryptionKey);
+          setViewingKey(keyWithViewingKey.viewingKey);
+          // Don't set encryption key from metadata - it's invalid format
 
           console.log('[AdminHistoryPage] 📦 Metadata extracted:');
-          console.log('[AdminHistoryPage] 🆔 Wallet ID:', keyWithMetadata.walletId);
-          console.log('[AdminHistoryPage] 🔐 Encryption key:', keyWithMetadata.encryptionKey ? `(length: ${keyWithMetadata.encryptionKey.length})` : 'null');
+          console.log('[AdminHistoryPage] 🆔 Wallet ID:', keyWithViewingKey.walletId);
+          console.log('[AdminHistoryPage] 👁️ Viewing Key:', keyWithViewingKey.viewingKey ? `(length: ${keyWithViewingKey.viewingKey.length})` : 'null');
+          console.log('[AdminHistoryPage] 🔐 Metadata encryption key:', keyWithViewingKey.encryptionKey ? `(length: ${keyWithViewingKey.encryptionKey.length}, INVALID - ignoring)` : 'null');
 
           addLog(`✅ Wallet metadata retrieved successfully`, 'success');
-          addLog(`📍 Wallet ID: ${keyWithMetadata.walletId.slice(0, 8)}...`, 'info');
-          addLog(`🔑 Encryption key loaded from metadata`, 'success');
-          addLog(`📝 Will load existing wallet and generate SVK for view-only access`, 'info');
+
+          // Ignore metadata.encryptionKey - derive locally instead
+          try {
+            let derivedEncryptionKey = null;
+
+            // First try to get from current active wallet
+            derivedEncryptionKey = getCurrentEncryptionKey();
+
+            // If no current wallet, derive using deterministic approach
+            if (!derivedEncryptionKey) {
+              console.log('[AdminHistoryPage] 🔐 Deriving encryption key locally for:', searchQuery);
+              // Use Ethereum chain (1) as default for derivation
+              derivedEncryptionKey = await deriveWalletEncryptionKey(searchQuery, 1);
+            }
+
+            if (derivedEncryptionKey) {
+              setEncryptionKey(derivedEncryptionKey);
+
+              console.log('[AdminHistoryPage] 🔐 Local encryption key derivation details:');
+              console.log('[AdminHistoryPage] 📏 Derived key length:', derivedEncryptionKey.length);
+              console.log('[AdminHistoryPage] ✅ Valid 64 hex characters?', derivedEncryptionKey.length === 64 && /^[a-f0-9]{64}$/i.test(derivedEncryptionKey));
+
+              addLog(`🔐 Encryption key derived locally: YES (${derivedEncryptionKey.slice(0, 16)}...)`, 'success');
+              addLog(`📝 Will create view-only wallet directly from SVK`, 'info');
+              console.log('[AdminHistoryPage] ✅ Local encryption key available for view-only wallet');
+            } else {
+              setEncryptionKey(null);
+              addLog(`⚠️ Could not derive encryption key - view-only wallet creation disabled`, 'warning');
+              console.log('[AdminHistoryPage] ⚠️ Encryption key derivation failed');
+            }
+          } catch (deriveError) {
+            console.error('[AdminHistoryPage] ❌ Local encryption key derivation failed:', deriveError);
+            setEncryptionKey(null);
+            addLog(`❌ Could not derive encryption key: ${deriveError.message}`, 'error');
+          }
+
+          addLog(`📍 Wallet ID: ${keyWithViewingKey.walletId.slice(0, 8)}...`, 'info');
         } else {
-          throw new Error('No wallet metadata found with encryption key');
+          throw new Error('No viewing key found in wallet metadata');
         }
       } else {
         throw new Error(data.error || 'No wallet metadata found');
@@ -136,56 +173,96 @@ const AdminDashboard = () => {
 
 
 
-  // Load existing wallet as view-only for transaction history access (MATCH OFFICIAL SDK)
-  const loadViewOnlyWallet = async () => {
+  // Create view-only wallet using SVK directly from metadata (MATCH OFFICIAL DOCS)
+  const createViewOnlyWallet = async () => {
     if (!resolvedWalletId) {
-      addLog('Missing wallet ID for view-only wallet loading', 'error');
+      addLog('Missing wallet ID for view-only wallet creation', 'error');
       return;
     }
 
     if (!encryptionKey) {
-      addLog('❌ Cannot load view-only wallet: No encryption key available', 'error');
+      addLog('❌ Cannot create view-only wallet: No encryption key available', 'error');
       setViewOnlyWallet(null);
       return;
     }
 
-    setIsLoadingViewOnly(true);
-    addLog('📥 Loading existing wallet as view-only...', 'info');
+    if (!viewingKey) {
+      addLog('❌ Cannot create view-only wallet: No viewing key available from metadata', 'error');
+      setViewOnlyWallet(null);
+      return;
+    }
+
+    setIsCreatingViewOnly(true);
+    addLog('🏗️ Creating view-only wallet...', 'info');
 
     try {
       // Ensure Railgun engine is ready
       await waitForRailgunReady();
       addLog('✅ Railgun engine ready', 'success');
 
-      console.log('[AdminHistoryPage] 🔐 Loading existing wallet as view-only:', {
+      console.log('[AdminHistoryPage] 🔐 Creating view-only wallet with encryption key:', {
         resolvedWalletId: resolvedWalletId?.slice(0, 8) + '...',
         encryptionKeyLength: encryptionKey?.length,
         encryptionKeyPrefix: encryptionKey?.slice(0, 16) + '...'
       });
 
-      // STEP 1: Load existing wallet as view-only (MATCH OFFICIAL SDK)
-      addLog('📥 Loading existing wallet as view-only...', 'info');
-      const existingWalletInfo = await loadWallet(encryptionKey, resolvedWalletId, true); // isViewOnly = true
+      // STEP 1: Normalize SVK from metadata (MATCH OFFICIAL DOCS)
+      addLog('🔑 Normalizing SVK from metadata...', 'info');
+      console.log('[AdminHistoryPage] 📋 Raw viewing key from metadata:', {
+        length: viewingKey?.length,
+        prefix: viewingKey?.slice(0, 16) + '...'
+      });
 
-      console.log('[AdminHistoryPage] ✅ Existing wallet loaded as view-only!');
-      console.log('[AdminHistoryPage] 🆔 Loaded wallet ID:', existingWalletInfo.id?.slice(0, 8));
-      console.log('[AdminHistoryPage] 🚀 Railgun address:', existingWalletInfo.railgunAddress?.slice(0, 10));
+      const shareableViewingKey = normalizeAndValidateSVK(viewingKey);
 
-      addLog(`✅ Existing wallet loaded: ${existingWalletInfo.id?.slice(0, 8)}...`, 'success');
-      addLog(`✅ Railgun Address: ${existingWalletInfo.railgunAddress}`, 'success');
+      console.log('[AdminHistoryPage] ✅ SVK normalized and validated:', {
+        originalLength: viewingKey?.length,
+        normalizedLength: shareableViewingKey?.length,
+        prefix: shareableViewingKey?.slice(0, 16) + '...'
+      });
 
-      // ✅ STEP 2: Use loaded view-only wallet directly for transaction history
-      // No need to generate SVK since we already have the view-only wallet loaded
-      addLog('✅ View-only wallet ready for transaction history', 'success');
+      // Log the full SVK for debugging (as requested)
+      console.log(`[AdminHistoryPage] 👁️ Using SVK for view-only wallet: ${shareableViewingKey}`);
+      addLog(`✅ SVK normalized: ${shareableViewingKey?.slice(0, 16)}...`, 'success');
 
-      setViewOnlyWallet(existingWalletInfo);
-      addLog(`✅ View-only wallet ready: ${existingWalletInfo.id?.slice(0, 8)}...`, 'success');
+      // STEP 2: Create view-only wallet using SVK directly (MATCH OFFICIAL DOCS)
+      addLog('🏗️ Creating view-only wallet with SVK...', 'info');
+      console.log('[AdminHistoryPage] 📡 Creating view-only wallet with:', {
+        shareableViewingKeyLength: shareableViewingKey?.length,
+        creationBlockNumbers: undefined, // Pass undefined instead of {}
+        encryptionKeyLength: encryptionKey?.length
+      });
+
+      const viewOnlyWalletInfo = await loadViewOnlyWallet(
+        shareableViewingKey,
+        undefined, // creationBlockNumbers - pass undefined if no map (MATCH DOCS)
+        encryptionKey
+      );
+
+      console.log('[AdminHistoryPage] ✅ View-only wallet created successfully!');
+      console.log('[AdminHistoryPage] 🆔 View-only wallet ID:', viewOnlyWalletInfo.id?.slice(0, 8));
+      console.log('[AdminHistoryPage] 🚀 View-only railgun address:', viewOnlyWalletInfo.railgunAddress?.slice(0, 10));
+
+      setViewOnlyWallet(viewOnlyWalletInfo);
+      addLog(`✅ View-only wallet created: ${viewOnlyWalletInfo.id?.slice(0, 8)}...`, 'success');
+      addLog(`✅ Railgun Address: ${viewOnlyWalletInfo.railgunAddress}`, 'success');
+
+      // STEP 3: Load the view-only wallet for history (MATCH OFFICIAL DOCS)
+      addLog('📥 Loading view-only wallet for history access...', 'info');
+      console.log('[AdminHistoryPage] 📥 Loading view-only wallet for history:', {
+        viewOnlyWalletId: viewOnlyWalletInfo.id?.slice(0, 8) + '...',
+        isViewOnlyWallet: true
+      });
+
+      await loadWallet(encryptionKey, viewOnlyWalletInfo.id, true); // isViewOnly = true
+      console.log('[AdminHistoryPage] ✅ View-only wallet loaded for history access');
+      addLog('✅ View-only wallet loaded for history', 'success');
 
     } catch (error) {
-      addLog(`❌ View-only wallet loading failed: ${error.message}`, 'error');
-      console.error('[AdminHistoryPage] View-only wallet loading error:', error);
+      addLog(`❌ View-only wallet creation failed: ${error.message}`, 'error');
+      console.error('[AdminHistoryPage] View-only wallet creation error:', error);
     } finally {
-      setIsLoadingViewOnly(false);
+      setIsCreatingViewOnly(false);
     }
   };
 
@@ -245,13 +322,13 @@ const AdminDashboard = () => {
     }
   };
 
-  // Auto-load view-only wallet only when wallet ID and encryption key are available
-  // (encryption key + wallet ID are required to load existing wallet as view-only)
+  // Auto-create view-only wallet only when wallet ID and encryption key are available
+  // (viewing key alone is not sufficient for functional view-only wallet)
   useEffect(() => {
-    if (resolvedWalletId && encryptionKey && !viewOnlyWallet && !isLoadingViewOnly) {
-      loadViewOnlyWallet();
+    if (resolvedWalletId && encryptionKey && !viewOnlyWallet && !isCreatingViewOnly) {
+      createViewOnlyWallet();
     }
-  }, [resolvedWalletId, encryptionKey, viewOnlyWallet, isLoadingViewOnly]);
+  }, [resolvedWalletId, encryptionKey, viewOnlyWallet, isCreatingViewOnly]);
 
   // Cleanup: Unload wallets when component unmounts
   useEffect(() => {
@@ -338,6 +415,11 @@ const AdminDashboard = () => {
               <p className="text-sm text-gray-300">
                 <strong>Wallet Address:</strong> {resolvedWalletAddress}
               </p>
+              {viewingKey && (
+                <p className="text-sm text-gray-300 break-all">
+                  <strong>Viewing Key:</strong> {viewingKey.slice(0, 20)}...
+                </p>
+              )}
             </div>
           )}
         </div>
@@ -345,19 +427,19 @@ const AdminDashboard = () => {
 
         {/* View-Only Wallet Section */}
         <div className="bg-gray-800 rounded-lg p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4 text-blue-300">📥 Load View-Only Wallet</h2>
+          <h2 className="text-xl font-semibold mb-4 text-blue-300">🏗️ Create View-Only Wallet</h2>
 
-          {/* View-Only Wallet Loading Status */}
-          {isLoadingViewOnly && (
+          {/* View-Only Wallet Creation Status */}
+          {isCreatingViewOnly && (
             <div className="mb-4 p-3 bg-blue-900/30 border border-blue-600 rounded-md">
-              <p className="text-blue-400">📥 Loading existing wallet as view-only...</p>
+              <p className="text-blue-400">🏗️ Creating view-only wallet...</p>
             </div>
           )}
 
           {/* View-Only Wallet Results */}
           {viewOnlyWallet && (
             <div className="mt-4 p-3 bg-green-900/30 border border-green-600 rounded-md">
-              <h3 className="text-green-400 font-medium mb-2">✅ View-Only Wallet Loaded</h3>
+              <h3 className="text-green-400 font-medium mb-2">✅ View-Only Wallet Created</h3>
               <div className="space-y-2 text-sm text-gray-300">
                 <p><strong>Wallet ID:</strong> {viewOnlyWallet.id}</p>
                 <p><strong>Railgun Address:</strong> {viewOnlyWallet.railgunAddress}</p>

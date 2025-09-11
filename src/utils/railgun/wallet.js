@@ -17,11 +17,12 @@ import {
   validateRailgunAddress,
   getWalletMnemonic,
   getWalletAddress,
+  generateRailgunWalletShareableViewingKey,
+  loadRailgunWalletViewOnly,
   createViewOnlyRailgunWallet,
   getWalletShareableViewingKey,
   pbkdf2,
   getRandomBytes,
-  getTransactionHistory,
 } from '@railgun-community/wallet';
 import { waitForRailgunReady } from './engine.js';
 
@@ -192,8 +193,6 @@ export const createWallet = async (encryptionKey, mnemonic, creationBlockNumber)
     console.log('[RailgunWallet] 🆔 Wallet ID:', result.id.slice(0, 8));
     console.log('[RailgunWallet] 🚀 Railgun Address:', result.railgunAddress.slice(0, 10));
 
-    // ✅ ONLY return id + railgunAddress (match official SDK)
-    // SVK generation should be done separately when needed
     return result;
 
   } catch (error) {
@@ -281,10 +280,20 @@ export const loadViewOnlyWallet = async (shareableViewingKey, creationBlockNumbe
  * @param {string} walletID - Wallet ID
  * @returns {string} Shareable viewing key
  */
-// DEPRECATED: Use generateShareableViewingKey instead - this follows the wrong pattern
 export const generateViewingKey = async (walletID) => {
-  console.warn('[RailgunWallet] ⚠️ generateViewingKey is deprecated - use generateShareableViewingKey instead');
-  return await generateShareableViewingKey(walletID);
+  try {
+    await waitForRailgunReady();
+    
+    const shareableViewingKey = await generateRailgunWalletShareableViewingKey(walletID);
+    
+    console.log('[RailgunWallet] Generated viewing key for wallet:', walletID.slice(0, 8) + '...');
+    
+    return shareableViewingKey;
+    
+  } catch (error) {
+    console.error('[RailgunWallet] Failed to generate viewing key:', error);
+    throw new Error(`Viewing key generation failed: ${error.message}`);
+  }
 };
 
 /**
@@ -443,170 +452,16 @@ export const deriveWalletEncryptionKey = async (walletAddress, chainId) => {
 export const getWalletBackup = async (walletID, encryptionKey) => {
   try {
     await waitForRailgunReady();
-
+    
     const mnemonic = await getWalletMnemonic(walletID, encryptionKey);
-
+    
     console.log('[RailgunWallet] Retrieved wallet backup for:', walletID.slice(0, 8) + '...');
-
+    
     return mnemonic;
-
+    
   } catch (error) {
     console.error('[RailgunWallet] Failed to get wallet backup:', error);
     throw new Error(`Wallet backup failed: ${error.message}`);
-  }
-};
-
-/**
- * Compliance Report Generation Flow
- * Generates SVK in memory, creates view-only wallet, fetches history
- * @param {string} walletAddress - EOA wallet address
- * @param {number} chainId - Chain ID for transaction history
- * @param {string} format - Report format ('json', 'csv', 'pdf')
- * @returns {Promise<Object>} Compliance report
- */
-export const generateComplianceReport = async (walletAddress, chainId, format = 'json') => {
-  try {
-    console.log('[Compliance] Starting compliance report generation', {
-      walletAddress: walletAddress?.slice(0, 8) + '...',
-      chainId,
-      format
-    });
-
-    await waitForRailgunReady();
-
-    // Step 1: Get wallet metadata from backend
-    console.log('[Compliance] Fetching wallet metadata...');
-    const metadataResponse = await fetch(`/api/wallet-metadata/${encodeURIComponent(walletAddress)}`);
-
-    if (!metadataResponse.ok) {
-      throw new Error(`Failed to fetch wallet metadata: ${metadataResponse.status}`);
-    }
-
-    const metadata = await metadataResponse.json();
-    if (!metadata.success || !metadata.keys || metadata.keys.length === 0) {
-      throw new Error('No wallet metadata found');
-    }
-
-    // Find the wallet with metadata
-    const walletData = metadata.keys.find(key => key.walletId && key.encryptedMnemonic);
-    if (!walletData) {
-      throw new Error('Wallet data not found or missing encrypted mnemonic');
-    }
-
-    const { walletId, encryptedMnemonic, scannedChains } = walletData;
-
-    console.log('[Compliance] Retrieved wallet data', {
-      walletId: walletId?.slice(0, 8) + '...',
-      hasEncryptedMnemonic: !!encryptedMnemonic,
-      scannedChains: scannedChains?.length || 0
-    });
-
-    // Step 2: Re-derive encryption key from encrypted mnemonic
-    console.log('[Compliance] Re-deriving encryption key...');
-
-    // Use wallet address + chain as salt for deterministic key derivation
-    const salt = `lexie-railgun-${chainId}`;
-    const saltHex = Buffer.from(salt, 'utf8').toString('hex');
-
-    const keyDerivation = await deriveEncryptionKey(encryptedMnemonic, saltHex, 100000);
-    const encKey = normalizeEncKey(keyDerivation.keyHex);
-
-    console.log('[Compliance] Encryption key re-derived', {
-      keyLength: encKey.length,
-      keyPrefix: encKey.slice(0, 16) + '...'
-    });
-
-    // Step 3: Load/create full wallet
-    console.log('[Compliance] Loading/creating full wallet...');
-    let fullWallet;
-
-    try {
-      // Try to load existing wallet first
-      fullWallet = await loadWallet(encKey, walletId, false);
-      console.log('[Compliance] Full wallet loaded', {
-        walletId: fullWallet.id?.slice(0, 8) + '...',
-        railgunAddress: fullWallet.railgunAddress?.slice(0, 10) + '...'
-      });
-    } catch (loadError) {
-      console.log('[Compliance] Full wallet not found, creating new one...');
-
-      // Need mnemonic to create wallet - this should come from secure storage
-      // For now, we'll throw an error since we can't create without mnemonic
-      throw new Error('Cannot create full wallet: mnemonic not available for compliance report generation');
-    }
-
-    // Step 4: Generate SVK in memory (don't store)
-    console.log('[Compliance] Generating SVK in memory...');
-    const svk = await generateShareableViewingKey(fullWallet.id);
-
-    console.log('[Compliance] SVK generated', {
-      length: svk.length,
-      prefix: svk.slice(0, 12) + '...'
-    });
-
-    // Step 5: Create view-only wallet
-    console.log('[Compliance] Creating view-only wallet...');
-    const viewOnlyWalletInfo = await loadViewOnlyWallet(
-      svk,
-      undefined, // creationBlockNumbers - pass undefined
-      encKey
-    );
-
-    console.log('[Compliance] View-only wallet created', {
-      voWalletId: viewOnlyWalletInfo.id?.slice(0, 8) + '...',
-      railgunAddress: viewOnlyWalletInfo.railgunAddress?.slice(0, 10) + '...'
-    });
-
-    // Step 6: Load view-only wallet for history access
-    console.log('[Compliance] Loading view-only wallet for history...');
-    await loadWallet(encKey, viewOnlyWalletInfo.id, true);
-
-    // Step 7: Fetch transaction history
-    console.log('[Compliance] Fetching transaction history...');
-    const history = await getTransactionHistory(viewOnlyWalletInfo.id, chainId);
-
-    console.log('[Compliance] Transaction history retrieved', {
-      transactionCount: history.length,
-      chainId
-    });
-
-    // Step 8: Generate report based on format
-    const report = {
-      walletAddress,
-      walletId: walletId?.slice(0, 8) + '...',
-      chainId,
-      railgunAddress: viewOnlyWalletInfo.railgunAddress,
-      generatedAt: new Date().toISOString(),
-      transactionCount: history.length,
-      transactions: history.map(tx => ({
-        timestamp: tx.timestamp,
-        type: tx.type,
-        token: tx.token,
-        amount: tx.amount,
-        status: tx.status,
-        txHash: tx.txHash,
-        memo: tx.memo
-      }))
-    };
-
-    // Clean up sensitive data
-    // Note: SVK is not stored, only used in memory
-
-    console.log('[Compliance] Compliance report generated successfully', {
-      walletAddress: walletAddress?.slice(0, 8) + '...',
-      transactionCount: history.length,
-      format
-    });
-
-    return {
-      success: true,
-      report,
-      format
-    };
-
-  } catch (error) {
-    console.error('[Compliance] Failed to generate compliance report:', error);
-    throw new Error(`Compliance report generation failed: ${error.message}`);
   }
 };
 
@@ -643,7 +498,6 @@ export default {
   loadViewOnlyWallet,
   generateViewingKey,
   generateShareableViewingKey,
-  generateComplianceReport,
   unloadWallet,
   isValidRailgunAddress,
   getCurrentWalletID,
