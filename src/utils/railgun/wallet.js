@@ -20,6 +20,7 @@ import {
   generateRailgunWalletShareableViewingKey,
   loadRailgunWalletViewOnly,
   createViewOnlyRailgunWallet,
+  getWalletShareableViewingKey,
   pbkdf2,
   getRandomBytes,
 } from '@railgun-community/wallet';
@@ -59,6 +60,54 @@ export const normalizeEncKey = (key) => {
   return cleanKey;
 };
 
+/**
+ * Normalize and validate shareable viewing key from metadata
+ * Converts base64url to base64, adds padding, validates decode
+ * @param {string} svk - Shareable viewing key from metadata
+ * @returns {string} Normalized and validated SVK
+ * @throws {Error} If SVK is invalid format
+ */
+export const normalizeAndValidateSVK = (svk) => {
+  if (!svk || typeof svk !== 'string') {
+    throw new Error('Shareable viewing key is required and must be a string');
+  }
+
+  console.log('[RailgunWallet] 🔑 Normalizing SVK from metadata:', {
+    originalLength: svk.length,
+    originalPrefix: svk.slice(0, 16) + '...'
+  });
+
+  try {
+    // Convert base64url to base64 (replace - with +, _ with /)
+    let base64 = svk.replace(/-/g, '+').replace(/_/g, '/');
+
+    // Add padding if needed
+    const padding = base64.length % 4;
+    if (padding > 0) {
+      base64 += '='.repeat(4 - padding);
+    }
+
+    // Validate by attempting to decode
+    const decoded = Buffer.from(base64, 'base64');
+    const decodedLength = decoded.length;
+
+    console.log('[RailgunWallet] ✅ SVK normalized and validated:', {
+      normalizedLength: base64.length,
+      decodedBytes: decodedLength,
+      isValid: decodedLength >= 32, // SVKs should be ≥32 bytes
+      prefix: base64.slice(0, 16) + '...'
+    });
+
+    if (decodedLength < 32) {
+      throw new Error(`SVK must decode to ≥32 bytes. Got ${decodedLength} bytes.`);
+    }
+
+    return base64;
+  } catch (error) {
+    console.error('[RailgunWallet] ❌ SVK normalization/validation failed:', error);
+    throw new Error(`Invalid viewing key format: ${error.message}. Please re-export the wallet.`);
+  }
+};
 
 /**
  * Derive encryption key using PBKDF2 (following official Railgun docs)
@@ -345,6 +394,28 @@ export const getCurrentEncryptionKey = () => {
   return null;
 };
 
+/**
+ * Generate shareable viewing key from loaded wallet (EXACT SAME AS WORKING SDK)
+ * @param {string} walletID - Wallet ID to generate SVK from
+ * @returns {Promise<string>} Shareable viewing key
+ */
+export const generateShareableViewingKey = async (walletID) => {
+  console.log('[RailgunWallet] 🔑 Generating shareable viewing key from wallet:', {
+    walletID: walletID?.slice(0, 8) + '...'
+  });
+
+  try {
+    const svk = await getWalletShareableViewingKey(walletID);
+    console.log('[RailgunWallet] ✅ Shareable viewing key generated:', {
+      length: svk.length,
+      prefix: svk.slice(0, 16) + '...'
+    });
+    return svk;
+  } catch (error) {
+    console.error('[RailgunWallet] ❌ Failed to generate shareable viewing key:', error);
+    throw error;
+  }
+};
 
 /**
  * Derive encryption key for wallet using deterministic approach
@@ -418,6 +489,7 @@ export const clearAllWallets = async () => {
 // Export for use in other modules
 export default {
   normalizeEncKey,
+  normalizeAndValidateSVK,
   getCurrentEncryptionKey,
   deriveWalletEncryptionKey,
   deriveEncryptionKey,
@@ -425,6 +497,7 @@ export default {
   loadWallet,
   loadViewOnlyWallet,
   generateViewingKey,
+  generateShareableViewingKey,
   unloadWallet,
   isValidRailgunAddress,
   getCurrentWalletID,
