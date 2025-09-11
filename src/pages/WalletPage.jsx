@@ -337,10 +337,11 @@ const WalletPage = () => {
     if (!address || !chainId) {
       throw new Error('Wallet not connected');
     }
-    
+
     try {
-      const salt = `lexie-railgun-${address.toLowerCase()}-${chainId}`;
-      return await deriveEncryptionKey(address.toLowerCase(), salt);
+      const secret = address.toLowerCase();
+      const salt = `lexie-railgun-${chainId}`;
+      return await deriveEncryptionKey(secret, salt, 100000);
     } catch (error) {
       console.error('[WalletPage] Failed to derive encryption key:', error);
       throw new Error('Failed to derive encryption key');
