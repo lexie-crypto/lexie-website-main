@@ -13,6 +13,7 @@
 import React, { useState, useEffect } from 'react';
 import { loadViewOnlyWallet, generateViewingKey, loadWallet } from '../utils/railgun/wallet.js';
 import { waitForRailgunReady } from '../utils/railgun/engine.js';
+import { getTransactionHistory } from '../utils/railgun/transactionHistory.js';
 
 
 const AdminDashboard = () => {
@@ -30,6 +31,11 @@ const AdminDashboard = () => {
   // View-only wallet state
   const [viewOnlyWallet, setViewOnlyWallet] = useState(null);
   const [isCreatingViewOnly, setIsCreatingViewOnly] = useState(false);
+
+  // Transaction history state
+  const [transactionHistory, setTransactionHistory] = useState([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [selectedHistoryChain, setSelectedHistoryChain] = useState(1); // Default to Ethereum
 
   // Logs state
   const [logs, setLogs] = useState([]);
@@ -54,6 +60,7 @@ const AdminDashboard = () => {
     setViewingKey(null);
     setEncryptionKey(null);
     setViewOnlyWallet(null);
+    setTransactionHistory([]);
     setLogs([]);
     addLog('Dashboard cleared', 'info');
   };
@@ -159,6 +166,40 @@ const AdminDashboard = () => {
       console.error('[AdminHistoryPage] View-only wallet creation error:', error);
     } finally {
       setIsCreatingViewOnly(false);
+    }
+  };
+
+  // Get transaction history using official SDK
+  const getWalletHistory = async () => {
+    if (!resolvedWalletId) {
+      addLog('No wallet ID available for history', 'error');
+      return;
+    }
+
+    setIsLoadingHistory(true);
+    addLog(`🔍 Getting transaction history for wallet: ${resolvedWalletId.slice(0, 8)}... on chain ${selectedHistoryChain}`, 'info');
+
+    try {
+      // Ensure Railgun engine is ready
+      await waitForRailgunReady();
+      addLog('✅ Railgun engine ready', 'success');
+
+      // Get transaction history using official SDK
+      const history = await getTransactionHistory(resolvedWalletId, selectedHistoryChain);
+
+      setTransactionHistory(history);
+      addLog(`✅ Retrieved ${history.length} transactions`, 'success');
+
+      if (history.length > 0) {
+        const latestTx = history[0];
+        addLog(`📅 Latest transaction: ${latestTx.transactionType} at ${latestTx.date?.toLocaleString()}`, 'info');
+      }
+
+    } catch (error) {
+      addLog(`❌ History retrieval failed: ${error.message}`, 'error');
+      console.error('[AdminHistoryPage] History retrieval error:', error);
+    } finally {
+      setIsLoadingHistory(false);
     }
   };
 
@@ -268,6 +309,120 @@ const AdminDashboard = () => {
             </div>
           )}
         </div>
+
+        {/* Transaction History Section */}
+        {resolvedWalletId && (
+          <div className="bg-gray-800 rounded-lg p-6 mb-6">
+            <h2 className="text-xl font-semibold mb-4 text-blue-300">📋 Transaction History</h2>
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Chain ID</label>
+                  <select
+                    value={selectedHistoryChain}
+                    onChange={(e) => setSelectedHistoryChain(parseInt(e.target.value))}
+                    className="px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value={1}>Ethereum (1)</option>
+                    <option value={42161}>Arbitrum (42161)</option>
+                    <option value={137}>Polygon (137)</option>
+                    <option value={56}>BNB Chain (56)</option>
+                  </select>
+                </div>
+
+                <div className="flex items-end">
+                  <button
+                    onClick={getWalletHistory}
+                    disabled={isLoadingHistory || !resolvedWalletId}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-md transition-colors"
+                  >
+                    {isLoadingHistory ? '🔍 Getting History...' : '🔍 Get History'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Transaction History Display */}
+              {transactionHistory.length > 0 && (
+                <div className="mt-4">
+                  <div className="text-green-400 font-medium mb-2">
+                    📊 Found {transactionHistory.length} transaction{transactionHistory.length !== 1 ? 's' : ''} on chain {selectedHistoryChain}
+                  </div>
+                  <div className="bg-gray-900 rounded-md p-4 max-h-96 overflow-y-auto">
+                    <div className="space-y-3">
+                      {transactionHistory.map((tx, index) => (
+                        <div key={index} className="bg-gray-800 rounded-lg p-3 border border-gray-700">
+                          <div className="flex items-start justify-between mb-2">
+                            <div className="flex items-center gap-2">
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                tx.transactionType === 'Add to Vault' ? 'bg-green-900 text-green-300' :
+                                tx.transactionType === 'Remove from Vault' ? 'bg-red-900 text-red-300' :
+                                tx.transactionType === 'Send Transaction' ? 'bg-blue-900 text-blue-300' :
+                                tx.transactionType === 'Receive Transaction' ? 'bg-purple-900 text-purple-300' :
+                                'bg-gray-900 text-gray-300'
+                              }`}>
+                                {tx.transactionType}
+                              </span>
+                              <span className="text-xs text-gray-400">
+                                {tx.date?.toLocaleString() || 'Unknown date'}
+                              </span>
+                            </div>
+                            <button
+                              onClick={() => navigator.clipboard.writeText(tx.txid)}
+                              className="text-xs text-gray-400 hover:text-gray-300 px-2 py-1 rounded hover:bg-gray-700"
+                              title="Copy transaction ID"
+                            >
+                              📋
+                            </button>
+                          </div>
+
+                          <div className="text-sm text-gray-300 mb-2">
+                            {tx.description}
+                          </div>
+
+                          {tx.tokenAmounts && tx.tokenAmounts.length > 0 && (
+                            <div className="space-y-1">
+                              {tx.tokenAmounts.map((amount, idx) => (
+                                <div key={idx} className="flex items-center justify-between text-sm">
+                                  <span className="text-green-400 font-medium">
+                                    {amount.formattedAmount} {amount.symbol}
+                                  </span>
+                                  {amount.tokenAddress && (
+                                    <span className="text-xs text-gray-500 font-mono">
+                                      {amount.tokenAddress.slice(0, 6)}...{amount.tokenAddress.slice(-4)}
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {tx.isPrivateTransfer && tx.memo && (
+                            <div className="mt-2 p-2 bg-blue-900/20 border border-blue-700/50 rounded text-sm">
+                              <div className="text-blue-300 text-xs font-medium mb-1">Private Memo:</div>
+                              <div className="text-blue-200">{tx.memo}</div>
+                            </div>
+                          )}
+
+                          <div className="mt-2 text-xs text-gray-500 font-mono">
+                            TX: {tx.txid.slice(0, 12)}...{tx.txid.slice(-8)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* No History Message */}
+              {transactionHistory.length === 0 && !isLoadingHistory && resolvedWalletId && (
+                <div className="text-center py-4 text-gray-400">
+                  No transactions found on chain {selectedHistoryChain}. Try a different chain or this wallet may not have any transactions yet.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Logs Section */}
         <div className="bg-gray-800 rounded-lg p-6">
