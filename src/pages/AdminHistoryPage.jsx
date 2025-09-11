@@ -91,8 +91,8 @@ const AdminDashboard = () => {
 
       addLog(`✅ Found wallet: ${resolveData.walletId.slice(0, 8)}... (${resolveData.resolutionType})`, 'success');
 
-      // Step 2: Get transaction history
-      await loadTransactionHistory(resolveData.walletId);
+      // Step 2: Get transaction history from wallet timeline endpoint
+      await loadWalletTimeline(resolveData.walletId);
 
     } catch (error) {
       addLog(`❌ Search failed: ${error.message}`, 'error');
@@ -102,20 +102,19 @@ const AdminDashboard = () => {
     }
   };
 
-  // Load transaction history for a wallet
-  const loadTransactionHistory = async (walletIdToLoad) => {
+  // Load wallet timeline from the new endpoint
+  const loadWalletTimeline = async (walletIdToLoad) => {
     setIsLoadingHistory(true);
-    addLog(`📊 Loading transaction history...`, 'info');
+    addLog(`📊 Loading wallet timeline...`, 'info');
 
     try {
-      const historyParams = new URLSearchParams({
-        action: 'history',
-        walletId: walletIdToLoad,
+      // Call the new wallet-timeline endpoint
+      const timelineParams = new URLSearchParams({
         page: '1',
         pageSize: '100' // Get up to 100 transactions
       });
 
-      const historyResponse = await fetch(`/api/wallet-metadata?${historyParams}`, {
+      const timelineResponse = await fetch(`/api/wallet-metadata/wallet-timeline/${walletIdToLoad}?${timelineParams}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -124,53 +123,37 @@ const AdminDashboard = () => {
         }
       });
 
-      if (!historyResponse.ok) {
-        throw new Error(`History fetch failed: ${historyResponse.status}`);
+      if (!timelineResponse.ok) {
+        throw new Error(`Timeline fetch failed: ${timelineResponse.status}`);
       }
 
-      const historyData = await historyResponse.json();
+      const timelineData = await timelineResponse.json();
 
-      if (historyData.success) {
-        // Format transactions for display
-        const formattedTransactions = (historyData.items || []).map(tx => ({
-          ...tx,
-          date: tx.timestamp ? new Date(tx.timestamp * 1000) : null,
-          transactionType: getTransactionType(tx.type),
-          isPrivateTransfer: tx.type === 'transfer_send' || tx.type === 'transfer_receive'
-        }));
+      if (timelineData.success) {
+        // Use the already formatted transactions from the backend
+        const transactions = timelineData.timeline || [];
+        setTransactionHistory(transactions);
 
-        setTransactionHistory(formattedTransactions);
-
-        const totalCount = historyData.pagination?.total || 0;
-        const returnedCount = formattedTransactions.length;
+        const totalCount = timelineData.pagination?.total || 0;
+        const returnedCount = transactions.length;
 
         addLog(`✅ Loaded ${returnedCount} transactions${totalCount > returnedCount ? ` (${totalCount} total)` : ''}`, 'success');
 
-        if (formattedTransactions.length === 0) {
+        if (transactions.length === 0) {
           addLog('ℹ️ No transactions found for this wallet', 'info');
         }
       } else {
-        addLog(`❌ Failed to load history: ${historyData.error || 'Unknown error'}`, 'error');
+        addLog(`❌ Failed to load timeline: ${timelineData.error || 'Unknown error'}`, 'error');
       }
 
     } catch (error) {
-      addLog(`❌ History loading failed: ${error.message}`, 'error');
-      console.error('History loading error:', error);
+      addLog(`❌ Timeline loading failed: ${error.message}`, 'error');
+      console.error('Timeline loading error:', error);
     } finally {
       setIsLoadingHistory(false);
     }
   };
 
-  // Helper function to format transaction types
-  const getTransactionType = (type) => {
-    const typeMap = {
-      'shield': 'Add to Vault',
-      'unshield': 'Remove from Vault',
-      'transfer_send': 'Send Transaction',
-      'transfer_receive': 'Receive Transaction'
-    };
-    return typeMap[type] || 'Unknown';
-  };
 
   // Handle enter key in search input
   const handleKeyPress = (e) => {
