@@ -358,7 +358,7 @@ export default async function handler(req, res) {
         const eoaMatch = urlPath.match(/\/resolve-wallet-id\/by-eoa\/([^\/]+)/);
         if (eoaMatch) {
           const address = eoaMatch[1];
-          backendPath = `/resolve-wallet-id/by-eoa/${address}`;
+          backendPath = `/api/resolve-wallet-id/by-eoa/${address}`;
           backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
           console.log(`🔍 [RESOLVE-PROXY-${requestId}] GET resolve wallet by EOA: ${address.slice(0, 8)}...`);
         }
@@ -367,7 +367,7 @@ export default async function handler(req, res) {
         const railgunMatch = urlPath.match(/\/resolve-wallet-id\/by-railgun\/([^\/]+)/);
         if (railgunMatch) {
           const railgunAddress = railgunMatch[1];
-          backendPath = `/resolve-wallet-id/by-railgun/${railgunAddress}`;
+          backendPath = `/api/resolve-wallet-id/by-railgun/${railgunAddress}`;
           backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
           console.log(`🔍 [RESOLVE-PROXY-${requestId}] GET resolve wallet by Railgun: ${railgunAddress.slice(0, 8)}...`);
         }
@@ -376,7 +376,7 @@ export default async function handler(req, res) {
         const txMatch = urlPath.match(/\/resolve-wallet-id\/by-tx\/([^\/]+)/);
         if (txMatch) {
           const txId = txMatch[1];
-          backendPath = `/resolve-wallet-id/by-tx/${txId}`;
+          backendPath = `/api/resolve-wallet-id/by-tx/${txId}`;
           backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
           console.log(`🔍 [RESOLVE-PROXY-${requestId}] GET resolve wallet by TX: ${txId.slice(0, 8)}...`);
         }
@@ -395,7 +395,7 @@ export default async function handler(req, res) {
           const walletId = walletIdMatch[1];
           const { page = '1', pageSize = '50' } = req.query;
 
-          backendPath = `/wallet-timeline/${walletId}?page=${page}&pageSize=${pageSize}`;
+          backendPath = `/api/wallet-timeline/${walletId}?page=${page}&pageSize=${pageSize}`;
           backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
 
           console.log(`📊 [WALLET-TIMELINE-PROXY-${requestId}] GET wallet timeline for wallet: ${walletId.slice(0, 8)}... (page: ${page}, size: ${pageSize})`);
@@ -466,7 +466,7 @@ export default async function handler(req, res) {
         const eoaMatch = urlPath.match(/\/resolve-wallet-id\/by-eoa\/([^\/]+)/);
         if (eoaMatch) {
           const address = eoaMatch[1];
-          backendPath = `/resolve-wallet-id/by-eoa/${address}`;
+          backendPath = `/api/resolve-wallet-id/by-eoa/${address}`;
           backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
           console.log(`🔍 [RESOLVE-PROXY-${requestId}] POST resolve wallet by EOA: ${address.slice(0, 8)}...`);
         }
@@ -475,7 +475,7 @@ export default async function handler(req, res) {
         const railgunMatch = urlPath.match(/\/resolve-wallet-id\/by-railgun\/([^\/]+)/);
         if (railgunMatch) {
           const railgunAddress = railgunMatch[1];
-          backendPath = `/resolve-wallet-id/by-railgun/${railgunAddress}`;
+          backendPath = `/api/resolve-wallet-id/by-railgun/${railgunAddress}`;
           backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
           console.log(`🔍 [RESOLVE-PROXY-${requestId}] POST resolve wallet by Railgun: ${railgunAddress.slice(0, 8)}...`);
         }
@@ -484,7 +484,7 @@ export default async function handler(req, res) {
         const txMatch = urlPath.match(/\/resolve-wallet-id\/by-tx\/([^\/]+)/);
         if (txMatch) {
           const txId = txMatch[1];
-          backendPath = `/resolve-wallet-id/by-tx/${txId}`;
+          backendPath = `/api/resolve-wallet-id/by-tx/${txId}`;
           backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
           console.log(`🔍 [RESOLVE-PROXY-${requestId}] POST resolve wallet by TX: ${txId.slice(0, 8)}...`);
         }
@@ -501,7 +501,7 @@ export default async function handler(req, res) {
         const walletIdMatch = urlPath.match(/\/wallet-timeline\/([^\/]+)/);
         if (walletIdMatch) {
           const walletId = walletIdMatch[1];
-          backendPath = `/wallet-timeline/${walletId}`;
+          backendPath = `/api/wallet-timeline/${walletId}`;
           backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
           console.log(`📊 [WALLET-TIMELINE-PROXY-${requestId}] POST wallet timeline for wallet: ${walletId.slice(0, 8)}...`);
         } else {
