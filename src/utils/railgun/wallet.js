@@ -20,6 +20,7 @@ import {
   generateRailgunWalletShareableViewingKey,
   loadRailgunWalletViewOnly,
   createViewOnlyRailgunWallet,
+  getWalletShareableViewingKey,
   pbkdf2,
   getRandomBytes,
 } from '@railgun-community/wallet';
@@ -345,6 +346,29 @@ export const getCurrentEncryptionKey = () => {
 };
 
 /**
+ * Generate shareable viewing key from loaded wallet (EXACT SAME AS WORKING SDK)
+ * @param {string} walletID - Wallet ID to generate SVK from
+ * @returns {Promise<string>} Shareable viewing key
+ */
+export const generateShareableViewingKey = async (walletID) => {
+  console.log('[RailgunWallet] 🔑 Generating shareable viewing key from wallet:', {
+    walletID: walletID?.slice(0, 8) + '...'
+  });
+
+  try {
+    const svk = await getWalletShareableViewingKey(walletID);
+    console.log('[RailgunWallet] ✅ Shareable viewing key generated:', {
+      length: svk.length,
+      prefix: svk.slice(0, 16) + '...'
+    });
+    return svk;
+  } catch (error) {
+    console.error('[RailgunWallet] ❌ Failed to generate shareable viewing key:', error);
+    throw error;
+  }
+};
+
+/**
  * Derive encryption key for wallet using deterministic approach
  * @param {string} walletAddress - Wallet address for deterministic derivation
  * @param {number} chainId - Chain ID for salt
@@ -423,6 +447,7 @@ export default {
   loadWallet,
   loadViewOnlyWallet,
   generateViewingKey,
+  generateShareableViewingKey,
   unloadWallet,
   isValidRailgunAddress,
   getCurrentWalletID,
