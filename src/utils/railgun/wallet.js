@@ -19,8 +19,10 @@ import {
   getWalletAddress,
   generateRailgunWalletShareableViewingKey,
   loadRailgunWalletViewOnly,
+  createViewOnlyRailgunWallet,
+  pbkdf2,
+  getRandomBytes,
 } from '@railgun-community/wallet';
-import { NetworkName } from '@railgun-community/shared-models';
 import { waitForRailgunReady } from './engine.js';
 
 // Wallet storage
@@ -28,64 +30,50 @@ let activeWallets = new Map();
 let currentWalletID = null;
 
 /**
- * Generate encryption key from user signature
- * PRODUCTION-READY: Uses actual wallet signature for secure key derivation
- * @param {string} signature - User's wallet signature (hex string)
- * @param {string} address - User's address for additional entropy
- * @returns {string} Derived encryption key (64-character hex string)
+ * Derive encryption key using PBKDF2 (following official Railgun docs)
+ * @param {string} secret - Secret to derive from (password, signature, etc.)
+ * @param {string} saltHex - Hex-encoded salt (optional - generates if not provided)
+ * @param {number} iterations - Number of PBKDF2 iterations (default: 100,000)
+ * @returns {Promise<{keyHex: string, saltHex: string}>} Derived encryption key and hex-encoded salt
  */
-export const deriveEncryptionKey = (signature, address) => {
+export const deriveEncryptionKey = async (secret, saltHex = null, iterations = 100000) => {
   try {
-    console.log('[RailgunWallet] Deriving encryption key from wallet signature...');
-    
+    console.log('[RailgunWallet] Deriving encryption key using PBKDF2...');
+
     // Validate inputs
-    if (!signature || !address) {
-      throw new Error('Signature and address are required for key derivation');
+    if (!secret) {
+      throw new Error('Secret is required for key derivation');
     }
-    
-    // Remove 0x prefix if present
-    const cleanSignature = signature.startsWith('0x') ? signature.slice(2) : signature;
-    const cleanAddress = address.toLowerCase().replace('0x', '');
-    
-    // Combine signature with address for additional entropy
-    const combined = cleanSignature + cleanAddress;
-    
-    // Use a more robust hashing approach
-    let hash1 = 0;
-    let hash2 = 0;
-    
-    // First pass - hash the combined string
-    for (let i = 0; i < combined.length; i++) {
-      const char = combined.charCodeAt(i);
-      hash1 = ((hash1 << 5) - hash1) + char;
-      hash1 = hash1 & hash1; // Convert to 32-bit integer
+
+    // Generate salt if not provided (following official docs pattern)
+    let saltBytes;
+    if (saltHex) {
+      // Convert hex salt back to bytes
+      saltBytes = new Uint8Array(Buffer.from(saltHex, 'hex'));
+    } else {
+      // Generate random 16-byte salt as per official docs
+      saltBytes = getRandomBytes(16);
     }
-    
-    // Second pass - hash with different algorithm for more entropy
-    for (let i = 0; i < combined.length; i++) {
-      const char = combined.charCodeAt(i);
-      hash2 = char + (hash2 << 6) + (hash2 << 16) - hash2;
-      hash2 = hash2 & hash2; // Convert to 32-bit integer
+
+    // Use PBKDF2 to derive the encryption key (following official docs)
+    // pbkdf2 returns a 64-char hex string (32 bytes). Do NOT hex it again.
+    const keyHex = await pbkdf2(secret, saltBytes, iterations);
+
+    // Verify it's a valid 64-character hex string (32 bytes)
+    if (keyHex.length !== 64) {
+      throw new Error(`Invalid encryption key format: ${keyHex.length} chars`);
     }
-    
-    // Create 64-character hex string from both hashes
-    const hash1Hex = (Math.abs(hash1) >>> 0).toString(16).padStart(8, '0');
-    const hash2Hex = (Math.abs(hash2) >>> 0).toString(16).padStart(8, '0');
-    
-    // Take parts of the original signature for additional entropy
-    const sigPart1 = cleanSignature.slice(0, 24);
-    const sigPart2 = cleanSignature.slice(-24);
-    
-    // Combine all parts to create a strong 64-character encryption key
-    const encryptionKey = (hash1Hex + hash2Hex + sigPart1 + sigPart2).slice(0, 64);
-    
-    // Validate final key length
-    if (encryptionKey.length !== 64) {
-      throw new Error('Generated encryption key is not 64 characters');
-    }
-    
-    console.log('[RailgunWallet] Encryption key derived successfully:', encryptionKey.slice(0, 8) + '...');
-    return encryptionKey;
+
+    // Return both key and hex-encoded salt for storage
+    const finalSaltHex = Buffer.from(saltBytes).toString('hex');
+
+    console.log('[RailgunWallet] ✅ Encryption key derived successfully using PBKDF2');
+
+    return {
+      keyHex,
+      saltHex: finalSaltHex
+    };
+
   } catch (error) {
     console.error('[RailgunWallet] Failed to derive encryption key:', error);
     throw new Error(`Failed to derive encryption key: ${error.message}`);
@@ -192,44 +180,88 @@ export const loadWallet = async (walletID, encryptionKey) => {
 /**
  * Load view-only wallet using shareable viewing key
  * @param {string} shareableViewingKey - Shareable viewing key
- * @param {number} creationBlockNumber - Block number when wallet was created
+ * @param {Object} creationBlockNumbers - Map of chainId -> blockNumber when wallet was created
+ * @param {string} encKeyHex - Optional 32-byte hex encryption key (will use current user's key if not provided)
  * @returns {Object} View-only wallet info
  */
-export const loadViewOnlyWallet = async (shareableViewingKey, creationBlockNumber) => {
+export const loadViewOnlyWallet = async (shareableViewingKey, creationBlockNumbers = {}, encKeyHex = null) => {
   try {
     await waitForRailgunReady();
-    
+
     console.log('[RailgunWallet] Loading view-only wallet...');
-    
-    const result = await loadRailgunWalletViewOnly(
+
+    if (!shareableViewingKey) {
+      throw new Error('Shareable viewing key is required');
+    }
+
+    // Use provided encryption key or get current user's encryption key
+    let encryptionKey = encKeyHex;
+
+    if (!encryptionKey) {
+      // Try to get encryption key from current loaded wallet
+      const currentWallet = getCurrentWallet();
+      if (currentWallet && currentWallet.encryptionKey) {
+        encryptionKey = currentWallet.encryptionKey;
+        console.log('[RailgunWallet] Using current wallet encryption key for view-only wallet');
+      } else {
+        throw new Error('Encryption key required: either provide encKeyHex parameter or ensure a wallet is loaded with an encryption key');
+      }
+    }
+
+    // Validate encryption key format (must be 64-character hex string = 32 bytes)
+    if (!/^[a-f0-9]{64}$/i.test(encryptionKey)) {
+      throw new Error('Encryption key must be a valid 64-character hex string (32 bytes)');
+    }
+
+    // Create proper creation block numbers map (chain-aware)
+    const formattedCreationBlocks = Object.keys(creationBlockNumbers).length > 0
+      ? creationBlockNumbers
+      : undefined;
+
+    console.log('[RailgunWallet] Creating view-only wallet with Railgun SDK', {
+      keyLength: encryptionKey.length,
+      viewingKeyLength: shareableViewingKey.length,
+      creationBlockChains: formattedCreationBlocks ? Object.keys(formattedCreationBlocks) : []
+    });
+
+    const result = await createViewOnlyRailgunWallet(
+      encryptionKey,                         // 32-byte hex encryption key
       shareableViewingKey,
-      creationBlockNumber
+      formattedCreationBlocks                 // Chain-aware block numbers
     );
-    
+
     const walletID = result.id;
     const railgunAddress = result.railgunAddress;
-    
+
     // Store wallet info
     activeWallets.set(walletID, {
       id: walletID,
       railgunAddress,
-      creationBlockNumber,
+      encryptionKey,
+      creationBlockNumbers: formattedCreationBlocks,
       loadedAt: Date.now(),
       isViewOnly: true,
     });
-    
-    console.log('[RailgunWallet] View-only wallet loaded:', {
+
+    console.log('[RailgunWallet] View-only wallet loaded successfully', {
       walletID: walletID.slice(0, 8) + '...',
       railgunAddress: railgunAddress.slice(0, 10) + '...',
+      isViewOnly: true
     });
-    
+
     return {
-      walletID,
+      id: walletID,
       railgunAddress,
+      isViewOnly: true,
+      loadedAt: Date.now(),
     };
-    
+
   } catch (error) {
-    console.error('[RailgunWallet] Failed to load view-only wallet:', error);
+    console.error('[RailgunWallet] Failed to load view-only wallet', {
+      error: error.message,
+      hasViewingKey: !!shareableViewingKey,
+      hasEncKey: !!encKeyHex
+    });
     throw new Error(`View-only wallet loading failed: ${error.message}`);
   }
 };

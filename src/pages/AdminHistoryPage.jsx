@@ -62,7 +62,6 @@ const AdminDashboard = () => {
     }
 
     setResolvedWalletId(null);
-    setResolutionType(null);
     setResolvedWalletAddress(null);
     setViewingKey(null);
     setEncryptionKey(null);
@@ -83,11 +82,13 @@ const AdminDashboard = () => {
     addLog(`🔍 Getting wallet metadata for: ${searchQuery}`, 'info');
 
     try {
-      // Use wallet-metadata proxy with proper query parameters
+      // Use wallet-metadata proxy (HMAC headers are generated server-side by the API proxy)
       const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(searchQuery)}`, {
         method: 'GET',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'Origin': window.location.origin,
+          'User-Agent': navigator.userAgent
         }
       });
 
@@ -187,14 +188,25 @@ const AdminDashboard = () => {
         approach: encryptionKey ? 'real-sdk' : 'stored-key'
       });
 
-      const viewOnlyWalletInfo = await loadViewOnlyWallet(
-        finalViewingKey,
-        undefined // creationBlockNumber - SAME AS WORKING SDK
-      );
+      // Check if we have an encryption key to work with
+      if (encryptionKey) {
+        // ✅ Encryption key available - create view-only wallet
+        const viewOnlyWalletInfo = await loadViewOnlyWallet(
+          finalViewingKey,
+          {}, // creationBlockNumbers - empty map for now
+          encryptionKey // Pass the real encryption key from metadata
+        );
 
-      setViewOnlyWallet(viewOnlyWalletInfo);
-      addLog(`✅ View-only wallet created successfully: ${viewOnlyWalletInfo.id.slice(0, 8)}...`, 'success');
-      addLog(`✅ Railgun Address: ${viewOnlyWalletInfo.railgunAddress}`, 'success');
+        setViewOnlyWallet(viewOnlyWalletInfo);
+        addLog(`✅ View-only wallet created successfully: ${viewOnlyWalletInfo.id.slice(0, 8)}...`, 'success');
+        addLog(`✅ Railgun Address: ${viewOnlyWalletInfo.railgunAddress}`, 'success');
+      } else {
+        // ❌ No encryption key - don't create view-only wallet, show warning
+        addLog(`⚠️ Cannot create view-only wallet: No encryption key available`, 'warning');
+        addLog(`🔐 Please ensure the wallet has an encryption key stored in metadata`, 'info');
+        addLog(`📝 View-only wallet creation skipped - transaction history will not be available`, 'warning');
+        return; // Exit early without setting viewOnlyWallet
+      }
 
     } catch (error) {
       addLog(`❌ View-only wallet creation failed: ${error.message}`, 'error');
@@ -404,7 +416,7 @@ const AdminDashboard = () => {
                 <div className="flex items-end">
                   <button
                     onClick={getWalletHistory}
-                    disabled={isLoadingHistory || !resolvedWalletId}
+                    disabled={isLoadingHistory || !resolvedWalletId || !encryptionKey}
                     className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-md transition-colors"
                   >
                     {isLoadingHistory ? '🔍 Getting History...' : '🔍 Get History'}
@@ -484,8 +496,17 @@ const AdminDashboard = () => {
                 </div>
               )}
 
+              {/* Encryption Key Missing Message */}
+              {!encryptionKey && resolvedWalletId && (
+                <div className="text-center py-4 text-yellow-400 bg-yellow-900/20 rounded-md border border-yellow-700/50">
+                  ⚠️ Cannot retrieve transaction history: Encryption key is missing from wallet metadata.
+                  <br />
+                  <span className="text-sm text-yellow-300">Transaction history requires the original encryption key to load the wallet.</span>
+                </div>
+              )}
+
               {/* No History Message */}
-              {transactionHistory.length === 0 && !isLoadingHistory && resolvedWalletId && (
+              {transactionHistory.length === 0 && !isLoadingHistory && resolvedWalletId && encryptionKey && (
                 <div className="text-center py-4 text-gray-400">
                   No transactions found on chain {selectedHistoryChain}. Try a different chain or this wallet may not have any transactions yet.
                 </div>
