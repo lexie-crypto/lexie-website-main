@@ -148,6 +148,25 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     });
   }, [activeAction, availableTokens]);
 
+  // Complete state reset function for after transactions
+  const resetFormState = useCallback(() => {
+    console.log('[PrivacyActions] 🔄 Performing complete form state reset...');
+    setAmount('');
+    setRecipientAddress('');
+    setMemoText('');
+    setIsProcessing(false);
+    // Preserve selectedToken if it's still valid, otherwise set to first available
+    setSelectedToken(prev => {
+      if (!Array.isArray(availableTokens) || availableTokens.length === 0) return null;
+      const stillValid = prev && availableTokens.some(t =>
+        ((t.address || t.tokenAddress) && (prev?.address || prev?.tokenAddress)
+          ? String(t.address || t.tokenAddress).toLowerCase() === String(prev?.address || prev?.tokenAddress).toLowerCase()
+          : t.symbol === prev?.symbol)
+      );
+      return stillValid ? prev : availableTokens[0];
+    });
+  }, [availableTokens]);
+
   // Ensure transfer-specific fields are cleared when not in transfer mode
   useEffect(() => {
     if (activeTab !== 'transfer') {
@@ -580,9 +599,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         ), { duration: 3000 });
       }
     } finally {
-      setIsProcessing(false);
+      resetFormState();
     }
-  }, [selectedToken, amount, isValidAmount, railgunAddress, railgunWalletId, chainId, address, getEncryptionKey, availableTokens, refreshBalancesAfterTransaction]);
+  }, [selectedToken, amount, isValidAmount, railgunAddress, railgunWalletId, chainId, address, getEncryptionKey, availableTokens, refreshBalancesAfterTransaction, resetFormState]);
 
   // Handle unshield operation
   const handleUnshield = useCallback(async () => {
@@ -725,9 +744,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       console.error('[PrivacyActions] Unshield operation failed:', error);
       toast.dismiss(toastId);
     } finally {
-      setIsProcessing(false);
+      resetFormState();
     }
-  }, [selectedToken, amount, isValidAmount, recipientAddress, address, railgunWalletId, chainId, getEncryptionKey, availableTokens, refreshBalancesAfterTransaction]);
+  }, [selectedToken, amount, isValidAmount, recipientAddress, address, railgunWalletId, chainId, getEncryptionKey, availableTokens, refreshBalancesAfterTransaction, resetFormState]);
 
   // Handle private transfer operation
   const handleTransfer = useCallback(async () => {
@@ -921,9 +940,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         ), { duration: 4000 });
       }
     } finally {
-      setIsProcessing(false);
+      resetFormState();
     }
-  }, [selectedToken, amount, recipientAddress, memoText, isValidAmount, railgunAddress, railgunWalletId, chainId, walletProvider, getEncryptionKey, availableTokens]);
+  }, [selectedToken, amount, recipientAddress, memoText, isValidAmount, railgunAddress, railgunWalletId, chainId, walletProvider, getEncryptionKey, availableTokens, resetFormState]);
 
   // Handle form submission with smart routing
   const handleSubmit = useCallback((e) => {
