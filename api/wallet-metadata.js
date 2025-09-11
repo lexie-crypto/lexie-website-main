@@ -349,23 +349,8 @@ export default async function handler(req, res) {
   // Original wallet-metadata logic continues below
   console.log(`📊 [PROXY-${requestId}] Processing as regular wallet-metadata route`);
   if (req.method === 'GET') {
-      // Check if this is a get-wallet-id request (lightweight EOA lookup)
-      if (req.url.includes('/get-wallet-id/')) {
-        // Extract address from URL path
-        const urlPath = req.url.split('?')[0]; // Remove query parameters
-        const walletIdMatch = urlPath.match(/\/get-wallet-id\/([^\/]+)/);
-        if (walletIdMatch) {
-          const address = walletIdMatch[1];
-          backendPath = `/get-wallet-id/${address}`;
-          backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
-          console.log(`🔍 [WALLET-ID-PROXY-${requestId}] GET wallet ID for address: ${address.slice(0, 8)}...`);
-        } else {
-          console.log(`❌ [WALLET-ID-PROXY-${requestId}] Invalid get-wallet-id URL format: ${req.url}`);
-          return res.status(400).json({ success: false, error: 'Invalid get-wallet-id URL format' });
-        }
-
       // Check if this is a resolve-wallet-id request
-      } else if (req.url.includes('/resolve-wallet-id/')) {
+      if (req.url.includes('/resolve-wallet-id/')) {
         // Extract the resolve type and identifier from URL path
         const urlPath = req.url.split('?')[0]; // Remove query parameters
 

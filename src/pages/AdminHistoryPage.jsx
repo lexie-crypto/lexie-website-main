@@ -8,6 +8,7 @@
  */
 
 import React, { useState } from 'react';
+import { getAddress } from 'ethers';
 
 const AdminDashboard = () => {
   // Search state
@@ -63,8 +64,20 @@ const AdminDashboard = () => {
       let resolveEndpoint = '';
       let queryType = '';
 
+      // Normalize EOA to checksum for consistent Redis key matches
+      let walletAddressParam = (searchQuery || '').trim();
+      if (searchType === 'eoa') {
+        try {
+          walletAddressParam = getAddress(walletAddressParam);
+        } catch (_) {
+          addLog('❌ Invalid EOA address format', 'error');
+          setIsSearching(false);
+          return;
+        }
+      }
+
       // Use the existing query parameter approach (same as WalletPage.jsx)
-      resolveEndpoint = `/api/wallet-metadata?walletAddress=${encodeURIComponent(searchQuery)}`;
+      resolveEndpoint = `/api/wallet-metadata?walletAddress=${encodeURIComponent(walletAddressParam)}`;
       queryType = 'Wallet Address';
 
       addLog(`🔍 Using ${queryType} resolver: ${resolveEndpoint}`, 'info');
