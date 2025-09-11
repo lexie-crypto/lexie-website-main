@@ -642,6 +642,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             tokenAddress: selectedToken.tokenAddress,
             decimals: selectedToken.decimals,
             amount: amount,
+            recipientAddress: toAddress, // Add recipient address for unshield
+            senderAddress: address, // Add sender address for unshield
             changeCommitment: result.changeCommitment, // For change notes
           },
           listener: async (event) => {
