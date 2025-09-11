@@ -148,6 +148,15 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     });
   }, [activeAction, availableTokens]);
 
+  // Ensure transfer-specific fields are cleared when not in transfer mode
+  useEffect(() => {
+    if (activeTab !== 'transfer') {
+      // Clear any stale transfer data that could cause validation issues
+      setRecipientAddress('');
+      setMemoText('');
+    }
+  }, [activeTab]);
+
   // Also handle selection on chain changes without forcing null
   useEffect(() => {
     setAmount('');
@@ -201,6 +210,19 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
   // FORCE BUTTON RESET: Ensure button is always clickable after any state changes
   useEffect(() => {
+    // Debug button state
+    const buttonDisabledReason = [];
+    if (!isValidAmount) buttonDisabledReason.push('invalid amount');
+    if (isProcessing) buttonDisabledReason.push('processing');
+    if (!selectedToken) buttonDisabledReason.push('no token selected');
+    if (activeTab === 'transfer' && (!recipientAddress || recipientType === 'invalid')) {
+      buttonDisabledReason.push('transfer validation failed');
+    }
+
+    if (buttonDisabledReason.length > 0) {
+      console.log('[PrivacyActions] 🔍 Button disabled reasons:', buttonDisabledReason.join(', '));
+    }
+
     // If button would be disabled due to missing selectedToken, force select one
     if (!selectedToken && availableTokens.length > 0) {
       console.log('[PrivacyActions] 🔧 Force resetting selectedToken to prevent stale button');
@@ -212,7 +234,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       console.log('[PrivacyActions] 🔧 Force resetting isProcessing due to no available tokens');
       setIsProcessing(false);
     }
-  }, [selectedToken, availableTokens, isProcessing]);
+  }, [selectedToken, availableTokens, isProcessing, isValidAmount, activeTab, recipientAddress, recipientType]);
 
   // Additional safety: Reset processing state if it gets stuck
   useEffect(() => {
@@ -235,11 +257,10 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       setSelectedToken(availableTokens[0]);
     }
     setAmount('');
-    if (activeTab === 'transfer') {
-      setRecipientAddress('');
-      setMemoText('');
-    }
-  }, [availableTokens, activeTab]);
+    // Always clear transfer-specific fields to prevent stale data issues
+    setRecipientAddress('');
+    setMemoText('');
+  }, [availableTokens]);
 
   // Expose reset function globally for debugging (can call from console)
   useEffect(() => {
