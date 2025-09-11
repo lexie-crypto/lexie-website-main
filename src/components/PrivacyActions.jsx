@@ -132,19 +132,30 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     return [];
   }, [activeTab, publicBalances, privateBalances, isConnected, chainId]);
 
-  // Reset form when switching actions
+  // Reset form when switching actions, but preserve a valid selected token
   useEffect(() => {
-    setSelectedToken(null);
     setAmount('');
     setRecipientAddress('');
     setMemoText('');
-  }, [activeAction]);
+    setSelectedToken(prev => {
+      if (!Array.isArray(availableTokens) || availableTokens.length === 0) return prev;
+      const stillValid = prev && availableTokens.some(t =>
+        ((t.address || t.tokenAddress) && (prev?.address || prev?.tokenAddress)
+          ? String(t.address || t.tokenAddress).toLowerCase() === String(prev?.address || prev?.tokenAddress).toLowerCase()
+          : t.symbol === prev?.symbol)
+      );
+      return stillValid ? prev : availableTokens[0];
+    });
+  }, [activeAction, availableTokens]);
 
-  // Also reset selection when the active chain changes to avoid stale tokens
+  // Also handle selection on chain changes without forcing null
   useEffect(() => {
-    setSelectedToken(null);
     setAmount('');
-  }, [chainId]);
+    setSelectedToken(prev => {
+      if (!Array.isArray(availableTokens) || availableTokens.length === 0) return prev;
+      return availableTokens[0];
+    });
+  }, [chainId, availableTokens]);
 
   // Close token menu on outside click or ESC
   useEffect(() => {
@@ -416,9 +427,17 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         </div>
       ), { duration: 3000 });
 
-      // Reset form
+      // Reset form, but preserve selectedToken until options exist
       setAmount('');
-      setSelectedToken(availableTokens[0] || null);
+      setSelectedToken(prev => {
+        if (!Array.isArray(availableTokens) || availableTokens.length === 0) return prev;
+        const stillValid = prev && availableTokens.some(t =>
+          ((t.address || t.tokenAddress) && (prev?.address || prev?.tokenAddress)
+            ? String(t.address || t.tokenAddress).toLowerCase() === String(prev?.address || prev?.tokenAddress).toLowerCase()
+            : t.symbol === prev?.symbol)
+        );
+        return stillValid ? prev : availableTokens[0];
+      });
 
       // ✅ ENHANCED: Graph-based transaction monitoring with new API
       toast.dismiss(toastId);
@@ -618,10 +637,18 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
       toast.dismiss(toastId);
 
-      // Reset form
+      // Reset form, but preserve selectedToken until options exist
       setAmount('');
       setRecipientAddress('');
-      setSelectedToken(availableTokens[0] || null);
+      setSelectedToken(prev => {
+        if (!Array.isArray(availableTokens) || availableTokens.length === 0) return prev;
+        const stillValid = prev && availableTokens.some(t =>
+          ((t.address || t.tokenAddress) && (prev?.address || prev?.tokenAddress)
+            ? String(t.address || t.tokenAddress).toLowerCase() === String(prev?.address || prev?.tokenAddress).toLowerCase()
+            : t.symbol === prev?.symbol)
+        );
+        return stillValid ? prev : availableTokens[0];
+      });
 
       // ✅ ENHANCED: Graph-based unshield monitoring with new API
       console.log('[PrivacyActions] Starting Graph-based unshield monitoring...');
@@ -777,11 +804,19 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         window.dispatchEvent(new CustomEvent('transaction-history-refresh'));
       }, 3000); // Wait 3 seconds for transaction to be mined and indexed
 
-      // Reset
+      // Reset, but preserve selectedToken until options exist
       setAmount('');
       setRecipientAddress('');
       setMemoText('');
-      setSelectedToken(availableTokens[0] || null);
+      setSelectedToken(prev => {
+        if (!Array.isArray(availableTokens) || availableTokens.length === 0) return prev;
+        const stillValid = prev && availableTokens.some(t =>
+          ((t.address || t.tokenAddress) && (prev?.address || prev?.tokenAddress)
+            ? String(t.address || t.tokenAddress).toLowerCase() === String(prev?.address || prev?.tokenAddress).toLowerCase()
+            : t.symbol === prev?.symbol)
+        );
+        return stillValid ? prev : availableTokens[0];
+      });
 
       // Optional: Graph monitoring (transfer)
       try {
