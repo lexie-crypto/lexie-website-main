@@ -30,6 +30,35 @@ let activeWallets = new Map();
 let currentWalletID = null;
 
 /**
+ * Normalize encryption key: strip 0x prefix and validate 64 hex characters
+ * @param {string} key - Encryption key (may have 0x prefix)
+ * @returns {string} Normalized 64-character hex string
+ * @throws {Error} If key is invalid format
+ */
+export const normalizeEncKey = (key) => {
+  if (!key || typeof key !== 'string') {
+    throw new Error('Encryption key is required and must be a string');
+  }
+
+  // Strip 0x prefix if present
+  let cleanKey = key.startsWith('0x') ? key.slice(2) : key;
+
+  // Validate exactly 64 hex characters
+  if (!/^[a-f0-9]{64}$/i.test(cleanKey)) {
+    throw new Error(`Encryption key must be exactly 64 hex characters (got ${cleanKey.length} chars: ${cleanKey.slice(0, 16)}...)`);
+  }
+
+  console.log('[RailgunWallet] 🔐 Normalized encryption key:', {
+    originalLength: key.length,
+    hadPrefix: key.startsWith('0x'),
+    cleanLength: cleanKey.length,
+    prefix: cleanKey.slice(0, 8) + '...'
+  });
+
+  return cleanKey;
+};
+
+/**
  * Derive encryption key using PBKDF2 (following official Railgun docs)
  * @param {string} secret - Secret to derive from (password, signature, etc.)
  * @param {string} saltHex - Hex-encoded salt (optional - generates if not provided)
@@ -91,9 +120,11 @@ export const deriveEncryptionKey = async (secret, saltHex = null, iterations = 1
 
 export const createWallet = async (encryptionKey, mnemonic, creationBlockNumber) => {
   try {
-    console.log('[RailgunWallet] 🏗️ Creating wallet with encryption key:');
-    console.log('[RailgunWallet] 🔐 Encryption Key length:', encryptionKey?.length);
-    console.log('[RailgunWallet] 🔑 Encryption Key prefix:', encryptionKey?.slice(0, 16) + '...');
+    console.log('[RailgunWallet] 🏗️ Creating wallet with encryption key...');
+
+    // Normalize encryption key before SDK call
+    const normalizedKey = normalizeEncKey(encryptionKey);
+
     console.log('[RailgunWallet] 📝 Mnemonic provided:', !!mnemonic);
     console.log('[RailgunWallet] 📊 Creation Block Number:', creationBlockNumber);
 
@@ -102,7 +133,7 @@ export const createWallet = async (encryptionKey, mnemonic, creationBlockNumber)
     console.log('[RailgunWallet] 📡 Calling createRailgunWallet...');
 
     const result = await createRailgunWallet(
-      encryptionKey,
+      normalizedKey,  // Use normalized key
       mnemonic,
       creationBlockNumber
     );
@@ -121,9 +152,11 @@ export const createWallet = async (encryptionKey, mnemonic, creationBlockNumber)
 
 export const loadWallet = async (encryptionKey, walletID, isViewOnlyWallet) => {
   try {
-    console.log('[RailgunWallet] 📥 Loading wallet with encryption key:');
-    console.log('[RailgunWallet] 🔐 Encryption Key length:', encryptionKey?.length);
-    console.log('[RailgunWallet] 🔑 Encryption Key prefix:', encryptionKey?.slice(0, 16) + '...');
+    console.log('[RailgunWallet] 📥 Loading wallet with encryption key...');
+
+    // Normalize encryption key before SDK call
+    const normalizedKey = normalizeEncKey(encryptionKey);
+
     console.log('[RailgunWallet] 🆔 Wallet ID prefix:', walletID?.slice(0, 8));
     console.log('[RailgunWallet] 👁️ Is View-Only Wallet:', isViewOnlyWallet);
 
@@ -132,7 +165,7 @@ export const loadWallet = async (encryptionKey, walletID, isViewOnlyWallet) => {
     console.log('[RailgunWallet] 📡 Calling loadWalletByID...');
 
     const result = await loadWalletByID(
-      encryptionKey,
+      normalizedKey,  // Use normalized key
       walletID,
       isViewOnlyWallet
     );
@@ -158,10 +191,12 @@ export const loadWallet = async (encryptionKey, walletID, isViewOnlyWallet) => {
  */
 export const loadViewOnlyWallet = async (shareableViewingKey, creationBlockNumbers, encKeyHex) => {
   try {
-    console.log('[RailgunWallet] 👁️ Creating view-only wallet with encryption key:');
+    console.log('[RailgunWallet] 👁️ Creating view-only wallet...');
+
+    // Normalize encryption key before SDK call
+    const normalizedKey = normalizeEncKey(encKeyHex);
+
     console.log('[RailgunWallet] 👁️ Viewing Key length:', shareableViewingKey?.length);
-    console.log('[RailgunWallet] 🔐 Encryption Key length:', encKeyHex?.length);
-    console.log('[RailgunWallet] 🔑 Encryption Key prefix:', encKeyHex?.slice(0, 16) + '...');
     console.log('[RailgunWallet] 📊 Creation Block Numbers:', creationBlockNumbers);
 
     await waitForRailgunReady();
@@ -169,7 +204,7 @@ export const loadViewOnlyWallet = async (shareableViewingKey, creationBlockNumbe
     console.log('[RailgunWallet] 📡 Calling createViewOnlyRailgunWallet...');
 
     const result = await createViewOnlyRailgunWallet(
-      encKeyHex,
+      normalizedKey,  // Use normalized key
       shareableViewingKey,
       creationBlockNumbers
     );
@@ -184,7 +219,7 @@ export const loadViewOnlyWallet = async (shareableViewingKey, creationBlockNumbe
     };
 
   } catch (error) {
-    console.error('[RailgunWallet] ❌ View-only wallet loading failed:', error);
+    console.error('[RailgunWallet] ❌ View-only wallet creation failed:', error);
     throw new Error(`View-only wallet loading failed: ${error.message}`);
   }
 };
@@ -339,6 +374,7 @@ export const clearAllWallets = async () => {
 
 // Export for use in other modules
 export default {
+  normalizeEncKey,
   deriveEncryptionKey,
   createWallet,
   loadWallet,
