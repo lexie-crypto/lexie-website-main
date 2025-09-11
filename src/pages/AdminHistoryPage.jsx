@@ -25,7 +25,6 @@ const AdminDashboard = () => {
   // Metadata state
   const [resolvedWalletId, setResolvedWalletId] = useState(null);
   const [resolvedWalletAddress, setResolvedWalletAddress] = useState(null);
-  const [viewingKey, setViewingKey] = useState(null);
   const [encryptionKey, setEncryptionKey] = useState(null);
 
   // View-only wallet state
@@ -105,61 +104,58 @@ const AdminDashboard = () => {
 
       const data = await response.json();
 
-      if (data.success && data.keys && data.keys.length > 0) {
-        // Find the key with viewing key
-        const keyWithViewingKey = data.keys.find(key => key.viewingKey);
-        if (keyWithViewingKey) {
-          setResolvedWalletId(keyWithViewingKey.walletId);
-          setResolvedWalletAddress(searchQuery);
-          setViewingKey(keyWithViewingKey.viewingKey);
-          // Don't set encryption key from metadata - it's invalid format
+        if (data.success && data.keys && data.keys.length > 0) {
+          // Find the first wallet metadata entry
+          const walletMetadata = data.keys[0];
+          if (walletMetadata && walletMetadata.walletId) {
+            setResolvedWalletId(walletMetadata.walletId);
+            setResolvedWalletAddress(searchQuery);
 
-          console.log('[AdminHistoryPage] 📦 Metadata extracted:');
-          console.log('[AdminHistoryPage] 🆔 Wallet ID:', keyWithViewingKey.walletId);
-          console.log('[AdminHistoryPage] 👁️ Viewing Key:', keyWithViewingKey.viewingKey ? `(length: ${keyWithViewingKey.viewingKey.length})` : 'null');
-          console.log('[AdminHistoryPage] 🔐 Metadata encryption key:', keyWithViewingKey.encryptionKey ? `(length: ${keyWithViewingKey.encryptionKey.length}, INVALID - ignoring)` : 'null');
+            console.log('[AdminHistoryPage] 📦 Metadata extracted:');
+            console.log('[AdminHistoryPage] 🆔 Wallet ID:', walletMetadata.walletId);
+            console.log('[AdminHistoryPage] 🔐 Metadata encryption key:', walletMetadata.encryptionKey ? `(length: ${walletMetadata.encryptionKey.length}, INVALID - ignoring)` : 'null');
 
-          addLog(`✅ Wallet metadata retrieved successfully`, 'success');
+            addLog(`✅ Wallet metadata retrieved successfully`, 'success');
 
-          // Ignore metadata.encryptionKey - derive locally instead
-          try {
-            let derivedEncryptionKey = null;
+            // Ignore metadata.encryptionKey - derive locally instead
+            try {
+              let derivedEncryptionKey = null;
 
-            // First try to get from current active wallet
-            derivedEncryptionKey = getCurrentEncryptionKey();
+              // First try to get from current active wallet
+              derivedEncryptionKey = getCurrentEncryptionKey();
 
-            // If no current wallet, derive using deterministic approach
-            if (!derivedEncryptionKey) {
-              console.log('[AdminHistoryPage] 🔐 Deriving encryption key locally for:', searchQuery);
-              // Use Ethereum chain (1) as default for derivation
-              derivedEncryptionKey = await deriveWalletEncryptionKey(searchQuery, 1);
-            }
+              // If no current wallet, derive using deterministic approach
+              if (!derivedEncryptionKey) {
+                console.log('[AdminHistoryPage] 🔐 Deriving encryption key locally for:', searchQuery);
+                // Use Ethereum chain (1) as default for derivation
+                derivedEncryptionKey = await deriveWalletEncryptionKey(searchQuery, 1);
+              }
 
-            if (derivedEncryptionKey) {
-              setEncryptionKey(derivedEncryptionKey);
+              if (derivedEncryptionKey) {
+                setEncryptionKey(derivedEncryptionKey);
 
-              console.log('[AdminHistoryPage] 🔐 Local encryption key derivation details:');
-              console.log('[AdminHistoryPage] 📏 Derived key length:', derivedEncryptionKey.length);
-              console.log('[AdminHistoryPage] ✅ Valid 64 hex characters?', derivedEncryptionKey.length === 64 && /^[a-f0-9]{64}$/i.test(derivedEncryptionKey));
+                console.log('[AdminHistoryPage] 🔐 Local encryption key derivation details:');
+                console.log('[AdminHistoryPage] 📏 Derived key length:', derivedEncryptionKey.length);
+                console.log('[AdminHistoryPage] ✅ Valid 64 hex characters?', derivedEncryptionKey.length === 64 && /^[a-f0-9]{64}$/i.test(derivedEncryptionKey));
 
-              addLog(`🔐 Encryption key derived locally: YES (${derivedEncryptionKey.slice(0, 16)}...)`, 'success');
-              addLog(`📝 Will create view-only wallet directly from SVK`, 'info');
-              console.log('[AdminHistoryPage] ✅ Local encryption key available for view-only wallet');
-            } else {
+                addLog(`🔐 Encryption key derived locally: YES (${derivedEncryptionKey.slice(0, 16)}...)`, 'success');
+                addLog(`📝 Will create view-only wallet from full wallet`, 'info');
+                console.log('[AdminHistoryPage] ✅ Local encryption key available for view-only wallet');
+              } else {
+                setEncryptionKey(null);
+                addLog(`⚠️ Could not derive encryption key - view-only wallet creation disabled`, 'warning');
+                console.log('[AdminHistoryPage] ⚠️ Encryption key derivation failed');
+              }
+            } catch (deriveError) {
+              console.error('[AdminHistoryPage] ❌ Local encryption key derivation failed:', deriveError);
               setEncryptionKey(null);
-              addLog(`⚠️ Could not derive encryption key - view-only wallet creation disabled`, 'warning');
-              console.log('[AdminHistoryPage] ⚠️ Encryption key derivation failed');
+              addLog(`❌ Could not derive encryption key: ${deriveError.message}`, 'error');
             }
-          } catch (deriveError) {
-            console.error('[AdminHistoryPage] ❌ Local encryption key derivation failed:', deriveError);
-            setEncryptionKey(null);
-            addLog(`❌ Could not derive encryption key: ${deriveError.message}`, 'error');
-          }
 
-          addLog(`📍 Wallet ID: ${keyWithViewingKey.walletId.slice(0, 8)}...`, 'info');
-        } else {
-          throw new Error('No viewing key found in wallet metadata');
-        }
+            addLog(`📍 Wallet ID: ${walletMetadata.walletId.slice(0, 8)}...`, 'info');
+          } else {
+            throw new Error('No wallet metadata found');
+          }
       } else {
         throw new Error(data.error || 'No wallet metadata found');
       }
@@ -173,7 +169,7 @@ const AdminDashboard = () => {
 
 
 
-  // Create view-only wallet using SVK directly from metadata (MATCH OFFICIAL DOCS)
+  // Create view-only wallet using OFFICIAL SDK FLOW (MATCH wallets.ts EXACTLY)
   const createViewOnlyWallet = async () => {
     if (!resolvedWalletId) {
       addLog('Missing wallet ID for view-only wallet creation', 'error');
@@ -182,12 +178,6 @@ const AdminDashboard = () => {
 
     if (!encryptionKey) {
       addLog('❌ Cannot create view-only wallet: No encryption key available', 'error');
-      setViewOnlyWallet(null);
-      return;
-    }
-
-    if (!viewingKey) {
-      addLog('❌ Cannot create view-only wallet: No viewing key available from metadata', 'error');
       setViewOnlyWallet(null);
       return;
     }
@@ -206,27 +196,44 @@ const AdminDashboard = () => {
         encryptionKeyPrefix: encryptionKey?.slice(0, 16) + '...'
       });
 
-      // STEP 1: Normalize SVK from metadata (MATCH OFFICIAL DOCS)
-      addLog('🔑 Normalizing SVK from metadata...', 'info');
-      console.log('[AdminHistoryPage] 📋 Raw viewing key from metadata:', {
-        length: viewingKey?.length,
-        prefix: viewingKey?.slice(0, 16) + '...'
+      // STEP 1: Load/create full wallet locally (MATCH OFFICIAL SDK)
+      addLog('📥 Loading full wallet locally...', 'info');
+      console.log('[AdminHistoryPage] 📥 Attempting to load full wallet:', {
+        walletId: resolvedWalletId?.slice(0, 8) + '...',
+        isViewOnlyWallet: false
       });
 
-      const shareableViewingKey = normalizeAndValidateSVK(viewingKey);
+      let fullWalletLoaded = false;
+      try {
+        // Try to load existing full wallet
+        await loadWallet(encryptionKey, resolvedWalletId, false);
+        fullWalletLoaded = true;
+        console.log('[AdminHistoryPage] ✅ Full wallet loaded successfully');
+        addLog(`✅ Full wallet loaded: ${resolvedWalletId?.slice(0, 8)}...`, 'success');
+      } catch (loadError) {
+        console.log('[AdminHistoryPage] ⚠️ Full wallet not found locally:', loadError.message);
+        addLog('⚠️ Full wallet not found locally - cannot create view-only wallet', 'warning');
+        addLog('💡 View-only wallets require the original full wallet to exist locally', 'info');
+        throw new Error('Full wallet must exist locally to create view-only wallet');
+      }
 
-      console.log('[AdminHistoryPage] ✅ SVK normalized and validated:', {
-        originalLength: viewingKey?.length,
-        normalizedLength: shareableViewingKey?.length,
-        prefix: shareableViewingKey?.slice(0, 16) + '...'
+      // STEP 2: Generate SVK from loaded full wallet (MATCH OFFICIAL SDK)
+      addLog('🔑 Generating SVK from loaded full wallet...', 'info');
+      console.log('[AdminHistoryPage] 🔑 Generating SVK from wallet ID:', resolvedWalletId?.slice(0, 8) + '...');
+
+      const shareableViewingKey = await generateShareableViewingKey(resolvedWalletId);
+
+      console.log('[AdminHistoryPage] ✅ SVK generated from full wallet:', {
+        svkLength: shareableViewingKey?.length,
+        svkPrefix: shareableViewingKey?.slice(0, 16) + '...'
       });
 
       // Log the full SVK for debugging (as requested)
       console.log(`[AdminHistoryPage] 👁️ Using SVK for view-only wallet: ${shareableViewingKey}`);
-      addLog(`✅ SVK normalized: ${shareableViewingKey?.slice(0, 16)}...`, 'success');
+      addLog(`✅ SVK generated: ${shareableViewingKey?.slice(0, 16)}...`, 'success');
 
-      // STEP 2: Create view-only wallet using SVK directly (MATCH OFFICIAL DOCS)
-      addLog('🏗️ Creating view-only wallet with SVK...', 'info');
+      // STEP 3: Create view-only wallet with generated SVK (MATCH OFFICIAL SDK)
+      addLog('🏗️ Creating view-only wallet with generated SVK...', 'info');
       console.log('[AdminHistoryPage] 📡 Creating view-only wallet with:', {
         shareableViewingKeyLength: shareableViewingKey?.length,
         creationBlockNumbers: undefined, // Pass undefined instead of {}
@@ -247,7 +254,7 @@ const AdminDashboard = () => {
       addLog(`✅ View-only wallet created: ${viewOnlyWalletInfo.id?.slice(0, 8)}...`, 'success');
       addLog(`✅ Railgun Address: ${viewOnlyWalletInfo.railgunAddress}`, 'success');
 
-      // STEP 3: Load the view-only wallet for history (MATCH OFFICIAL DOCS)
+      // STEP 4: Load the view-only wallet for history (MATCH OFFICIAL SDK)
       addLog('📥 Loading view-only wallet for history access...', 'info');
       console.log('[AdminHistoryPage] 📥 Loading view-only wallet for history:', {
         viewOnlyWalletId: viewOnlyWalletInfo.id?.slice(0, 8) + '...',
