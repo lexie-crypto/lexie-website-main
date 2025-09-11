@@ -830,6 +830,32 @@ export const monitorTransactionInGraph = async ({
 
                     if (response.ok) {
                       console.log('[TransactionMonitor] ✅ Shield note captured successfully');
+
+                      // 📥 Also record to admin timeline via backend (HMAC added server-side)
+                      try {
+                        const tlBody = {
+                          walletId,
+                          event: {
+                            traceId: shieldCommitment.hash || txHash,
+                            type: 'shield',
+                            txHash,
+                            status: 'mined',
+                            token: tokenSymbol,
+                            amount: transactionDetails?.amount?.toString?.() || '0',
+                            zkAddr: walletAddress,
+                            nullifiers: [],
+                            memo: null,
+                            timestamp: Math.floor((shieldCommitment.blockTimestamp || Date.now()/1000))
+                          }
+                        };
+                        await fetch('/api/wallet-metadata?action=timeline-append', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify(tlBody)
+                        });
+                      } catch (e) {
+                        console.warn('[TransactionMonitor] ⚠️ Timeline append (shield) failed:', e?.message);
+                      }
                     } else {
                       const errorText = await response.text();
                       console.error('[TransactionMonitor] ❌ Failed to capture shield note:', {
@@ -967,6 +993,31 @@ export const monitorTransactionInGraph = async ({
                       try { json = await response.json(); } catch (_) {}
                       if (json?.success) {
                         console.log('[TransactionMonitor] ✅ Unshield processed atomically');
+                        // 📥 Record unshield to admin timeline
+                        try {
+                          const tlBody = {
+                            walletId,
+                            event: {
+                              traceId: (spentCommitmentHashHint || nullifierEvent?.nullifier) || txHash,
+                              type: 'unshield',
+                              txHash: nullifierEvent?.transactionHash || txHash,
+                              status: 'mined',
+                              token: transactionDetails?.tokenSymbol || 'UNKNOWN',
+                              amount: transactionDetails?.amount?.toString?.() || '0',
+                              zkAddr: walletAddress,
+                              nullifiers: [spentCommitmentHashHint || nullifierEvent?.nullifier].filter(Boolean),
+                              memo: null,
+                              timestamp: Number(nullifierEvent?.blockTimestamp) || Math.floor(Date.now()/1000)
+                            }
+                          };
+                          await fetch('/api/wallet-metadata?action=timeline-append', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(tlBody)
+                          });
+                        } catch (e) {
+                          console.warn('[TransactionMonitor] ⚠️ Timeline append (unshield) failed:', e?.message);
+                        }
                       } else {
                         console.warn('[TransactionMonitor] ⚠️ Unshield processing returned non-success JSON:', json);
                       }
@@ -1061,6 +1112,35 @@ export const monitorTransactionInGraph = async ({
         window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
           detail: eventDetail
         }));
+
+        // 🧾 Append transfer to admin timeline when applicable
+        try {
+          if (transactionType === 'transfer' && transactionDetails?.walletId && transactionDetails?.walletAddress) {
+            const tlBody = {
+              walletId: transactionDetails.walletId,
+              event: {
+                traceId: txHash,
+                type: 'transfer_send',
+                txHash,
+                status: 'mined',
+                token: transactionDetails?.tokenSymbol || 'UNKNOWN',
+                amount: transactionDetails?.amount?.toString?.() || '0',
+                zkAddr: transactionDetails.walletAddress,
+                nullifiers: [],
+                memo: null,
+                timestamp: Math.floor(Date.now()/1000),
+                recipientAddress: transactionDetails?.recipientAddress
+              }
+            };
+            await fetch('/api/wallet-metadata?action=timeline-append', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(tlBody)
+            });
+          }
+        } catch (e) {
+          console.warn('[TransactionMonitor] ⚠️ Timeline append (transfer) failed:', e?.message);
+        }
 
         // ⚙️ Centralized refresh & persist using shared utility
         try {

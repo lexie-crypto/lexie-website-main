@@ -346,6 +346,46 @@ export default async function handler(req, res) {
     return; // Exit after handling history routes
   }
 
+  // Handle timeline append from frontend monitor (HMAC added server-side)
+  if (req.method === 'POST' && action === 'timeline-append') {
+    try {
+      const body = req.body || {};
+      const walletIdBody = body.walletId;
+      const event = body.event;
+
+      if (!walletIdBody || !event) {
+        return res.status(400).json({ success: false, error: 'Missing walletId or event' });
+      }
+
+      // Forward to backend timeline append endpoint
+      const backendPath = `/api/wallet-metadata/timeline-append/${encodeURIComponent(walletIdBody)}`;
+      const backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+
+      const signature = generateHmacSignature('POST', backendPath, timestamp, hmacSecret);
+      const headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Lexie-Timestamp': timestamp,
+        'X-Lexie-Signature': signature,
+        'Origin': 'https://staging.lexiecrypto.com',
+        'User-Agent': 'Lexie-Wallet-Proxy/1.0',
+      };
+
+      const backendResp = await fetch(backendUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ event }),
+        signal: AbortSignal.timeout(30000),
+      });
+
+      const result = await backendResp.json();
+      return res.status(backendResp.status).json(result);
+    } catch (err) {
+      console.error('❌ [WALLET-METADATA-PROXY] timeline-append error:', err);
+      return res.status(500).json({ success: false, error: 'timeline-append proxy error' });
+    }
+  }
+
   // Original wallet-metadata logic continues below
   console.log(`📊 [PROXY-${requestId}] Processing as regular wallet-metadata route`);
   if (req.method === 'GET') {
