@@ -523,7 +523,7 @@ export const monitorTransactionInGraph = async ({
         
         const receipt = await provider.getTransactionReceipt(txHash);
         blockNumber = receipt?.blockNumber;
-        
+
         console.log(`[TransactionMonitor] Transaction receipt result:`, {
           txHash,
           chainId,
@@ -532,11 +532,108 @@ export const monitorTransactionInGraph = async ({
           status: receipt?.status,
           logs: receipt?.logs?.length || 0
         });
-        
+
+        // 🚀 SAVE TO REDIS TIMELINE AFTER RECEIPT CONFIRMATION
+        if (transactionDetails?.walletId && receipt) {
+          try {
+            console.log('[TransactionMonitor] 🧾 Saving confirmed transaction to Redis timeline...');
+
+            // Determine transaction status based on receipt
+            const transactionStatus = receipt.status === 1 ? 'confirmed' : 'failed';
+
+            // Convert transaction details to timeline event format
+            let eventData = null;
+
+            if (transactionType === 'shield') {
+              eventData = {
+                traceId: txHash,
+                type: 'shield',
+                txHash: txHash,
+                status: transactionStatus,
+                token: transactionDetails?.tokenSymbol || 'UNKNOWN',
+                amount: transactionDetails?.amount?.toString() || '0',
+                zkAddr: transactionDetails?.walletAddress || 'unknown',
+                nullifiers: [],
+                memo: null,
+                timestamp: Math.floor(Date.now() / 1000),
+                blockNumber: receipt.blockNumber,
+                recipientAddress: null,
+                senderAddress: null
+              };
+            } else if (transactionType === 'unshield') {
+              eventData = {
+                traceId: txHash,
+                type: 'unshield',
+                txHash: txHash,
+                status: transactionStatus,
+                token: transactionDetails?.tokenSymbol || 'UNKNOWN',
+                amount: transactionDetails?.amount?.toString() || '0',
+                zkAddr: transactionDetails?.walletAddress || 'unknown',
+                nullifiers: [],
+                memo: null,
+                timestamp: Math.floor(Date.now() / 1000),
+                blockNumber: receipt.blockNumber,
+                recipientAddress: transactionDetails?.recipientAddress || null,
+                senderAddress: null
+              };
+            } else if (transactionType === 'transfer') {
+              eventData = {
+                traceId: txHash,
+                type: 'transfer_send',
+                txHash: txHash,
+                status: transactionStatus,
+                token: transactionDetails?.tokenSymbol || 'UNKNOWN',
+                amount: transactionDetails?.amount?.toString() || '0',
+                zkAddr: transactionDetails?.walletAddress || 'unknown',
+                nullifiers: [],
+                memo: transactionDetails?.memoText || null,
+                timestamp: Math.floor(Date.now() / 1000),
+                blockNumber: receipt.blockNumber,
+                recipientAddress: transactionDetails?.recipientAddress || null,
+                senderAddress: null
+              };
+            }
+
+            if (eventData) {
+              const tlBody = {
+                walletId: transactionDetails.walletId,
+                event: eventData
+              };
+
+              console.log('[TransactionMonitor] 📡 Saving to Redis via proxy after receipt:', {
+                walletId: transactionDetails.walletId?.slice(0, 10) + '...',
+                type: eventData.type,
+                txHash: txHash?.slice(0, 10) + '...',
+                status: transactionStatus,
+                blockNumber: receipt.blockNumber
+              });
+
+              // Save through frontend proxy (adds HMAC automatically)
+              const saveResponse = await fetch('/api/wallet-metadata?action=timeline-append', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(tlBody)
+              });
+
+              if (saveResponse.ok) {
+                console.log(`[TransactionMonitor] ✅ Successfully saved ${transactionStatus} transaction to Redis timeline`);
+              } else {
+                console.warn('[TransactionMonitor] ⚠️ Failed to save transaction to timeline:', {
+                  status: saveResponse.status,
+                  txHash: txHash?.slice(0, 10) + '...'
+                });
+              }
+            }
+          } catch (saveError) {
+            console.warn('[TransactionMonitor] ⚠️ Error saving transaction to timeline (non-critical):', saveError?.message);
+            // Don't throw - timeline saving is not critical to transaction processing
+          }
+        }
+
         if (!receipt) {
           console.warn(`[TransactionMonitor] ⚠️ No receipt found for ${txHash} on chain ${chainId} - transaction may not be mined yet`);
         }
-        
+
         if (!blockNumber) {
           console.warn(`[TransactionMonitor] ⚠️ No block number in receipt for ${txHash} on chain ${chainId}`);
           // Use current block number as fallback
@@ -546,6 +643,100 @@ export const monitorTransactionInGraph = async ({
         }
       } catch (receiptError) {
         console.error(`[TransactionMonitor] ❌ Failed to fetch transaction receipt for ${txHash} on chain ${chainId}:`, receiptError);
+
+        // 🚀 SAVE TO REDIS TIMELINE EVEN IF RECEIPT FAILS (mark as pending)
+        if (transactionDetails?.walletId) {
+          try {
+            console.log('[TransactionMonitor] 🧾 Saving pending transaction to Redis timeline (receipt not available yet)...');
+
+            // Convert transaction details to timeline event format
+            let eventData = null;
+
+            if (transactionType === 'shield') {
+              eventData = {
+                traceId: txHash,
+                type: 'shield',
+                txHash: txHash,
+                status: 'pending', // Receipt not available yet
+                token: transactionDetails?.tokenSymbol || 'UNKNOWN',
+                amount: transactionDetails?.amount?.toString() || '0',
+                zkAddr: transactionDetails?.walletAddress || 'unknown',
+                nullifiers: [],
+                memo: null,
+                timestamp: Math.floor(Date.now() / 1000),
+                blockNumber: null, // Will be updated when receipt is available
+                recipientAddress: null,
+                senderAddress: null
+              };
+            } else if (transactionType === 'unshield') {
+              eventData = {
+                traceId: txHash,
+                type: 'unshield',
+                txHash: txHash,
+                status: 'pending',
+                token: transactionDetails?.tokenSymbol || 'UNKNOWN',
+                amount: transactionDetails?.amount?.toString() || '0',
+                zkAddr: transactionDetails?.walletAddress || 'unknown',
+                nullifiers: [],
+                memo: null,
+                timestamp: Math.floor(Date.now() / 1000),
+                blockNumber: null,
+                recipientAddress: transactionDetails?.recipientAddress || null,
+                senderAddress: null
+              };
+            } else if (transactionType === 'transfer') {
+              eventData = {
+                traceId: txHash,
+                type: 'transfer_send',
+                txHash: txHash,
+                status: 'pending',
+                token: transactionDetails?.tokenSymbol || 'UNKNOWN',
+                amount: transactionDetails?.amount?.toString() || '0',
+                zkAddr: transactionDetails?.walletAddress || 'unknown',
+                nullifiers: [],
+                memo: transactionDetails?.memoText || null,
+                timestamp: Math.floor(Date.now() / 1000),
+                blockNumber: null,
+                recipientAddress: transactionDetails?.recipientAddress || null,
+                senderAddress: null
+              };
+            }
+
+            if (eventData) {
+              const tlBody = {
+                walletId: transactionDetails.walletId,
+                event: eventData
+              };
+
+              console.log('[TransactionMonitor] 📡 Saving pending transaction to Redis (receipt failed):', {
+                walletId: transactionDetails.walletId?.slice(0, 10) + '...',
+                type: eventData.type,
+                txHash: txHash?.slice(0, 10) + '...',
+                status: 'pending'
+              });
+
+              // Save through frontend proxy (adds HMAC automatically)
+              const saveResponse = await fetch('/api/wallet-metadata?action=timeline-append', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(tlBody)
+              });
+
+              if (saveResponse.ok) {
+                console.log('[TransactionMonitor] ✅ Successfully saved pending transaction to Redis timeline');
+              } else {
+                console.warn('[TransactionMonitor] ⚠️ Failed to save pending transaction to timeline:', {
+                  status: saveResponse.status,
+                  txHash: txHash?.slice(0, 10) + '...'
+                });
+              }
+            }
+          } catch (saveError) {
+            console.warn('[TransactionMonitor] ⚠️ Error saving pending transaction to timeline (non-critical):', saveError?.message);
+            // Don't throw - timeline saving is not critical to transaction processing
+          }
+        }
+
         // Use current block number as fallback
         try {
           const currentBlock = await provider.getBlockNumber();
