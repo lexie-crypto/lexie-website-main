@@ -11,7 +11,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { loadViewOnlyWallet, generateViewingKey, loadWallet } from '../utils/railgun/wallet.js';
+import { loadViewOnlyWallet, generateViewingKey, loadWallet, unloadWallet } from '../utils/railgun/wallet.js';
 import { waitForRailgunReady } from '../utils/railgun/engine.js';
 import { getTransactionHistory } from '../utils/railgun/transactionHistory.js';
 
@@ -54,6 +54,13 @@ const AdminDashboard = () => {
 
   // Clear all state
   const clearState = () => {
+    // Unload wallet if it's loaded
+    if (resolvedWalletId) {
+      unloadWallet(resolvedWalletId).catch(error =>
+        console.warn('[AdminHistoryPage] Failed to unload wallet on clear:', error)
+      );
+    }
+
     setResolvedWalletId(null);
     setResolutionType(null);
     setResolvedWalletAddress(null);
@@ -161,6 +168,10 @@ const AdminDashboard = () => {
       addLog(`✅ View-only wallet created successfully: ${viewOnlyWalletInfo.id.slice(0, 8)}...`, 'success');
       addLog(`✅ Railgun Address: ${viewOnlyWalletInfo.railgunAddress}`, 'success');
 
+      // IMPORTANT: Keep the original wallet loaded for transaction history!
+      // Do NOT unload it here - let it stay loaded for the history feature
+      addLog(`🔄 Keeping original wallet loaded for transaction history access`, 'info');
+
     } catch (error) {
       addLog(`❌ View-only wallet creation failed: ${error.message}`, 'error');
       console.error('[AdminHistoryPage] View-only wallet creation error:', error);
@@ -169,7 +180,7 @@ const AdminDashboard = () => {
     }
   };
 
-  // Get transaction history using official SDK
+  // Get transaction history using official SDK (SAME AS WALLET PAGE)
   const getWalletHistory = async () => {
     if (!resolvedWalletId) {
       addLog('No wallet ID available for history', 'error');
@@ -180,11 +191,11 @@ const AdminDashboard = () => {
     addLog(`🔍 Getting transaction history for wallet: ${resolvedWalletId.slice(0, 8)}... on chain ${selectedHistoryChain}`, 'info');
 
     try {
-      // Ensure Railgun engine is ready
+      // Ensure Railgun engine is ready (SAME AS WALLET PAGE)
       await waitForRailgunReady();
       addLog('✅ Railgun engine ready', 'success');
 
-      // Get transaction history using official SDK
+      // Get transaction history using official SDK (SAME AS WALLET PAGE)
       const history = await getTransactionHistory(resolvedWalletId, selectedHistoryChain);
 
       setTransactionHistory(history);
@@ -209,6 +220,17 @@ const AdminDashboard = () => {
       createViewOnlyWallet();
     }
   }, [resolvedWalletId, encryptionKey, viewOnlyWallet, isCreatingViewOnly]);
+
+  // Cleanup: Unload wallet when component unmounts
+  useEffect(() => {
+    return () => {
+      if (resolvedWalletId) {
+        unloadWallet(resolvedWalletId).catch(error =>
+          console.warn('[AdminHistoryPage] Failed to unload wallet on unmount:', error)
+        );
+      }
+    };
+  }, [resolvedWalletId]);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
