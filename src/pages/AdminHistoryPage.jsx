@@ -57,16 +57,31 @@ const AdminDashboard = () => {
     addLog(`🔍 Searching for: ${searchQuery}`, 'info');
 
     try {
-      // Step 1: Resolve identifier to wallet ID
+      // Step 1: Resolve identifier to wallet ID using new path-based endpoints
       addLog('🔍 Resolving identifier to wallet ID...', 'info');
 
-      const resolveParams = new URLSearchParams({
-        action: 'history',
-        subaction: 'resolve',
-        q: searchQuery
-      });
+      let resolveEndpoint = '';
+      let queryType = '';
 
-      const resolveResponse = await fetch(`/api/wallet-metadata?${resolveParams}`, {
+      // Determine which resolve endpoint to use based on search type and query format
+      if (searchType === 'eoa' || searchQuery.startsWith('0x')) {
+        resolveEndpoint = `/api/wallet-metadata/resolve-wallet-id/by-eoa/${encodeURIComponent(searchQuery)}`;
+        queryType = 'EOA';
+      } else if (searchType === 'zkaddress' || searchQuery.startsWith('0zk')) {
+        resolveEndpoint = `/api/wallet-metadata/resolve-wallet-id/by-railgun/${encodeURIComponent(searchQuery)}`;
+        queryType = 'Railgun Address';
+      } else if (searchType === 'txhash' || searchQuery.startsWith('0x')) {
+        resolveEndpoint = `/api/wallet-metadata/resolve-wallet-id/by-tx/${encodeURIComponent(searchQuery)}`;
+        queryType = 'Transaction Hash';
+      } else {
+        // Fallback: try transaction hash if it looks like a tx hash
+        resolveEndpoint = `/api/wallet-metadata/resolve-wallet-id/by-tx/${encodeURIComponent(searchQuery)}`;
+        queryType = 'Transaction ID';
+      }
+
+      addLog(`🔍 Using ${queryType} resolver: ${resolveEndpoint}`, 'info');
+
+      const resolveResponse = await fetch(resolveEndpoint, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -87,9 +102,9 @@ const AdminDashboard = () => {
       }
 
       setWalletId(resolveData.walletId);
-      setResolutionType(resolveData.resolutionType);
+      setResolutionType(resolveData.resolutionType || queryType);
 
-      addLog(`✅ Found wallet: ${resolveData.walletId.slice(0, 8)}... (${resolveData.resolutionType})`, 'success');
+      addLog(`✅ Found wallet: ${resolveData.walletId.slice(0, 8)}... (${resolveData.resolutionType || queryType})`, 'success');
 
       // Step 2: Get transaction history from wallet timeline endpoint
       await loadWalletTimeline(resolveData.walletId);
