@@ -15,6 +15,106 @@ import {
 } from '../utils/railgun/transactionHistory';
 
 /**
+ * Sync new transactions from live history to Redis timeline
+ * Only saves transactions that aren't already in the timeline (efficient deduplication)
+ */
+const syncNewTransactionsToTimeline = async (liveHistory, walletId) => {
+  if (!liveHistory?.length || !walletId) return;
+
+  try {
+    console.log('[useTransactionHistory] 🔄 Checking for new transactions to sync to timeline...', {
+      liveHistoryCount: liveHistory.length,
+      walletId: walletId?.slice(0, 8) + '...'
+    });
+
+    // Fetch current stored timeline
+    const storedResponse = await fetch(`/api/wallet-metadata/wallet-timeline/${walletId}?page=1&pageSize=1000`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    let storedTimeline = [];
+    if (storedResponse.ok) {
+      const storedData = await storedResponse.json();
+      storedTimeline = storedData?.timeline || [];
+    } else {
+      console.warn('[useTransactionHistory] ⚠️ Could not fetch stored timeline, will save all transactions');
+    }
+
+    // Create set of stored transaction IDs for quick lookup
+    const storedTxIds = new Set(storedTimeline.map(tx => tx.txid));
+    console.log('[useTransactionHistory] 📊 Timeline comparison:', {
+      storedCount: storedTimeline.length,
+      liveCount: liveHistory.length,
+      storedTxIds: storedTxIds.size
+    });
+
+    // Find new transactions that aren't in the stored timeline
+    const newTransactions = liveHistory.filter(tx => !storedTxIds.has(tx.txid));
+
+    if (newTransactions.length === 0) {
+      console.log('[useTransactionHistory] ✅ No new transactions to sync');
+      return;
+    }
+
+    console.log('[useTransactionHistory] 📝 Found new transactions to sync:', {
+      newCount: newTransactions.length,
+      newTxIds: newTransactions.map(tx => tx.txid?.slice(0, 10) + '...')
+    });
+
+    // Save each new transaction to the timeline
+    for (const tx of newTransactions) {
+      try {
+        // Convert transaction to timeline event format
+        const event = {
+          traceId: tx.txid,
+          type: tx.category?.toLowerCase().replace('_', '_') || 'unknown', // shield, unshield, transfer_send, transfer_receive
+          txHash: tx.txid,
+          status: 'mined',
+          token: tx.tokenAmounts?.[0]?.symbol || 'UNKNOWN',
+          amount: tx.tokenAmounts?.[0]?.amount || '0',
+          zkAddr: tx.raw?.broadcasterFeeERC20Amount?.recipient || tx.raw?.transferERC20Amounts?.[0]?.recipientAddress || 'unknown',
+          nullifiers: tx.nullifiers || [],
+          memo: tx.memo || null,
+          timestamp: tx.timestamp || Math.floor(Date.now() / 1000),
+          recipientAddress: tx.recipientAddress,
+          senderAddress: tx.senderAddress
+        };
+
+        const tlBody = { walletId, event };
+        const saveResponse = await fetch('/api/wallet-metadata?action=timeline-append', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(tlBody)
+        });
+
+        if (!saveResponse.ok) {
+          console.warn('[useTransactionHistory] ⚠️ Failed to save transaction to timeline:', {
+            txId: tx.txid?.slice(0, 10) + '...',
+            status: saveResponse.status
+          });
+        } else {
+          console.log('[useTransactionHistory] ✅ Saved new transaction to timeline:', {
+            txId: tx.txid?.slice(0, 10) + '...',
+            type: event.type
+          });
+        }
+      } catch (saveError) {
+        console.warn('[useTransactionHistory] ⚠️ Error saving transaction:', saveError?.message);
+      }
+    }
+
+    console.log('[useTransactionHistory] ✅ Transaction timeline sync complete:', {
+      syncedCount: newTransactions.length
+    });
+
+  } catch (error) {
+    console.warn('[useTransactionHistory] ⚠️ Timeline sync failed (non-critical):', error?.message);
+    // Don't throw - this is not critical to showing the UI
+  }
+};
+
+/**
  * Hook for managing RAILGUN transaction history
  * @param {Object} options - Configuration options
  * @param {boolean} options.autoLoad - Whether to auto-load on mount (default: true)
@@ -89,6 +189,9 @@ const useTransactionHistory = ({
       if (limit && history.length > limit) {
         history = history.slice(0, limit);
       }
+
+      // 🧾 SYNC NEW TRANSACTIONS TO REDIS TIMELINE
+      await syncNewTransactionsToTimeline(history, railgunWalletId);
 
       setTransactions(history);
       setLastUpdated(new Date());
