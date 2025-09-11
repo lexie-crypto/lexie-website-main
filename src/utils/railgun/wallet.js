@@ -193,7 +193,27 @@ export const createWallet = async (encryptionKey, mnemonic, creationBlockNumber)
     console.log('[RailgunWallet] 🆔 Wallet ID:', result.id.slice(0, 8));
     console.log('[RailgunWallet] 🚀 Railgun Address:', result.railgunAddress.slice(0, 10));
 
-    return result;
+    // 🚨 NEW: Generate the real SVK using Railgun SDK immediately after wallet creation
+    console.log('[RailgunWallet] 🔑 Generating real SVK from newly created wallet...');
+
+    try {
+      const shareableViewingKey = await generateShareableViewingKey(result.id);
+
+      console.log('[CreateWallet] ✅ SVK generated', {
+        length: shareableViewingKey.length,
+        prefix: shareableViewingKey.slice(0, 16) + '...'
+      });
+
+      // Include the full SVK in the result for backend storage
+      return {
+        ...result,
+        shareableViewingKey
+      };
+
+    } catch (svkError) {
+      console.error('[RailgunWallet] ⚠️ Failed to generate SVK, continuing without it:', svkError);
+      return result;
+    }
 
   } catch (error) {
     console.error('[RailgunWallet] ❌ Wallet creation failed:', error);

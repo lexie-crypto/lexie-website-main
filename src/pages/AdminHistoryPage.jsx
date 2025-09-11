@@ -25,7 +25,8 @@ const AdminDashboard = () => {
   // Metadata state
   const [resolvedWalletId, setResolvedWalletId] = useState(null);
   const [resolvedWalletAddress, setResolvedWalletAddress] = useState(null);
-  const [viewingKey, setViewingKey] = useState(null);
+  const [legacyViewingKey, setLegacyViewingKey] = useState(null);
+  const [shareableViewingKey, setShareableViewingKey] = useState(null);
   const [encryptionKey, setEncryptionKey] = useState(null);
 
   // View-only wallet state
@@ -107,16 +108,18 @@ const AdminDashboard = () => {
 
       if (data.success && data.keys && data.keys.length > 0) {
         // Find the key with viewing key
-        const keyWithViewingKey = data.keys.find(key => key.viewingKey);
+        const keyWithViewingKey = data.keys.find(key => key.shareableViewingKey || key.viewingKey);
         if (keyWithViewingKey) {
           setResolvedWalletId(keyWithViewingKey.walletId);
           setResolvedWalletAddress(searchQuery);
-          setViewingKey(keyWithViewingKey.viewingKey);
+          setLegacyViewingKey(keyWithViewingKey.viewingKey);
+          setShareableViewingKey(keyWithViewingKey.shareableViewingKey);
           // Don't set encryption key from metadata - it's invalid format
 
           console.log('[AdminHistoryPage] 📦 Metadata extracted:');
           console.log('[AdminHistoryPage] 🆔 Wallet ID:', keyWithViewingKey.walletId);
-          console.log('[AdminHistoryPage] 👁️ Viewing Key:', keyWithViewingKey.viewingKey ? `(length: ${keyWithViewingKey.viewingKey.length})` : 'null');
+          console.log('[AdminHistoryPage] 👁️ Full SVK:', keyWithViewingKey.shareableViewingKey ? `(length: ${keyWithViewingKey.shareableViewingKey.length})` : 'null');
+          console.log('[AdminHistoryPage] 👁️ Legacy viewing key:', keyWithViewingKey.viewingKey ? `(length: ${keyWithViewingKey.viewingKey.length})` : 'null');
           console.log('[AdminHistoryPage] 🔐 Metadata encryption key:', keyWithViewingKey.encryptionKey ? `(length: ${keyWithViewingKey.encryptionKey.length}, INVALID - ignoring)` : 'null');
 
           addLog(`✅ Wallet metadata retrieved successfully`, 'success');
@@ -186,7 +189,7 @@ const AdminDashboard = () => {
       return;
     }
 
-    if (!viewingKey) {
+    if (!shareableViewingKey && !legacyViewingKey) {
       addLog('❌ Cannot create view-only wallet: No viewing key available from metadata', 'error');
       setViewOnlyWallet(null);
       return;
@@ -206,17 +209,36 @@ const AdminDashboard = () => {
         encryptionKeyPrefix: encryptionKey?.slice(0, 16) + '...'
       });
 
-      // STEP 1: Normalize SVK from metadata (MATCH OFFICIAL DOCS)
-      addLog('🔑 Normalizing SVK from metadata...', 'info');
-      console.log('[AdminHistoryPage] 📋 Raw viewing key from metadata:', {
-        length: viewingKey?.length,
-        prefix: viewingKey?.slice(0, 16) + '...'
-      });
+      // STEP 1: Use full SVK from metadata (MATCH OFFICIAL DOCS)
+      addLog('🔑 Using full SVK from metadata...', 'info');
 
-      const shareableViewingKey = normalizeAndValidateSVK(viewingKey);
+      // 🚨 NEW: Always use shareableViewingKey from metadata (full SVK from SDK)
+      let metadataViewingKey = null;
+
+      // Check if we have the new full SVK from state
+      if (shareableViewingKey) {
+        console.log('[AdminHistoryPage] ✅ Using full shareableViewingKey from metadata:', {
+          length: shareableViewingKey.length,
+          prefix: shareableViewingKey.slice(0, 16) + '...'
+        });
+        metadataViewingKey = shareableViewingKey;
+        addLog(`✅ Full SVK found: ${shareableViewingKey.slice(0, 16)}...`, 'success');
+      } else if (legacyViewingKey) {
+        // Fallback to old viewing key (should be rare)
+        console.log('[AdminHistoryPage] ⚠️ Using legacy viewingKey from metadata:', {
+          length: legacyViewingKey.length,
+          prefix: legacyViewingKey.slice(0, 16) + '...'
+        });
+        metadataViewingKey = legacyViewingKey;
+        addLog(`⚠️ Legacy viewing key used: ${legacyViewingKey.slice(0, 16)}...`, 'warning');
+      } else {
+        throw new Error('No viewing key found in metadata - cannot create view-only wallet');
+      }
+
+      const shareableViewingKey = normalizeAndValidateSVK(metadataViewingKey);
 
       console.log('[AdminHistoryPage] ✅ SVK normalized and validated:', {
-        originalLength: viewingKey?.length,
+        originalLength: metadataViewingKey?.length,
         normalizedLength: shareableViewingKey?.length,
         prefix: shareableViewingKey?.slice(0, 16) + '...'
       });
