@@ -151,21 +151,34 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   // Complete state reset function for after transactions
   const resetFormState = useCallback(() => {
     console.log('[PrivacyActions] 🔄 Performing complete form state reset...');
+    console.log('[PrivacyActions] 🔄 Before reset - isProcessing:', isProcessing, 'selectedToken:', selectedToken?.symbol, 'amount:', amount);
+
     setAmount('');
     setRecipientAddress('');
     setMemoText('');
     setIsProcessing(false);
+
     // Preserve selectedToken if it's still valid, otherwise set to first available
     setSelectedToken(prev => {
-      if (!Array.isArray(availableTokens) || availableTokens.length === 0) return null;
+      if (!Array.isArray(availableTokens) || availableTokens.length === 0) {
+        console.log('[PrivacyActions] 🔄 No available tokens, setting selectedToken to null');
+        return null;
+      }
+
       const stillValid = prev && availableTokens.some(t =>
         ((t.address || t.tokenAddress) && (prev?.address || prev?.tokenAddress)
           ? String(t.address || t.tokenAddress).toLowerCase() === String(prev?.address || prev?.tokenAddress).toLowerCase()
           : t.symbol === prev?.symbol)
       );
-      return stillValid ? prev : availableTokens[0];
+
+      const newToken = stillValid ? prev : availableTokens[0];
+      console.log('[PrivacyActions] 🔄 Reset selectedToken - prev:', prev?.symbol, 'stillValid:', stillValid, 'new:', newToken?.symbol);
+
+      return newToken;
     });
-  }, [availableTokens]);
+
+    console.log('[PrivacyActions] 🔄 Form state reset complete');
+  }, [availableTokens, isProcessing, selectedToken, amount]);
 
   // Ensure transfer-specific fields are cleared when not in transfer mode
   useEffect(() => {
@@ -470,18 +483,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         </div>
       ), { duration: 3000 });
 
-      // Reset form, but preserve selectedToken until options exist
-      setAmount('');
-      setSelectedToken(prev => {
-        if (!Array.isArray(availableTokens) || availableTokens.length === 0) return prev;
-        const stillValid = prev && availableTokens.some(t =>
-          ((t.address || t.tokenAddress) && (prev?.address || prev?.tokenAddress)
-            ? String(t.address || t.tokenAddress).toLowerCase() === String(prev?.address || prev?.tokenAddress).toLowerCase()
-            : t.symbol === prev?.symbol)
-        );
-        return stillValid ? prev : availableTokens[0];
-      });
-
       // ✅ ENHANCED: Graph-based transaction monitoring with new API
       toast.dismiss(toastId);
       toast.custom((t) => (
@@ -680,19 +681,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
       toast.dismiss(toastId);
 
-      // Reset form, but preserve selectedToken until options exist
-      setAmount('');
-      setRecipientAddress('');
-      setSelectedToken(prev => {
-        if (!Array.isArray(availableTokens) || availableTokens.length === 0) return prev;
-        const stillValid = prev && availableTokens.some(t =>
-          ((t.address || t.tokenAddress) && (prev?.address || prev?.tokenAddress)
-            ? String(t.address || t.tokenAddress).toLowerCase() === String(prev?.address || prev?.tokenAddress).toLowerCase()
-            : t.symbol === prev?.symbol)
-        );
-        return stillValid ? prev : availableTokens[0];
-      });
-
       // ✅ ENHANCED: Graph-based unshield monitoring with new API
       console.log('[PrivacyActions] Starting Graph-based unshield monitoring...');
       
@@ -846,20 +834,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         console.log('🔄 [PrivacyActions] Triggering transaction history refresh after transfer');
         window.dispatchEvent(new CustomEvent('transaction-history-refresh'));
       }, 3000); // Wait 3 seconds for transaction to be mined and indexed
-
-      // Reset, but preserve selectedToken until options exist
-      setAmount('');
-      setRecipientAddress('');
-      setMemoText('');
-      setSelectedToken(prev => {
-        if (!Array.isArray(availableTokens) || availableTokens.length === 0) return prev;
-        const stillValid = prev && availableTokens.some(t =>
-          ((t.address || t.tokenAddress) && (prev?.address || prev?.tokenAddress)
-            ? String(t.address || t.tokenAddress).toLowerCase() === String(prev?.address || prev?.tokenAddress).toLowerCase()
-            : t.symbol === prev?.symbol)
-        );
-        return stillValid ? prev : availableTokens[0];
-      });
 
       // Optional: Graph monitoring (transfer)
       try {
