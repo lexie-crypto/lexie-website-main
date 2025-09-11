@@ -61,6 +61,55 @@ export const normalizeEncKey = (key) => {
 };
 
 /**
+ * Normalize and validate shareable viewing key from metadata
+ * Converts base64url to base64, adds padding, validates decode
+ * @param {string} svk - Shareable viewing key from metadata
+ * @returns {string} Normalized and validated SVK
+ * @throws {Error} If SVK is invalid format
+ */
+export const normalizeAndValidateSVK = (svk) => {
+  if (!svk || typeof svk !== 'string') {
+    throw new Error('Shareable viewing key is required and must be a string');
+  }
+
+  console.log('[RailgunWallet] 🔑 Normalizing SVK from metadata:', {
+    originalLength: svk.length,
+    originalPrefix: svk.slice(0, 16) + '...'
+  });
+
+  try {
+    // Convert base64url to base64 (replace - with +, _ with /)
+    let base64 = svk.replace(/-/g, '+').replace(/_/g, '/');
+
+    // Add padding if needed
+    const padding = base64.length % 4;
+    if (padding > 0) {
+      base64 += '='.repeat(4 - padding);
+    }
+
+    // Validate by attempting to decode
+    const decoded = Buffer.from(base64, 'base64');
+    const decodedLength = decoded.length;
+
+    console.log('[RailgunWallet] ✅ SVK normalized and validated:', {
+      normalizedLength: base64.length,
+      decodedBytes: decodedLength,
+      isValid: decodedLength >= 32, // SVKs should be ≥32 bytes
+      prefix: base64.slice(0, 16) + '...'
+    });
+
+    if (decodedLength < 32) {
+      throw new Error(`SVK must decode to ≥32 bytes. Got ${decodedLength} bytes.`);
+    }
+
+    return base64;
+  } catch (error) {
+    console.error('[RailgunWallet] ❌ SVK normalization/validation failed:', error);
+    throw new Error(`Invalid viewing key format: ${error.message}. Please re-export the wallet.`);
+  }
+};
+
+/**
  * Derive encryption key using PBKDF2 (following official Railgun docs)
  * @param {string} secret - Secret to derive from (password, signature, etc.)
  * @param {string} saltHex - Hex-encoded salt (optional - generates if not provided)
@@ -440,6 +489,7 @@ export const clearAllWallets = async () => {
 // Export for use in other modules
 export default {
   normalizeEncKey,
+  normalizeAndValidateSVK,
   getCurrentEncryptionKey,
   deriveWalletEncryptionKey,
   deriveEncryptionKey,

@@ -11,7 +11,7 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { loadViewOnlyWallet, generateViewingKey, loadWallet, unloadWallet, normalizeEncKey, getCurrentEncryptionKey, deriveWalletEncryptionKey, generateShareableViewingKey } from '../utils/railgun/wallet.js';
+import { loadViewOnlyWallet, generateViewingKey, loadWallet, unloadWallet, normalizeEncKey, normalizeAndValidateSVK, getCurrentEncryptionKey, deriveWalletEncryptionKey, generateShareableViewingKey } from '../utils/railgun/wallet.js';
 import { waitForRailgunReady } from '../utils/railgun/engine.js';
 import { getTransactionHistory } from '../utils/railgun/transactionHistory.js';
 
@@ -173,7 +173,7 @@ const AdminDashboard = () => {
 
 
 
-  // Create view-only wallet using EXACT SAME INTEGRATION AS WORKING SDK
+  // Create view-only wallet with dual-path: full wallet OR metadata SVK fallback
   const createViewOnlyWallet = async () => {
     if (!resolvedWalletId) {
       addLog('Missing wallet ID for view-only wallet creation', 'error');
@@ -186,11 +186,17 @@ const AdminDashboard = () => {
       return;
     }
 
+    if (!viewingKey) {
+      addLog('❌ Cannot create view-only wallet: No viewing key available from metadata', 'error');
+      setViewOnlyWallet(null);
+      return;
+    }
+
     setIsCreatingViewOnly(true);
     addLog('🏗️ Creating view-only wallet...', 'info');
 
     try {
-      // Ensure Railgun engine is ready (SAME AS WORKING SDK)
+      // Ensure Railgun engine is ready
       await waitForRailgunReady();
       addLog('✅ Railgun engine ready', 'success');
 
@@ -200,37 +206,74 @@ const AdminDashboard = () => {
         encryptionKeyPrefix: encryptionKey?.slice(0, 16) + '...'
       });
 
-      // STEP 1: Load the full wallet first (SAME AS WORKING SDK)
-      addLog('📥 Loading full wallet to generate SVK...', 'info');
-      console.log('[AdminHistoryPage] 📥 Loading full wallet with ID:', resolvedWalletId?.slice(0, 8) + '...');
+      let shareableViewingKey;
+      let approachUsed;
 
-      const fullWalletInfo = await loadWallet(encryptionKey, resolvedWalletId, false);
-      console.log('[AdminHistoryPage] ✅ Full wallet loaded:', {
-        walletId: fullWalletInfo.id?.slice(0, 8) + '...',
-        railgunAddress: fullWalletInfo.railgunAddress?.slice(0, 10) + '...'
-      });
-      addLog(`✅ Full wallet loaded: ${fullWalletInfo.id?.slice(0, 8)}...`, 'success');
+      // PATH 1: Try to load full wallet and generate SVK (preferred)
+      try {
+        addLog('📥 Attempting to load full wallet for SVK generation...', 'info');
+        console.log('[AdminHistoryPage] 📥 Loading full wallet with ID:', resolvedWalletId?.slice(0, 8) + '...');
 
-      // STEP 2: Generate SVK from loaded wallet (SAME AS WORKING SDK)
-      addLog('🔑 Generating shareable viewing key from loaded wallet...', 'info');
-      console.log('[AdminHistoryPage] 🔑 Generating SVK from wallet ID:', resolvedWalletId?.slice(0, 8) + '...');
+        const fullWalletInfo = await loadWallet(encryptionKey, resolvedWalletId, false);
+        console.log('[AdminHistoryPage] ✅ Full wallet loaded:', {
+          walletId: fullWalletInfo.id?.slice(0, 8) + '...',
+          railgunAddress: fullWalletInfo.railgunAddress?.slice(0, 10) + '...'
+        });
+        addLog(`✅ Full wallet loaded: ${fullWalletInfo.id?.slice(0, 8)}...`, 'success');
 
-      const shareableViewingKey = await generateShareableViewingKey(resolvedWalletId);
-      console.log('[AdminHistoryPage] ✅ SVK generated:', {
-        svkLength: shareableViewingKey?.length,
-        svkPrefix: shareableViewingKey?.slice(0, 16) + '...'
-      });
-      addLog(`✅ SVK generated: ${shareableViewingKey?.slice(0, 16)}...`, 'success');
+        // Generate SVK from loaded wallet
+        addLog('🔑 Generating SVK from loaded wallet...', 'info');
+        shareableViewingKey = await generateShareableViewingKey(resolvedWalletId);
+        approachUsed = 'full-wallet-loaded';
 
-      // STEP 3: Create view-only wallet using SDK-generated SVK (SAME AS WORKING SDK)
-      addLog('🏗️ Creating view-only wallet from SDK-generated SVK...', 'info');
+        console.log('[AdminHistoryPage] ✅ SVK generated from full wallet:', {
+          svkLength: shareableViewingKey?.length,
+          svkPrefix: shareableViewingKey?.slice(0, 16) + '...'
+        });
+        addLog(`✅ SVK generated from full wallet: ${shareableViewingKey?.slice(0, 16)}...`, 'success');
+
+      } catch (fullWalletError) {
+        // PATH 2: Fallback to metadata SVK (viewer scenario)
+        console.log('[AdminHistoryPage] ⚠️ Full wallet not available locally:', fullWalletError.message);
+
+        if (fullWalletError.message?.includes('Key not found in database')) {
+          addLog('📋 Full wallet not found locally - using metadata SVK fallback', 'warning');
+          console.log('[AdminHistoryPage] 📋 Using metadata SVK fallback for viewer scenario');
+
+          // Normalize and validate metadata SVK
+          try {
+            shareableViewingKey = normalizeAndValidateSVK(viewingKey);
+            approachUsed = 'metadata-svk-fallback';
+
+            console.log('[AdminHistoryPage] ✅ Metadata SVK normalized:', {
+              originalLength: viewingKey?.length,
+              normalizedLength: shareableViewingKey?.length,
+              prefix: shareableViewingKey?.slice(0, 16) + '...'
+            });
+            addLog(`✅ Metadata SVK normalized: ${shareableViewingKey?.slice(0, 16)}...`, 'success');
+
+          } catch (svkError) {
+            console.error('[AdminHistoryPage] ❌ Metadata SVK validation failed:', svkError);
+            addLog(`❌ Invalid viewing key: ${svkError.message}`, 'error');
+            setViewOnlyWallet(null);
+            return;
+          }
+
+        } else {
+          // Different error - rethrow
+          throw fullWalletError;
+        }
+      }
+
+      // STEP 3: Create view-only wallet using SVK
+      addLog(`🏗️ Creating view-only wallet (${approachUsed})...`, 'info');
       console.log('[AdminHistoryPage] 📡 Creating view-only wallet with:', {
+        approach: approachUsed,
         shareableViewingKeyLength: shareableViewingKey?.length,
         creationBlockNumbers: undefined,
         encryptionKeyLength: encryptionKey?.length
       });
 
-      // Create view-only wallet (SAME AS WORKING SDK)
       const viewOnlyWalletInfo = await loadViewOnlyWallet(
         shareableViewingKey,
         undefined, // creationBlockNumbers - pass undefined if no map
@@ -242,7 +285,7 @@ const AdminDashboard = () => {
       console.log('[AdminHistoryPage] 🚀 View-only railgun address:', viewOnlyWalletInfo.railgunAddress?.slice(0, 10));
 
       setViewOnlyWallet(viewOnlyWalletInfo);
-      addLog(`✅ View-only wallet created successfully: ${viewOnlyWalletInfo.id?.slice(0, 8)}...`, 'success');
+      addLog(`✅ View-only wallet created (${approachUsed}): ${viewOnlyWalletInfo.id?.slice(0, 8)}...`, 'success');
       addLog(`✅ Railgun Address: ${viewOnlyWalletInfo.railgunAddress}`, 'success');
 
     } catch (error) {
