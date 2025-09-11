@@ -221,38 +221,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     }
   }, [selectedToken, availableTokens, isProcessing]);
 
-  // Additional safety: Reset processing state if it gets stuck
-  useEffect(() => {
-    if (isProcessing) {
-      // Safety timeout - if processing takes longer than 30 seconds, reset it
-      const safetyTimeout = setTimeout(() => {
-        console.warn('[PrivacyActions] 🔧 Safety timeout: Force resetting stuck isProcessing state');
-        setIsProcessing(false);
-      }, 30000);
 
-      return () => clearTimeout(safetyTimeout);
-    }
-  }, [isProcessing]);
-
-  // MANUAL RESET FUNCTION: Can be called to force reset button state
-  const forceResetButton = useCallback(() => {
-    console.log('[PrivacyActions] 🔧 Manual button reset triggered');
-    setIsProcessing(false);
-    if (availableTokens.length > 0) {
-      setSelectedToken(availableTokens[0]);
-    }
-    setAmount('');
-    // Always clear transfer-specific fields to prevent stale data issues
-    setRecipientAddress('');
-    setMemoText('');
-  }, [availableTokens]);
-
-  // Expose reset function globally for debugging (can call from console)
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      window.forceResetPrivacyButton = forceResetButton;
-    }
-  }, [forceResetButton]);
 
   // Check if chain is supported
   const isChainSupported = useMemo(() => {
