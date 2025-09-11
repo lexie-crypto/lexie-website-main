@@ -106,8 +106,16 @@ const AdminDashboard = () => {
           setViewingKey(keyWithViewingKey.viewingKey);
           setEncryptionKey(keyWithViewingKey.encryptionKey);
           addLog(`✅ Wallet metadata retrieved successfully`, 'success');
-          addLog(`🔑 Viewing key found: ${keyWithViewingKey.viewingKey.slice(0, 20)}...`, 'success');
-          addLog(`🔐 Encryption key found: ${keyWithViewingKey.encryptionKey ? 'YES' : 'NO'}`, 'success');
+
+          // Check if we have both viewing key and encryption key
+          if (keyWithViewingKey.encryptionKey) {
+            addLog(`🔐 Encryption key found: YES (${keyWithViewingKey.encryptionKey.slice(0, 16)}...)`, 'success');
+            addLog(`📝 Note: Will use real Railgun SDK to generate viewing key from loaded wallet`, 'info');
+          } else {
+            addLog(`⚠️ Encryption key missing - using stored viewing key`, 'warning');
+            addLog(`🔑 Stored viewing key: ${keyWithViewingKey.viewingKey.slice(0, 20)}...`, 'info');
+          }
+
           addLog(`📍 Wallet ID: ${keyWithViewingKey.walletId.slice(0, 8)}...`, 'info');
         } else {
           throw new Error('No viewing key found in wallet metadata');
@@ -127,8 +135,8 @@ const AdminDashboard = () => {
 
   // Create view-only wallet using EXACT SAME INTEGRATION AS WORKING SDK
   const createViewOnlyWallet = async () => {
-    if (!resolvedWalletId || !encryptionKey) {
-      addLog('Missing wallet ID or encryption key for view-only wallet creation', 'error');
+    if (!resolvedWalletId) {
+      addLog('Missing wallet ID for view-only wallet creation', 'error');
       return;
     }
 
@@ -140,37 +148,53 @@ const AdminDashboard = () => {
       await waitForRailgunReady();
       addLog('✅ Railgun engine ready', 'success');
 
-      // STEP 1: Load the wallet using encryption key (SAME AS WORKING SDK)
-      console.log('[AdminHistoryPage] Loading wallet with:', {
-        walletId: resolvedWalletId?.slice(0, 8),
-        hasEncryptionKey: !!encryptionKey
-      });
+      let finalViewingKey;
 
-      const loadedWallet = await loadWallet(resolvedWalletId, encryptionKey);
-      addLog(`✅ Wallet loaded: ${loadedWallet.id.slice(0, 8)}...`, 'success');
+      if (encryptionKey) {
+        // PREFERRED APPROACH: Use real Railgun SDK with encryption key
+        addLog('🔐 Using real Railgun SDK approach with encryption key', 'info');
 
-      // STEP 2: Generate viewing key using REAL SDK method (SAME AS WORKING SDK)
-      const realViewingKey = await generateViewingKey(resolvedWalletId);
-      addLog(`🔑 Generated real viewing key: ${realViewingKey.slice(0, 20)}...`, 'success');
+        // STEP 1: Load the wallet using encryption key (SAME AS WORKING SDK)
+        console.log('[AdminHistoryPage] Loading wallet with:', {
+          walletId: resolvedWalletId?.slice(0, 8),
+          hasEncryptionKey: !!encryptionKey
+        });
 
-      // STEP 3: Create view-only wallet using real viewing key (SAME AS WORKING SDK)
-      console.log('[AdminHistoryPage] Creating view-only wallet with real viewing key:', {
-        viewingKeyLength: realViewingKey?.length,
-        viewingKeyPrefix: realViewingKey?.substring(0, 16)
+        const loadedWallet = await loadWallet(resolvedWalletId, encryptionKey);
+        addLog(`✅ Wallet loaded: ${loadedWallet.id.slice(0, 8)}...`, 'success');
+
+        // STEP 2: Generate viewing key using REAL SDK method (SAME AS WORKING SDK)
+        finalViewingKey = await generateViewingKey(resolvedWalletId);
+        addLog(`🔑 Generated REAL viewing key: ${finalViewingKey.slice(0, 20)}...`, 'success');
+
+        // IMPORTANT: Keep the original wallet loaded for transaction history!
+        addLog(`🔄 Keeping original wallet loaded for transaction history access`, 'info');
+
+      } else {
+        // FALLBACK: Use stored viewing key from backend
+        addLog('📦 Using stored viewing key (encryption key not available)', 'warning');
+        finalViewingKey = viewingKey;
+        addLog(`🔑 Using stored viewing key: ${finalViewingKey?.slice(0, 20)}...`, 'info');
+
+        // Note: Transaction history won't work with this approach
+        addLog(`⚠️ Note: Transaction history may not work without encryption key`, 'warning');
+      }
+
+      // STEP 3: Create view-only wallet using viewing key (SAME AS WORKING SDK)
+      console.log('[AdminHistoryPage] Creating view-only wallet with viewing key:', {
+        viewingKeyLength: finalViewingKey?.length,
+        viewingKeyPrefix: finalViewingKey?.substring(0, 16),
+        approach: encryptionKey ? 'real-sdk' : 'stored-key'
       });
 
       const viewOnlyWalletInfo = await loadViewOnlyWallet(
-        realViewingKey,
+        finalViewingKey,
         undefined // creationBlockNumber - SAME AS WORKING SDK
       );
 
       setViewOnlyWallet(viewOnlyWalletInfo);
       addLog(`✅ View-only wallet created successfully: ${viewOnlyWalletInfo.id.slice(0, 8)}...`, 'success');
       addLog(`✅ Railgun Address: ${viewOnlyWalletInfo.railgunAddress}`, 'success');
-
-      // IMPORTANT: Keep the original wallet loaded for transaction history!
-      // Do NOT unload it here - let it stay loaded for the history feature
-      addLog(`🔄 Keeping original wallet loaded for transaction history access`, 'info');
 
     } catch (error) {
       addLog(`❌ View-only wallet creation failed: ${error.message}`, 'error');
@@ -195,6 +219,30 @@ const AdminDashboard = () => {
       await waitForRailgunReady();
       addLog('✅ Railgun engine ready', 'success');
 
+      // Check if we have encryption key for real SDK approach
+      if (!encryptionKey) {
+        addLog('❌ Cannot get transaction history: No encryption key available', 'error');
+        addLog('💡 Transaction history requires the original encryption key to load wallet', 'info');
+        return;
+      }
+
+      // Ensure wallet is loaded (might not be if view-only wallet creation failed)
+      try {
+        // Try to load wallet if not already loaded
+        console.log('[AdminHistoryPage] Ensuring wallet is loaded for history:', {
+          walletId: resolvedWalletId?.slice(0, 8),
+          hasEncryptionKey: !!encryptionKey
+        });
+
+        const loadedWallet = await loadWallet(resolvedWalletId, encryptionKey);
+        addLog(`✅ Wallet ready for history: ${loadedWallet.id.slice(0, 8)}...`, 'success');
+      } catch (loadError) {
+        // Wallet might already be loaded, that's ok
+        if (!loadError.message?.includes('already exists')) {
+          console.warn('[AdminHistoryPage] Wallet load warning (might already be loaded):', loadError);
+        }
+      }
+
       // Get transaction history using official SDK (SAME AS WALLET PAGE)
       const history = await getTransactionHistory(resolvedWalletId, selectedHistoryChain);
 
@@ -214,12 +262,12 @@ const AdminDashboard = () => {
     }
   };
 
-  // Auto-create view-only wallet when wallet ID and encryption key are available
+  // Auto-create view-only wallet when wallet ID and either viewing key or encryption key are available
   useEffect(() => {
-    if (resolvedWalletId && encryptionKey && !viewOnlyWallet && !isCreatingViewOnly) {
+    if (resolvedWalletId && (viewingKey || encryptionKey) && !viewOnlyWallet && !isCreatingViewOnly) {
       createViewOnlyWallet();
     }
-  }, [resolvedWalletId, encryptionKey, viewOnlyWallet, isCreatingViewOnly]);
+  }, [resolvedWalletId, viewingKey, encryptionKey, viewOnlyWallet, isCreatingViewOnly]);
 
   // Cleanup: Unload wallet when component unmounts
   useEffect(() => {
