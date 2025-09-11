@@ -199,6 +199,55 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     }
   }, [availableTokens, selectedToken]);
 
+  // FORCE BUTTON RESET: Ensure button is always clickable after any state changes
+  useEffect(() => {
+    // If button would be disabled due to missing selectedToken, force select one
+    if (!selectedToken && availableTokens.length > 0) {
+      console.log('[PrivacyActions] 🔧 Force resetting selectedToken to prevent stale button');
+      setSelectedToken(availableTokens[0]);
+    }
+
+    // If isProcessing is stuck as true (shouldn't happen but safety net)
+    if (isProcessing && !selectedToken && availableTokens.length === 0) {
+      console.log('[PrivacyActions] 🔧 Force resetting isProcessing due to no available tokens');
+      setIsProcessing(false);
+    }
+  }, [selectedToken, availableTokens, isProcessing]);
+
+  // Additional safety: Reset processing state if it gets stuck
+  useEffect(() => {
+    if (isProcessing) {
+      // Safety timeout - if processing takes longer than 30 seconds, reset it
+      const safetyTimeout = setTimeout(() => {
+        console.warn('[PrivacyActions] 🔧 Safety timeout: Force resetting stuck isProcessing state');
+        setIsProcessing(false);
+      }, 30000);
+
+      return () => clearTimeout(safetyTimeout);
+    }
+  }, [isProcessing]);
+
+  // MANUAL RESET FUNCTION: Can be called to force reset button state
+  const forceResetButton = useCallback(() => {
+    console.log('[PrivacyActions] 🔧 Manual button reset triggered');
+    setIsProcessing(false);
+    if (availableTokens.length > 0) {
+      setSelectedToken(availableTokens[0]);
+    }
+    setAmount('');
+    if (activeTab === 'transfer') {
+      setRecipientAddress('');
+      setMemoText('');
+    }
+  }, [availableTokens, activeTab]);
+
+  // Expose reset function globally for debugging (can call from console)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.forceResetPrivacyButton = forceResetButton;
+    }
+  }, [forceResetButton]);
+
   // Check if chain is supported
   const isChainSupported = useMemo(() => {
     if (!chainId) return false;
