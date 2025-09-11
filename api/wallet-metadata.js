@@ -395,7 +395,7 @@ export default async function handler(req, res) {
           const walletId = walletIdMatch[1];
           const { page = '1', pageSize = '50' } = req.query;
 
-          backendPath = `/api/wallet-timeline/${walletId}?page=${page}&pageSize=${pageSize}`;
+          backendPath = `/api/wallet-metadata/wallet-timeline/${walletId}?page=${page}&pageSize=${pageSize}`;
           backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
 
           console.log(`📊 [WALLET-TIMELINE-PROXY-${requestId}] GET wallet timeline for wallet: ${walletId.slice(0, 8)}... (page: ${page}, size: ${pageSize})`);
@@ -501,7 +501,7 @@ export default async function handler(req, res) {
         const walletIdMatch = urlPath.match(/\/wallet-timeline\/([^\/]+)/);
         if (walletIdMatch) {
           const walletId = walletIdMatch[1];
-          backendPath = `/api/wallet-timeline/${walletId}`;
+          backendPath = `/api/wallet-metadata/wallet-timeline/${walletId}`;
           backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
           console.log(`📊 [WALLET-TIMELINE-PROXY-${requestId}] POST wallet timeline for wallet: ${walletId.slice(0, 8)}...`);
         } else {
