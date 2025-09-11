@@ -347,14 +347,8 @@ const AdminDashboard = () => {
         );
       }
 
-      // Also unload view-only wallet if it exists
-      if (viewOnlyWallet?.id) {
-        unloadWallet(viewOnlyWallet.id).catch(error =>
-          console.warn('[AdminHistoryPage] Failed to unload view-only wallet on unmount:', error)
-        );
-      }
     };
-  }, [resolvedWalletId, viewOnlyWallet?.id]);
+  }, [resolvedWalletId]);
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-6">
