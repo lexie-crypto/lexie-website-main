@@ -210,7 +210,21 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
   // FORCE BUTTON RESET: Ensure button is always clickable after any state changes
   useEffect(() => {
-    // Debug button state
+    // Debug button state (only log critical issues to avoid spam)
+    if (!selectedToken && availableTokens.length > 0) {
+      console.log('[PrivacyActions] 🔧 Force resetting selectedToken to prevent stale button');
+      setSelectedToken(availableTokens[0]);
+    }
+
+    // If isProcessing is stuck as true (shouldn't happen but safety net)
+    if (isProcessing && !selectedToken && availableTokens.length === 0) {
+      console.log('[PrivacyActions] 🔧 Force resetting isProcessing due to no available tokens');
+      setIsProcessing(false);
+    }
+  }, [selectedToken, availableTokens, isProcessing]);
+
+  // Debug button state (safe to call after all dependencies are defined)
+  useEffect(() => {
     const buttonDisabledReason = [];
     if (!isValidAmount) buttonDisabledReason.push('invalid amount');
     if (isProcessing) buttonDisabledReason.push('processing');
@@ -222,19 +236,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     if (buttonDisabledReason.length > 0) {
       console.log('[PrivacyActions] 🔍 Button disabled reasons:', buttonDisabledReason.join(', '));
     }
-
-    // If button would be disabled due to missing selectedToken, force select one
-    if (!selectedToken && availableTokens.length > 0) {
-      console.log('[PrivacyActions] 🔧 Force resetting selectedToken to prevent stale button');
-      setSelectedToken(availableTokens[0]);
-    }
-
-    // If isProcessing is stuck as true (shouldn't happen but safety net)
-    if (isProcessing && !selectedToken && availableTokens.length === 0) {
-      console.log('[PrivacyActions] 🔧 Force resetting isProcessing due to no available tokens');
-      setIsProcessing(false);
-    }
-  }, [selectedToken, availableTokens, isProcessing, isValidAmount, activeTab, recipientAddress, recipientType]);
+  }, [isValidAmount, isProcessing, selectedToken, activeTab, recipientAddress, recipientType]);
 
   // Additional safety: Reset processing state if it gets stuck
   useEffect(() => {
