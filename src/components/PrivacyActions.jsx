@@ -6,8 +6,8 @@
 
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'react-hot-toast';
-import { 
-  ShieldCheckIcon, 
+import {
+  ShieldCheckIcon,
   EyeSlashIcon,
   ArrowUpIcon,
   ArrowDownIcon,
@@ -28,17 +28,18 @@ import {
   privateTransfer,
 } from '../utils/railgun/actions';
 import QRCodeGenerator from './QRCodeGenerator';
-import { 
+import {
   getPrivateBalances,
   parseTokenAmount,
 } from '../utils/railgun/balances';
-import { 
+import {
   createWallet,
   loadWallet,
   deriveEncryptionKey,
   getCurrentWalletID,
   getCurrentWallet,
 } from '../utils/railgun/wallet';
+import { getTokenAddress, areTokensEqual } from '../utils/tokens';
 
 const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false }) => {
   const {
@@ -139,12 +140,10 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     setMemoText('');
     setSelectedToken(prev => {
       if (!Array.isArray(availableTokens) || availableTokens.length === 0) return prev;
-      const stillValid = prev && availableTokens.some(t =>
-        ((t.address || t.tokenAddress) && (prev?.address || prev?.tokenAddress)
-          ? String(t.address || t.tokenAddress).toLowerCase() === String(prev?.address || prev?.tokenAddress).toLowerCase()
-          : t.symbol === prev?.symbol)
-      );
-      return stillValid ? prev : availableTokens[0];
+
+      // Find the token in current availableTokens that matches the previous selection
+      const mapped = prev ? availableTokens.find(t => areTokensEqual(t, prev)) : null;
+      return mapped || availableTokens[0] || null;
     });
   }, [activeAction, availableTokens]);
 
@@ -158,21 +157,19 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     setMemoText('');
     setIsProcessing(false);
 
-    // Preserve selectedToken if it's still valid, otherwise set to first available
+    // Preserve selectedToken by finding the correct token object shape from current availableTokens
     setSelectedToken(prev => {
       if (!Array.isArray(availableTokens) || availableTokens.length === 0) {
         console.log('[PrivacyActions] 🔄 No available tokens, setting selectedToken to null');
         return null;
       }
 
-      const stillValid = prev && availableTokens.some(t =>
-        ((t.address || t.tokenAddress) && (prev?.address || prev?.tokenAddress)
-          ? String(t.address || t.tokenAddress).toLowerCase() === String(prev?.address || prev?.tokenAddress).toLowerCase()
-          : t.symbol === prev?.symbol)
-      );
+      // Find the token in current availableTokens that matches the previous selection
+      const mapped = prev ? availableTokens.find(t => areTokensEqual(t, prev)) : null;
+      const newToken = mapped || availableTokens[0];
 
-      const newToken = stillValid ? prev : availableTokens[0];
-      console.log('[PrivacyActions] 🔄 Reset selectedToken - prev:', prev?.symbol, 'stillValid:', stillValid, 'new:', newToken?.symbol);
+      console.log('[PrivacyActions] 🔄 Reset selectedToken - prev:', prev?.symbol, 'mapped:', mapped?.symbol, 'new:', newToken?.symbol);
+      console.log('[PrivacyActions] 🔄 Token shapes - prev addr:', getTokenAddress(prev), 'new addr:', getTokenAddress(newToken));
 
       return newToken;
     });
@@ -397,10 +394,18 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
       // Get wallet signer (not provider to avoid re-wrapping)
       const walletSigner = await walletProvider(); // This now returns a signer
-      
+
+      // Get normalized token address
+      const tokenAddr = getTokenAddress(selectedToken);
+      if (!tokenAddr) {
+        console.error('[PrivacyActions] Shield failed: Invalid token address', selectedToken);
+        toast.error('Selected token is invalid. Please reselect the token.');
+        return;
+      }
+
       // Execute shield operation
       const result = await shieldTokens({
-        tokenAddress: selectedToken.address,
+        tokenAddress: tokenAddr,
         amount: amountInUnits,
         chain: chainConfig,
         fromAddress: address,
@@ -514,7 +519,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             walletAddress: address,
             walletId: railgunWalletId,
             tokenSymbol: selectedToken.symbol,
-            tokenAddress: selectedToken.address,
+            tokenAddress: tokenAddr,
             decimals: selectedToken.decimals,
             amount: amount,
           },
@@ -609,9 +614,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     if (!selectedToken || !amount || !isValidAmount) {
       return;
     }
-    
+
     // 🚨 CRITICAL: Validate tokenAddress to prevent USDT decimals miscalculation
-    if (!selectedToken.tokenAddress || typeof selectedToken.tokenAddress !== 'string') {
+    const tokenAddr = getTokenAddress(selectedToken);
+    if (!tokenAddr) {
+      console.error('[PrivacyActions] Unshield failed: Invalid token address', selectedToken);
+      toast.error('Selected token is invalid. Please reselect the token.');
       return;
     }
 
@@ -634,16 +642,16 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
       console.log('[PrivacyActions] Starting unshield operation:', {
         token: selectedToken.symbol,
-        tokenAddress: selectedToken.tokenAddress,
+        tokenAddress: tokenAddr,
         amount,
         amountInUnits,
         toAddress,
         decimals: selectedToken.decimals,
         chainId: chainId,
         validationStatus: {
-          hasTokenAddress: !!selectedToken.tokenAddress,
-          tokenAddressLength: selectedToken.tokenAddress?.length || 0,
-          tokenAddressValid: selectedToken.tokenAddress?.startsWith('0x') && selectedToken.tokenAddress.length === 42
+          hasTokenAddress: !!tokenAddr,
+          tokenAddressLength: tokenAddr?.length || 0,
+          tokenAddressValid: tokenAddr?.startsWith('0x') && tokenAddr.length === 42
         }
       });
 
@@ -651,7 +659,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       const unshieldParams = {
         railgunWalletID: railgunWalletId,
         encryptionKey,
-        tokenAddress: selectedToken.tokenAddress,
+        tokenAddress: tokenAddr,
         amount: amountInUnits,
         chain: chainConfig,
         toAddress,
@@ -697,7 +705,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             walletAddress: address,
             walletId: railgunWalletId,
             tokenSymbol: selectedToken.symbol,
-            tokenAddress: selectedToken.tokenAddress,
+            tokenAddress: tokenAddr,
             decimals: selectedToken.decimals,
             amount: amount,
             recipientAddress: toAddress, // Add recipient address for unshield
@@ -786,12 +794,19 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
       const encryptionKey = await getEncryptionKey();
       const amountInUnits = parseTokenAmount(amount, selectedToken.decimals);
+      const tokenAddr = getTokenAddress(selectedToken);
+
+      if (!tokenAddr) {
+        console.error('[PrivacyActions] Transfer failed: Invalid token address', selectedToken);
+        toast.error('Selected token is invalid. Please reselect the token.');
+        return;
+      }
 
       const tx = await privateTransfer({
         chainId,
         railgunWalletID: railgunWalletId,
         encryptionKey,
-        tokenAddress: selectedToken.address,
+        tokenAddress: tokenAddr,
         amount: amountInUnits,
         recipientRailgunAddress: recipientAddress,
         memoText,
@@ -846,7 +861,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             walletId: railgunWalletId,
             walletAddress: address,
             tokenSymbol: selectedToken.symbol,
-            tokenAddress: selectedToken.address || selectedToken.tokenAddress,
+            tokenAddress: tokenAddr,
             decimals: selectedToken.decimals,
             amount: amountInUnits,
             recipientAddress: timelineRecipientAddress, // Use resolved Railgun address
@@ -1047,7 +1062,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               <div className="space-y-2">
                 <div className="text-sm text-green-400/70">{privateBalances.length} Vault Token{privateBalances.length !== 1 ? 's' : ''}</div>
                 {privateBalances.map((token) => (
-                  <div key={token.tokenAddress || token.address || token.symbol} className="p-2 bg-black/60 rounded text-sm border border-green-500/10">
+                  <div key={getTokenAddress(token) || token.symbol} className="p-2 bg-black/60 rounded text-sm border border-green-500/10">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-green-200 font-medium">{token.symbol}</span>
@@ -1181,7 +1196,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div className="absolute z-20 mt-1 left-0 right-0 bg-black text-green-300 border border-green-500/40 rounded shadow-xl max-h-60 overflow-auto">
                   {availableTokens.map((token) => (
                     <button
-                      key={token.address || 'native'}
+                      key={getTokenAddress(token) || token.symbol}
                       type="button"
                       onClick={() => { setSelectedToken(token); setIsTokenMenuOpen(false); }}
                       className="w-full text-left px-3 py-2 hover:bg-emerald-900/30 focus:bg-emerald-900/30 focus:outline-none"
