@@ -444,6 +444,17 @@ export default async function handler(req, res) {
           return res.status(400).json({ success: false, error: 'Invalid wallet-timeline URL format' });
         }
 
+        // Generate HMAC signature for wallet-timeline GET request
+        const signature = generateHmacSignature('GET', backendPath, timestamp, hmacSecret);
+
+        headers = {
+          'Accept': 'application/json',
+          'X-Lexie-Timestamp': timestamp,
+          'X-Lexie-Signature': signature,
+          'Origin': 'https://staging.lexiecrypto.com',
+          'User-Agent': 'Lexie-Wallet-Proxy/1.0',
+        };
+
       } else if (action === 'balances') {
         // Disabled: note-based balance endpoint removed
         console.log(`🚫 [WALLET-METADATA-PROXY-${requestId}] GET balances disabled (note system removed)`);
@@ -548,6 +559,18 @@ export default async function handler(req, res) {
           console.log(`❌ [WALLET-TIMELINE-PROXY-${requestId}] Invalid wallet-timeline POST URL format: ${req.url}`);
           return res.status(400).json({ success: false, error: 'Invalid wallet-timeline URL format' });
         }
+
+        // Generate HMAC signature for wallet-timeline POST request
+        const signature = generateHmacSignature('POST', backendPath, timestamp, hmacSecret);
+
+        headers = {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Lexie-Timestamp': timestamp,
+          'X-Lexie-Signature': signature,
+          'Origin': 'https://staging.lexiecrypto.com',
+          'User-Agent': 'Lexie-Wallet-Proxy/1.0',
+        };
 
       } else if (action === 'store-balances') {
         // Handle POST: store balances only
