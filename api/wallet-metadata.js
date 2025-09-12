@@ -480,51 +480,7 @@ export default async function handler(req, res) {
       };
 
     } else if (req.method === 'POST') {
-      // Handle admin password verification (direct endpoint, no action parameter)
-      if (req.url === '/api/verify-admin-password' || req.url === '/verify-admin-password') {
-        console.log(`🔐 [ADMIN-PASSWORD-PROXY-${requestId}] POST verify admin password`);
-
-        const backendPath = '/api/verify-admin-password';
-        const backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
-
-        const signature = generateHmacSignature('POST', backendPath, timestamp, hmacSecret);
-
-        headers = {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-Lexie-Timestamp': timestamp,
-          'X-Lexie-Signature': signature,
-          'Origin': 'https://staging.lexiecrypto.com',
-          'User-Agent': 'Lexie-Wallet-Proxy/1.0',
-        };
-
-        console.log(`🔐 [ADMIN-PASSWORD-PROXY-${requestId}] Generated HMAC headers`, {
-          method: 'POST',
-          timestamp,
-          signature: headers['X-Lexie-Signature'].substring(0, 20) + '...',
-          path: backendPath
-        });
-
-        console.log(`📡 [ADMIN-PASSWORD-PROXY-${requestId}] Forwarding to backend: ${backendUrl}`);
-
-        // Make the backend request
-        const fetchOptions = {
-          method: 'POST',
-          headers,
-          signal: AbortSignal.timeout(30000),
-          body: JSON.stringify(req.body)
-        };
-
-        const backendResponse = await fetch(backendUrl, fetchOptions);
-        const result = await backendResponse.json();
-
-        console.log(`✅ [ADMIN-PASSWORD-PROXY-${requestId}] Backend responded with status ${backendResponse.status}`);
-
-        // Forward the backend response
-        res.status(backendResponse.status).json(result);
-        return;
-
-      } else if (action === 'store-balances') {
+      if (action === 'store-balances') {
         // Handle POST: store balances only
         backendPath = '/api/store-wallet-balances';
         console.log(`💾 [WALLET-METADATA-PROXY-${requestId}] POST store balances`);
