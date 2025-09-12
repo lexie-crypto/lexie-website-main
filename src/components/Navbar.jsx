@@ -18,6 +18,7 @@ export function Navbar({ variant = 'website' }) {
     return (
       <div className="hidden md:flex space-x-6">
         <a href="#features" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Features</a>
+        <a href="/game" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">🎮 Play Game</a>
         <a href="#security" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Security</a>
         <a href="#beta" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Beta</a>
       </div>

@@ -8,6 +8,7 @@ import LandingPage from './pages/LandingPage';
 import WalletPage from './pages/WalletPage';
 import PaymentPage from './pages/PaymentPage';
 import AdminHistoryPage from './pages/AdminHistoryPage';
+import GamePage from './pages/GamePage';
 
 function App() {
   const [showMobileDebug, setShowMobileDebug] = useState(false);
@@ -49,6 +50,7 @@ function App() {
             <Route path="/LexieVault" element={<WalletPage />} />
             <Route path="/pay" element={<PaymentPage />} />
             <Route path="/admin-history" element={<AdminHistoryPage />} />
+            <Route path="/game" element={<GamePage />} />
           </Routes>
           
           {/* Mobile Debug Gear Icon */}
