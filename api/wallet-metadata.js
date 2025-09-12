@@ -389,73 +389,7 @@ export default async function handler(req, res) {
   // Original wallet-metadata logic continues below
   console.log(`📊 [PROXY-${requestId}] Processing as regular wallet-metadata route`);
   if (req.method === 'GET') {
-      // Check if this is a resolve-wallet-id request
-      if (req.url.includes('/resolve-wallet-id/')) {
-        // Extract the resolve type and identifier from URL path
-        const urlPath = req.url.split('?')[0]; // Remove query parameters
-
-        // Handle /resolve-wallet-id/by-eoa/:address
-        const eoaMatch = urlPath.match(/\/resolve-wallet-id\/by-eoa\/([^\/]+)/);
-        if (eoaMatch) {
-          const address = eoaMatch[1];
-          backendPath = `/api/resolve-wallet-id/by-eoa/${address}`;
-          backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
-          console.log(`🔍 [RESOLVE-PROXY-${requestId}] GET resolve wallet by EOA: ${address.slice(0, 8)}...`);
-        }
-
-        // Handle /resolve-wallet-id/by-railgun/:railgunAddress
-        const railgunMatch = urlPath.match(/\/resolve-wallet-id\/by-railgun\/([^\/]+)/);
-        if (railgunMatch) {
-          const railgunAddress = railgunMatch[1];
-          backendPath = `/api/resolve-wallet-id/by-railgun/${railgunAddress}`;
-          backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
-          console.log(`🔍 [RESOLVE-PROXY-${requestId}] GET resolve wallet by Railgun: ${railgunAddress.slice(0, 8)}...`);
-        }
-
-        // Handle /resolve-wallet-id/by-tx/:txId
-        const txMatch = urlPath.match(/\/resolve-wallet-id\/by-tx\/([^\/]+)/);
-        if (txMatch) {
-          const txId = txMatch[1];
-          backendPath = `/api/resolve-wallet-id/by-tx/${txId}`;
-          backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
-          console.log(`🔍 [RESOLVE-PROXY-${requestId}] GET resolve wallet by TX: ${txId.slice(0, 8)}...`);
-        }
-
-        // If no matches found, return error
-        if (!backendPath) {
-          console.log(`❌ [RESOLVE-PROXY-${requestId}] Invalid resolve-wallet-id URL format: ${req.url}`);
-          return res.status(400).json({ success: false, error: 'Invalid resolve-wallet-id URL format' });
-        }
-
-      } else if (req.url.includes('/wallet-timeline/')) {
-        // Extract walletId from URL path
-        const urlPath = req.url.split('?')[0]; // Remove query parameters
-        const walletIdMatch = urlPath.match(/\/wallet-timeline\/([^\/]+)/);
-        if (walletIdMatch) {
-          const walletId = walletIdMatch[1];
-          const { page = '1', pageSize = '50' } = req.query;
-
-          backendPath = `/api/wallet-metadata/wallet-timeline/${walletId}?page=${page}&pageSize=${pageSize}`;
-          backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
-
-          console.log(`📊 [WALLET-TIMELINE-PROXY-${requestId}] GET wallet timeline for wallet: ${walletId.slice(0, 8)}... (page: ${page}, size: ${pageSize})`);
-        } else {
-          console.log(`❌ [WALLET-TIMELINE-PROXY-${requestId}] Invalid wallet-timeline URL format: ${req.url}`);
-          return res.status(400).json({ success: false, error: 'Invalid wallet-timeline URL format' });
-        }
-
-        // Generate HMAC signature for wallet-timeline GET request
-        const signature = generateHmacSignature('GET', backendPath, timestamp, hmacSecret);
-
-        headers = {
-          'Accept': 'application/json',
-          'X-Lexie-Timestamp': timestamp,
-          'X-Lexie-Signature': signature,
-          'Origin': 'https://staging.lexiecrypto.com',
-          'User-Agent': 'Lexie-Wallet-Proxy/1.0',
-        };
-
-      } else if (action === 'balances') {
+      if (action === 'balances') {
         // Disabled: note-based balance endpoint removed
         console.log(`🚫 [WALLET-METADATA-PROXY-${requestId}] GET balances disabled (note system removed)`);
         return res.status(410).json({ success: false, error: 'balances endpoint disabled' });
@@ -508,71 +442,7 @@ export default async function handler(req, res) {
       };
 
     } else if (req.method === 'POST') {
-      // Check if this is a resolve-wallet-id POST request (future use)
-      if (req.url.includes('/resolve-wallet-id/')) {
-        // Extract the resolve type and identifier from URL path
-        const urlPath = req.url.split('?')[0]; // Remove query parameters
-
-        // Handle /resolve-wallet-id/by-eoa/:address
-        const eoaMatch = urlPath.match(/\/resolve-wallet-id\/by-eoa\/([^\/]+)/);
-        if (eoaMatch) {
-          const address = eoaMatch[1];
-          backendPath = `/api/resolve-wallet-id/by-eoa/${address}`;
-          backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
-          console.log(`🔍 [RESOLVE-PROXY-${requestId}] POST resolve wallet by EOA: ${address.slice(0, 8)}...`);
-        }
-
-        // Handle /resolve-wallet-id/by-railgun/:railgunAddress
-        const railgunMatch = urlPath.match(/\/resolve-wallet-id\/by-railgun\/([^\/]+)/);
-        if (railgunMatch) {
-          const railgunAddress = railgunMatch[1];
-          backendPath = `/api/resolve-wallet-id/by-railgun/${railgunAddress}`;
-          backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
-          console.log(`🔍 [RESOLVE-PROXY-${requestId}] POST resolve wallet by Railgun: ${railgunAddress.slice(0, 8)}...`);
-        }
-
-        // Handle /resolve-wallet-id/by-tx/:txId
-        const txMatch = urlPath.match(/\/resolve-wallet-id\/by-tx\/([^\/]+)/);
-        if (txMatch) {
-          const txId = txMatch[1];
-          backendPath = `/api/resolve-wallet-id/by-tx/${txId}`;
-          backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
-          console.log(`🔍 [RESOLVE-PROXY-${requestId}] POST resolve wallet by TX: ${txId.slice(0, 8)}...`);
-        }
-
-        // If no matches found, return error
-        if (!backendPath) {
-          console.log(`❌ [RESOLVE-PROXY-${requestId}] Invalid resolve-wallet-id POST URL format: ${req.url}`);
-          return res.status(400).json({ success: false, error: 'Invalid resolve-wallet-id URL format' });
-        }
-
-      } else if (req.url.includes('/wallet-timeline/')) {
-        // Extract walletId from URL path
-        const urlPath = req.url.split('?')[0]; // Remove query parameters
-        const walletIdMatch = urlPath.match(/\/wallet-timeline\/([^\/]+)/);
-        if (walletIdMatch) {
-          const walletId = walletIdMatch[1];
-          backendPath = `/api/wallet-metadata/wallet-timeline/${walletId}`;
-          backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
-          console.log(`📊 [WALLET-TIMELINE-PROXY-${requestId}] POST wallet timeline for wallet: ${walletId.slice(0, 8)}...`);
-        } else {
-          console.log(`❌ [WALLET-TIMELINE-PROXY-${requestId}] Invalid wallet-timeline POST URL format: ${req.url}`);
-          return res.status(400).json({ success: false, error: 'Invalid wallet-timeline URL format' });
-        }
-
-        // Generate HMAC signature for wallet-timeline POST request
-        const signature = generateHmacSignature('POST', backendPath, timestamp, hmacSecret);
-
-        headers = {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'X-Lexie-Timestamp': timestamp,
-          'X-Lexie-Signature': signature,
-          'Origin': 'https://staging.lexiecrypto.com',
-          'User-Agent': 'Lexie-Wallet-Proxy/1.0',
-        };
-
-      } else if (action === 'store-balances') {
+      if (action === 'store-balances') {
         // Handle POST: store balances only
         backendPath = '/api/store-wallet-balances';
         console.log(`💾 [WALLET-METADATA-PROXY-${requestId}] POST store balances`);
