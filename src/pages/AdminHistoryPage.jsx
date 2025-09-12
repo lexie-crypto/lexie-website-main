@@ -315,37 +315,147 @@ const AdminDashboard = () => {
                           </button>
                         </div>
 
-                        <div className="text-sm text-gray-300 mb-2">
-                          {tx.description || 'Transaction'}
-                        </div>
+                        {/* Transaction Details Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                          {/* Transaction Info */}
+                          <div className="space-y-2">
+                            <div className="text-xs text-gray-400 font-medium">TRANSACTION INFO</div>
 
-                        {tx.tokenAmounts && tx.tokenAmounts.length > 0 && (
-                          <div className="space-y-1">
-                            {tx.tokenAmounts.map((amount, idx) => (
-                              <div key={idx} className="flex items-center justify-between text-sm">
-                                <span className="text-green-400 font-medium">
-                                  {amount.formattedAmount} {amount.symbol}
-                                </span>
-                                {amount.tokenAddress && (
-                                  <span className="text-xs text-gray-500 font-mono">
-                                    {amount.tokenAddress.slice(0, 6)}...{amount.tokenAddress.slice(-4)}
-                                  </span>
-                                )}
+                            {tx.traceId && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-gray-500">Trace ID:</span>
+                                <span className="text-xs font-mono text-gray-300">{tx.traceId.slice(0, 10)}...{tx.traceId.slice(-8)}</span>
                               </div>
-                            ))}
-                          </div>
-                        )}
+                            )}
 
-                        {tx.isPrivateTransfer && tx.memo && (
-                          <div className="mt-2 p-2 bg-blue-900/20 border border-blue-700/50 rounded text-sm">
-                            <div className="text-blue-300 text-xs font-medium mb-1">Private Memo:</div>
-                            <div className="text-blue-200">{tx.memo}</div>
-                          </div>
-                        )}
+                            {tx.txHash && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-gray-500">TX Hash:</span>
+                                <span className="text-xs font-mono text-gray-300">{tx.txHash.slice(0, 10)}...{tx.txHash.slice(-8)}</span>
+                              </div>
+                            )}
 
-                        <div className="mt-2 text-xs text-gray-500 font-mono">
-                          TX: {tx.txid?.slice(0, 12)}...{tx.txid?.slice(-8)}
+                            {tx.status && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-gray-500">Status:</span>
+                                <span className={`text-xs px-2 py-1 rounded ${
+                                  tx.status === 'confirmed' ? 'bg-green-900/30 text-green-300' :
+                                  tx.status === 'pending' ? 'bg-yellow-900/30 text-yellow-300' :
+                                  'bg-red-900/30 text-red-300'
+                                }`}>
+                                  {tx.status}
+                                </span>
+                              </div>
+                            )}
+
+                            {tx.id && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-gray-500">ID:</span>
+                                <span className="text-xs font-mono text-gray-300">{tx.id.slice(0, 8)}...</span>
+                              </div>
+                            )}
+
+                            {tx.timestamp && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-gray-500">Timestamp:</span>
+                                <span className="text-xs text-gray-300">{new Date(tx.timestamp * 1000).toLocaleString()}</span>
+                              </div>
+                            )}
+
+                            {tx.addedAt && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-gray-500">Added At:</span>
+                                <span className="text-xs text-gray-300">{new Date(tx.addedAt).toLocaleString()}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Token & Address Info */}
+                          <div className="space-y-2">
+                            <div className="text-xs text-gray-400 font-medium">TOKEN & ADDRESS INFO</div>
+
+                            {tx.token && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-gray-500">Token:</span>
+                                <span className="text-xs text-blue-300 font-medium">{tx.token}</span>
+                              </div>
+                            )}
+
+                            {tx.amount && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-gray-500">Amount:</span>
+                                <span className="text-xs text-green-300 font-medium">{tx.amount}</span>
+                              </div>
+                            )}
+
+                            {tx.zkAddr && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-gray-500">ZK Address:</span>
+                                <span className="text-xs font-mono text-purple-300">{tx.zkAddr.slice(0, 8)}...{tx.zkAddr.slice(-6)}</span>
+                              </div>
+                            )}
+
+                            {tx.recipientAddress && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-gray-500">Recipient:</span>
+                                <span className="text-xs font-mono text-orange-300">{tx.recipientAddress.slice(0, 8)}...{tx.recipientAddress.slice(-6)}</span>
+                              </div>
+                            )}
+
+                            {tx.senderAddress && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-gray-500">Sender:</span>
+                                <span className="text-xs font-mono text-orange-300">{tx.senderAddress.slice(0, 8)}...{tx.senderAddress.slice(-6)}</span>
+                              </div>
+                            )}
+
+                            {tx.nullifiers && tx.nullifiers.length > 0 && (
+                              <div className="flex justify-between items-center">
+                                <span className="text-xs text-gray-500">Nullifiers:</span>
+                                <span className="text-xs text-red-300">{tx.nullifiers.length} nullifier{tx.nullifiers.length !== 1 ? 's' : ''}</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
+
+                        {/* Private Memo - Full Width */}
+                        {tx.memo && (
+                          <div className="mt-3 p-3 bg-blue-900/20 border border-blue-700/50 rounded">
+                            <div className="text-blue-300 text-xs font-medium mb-2">📝 Private Memo:</div>
+                            <div className="text-blue-200 text-sm whitespace-pre-wrap">{tx.memo}</div>
+                          </div>
+                        )}
+
+                        {/* Legacy Token Amounts (if present) */}
+                        {tx.tokenAmounts && tx.tokenAmounts.length > 0 && (
+                          <div className="mt-3 p-3 bg-green-900/20 border border-green-700/50 rounded">
+                            <div className="text-green-300 text-xs font-medium mb-2">💰 Token Amounts:</div>
+                            <div className="space-y-1">
+                              {tx.tokenAmounts.map((amount, idx) => (
+                                <div key={idx} className="flex items-center justify-between text-sm">
+                                  <span className="text-green-400 font-medium">
+                                    {amount.formattedAmount} {amount.symbol}
+                                  </span>
+                                  {amount.tokenAddress && (
+                                    <span className="text-xs text-gray-500 font-mono">
+                                      {amount.tokenAddress.slice(0, 6)}...{amount.tokenAddress.slice(-4)}
+                                    </span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Raw JSON for debugging */}
+                        <details className="mt-3">
+                          <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-400">
+                            🔍 Raw Transaction Data
+                          </summary>
+                          <pre className="mt-2 p-2 bg-gray-900 rounded text-xs text-gray-400 overflow-x-auto">
+                            {JSON.stringify(tx, null, 2)}
+                          </pre>
+                        </details>
                       </div>
                     ))}
                   </div>
