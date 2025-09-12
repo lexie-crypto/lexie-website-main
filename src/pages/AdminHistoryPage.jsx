@@ -7,10 +7,118 @@
  * 3. Display results in admin dashboard
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { getAddress } from 'ethers';
 
 const AdminDashboard = () => {
+  // Password authentication state
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [password, setPassword] = useState('');
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [authError, setAuthError] = useState('');
+
+  // Check if user is already authenticated on component mount
+  useEffect(() => {
+    const authStatus = localStorage.getItem('admin_authenticated');
+    if (authStatus === 'true') {
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  // Handle password authentication
+  const handlePasswordSubmit = async (e) => {
+    e.preventDefault();
+    setIsAuthenticating(true);
+    setAuthError('');
+
+    try {
+      // Call backend to verify password
+      const response = await fetch('/api/verify-admin-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Origin': window.location.origin,
+          'User-Agent': navigator.userAgent
+        },
+        body: JSON.stringify({ password })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setIsAuthenticated(true);
+        localStorage.setItem('admin_authenticated', 'true');
+        setPassword('');
+      } else {
+        setAuthError('Invalid password');
+      }
+    } catch (error) {
+      console.error('Password verification error:', error);
+      setAuthError('Authentication failed. Please try again.');
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  // Handle logout
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    localStorage.removeItem('admin_authenticated');
+    setPassword('');
+    setAuthError('');
+  };
+
+  // Password authentication UI
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
+        <div className="bg-gray-800 rounded-lg p-8 w-full max-w-md">
+          <div className="text-center mb-8">
+            <h1 className="text-2xl font-bold text-blue-400 mb-2">Admin Access Required</h1>
+            <p className="text-gray-400">Enter the admin password to continue</p>
+          </div>
+
+          <form onSubmit={handlePasswordSubmit}>
+            <div className="mb-6">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-2">
+                Password
+              </label>
+              <input
+                type="password"
+                id="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white"
+                placeholder="Enter admin password"
+                required
+                autoFocus
+              />
+            </div>
+
+            {authError && (
+              <div className="mb-4 p-3 bg-red-900/30 border border-red-600 rounded-md">
+                <p className="text-red-300 text-sm">{authError}</p>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={isAuthenticating || !password.trim()}
+              className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-md transition-colors font-medium"
+            >
+              {isAuthenticating ? 'Verifying...' : 'Access Admin Panel'}
+            </button>
+          </form>
+
+          <div className="mt-6 text-center text-xs text-gray-500">
+            This area is restricted to authorized administrators only.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Main admin interface (only shown when authenticated)
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
   const [searchType, setSearchType] = useState('eoa'); // 'eoa', 'railgun', 'txhash'
@@ -451,8 +559,19 @@ ${JSON.stringify(tx, null, 2)}
       <div className="max-w-6xl mx-auto">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-blue-400 mb-2">Admin History Dashboard</h1>
-          <p className="text-gray-400">Search and view user transaction histories</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-blue-400 mb-2">Admin History Dashboard</h1>
+              <p className="text-gray-400">Search and view user transaction histories</p>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 rounded-md transition-colors text-white font-medium flex items-center gap-2"
+              title="Logout from admin panel"
+            >
+              🚪 Logout
+            </button>
+          </div>
         </div>
 
         {/* Search Section */}
