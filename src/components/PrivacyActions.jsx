@@ -157,8 +157,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     setAmount('');
     setRecipientAddress('');
     setMemoText('');
-    setIsProcessing(false);
-    setIsTransactionLocked(false); // Clear transaction lock on reset
+    // Keep isProcessing = true until transactionMonitor completes
+    // Keep isTransactionLocked = true until transactionMonitor completes
 
     // Dispatch event to parent components (WalletPage)
     if (typeof window !== 'undefined') {
@@ -224,6 +224,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   useEffect(() => {
     const handleBalanceUpdateComplete = (event) => {
       console.log('[PrivacyActions] 🔓 Balance update completed (backup unlock)');
+      setIsProcessing(false); // Stop showing "Processing..."
       setIsTransactionLocked(false);
       setActiveTransactionMonitors(0); // Reset counter as backup
     };
@@ -240,7 +241,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         // Only unlock UI when ALL monitors have completed
         if (newCount === 0) {
           console.log('[PrivacyActions] 🔓 All local monitors completed, unlocking transaction actions');
-          setIsTransactionLocked(false);
+          setIsProcessing(false); // Now we can stop showing "Processing..."
+          setIsTransactionLocked(false); // And unlock the UI
         } else {
           console.log(`[PrivacyActions] 🔒 Still ${newCount} local monitor(s) running, keeping actions locked`);
         }
