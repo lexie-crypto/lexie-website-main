@@ -86,6 +86,77 @@ ${JSON.stringify(tx, null, 2)}
     }
   };
 
+  // Export transactions to CSV
+  const exportToCSV = () => {
+    if (!transactionHistory.length) {
+      addLog('No transactions to export', 'error');
+      return;
+    }
+
+    try {
+      // CSV headers
+      const headers = [
+        'Type',
+        'Status',
+        'Token',
+        'Amount',
+        'Trace ID',
+        'Transaction Hash',
+        'Transaction ID',
+        'ZK Address',
+        'Recipient Address',
+        'Sender Address',
+        'Timestamp',
+        'Added At',
+        'Memo',
+        'Nullifiers Count'
+      ];
+
+      // Convert transactions to CSV rows
+      const csvRows = transactionHistory.map(tx => [
+        tx.transactionType || '',
+        tx.status || '',
+        tx.token || '',
+        tx.amount || '',
+        tx.traceId || '',
+        tx.txHash || '',
+        tx.txid || '',
+        tx.id || '',
+        tx.zkAddr || '',
+        tx.recipientAddress || '',
+        tx.senderAddress || '',
+        tx.timestamp ? new Date(tx.timestamp * 1000).toISOString() : '',
+        tx.addedAt ? new Date(tx.addedAt).toISOString() : '',
+        tx.memo ? `"${tx.memo.replace(/"/g, '""')}"` : '', // Escape quotes for CSV
+        tx.nullifiers?.length || 0
+      ]);
+
+      // Create CSV content
+      const csvContent = [
+        headers.join(','),
+        ...csvRows.map(row => row.map(field => `"${field}"`).join(','))
+      ].join('\n');
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+
+      link.setAttribute('href', url);
+      link.setAttribute('download', `wallet-transactions-${walletId.slice(0, 8)}-${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      addLog(`CSV export completed: ${transactionHistory.length} transactions`, 'success');
+    } catch (error) {
+      console.error('Failed to export CSV:', error);
+      addLog('Failed to export CSV', 'error');
+    }
+  };
+
   // Clear all state
   const clearState = () => {
     setWalletId(null);
@@ -331,8 +402,17 @@ ${JSON.stringify(tx, null, 2)}
             {/* Transaction List */}
             {!isLoadingHistory && transactionHistory.length > 0 && (
               <div className="space-y-3">
-                <div className="text-green-400 font-medium mb-2">
-                  📊 Found {transactionHistory.length} transaction{transactionHistory.length !== 1 ? 's' : ''}
+                <div className="flex items-center justify-between mb-4">
+                  <div className="text-green-400 font-medium">
+                    📊 Found {transactionHistory.length} transaction{transactionHistory.length !== 1 ? 's' : ''}
+                  </div>
+                  <button
+                    onClick={exportToCSV}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md transition-colors flex items-center gap-2"
+                    title="Export all transactions to CSV"
+                  >
+                    📥 Export CSV
+                  </button>
                 </div>
 
                 <div className="bg-gray-900 rounded-md p-4 max-h-96 overflow-y-auto">
