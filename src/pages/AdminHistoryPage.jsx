@@ -13,7 +13,7 @@ import { getAddress } from 'ethers';
 const AdminDashboard = () => {
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchType, setSearchType] = useState('eoa'); // 'eoa', 'zkaddress', 'txhash'
+  const [searchType, setSearchType] = useState('eoa'); // 'eoa', 'railgun', 'txhash'
   const [isSearching, setIsSearching] = useState(false);
 
   // Results state
@@ -183,9 +183,11 @@ ${JSON.stringify(tx, null, 2)}
       let resolveEndpoint = '';
       let queryType = '';
 
-      // Normalize EOA to checksum for consistent Redis key matches
+      // Handle different search types
       let walletAddressParam = (searchQuery || '').trim();
+
       if (searchType === 'eoa') {
+        // Normalize EOA to checksum for consistent Redis key matches
         try {
           walletAddressParam = getAddress(walletAddressParam);
         } catch (_) {
@@ -193,11 +195,29 @@ ${JSON.stringify(tx, null, 2)}
           setIsSearching(false);
           return;
         }
-      }
 
-      // Use the existing query parameter approach (same as WalletPage.jsx)
-      resolveEndpoint = `/api/wallet-metadata?walletAddress=${encodeURIComponent(walletAddressParam)}`;
-      queryType = 'Wallet Address';
+        // Use wallet metadata endpoint for EOA resolution
+        resolveEndpoint = `/api/wallet-metadata?walletAddress=${encodeURIComponent(walletAddressParam)}`;
+        queryType = 'EOA Address';
+
+      } else if (searchType === 'railgun') {
+        // Validate Railgun address format
+        if (!walletAddressParam.startsWith('0zk')) {
+          addLog('❌ Invalid Railgun address format (must start with 0zk)', 'error');
+          setIsSearching(false);
+          return;
+        }
+
+        // Use wallet metadata endpoint with Railgun address
+        resolveEndpoint = `/api/wallet-metadata?walletAddress=${encodeURIComponent(walletAddressParam)}`;
+        queryType = 'Railgun Address';
+
+      } else if (searchType === 'txhash') {
+        // For transaction hash searches, we'll need to implement tx resolution later
+        addLog('❌ Transaction hash search not yet implemented', 'error');
+        setIsSearching(false);
+        return;
+      }
 
       addLog(`🔍 Using ${queryType} resolver: ${resolveEndpoint}`, 'info');
 
@@ -330,7 +350,7 @@ ${JSON.stringify(tx, null, 2)}
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="eoa">EOA Address (0x...)</option>
-                <option value="zkaddress">Railgun Address (0zk...)</option>
+                <option value="railgun">Railgun Address (0zk...)</option>
                 <option value="txhash">Transaction Hash</option>
               </select>
             </div>
@@ -338,7 +358,7 @@ ${JSON.stringify(tx, null, 2)}
             <div>
               <label className="block text-sm font-medium mb-2">
                 {searchType === 'eoa' && 'EOA Address'}
-                {searchType === 'zkaddress' && 'Railgun Address'}
+                {searchType === 'railgun' && 'Railgun Address'}
                 {searchType === 'txhash' && 'Transaction Hash'}
               </label>
               <input
@@ -346,7 +366,7 @@ ${JSON.stringify(tx, null, 2)}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder={`Enter ${searchType === 'eoa' ? 'EOA address' : searchType === 'zkaddress' ? 'Railgun address' : 'transaction hash'}`}
+                placeholder={`Enter ${searchType === 'eoa' ? 'EOA address' : searchType === 'railgun' ? 'Railgun address' : 'transaction hash'}`}
                 className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
