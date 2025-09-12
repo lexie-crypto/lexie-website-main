@@ -324,14 +324,14 @@ const AdminDashboard = () => {
                             {tx.traceId && (
                               <div className="flex justify-between items-center">
                                 <span className="text-xs text-gray-500">Trace ID:</span>
-                                <span className="text-xs font-mono text-gray-300">{tx.traceId.slice(0, 10)}...{tx.traceId.slice(-8)}</span>
+                                <span className="text-xs font-mono text-gray-300 break-all">{tx.traceId}</span>
                               </div>
                             )}
 
                             {tx.txHash && (
                               <div className="flex justify-between items-center">
                                 <span className="text-xs text-gray-500">TX Hash:</span>
-                                <span className="text-xs font-mono text-gray-300">{tx.txHash.slice(0, 10)}...{tx.txHash.slice(-8)}</span>
+                                <span className="text-xs font-mono text-gray-300 break-all">{tx.txHash}</span>
                               </div>
                             )}
 
@@ -351,7 +351,7 @@ const AdminDashboard = () => {
                             {tx.id && (
                               <div className="flex justify-between items-center">
                                 <span className="text-xs text-gray-500">ID:</span>
-                                <span className="text-xs font-mono text-gray-300">{tx.id.slice(0, 8)}...</span>
+                                <span className="text-xs font-mono text-gray-300 break-all">{tx.id}</span>
                               </div>
                             )}
 
@@ -391,21 +391,21 @@ const AdminDashboard = () => {
                             {tx.zkAddr && (
                               <div className="flex justify-between items-center">
                                 <span className="text-xs text-gray-500">ZK Address:</span>
-                                <span className="text-xs font-mono text-purple-300">{tx.zkAddr.slice(0, 8)}...{tx.zkAddr.slice(-6)}</span>
+                                <span className="text-xs font-mono text-purple-300 break-all">{tx.zkAddr}</span>
                               </div>
                             )}
 
                             {tx.recipientAddress && (
                               <div className="flex justify-between items-center">
                                 <span className="text-xs text-gray-500">Recipient:</span>
-                                <span className="text-xs font-mono text-orange-300">{tx.recipientAddress.slice(0, 8)}...{tx.recipientAddress.slice(-6)}</span>
+                                <span className="text-xs font-mono text-orange-300 break-all">{tx.recipientAddress}</span>
                               </div>
                             )}
 
                             {tx.senderAddress && (
                               <div className="flex justify-between items-center">
                                 <span className="text-xs text-gray-500">Sender:</span>
-                                <span className="text-xs font-mono text-orange-300">{tx.senderAddress.slice(0, 8)}...{tx.senderAddress.slice(-6)}</span>
+                                <span className="text-xs font-mono text-orange-300 break-all">{tx.senderAddress}</span>
                               </div>
                             )}
 
