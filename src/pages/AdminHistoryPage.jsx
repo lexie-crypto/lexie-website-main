@@ -38,6 +38,54 @@ const AdminDashboard = () => {
     console.log(`[${type.toUpperCase()}] ${message}`);
   };
 
+  // Format and copy complete transaction data
+  const copyTransactionData = async (tx) => {
+    try {
+      const formattedData = `
+TRANSACTION DETAILS
+==================
+Type: ${tx.transactionType || 'Unknown'}
+Date: ${tx.date?.toLocaleString() || 'Unknown'}
+
+TRANSACTION INFO
+---------------
+${tx.traceId ? `Trace ID: ${tx.traceId}` : ''}
+${tx.txHash ? `TX Hash: ${tx.txHash}` : ''}
+${tx.txid ? `TX ID: ${tx.txid}` : ''}
+${tx.id ? `ID: ${tx.id}` : ''}
+Status: ${tx.status || 'Unknown'}
+${tx.timestamp ? `Timestamp: ${new Date(tx.timestamp * 1000).toLocaleString()}` : ''}
+${tx.addedAt ? `Added At: ${new Date(tx.addedAt).toLocaleString()}` : ''}
+
+TOKEN & AMOUNT INFO
+------------------
+${tx.token ? `Token: ${tx.token}` : ''}
+${tx.amount ? `Amount: ${tx.amount}` : ''}
+
+ADDRESSES
+---------
+${tx.zkAddr ? `ZK Address: ${tx.zkAddr}` : ''}
+${tx.recipientAddress ? `Recipient: ${tx.recipientAddress}` : ''}
+${tx.senderAddress ? `Sender: ${tx.senderAddress}` : ''}
+
+ADDITIONAL INFO
+---------------
+${tx.nullifiers?.length > 0 ? `Nullifiers: ${tx.nullifiers.length} nullifier${tx.nullifiers.length !== 1 ? 's' : ''}` : ''}
+${tx.memo ? `Memo: ${tx.memo}` : ''}
+
+RAW DATA
+--------
+${JSON.stringify(tx, null, 2)}
+`;
+
+      await navigator.clipboard.writeText(formattedData.trim());
+      addLog('Transaction data copied to clipboard', 'success');
+    } catch (error) {
+      console.error('Failed to copy transaction data:', error);
+      addLog('Failed to copy transaction data', 'error');
+    }
+  };
+
   // Clear all state
   const clearState = () => {
     setWalletId(null);
@@ -267,7 +315,7 @@ const AdminDashboard = () => {
         {walletId && (
           <div className="bg-gray-800 rounded-lg p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-blue-300">📋 Transaction History</h2>
+              <h2 className="text-xl font-semibold text-blue-300">Transaction History</h2>
               <div className="text-sm text-gray-400">
                 Wallet: {walletId.slice(0, 8)}...
               </div>
@@ -307,11 +355,11 @@ const AdminDashboard = () => {
                             </span>
                           </div>
                           <button
-                            onClick={() => navigator.clipboard.writeText(tx.txid || tx.txHash || '')}
+                            onClick={() => copyTransactionData(tx)}
                             className="text-xs text-gray-400 hover:text-gray-300 px-2 py-1 rounded hover:bg-gray-700"
-                            title="Copy transaction ID"
+                            title="Copy complete transaction data"
                           >
-                            📋
+                            Copy
                           </button>
                         </div>
 
@@ -474,7 +522,7 @@ const AdminDashboard = () => {
 
         {/* Activity Logs */}
         <div className="bg-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4 text-blue-300">📋 Activity Logs</h2>
+          <h2 className="text-xl font-semibold mb-4 text-blue-300">Activity Logs</h2>
 
           <div className="bg-gray-900 rounded-md p-4 max-h-64 overflow-y-auto">
             {logs.length === 0 ? (
