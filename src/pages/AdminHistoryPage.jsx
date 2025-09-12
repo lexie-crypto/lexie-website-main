@@ -32,8 +32,8 @@ const AdminDashboard = () => {
     setAuthError('');
 
     try {
-      // Call backend to verify password
-      const response = await fetch('/api/verify-admin-password', {
+      // Call wallet-metadata proxy to verify password
+      const response = await fetch('/api/wallet-metadata?action=verify-admin-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
