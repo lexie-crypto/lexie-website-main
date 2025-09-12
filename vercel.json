@@ -11,6 +11,10 @@
       "destination": "https://staging.api.lexiecrypto.com/api/$1"
     },
     {
+      "source": "/api/wallet-metadata",
+      "destination": "/api/wallet-metadata"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
