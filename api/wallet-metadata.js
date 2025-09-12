@@ -361,15 +361,17 @@ export default async function handler(req, res) {
       const backendPath = `/api/wallet-metadata/timeline-append/${encodeURIComponent(walletIdBody)}`;
       const backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
 
-      const signature = generateHmacSignature('POST', backendPath, timestamp, hmacSecret);
-      const headers = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'X-Lexie-Timestamp': timestamp,
-        'X-Lexie-Signature': signature,
-        'Origin': 'https://staging.lexiecrypto.com',
-        'User-Agent': 'Lexie-Wallet-Proxy/1.0',
-      };
+        // Generate HMAC signature for wallet-timeline GET request
+        const signature = generateHmacSignature('GET', backendPath, timestamp, hmacSecret);
+
+        headers = {
+          'Accept': 'application/json',
+          'X-Lexie-Timestamp': timestamp,
+          'X-Lexie-Signature': signature,
+          'Origin': 'https://staging.lexiecrypto.com',
+          'User-Agent': 'Lexie-Wallet-Proxy/1.0',
+        };
+
 
       const backendResp = await fetch(backendUrl, {
         method: 'POST',
@@ -497,15 +499,17 @@ export default async function handler(req, res) {
         console.log(`🔍 [WALLET-METADATA-PROXY-${requestId}] GET request for wallet ${walletAddress?.slice(0, 8)}...`);
       }
 
-      const signature = generateHmacSignature('GET', backendPath, timestamp, hmacSecret);
-      
-      headers = {
-        'Accept': 'application/json',
-        'X-Lexie-Timestamp': timestamp,
-        'X-Lexie-Signature': signature,
-        'Origin': 'https://staging.lexiecrypto.com',
-        'User-Agent': 'Lexie-Wallet-Proxy/1.0',
-      };
+        // Generate HMAC signature for wallet-timeline POST request
+        const signature = generateHmacSignature('POST', backendPath, timestamp, hmacSecret);
+
+        headers = {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'X-Lexie-Timestamp': timestamp,
+          'X-Lexie-Signature': signature,
+          'Origin': 'https://staging.lexiecrypto.com',
+          'User-Agent': 'Lexie-Wallet-Proxy/1.0',
+        };
 
     } else if (req.method === 'POST') {
       // Check if this is a resolve-wallet-id POST request (future use)
