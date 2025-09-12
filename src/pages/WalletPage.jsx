@@ -72,6 +72,7 @@ const WalletPage = () => {
   const [showPrivateBalances, setShowPrivateBalances] = useState(false);
   const [isShielding, setIsShielding] = useState(false);
   const [isTransactionLocked, setIsTransactionLocked] = useState(false);
+  const [activeTransactionMonitors, setActiveTransactionMonitors] = useState(0);
   const [shieldingTokens, setShieldingTokens] = useState(new Set());
   const [shieldAmounts, setShieldAmounts] = useState({});
   const [showSignatureGuide, setShowSignatureGuide] = useState(false);
@@ -99,22 +100,50 @@ const WalletPage = () => {
     const handleTransactionStart = () => {
       console.log('[WalletPage] 🔒 Transaction started, locking UI');
       setIsTransactionLocked(true);
+      setActiveTransactionMonitors(prev => {
+        const newCount = prev + 1;
+        console.log(`[WalletPage] 📊 Transaction monitor count increased: ${newCount}`);
+        return newCount;
+      });
     };
 
     const handleTransactionComplete = () => {
-      console.log('[WalletPage] 🔓 Transaction completed, unlocking UI');
-      setIsTransactionLocked(false);
+      console.log('[WalletPage] 📋 Transaction form reset completed');
+      // Don't unlock UI here - let the monitor completion handle it
     };
 
-    // Listen for balance update completion to unlock transactions
+    // Listen for transaction monitor completion to unlock transactions
+    const handleTransactionMonitorComplete = (event) => {
+      const { transactionType, found, elapsedTime } = event.detail;
+      console.log(`[WalletPage] ✅ Transaction monitor completed for ${transactionType} (${found ? 'found' : 'timeout'}) in ${elapsedTime/1000}s`);
+
+      setActiveTransactionMonitors(prev => {
+        const newCount = prev - 1;
+        console.log(`[WalletPage] 📊 Transaction monitor count decreased: ${newCount}`);
+
+        // Only unlock UI when ALL monitors have completed
+        if (newCount === 0) {
+          console.log('[WalletPage] 🔓 All transaction monitors completed, unlocking UI');
+          setIsTransactionLocked(false);
+        } else {
+          console.log(`[WalletPage] 🔒 Still ${newCount} transaction monitor(s) running, keeping UI locked`);
+        }
+
+        return newCount;
+      });
+    };
+
+    // Also listen for balance update completion as backup
     const handleBalanceUpdateComplete = (event) => {
-      console.log('[WalletPage] 🔓 Balance update completed, unlocking transaction actions');
+      console.log('[WalletPage] 🔓 Balance update completed (backup unlock)');
       setIsTransactionLocked(false);
+      setActiveTransactionMonitors(0); // Reset counter as backup
     };
 
     if (typeof window !== 'undefined') {
       window.addEventListener('privacy-transaction-start', handleTransactionStart);
       window.addEventListener('privacy-transaction-complete', handleTransactionComplete);
+      window.addEventListener('transaction-monitor-complete', handleTransactionMonitorComplete);
       window.addEventListener('railgun-public-refresh', handleBalanceUpdateComplete);
     }
 
@@ -122,6 +151,7 @@ const WalletPage = () => {
       if (typeof window !== 'undefined') {
         window.removeEventListener('privacy-transaction-start', handleTransactionStart);
         window.removeEventListener('privacy-transaction-complete', handleTransactionComplete);
+        window.removeEventListener('transaction-monitor-complete', handleTransactionMonitorComplete);
         window.removeEventListener('railgun-public-refresh', handleBalanceUpdateComplete);
       }
     };

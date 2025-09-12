@@ -73,6 +73,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isTokenMenuOpen, setIsTokenMenuOpen] = useState(false);
   const [isTransactionLocked, setIsTransactionLocked] = useState(false);
+  const [activeTransactionMonitors, setActiveTransactionMonitors] = useState(0);
   const tokenMenuRef = useRef(null);
   // Receive tab state
   const [paymentLink, setPaymentLink] = useState('');
@@ -222,18 +223,41 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   // Listen for balance update completion to unlock transactions
   useEffect(() => {
     const handleBalanceUpdateComplete = (event) => {
-      console.log('[PrivacyActions] 🔓 Balance update completed, unlocking transaction actions');
+      console.log('[PrivacyActions] 🔓 Balance update completed (backup unlock)');
       setIsTransactionLocked(false);
+      setActiveTransactionMonitors(0); // Reset counter as backup
     };
 
-    // Listen for the railgun-public-refresh event which indicates balance update completion
+    // Listen for transaction monitor completion to unlock transactions
+    const handleTransactionMonitorComplete = (event) => {
+      const { transactionType, found, elapsedTime } = event.detail;
+      console.log(`[PrivacyActions] ✅ Transaction monitor completed for ${transactionType} (${found ? 'found' : 'timeout'}) in ${elapsedTime/1000}s`);
+
+      setActiveTransactionMonitors(prev => {
+        const newCount = prev - 1;
+        console.log(`[PrivacyActions] 📊 Local monitor count decreased: ${newCount}`);
+
+        // Only unlock UI when ALL monitors have completed
+        if (newCount === 0) {
+          console.log('[PrivacyActions] 🔓 All local monitors completed, unlocking transaction actions');
+          setIsTransactionLocked(false);
+        } else {
+          console.log(`[PrivacyActions] 🔒 Still ${newCount} local monitor(s) running, keeping actions locked`);
+        }
+
+        return newCount;
+      });
+    };
+
     if (typeof window !== 'undefined') {
       window.addEventListener('railgun-public-refresh', handleBalanceUpdateComplete);
+      window.addEventListener('transaction-monitor-complete', handleTransactionMonitorComplete);
     }
 
     return () => {
       if (typeof window !== 'undefined') {
         window.removeEventListener('railgun-public-refresh', handleBalanceUpdateComplete);
+        window.removeEventListener('transaction-monitor-complete', handleTransactionMonitorComplete);
       }
     };
   }, []);
@@ -377,6 +401,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('privacy-transaction-start'));
     }
+
+    // Increment local monitor counter
+    setActiveTransactionMonitors(prev => prev + 1);
 
     let toastId;
 
@@ -595,15 +622,31 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             console.warn('[PrivacyActions] Shield monitoring timed out');
             toast.info('Shield successful! Balance will update automatically.');
           }
+          // Dispatch transaction monitor completion event
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
+              detail: { transactionType: 'shield', found: result.found, elapsedTime: result.elapsedTime }
+            }));
+          }
         })
         .catch((error) => {
           console.error('[PrivacyActions] Shield Graph monitoring failed:', error);
-          // Let balance callback handle the update
+          // Dispatch transaction monitor completion event even on failure
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
+              detail: { transactionType: 'shield', found: false, error: error.message }
+            }));
+          }
         });
         
       } catch (monitorError) {
         console.error('[PrivacyActions] Failed to start shield monitoring:', monitorError);
-        // Still rely on balance callback system
+        // Dispatch transaction monitor completion event even if failed to start
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
+            detail: { transactionType: 'shield', found: false, error: monitorError.message }
+          }));
+        }
       }
 
     } catch (error) {
@@ -663,6 +706,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('privacy-transaction-start'));
     }
+
+    // Increment local monitor counter
+    setActiveTransactionMonitors(prev => prev + 1);
 
     let toastId;
 
@@ -765,15 +811,31 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           } else {
             console.warn('[PrivacyActions] Unshield monitoring timed out');
           }
+          // Dispatch transaction monitor completion event
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
+              detail: { transactionType: 'unshield', found: monitorResult.found, elapsedTime: monitorResult.elapsedTime }
+            }));
+          }
         })
         .catch((error) => {
           console.error('[PrivacyActions] Unshield Graph monitoring failed:', error);
-          // Let balance callback handle the update
+          // Dispatch transaction monitor completion event even on failure
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
+              detail: { transactionType: 'unshield', found: false, error: error.message }
+            }));
+          }
         });
           
       } catch (error) {
         console.error('[PrivacyActions] Failed to start unshield monitoring:', error);
-        // Rely on balance callback system
+        // Dispatch transaction monitor completion event even if failed to start
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
+            detail: { transactionType: 'unshield', found: false, error: error.message }
+          }));
+        }
       }
 
     } catch (error) {
@@ -808,6 +870,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('privacy-transaction-start'));
     }
+
+    // Increment local monitor counter
+    setActiveTransactionMonitors(prev => prev + 1);
 
     let toastId;
 
@@ -914,8 +979,34 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             recipientAddress: timelineRecipientAddress, // Use resolved Railgun address
             memoText: memoText, // Add memo text
           },
-        }).catch(() => {});
-      } catch {}
+        })
+        .then((result) => {
+          console.log(`[PrivacyActions] Transfer monitoring completed in ${result.elapsedTime/1000}s`);
+          // Dispatch transaction monitor completion event
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
+              detail: { transactionType: 'transfer', found: result.found, elapsedTime: result.elapsedTime }
+            }));
+          }
+        })
+        .catch((error) => {
+          console.error('[PrivacyActions] Transfer Graph monitoring failed:', error);
+          // Dispatch transaction monitor completion event even on failure
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
+              detail: { transactionType: 'transfer', found: false, error: error.message }
+            }));
+          }
+        });
+      } catch (error) {
+        console.error('[PrivacyActions] Failed to start transfer monitoring:', error);
+        // Dispatch transaction monitor completion event even if failed to start
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
+            detail: { transactionType: 'transfer', found: false, error: error.message }
+          }));
+        }
+      }
 
     } catch (error) {
       console.error('[PrivacyActions] Private transfer failed:', error);
