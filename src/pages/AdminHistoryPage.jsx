@@ -50,8 +50,14 @@ const AdminDashboard = () => {
 
       addLog(`🔍 Resolving Railgun address to wallet ID...`, 'info');
 
-      // Step 2: Call the dedicated Railgun resolution endpoint
-      const resolveResponse = await fetch(`/api/resolve-wallet-id/by-railgun/${encodeURIComponent(railgunAddress)}`, {
+      // Step 2: Call the wallet-metadata proxy with resolve-wallet-id action
+      const resolveParams = new URLSearchParams({
+        action: 'resolve-wallet-id',
+        type: 'by-railgun',
+        identifier: railgunAddress
+      });
+
+      const resolveResponse = await fetch(`/api/wallet-metadata?${resolveParams}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
