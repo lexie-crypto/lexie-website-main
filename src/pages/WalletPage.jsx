@@ -958,7 +958,7 @@ const WalletPage = () => {
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-400"></div>
                   <div>
                     <div className="text-yellow-300 text-sm font-medium">Transaction in Progress</div>
-                    <div className="text-yellow-300/80 text-xs">Please wait for balance updates to complete</div>
+                    <div className="text-yellow-300/80 text-xs">Please wait for balance updates to complete. This may take a few seconds.</div>
                   </div>
                 </div>
               </div>
