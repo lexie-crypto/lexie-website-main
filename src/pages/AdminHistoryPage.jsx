@@ -133,13 +133,15 @@ const AdminDashboard = () => {
     addLog(`📊 Loading wallet timeline...`, 'info');
 
     try {
-      // Call the new wallet-timeline endpoint
+      // Call the wallet-timeline endpoint through the proxy
       const timelineParams = new URLSearchParams({
+        action: 'wallet-timeline',
+        walletId: walletIdToLoad,
         page: '1',
         pageSize: '100' // Get up to 100 transactions
       });
 
-      const timelineResponse = await fetch(`/api/wallet-metadata/wallet-timeline/${walletIdToLoad}?${timelineParams}`, {
+      const timelineResponse = await fetch(`/api/wallet-metadata?${timelineParams}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

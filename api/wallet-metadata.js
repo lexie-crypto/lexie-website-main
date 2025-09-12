@@ -415,6 +415,18 @@ export default async function handler(req, res) {
         backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
         console.log(`🔍 [WALLET-METADATA-PROXY-${requestId}] GET Lexie by-wallet for ${String(railgunAddress).slice(0,8)}...`);
 
+      } else if (action === 'wallet-timeline') {
+        const walletId = req.query.walletId;
+        if (!walletId) {
+          console.log(`❌ [WALLET-TIMELINE-PROXY-${requestId}] Missing walletId for wallet-timeline GET`);
+          return res.status(400).json({ success: false, error: 'Missing walletId parameter' });
+        }
+
+        const { page = '1', pageSize = '50' } = req.query;
+        backendPath = `/api/wallet-metadata/wallet-timeline/${walletId}?page=${page}&pageSize=${pageSize}`;
+        backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+        console.log(`📊 [WALLET-TIMELINE-PROXY-${requestId}] GET wallet timeline for wallet: ${walletId.slice(0, 8)}... (page: ${page}, size: ${pageSize})`);
+
       } else {
         // Handle GET: retrieve wallet metadata (original functionality)
         if (!walletAddress) {
