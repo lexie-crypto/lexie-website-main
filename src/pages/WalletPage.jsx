@@ -71,6 +71,7 @@ const WalletPage = () => {
   const [activeAction, setActiveAction] = useState('shield'); // 'shield', 'unshield', 'transfer'
   const [showPrivateBalances, setShowPrivateBalances] = useState(false);
   const [isShielding, setIsShielding] = useState(false);
+  const [isTransactionLocked, setIsTransactionLocked] = useState(false);
   const [shieldingTokens, setShieldingTokens] = useState(new Set());
   const [shieldAmounts, setShieldAmounts] = useState({});
   const [showSignatureGuide, setShowSignatureGuide] = useState(false);
@@ -92,6 +93,39 @@ const WalletPage = () => {
 
   const network = getCurrentNetwork();
   const [isChainReady, setIsChainReady] = useState(false);
+
+  // Listen for transaction lock/unlock events from PrivacyActions
+  useEffect(() => {
+    const handleTransactionStart = () => {
+      console.log('[WalletPage] 🔒 Transaction started, locking UI');
+      setIsTransactionLocked(true);
+    };
+
+    const handleTransactionComplete = () => {
+      console.log('[WalletPage] 🔓 Transaction completed, unlocking UI');
+      setIsTransactionLocked(false);
+    };
+
+    // Listen for balance update completion to unlock transactions
+    const handleBalanceUpdateComplete = (event) => {
+      console.log('[WalletPage] 🔓 Balance update completed, unlocking transaction actions');
+      setIsTransactionLocked(false);
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('privacy-transaction-start', handleTransactionStart);
+      window.addEventListener('privacy-transaction-complete', handleTransactionComplete);
+      window.addEventListener('railgun-public-refresh', handleBalanceUpdateComplete);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('privacy-transaction-start', handleTransactionStart);
+        window.removeEventListener('privacy-transaction-complete', handleTransactionComplete);
+        window.removeEventListener('railgun-public-refresh', handleBalanceUpdateComplete);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -887,6 +921,19 @@ const WalletPage = () => {
           </div>
         </div>
 
+            {/* Transaction Lock Status */}
+            {isTransactionLocked && (
+              <div className="mt-4 p-3 bg-yellow-900/20 border border-yellow-500/40 rounded-lg">
+                <div className="flex items-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-400"></div>
+                  <div>
+                    <div className="text-yellow-300 text-sm font-medium">Transaction in Progress</div>
+                    <div className="text-yellow-300/80 text-xs">Please wait for balance updates to complete</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Boot log */}
             <div className="mb-6">
               <div className="text-xs text-green-400/60 tracking-wide mb-3">LEXIEAI SYSTEM BOOT v2.1.3</div>
@@ -909,14 +956,15 @@ const WalletPage = () => {
               <div className="flex flex-wrap gap-2 mb-2">
                   <button
                   onClick={refreshBalances}
-                  disabled={isLoading || !isConnected}
-                  className="px-2 py-1 rounded border border-emerald-400/40 bg-emerald-900/20 hover:bg-emerald-900/40 disabled:opacity-50 text-xs"
+                  disabled={isLoading || !isConnected || isTransactionLocked}
+                  className="px-2 py-1 rounded border border-emerald-400/40 bg-emerald-900/20 hover:bg-emerald-900/40 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
                 >
                   refresh
                   </button>
                     <button
                   onClick={() => setSelectedView('balances')}
-                  className="px-2 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 text-xs"
+                  disabled={isTransactionLocked}
+                  className="px-2 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   balances
                     </button>
@@ -925,7 +973,8 @@ const WalletPage = () => {
                     setActiveAction('shield');
                     setSelectedView('privacy');
                   }}
-                  className="px-2 py-1 rounded border border-purple-300/50 bg-purple-300/10 hover:bg-purple-300/20 text-xs"
+                  disabled={isTransactionLocked}
+                  className="px-2 py-1 rounded border border-purple-300/50 bg-purple-300/10 hover:bg-purple-300/20 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   add
                     </button>
@@ -934,7 +983,8 @@ const WalletPage = () => {
                   setActiveAction('receive');
                   setSelectedView('privacy');
                 }}
-                className="px-2 py-1 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40 text-xs"
+                disabled={isTransactionLocked}
+                className="px-2 py-1 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
               >
                 receive
               </button>
@@ -943,7 +993,8 @@ const WalletPage = () => {
                     setActiveAction('transfer');
                     setSelectedView('privacy');
                   }}
-                  className="px-2 py-1 rounded border border-cyan-400/40 bg-cyan-900/20 hover:bg-cyan-900/40 text-xs"
+                  disabled={isTransactionLocked}
+                  className="px-2 py-1 rounded border border-cyan-400/40 bg-cyan-900/20 hover:bg-cyan-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   send
               </button>
@@ -952,13 +1003,15 @@ const WalletPage = () => {
                     setActiveAction('unshield');
                     setSelectedView('privacy');
                   }}
-                  className="px-2 py-1 rounded border border-amber-400/40 bg-amber-900/20 hover:bg-amber-900/40 text-xs"
+                  disabled={isTransactionLocked}
+                  className="px-2 py-1 rounded border border-amber-400/40 bg-amber-900/20 hover:bg-amber-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   remove
               </button>
               <button
                 onClick={() => setSelectedView('history')}
-                  className="px-2 py-1 rounded border border-purple-400/40 bg-purple-900/20 hover:bg-purple-900/40 text-xs"
+                disabled={isTransactionLocked}
+                  className="px-2 py-1 rounded border border-purple-400/40 bg-purple-900/20 hover:bg-purple-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   history
               </button>

@@ -72,6 +72,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   const [memoText, setMemoText] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isTokenMenuOpen, setIsTokenMenuOpen] = useState(false);
+  const [isTransactionLocked, setIsTransactionLocked] = useState(false);
   const tokenMenuRef = useRef(null);
   // Receive tab state
   const [paymentLink, setPaymentLink] = useState('');
@@ -156,6 +157,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     setRecipientAddress('');
     setMemoText('');
     setIsProcessing(false);
+    setIsTransactionLocked(false); // Clear transaction lock on reset
+
+    // Dispatch event to parent components (WalletPage)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('privacy-transaction-complete'));
+    }
 
     // Preserve selectedToken by finding the correct token object shape from current availableTokens
     setSelectedToken(prev => {
@@ -211,6 +218,25 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       document.removeEventListener('keydown', onKey);
     };
   }, [isTokenMenuOpen]);
+
+  // Listen for balance update completion to unlock transactions
+  useEffect(() => {
+    const handleBalanceUpdateComplete = (event) => {
+      console.log('[PrivacyActions] 🔓 Balance update completed, unlocking transaction actions');
+      setIsTransactionLocked(false);
+    };
+
+    // Listen for the railgun-public-refresh event which indicates balance update completion
+    if (typeof window !== 'undefined') {
+      window.addEventListener('railgun-public-refresh', handleBalanceUpdateComplete);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('railgun-public-refresh', handleBalanceUpdateComplete);
+      }
+    };
+  }, []);
 
   // Generate payment link when receive tab parameters change (uses active network)
   useEffect(() => {
@@ -345,6 +371,13 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     }
 
     setIsProcessing(true);
+    setIsTransactionLocked(true); // Lock all transaction actions
+
+    // Dispatch event to parent components (WalletPage)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('privacy-transaction-start'));
+    }
+
     let toastId;
 
     try {
@@ -624,6 +657,13 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     }
 
     setIsProcessing(true);
+    setIsTransactionLocked(true); // Lock all transaction actions
+
+    // Dispatch event to parent components (WalletPage)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('privacy-transaction-start'));
+    }
+
     let toastId;
 
     try {
@@ -762,6 +802,13 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     }
 
     setIsProcessing(true);
+    setIsTransactionLocked(true); // Lock all transaction actions
+
+    // Dispatch event to parent components (WalletPage)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('privacy-transaction-start'));
+    }
+
     let toastId;
 
     try {
@@ -1288,9 +1335,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={!isValidAmount || isProcessing || !selectedToken || (activeTab === 'transfer' && (!recipientAddress || recipientType === 'invalid'))}
+            disabled={!isValidAmount || isProcessing || isTransactionLocked || !selectedToken || (activeTab === 'transfer' && (!recipientAddress || recipientType === 'invalid'))}
             className={`w-full py-3 px-4 rounded font-medium transition-colors ${
-              isValidAmount && !isProcessing && selectedToken && (activeTab !== 'transfer' || (recipientAddress && recipientType !== 'invalid'))
+              isValidAmount && !isProcessing && !isTransactionLocked && selectedToken && (activeTab !== 'transfer' || (recipientAddress && recipientType !== 'invalid'))
                 ? 'bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 border border-emerald-400/40'
                 : 'bg-black/40 text-green-400/50 border border-green-500/20 cursor-not-allowed'
             }`}
@@ -1299,6 +1346,11 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               <div className="flex items-center justify-center gap-2">
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-emerald-400"></div>
                 Processing...
+              </div>
+            ) : isTransactionLocked ? (
+              <div className="flex items-center justify-center gap-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-400"></div>
+                Updating Balances...
               </div>
             ) : (
               `${activeTab === 'shield' ? 'Add' : activeTab === 'unshield' ? 'Remove' : 'Send'} ${selectedToken?.symbol || 'Token'}`
