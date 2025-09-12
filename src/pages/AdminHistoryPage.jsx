@@ -68,6 +68,41 @@ const AdminDashboard = () => {
     setAuthError('');
   };
 
+  // Main admin interface hooks (must be called before any conditionals)
+  // Search state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchType, setSearchType] = useState('eoa'); // 'eoa', 'railgun', 'txhash'
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Results state
+  const [walletId, setWalletId] = useState(null);
+  const [resolutionType, setResolutionType] = useState(null);
+  const [transactionHistory, setTransactionHistory] = useState([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [selectedChain, setSelectedChain] = useState(1); // Default to Ethereum
+
+  // UI state
+  const [logs, setLogs] = useState([]);
+
+  // Add log entry - memoized to prevent infinite re-renders
+  const addLog = useCallback((message, type = 'info') => {
+    const timestamp = new Date().toISOString();
+    const logEntry = {
+      timestamp,
+      message,
+      type
+    };
+    setLogs(prev => [...prev, logEntry]);
+    console.log(`[${type.toUpperCase()}] ${message}`);
+  }, []);
+
+  // Log when dashboard is cleared
+  useEffect(() => {
+    if (walletId === null && resolutionType === null && transactionHistory.length === 0) {
+      addLog('Dashboard cleared', 'info');
+    }
+  }, [walletId, resolutionType, transactionHistory.length, addLog]);
+
   // Password authentication UI
   if (!isAuthenticated) {
     return (
@@ -118,33 +153,6 @@ const AdminDashboard = () => {
     );
   }
 
-  // Main admin interface (only shown when authenticated)
-  // Search state
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchType, setSearchType] = useState('eoa'); // 'eoa', 'railgun', 'txhash'
-  const [isSearching, setIsSearching] = useState(false);
-
-  // Results state
-  const [walletId, setWalletId] = useState(null);
-  const [resolutionType, setResolutionType] = useState(null);
-  const [transactionHistory, setTransactionHistory] = useState([]);
-  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
-  const [selectedChain, setSelectedChain] = useState(1); // Default to Ethereum
-
-  // UI state
-  const [logs, setLogs] = useState([]);
-
-  // Add log entry
-  const addLog = (message, type = 'info') => {
-    const timestamp = new Date().toISOString();
-    const logEntry = {
-      timestamp,
-      message,
-      type
-    };
-    setLogs(prev => [...prev, logEntry]);
-    console.log(`[${type.toUpperCase()}] ${message}`);
-  };
 
   // Handle Railgun address search
   const handleRailgunSearch = async (railgunAddress) => {
@@ -398,13 +406,6 @@ ${JSON.stringify(tx, null, 2)}
     setTransactionHistory([]);
     setLogs([]);
   };
-
-  // Log when dashboard is cleared
-  useEffect(() => {
-    if (walletId === null && resolutionType === null && transactionHistory.length === 0) {
-      addLog('Dashboard cleared', 'info');
-    }
-  }, [walletId, resolutionType, transactionHistory.length, addLog]);
 
   // Search for wallet and get transaction history
   const searchWallet = async () => {
