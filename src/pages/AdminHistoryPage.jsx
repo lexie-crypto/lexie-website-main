@@ -100,6 +100,70 @@ const AdminDashboard = () => {
     }
   };
 
+  // Handle Transaction Hash search
+  const handleTxHashSearch = async (txHash) => {
+    try {
+      // Step 1: Validate transaction hash format
+      if (!txHash.startsWith('0x') || txHash.length < 66) {
+        addLog('❌ Invalid transaction hash format (must start with 0x and be at least 66 characters)', 'error');
+        setIsSearching(false);
+        return;
+      }
+
+      addLog(`🔍 Resolving transaction hash to wallet ID...`, 'info');
+
+      // Step 2: Call the wallet-metadata proxy with resolve-wallet-id action
+      const resolveParams = new URLSearchParams({
+        action: 'resolve-wallet-id',
+        type: 'by-tx',
+        identifier: txHash
+      });
+
+      const resolveResponse = await fetch(`/api/wallet-metadata?${resolveParams}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Origin': window.location.origin,
+          'User-Agent': navigator.userAgent
+        }
+      });
+
+      if (!resolveResponse.ok) {
+        if (resolveResponse.status === 404) {
+          addLog(`❌ No wallet found for transaction hash: ${txHash.slice(0, 10)}...`, 'error');
+        } else {
+          throw new Error(`Transaction hash resolution failed: ${resolveResponse.status}`);
+        }
+        setIsSearching(false);
+        return;
+      }
+
+      const resolveData = await resolveResponse.json();
+
+      if (!resolveData.success || !resolveData.walletId) {
+        addLog(`❌ No wallet ID found for transaction hash: ${txHash.slice(0, 10)}...`, 'error');
+        setIsSearching(false);
+        return;
+      }
+
+      const walletId = resolveData.walletId;
+      const traceId = resolveData.traceId;
+      setWalletId(walletId);
+      setResolutionType('Transaction Hash');
+
+      addLog(`✅ Found wallet ID: ${walletId.slice(0, 8)}... from transaction hash`, 'success');
+      addLog(`📝 Trace ID: ${traceId.slice(0, 8)}...`, 'info');
+
+      // Step 3: Load transaction timeline
+      await loadWalletTimeline(walletId);
+
+    } catch (error) {
+      addLog(`❌ Transaction hash search failed: ${error.message}`, 'error');
+      console.error('Transaction hash search error:', error);
+      setIsSearching(false);
+    }
+  };
+
   // Format and copy complete transaction data
   const copyTransactionData = async (tx) => {
     try {
@@ -308,10 +372,8 @@ ${JSON.stringify(tx, null, 2)}
         await handleRailgunSearch(searchQuery.trim());
 
       } else if (searchType === 'txhash') {
-        // For transaction hash searches, we'll need to implement tx resolution later
-        addLog('❌ Transaction hash search not yet implemented', 'error');
-        setIsSearching(false);
-        return;
+        // Handle Transaction Hash search
+        await handleTxHashSearch(searchQuery.trim());
       }
 
     } catch (error) {
