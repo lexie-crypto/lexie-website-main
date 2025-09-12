@@ -38,6 +38,96 @@ const AdminDashboard = () => {
     console.log(`[${type.toUpperCase()}] ${message}`);
   };
 
+  // Handle Railgun address search (two-step process)
+  const handleRailgunSearch = async (railgunAddress) => {
+    try {
+      // Step 1: Validate Railgun address format
+      if (!railgunAddress.startsWith('0zk')) {
+        addLog('❌ Invalid Railgun address format (must start with 0zk)', 'error');
+        setIsSearching(false);
+        return;
+      }
+
+      addLog(`🔍 Step 1: Resolving Railgun address to wallet ID...`, 'info');
+
+      // Step 2: Resolve Railgun address to wallet ID
+      const resolveParams = new URLSearchParams({
+        action: 'resolve-wallet-id',
+        type: 'by-railgun',
+        identifier: railgunAddress
+      });
+
+      const resolveResponse = await fetch(`/api/wallet-metadata?${resolveParams}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Origin': window.location.origin,
+          'User-Agent': navigator.userAgent
+        }
+      });
+
+      if (!resolveResponse.ok) {
+        throw new Error(`Railgun resolution failed: ${resolveResponse.status}`);
+      }
+
+      const resolveData = await resolveResponse.json();
+
+      if (!resolveData.success || !resolveData.walletId) {
+        addLog(`❌ No wallet ID found for Railgun address: ${railgunAddress}`, 'error');
+        setIsSearching(false);
+        return;
+      }
+
+      const walletId = resolveData.walletId;
+      addLog(`✅ Found wallet ID: ${walletId.slice(0, 8)}... from Railgun address`, 'success');
+
+      // Step 3: Get wallet metadata using the resolved wallet ID
+      addLog(`🔍 Step 2: Getting wallet metadata...`, 'info');
+
+      const metadataResponse = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(walletId)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Origin': window.location.origin,
+          'User-Agent': navigator.userAgent
+        }
+      });
+
+      if (!metadataResponse.ok) {
+        throw new Error(`Wallet metadata fetch failed: ${metadataResponse.status}`);
+      }
+
+      const metadataData = await metadataResponse.json();
+
+      // Step 4: Process the metadata response (same as EOA flow)
+      if (!metadataData.success || !metadataData.keys || metadataData.keys.length === 0) {
+        addLog(`❌ No wallet metadata found for wallet ID: ${walletId}`, 'error');
+        setIsSearching(false);
+        return;
+      }
+
+      const walletKey = metadataData.keys.find(key => key.walletId);
+      if (!walletKey || !walletKey.walletId) {
+        addLog(`❌ No wallet ID found in metadata for: ${walletId}`, 'error');
+        setIsSearching(false);
+        return;
+      }
+
+      setWalletId(walletId);
+      setResolutionType('Railgun Address');
+
+      addLog(`✅ Successfully resolved Railgun address to wallet metadata`, 'success');
+
+      // Step 5: Load transaction timeline
+      await loadWalletTimeline(walletId);
+
+    } catch (error) {
+      addLog(`❌ Railgun search failed: ${error.message}`, 'error');
+      console.error('Railgun search error:', error);
+      setIsSearching(false);
+    }
+  };
+
   // Format and copy complete transaction data
   const copyTransactionData = async (tx) => {
     try {
@@ -183,10 +273,10 @@ ${JSON.stringify(tx, null, 2)}
       let resolveEndpoint = '';
       let queryType = '';
 
-      // Handle different search types
-      let walletAddressParam = (searchQuery || '').trim();
-
+      // Handle EOA search (direct approach)
       if (searchType === 'eoa') {
+        let walletAddressParam = (searchQuery || '').trim();
+
         // Normalize EOA to checksum for consistent Redis key matches
         try {
           walletAddressParam = getAddress(walletAddressParam);
@@ -197,20 +287,53 @@ ${JSON.stringify(tx, null, 2)}
         }
 
         // Use wallet metadata endpoint for EOA resolution
-        resolveEndpoint = `/api/wallet-metadata?walletAddress=${encodeURIComponent(walletAddressParam)}`;
-        queryType = 'EOA Address';
+        const resolveEndpoint = `/api/wallet-metadata?walletAddress=${encodeURIComponent(walletAddressParam)}`;
+        const queryType = 'EOA Address';
 
-      } else if (searchType === 'railgun') {
-        // Validate Railgun address format
-        if (!walletAddressParam.startsWith('0zk')) {
-          addLog('❌ Invalid Railgun address format (must start with 0zk)', 'error');
+        addLog(`🔍 Using ${queryType} resolver: ${resolveEndpoint}`, 'info');
+
+        const resolveResponse = await fetch(resolveEndpoint, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Origin': window.location.origin,
+            'User-Agent': navigator.userAgent
+          }
+        });
+
+        if (!resolveResponse.ok) {
+          throw new Error(`Resolution failed: ${resolveResponse.status}`);
+        }
+
+        const resolveData = await resolveResponse.json();
+
+        // Handle the existing endpoint format (same as WalletContext.jsx)
+        if (!resolveData.success || !resolveData.keys || resolveData.keys.length === 0) {
+          addLog(`❌ No wallet found for: ${searchQuery}`, 'error');
           setIsSearching(false);
           return;
         }
 
-        // Use wallet metadata endpoint with Railgun address
-        resolveEndpoint = `/api/wallet-metadata?walletAddress=${encodeURIComponent(walletAddressParam)}`;
-        queryType = 'Railgun Address';
+        // Find the first key with a walletId (same logic as WalletContext.jsx)
+        const walletKey = resolveData.keys.find(key => key.walletId);
+        if (!walletKey || !walletKey.walletId) {
+          addLog(`❌ No wallet ID found in metadata for: ${searchQuery}`, 'error');
+          setIsSearching(false);
+          return;
+        }
+
+        const walletId = walletKey.walletId;
+        setWalletId(walletId);
+        setResolutionType(queryType);
+
+        addLog(`✅ Found wallet: ${walletId.slice(0, 8)}... (${queryType})`, 'success');
+
+        // Load transaction timeline
+        await loadWalletTimeline(walletId);
+
+      } else if (searchType === 'railgun') {
+        // Handle Railgun address search (two-step process)
+        await handleRailgunSearch(searchQuery.trim());
 
       } else if (searchType === 'txhash') {
         // For transaction hash searches, we'll need to implement tx resolution later
@@ -218,45 +341,6 @@ ${JSON.stringify(tx, null, 2)}
         setIsSearching(false);
         return;
       }
-
-      addLog(`🔍 Using ${queryType} resolver: ${resolveEndpoint}`, 'info');
-
-      const resolveResponse = await fetch(resolveEndpoint, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Origin': window.location.origin,
-          'User-Agent': navigator.userAgent
-        }
-      });
-
-      if (!resolveResponse.ok) {
-        throw new Error(`Resolution failed: ${resolveResponse.status}`);
-      }
-
-      const resolveData = await resolveResponse.json();
-
-      // Handle the existing endpoint format (same as WalletContext.jsx)
-      if (!resolveData.success || !resolveData.keys || resolveData.keys.length === 0) {
-        addLog(`❌ No wallet found for: ${searchQuery}`, 'error');
-        return;
-      }
-
-      // Find the first key with a walletId (same logic as WalletContext.jsx)
-      const walletKey = resolveData.keys.find(key => key.walletId);
-      if (!walletKey || !walletKey.walletId) {
-        addLog(`❌ No wallet ID found in metadata for: ${searchQuery}`, 'error');
-        return;
-      }
-
-      const walletId = walletKey.walletId;
-      setWalletId(walletId);
-      setResolutionType(queryType);
-
-      addLog(`✅ Found wallet: ${walletId.slice(0, 8)}... (${queryType})`, 'success');
-
-      // Step 2: Get transaction history from wallet timeline endpoint
-      await loadWalletTimeline(walletId);
 
     } catch (error) {
       addLog(`❌ Search failed: ${error.message}`, 'error');

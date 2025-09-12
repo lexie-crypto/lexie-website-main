@@ -415,6 +415,32 @@ export default async function handler(req, res) {
         backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
         console.log(`🔍 [WALLET-METADATA-PROXY-${requestId}] GET Lexie by-wallet for ${String(railgunAddress).slice(0,8)}...`);
 
+      } else if (action === 'resolve-wallet-id') {
+        const resolveType = req.query.type;
+        const identifier = req.query.identifier || req.query.address || req.query.railgunAddress || req.query.txId;
+
+        if (!identifier) {
+          console.log(`❌ [RESOLVE-PROXY-${requestId}] Missing identifier for resolve-wallet-id`);
+          return res.status(400).json({ success: false, error: 'Missing identifier parameter' });
+        }
+
+        if (resolveType === 'by-eoa' || req.query.address) {
+          backendPath = `/api/resolve-wallet-id/by-eoa/${identifier}`;
+          backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+          console.log(`🔍 [RESOLVE-PROXY-${requestId}] Resolve wallet by EOA: ${identifier.slice(0, 8)}...`);
+        } else if (resolveType === 'by-railgun' || req.query.railgunAddress) {
+          backendPath = `/api/resolve-wallet-id/by-railgun/${identifier}`;
+          backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+          console.log(`🔍 [RESOLVE-PROXY-${requestId}] Resolve wallet by Railgun: ${identifier.slice(0, 8)}...`);
+        } else if (resolveType === 'by-tx' || req.query.txId) {
+          backendPath = `/api/resolve-wallet-id/by-tx/${identifier}`;
+          backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+          console.log(`🔍 [RESOLVE-PROXY-${requestId}] Resolve wallet by TX: ${identifier.slice(0, 8)}...`);
+        } else {
+          console.log(`❌ [RESOLVE-PROXY-${requestId}] Invalid resolve type: ${resolveType}`);
+          return res.status(400).json({ success: false, error: 'Invalid resolve type' });
+        }
+
       } else if (action === 'wallet-timeline') {
         const walletId = req.query.walletId;
         if (!walletId) {
