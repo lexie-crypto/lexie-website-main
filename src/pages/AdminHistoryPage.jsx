@@ -397,8 +397,14 @@ ${JSON.stringify(tx, null, 2)}
     setResolutionType(null);
     setTransactionHistory([]);
     setLogs([]);
-    addLog('Dashboard cleared', 'info');
   };
+
+  // Log when dashboard is cleared
+  useEffect(() => {
+    if (walletId === null && resolutionType === null && transactionHistory.length === 0) {
+      addLog('Dashboard cleared', 'info');
+    }
+  }, [walletId, resolutionType, transactionHistory.length, addLog]);
 
   // Search for wallet and get transaction history
   const searchWallet = async () => {
