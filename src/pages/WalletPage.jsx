@@ -961,6 +961,9 @@ const WalletPage = () => {
                     <div className="text-yellow-300/80 text-xs">Please wait for balance updates to complete. This may take a few seconds.</div>
                   </div>
                 </div>
+                <div className="mt-2 text-yellow-300/80 text-xs">
+                Tired of waiting? Check out Lexie on <a href="https://t.me/lexie_crypto_bot" className="text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer">Telegram</a> to create your Lexie ID and play our Titans game to earn points for an airdrop.
+                </div>
               </div>
             )}
 
@@ -1494,6 +1497,9 @@ const WalletPage = () => {
                     <div className="text-xs text-green-400/80 truncate" title={initProgress.message}>
                       {initProgress.message || 'Scanning...'}
                     </div>
+                  </div>
+                  <div className="mt-2 text-green-400/80 text-xs">
+                    Tired of waiting? Check out Lexie on <a href="https://t.me/lexie_crypto_bot" className="text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer">Telegram</a> to create your Lexie ID and play our Titans game to earn points for an airdrop.
                   </div>
                 </>
               )}
