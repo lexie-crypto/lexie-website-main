@@ -962,7 +962,7 @@ const WalletPage = () => {
                   </div>
                 </div>
                 <div className="mt-2 text-yellow-300/80 text-xs">
-                Tired of waiting? Check out Lexie on <a href="https://t.me/lexie_crypto_bot" className="text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer">Telegram</a> to create your Lexie ID and play our Titans game to earn points for an airdrop.
+                Tired of waiting? Check out Lexie on <a href="https://t.me/lexie_crypto_bot" className="text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer">Telegram</a> to grab your Lexie ID and play our Titans game to earn airdrop points. 
                 </div>
               </div>
             )}
@@ -1499,8 +1499,7 @@ const WalletPage = () => {
                     </div>
                   </div>
                   <div className="mt-2 text-green-400/80 text-xs">
-                    Tired of waiting? Check out Lexie on <a href="https://t.me/lexie_crypto_bot" className="text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer">Telegram</a> to create your Lexie ID and play our Titans game to earn points for an airdrop.
-                  </div>
+                  Tired of waiting? Check out Lexie on <a href="https://t.me/lexie_crypto_bot" className="text-blue-400 hover:underline" target="_blank" rel="noopener noreferrer">Telegram</a> to grab your Lexie ID and play our Titans game to earn airdrop points.                   </div>
                 </>
               )}
               <div className="flex items-center justify-end gap-2 pt-2">

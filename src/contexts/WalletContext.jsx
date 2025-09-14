@@ -1737,6 +1737,8 @@ const WalletContextProvider = ({ children }) => {
       }
 
       try {
+        // Immediately notify UI that a scan/refresh will begin for this chain
+        try { window.dispatchEvent(new CustomEvent('railgun-scan-started', { detail: { chainId } })); } catch {}
         console.log('🔄 Updating Railgun providers for chain change...', { chainId });
         
         const { loadProvider } = await import('@railgun-community/wallet');
@@ -1824,9 +1826,9 @@ const WalletContextProvider = ({ children }) => {
       }
     };
 
-    // FIXED: More aggressive debouncing and prevent rapid successive calls
-    const timeoutId = setTimeout(updateRailgunProviders, 2000); // Increased delay
-    return () => clearTimeout(timeoutId);
+    // Run immediately on chain change to eliminate delay before vault creation/scan
+    updateRailgunProviders();
+    return undefined;
   }, [chainId, isRailgunInitialized]); // FIXED: Removed connector?.id dependency to reduce triggers
 
   // 🛠️ Debug utilities for encrypted data management
