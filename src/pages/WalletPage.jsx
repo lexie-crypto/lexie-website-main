@@ -320,10 +320,21 @@ const WalletPage = () => {
     };
     const onInitProgress = () => {
       // If scanning kicks off without our start event, open the modal now
-      if (!showSignRequestPopup && !isChainReady && initialConnectDoneRef.current) {
-        setShowSignRequestPopup(true);
-        setIsInitInProgress(true);
-        setIsChainReady(false);
+      if (!showSignRequestPopup && initialConnectDoneRef.current) {
+        // Double-check readiness from Redis before opening
+        checkChainReady()
+          .then((ready) => {
+            if (!ready) {
+              setShowSignRequestPopup(true);
+              setIsInitInProgress(true);
+              setIsChainReady(false);
+            }
+          })
+          .catch(() => {
+            setShowSignRequestPopup(true);
+            setIsInitInProgress(true);
+            setIsChainReady(false);
+          });
       }
       const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
       setInitProgress((prev) => ({
@@ -345,15 +356,25 @@ const WalletPage = () => {
     };
     window.addEventListener('railgun-signature-requested', onSignRequest);
     // Begin polling exactly when refreshBalances starts in context
-    const onPollStart = (e) => {
+    const onPollStart = async (e) => {
       // Do not show init modal on initial connect fast-path; only after initial connect
       if (!initialConnectDoneRef.current) return;
-      onInitStarted(e);
+      try {
+        const ready = await checkChainReady();
+        if (!ready) onInitStarted(e);
+      } catch {
+        onInitStarted(e);
+      }
     };
-    const onScanStarted = (e) => {
+    const onScanStarted = async (e) => {
       // Same guard: avoid modal during initial connect if wallet existed in Redis
       if (!initialConnectDoneRef.current) return;
-      onInitStarted(e);
+      try {
+        const ready = await checkChainReady();
+        if (!ready) onInitStarted(e);
+      } catch {
+        onInitStarted(e);
+      }
     };
     window.addEventListener('vault-poll-start', onPollStart);
     window.addEventListener('railgun-init-started', onInitStarted); // full init always shows
