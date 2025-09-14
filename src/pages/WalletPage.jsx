@@ -290,6 +290,10 @@ const WalletPage = () => {
       console.log('[Vault Init] Signature requested - showing modal');
     };
     const onInitStarted = (e) => {
+      // Open modal immediately when init/scan starts on chain switch
+      if (!showSignRequestPopup) {
+        setShowSignRequestPopup(true);
+      }
       setIsInitInProgress(true);
       setInitFailedMessage('');
       initAddressRef.current = e?.detail?.address || address || initAddressRef.current;
