@@ -81,6 +81,8 @@ const WalletPage = () => {
   const [isInitInProgress, setIsInitInProgress] = useState(false);
   const [initFailedMessage, setInitFailedMessage] = useState('');
   const initAddressRef = React.useRef(null);
+  // Track when initial connection hydration is complete
+  const initialConnectDoneRef = React.useRef(false);
   // Lexie ID linking state
   const [lexieIdInput, setLexieIdInput] = useState('');
   const [lexieLinking, setLexieLinking] = useState(false);
@@ -281,6 +283,17 @@ const WalletPage = () => {
     return () => window.removeEventListener('railgun-scan-complete', onScanComplete);
   }, [checkChainReady]);
 
+  // Mark initial connect as done once wallet metadata is ready or init completes
+  useEffect(() => {
+    const markDone = () => { initialConnectDoneRef.current = true; };
+    window.addEventListener('railgun-wallet-metadata-ready', markDone);
+    window.addEventListener('railgun-init-completed', markDone);
+    return () => {
+      window.removeEventListener('railgun-wallet-metadata-ready', markDone);
+      window.removeEventListener('railgun-init-completed', markDone);
+    };
+  }, []);
+
   // Listen for signature request and init lifecycle events from WalletContext
   useEffect(() => {
     const onSignRequest = () => {
@@ -307,7 +320,7 @@ const WalletPage = () => {
     };
     const onInitProgress = () => {
       // If scanning kicks off without our start event, open the modal now
-      if (!showSignRequestPopup && !isChainReady) {
+      if (!showSignRequestPopup && !isChainReady && initialConnectDoneRef.current) {
         setShowSignRequestPopup(true);
         setIsInitInProgress(true);
         setIsChainReady(false);
@@ -332,10 +345,19 @@ const WalletPage = () => {
     };
     window.addEventListener('railgun-signature-requested', onSignRequest);
     // Begin polling exactly when refreshBalances starts in context
-    const onPollStart = (e) => onInitStarted(e);
+    const onPollStart = (e) => {
+      // Do not show init modal on initial connect fast-path; only after initial connect
+      if (!initialConnectDoneRef.current) return;
+      onInitStarted(e);
+    };
+    const onScanStarted = (e) => {
+      // Same guard: avoid modal during initial connect if wallet existed in Redis
+      if (!initialConnectDoneRef.current) return;
+      onInitStarted(e);
+    };
     window.addEventListener('vault-poll-start', onPollStart);
-    window.addEventListener('railgun-init-started', onInitStarted);
-    window.addEventListener('railgun-scan-started', onInitStarted);
+    window.addEventListener('railgun-init-started', onInitStarted); // full init always shows
+    window.addEventListener('railgun-scan-started', onScanStarted);
     window.addEventListener('railgun-init-progress', onInitProgress);
     window.addEventListener('railgun-init-completed', onInitCompleted);
     window.addEventListener('railgun-init-failed', onInitFailed);
@@ -344,7 +366,7 @@ const WalletPage = () => {
       window.removeEventListener('railgun-init-started', onInitStarted);
       window.removeEventListener('vault-poll-start', onPollStart);
       window.removeEventListener('railgun-init-progress', onInitProgress);
-      window.removeEventListener('railgun-scan-started', onInitStarted);
+      window.removeEventListener('railgun-scan-started', onScanStarted);
       window.removeEventListener('railgun-init-completed', onInitCompleted);
       window.removeEventListener('railgun-init-failed', onInitFailed);
       try { if (window.__LEXIE_INIT_POLL_ID) { clearInterval(window.__LEXIE_INIT_POLL_ID); window.__LEXIE_INIT_POLL_ID = null; } } catch {}
