@@ -609,7 +609,7 @@ export const unshieldTokens = async ({
       return { hash: txHash, method: 'base-token', privacy: 'public' };
     }
 
-    // RELAYER MODE: Prepare recipients with broadcaster fee
+    // RELAYER MODE: Prepare recipients with broadcaster fee (deduct relayer fee from user's amount)
     let erc20AmountRecipients;
     let broadcasterFeeERC20AmountRecipient = null;
     // Cross-contract (RelayAdapt) shared objects used across estimate → proof → populate
@@ -621,16 +621,17 @@ export const unshieldTokens = async ({
     // Parity checksum across proof → populate
     let proofBundleString = null;
     
-    // CRITICAL: SDK handles protocol fee automatically - don't subtract it manually
+    // Protocol fee is handled by SDK internally. We still account for it in the
+    // NET sent to the recipient, but we DO NOT add it to the spend requirement.
     const UNSHIELD_FEE_BPS = 25n; // 0.25%
     const RELAYER_FEE_BPS = 50n; // 0.5% (or from relayer quote)
     const MIN_GAS_LIMIT = 1600000n; // Lower floor - real txs land ~1.1-1.3M
     
-    const unshieldIn = BigInt(amount); // what we unshield to RelayAdapt
-    const afterFee = (unshieldIn * (10000n - UNSHIELD_FEE_BPS)) / 10000n; // spendable at RelayAdapt
+    const userAmountGross = BigInt(amount); // user's entered amount (private balance units)
     
     let relayerFeeBn = 0n;
-    let recipientBn = afterFee;
+    let recipientBn = 0n;
+    let unshieldInputAmount = userAmountGross; // amount to unshield into RelayAdapt
     let feeTokenDetails = null;
     
     // SDK will validate balance internally
@@ -653,25 +654,28 @@ export const unshieldTokens = async ({
         feePerUnitGas: selectedRelayer.feePerUnitGas.toString()
       });
       
-      // Relayer fee is paid PRIVATELY by the SDK to 0zk:
-      relayerFeeBn = (afterFee * RELAYER_FEE_BPS) / 10000n;
-      recipientBn = afterFee - relayerFeeBn; // <-- NET to recipient
+      // Calculate relayer fee from the user's amount, then unshield NET of that fee
+      relayerFeeBn = (userAmountGross * RELAYER_FEE_BPS) / 10000n;
+      unshieldInputAmount = userAmountGross - relayerFeeBn; // so Required = unshieldInputAmount + relayerFeeBn = userAmountGross
       
-      // Log: { unshieldIn, afterFee, relayerFeeBn, recipientBn } before calling the SDK
-      console.log('💰 [UNSHIELD] Fee calculation before SDK calls:', {
-        unshieldIn: unshieldIn.toString(),
-        afterFee: afterFee.toString(),
+      // Recipient gets NET after SDK protocol fee
+      recipientBn = (unshieldInputAmount * (10000n - UNSHIELD_FEE_BPS)) / 10000n;
+      
+      console.log('💰 [UNSHIELD] Fee calculation (net broadcaster from user amount):', {
+        userAmountGross: userAmountGross.toString(),
         relayerFeeBn: relayerFeeBn.toString(),
+        unshieldInputAmount: unshieldInputAmount.toString(),
         recipientBn: recipientBn.toString(),
-        verification: `${recipientBn.toString()} + ${relayerFeeBn.toString()} = ${(recipientBn + relayerFeeBn).toString()}`
+        requiredSpend: (unshieldInputAmount + relayerFeeBn).toString(),
+        assertion: 'requiredSpend should equal userAmountGross'
       });
       
       // Assertions (before proof/populate)
       if (recipientBn <= 0n) {
         throw new Error(`Recipient amount must be > 0. Got: ${recipientBn.toString()}`);
       }
-      if (recipientBn + relayerFeeBn !== afterFee) {
-        throw new Error(`Math error: recipient (${recipientBn.toString()}) + relayer fee (${relayerFeeBn.toString()}) != afterFee (${afterFee.toString()})`);
+      if (unshieldInputAmount + relayerFeeBn !== userAmountGross) {
+        throw new Error(`Math error: unshieldInput (${unshieldInputAmount.toString()}) + relayer fee (${relayerFeeBn.toString()}) != userAmountGross (${userAmountGross.toString()})`);
       }
       
       // Guard: Relayer must provide a valid 0zk address
@@ -699,12 +703,7 @@ export const unshieldTokens = async ({
         purpose: 'RAILGUN_BROADCASTER_FEE_VIA_SDK'
       });
       
-      // RAILGUN protocol fee is deducted by SDK automatically
-      console.log('🔍 [UNSHIELD] RAILGUN Protocol Fee:', {
-        unshieldFee: ((unshieldIn * UNSHIELD_FEE_BPS) / 10000n).toString(),
-        purpose: 'RAILGUN_PROTOCOL_FEE_DEDUCTED_BY_SDK',
-        note: 'This fee is handled internally by RAILGUN SDK, not as separate recipient'
-      });
+      // Protocol fee is deducted internally by SDK from unshieldInputAmount
       
       // Note: erc20AmountRecipients is not used in cross-contract calls mode
       // Instead, we use relayAdaptUnshieldERC20Amounts + crossContractCalls
@@ -720,7 +719,7 @@ export const unshieldTokens = async ({
       // Hoist shared params for estimate -> proof -> populate
       relayAdaptUnshieldERC20Amounts = [{
         tokenAddress,
-        amount: unshieldIn, // Gross into RelayAdapt; SDK deducts 0.25%
+        amount: unshieldInputAmount, // Net of relayer fee; SDK will apply protocol fee internally
       }];
 
       const { ethers } = await import('ethers');
@@ -729,7 +728,7 @@ export const unshieldTokens = async ({
       ]);
       const recipientCallData = erc20Interface.encodeFunctionData('transfer', [
         recipientEVM,
-        recipientBn, // Forward NET amount to recipient (after relayer fee deduction)
+        recipientBn, // Forward NET amount (after relayer + protocol)
       ]);
       crossContractCalls = [{
         to: tokenAddress,
