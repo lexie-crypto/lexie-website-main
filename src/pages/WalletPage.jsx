@@ -160,10 +160,9 @@ const WalletPage = () => {
   useEffect(() => {
     let mounted = true;
     (async () => {
-      if (!canUseRailgun || !railgunWalletId || !address) {
-        if (mounted) setIsChainReady(false);
-        return;
-      }
+      // Reset readiness when dependencies change to avoid stale "complete" state on chain switch
+      if (mounted) setIsChainReady(false);
+      if (!canUseRailgun || !railgunWalletId || !address) return;
       try {
         const ready = await checkChainReady();
         if (mounted) setIsChainReady(!!ready);
@@ -274,7 +273,9 @@ const WalletPage = () => {
   // Re-check readiness immediately after scan completes and Redis updates
   useEffect(() => {
     const onScanComplete = () => {
-      checkChainReady().then((ready) => setIsChainReady(!!ready)).catch(() => {});
+      // Re-check readiness for the current chain only after Redis has updated scannedChains
+      setIsChainReady(false);
+      checkChainReady().then((ready) => setIsChainReady(!!ready)).catch(() => setIsChainReady(false));
     };
     window.addEventListener('railgun-scan-complete', onScanComplete);
     return () => window.removeEventListener('railgun-scan-complete', onScanComplete);
@@ -294,6 +295,8 @@ const WalletPage = () => {
       if (!showSignRequestPopup) {
         setShowSignRequestPopup(true);
       }
+      // Ensure we don't falsely mark complete using previous chain's readiness
+      setIsChainReady(false);
       setIsInitInProgress(true);
       setInitFailedMessage('');
       initAddressRef.current = e?.detail?.address || address || initAddressRef.current;
@@ -307,6 +310,7 @@ const WalletPage = () => {
       if (!showSignRequestPopup && !isChainReady) {
         setShowSignRequestPopup(true);
         setIsInitInProgress(true);
+        setIsChainReady(false);
       }
       const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
       setInitProgress((prev) => ({
