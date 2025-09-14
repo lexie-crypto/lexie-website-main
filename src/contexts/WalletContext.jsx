@@ -1191,6 +1191,23 @@ const WalletContextProvider = ({ children }) => {
               !existingMnemonic ? 'No mnemonic' : 'Fast path failed'
     });
     
+    // 🚀 Request signature ASAP to avoid UI delay (before engine/provider loading)
+    try {
+      if (!existingSignature) {
+        const signatureMessage = `LexieVault Creation\nAddress: ${address}\n\nSign this message to create your LexieVault.`;
+        try {
+          window.dispatchEvent(new CustomEvent('railgun-signature-requested', { detail: { address } }));
+        } catch (_) {}
+        const earlySignature = await signMessageAsync({ message: signatureMessage });
+        console.log('✅ Early signature acquired prior to engine init:', address);
+        // Persist into flow variables so later steps reuse it and don't prompt again
+        existingSignature = earlySignature;
+      }
+    } catch (earlySigError) {
+      console.error('❌ Early signature request failed:', earlySigError);
+      throw earlySigError; // Fail init so UI can surface the error cleanly
+    }
+
     try {
       // Import the official Railgun SDK
       const {
