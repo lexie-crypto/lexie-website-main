@@ -1208,38 +1208,6 @@ const WalletPage = () => {
                             </div>
                             <div className="flex items-center space-x-2">
                               <div className="text-green-200">{Number(token.numericBalance).toFixed(6).replace(/\.?0+$/, '')}</div>
-                              {canUseRailgun && isSupported && token.hasBalance && (
-                                <div className="hidden sm:flex items-center space-x-1 flex-wrap">
-                                  <input
-                                    type="number"
-                                    placeholder="Amount"
-                                    value={shieldAmounts[token.symbol] || ''}
-                                    onChange={(e) => setShieldAmounts(prev => ({
-                                      ...prev,
-                                      [token.symbol]: e.target.value
-                                    }))}
-                                    disabled={isShieldingThis}
-                                    className="w-20 bg-black text-green-200 rounded px-1 py-0.5 text-xs border border-green-500/40 focus:border-emerald-400 focus:outline-none"
-                                  />
-                                  <button
-                                    onClick={() => setShieldAmounts(prev => ({
-                                      ...prev,
-                                      [token.symbol]: token.numericBalance.toString()
-                                    }))}
-                                    disabled={isShieldingThis || !isChainReady}
-                                    className="bg-black hover:bg-green-900/20 disabled:bg-black/40 text-green-200 px-1 py-0.5 rounded text-xs border border-green-500/40"
-                                  >
-                                    Max
-                                  </button>
-                                  <button
-                                    onClick={() => handleShieldToken(token)}
-                                    disabled={isShieldingThis || !shieldAmounts[token.symbol] || !isChainReady}
-                                    className="bg-emerald-600/30 hover:bg-emerald-600/50 disabled:bg-black/40 text-emerald-200 px-2 py-0.5 rounded text-xs border border-emerald-400/40"
-                                  >
-                                    {isShieldingThis ? 'Adding…' : 'Add to Vault'}
-                                  </button>
-                                </div>
-                              )}
                             </div>
                           </div>
                           <div className="text-right text-green-400/70 mt-1">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
