@@ -729,7 +729,7 @@ export const unshieldTokens = async ({
       ]);
       const recipientCallData = erc20Interface.encodeFunctionData('transfer', [
         recipientEVM,
-        afterFee, // Forward full after-fee amount; relayer fee is private output
+        recipientBn, // Forward NET amount to recipient (after relayer fee deduction)
       ]);
       crossContractCalls = [{
         to: tokenAddress,
