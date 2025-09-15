@@ -266,6 +266,14 @@ const WalletContextProvider = ({ children }) => {
 
   // Ensure initial full scan is completed for a given chain before user transacts
   const ensureChainScanned = useCallback(async (targetChainId) => {
+    // MOBILE-ONLY: Skip client Merkle scans to avoid stalls; server will handle sync
+    try {
+      const isMobileUA = (typeof navigator !== 'undefined') && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      if (isMobileUA) {
+        console.log('[Railgun Init] ⏭️ Mobile device detected - skipping client Merkle scan');
+        return;
+      }
+    } catch {}
     try {
       if (!isConnected || !address || !railgunWalletID) return;
 
