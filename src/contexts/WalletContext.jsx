@@ -266,11 +266,37 @@ const WalletContextProvider = ({ children }) => {
 
   // Ensure initial full scan is completed for a given chain before user transacts
   const ensureChainScanned = useCallback(async (targetChainId) => {
-    // MOBILE-ONLY: Skip client Merkle scans to avoid stalls; server will handle sync
+    // MOBILE-ONLY: Skip client Merkle scans and trigger server-side scan job
     try {
       const isMobileUA = (typeof navigator !== 'undefined') && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       if (isMobileUA) {
         console.log('[Railgun Init] ⏭️ Mobile device detected - skipping client Merkle scan');
+        // Fire-and-forget server scan init for this wallet+chain
+        try {
+          if (!railgunWalletID || !address || !targetChainId) return;
+          const path = '/api/mobile-scan/init';
+          const method = 'POST';
+          const ts = Date.now().toString();
+          const headers = { 'Content-Type': 'application/json' };
+          try {
+            if (typeof window !== 'undefined' && typeof window.__LEXIE_HMAC_SIGN === 'function') {
+              // Optional HMAC support if available in environment
+              headers['X-Lexie-Timestamp'] = ts;
+              headers['X-Lexie-Signature'] = window.__LEXIE_HMAC_SIGN(method, path, ts);
+            }
+          } catch {}
+          fetch(path, {
+            method,
+            headers,
+            body: JSON.stringify({ walletId: railgunWalletID, chainId: targetChainId, walletAddress: address })
+          }).then(() => {
+            console.log('[Mobile Scan] 🚀 Server scan init requested', { chainId: targetChainId });
+          }).catch((e) => {
+            console.warn('[Mobile Scan] ⚠️ Server scan init failed (non-blocking):', e?.message || e);
+          });
+        } catch (e) {
+          console.warn('[Mobile Scan] ⚠️ Failed to trigger server scan (non-blocking):', e?.message || e);
+        }
         return;
       }
     } catch {}
