@@ -867,16 +867,49 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         const resp = await fetch(`/api/wallet-metadata?action=lexie-resolve&lexieID=${encodeURIComponent(input)}`);
         if (!resp.ok) {
           // 404 or any non-200: treat as not linked
-          toast.error('Lexie ID does not exist or is not linked to a LexieVault');
+          toast.custom((t) => (
+            <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+              <div className="rounded-lg border border-red-500/30 bg-black/90 text-green-200 shadow-2xl">
+                <div className="px-4 py-3 flex items-center gap-3">
+                  <div className="h-3 w-3 rounded-full bg-red-400" />
+                  <div>
+                    <div className="text-sm">Lexie ID does not exist or is not linked to a LexieVault</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ), { duration: 3500 });
           return;
         }
         const data = await resp.json().catch(() => ({}));
         if (!data?.success || !data?.walletAddress) {
-          toast.error('Lexie ID does not exist or is not linked to a LexieVault');
+          toast.custom((t) => (
+            <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+              <div className="rounded-lg border border-red-500/30 bg-black/90 text-green-200 shadow-2xl">
+                <div className="px-4 py-3 flex items-center gap-3">
+                  <div className="h-3 w-3 rounded-full bg-red-400" />
+                  <div>
+                    <div className="text-sm">Lexie ID does not exist or is not linked to a LexieVault</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ), { duration: 3500 });
           return;
         }
       } catch (_) {
-        toast.error('Lexie ID does not exist or is not linked to a LexieVault');
+        toast.custom((t) => (
+          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+            <div className="rounded-lg border border-red-500/30 bg-black/90 text-green-200 shadow-2xl">
+              <div className="px-4 py-3 flex items-center gap-3">
+                <div className="h-3 w-3 rounded-full bg-red-400" />
+                <div>
+                  <div className="text-sm">Lexie ID does not exist or is not linked to a LexieVault</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ), { duration: 3500 });
         return;
       }
       // Proceed: resolution will happen in privateTransfer()
