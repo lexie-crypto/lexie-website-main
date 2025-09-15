@@ -780,17 +780,15 @@ export function useBalances() {
     return () => { cancelled = true; };
   }, [chainId, address, fetchPublicBalances, calculateUSDValue]);
 
-  // Clear stale private balances when switching networks; reload from Redis for the new chain
+  // Reload private balances on chain switch; keep previous balances until new ones arrive
   useEffect(() => {
     if (!address || !railgunWalletId) return;
-    // Signal loading state for vault balances during chain switch
-    try { window.dispatchEvent(new CustomEvent('vault-balances-refresh-start')); } catch {}
-    // Clear immediately to avoid showing previous-chain balances
-    setPrivateBalances([]);
+    // Signal PRIVATE loading state for vault balances during chain switch
+    try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
     // Load for the active chain
     loadPrivateBalancesFromMetadata(address, railgunWalletId)
       .finally(() => {
-        try { window.dispatchEvent(new CustomEvent('vault-balances-refresh-complete')); } catch {}
+        try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
       });
   }, [chainId]);
 
@@ -798,7 +796,7 @@ export function useBalances() {
   useEffect(() => {
     if (railgunWalletId && address && isRailgunInitialized) {
       console.log('[useBalances] 🛡️ Railgun wallet ready - loading private balances from Redis...');
-      try { window.dispatchEvent(new CustomEvent('vault-balances-refresh-start')); } catch {}
+      try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
       loadPrivateBalancesFromMetadata(address, railgunWalletId).then((loaded) => {
         if (loaded) {
           console.log('[useBalances] ✅ Private balances loaded from Redis');
@@ -806,7 +804,7 @@ export function useBalances() {
           console.log('[useBalances] ℹ️ No private balances found in Redis');
         }
       }).finally(() => {
-        try { window.dispatchEvent(new CustomEvent('vault-balances-refresh-complete')); } catch {}
+        try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
       });
     }
   }, [railgunWalletId, address, isRailgunInitialized, chainId, loadPrivateBalancesFromMetadata]);

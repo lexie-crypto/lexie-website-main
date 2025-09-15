@@ -185,11 +185,23 @@ const WalletPage = () => {
       console.log('[WalletPage] Vault balances refresh completed - hiding spinner');
       setIsRefreshingBalances(false);
     };
+    const onPrivateStart = () => {
+      console.log('[WalletPage] Private balances refresh started - showing spinner');
+      setIsRefreshingBalances(true);
+    };
+    const onPrivateComplete = () => {
+      console.log('[WalletPage] Private balances refresh completed - hiding spinner');
+      setIsRefreshingBalances(false);
+    };
     window.addEventListener('vault-balances-refresh-start', onStart);
     window.addEventListener('vault-balances-refresh-complete', onComplete);
+    window.addEventListener('vault-private-refresh-start', onPrivateStart);
+    window.addEventListener('vault-private-refresh-complete', onPrivateComplete);
     return () => {
       window.removeEventListener('vault-balances-refresh-start', onStart);
       window.removeEventListener('vault-balances-refresh-complete', onComplete);
+      window.removeEventListener('vault-private-refresh-start', onPrivateStart);
+      window.removeEventListener('vault-private-refresh-complete', onPrivateComplete);
     };
   }, []);
 
