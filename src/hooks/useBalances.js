@@ -899,6 +899,44 @@ export function useBalances() {
     };
   }, [calculateUSDValue]);
 
+  // Optimistic UI update for unshield/send: decrement private balance immediately
+  useEffect(() => {
+    const onOptimisticUnshield = (event) => {
+      try {
+        const detail = event?.detail || {};
+        const tokenAddress = String((detail.tokenAddress || '').toLowerCase());
+        const tokenSymbol = detail.tokenSymbol;
+        const amountDec = Number(detail.amount || 0);
+        if (!amountDec || amountDec <= 0) return;
+
+        setPrivateBalances((current) => {
+          if (!Array.isArray(current) || current.length === 0) return current;
+          const updated = current.map((tok) => {
+            const tokKey = String((tok.address || tok.tokenAddress || '').toLowerCase());
+            const isMatch = (tokenAddress && tokKey === tokenAddress) || (!tokenAddress && tokenSymbol && tok.symbol === tokenSymbol);
+            if (!isMatch) return tok;
+            const currentNumeric = Number(tok.numericBalance || 0);
+            const nextNumeric = Math.max(0, currentNumeric - amountDec);
+            return {
+              ...tok,
+              numericBalance: nextNumeric,
+              balance: String(nextNumeric),
+              hasBalance: nextNumeric > 0,
+              formattedBalance: Number.isFinite(nextNumeric) ? nextNumeric.toFixed(6) : tok.formattedBalance,
+              balanceUSD: calculateUSDValue(nextNumeric, tok.symbol)
+            };
+          });
+          return updated;
+        });
+      } catch (e) {
+        console.warn('[useBalances] ⚠️ Optimistic unshield update failed:', e?.message || e);
+      }
+    };
+
+    window.addEventListener('railgun-optimistic-unshield', onOptimisticUnshield);
+    return () => window.removeEventListener('railgun-optimistic-unshield', onOptimisticUnshield);
+  }, [calculateUSDValue]);
+
   // Listen for transaction confirmations (auto-refresh UI after confirmed transactions)
   useEffect(() => {
     const handleTransactionConfirmed = async (event) => {

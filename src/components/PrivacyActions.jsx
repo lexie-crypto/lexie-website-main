@@ -164,7 +164,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     setRecipientAddress('');
     setMemoText('');
     setSelectedToken(prev => {
-      if (!Array.isArray(availableTokens) || availableTokens.length === 0) return prev;
+      if (!Array.isArray(availableTokens) || availableTokens.length === 0) return null;
 
       // Find the token in current availableTokens that matches the previous selection
       const mapped = prev ? availableTokens.find(t => areTokensEqual(t, prev)) : null;
@@ -311,6 +311,10 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   useEffect(() => {
     if (availableTokens.length > 0 && !selectedToken) {
       setSelectedToken(availableTokens[0]);
+    }
+    if (availableTokens.length === 0 && selectedToken) {
+      setSelectedToken(null);
+      setAmount('');
     }
   }, [availableTokens, selectedToken]);
 
@@ -799,6 +803,19 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
       // Execute unshield operation
       const result = await unshieldTokens(unshieldParams);
+      // Immediately perform an optimistic local update so dropdown reflects depletion
+      try {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('railgun-optimistic-unshield', {
+            detail: {
+              tokenSymbol: selectedToken.symbol,
+              tokenAddress: tokenAddr,
+              amount: Number(amount),
+            }
+          }));
+        }
+      } catch {}
+
 
       toast.dismiss(toastId);
 
