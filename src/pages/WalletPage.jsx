@@ -178,14 +178,7 @@ const WalletPage = () => {
 
   // Event listeners for vault balance refresh state (always available in WalletPage)
   useEffect(() => {
-    const onStart = () => {
-      console.log('[WalletPage] Vault balances refresh started - showing spinner');
-      setIsRefreshingBalances(true);
-    };
-    const onComplete = () => {
-      console.log('[WalletPage] Vault balances refresh completed - hiding spinner');
-      setIsRefreshingBalances(false);
-    };
+    // Public balances events are ignored for UI gating; only private events control the spinner
     const onPrivateStart = () => {
       console.log('[WalletPage] Private balances refresh started - showing spinner');
       setIsRefreshingBalances(true);
@@ -194,13 +187,9 @@ const WalletPage = () => {
       console.log('[WalletPage] Private balances refresh completed - hiding spinner');
       setIsRefreshingBalances(false);
     };
-    window.addEventListener('vault-balances-refresh-start', onStart);
-    window.addEventListener('vault-balances-refresh-complete', onComplete);
     window.addEventListener('vault-private-refresh-start', onPrivateStart);
     window.addEventListener('vault-private-refresh-complete', onPrivateComplete);
     return () => {
-      window.removeEventListener('vault-balances-refresh-start', onStart);
-      window.removeEventListener('vault-balances-refresh-complete', onComplete);
       window.removeEventListener('vault-private-refresh-start', onPrivateStart);
       window.removeEventListener('vault-private-refresh-complete', onPrivateComplete);
     };
@@ -209,10 +198,7 @@ const WalletPage = () => {
   // Full refresh: SDK refresh + Redis persist, then UI reload (public from chain + private from Redis)
   const refreshBalances = useCallback(async () => {
     try {
-      try { 
-        console.log('[WalletPage] Dispatching vault-balances-refresh-start event');
-        window.dispatchEvent(new CustomEvent('vault-balances-refresh-start')); 
-      } catch {}
+      try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
       console.log('[WalletPage] 🔄 Full refresh — SDK refresh + Redis persist, then UI fetch...');
 
       // Step 1: Trigger SDK refresh + persist authoritative balances to Redis
@@ -263,10 +249,7 @@ const WalletPage = () => {
         </div>
       ), { duration: 3500 });
     } finally {
-      try { 
-        console.log('[WalletPage] Dispatching vault-balances-refresh-complete event');
-        window.dispatchEvent(new CustomEvent('vault-balances-refresh-complete')); 
-      } catch {}
+      try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
     }
   }, [refreshAllBalances, railgunWalletId, address, chainId]);
 

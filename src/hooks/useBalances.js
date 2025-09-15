@@ -785,7 +785,7 @@ export function useBalances() {
   useEffect(() => {
     if (!address || !railgunWalletId) return;
     setIsPrivateBalancesLoading(true);
-    try { window.dispatchEvent(new CustomEvent('vault-balances-refresh-start')); } catch {}
+    try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
     // Clear immediately to avoid showing previous-chain balances
     setPrivateBalances([]);
     // Load for the active chain
