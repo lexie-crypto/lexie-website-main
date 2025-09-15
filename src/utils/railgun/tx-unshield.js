@@ -712,7 +712,7 @@ export const unshieldTokens = async ({
       console.log('📝 [UNSHIELD] RelayAdapt recipients prepared:', {
         recipientAmount: { amount: recipientBn.toString(), to: recipientEVM },
         broadcasterFee: { amount: relayerFeeBn.toString(), to: selectedRelayer.railgunAddress },
-        unshieldFee: { amount: ((unshieldIn * UNSHIELD_FEE_BPS) / 10000n).toString(), note: 'handled_by_SDK' },
+        unshieldFee: { amount: ((unshieldInputAmount * UNSHIELD_FEE_BPS) / 10000n).toString(), note: 'handled_by_SDK' },
         mode: 'RelayAdapt_CrossContractCalls_Official_Pattern'
       });
 
@@ -740,10 +740,14 @@ export const unshieldTokens = async ({
       // SELF-SIGNING MODE: Only SDK's unshield fee applies (relayer fee is 0)
       console.log('🔧 [UNSHIELD] Preparing self-signing mode (with SDK unshield fee)...');
       
+      // Self-signing: no relayer fee. Unshield full user amount, recipient gets net of protocol fee
+      unshieldInputAmount = userAmountGross;
+      recipientBn = (unshieldInputAmount * (10000n - UNSHIELD_FEE_BPS)) / 10000n;
+
       console.log('💰 [UNSHIELD] Self-signing fee calculation:', {
-        unshieldIn: unshieldIn.toString(),
-        afterFee: afterFee.toString(), // Same as recipientBn for self-signing
-        unshieldFee: ((unshieldIn * UNSHIELD_FEE_BPS) / 10000n).toString(),
+        userAmountGross: userAmountGross.toString(),
+        recipientBn: recipientBn.toString(),
+        unshieldFee: ((unshieldInputAmount * UNSHIELD_FEE_BPS) / 10000n).toString(),
         railgunFeePercent: '0.25%',
         noRelayerFee: true
       });
@@ -757,7 +761,7 @@ export const unshieldTokens = async ({
       
       console.log('📝 [UNSHIELD] Self-signing recipients prepared:', {
         userRecipient: { amount: recipientBn.toString(), to: recipientEVM },
-        unshieldFee: { amount: ((unshieldIn * UNSHIELD_FEE_BPS) / 10000n).toString(), note: 'handled_by_SDK' },
+        unshieldFee: { amount: ((unshieldInputAmount * UNSHIELD_FEE_BPS) / 10000n).toString(), note: 'handled_by_SDK' },
         mode: 'self-signing-with-unshield-fee'
       });
     }
@@ -1289,11 +1293,11 @@ export const unshieldTokens = async ({
       const { populateProvedCrossContractCalls } = await import('@railgun-community/wallet');
       
       console.log('💰 [UNSHIELD] RelayAdapt SDK-compatible calculation:', {
-        unshieldIn: unshieldIn.toString(),
-        afterFee: afterFee.toString(), // Available after SDK's 0.25% deduction
+        userAmountGross: userAmountGross.toString(),
+        unshieldInputAmount: unshieldInputAmount.toString(),
         relayerFeeBn: relayerFeeBn.toString(),
         recipientBn: recipientBn.toString(),
-        verification: `${recipientBn.toString()} + ${relayerFeeBn.toString()} = ${(recipientBn + relayerFeeBn).toString()}`
+        requiredSpend: (unshieldInputAmount + relayerFeeBn).toString()
       });
       
       // using hoisted relayAdaptUnshieldERC20Amounts and crossContractCalls from Step 4
