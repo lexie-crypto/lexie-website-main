@@ -81,6 +81,11 @@ const WalletPage = () => {
   const [initProgress, setInitProgress] = useState({ percent: 0, message: '' });
   const [isInitInProgress, setIsInitInProgress] = useState(false);
   const [initFailedMessage, setInitFailedMessage] = useState('');
+  // Mobile-only unlock and scan indicators
+  const [isMobile, setIsMobile] = useState(false);
+  const [isScanningPrivate, setIsScanningPrivate] = useState(false);
+  const uiVaultUnlockedRef = useRef(false);
+  const initUnlockTimeoutRef = useRef(null);
   const initAddressRef = React.useRef(null);
   // Track when initial connection hydration is complete
   const initialConnectDoneRef = React.useRef(false);
@@ -97,6 +102,28 @@ const WalletPage = () => {
 
   const network = getCurrentNetwork();
   const [isChainReady, setIsChainReady] = useState(false);
+
+  // Detect mobile viewport
+  useEffect(() => {
+    const checkMobile = () => {
+      try { setIsMobile(window.innerWidth <= 768); } catch {}
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  // Track background scan progress (do not lock UI)
+  useEffect(() => {
+    const onPollStart = () => setIsScanningPrivate(true);
+    const onPollComplete = () => setIsScanningPrivate(false);
+    window.addEventListener('vault-poll-start', onPollStart);
+    window.addEventListener('vault-poll-complete', onPollComplete);
+    return () => {
+      window.removeEventListener('vault-poll-start', onPollStart);
+      window.removeEventListener('vault-poll-complete', onPollComplete);
+    };
+  }, []);
 
   // Listen for transaction lock/unlock events from PrivacyActions
   useEffect(() => {
@@ -314,6 +341,14 @@ const WalletPage = () => {
       setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
       console.log('[Vault Init] Initialization started');
     };
+    // Mobile-only: unlock UI as soon as metadata is persisted in Redis
+    const onMetadataReady = () => {
+      if (!isMobile) return;
+      try { if (initUnlockTimeoutRef.current) { clearTimeout(initUnlockTimeoutRef.current); initUnlockTimeoutRef.current = null; } } catch {}
+      setIsChainReady(true); // treat as ready for UI purposes on mobile
+      setInitProgress((prev) => ({ ...prev, percent: 100, message: 'Initialization complete' }));
+      setIsInitInProgress(false);
+    };
     const onInitProgress = () => {
       // If scanning kicks off without our start event, open the modal now
       if (!showSignRequestPopup && initialConnectDoneRef.current) {
@@ -378,6 +413,7 @@ const WalletPage = () => {
     window.addEventListener('railgun-init-progress', onInitProgress);
     window.addEventListener('railgun-init-completed', onInitCompleted);
     window.addEventListener('railgun-init-failed', onInitFailed);
+    window.addEventListener('railgun-wallet-metadata-ready', onMetadataReady);
     return () => {
       window.removeEventListener('railgun-signature-requested', onSignRequest);
       window.removeEventListener('railgun-init-started', onInitStarted);
@@ -386,17 +422,31 @@ const WalletPage = () => {
       window.removeEventListener('railgun-scan-started', onScanStarted);
       window.removeEventListener('railgun-init-completed', onInitCompleted);
       window.removeEventListener('railgun-init-failed', onInitFailed);
+      window.removeEventListener('railgun-wallet-metadata-ready', onMetadataReady);
       try { if (window.__LEXIE_INIT_POLL_ID) { clearInterval(window.__LEXIE_INIT_POLL_ID); window.__LEXIE_INIT_POLL_ID = null; } } catch {}
     };
-  }, [address, chainId, railgunWalletId, network]);
+  }, [address, chainId, railgunWalletId, network, isMobile]);
 
-  // Unlock modal using the same readiness flag as Privacy Actions
+  // Unlock modal when chain is ready (desktop) or metadata persisted (mobile handler sets ready above)
   useEffect(() => {
-    if (showSignRequestPopup && isInitInProgress && isChainReady) {
+    if (!showSignRequestPopup || !isInitInProgress) return;
+    if (isChainReady) {
       setInitProgress({ percent: 100, message: 'Initialization complete' });
       setIsInitInProgress(false);
     }
   }, [isChainReady, isInitInProgress, showSignRequestPopup]);
+
+  // Mobile-only fail-safe: unlock after 90s regardless
+  useEffect(() => {
+    if (!isMobile || !showSignRequestPopup || !isInitInProgress) return;
+    try { if (initUnlockTimeoutRef.current) clearTimeout(initUnlockTimeoutRef.current); } catch {}
+    initUnlockTimeoutRef.current = setTimeout(() => {
+      console.warn('[WalletPage] ⏱️ Mobile init timeout reached - unlocking UI');
+      setInitProgress({ percent: 100, message: 'Initialization continuing in background…' });
+      setIsInitInProgress(false);
+    }, 90000);
+    return () => { try { if (initUnlockTimeoutRef.current) clearTimeout(initUnlockTimeoutRef.current); } catch {} };
+  }, [isMobile, showSignRequestPopup, isInitInProgress]);
 
   // Check if this Railgun address already has a linked Lexie ID
   useEffect(() => {
@@ -1124,10 +1174,10 @@ const WalletPage = () => {
               </div>
             </div>
 
-                  {isRefreshingBalances && (
+                  {(isRefreshingBalances || (isMobile && isScanningPrivate)) && (
                     <div className="mb-3 flex items-center gap-2 text-sm text-green-300">
                       <div className="h-4 w-4 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
-                      Getting your vault balances...
+                      {isMobile && isScanningPrivate ? 'Scanning private balances…' : 'Getting your vault balances...'}
                     </div>
                   )}
 
