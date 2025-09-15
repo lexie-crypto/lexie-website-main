@@ -1131,7 +1131,7 @@ const WalletPage = () => {
                   {isRefreshingBalances && (
                     <div className="mb-3 flex items-center gap-2 text-sm text-green-300">
                       <div className="h-4 w-4 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
-                      Refreshing balances...
+                      Getting your vault balances...
                     </div>
                   )}
 
@@ -1140,10 +1140,14 @@ const WalletPage = () => {
                       Secure vault engine not ready
                   </div>
                   ) : privateBalances.length === 0 ? (
-                    <div className="text-center py-4 text-green-300 text-xs">
-                      No vault tokens yet
-                      <div className="text-green-400/70 mt-1">Add some tokens to start using secure vault</div>
-                </div>
+                    isRefreshingBalances ? (
+                      <div className="text-center py-4 text-green-300 text-xs">Getting your vault balances...</div>
+                    ) : (
+                      <div className="text-center py-4 text-green-300 text-xs">
+                        No vault tokens yet
+                        <div className="text-green-400/70 mt-1">Add some tokens to start using secure vault</div>
+                      </div>
+                    )
                   ) : (
                     <div className="space-y-2">
                       <div className="text-green-200 text-xs">
