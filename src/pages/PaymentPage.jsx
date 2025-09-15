@@ -57,7 +57,7 @@ const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
 
 const PaymentPage = () => {
   const [searchParams] = useSearchParams();
-  const recipientVaultAddress = searchParams.get('to');
+  const toParam = searchParams.get('to');
   const chainIdParam = searchParams.get('chainId');
   const preferredToken = searchParams.get('token');
 
@@ -91,8 +91,9 @@ const PaymentPage = () => {
     56: { name: 'BNB Chain', symbol: 'BNB' },
   };
 
-  // Validate payment link parameters
-  const isValidPaymentLink = recipientVaultAddress && recipientVaultAddress.startsWith('0zk');
+  // Recipient resolution: support Railgun address (0zk...) or Lexie ID
+  const [resolvedRecipientAddress, setResolvedRecipientAddress] = useState(null);
+  const [recipientResolveError, setRecipientResolveError] = useState(null);
 
   // Check if user is on correct network
   const isCorrectNetwork = chainId === targetChainId;
@@ -315,9 +316,9 @@ const PaymentPage = () => {
       // Parse amount to base units
       const weiAmount = parseUnits(amount, selectedToken.decimals);
 
-      // Prepare recipients
+      // Prepare recipients (use resolved Railgun address)
       const erc20AmountRecipients = [
-        { tokenAddress: selectedToken.address, amount: weiAmount, recipientAddress: recipientVaultAddress },
+        { tokenAddress: selectedToken.address, amount: weiAmount, recipientAddress: resolvedRecipientAddress },
       ];
 
       // Create ephemeral shield private key
@@ -460,27 +461,50 @@ const PaymentPage = () => {
     );
   }
 
-  // Try to resolve recipient Lexie ID from their vault address (same approach as WalletPage)
+  // Resolve recipient from `to` param; allow Lexie ID or Railgun address
   const [recipientLexieId, setRecipientLexieId] = useState(null);
   useEffect(() => {
-    const resolveLexie = async () => {
+    const resolveRecipient = async () => {
+      setRecipientResolveError(null);
+      setResolvedRecipientAddress(null);
+      setRecipientLexieId(null);
+      if (!toParam) { setRecipientResolveError('Missing recipient'); return; }
+
+      const lexiePattern = /^[a-zA-Z0-9_]{3,20}$/;
       try {
-        if (!recipientVaultAddress) return;
-        const resp = await fetch(`/api/wallet-metadata?action=by-wallet&railgunAddress=${encodeURIComponent(recipientVaultAddress)}`);
-        if (!resp.ok) { setRecipientLexieId(null); return; }
-        const json = await resp.json().catch(() => ({}));
-        if (json.success && json.lexieID) {
-          setRecipientLexieId(json.lexieID);
+        if (toParam.startsWith('0zk')) {
+          // Direct Railgun address
+          setResolvedRecipientAddress(toParam);
+          // Try to fetch Lexie ID for display
+          try {
+            const resp = await fetch(`/api/wallet-metadata?action=by-wallet&railgunAddress=${encodeURIComponent(toParam)}`);
+            const json = await resp.json().catch(() => ({}));
+            if (resp.ok && json?.success && json?.lexieID) setRecipientLexieId(json.lexieID);
+          } catch {}
+        } else if (lexiePattern.test(toParam)) {
+          // Lexie ID: resolve to Railgun address
+          const resp = await fetch(`/api/wallet-metadata?action=lexie-resolve&lexieID=${encodeURIComponent(toParam.toLowerCase())}`);
+          if (!resp.ok) throw new Error('Lexie ID not found');
+          const json = await resp.json().catch(() => ({}));
+          if (!json?.success || !json?.walletAddress || !json.walletAddress.startsWith('0zk')) {
+            throw new Error('Lexie ID not linked');
+          }
+          setRecipientLexieId(toParam.toLowerCase());
+          setResolvedRecipientAddress(json.walletAddress);
         } else {
-          setRecipientLexieId(null);
+          throw new Error('Invalid recipient format');
         }
       } catch (e) {
-        console.warn('[PaymentPage] Failed to resolve Lexie ID for recipient:', e?.message);
-        setRecipientLexieId(null);
+        setRecipientResolveError(e?.message || 'Failed to resolve recipient');
       }
     };
-    resolveLexie();
-  }, [recipientVaultAddress]);
+    resolveRecipient();
+  }, [toParam]);
+
+  // Validate payment link parameters without flashing an error while resolving
+  const lexieIdPattern = /^[a-zA-Z0-9_]{3,20}$/;
+  const isCandidateToParam = Boolean(toParam && (toParam.startsWith('0zk') || lexieIdPattern.test(toParam)));
+  const isValidPaymentLink = isCandidateToParam && !recipientResolveError;
 
   return (
     <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
@@ -519,7 +543,7 @@ const PaymentPage = () => {
               {/* Values row */}
               <div className="mt-1 grid grid-cols-2 items-center px-3 text-center">
                 <div className="text-green-200 text-sm font-mono break-all">
-                  {recipientLexieId ? `@${recipientLexieId}` : '—'}
+                  {recipientLexieId ? `@${recipientLexieId}` : (resolvedRecipientAddress || '—')}
                 </div>
                 <div className="text-green-200 text-sm font-mono">
                   {networks[targetChainId]?.name || `Chain ${targetChainId}`}

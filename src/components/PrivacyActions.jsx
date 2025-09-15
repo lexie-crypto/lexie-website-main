@@ -78,6 +78,28 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   const tokenMenuRef = useRef(null);
   // Receive tab state
   const [paymentLink, setPaymentLink] = useState('');
+  // Current user's Lexie ID (if linked)
+  const [myLexieId, setMyLexieId] = useState(null);
+
+  // Resolve current user's Lexie ID from their Railgun address
+  useEffect(() => {
+    const resolveMyLexie = async () => {
+      try {
+        if (!railgunAddress) { setMyLexieId(null); return; }
+        const resp = await fetch(`/api/wallet-metadata?action=by-wallet&railgunAddress=${encodeURIComponent(railgunAddress)}`);
+        if (!resp.ok) { setMyLexieId(null); return; }
+        const json = await resp.json().catch(() => ({}));
+        if (json.success && json.lexieID) {
+          setMyLexieId((json.lexieID || '').toLowerCase());
+        } else {
+          setMyLexieId(null);
+        }
+      } catch (_) {
+        setMyLexieId(null);
+      }
+    };
+    resolveMyLexie();
+  }, [railgunAddress]);
   // We now rely on WalletContext for initialization status
 
   // Available tabs
@@ -269,8 +291,10 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   useEffect(() => {
     if (activeTab === 'receive' && railgunAddress && chainId) {
       const baseUrl = window.location.origin;
+      // Prefer Lexie ID if available; fallback to Railgun address
+      const toValue = myLexieId || railgunAddress;
       const params = new URLSearchParams({
-        to: railgunAddress,
+        to: toValue,
         chainId: chainId.toString(),
       });
       
@@ -281,7 +305,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       const link = `${baseUrl}/pay?${params.toString()}`;
       setPaymentLink(link);
     }
-  }, [activeTab, railgunAddress, chainId, selectedToken]);
+  }, [activeTab, railgunAddress, chainId, selectedToken, myLexieId]);
 
   // Auto-select first available token
   useEffect(() => {
