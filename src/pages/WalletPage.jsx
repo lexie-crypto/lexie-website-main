@@ -327,6 +327,10 @@ const WalletPage = () => {
       console.log('[Vault Init] Signature requested - showing modal');
     };
     const onInitStarted = (e) => {
+      // Mobile: if UI already unlocked after Redis persistence, do not relock
+      if (isMobile && uiVaultUnlockedRef.current) {
+        return;
+      }
       // Open modal immediately when init/scan starts on chain switch
       if (!showSignRequestPopup) {
         setShowSignRequestPopup(true);
@@ -344,6 +348,7 @@ const WalletPage = () => {
     // Mobile-only: unlock UI as soon as metadata is persisted in Redis
     const onMetadataReady = () => {
       if (!isMobile) return;
+      uiVaultUnlockedRef.current = true;
       try { if (initUnlockTimeoutRef.current) { clearTimeout(initUnlockTimeoutRef.current); initUnlockTimeoutRef.current = null; } } catch {}
       setIsChainReady(true); // treat as ready for UI purposes on mobile
       setInitProgress((prev) => ({ ...prev, percent: 100, message: 'Initialization complete' }));
@@ -400,6 +405,10 @@ const WalletPage = () => {
     const onScanStarted = async (e) => {
       // Same guard: avoid modal during initial connect if wallet existed in Redis
       if (!initialConnectDoneRef.current) return;
+      // Mobile: if UI already unlocked after Redis persistence, do not relock
+      if (isMobile && uiVaultUnlockedRef.current) {
+        return;
+      }
       try {
         const ready = await checkChainReady();
         if (!ready) onInitStarted(e);
@@ -1536,7 +1545,15 @@ const WalletPage = () => {
               {/* No close button until init completes */}
               {isInitInProgress ? (
                 <div className="text-yellow-400 text-xs">LOCKED</div>
-              ) : null}
+              ) : (
+                <button
+                  onClick={() => setShowSignRequestPopup(false)}
+                  className="hidden sm:inline-flex items-center justify-center h-6 w-6 rounded hover:bg-green-900/30 text-green-300/80"
+                  aria-label="Close"
+                >
+                  ×
+                </button>
+              )}
             </div>
             <div className="p-6 text-green-300 space-y-4">
               {!isInitInProgress && initProgress.percent < 100 && !initFailedMessage ? (
