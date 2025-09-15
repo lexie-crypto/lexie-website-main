@@ -60,6 +60,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     refreshAllBalances,
     refreshBalancesAfterTransaction,
     formatBalance,
+    isPrivateBalancesLoading, // Add
   } = useBalances();
 
   // isRefreshingBalances is now passed as a prop from WalletPage
@@ -1242,13 +1243,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             <h3 className="text-emerald-300 font-semibold">{getCurrentNetwork()?.name || 'Network'} Vault Balances</h3>
           </div>
           <div className="mt-3 text-green-300/80">
-            {isRefreshingBalances && (
+            {isPrivateBalancesLoading ? (
               <div className="mb-3 flex items-center gap-2 text-sm text-green-300">
                 <div className="h-4 w-4 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
                 Getting your vault balances...
               </div>
-            )}
-            {privateBalances && privateBalances.length > 0 ? (
+            ) : privateBalances && privateBalances.length > 0 ? (
               <div className="space-y-2">
                 <div className="text-sm text-green-400/70">{privateBalances.length} Vault Token{privateBalances.length !== 1 ? 's' : ''}</div>
                 {privateBalances.map((token) => (
@@ -1267,11 +1267,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 ))}
               </div>
             ) : (
-              isRefreshingBalances || isLoading ? (
-                <div className="text-sm text-green-400/70">Getting your vault balances...</div>
-              ) : (
-                <div className="text-sm text-green-400/70">No vault tokens yet<br />Add some tokens to start using secure vault</div>
-              )
+              <div className="text-sm text-green-400/70">No vault tokens yet<br />Add some tokens to start using secure vault</div>
             )}
           </div>
         </div>

@@ -64,6 +64,7 @@ const WalletPage = () => {
     refreshBalancesAfterTransaction,
     lastUpdateTime,
     loadPrivateBalancesFromMetadata, // Add this for Redis-only refresh
+    isPrivateBalancesLoading, // Add this
   } = useBalances();
 
   const [showPrivateMode, setShowPrivateMode] = useState(false);
@@ -1151,15 +1152,13 @@ const WalletPage = () => {
                     <div className="text-center py-4 text-green-400/70 text-xs">
                       Secure vault engine not ready
                   </div>
+                  ) : isPrivateBalancesLoading ? (
+                    <div className="text-center py-4 text-green-300 text-xs">Getting your vault balances...</div>
                   ) : privateBalances.length === 0 ? (
-                    isRefreshingBalances ? (
-                      <div className="text-center py-4 text-green-300 text-xs">Getting your vault balances...</div>
-                    ) : (
-                      <div className="text-center py-4 text-green-300 text-xs">
-                        No vault tokens yet
-                        <div className="text-green-400/70 mt-1">Add some tokens to start using secure vault</div>
-                      </div>
-                    )
+                    <div className="text-center py-4 text-green-300 text-xs">
+                      No vault tokens yet
+                      <div className="text-green-400/70 mt-1">Add some tokens to start using secure vault</div>
+                    </div>
                   ) : (
                     <div className="space-y-2">
                       <div className="text-green-200 text-xs">

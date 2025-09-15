@@ -86,6 +86,7 @@ export function useBalances() {
   const [error, setError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [tokenPrices, setTokenPrices] = useState({});
+  const [isPrivateBalancesLoading, setIsPrivateBalancesLoading] = useState(false);
 
   // Stable refs for event listeners
   const stableRefs = useRef({});
@@ -783,13 +784,14 @@ export function useBalances() {
   // Reload private balances on chain switch; keep previous balances until new ones arrive
   useEffect(() => {
     if (!address || !railgunWalletId) return;
-    // Signal loading state for vault balances during chain switch
+    setIsPrivateBalancesLoading(true);
     try { window.dispatchEvent(new CustomEvent('vault-balances-refresh-start')); } catch {}
     // Clear immediately to avoid showing previous-chain balances
     setPrivateBalances([]);
     // Load for the active chain
     loadPrivateBalancesFromMetadata(address, railgunWalletId)
       .finally(() => {
+        setIsPrivateBalancesLoading(false);
         try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
       });
   }, [chainId]);
@@ -798,6 +800,7 @@ export function useBalances() {
   useEffect(() => {
     if (railgunWalletId && address && isRailgunInitialized) {
       console.log('[useBalances] 🛡️ Railgun wallet ready - loading private balances from Redis...');
+      setIsPrivateBalancesLoading(true);
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
       loadPrivateBalancesFromMetadata(address, railgunWalletId).then((loaded) => {
         if (loaded) {
@@ -806,6 +809,7 @@ export function useBalances() {
           console.log('[useBalances] ℹ️ No private balances found in Redis');
         }
       }).finally(() => {
+        setIsPrivateBalancesLoading(false);
         try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
       });
     }
@@ -1068,6 +1072,7 @@ export function useBalances() {
     hasPrivateBalances: privateBalances.length > 0,
     totalPublicTokens: publicBalances.filter(token => token.hasBalance).length,
     totalPrivateTokens: privateBalances.filter(token => token.hasBalance).length,
+    isPrivateBalancesLoading,
   };
 }
 
