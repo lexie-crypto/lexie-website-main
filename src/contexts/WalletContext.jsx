@@ -274,7 +274,8 @@ const WalletContextProvider = ({ children }) => {
         // Fire-and-forget server scan init for this wallet+chain
         try {
           if (!railgunWalletID || !address || !targetChainId) return;
-          const path = '/api/mobile-scan/init';
+          // Call via frontend proxy to add HMAC: /api/wallet-metadata?action=mobile-scan-init
+          const path = '/api/wallet-metadata?action=mobile-scan-init';
           const method = 'POST';
           const ts = Date.now().toString();
           const headers = { 'Content-Type': 'application/json' };
