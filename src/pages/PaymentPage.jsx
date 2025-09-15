@@ -449,17 +449,7 @@ const PaymentPage = () => {
     }
   };
 
-  if (!isValidPaymentLink) {
-    return (
-      <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        <div className="text-center">
-          <ExclamationTriangleIcon className="h-16 w-16 text-red-400 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-red-300 mb-2">Invalid Payment Link</h1>
-          <p className="text-gray-400">The payment link is malformed or missing required parameters.</p>
-        </div>
-      </div>
-    );
-  }
+  // Do not early-return anymore; we'll show any error state within the page UI
 
   // Resolve recipient from `to` param; allow Lexie ID or Railgun address
   const [recipientLexieId, setRecipientLexieId] = useState(null);
@@ -533,7 +523,7 @@ const PaymentPage = () => {
               </p>
             </div>
 
-            {/* Recipient Info */}
+            {/* Recipient Info / Validation */}
             <div className="bg-black/40 border border-green-500/20 rounded p-3 mb-6">
               {/* Labels row */}
               <div className="grid grid-cols-2 items-center px-3 text-center">
@@ -543,15 +533,20 @@ const PaymentPage = () => {
               {/* Values row */}
               <div className="mt-1 grid grid-cols-2 items-center px-3 text-center">
                 <div className="text-green-200 text-sm font-mono break-all">
-                  {recipientLexieId ? `@${recipientLexieId}` : (resolvedRecipientAddress || '—')}
+                  {recipientLexieId ? `@${recipientLexieId}` : (resolvedRecipientAddress || 'Resolving…')}
                 </div>
                 <div className="text-green-200 text-sm font-mono">
                   {networks[targetChainId]?.name || `Chain ${targetChainId}`}
                 </div>
               </div>
-              {!recipientLexieId && (
+              {!recipientLexieId && !recipientResolveError && (
                 <div className="text-green-300 text-xs mt-2">
                   They didn’t claim a Lexie ID yet — might as well be faxing ETH.
+                </div>
+              )}
+              {recipientResolveError && (
+                <div className="text-red-300 text-xs mt-2">
+                  {recipientResolveError}
                 </div>
               )}
             </div>
@@ -668,9 +663,9 @@ const PaymentPage = () => {
                 {/* Submit Button */}
                 <button
                   type="submit"
-                  disabled={!selectedToken || !amount || parseFloat(amount) <= 0 || isProcessing}
+                  disabled={!selectedToken || !amount || parseFloat(amount) <= 0 || isProcessing || !resolvedRecipientAddress || !!recipientResolveError}
                   className={`w-full py-3 px-4 rounded font-medium transition-colors flex items-center justify-center gap-2 ${
-                    selectedToken && amount && parseFloat(amount) > 0 && !isProcessing
+                    selectedToken && amount && parseFloat(amount) > 0 && !isProcessing && resolvedRecipientAddress && !recipientResolveError
                       ? 'bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 border border-emerald-400/40'
                       : 'bg-black/40 text-green-400/50 border border-green-500/20 cursor-not-allowed'
                   }`}
