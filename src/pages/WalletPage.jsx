@@ -353,6 +353,13 @@ const WalletPage = () => {
       setIsChainReady(true); // treat as ready for UI purposes on mobile
       setInitProgress((prev) => ({ ...prev, percent: 100, message: 'Initialization complete' }));
       setIsInitInProgress(false);
+      // MOBILE-ONLY: Immediately kick off initial Merkle-tree scan for current chain at wallet creation
+      try {
+        if (typeof window !== 'undefined' && chainId) {
+          try { window.__kickoffChainScan && window.__kickoffChainScan(chainId); } catch {}
+          try { window.dispatchEvent(new CustomEvent('railgun-scan-started', { detail: { chainId } })); } catch {}
+        }
+      } catch {}
     };
     const onInitProgress = () => {
       // If scanning kicks off without our start event, open the modal now
@@ -435,6 +442,23 @@ const WalletPage = () => {
       try { if (window.__LEXIE_INIT_POLL_ID) { clearInterval(window.__LEXIE_INIT_POLL_ID); window.__LEXIE_INIT_POLL_ID = null; } } catch {}
     };
   }, [address, chainId, railgunWalletId, network, isMobile]);
+
+  // MOBILE-ONLY: Proactive scan kickoff if wallet is usable but chain isn't yet scanned
+  useEffect(() => {
+    if (!isMobile) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!canUseRailgun || !railgunWalletId || !address || !chainId) return;
+        const ready = await checkChainReady();
+        if (!cancelled && !ready) {
+          try { window.__kickoffChainScan && window.__kickoffChainScan(chainId); } catch {}
+          try { window.dispatchEvent(new CustomEvent('railgun-scan-started', { detail: { chainId } })); } catch {}
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [isMobile, canUseRailgun, railgunWalletId, address, chainId, checkChainReady]);
 
   // Unlock modal when chain is ready (desktop) or metadata persisted (mobile handler sets ready above)
   useEffect(() => {
