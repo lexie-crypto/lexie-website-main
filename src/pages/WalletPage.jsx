@@ -759,6 +759,10 @@ const WalletPage = () => {
           setIsInitInProgress(true);
           const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
           setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
+          // Mobile: proactively trigger background scan so creation starts immediately
+          if (isMobile && typeof window !== 'undefined') {
+            try { window.__kickoffChainScan && window.__kickoffChainScan(targetChainId); } catch {}
+          }
         }
       } catch {}
     } catch (error) {

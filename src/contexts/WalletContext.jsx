@@ -1699,6 +1699,15 @@ const WalletContextProvider = ({ children }) => {
     }
   }, [chainId]);
 
+  // Expose a safe wrapper to explicitly start scan for a target chain (used by mobile UI after network switch)
+  const kickoffChainScan = useCallback(async (targetChainId) => {
+    try {
+      await ensureChainScanned(targetChainId);
+    } catch (e) {
+      console.warn('[WalletContext] kickoffChainScan failed:', e?.message);
+    }
+  }, [ensureChainScanned]);
+
   // Auto-initialize Railgun when wallet connects (only if not already initialized)
   useEffect(() => {
     // 🛡️ Prevent force reinitialization if already initialized
@@ -1834,6 +1843,10 @@ const WalletContextProvider = ({ children }) => {
   // 🛠️ Debug utilities for encrypted data management
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // Expose a safe global to kickoff scan from UI without importing context
+      window.__kickoffChainScan = (targetChainId) => {
+        try { kickoffChainScan(targetChainId); } catch {}
+      };
       window.__LEXIE_RAILGUN_DEBUG__ = {
         // Check current user's Redis wallet data status
         checkWalletData: () => {
@@ -1941,6 +1954,7 @@ const WalletContextProvider = ({ children }) => {
     getWalletSigner,
     walletProvider: getWalletSigner, // Backwards compatibility - but this returns a signer now
     ensureEngineForShield,
+    kickoffChainScan,
     
     getCurrentNetwork: () => {
       const networkNames = { 1: 'Ethereum', 137: 'Polygon', 42161: 'Arbitrum', 56: 'BNB Chain' };
