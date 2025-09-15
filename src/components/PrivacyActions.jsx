@@ -1245,7 +1245,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             {isRefreshingBalances && (
               <div className="mb-3 flex items-center gap-2 text-sm text-green-300">
                 <div className="h-4 w-4 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
-                Refreshing balances...
+                Getting your vault balances...
               </div>
             )}
             {privateBalances && privateBalances.length > 0 ? (
@@ -1267,7 +1267,11 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 ))}
               </div>
             ) : (
-              <div className="text-sm text-green-400/70">No vault tokens yet</div>
+              isRefreshingBalances || isLoading ? (
+                <div className="text-sm text-green-400/70">Getting your vault balances...</div>
+              ) : (
+                <div className="text-sm text-green-400/70">No vault tokens yet<br />Add some tokens to start using secure vault</div>
+              )
             )}
           </div>
         </div>
