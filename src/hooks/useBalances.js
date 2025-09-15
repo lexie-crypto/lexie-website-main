@@ -783,8 +783,10 @@ export function useBalances() {
   // Reload private balances on chain switch; keep previous balances until new ones arrive
   useEffect(() => {
     if (!address || !railgunWalletId) return;
-    // Signal PRIVATE loading state for vault balances during chain switch
-    try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
+    // Signal loading state for vault balances during chain switch
+    try { window.dispatchEvent(new CustomEvent('vault-balances-refresh-start')); } catch {}
+    // Clear immediately to avoid showing previous-chain balances
+    setPrivateBalances([]);
     // Load for the active chain
     loadPrivateBalancesFromMetadata(address, railgunWalletId)
       .finally(() => {
