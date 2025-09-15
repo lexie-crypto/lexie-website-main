@@ -473,14 +473,31 @@ const PaymentPage = () => {
           } catch {}
         } else if (lexiePattern.test(toParam)) {
           // Lexie ID: resolve to Railgun address
-          const resp = await fetch(`/api/wallet-metadata?action=lexie-resolve&lexieID=${encodeURIComponent(toParam.toLowerCase())}`);
-          if (!resp.ok) throw new Error('Lexie ID not found');
-          const json = await resp.json().catch(() => ({}));
-          if (!json?.success || !json?.walletAddress || !json.walletAddress.startsWith('0zk')) {
-            throw new Error('Lexie ID not linked');
+          const idLower = toParam.toLowerCase();
+          const primary = await fetch(`/api/wallet-metadata?action=lexie-resolve&lexieID=${encodeURIComponent(idLower)}`);
+          let resolved = null;
+          if (primary.ok) {
+            const json = await primary.json().catch(() => ({}));
+            resolved = json?.walletAddress || json?.address || null;
           }
-          setRecipientLexieId(toParam.toLowerCase());
-          setResolvedRecipientAddress(json.walletAddress);
+          if (!resolved || !String(resolved).startsWith('0zk')) {
+            // Fallback: use history resolver which supports multiple identifiers
+            try {
+              const fallback = await fetch(`/api/wallet-metadata?action=history&subaction=resolve&q=${encodeURIComponent(idLower)}`);
+              if (fallback.ok) {
+                const data = await fallback.json().catch(() => ({}));
+                const candidate = data?.walletAddress || data?.railgunAddress || data?.address || data?.result || null;
+                if (candidate && String(candidate).startsWith('0zk')) {
+                  resolved = candidate;
+                }
+              }
+            } catch {}
+          }
+          if (!resolved || !String(resolved).startsWith('0zk')) {
+            throw new Error('Lexie ID not found');
+          }
+          setRecipientLexieId(idLower);
+          setResolvedRecipientAddress(resolved);
         } else {
           throw new Error('Invalid recipient format');
         }
