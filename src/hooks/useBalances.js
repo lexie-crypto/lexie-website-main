@@ -783,22 +783,30 @@ export function useBalances() {
   // Clear stale private balances when switching networks; reload from Redis for the new chain
   useEffect(() => {
     if (!address || !railgunWalletId) return;
+    // Signal loading state for vault balances during chain switch
+    try { window.dispatchEvent(new CustomEvent('vault-balances-refresh-start')); } catch {}
     // Clear immediately to avoid showing previous-chain balances
     setPrivateBalances([]);
     // Load for the active chain
-    loadPrivateBalancesFromMetadata(address, railgunWalletId);
+    loadPrivateBalancesFromMetadata(address, railgunWalletId)
+      .finally(() => {
+        try { window.dispatchEvent(new CustomEvent('vault-balances-refresh-complete')); } catch {}
+      });
   }, [chainId]);
 
   // Load private balances from Redis when Railgun wallet is ready
   useEffect(() => {
     if (railgunWalletId && address && isRailgunInitialized) {
       console.log('[useBalances] 🛡️ Railgun wallet ready - loading private balances from Redis...');
+      try { window.dispatchEvent(new CustomEvent('vault-balances-refresh-start')); } catch {}
       loadPrivateBalancesFromMetadata(address, railgunWalletId).then((loaded) => {
         if (loaded) {
           console.log('[useBalances] ✅ Private balances loaded from Redis');
         } else {
           console.log('[useBalances] ℹ️ No private balances found in Redis');
         }
+      }).finally(() => {
+        try { window.dispatchEvent(new CustomEvent('vault-balances-refresh-complete')); } catch {}
       });
     }
   }, [railgunWalletId, address, isRailgunInitialized, chainId, loadPrivateBalancesFromMetadata]);
