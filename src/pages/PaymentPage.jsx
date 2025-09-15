@@ -474,6 +474,8 @@ const PaymentPage = () => {
         } else if (lexiePattern.test(toParam)) {
           // Lexie ID: resolve to Railgun address
           const idLower = toParam.toLowerCase();
+          // Immediately show the ID from the link while we resolve it
+          setRecipientLexieId(idLower);
           const primary = await fetch(`/api/wallet-metadata?action=lexie-resolve&lexieID=${encodeURIComponent(idLower)}`);
           let resolved = null;
           if (primary.ok) {
