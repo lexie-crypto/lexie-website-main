@@ -127,10 +127,12 @@ const PaymentPage = () => {
             { symbol: 'ETH', address: null, name: 'Ethereum', decimals: 18 },
             { symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', name: 'USD Coin', decimals: 6 },
             { symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', name: 'Tether USD', decimals: 6 },
+            { symbol: 'DAI', address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', name: 'Dai Stablecoin', decimals: 18 },
           ],
           137: [ // Polygon
             { symbol: 'MATIC', address: null, name: 'Polygon', decimals: 18 },
             { symbol: 'USDC', address: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', name: 'USD Coin', decimals: 6 },
+            { symbol: 'USDT', address: '0xc2132D05D31c914a87C6611c10748AEb04B58e8F', name: 'Tether USD', decimals: 6 },
           ],
           42161: [ // Arbitrum
             { symbol: 'ETH', address: null, name: 'Ethereum', decimals: 18 },
@@ -138,10 +140,12 @@ const PaymentPage = () => {
             { symbol: 'USDC', address: '0xaf88d065e77c8cc2239327c5edb3a432268e5831', name: 'USD Coin', decimals: 6 },
             // Bridged USDC.e
             { symbol: 'USDC.e', address: '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8', name: 'USD Coin (USDC.e)', decimals: 6 },
+            { symbol: 'USDT', address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', name: 'Tether USD', decimals: 6 },
           ],
           56: [ // BNB Chain
             { symbol: 'BNB', address: null, name: 'BNB', decimals: 18 },
             { symbol: 'USDT', address: '0x55d398326f99059fF775485246999027B3197955', name: 'Tether USD', decimals: 18 },
+            { symbol: 'USDC', address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', name: 'USD Coin', decimals: 18 },
           ],
         };
 
