@@ -313,6 +313,7 @@ const WalletContextProvider = ({ children }) => {
 
       chainsScanningRef.current.add(railgunChain.id);
       console.log('[Railgun Init] 🔄 Performing initial full scan for chain', railgunChain.id);
+      try { window.dispatchEvent(new CustomEvent('railgun-scan-started', { detail: { chainId: railgunChain.id } })); } catch {}
 
       const { refreshBalances } = await import('@railgun-community/wallet');
             await refreshBalances(railgunChain, [railgunWalletID]);
@@ -370,6 +371,7 @@ const WalletContextProvider = ({ children }) => {
       } catch {}
 
       console.log('[Railgun Init] ✅ Initial scan complete for chain', railgunChain.id);
+      try { window.dispatchEvent(new CustomEvent('railgun-scan-complete', { detail: { chainId: railgunChain.id } })); } catch {}
     } catch (error) {
       console.warn('[Railgun Init] ⚠️ Initial scan failed:', error?.message);
     } finally {
@@ -1707,6 +1709,17 @@ const WalletContextProvider = ({ children }) => {
       console.warn('[WalletContext] kickoffChainScan failed:', e?.message);
     }
   }, [ensureChainScanned]);
+
+  // Make kickoff function available immediately on mount
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined') {
+        window.__kickoffChainScan = (targetChainId) => {
+          try { kickoffChainScan(targetChainId); } catch {}
+        };
+      }
+    } catch {}
+  }, [kickoffChainScan]);
 
   // Auto-initialize Railgun when wallet connects (only if not already initialized)
   useEffect(() => {
