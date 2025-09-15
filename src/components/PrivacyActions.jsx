@@ -862,6 +862,23 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         toast.error('Please enter a valid EVM address or a Lexie ID');
         return;
       }
+      // Fast pre-check: Verify Lexie ID exists before starting heavy processing
+      try {
+        const resp = await fetch(`/api/wallet-metadata?action=lexie-resolve&lexieID=${encodeURIComponent(input)}`);
+        if (!resp.ok) {
+          // 404 or any non-200: treat as not linked
+          toast.error('Lexie ID does not exist or is not linked to a LexieVault');
+          return;
+        }
+        const data = await resp.json().catch(() => ({}));
+        if (!data?.success || !data?.walletAddress) {
+          toast.error('Lexie ID does not exist or is not linked to a LexieVault');
+          return;
+        }
+      } catch (_) {
+        toast.error('Lexie ID does not exist or is not linked to a LexieVault');
+        return;
+      }
       // Proceed: resolution will happen in privateTransfer()
     }
 
