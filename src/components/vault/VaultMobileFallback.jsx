@@ -50,7 +50,7 @@ const VaultMobileFallback = () => {
         </div>
       </div>
 
-      <div className="relative z-10 max-w-3xl mx-auto px-6 sm:px-8 lg:px-12 py-12">
+      <div className="relative z-10 max-w-4xl mx-auto px-6 sm:px-8 lg:px-12 py-16">
         <TerminalWindow
           title="lexie-ai"
           statusLabel={'MOBILE'}
@@ -59,20 +59,20 @@ const VaultMobileFallback = () => {
           variant="vault"
           className="overflow-hidden"
         >
-          <div className="font-mono text-green-300 text-center py-16">
+          <div className="font-mono text-green-300 text-center py-24 min-h-[70vh] flex flex-col justify-center">
             <div className="mb-6">
               <img
                 src="/lexie.png"
                 alt="LexieAI Avatar"
-                className="mx-auto h-24 w-auto sm:h-32 opacity-95 drop-shadow-[0_0_12px_rgba(168,85,247,0.25)]"
+                className="mx-auto h-32 w-auto sm:h-40 opacity-95 drop-shadow-[0_0_12px_rgba(168,85,247,0.25)]"
                 loading="eager"
                 decoding="async"
               />
             </div>
-            <h2 className="text-xl sm:text-2xl font-semibold text-emerald-300 tracking-tight">
+            <h2 className="text-2xl sm:text-3xl font-semibold text-emerald-300 tracking-tight">
               LexieVault is not available on mobile yet but we are working on it...
             </h2>
-            <p className="mt-3 text-green-400/80 text-sm sm:text-base">
+            <p className="mt-3 text-green-400/80 text-base sm:text-lg">
               Follow us on X for product release updates.
             </p>
             <div className="mt-5">
@@ -80,7 +80,7 @@ const VaultMobileFallback = () => {
                 href="https://x.com/0xLexieAI"
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 px-4 py-2 rounded text-sm border border-purple-400/40 transition-colors"
+                className="inline-flex items-center gap-2 bg-purple-300/30 hover:bg-purple-600/50 text-purple-200 px-5 py-3 rounded text-sm border border-purple-400/40 transition-colors"
               >
                 Follow us on X
               </a>
