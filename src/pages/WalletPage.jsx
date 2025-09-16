@@ -34,19 +34,6 @@ import {
 import { deriveEncryptionKey } from '../utils/railgun/wallet';
 
 const WalletPage = () => {
-  // Detect non-desktop (mobile/tablet) to gate the vault page
-  const [isNonDesktop, setIsNonDesktop] = useState(false);
-  useEffect(() => {
-    try {
-      const ua = (typeof navigator !== 'undefined' && navigator.userAgent) ? navigator.userAgent : '';
-      const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua);
-      const isSmallViewport = (typeof window !== 'undefined') ? (window.innerWidth <= 1024) : false;
-      // Treat anything that's not a typical desktop viewport as non-desktop
-      setIsNonDesktop(isMobileUA || isSmallViewport);
-    } catch {
-      setIsNonDesktop(false);
-    }
-  }, []);
   const {
     isConnected,
     isConnecting,
@@ -110,30 +97,6 @@ const WalletPage = () => {
 
   const network = getCurrentNetwork();
   const [isChainReady, setIsChainReady] = useState(false);
-
-  // Render a friendly message for non-desktop visitors
-  if (isNonDesktop) {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center px-6">
-        <div className="max-w-md w-full text-center">
-          <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm px-6 py-8 shadow-xl">
-            <h1 className="text-xl font-semibold text-white mb-3">Not available for mobile yet</h1>
-            <p className="text-sm text-white/80 mb-5">
-              ...but we are working on it. Follow us on Twitter to stay up to date with the latest releases.
-            </p>
-            <a
-              href="https://x.com/0xLexieAI"
-              target="_blank"
-              rel="noreferrer noopener"
-              className="inline-flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/15 text-white px-4 py-2 transition-colors"
-            >
-              Follow @0xLexieAI
-            </a>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // Listen for transaction lock/unlock events from PrivacyActions
   useEffect(() => {
