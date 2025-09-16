@@ -114,13 +114,13 @@ const WalletPage = () => {
   // Render a friendly message for non-desktop visitors
   if (isNonDesktop) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center px-6">
+      <div className="min-h-screen w-full flex items-center justify-center px-6 bg-gradient-to-b from-[#0b0f1a] to-[#0f1526]">
         <div className="max-w-md w-full text-center">
           <img src="/lexie.png" alt="Lexie" className="mx-auto mb-6 w-28 h-28 opacity-90" />
-          <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm px-6 py-8 shadow-xl">
-            <h1 className="text-xl font-semibold text-white mb-3">Not available for mobile yet</h1>
+          <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm px-6 py-8 shadow-xl text-white">
+            <h1 className="text-xl font-semibold mb-3">Not available for mobile yet</h1>
             <p className="text-sm text-white/80 mb-5">
-              ...but it’s in the works. Follow us on Twitter to stay up to date with the latest releases.
+              ...but we are working on it. Follow us on Twitter to stay up to date with the latest releases.
             </p>
             <a
               href="https://x.com/0xLexieAI"
