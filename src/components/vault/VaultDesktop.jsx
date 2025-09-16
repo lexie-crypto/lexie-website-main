@@ -231,10 +231,28 @@ const VaultDesktop = () => {
   }, [refreshAllBalances, railgunWalletId, address, chainId]);
 
   useEffect(() => {
-    if (isConnected && address && chainId) {
-      refreshBalances();
-    }
-  }, [isConnected, address, chainId, refreshBalances]);
+    let cancelled = false;
+    (async () => {
+      if (!(isConnected && address && chainId)) return;
+      try {
+        const ready = await checkChainReady();
+        if (!ready) {
+          const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
+          if (!cancelled) {
+            setShowSignRequestPopup(true);
+            setIsInitInProgress(true);
+            setInitFailedMessage('');
+            setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
+          }
+          return;
+        }
+      } catch {}
+      if (!cancelled) {
+        refreshBalances();
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isConnected, address, chainId, refreshBalances, checkChainReady, network]);
 
   useEffect(() => {
     if (canUseRailgun && railgunWalletId) {
@@ -245,11 +263,18 @@ const VaultDesktop = () => {
   useEffect(() => {
     const onScanComplete = () => {
       setIsChainReady(false);
-      checkChainReady().then((ready) => setIsChainReady(!!ready)).catch(() => setIsChainReady(false));
+      checkChainReady()
+        .then((ready) => {
+          setIsChainReady(!!ready);
+          if (ready) {
+            try { refreshBalances(); } catch {}
+          }
+        })
+        .catch(() => setIsChainReady(false));
     };
     window.addEventListener('railgun-scan-complete', onScanComplete);
     return () => window.removeEventListener('railgun-scan-complete', onScanComplete);
-  }, [checkChainReady]);
+  }, [checkChainReady, refreshBalances]);
 
   useEffect(() => {
     const markDone = () => { initialConnectDoneRef.current = true; };
