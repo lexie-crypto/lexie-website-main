@@ -116,7 +116,6 @@ const WalletPage = () => {
     return (
       <div className="min-h-screen w-full flex items-center justify-center px-6">
         <div className="max-w-md w-full text-center">
-          <img src="/lexie.png" alt="Lexie" className="mx-auto mb-6 w-28 h-28 opacity-90" />
           <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm px-6 py-8 shadow-xl">
             <h1 className="text-xl font-semibold text-white mb-3">Not available for mobile yet</h1>
             <p className="text-sm text-white/80 mb-5">
