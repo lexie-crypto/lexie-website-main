@@ -1,5 +1,5 @@
 import React from 'react';
-import TerminalWindow from '../../components/ui/TerminalWindow.jsx';
+import TerminalWindow from '../ui/TerminalWindow.jsx';
 
 const VaultMobileFallback = () => {
   return (
@@ -60,20 +60,29 @@ const VaultMobileFallback = () => {
           className="overflow-hidden"
         >
           <div className="font-mono text-green-300 text-center py-16">
+            <div className="mb-6">
+              <img
+                src="/lexie.png"
+                alt="LexieAI Avatar"
+                className="mx-auto h-24 w-auto sm:h-32 opacity-95 drop-shadow-[0_0_12px_rgba(168,85,247,0.25)]"
+                loading="eager"
+                decoding="async"
+              />
+            </div>
             <h2 className="text-xl sm:text-2xl font-semibold text-emerald-300 tracking-tight">
-              Not available on mobile yet but we are working on it...
+              LexieVault is not available on mobile yet but we are working on it...
             </h2>
             <p className="mt-3 text-green-400/80 text-sm sm:text-base">
-              Follow us on Twitter for product release updates.
+              Follow us on X for product release updates.
             </p>
             <div className="mt-5">
               <a
-                href="https://twitter.com/lexieai_xyz"
+                href="https://x.com/0xLexieAI"
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-2 bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 px-4 py-2 rounded text-sm border border-purple-400/40 transition-colors"
               >
-                Follow on Twitter
+                Follow us on X
               </a>
             </div>
           </div>
