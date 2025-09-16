@@ -81,11 +81,6 @@ const WalletPage = () => {
   const [initProgress, setInitProgress] = useState({ percent: 0, message: '' });
   const [isInitInProgress, setIsInitInProgress] = useState(false);
   const [initFailedMessage, setInitFailedMessage] = useState('');
-  // Mobile-only unlock and scan indicators
-  const [isMobile, setIsMobile] = useState(false);
-  const [isScanningPrivate, setIsScanningPrivate] = useState(false);
-  const uiVaultUnlockedRef = useRef(false);
-  const initUnlockTimeoutRef = useRef(null);
   const initAddressRef = React.useRef(null);
   // Track when initial connection hydration is complete
   const initialConnectDoneRef = React.useRef(false);
@@ -102,28 +97,6 @@ const WalletPage = () => {
 
   const network = getCurrentNetwork();
   const [isChainReady, setIsChainReady] = useState(false);
-
-  // Detect mobile viewport
-  useEffect(() => {
-    const checkMobile = () => {
-      try { setIsMobile(window.innerWidth <= 768); } catch {}
-    };
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-
-  // Track background scan progress (do not lock UI)
-  useEffect(() => {
-    const onPollStart = () => setIsScanningPrivate(true);
-    const onPollComplete = () => setIsScanningPrivate(false);
-    window.addEventListener('vault-poll-start', onPollStart);
-    window.addEventListener('vault-poll-complete', onPollComplete);
-    return () => {
-      window.removeEventListener('vault-poll-start', onPollStart);
-      window.removeEventListener('vault-poll-complete', onPollComplete);
-    };
-  }, []);
 
   // Listen for transaction lock/unlock events from PrivacyActions
   useEffect(() => {
@@ -327,10 +300,6 @@ const WalletPage = () => {
       console.log('[Vault Init] Signature requested - showing modal');
     };
     const onInitStarted = (e) => {
-      // Mobile: if UI already unlocked after Redis persistence, do not relock
-      if (isMobile && uiVaultUnlockedRef.current) {
-        return;
-      }
       // Open modal immediately when init/scan starts on chain switch
       if (!showSignRequestPopup) {
         setShowSignRequestPopup(true);
@@ -344,22 +313,6 @@ const WalletPage = () => {
       const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
       setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
       console.log('[Vault Init] Initialization started');
-    };
-    // Mobile-only: unlock UI as soon as metadata is persisted in Redis
-    const onMetadataReady = () => {
-      if (!isMobile) return;
-      uiVaultUnlockedRef.current = true;
-      try { if (initUnlockTimeoutRef.current) { clearTimeout(initUnlockTimeoutRef.current); initUnlockTimeoutRef.current = null; } } catch {}
-      setIsChainReady(true); // treat as ready for UI purposes on mobile
-      setInitProgress((prev) => ({ ...prev, percent: 100, message: 'Initialization complete' }));
-      setIsInitInProgress(false);
-      // MOBILE-ONLY: Immediately kick off initial Merkle-tree scan for current chain at wallet creation
-      try {
-        if (typeof window !== 'undefined' && chainId) {
-          try { window.__kickoffChainScan && window.__kickoffChainScan(chainId); } catch {}
-          try { window.dispatchEvent(new CustomEvent('railgun-scan-started', { detail: { chainId } })); } catch {}
-        }
-      } catch {}
     };
     const onInitProgress = () => {
       // If scanning kicks off without our start event, open the modal now
@@ -412,10 +365,6 @@ const WalletPage = () => {
     const onScanStarted = async (e) => {
       // Same guard: avoid modal during initial connect if wallet existed in Redis
       if (!initialConnectDoneRef.current) return;
-      // Mobile: if UI already unlocked after Redis persistence, do not relock
-      if (isMobile && uiVaultUnlockedRef.current) {
-        return;
-      }
       try {
         const ready = await checkChainReady();
         if (!ready) onInitStarted(e);
@@ -429,7 +378,6 @@ const WalletPage = () => {
     window.addEventListener('railgun-init-progress', onInitProgress);
     window.addEventListener('railgun-init-completed', onInitCompleted);
     window.addEventListener('railgun-init-failed', onInitFailed);
-    window.addEventListener('railgun-wallet-metadata-ready', onMetadataReady);
     return () => {
       window.removeEventListener('railgun-signature-requested', onSignRequest);
       window.removeEventListener('railgun-init-started', onInitStarted);
@@ -438,48 +386,17 @@ const WalletPage = () => {
       window.removeEventListener('railgun-scan-started', onScanStarted);
       window.removeEventListener('railgun-init-completed', onInitCompleted);
       window.removeEventListener('railgun-init-failed', onInitFailed);
-      window.removeEventListener('railgun-wallet-metadata-ready', onMetadataReady);
       try { if (window.__LEXIE_INIT_POLL_ID) { clearInterval(window.__LEXIE_INIT_POLL_ID); window.__LEXIE_INIT_POLL_ID = null; } } catch {}
     };
-  }, [address, chainId, railgunWalletId, network, isMobile]);
+  }, [address, chainId, railgunWalletId, network]);
 
-  // MOBILE-ONLY: Proactive scan kickoff if wallet is usable but chain isn't yet scanned
+  // Unlock modal using the same readiness flag as Privacy Actions
   useEffect(() => {
-    if (!isMobile) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        if (!canUseRailgun || !railgunWalletId || !address || !chainId) return;
-        const ready = await checkChainReady();
-        if (!cancelled && !ready) {
-          try { window.__kickoffChainScan && window.__kickoffChainScan(chainId); } catch {}
-          try { window.dispatchEvent(new CustomEvent('railgun-scan-started', { detail: { chainId } })); } catch {}
-        }
-      } catch {}
-    })();
-    return () => { cancelled = true; };
-  }, [isMobile, canUseRailgun, railgunWalletId, address, chainId, checkChainReady]);
-
-  // Unlock modal when chain is ready (desktop) or metadata persisted (mobile handler sets ready above)
-  useEffect(() => {
-    if (!showSignRequestPopup || !isInitInProgress) return;
-    if (isChainReady) {
+    if (showSignRequestPopup && isInitInProgress && isChainReady) {
       setInitProgress({ percent: 100, message: 'Initialization complete' });
       setIsInitInProgress(false);
     }
   }, [isChainReady, isInitInProgress, showSignRequestPopup]);
-
-  // Mobile-only fail-safe: unlock after 90s regardless
-  useEffect(() => {
-    if (!isMobile || !showSignRequestPopup || !isInitInProgress) return;
-    try { if (initUnlockTimeoutRef.current) clearTimeout(initUnlockTimeoutRef.current); } catch {}
-    initUnlockTimeoutRef.current = setTimeout(() => {
-      console.warn('[WalletPage] ⏱️ Mobile init timeout reached - unlocking UI');
-      setInitProgress({ percent: 100, message: 'Initialization continuing in background…' });
-      setIsInitInProgress(false);
-    }, 90000);
-    return () => { try { if (initUnlockTimeoutRef.current) clearTimeout(initUnlockTimeoutRef.current); } catch {} };
-  }, [isMobile, showSignRequestPopup, isInitInProgress]);
 
   // Check if this Railgun address already has a linked Lexie ID
   useEffect(() => {
@@ -783,13 +700,6 @@ const WalletPage = () => {
           setIsInitInProgress(true);
           const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
           setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
-          // Mobile: proactively trigger background scan so creation starts immediately
-          if (typeof window !== 'undefined') {
-            // Attempt immediate kickoff regardless of mobile/desktop
-            try { window.__kickoffChainScan && window.__kickoffChainScan(targetChainId); } catch {}
-            // Also dispatch scan-started for UI
-            try { window.dispatchEvent(new CustomEvent('railgun-scan-started', { detail: { chainId: targetChainId } })); } catch {}
-          }
         }
       } catch {}
     } catch (error) {
@@ -1214,10 +1124,10 @@ const WalletPage = () => {
               </div>
             </div>
 
-                  {(isRefreshingBalances || (isMobile && isScanningPrivate)) && (
+                  {isRefreshingBalances && (
                     <div className="mb-3 flex items-center gap-2 text-sm text-green-300">
                       <div className="h-4 w-4 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
-                      {isMobile && isScanningPrivate ? 'Scanning private balances…' : 'Getting your vault balances...'}
+                      Getting your vault balances...
                     </div>
                   )}
 
@@ -1576,15 +1486,7 @@ const WalletPage = () => {
               {/* No close button until init completes */}
               {isInitInProgress ? (
                 <div className="text-yellow-400 text-xs">LOCKED</div>
-              ) : (
-                <button
-                  onClick={() => setShowSignRequestPopup(false)}
-                  className="hidden sm:inline-flex items-center justify-center h-6 w-6 rounded hover:bg-green-900/30 text-green-300/80"
-                  aria-label="Close"
-                >
-                  ×
-                </button>
-              )}
+              ) : null}
             </div>
             <div className="p-6 text-green-300 space-y-4">
               {!isInitInProgress && initProgress.percent < 100 && !initFailedMessage ? (
@@ -1608,8 +1510,8 @@ const WalletPage = () => {
                   <h3 className="text-lg font-bold text-emerald-300">Initializing Your LexieVault on {network?.name || 'network'} Network</h3>
                   <p className="text-green-400/80 text-sm">You only need to do this once. This may take a few minutes. Do not close this window.</p>
                   <div className="bg-black/40 border border-green-500/20 rounded p-4 flex items-center gap-3">
-                    <div className={`h-5 w-5 rounded-full border-2 ${isInitInProgress ? 'border-emerald-400 animate-spin sm:border-t-transparent' : 'border-emerald-400'}`} />
-                    <div className="flex-1 min-w-0 text-xs text-green-400/80 whitespace-normal break-words sm:truncate" title={initProgress.message}>
+                    <div className={`h-5 w-5 rounded-full border-2 ${isInitInProgress ? 'border-emerald-400 border-t-transparent animate-spin' : 'border-emerald-400'}`} />
+                    <div className="text-xs text-green-400/80 truncate" title={initProgress.message}>
                       {initProgress.message || 'Scanning...'}
                     </div>
                   </div>

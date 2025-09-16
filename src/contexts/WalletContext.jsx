@@ -266,82 +266,6 @@ const WalletContextProvider = ({ children }) => {
 
   // Ensure initial full scan is completed for a given chain before user transacts
   const ensureChainScanned = useCallback(async (targetChainId) => {
-    // MOBILE-ONLY: Skip client Merkle scans and trigger server-side scan job
-    try {
-      const isMobileUA = (typeof navigator !== 'undefined') && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      if (isMobileUA) {
-        console.log('[Railgun Init] ⏭️ Mobile device detected - skipping client Merkle scan');
-        // Fire-and-forget server scan init for this wallet+chain
-        try {
-          if (!railgunWalletID || !address || !targetChainId) return;
-          // Call via frontend proxy to add HMAC: /api/wallet-metadata?action=mobile-scan-init
-          const path = '/api/wallet-metadata?action=mobile-scan-init';
-          const method = 'POST';
-          const ts = Date.now().toString();
-          const headers = { 'Content-Type': 'application/json' };
-          try {
-            if (typeof window !== 'undefined' && typeof window.__LEXIE_HMAC_SIGN === 'function') {
-              // Optional HMAC support if available in environment
-              headers['X-Lexie-Timestamp'] = ts;
-              headers['X-Lexie-Signature'] = window.__LEXIE_HMAC_SIGN(method, path, ts);
-            }
-          } catch {}
-          await fetch(path, {
-            method,
-            headers,
-            body: JSON.stringify({ walletId: railgunWalletID, chainId: targetChainId, walletAddress: address })
-          }).then(() => {
-            console.log('[Mobile Scan] 🚀 Server scan init requested', { chainId: targetChainId });
-          }).catch((e) => {
-            console.warn('[Mobile Scan] ⚠️ Server scan init failed (non-blocking):', e?.message || e);
-          });
-
-          // Wait for server-side completion before marking chain ready
-          try {
-            const pollStatus = async () => {
-              const qs = new URLSearchParams({ walletId: railgunWalletID, chainId: String(targetChainId) }).toString();
-              const url = `/api/wallet-metadata?action=mobile-scan-status&${qs}`;
-              const resp = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });
-              if (!resp.ok) return null;
-              return await resp.json();
-            };
-
-            const start = Date.now();
-            const timeoutMs = 5 * 60 * 1000; // 5 minutes max
-            let complete = false;
-            while (!complete && (Date.now() - start) < timeoutMs) {
-              const status = await pollStatus();
-              if (status && status.phase === 'complete' && Number(status.treeLength) > 0 && typeof status.mostRecentValidCommitmentBlock === 'number') {
-                complete = true;
-                break;
-              }
-              await new Promise(r => setTimeout(r, 1500));
-            }
-
-            if (complete) {
-              // Mirror desktop completion flags/events so UI gates unlock identically
-              try {
-                const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
-                const chainObj = Object.values(NETWORK_CONFIG).find(cfg => cfg.chain.id === targetChainId)?.chain;
-                if (typeof window !== 'undefined') {
-                  window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
-                  if (chainObj) window.__RAILGUN_INITIAL_SCAN_DONE[chainObj.id] = true;
-                  window.dispatchEvent(new CustomEvent('railgun-scan-complete', { detail: { chainId: targetChainId } }));
-                }
-                console.log('[Mobile Scan] ✅ Server scan completed, chain marked ready', { chainId: targetChainId });
-              } catch (_) {}
-            } else {
-              console.warn('[Mobile Scan] ⏱️ Timed out waiting for server scan completion (non-blocking)');
-            }
-          } catch (waitErr) {
-            console.warn('[Mobile Scan] ⚠️ Error while waiting for server completion:', waitErr?.message || waitErr);
-          }
-        } catch (e) {
-          console.warn('[Mobile Scan] ⚠️ Failed to trigger server scan (non-blocking):', e?.message || e);
-        }
-        return;
-      }
-    } catch {}
     try {
       if (!isConnected || !address || !railgunWalletID) return;
 
@@ -389,7 +313,6 @@ const WalletContextProvider = ({ children }) => {
 
       chainsScanningRef.current.add(railgunChain.id);
       console.log('[Railgun Init] 🔄 Performing initial full scan for chain', railgunChain.id);
-      try { window.dispatchEvent(new CustomEvent('railgun-scan-started', { detail: { chainId: railgunChain.id } })); } catch {}
 
       const { refreshBalances } = await import('@railgun-community/wallet');
             await refreshBalances(railgunChain, [railgunWalletID]);
@@ -447,7 +370,6 @@ const WalletContextProvider = ({ children }) => {
       } catch {}
 
       console.log('[Railgun Init] ✅ Initial scan complete for chain', railgunChain.id);
-      try { window.dispatchEvent(new CustomEvent('railgun-scan-complete', { detail: { chainId: railgunChain.id } })); } catch {}
     } catch (error) {
       console.warn('[Railgun Init] ⚠️ Initial scan failed:', error?.message);
     } finally {
@@ -1777,26 +1699,6 @@ const WalletContextProvider = ({ children }) => {
     }
   }, [chainId]);
 
-  // Expose a safe wrapper to explicitly start scan for a target chain (used by mobile UI after network switch)
-  const kickoffChainScan = useCallback(async (targetChainId) => {
-    try {
-      await ensureChainScanned(targetChainId);
-    } catch (e) {
-      console.warn('[WalletContext] kickoffChainScan failed:', e?.message);
-    }
-  }, [ensureChainScanned]);
-
-  // Make kickoff function available immediately on mount
-  useEffect(() => {
-    try {
-      if (typeof window !== 'undefined') {
-        window.__kickoffChainScan = (targetChainId) => {
-          try { kickoffChainScan(targetChainId); } catch {}
-        };
-      }
-    } catch {}
-  }, [kickoffChainScan]);
-
   // Auto-initialize Railgun when wallet connects (only if not already initialized)
   useEffect(() => {
     // 🛡️ Prevent force reinitialization if already initialized
@@ -1932,10 +1834,6 @@ const WalletContextProvider = ({ children }) => {
   // 🛠️ Debug utilities for encrypted data management
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      // Expose a safe global to kickoff scan from UI without importing context
-      window.__kickoffChainScan = (targetChainId) => {
-        try { kickoffChainScan(targetChainId); } catch {}
-      };
       window.__LEXIE_RAILGUN_DEBUG__ = {
         // Check current user's Redis wallet data status
         checkWalletData: () => {
@@ -2043,7 +1941,6 @@ const WalletContextProvider = ({ children }) => {
     getWalletSigner,
     walletProvider: getWalletSigner, // Backwards compatibility - but this returns a signer now
     ensureEngineForShield,
-    kickoffChainScan,
     
     getCurrentNetwork: () => {
       const networkNames = { 1: 'Ethereum', 137: 'Polygon', 42161: 'Arbitrum', 56: 'BNB Chain' };

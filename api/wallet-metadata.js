@@ -453,29 +453,6 @@ export default async function handler(req, res) {
         backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
         console.log(`📊 [WALLET-TIMELINE-PROXY-${requestId}] GET wallet timeline for wallet: ${walletId.slice(0, 8)}... (page: ${page}, size: ${pageSize})`);
 
-      } else if (action === 'mobile-scan-status') {
-        // GET /api/wallet-metadata?action=mobile-scan-status&walletId=&chainId=
-        const walletIdQ = req.query.walletId;
-        const chainIdQ = req.query.chainId;
-        if (!walletIdQ || !chainIdQ) {
-          return res.status(400).json({ success: false, error: 'Missing walletId or chainId' });
-        }
-        backendPath = `/api/mobile-scan/status?walletId=${encodeURIComponent(walletIdQ)}&chainId=${encodeURIComponent(chainIdQ)}`;
-        backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
-        console.log(`📡 [MOBILE-SCAN-PROXY-${requestId}] GET status for wallet ${String(walletIdQ).slice(0,8)}..., chain ${chainIdQ}`);
-
-      } else if (action === 'mobile-scan-status') {
-        // Proxy GET mobile scan status to backend with HMAC
-        const walletIdQ = req.query.walletId;
-        const chainIdQ = req.query.chainId;
-        if (!walletIdQ || !chainIdQ) {
-          console.log(`❌ [MOBILE-SCAN-PROXY-${requestId}] Missing walletId or chainId`);
-          return res.status(400).json({ success: false, error: 'Missing walletId or chainId' });
-        }
-        backendPath = `/api/mobile-scan/status?walletId=${encodeURIComponent(walletIdQ)}&chainId=${encodeURIComponent(chainIdQ)}`;
-        backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
-        console.log(`📡 [MOBILE-SCAN-PROXY-${requestId}] GET status for ${String(walletIdQ).slice(0,8)}... chain ${chainIdQ}`);
-
       } else {
         // Handle GET: retrieve wallet metadata (original functionality)
         if (!walletAddress) {
@@ -566,13 +543,6 @@ export default async function handler(req, res) {
         // Default: store wallet metadata (signature, encryptedMnemonic, reverse index, balances merge)
         backendPath = '/api/store-wallet-metadata';
         console.log(`💾 [WALLET-METADATA-PROXY-${requestId}] POST store wallet metadata`);
-      }
-
-      // Special case: mobile scan init proxy
-      if (action === 'mobile-scan-init') {
-        backendPath = '/api/mobile-scan/init';
-        backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
-        console.log(`🚀 [MOBILE-SCAN-PROXY-${requestId}] POST init`);
       }
 
       backendUrl = backendUrl || `https://staging.api.lexiecrypto.com${backendPath}`;
