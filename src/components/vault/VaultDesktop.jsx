@@ -94,9 +94,39 @@ const VaultDesktopInner = () => {
   const [currentLexieId, setCurrentLexieId] = useState('');
   // Local state to show a refreshing indicator for Vault Balances (always available)
   const [isRefreshingBalances, setIsRefreshingBalances] = useState(false);
+  // Redis metadata gating for lock modal
+  const [hasRedisWalletData, setHasRedisWalletData] = useState(null);
+  const redisCheckRef = useRef({ inFlight: false, lastFor: null });
 
   const network = getCurrentNetwork();
   const [isChainReady, setIsChainReady] = useState(false);
+
+  // Check Redis for existing wallet metadata for this address
+  const checkRedisWalletData = useCallback(async () => {
+    if (!address) { setHasRedisWalletData(null); return false; }
+    try {
+      if (redisCheckRef.current.inFlight && redisCheckRef.current.lastFor === address) {
+        return !!hasRedisWalletData;
+      }
+      redisCheckRef.current.inFlight = true;
+      redisCheckRef.current.lastFor = address;
+      const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+      if (!resp.ok) { setHasRedisWalletData(false); return false; }
+      const data = await resp.json().catch(() => ({}));
+      const metaKey = Array.isArray(data?.keys) ? data.keys.find((k) => k.walletId && k.railgunAddress) : null;
+      const exists = !!metaKey && (!!metaKey.signature || !!metaKey.encryptedMnemonic);
+      setHasRedisWalletData(exists);
+      return exists;
+    } catch {
+      setHasRedisWalletData(false);
+      return false;
+    } finally {
+      redisCheckRef.current.inFlight = false;
+    }
+  }, [address, hasRedisWalletData]);
+
+  // Keep metadata status up to date when address changes
+  useEffect(() => { checkRedisWalletData(); }, [address, checkRedisWalletData]);
 
   // Listen for transaction lock/unlock events from PrivacyActions
   useEffect(() => {
@@ -299,11 +329,11 @@ const VaultDesktopInner = () => {
       setInitFailedMessage('');
       console.log('[Vault Init] Signature requested - showing modal');
     };
-    const onInitStarted = (e) => {
-      // Open modal immediately when init/scan starts on chain switch
-      if (!showSignRequestPopup) {
-        setShowSignRequestPopup(true);
-      }
+    const onInitStarted = async (e) => {
+      // For existing wallets, don't show lock modal
+      const hasMeta = await checkRedisWalletData();
+      if (hasMeta) return;
+      if (!showSignRequestPopup) setShowSignRequestPopup(true);
       // Ensure we don't falsely mark complete using previous chain's readiness
       setIsChainReady(false);
       setIsInitInProgress(true);
@@ -314,23 +344,25 @@ const VaultDesktopInner = () => {
       setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
       console.log('[Vault Init] Initialization started');
     };
-    const onInitProgress = () => {
+    const onInitProgress = async () => {
       // If scanning kicks off without our start event, open the modal now
       if (!showSignRequestPopup && initialConnectDoneRef.current) {
-        // Double-check readiness from Redis before opening
-        checkChainReady()
-          .then((ready) => {
-            if (!ready) {
-              setShowSignRequestPopup(true);
-              setIsInitInProgress(true);
-              setIsChainReady(false);
-            }
-          })
-          .catch(() => {
+        try {
+          const ready = await checkChainReady();
+          const hasMeta = await checkRedisWalletData();
+          if (!ready && !hasMeta) {
             setShowSignRequestPopup(true);
             setIsInitInProgress(true);
             setIsChainReady(false);
-          });
+          }
+        } catch {
+          const hasMeta = await checkRedisWalletData();
+          if (!hasMeta) {
+            setShowSignRequestPopup(true);
+            setIsInitInProgress(true);
+            setIsChainReady(false);
+          }
+        }
       }
       const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
       setInitProgress((prev) => ({
@@ -357,9 +389,11 @@ const VaultDesktopInner = () => {
       if (!initialConnectDoneRef.current) return;
       try {
         const ready = await checkChainReady();
-        if (!ready) onInitStarted(e);
+        const hasMeta = await checkRedisWalletData();
+        if (!ready && !hasMeta) onInitStarted(e);
       } catch {
-        onInitStarted(e);
+        const hasMeta = await checkRedisWalletData();
+        if (!hasMeta) onInitStarted(e);
       }
     };
     const onScanStarted = async (e) => {
@@ -367,9 +401,11 @@ const VaultDesktopInner = () => {
       if (!initialConnectDoneRef.current) return;
       try {
         const ready = await checkChainReady();
-        if (!ready) onInitStarted(e);
+        const hasMeta = await checkRedisWalletData();
+        if (!ready && !hasMeta) onInitStarted(e);
       } catch {
-        onInitStarted(e);
+        const hasMeta = await checkRedisWalletData();
+        if (!hasMeta) onInitStarted(e);
       }
     };
     window.addEventListener('vault-poll-start', onPollStart);
@@ -388,7 +424,7 @@ const VaultDesktopInner = () => {
       window.removeEventListener('railgun-init-failed', onInitFailed);
       try { if (window.__LEXIE_INIT_POLL_ID) { clearInterval(window.__LEXIE_INIT_POLL_ID); window.__LEXIE_INIT_POLL_ID = null; } } catch {}
     };
-  }, [address, chainId, railgunWalletId, network]);
+  }, [address, chainId, railgunWalletId, network, checkChainReady, checkRedisWalletData, showSignRequestPopup]);
 
   // Unlock modal using the same readiness flag as Privacy Actions
   useEffect(() => {
