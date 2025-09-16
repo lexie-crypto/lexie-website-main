@@ -204,7 +204,7 @@ const VaultDesktopInner = () => {
       // Step 1: Trigger SDK refresh + persist authoritative balances to Redis
       try {
         if (railgunWalletId && address && chainId) {
-          const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
+          const { syncBalancesAfterTransaction } = await import('../../utils/railgun/syncBalances.js');
           await syncBalancesAfterTransaction({
             walletAddress: address,
             walletId: railgunWalletId,
@@ -567,7 +567,7 @@ const VaultDesktopInner = () => {
       
       try {
         // Import the enhanced transaction monitor
-        const { monitorTransactionInGraph } = await import('../utils/railgun/transactionMonitor');
+        const { monitorTransactionInGraph } = await import('../../utils/railgun/transactionMonitor');
         
         // Start monitoring with transaction details for optimistic updates
         monitorTransactionInGraph({
