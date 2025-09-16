@@ -737,6 +737,19 @@ const VaultDesktopInner = () => {
 
   const handleNetworkSwitch = async (targetChainId) => {
     try {
+      // IMMEDIATE gate: if Redis says chain not scanned, show modal before switching
+      try {
+        const scannedPre = await checkRedisChainScanned(targetChainId);
+        if (!scannedPre && !showSignRequestPopup) {
+          const targetNetwork = supportedNetworks.find(net => net.id === targetChainId);
+          const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
+          setShowSignRequestPopup(true);
+          setIsInitInProgress(true);
+          setInitFailedMessage('');
+          setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
+        }
+      } catch {}
+
       await switchNetwork(targetChainId);
       const targetNetwork = supportedNetworks.find(net => net.id === targetChainId);
       toast.custom((t) => (
@@ -759,7 +772,9 @@ const VaultDesktopInner = () => {
         if (!ready) {
           const scanned = await checkRedisChainScanned(targetChainId);
           if (!scanned) {
-            setShowSignRequestPopup(true);
+            if (!showSignRequestPopup) {
+              setShowSignRequestPopup(true);
+            }
             setIsInitInProgress(true);
             const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
             setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
