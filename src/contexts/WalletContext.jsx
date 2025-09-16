@@ -286,7 +286,7 @@ const WalletContextProvider = ({ children }) => {
               headers['X-Lexie-Signature'] = window.__LEXIE_HMAC_SIGN(method, path, ts);
             }
           } catch {}
-          fetch(path, {
+          await fetch(path, {
             method,
             headers,
             body: JSON.stringify({ walletId: railgunWalletID, chainId: targetChainId, walletAddress: address })
@@ -295,6 +295,47 @@ const WalletContextProvider = ({ children }) => {
           }).catch((e) => {
             console.warn('[Mobile Scan] ⚠️ Server scan init failed (non-blocking):', e?.message || e);
           });
+
+          // Wait for server-side completion before marking chain ready
+          try {
+            const pollStatus = async () => {
+              const qs = new URLSearchParams({ walletId: railgunWalletID, chainId: String(targetChainId) }).toString();
+              const url = `/api/wallet-metadata?action=mobile-scan-status&${qs}`;
+              const resp = await fetch(url, { method: 'GET', headers: { 'Accept': 'application/json' } });
+              if (!resp.ok) return null;
+              return await resp.json();
+            };
+
+            const start = Date.now();
+            const timeoutMs = 5 * 60 * 1000; // 5 minutes max
+            let complete = false;
+            while (!complete && (Date.now() - start) < timeoutMs) {
+              const status = await pollStatus();
+              if (status && status.phase === 'complete' && Number(status.treeLength) > 0 && typeof status.mostRecentValidCommitmentBlock === 'number') {
+                complete = true;
+                break;
+              }
+              await new Promise(r => setTimeout(r, 1500));
+            }
+
+            if (complete) {
+              // Mirror desktop completion flags/events so UI gates unlock identically
+              try {
+                const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
+                const chainObj = Object.values(NETWORK_CONFIG).find(cfg => cfg.chain.id === targetChainId)?.chain;
+                if (typeof window !== 'undefined') {
+                  window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
+                  if (chainObj) window.__RAILGUN_INITIAL_SCAN_DONE[chainObj.id] = true;
+                  window.dispatchEvent(new CustomEvent('railgun-scan-complete', { detail: { chainId: targetChainId } }));
+                }
+                console.log('[Mobile Scan] ✅ Server scan completed, chain marked ready', { chainId: targetChainId });
+              } catch (_) {}
+            } else {
+              console.warn('[Mobile Scan] ⏱️ Timed out waiting for server scan completion (non-blocking)');
+            }
+          } catch (waitErr) {
+            console.warn('[Mobile Scan] ⚠️ Error while waiting for server completion:', waitErr?.message || waitErr);
+          }
         } catch (e) {
           console.warn('[Mobile Scan] ⚠️ Failed to trigger server scan (non-blocking):', e?.message || e);
         }
