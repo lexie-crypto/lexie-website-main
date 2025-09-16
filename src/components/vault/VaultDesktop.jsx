@@ -196,6 +196,7 @@ const VaultDesktop = () => {
         }
       } catch (sdkErr) {}
       await refreshAllBalances();
+      try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
       toast.custom((t) => (
         <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
           <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
@@ -226,7 +227,7 @@ const VaultDesktop = () => {
         </div>
       ), { duration: 3500 });
     } finally {
-      try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
+      // no-op: completion already dispatched on success; avoid double-dispatch loops
     }
   }, [refreshAllBalances, railgunWalletId, address, chainId]);
 
@@ -252,7 +253,7 @@ const VaultDesktop = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, [isConnected, address, chainId, refreshBalances, checkChainReady, network]);
+  }, [isConnected, address, chainId, refreshBalances, checkChainReady]);
 
   useEffect(() => {
     if (canUseRailgun && railgunWalletId) {
@@ -266,8 +267,11 @@ const VaultDesktop = () => {
       checkChainReady()
         .then((ready) => {
           setIsChainReady(!!ready);
-          if (ready) {
+          // Only trigger a balance refresh once per scan completion
+          if (ready && !onScanComplete.hasRefreshed) {
+            onScanComplete.hasRefreshed = true;
             try { refreshBalances(); } catch {}
+            setTimeout(() => { onScanComplete.hasRefreshed = false; }, 1000);
           }
         })
         .catch(() => setIsChainReady(false));
