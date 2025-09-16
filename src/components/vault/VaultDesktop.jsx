@@ -269,8 +269,6 @@ const VaultDesktop = () => {
       setInitFailedMessage('');
     };
     const onInitStarted = async (e) => {
-      const hasMeta = await checkRedisWalletData();
-      if (hasMeta) { return; }
       if (!showSignRequestPopup) setShowSignRequestPopup(true);
       setIsChainReady(false);
       setIsInitInProgress(true);
@@ -280,8 +278,6 @@ const VaultDesktop = () => {
       setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
     };
     const onInitProgress = async () => {
-      const hasMeta = await checkRedisWalletData();
-      if (hasMeta) { return; }
       if (!showSignRequestPopup && initialConnectDoneRef.current) {
         checkChainReady()
           .then((ready) => { if (!ready) { setShowSignRequestPopup(true); setIsInitInProgress(true); setIsChainReady(false); } })
@@ -314,8 +310,6 @@ const VaultDesktop = () => {
     };
     const onScanStarted = async (e) => {
       if (!initialConnectDoneRef.current) return;
-      const hasMeta = await checkRedisWalletData();
-      if (hasMeta) { return; }
       try {
         const ready = await checkChainReady();
         if (!ready) await onInitStarted(e);
@@ -339,16 +333,10 @@ const VaultDesktop = () => {
       window.removeEventListener('railgun-init-failed', onInitFailed);
       try { if (window.__LEXIE_INIT_POLL_ID) { clearInterval(window.__LEXIE_INIT_POLL_ID); window.__LEXIE_INIT_POLL_ID = null; } } catch {}
     };
-  }, [address, chainId, railgunWalletId, network, checkRedisWalletData, showSignRequestPopup, checkChainReady]);
+  }, [address, chainId, railgunWalletId, network, showSignRequestPopup, checkChainReady]);
 
-  // If Redis confirms metadata exists, ensure the modal is closed
-  useEffect(() => {
-    if (hasRedisWalletData) {
-      setIsInitInProgress(false);
-      setShowSignRequestPopup(false);
-      setInitFailedMessage('');
-    }
-  }, [hasRedisWalletData]);
+  // Keep modal open during new wallet setup; do not auto-close on Redis metadata alone.
+  // Unlocking remains tied to chain readiness (isChainReady) below.
 
   useEffect(() => {
     if (showSignRequestPopup && isInitInProgress && isChainReady) {
