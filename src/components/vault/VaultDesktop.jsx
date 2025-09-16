@@ -203,9 +203,9 @@ const VaultDesktop = () => {
 
   useEffect(() => {
     if (isConnected && address && chainId) {
-      refreshAllBalances();
+      refreshBalances();
     }
-  }, [isConnected, address, chainId]);
+  }, [isConnected, address, chainId, refreshBalances]);
 
   useEffect(() => {
     if (canUseRailgun && railgunWalletId) {
