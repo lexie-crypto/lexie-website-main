@@ -129,6 +129,15 @@ const VaultDesktopInner = () => {
   // Keep metadata status up to date when address changes; clear cached state first
   useEffect(() => { setHasRedisWalletData(null); checkRedisWalletData(); }, [address, checkRedisWalletData]);
 
+  // Reset initial-connect flag and lock UI on wallet/address change
+  useEffect(() => {
+    initialConnectDoneRef.current = false;
+    setShowSignRequestPopup(false);
+    setIsInitInProgress(false);
+    setInitFailedMessage('');
+    setInitProgress({ percent: 0, message: '' });
+  }, [address]);
+
   // Check if a specific chain has been scanned in Redis scannedChains
   const checkRedisChainScanned = useCallback(async (targetChainId) => {
     if (!address) return false;
@@ -797,10 +806,13 @@ const VaultDesktopInner = () => {
 
   const handleNetworkSwitch = async (targetChainId) => {
     try {
-      // IMMEDIATE gate: if Redis says chain not scanned, show modal before switching
+      // IMMEDIATE gate: only for brand-new wallets (no Redis metadata) AND unscanned chain
       try {
-        const scannedPre = await checkRedisChainScanned(targetChainId);
-        if (!scannedPre && !showSignRequestPopup) {
+        const [hasMetaPre, scannedPre] = await Promise.all([
+          checkRedisWalletData(),
+          checkRedisChainScanned(targetChainId),
+        ]);
+        if (!hasMetaPre && !scannedPre && !showSignRequestPopup) {
           const targetNetwork = supportedNetworks.find(net => net.id === targetChainId);
           const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
           setShowSignRequestPopup(true);
@@ -826,15 +838,16 @@ const VaultDesktopInner = () => {
         </div>
       ), { duration: 2000 });
 
-      // After switch: if new chain isn't ready/scanned, show initialization popup (spinner)
+      // After switch: if new chain isn't ready, only show modal for brand-new wallets and unscanned chain
       try {
         const ready = await checkChainReady();
         if (!ready) {
-          const scanned = await checkRedisChainScanned(targetChainId);
-          if (!scanned) {
-            if (!showSignRequestPopup) {
-              setShowSignRequestPopup(true);
-            }
+          const [hasMetaPost, scannedPost] = await Promise.all([
+            checkRedisWalletData(),
+            checkRedisChainScanned(targetChainId),
+          ]);
+          if (!hasMetaPost && !scannedPost) {
+            if (!showSignRequestPopup) setShowSignRequestPopup(true);
             setIsInitInProgress(true);
             const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
             setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
