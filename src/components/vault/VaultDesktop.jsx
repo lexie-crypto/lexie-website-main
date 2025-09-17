@@ -99,12 +99,15 @@ const VaultDesktopInner = () => {
 
   const network = getCurrentNetwork();
 
-  // Check scannedChains status through wallet-metadata proxy
+  // Check scannedChains status with normalized key handling
   const checkScannedChains = useCallback(async (targetChainId = null) => {
     if (!address || !railgunWalletId) return null;
     
     const checkChainId = targetChainId || chainId;
     if (!checkChainId) return null;
+
+    const ourWalletId = railgunWalletId;
+    const ourAddressLower = address.toLowerCase();
 
     try {
       // Use the existing wallet-metadata GET endpoint to check scannedChains
@@ -121,81 +124,69 @@ const VaultDesktopInner = () => {
       }
       
       const data = await response.json();
-      
-      console.log('[VaultDesktop] Wallet metadata response:', {
-        success: data.success,
-        hasKeys: !!data.keys,
-        keysLength: Array.isArray(data.keys) ? data.keys.length : 0,
-        dataStructure: Object.keys(data)
-      });
-      
-      // Look for the wallet key that matches our railgunWalletId
       const walletKeys = Array.isArray(data.keys) ? data.keys : [];
       
-      // DEBUG: Log exact values being compared
-      console.log('[VaultDesktop] EXACT MATCHING VALUES:', {
-        ourRailgunWalletId: railgunWalletId,
-        ourAddress: address,
-        ourAddressLower: address?.toLowerCase(),
-        keysInResponse: walletKeys.map(key => ({
-          keyWalletId: key.walletId,
-          keyEoa: key.eoa,
-          keyEoaLower: key.eoa?.toLowerCase(),
-          walletIdMatch: key.walletId === railgunWalletId,
-          eoaMatch: key.eoa?.toLowerCase() === address?.toLowerCase(),
-          bothMatch: key.walletId === railgunWalletId && key.eoa?.toLowerCase() === address?.toLowerCase()
-        }))
+      console.log('[VaultDesktop] Checking scanned chains with normalized approach:', {
+        ourWalletId,
+        ourAddressLower,
+        checkChainId: Number(checkChainId),
+        totalKeysFound: walletKeys.length
+      });
+
+      // Find matching key by structure comparison, not key path casing
+      let matchingKey = null;
+      let matchMethod = 'none';
+
+      // Method 1: Exact walletId + normalized address match
+      matchingKey = walletKeys.find(key => {
+        const keyWalletId = key.walletId;
+        const keyAddressLower = key.eoa?.toLowerCase?.();
+        return keyWalletId === ourWalletId && keyAddressLower === ourAddressLower;
       });
       
-      let matchingKey = walletKeys.find(key => 
-        key.walletId === railgunWalletId && 
-        key.eoa?.toLowerCase() === address?.toLowerCase()
-      );
-      
-      // Fallback: if no exact match, try matching just by EOA address
-      if (!matchingKey && railgunWalletId) {
-        console.log('[VaultDesktop] No exact match found, trying EOA-only match as fallback...');
-        matchingKey = walletKeys.find(key => 
-          key.eoa?.toLowerCase() === address?.toLowerCase() &&
-          key.railgunAddress &&
-          (key.signature || key.encryptedMnemonic)
-        );
+      if (matchingKey) {
+        matchMethod = 'exact-match';
+      } else {
+        // Method 2: Fallback - any key with matching address that has valid railgun data
+        matchingKey = walletKeys.find(key => {
+          const keyAddressLower = key.eoa?.toLowerCase?.();
+          return keyAddressLower === ourAddressLower && 
+                 key.railgunAddress && 
+                 (key.signature || key.encryptedMnemonic);
+        });
         if (matchingKey) {
-          console.log('[VaultDesktop] Found fallback match by EOA address');
+          matchMethod = 'address-fallback';
         }
       }
-      
-      console.log('[VaultDesktop] Matching key search:', {
-        searchingForWalletId: railgunWalletId,
-        searchingForEoa: address?.toLowerCase(),
-        foundMatchingKey: !!matchingKey,
-        matchingKeyStructure: matchingKey ? Object.keys(matchingKey) : null,
-        hasScannedChains: matchingKey ? !!matchingKey.scannedChains : false,
-        matchedWalletId: matchingKey?.walletId,
-        matchedEoa: matchingKey?.eoa
-      });
-      
+
       if (!matchingKey) {
-        console.log('[VaultDesktop] No matching wallet key found - wallet needs initialization');
+        console.log('[VaultDesktop] No matching wallet key found in any method');
         return false;
       }
-      
-      // scannedChains is an array of chain IDs, not an object
+
+      console.log('[VaultDesktop] Found matching key via:', matchMethod, {
+        matchedWalletId: matchingKey.walletId,
+        matchedAddress: matchingKey.eoa,
+        hasScannedChains: Array.isArray(matchingKey.scannedChains)
+      });
+
+      // Extract scannedChains and use as source of truth
       const scannedChains = Array.isArray(matchingKey.scannedChains) 
-        ? matchingKey.scannedChains.map((n) => Number(n)).filter(Number.isFinite)
+        ? matchingKey.scannedChains.map(n => Number(n)).filter(Number.isFinite)
         : [];
       
       const isChainScanned = scannedChains.includes(Number(checkChainId));
       
-      console.log('[VaultDesktop] ScannedChains check:', {
-        chainId: checkChainId,
-        chainIdAsNumber: Number(checkChainId),
-        isScanned: isChainScanned,
-        scannedChainsArray: scannedChains,
-        walletId: railgunWalletId
+      console.log('[VaultDesktop] ScannedChains source of truth:', {
+        chainId: Number(checkChainId),
+        scannedChains,
+        isChainScanned,
+        decision: isChainScanned ? 'SKIP_MODAL' : 'SHOW_MODAL'
       });
       
+      // Gate modal on payload: if scannedChains contains the chainId, don't show modal
       return isChainScanned;
+      
     } catch (error) {
       console.error('[VaultDesktop] Error checking scannedChains:', error);
       return null;
