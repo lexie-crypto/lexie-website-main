@@ -104,27 +104,28 @@ const VaultDesktopInner = () => {
 
   // Check Redis for existing wallet metadata for this address
   const checkRedisWalletData = useCallback(async () => {
-    if (!address) { setHasRedisWalletData(null); return false; }
+    if (!address) { setHasRedisWalletData(null); return null; }
     try {
       if (redisCheckRef.current.inFlight && redisCheckRef.current.lastFor === address) {
-        return !!hasRedisWalletData;
+        return hasRedisWalletData == null ? null : !!hasRedisWalletData;
       }
       redisCheckRef.current.inFlight = true;
       redisCheckRef.current.lastFor = address;
       const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-      if (!resp.ok) { setHasRedisWalletData(false); return false; }
+      if (!resp.ok) { setHasRedisWalletData(null); return null; }
       const data = await resp.json().catch(() => ({}));
-      const metaKey = Array.isArray(data?.keys) ? data.keys.find((k) => k.walletId && k.railgunAddress) : null;
+      const keys = Array.isArray(data?.keys) ? data.keys : [];
+      const metaKey = keys.find((k) => (k.walletId && k.railgunAddress && (k?.eoa?.toLowerCase?.() === address.toLowerCase()))) || null;
       const exists = !!metaKey && (!!metaKey.signature || !!metaKey.encryptedMnemonic);
       setHasRedisWalletData(exists);
       return exists;
     } catch {
-      setHasRedisWalletData(false);
-      return false;
+      setHasRedisWalletData(null);
+      return null;
     } finally {
       redisCheckRef.current.inFlight = false;
     }
-  }, [address]);
+  }, [address, hasRedisWalletData]);
 
   // Keep metadata status up to date when address changes; clear cached state first
   useEffect(() => { setHasRedisWalletData(null); checkRedisWalletData(); }, [address, checkRedisWalletData]);
@@ -460,10 +461,9 @@ const VaultDesktopInner = () => {
       console.log('[Vault Init] Signature requested - showing modal');
     };
     const onInitStarted = async (e) => {
-      // For existing wallets, don't show lock modal
-      const hasMeta = await checkRedisWalletData();
+      // Old behavior parity: never lock if chain already scanned
       const scanned = await checkRedisChainScanned(chainId);
-      if (hasMeta || scanned) return;
+      if (scanned === true) return;
       if (!showSignRequestPopup) setShowSignRequestPopup(true);
       // Ensure we don't falsely mark complete using previous chain's readiness
       setIsChainReady(false);
@@ -502,29 +502,27 @@ const VaultDesktopInner = () => {
       // Do not show init modal on initial connect fast-path; only after initial connect
       if (!initialConnectDoneRef.current) return;
       try {
+        const scanned = await checkRedisChainScanned(chainId);
+        if (scanned === true) return;
         const ready = await checkChainReady();
-        const hasMeta = await checkRedisWalletData();
-        const scanned = await checkRedisChainScanned(chainId);
-        if (!ready && !hasMeta && !scanned) onInitStarted(e);
+        if (!ready) onInitStarted(e);
       } catch {
-        const hasMeta = await checkRedisWalletData();
         const scanned = await checkRedisChainScanned(chainId);
-        if (!hasMeta && !scanned) onInitStarted(e);
+        if (scanned === true) return;
+        onInitStarted(e);
       }
     };
     const onScanStarted = async (e) => {
       // Same guard: avoid modal during initial connect if wallet existed in Redis
       if (!initialConnectDoneRef.current) return;
       try {
-        // If engine not fully loaded yet, still check scannedChains by EOA
         const scanned = await checkRedisChainScanned(chainId);
-        if (scanned) return;
+        if (scanned === true) return;
         const ready = await checkChainReady();
-        const hasMeta = await checkRedisWalletData();
-        if (!ready && !hasMeta) onInitStarted(e);
+        if (!ready) onInitStarted(e);
       } catch {
         const scanned = await checkRedisChainScanned(chainId);
-        if (scanned) return;
+        if (scanned === true) return;
         onInitStarted(e);
       }
     };
