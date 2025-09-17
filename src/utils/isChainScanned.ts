@@ -32,19 +32,24 @@ export async function isChainScanned(
   const data = await resp.json().catch(() => ({}));
   const keys = Array.isArray(data?.keys) ? data.keys : [];
 
-  // Strict match: require eoa match, railgunAddress, signature/encryptedMnemonic, and walletId if provided
-  const key = keys.find((k: any) => 
-    k?.eoa?.toLowerCase?.() === addr &&
-    k?.railgunAddress &&
-    (k?.signature || k?.encryptedMnemonic) &&
-    (walletId ? k?.walletId === walletId : true) // Require exact walletId if provided; allow if not
-  ) || null;
+  // Tolerant match: accept multiple field names and nested structures
+  const key = keys.find((k: any) => {
+    const keyAddrLower: string | undefined = (k?.eoa || k?.walletAddress || k?.address)?.toLowerCase?.();
+    const keyWalletId: string | undefined = k?.walletId || k?.railgunWalletId;
+    const hasAuth = !!k?.railgunAddress && (!!k?.signature || !!k?.encryptedMnemonic);
+    const walletOk = walletId ? keyWalletId === walletId : true;
+    return keyAddrLower === addr && hasAuth && walletOk;
+  }) || null;
 
   if (!key) return false; // No valid key → not scanned
 
-  const scanned = Array.isArray(key.scannedChains)
-    ? key.scannedChains.map((n: any) => Number(n)).filter(Number.isFinite)
-    : [];
+  const rawChains = Array.isArray(key?.scannedChains)
+    ? key.scannedChains
+    : (Array.isArray(key?.meta?.scannedChains) ? key.meta.scannedChains : []);
+
+  const scanned = rawChains
+    .map((n: any) => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
+    .filter((n: any) => Number.isFinite(n));
 
   const id = toNum(targetChainId);
   if (id == null) return null;

@@ -31,6 +31,7 @@ import {
   isTokenSupportedByRailgun,
 } from '../../utils/railgun/actions';
 import { deriveEncryptionKey } from '../../utils/railgun/wallet';
+import { isChainScanned as legacyIsChainScanned } from '../../utils/isChainScanned';
 
 const VaultDesktopInner = () => {
   const {
@@ -99,97 +100,17 @@ const VaultDesktopInner = () => {
 
   const network = getCurrentNetwork();
 
-  // Check scannedChains status with normalized key handling
+  // Canonical check using legacy util (address lowercased, tolerant match, scannedChains gate)
   const checkScannedChains = useCallback(async (targetChainId = null) => {
     if (!address || !railgunWalletId) return null;
-    
+
     const checkChainId = targetChainId || chainId;
     if (!checkChainId) return null;
 
-    const ourWalletId = railgunWalletId;
-    const ourWalletIdLower = (railgunWalletId || '').toLowerCase();
-    const ourAddressLower = address.toLowerCase();
-
     try {
-      // Use the existing wallet-metadata GET endpoint to check scannedChains
-      const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-      
-      if (response.status === 404) {
-        console.log('[VaultDesktop] Wallet metadata not found - wallet needs initialization');
-        return false;
-      }
-      
-      if (!response.ok) {
-        console.warn('[VaultDesktop] Wallet metadata check failed:', response.status);
-        return null;
-      }
-      
-      const data = await response.json();
-      const walletKeys = Array.isArray(data.keys) ? data.keys : [];
-      
-      console.log('[VaultDesktop] Checking scanned chains with normalized approach:', {
-        ourWalletId,
-        ourAddressLower,
-        checkChainId: Number(checkChainId),
-        totalKeysFound: walletKeys.length
-      });
-
-      // Find matching key by structure comparison, not key path casing
-      let matchingKey = null;
-      let matchMethod = 'none';
-
-      // Method 1: Exact walletId + normalized address match (case-insensitive on both sides)
-      matchingKey = walletKeys.find(key => {
-        const keyWalletIdLower = (key.walletId || '').toLowerCase();
-        const keyAddressLower = key.eoa?.toLowerCase?.();
-        return keyWalletIdLower === ourWalletIdLower && keyAddressLower === ourAddressLower;
-      });
-      
-      if (matchingKey) {
-        matchMethod = 'exact-match';
-      } else {
-        // Method 2: Fallback - any key with matching address that has valid railgun data
-        matchingKey = walletKeys.find(key => {
-          const keyAddressLower = key.eoa?.toLowerCase?.();
-          return keyAddressLower === ourAddressLower && 
-                 key.railgunAddress && 
-                 (key.signature || key.encryptedMnemonic);
-        });
-        if (matchingKey) {
-          matchMethod = 'address-fallback';
-        }
-      }
-
-      if (!matchingKey) {
-        console.log('[VaultDesktop] No matching wallet key found in any method');
-        return false;
-      }
-
-      console.log('[VaultDesktop] Found matching key via:', matchMethod, {
-        matchedWalletId: matchingKey.walletId,
-        matchedAddress: matchingKey.eoa,
-        hasScannedChains: Array.isArray(matchingKey.scannedChains)
-      });
-
-      // Extract scannedChains and use as source of truth
-      const scannedChains = Array.isArray(matchingKey.scannedChains) 
-        ? matchingKey.scannedChains.map(n => Number(n)).filter(Number.isFinite)
-        : [];
-      
-      const isChainScanned = scannedChains.includes(Number(checkChainId));
-      
-      console.log('[VaultDesktop] ScannedChains source of truth:', {
-        chainId: Number(checkChainId),
-        scannedChains,
-        isChainScanned,
-        decision: isChainScanned ? 'SKIP_MODAL' : 'SHOW_MODAL'
-      });
-      
-      // Gate modal on payload: if scannedChains contains the chainId, don't show modal
-      return isChainScanned;
-      
+      return await legacyIsChainScanned(address, railgunWalletId, checkChainId);
     } catch (error) {
-      console.error('[VaultDesktop] Error checking scannedChains:', error);
+      console.warn('[VaultDesktop] isChainScanned error:', error?.message || error);
       return null;
     }
   }, [address, railgunWalletId, chainId]);
@@ -217,32 +138,14 @@ const VaultDesktopInner = () => {
       return;
     }
 
-    // Add a small delay to allow wallet metadata to sync after network switch
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    // Check scannedChains with retry logic
-    let isScanned = null;
-    let retries = 3;
-    
-    while (retries > 0 && isScanned === null) {
-      console.log(`[VaultDesktop] Checking scannedChains (attempt ${4 - retries})`);
-      isScanned = await checkScannedChains(checkChainId);
-      
-      if (isScanned === null) {
-        retries--;
-        if (retries > 0) {
-          console.log('[VaultDesktop] Retrying scannedChains check in 1 second...');
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
-    }
-    
-    if (isScanned === true) {
+    // Single canonical check – show modal only when strictly false
+    const scanned = await checkScannedChains(checkChainId);
+    if (scanned !== false) {
       console.log('[VaultDesktop] Chain already scanned - no modal needed');
       setShowSignRequestPopup(false);
       setIsInitInProgress(false);
     } else {
-      console.log('[VaultDesktop] Chain not scanned or check failed - showing modal');
+      console.log('[VaultDesktop] Chain not scanned - showing modal');
       setShowSignRequestPopup(true);
       setIsInitInProgress(true);
       const networkName = getNetworkName(checkChainId);
