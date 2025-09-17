@@ -33,7 +33,7 @@ import {
 // Removed deprecated checkSufficientBalance import
 import { deriveEncryptionKey } from '../../utils/railgun/wallet';
 
-import { isChainScanned, toNum } from '@/utils/isChainScanned';
+import { isChainScanned, toNum } from '../../utils/isChainScanned';
 
 const VaultDesktopInner = () => {
   const {
