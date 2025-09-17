@@ -101,6 +101,7 @@ const VaultDesktopInner = () => {
 
   const network = getCurrentNetwork();
   const [isChainReady, setIsChainReady] = useState(false);
+  const scannedChainsCacheRef = useRef({ walletId: null, chains: [], ts: 0 });
 
   // Check Redis for existing wallet metadata for this address
   const checkRedisWalletData = useCallback(async () => {
@@ -150,11 +151,26 @@ const VaultDesktopInner = () => {
         : null;
       const scannedChains = metaKey?.scannedChains || [];
       const id = targetChainId != null ? targetChainId : chainId;
+      // Update local cache for instant subsequent checks
+      scannedChainsCacheRef.current = {
+        walletId: railgunWalletId || metaKey?.walletId || null,
+        chains: Array.isArray(scannedChains) ? scannedChains.slice() : [],
+        ts: Date.now(),
+      };
       return Array.isArray(scannedChains) && scannedChains.includes(id);
     } catch {
       return false;
     }
   }, [address, railgunWalletId, chainId]);
+
+  const getCachedChainScanned = useCallback((targetChainId) => {
+    try {
+      const cache = scannedChainsCacheRef.current;
+      if (!cache || !Array.isArray(cache.chains)) return null;
+      if (cache.walletId && railgunWalletId && cache.walletId !== railgunWalletId) return null;
+      return cache.chains.includes(targetChainId);
+    } catch { return null; }
+  }, [railgunWalletId]);
 
   // Listen for transaction lock/unlock events from PrivacyActions
   useEffect(() => {
@@ -806,19 +822,16 @@ const VaultDesktopInner = () => {
 
   const handleNetworkSwitch = async (targetChainId) => {
     try {
-      // Pre-check Redis scannedChains for target chain and show modal instantly if needed
-      let scannedPre = false;
-      try {
-        scannedPre = await checkRedisChainScanned(targetChainId);
-        if (!scannedPre && !showSignRequestPopup) {
-          const targetNetwork = supportedNetworks.find(net => net.id === targetChainId);
-          const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
-          setShowSignRequestPopup(true);
-          setIsInitInProgress(true);
-          setInitFailedMessage('');
-          setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
-        }
-      } catch {}
+      // Instant UX: use cached scannedChains to decide immediate modal without blocking
+      const cachedScanned = getCachedChainScanned(targetChainId);
+      if (cachedScanned === false && !showSignRequestPopup) {
+        const targetNetwork = supportedNetworks.find(net => net.id === targetChainId);
+        const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
+        setShowSignRequestPopup(true);
+        setIsInitInProgress(true);
+        setInitFailedMessage('');
+        setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
+      }
 
       // Switch network
       await switchNetwork(targetChainId);
@@ -837,11 +850,11 @@ const VaultDesktopInner = () => {
         </div>
       ), { duration: 2000 });
 
-      // After switch: if new chain isn't ready, only show modal when chain is not in scannedChains
+      // After switch: if new chain isn't ready, show modal only if chain not in scannedChains (re-check via Redis)
       try {
         const ready = await checkChainReady();
         if (!ready) {
-          const scannedPost = scannedPre || await checkRedisChainScanned(targetChainId);
+          const scannedPost = (cachedScanned === true) ? true : await checkRedisChainScanned(targetChainId);
           if (!scannedPost) {
             if (!showSignRequestPopup) setShowSignRequestPopup(true);
             setIsInitInProgress(true);
