@@ -155,7 +155,7 @@ const VaultDesktopInner = () => {
     const scanned = await checkRedisChainScanned(targetChainId); // true | false | null
 
     // C. ONLY open on explicit negatives (not null/unknown)
-    if (ready === false && hasMeta === false && scanned === false) {
+    if (ready === false && scanned === false) {
       if (!showSignRequestPopup) setShowSignRequestPopup(true);
       setIsInitInProgress(true);
       const id = targetChainId != null ? targetChainId : chainId;
