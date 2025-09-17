@@ -161,22 +161,17 @@ const VaultDesktopInner = () => {
       return false;
     }
 
-    // Only open when Redis explicitly says "not scanned"
-    if (scanned === false) {
-      console.log('[DEBUG] Chain not scanned - opening modal');
-      if (!showSignRequestPopup) setShowSignRequestPopup(true);
-      setIsInitInProgress(true);
-      const label =
-        id === 1 ? 'Ethereum' :
-        id === 42161 ? 'Arbitrum' :
-        id === 137 ? 'Polygon' : `Chain ${id}`;
-      setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${label} Network...` });
-      return true;
-    }
-
-    // scanned === null (unknown/error): do nothing
-    console.log('[DEBUG] Scanned is null - not opening modal');
-    return false;
+    // Open when Redis does not confirm scanned (false or null)
+    console.log('[DEBUG] Chain not confirmed scanned (false/null) - opening modal');
+    if (!showSignRequestPopup) setShowSignRequestPopup(true);
+    setIsInitInProgress(true);
+    const label =
+      id === 1 ? 'Ethereum' :
+      id === 42161 ? 'Arbitrum' :
+      id === 137 ? 'Polygon' : `Chain ${id}`;
+      id === 56 ? 'BNB Chain' : `Chain ${id}`;
+    setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${label} Network...` });
+    return true;
   }
 
   // Disconnect handler: clear local/session flags and reset UI state before actual disconnect
