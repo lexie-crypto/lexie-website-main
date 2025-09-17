@@ -31,7 +31,6 @@ import {
   isTokenSupportedByRailgun,
 } from '../../utils/railgun/actions';
 import { deriveEncryptionKey } from '../../utils/railgun/wallet';
-import { isChainScanned as legacyIsChainScanned } from '../../utils/isChainScanned';
 
 const VaultDesktopInner = () => {
   const {
@@ -115,46 +114,7 @@ const VaultDesktopInner = () => {
     }
   }, [address, railgunWalletId, chainId]);
 
-  // Modal gating logic
-  const maybeShowInitModal = useCallback(async (targetChainId = null) => {
-    const checkChainId = targetChainId || chainId;
-    console.log('[VaultDesktop] maybeShowInitModal called for chain:', checkChainId);
-    
-    if (!address || !checkChainId) {
-      console.log('[VaultDesktop] No address or chainId, skipping modal check');
-      return;
-    }
-
-    // If no railgunWalletId, always show modal for initial setup
-    if (!railgunWalletId) {
-      console.log('[VaultDesktop] No railgunWalletId - showing modal for initial setup');
-      setShowSignRequestPopup(true);
-      setIsInitInProgress(true);
-      const networkName = getNetworkName(checkChainId);
-      setInitProgress({ 
-        percent: 0, 
-        message: `Setting up your LexieVault on ${networkName} Network...` 
-      });
-      return;
-    }
-
-    // Single canonical check – show modal only when strictly false
-    const scanned = await checkScannedChains(checkChainId);
-    if (scanned !== false) {
-      console.log('[VaultDesktop] Chain already scanned - no modal needed');
-      setShowSignRequestPopup(false);
-      setIsInitInProgress(false);
-    } else {
-      console.log('[VaultDesktop] Chain not scanned - showing modal');
-      setShowSignRequestPopup(true);
-      setIsInitInProgress(true);
-      const networkName = getNetworkName(checkChainId);
-      setInitProgress({ 
-        percent: 0, 
-        message: `Setting up your LexieVault on ${networkName} Network...` 
-      });
-    }
-  }, [address, chainId, railgunWalletId, checkScannedChains]);
+  // Remove the complex modal gating logic - we'll use the same approach as old WalletPage
 
   // Helper function to get network name
   const getNetworkName = (id) => {
@@ -167,13 +127,19 @@ const VaultDesktopInner = () => {
     return networks[id] || `Chain ${id}`;
   };
 
-  // Check modal on wallet connection
+  // Track when initial connection hydration is complete (like old WalletPage)
+  const initialConnectDoneRef = React.useRef(false);
+
+  // Mark initial connect as done once wallet metadata is ready or init completes
   useEffect(() => {
-    if (isConnected && address) {
-      console.log('[VaultDesktop] Wallet connected, checking if modal needed');
-      maybeShowInitModal();
-    }
-  }, [isConnected, address, maybeShowInitModal]);
+    const markDone = () => { initialConnectDoneRef.current = true; };
+    window.addEventListener('railgun-wallet-metadata-ready', markDone);
+    window.addEventListener('railgun-init-completed', markDone);
+    return () => {
+      window.removeEventListener('railgun-wallet-metadata-ready', markDone);
+      window.removeEventListener('railgun-init-completed', markDone);
+    };
+  }, []);
 
   // Reset modal state when address changes
   useEffect(() => {
@@ -439,26 +405,62 @@ const VaultDesktopInner = () => {
     return () => { cancelled = true; };
   }, [currentLexieId]);
 
-  // Listen for signature request and init lifecycle events
+  // Listen for signature request and init lifecycle events (like old WalletPage)
   useEffect(() => {
-    const onSignRequest = async () => {
-      await maybeShowInitModal(chainId);
+    const onSignRequest = () => {
+      setShowSignRequestPopup(true);
+      setIsInitInProgress(false);
+      setInitProgress({ percent: 0, message: '' });
+      setInitFailedMessage('');
+      console.log('[VaultDesktop] Signature requested - showing modal');
     };
-    const onInitStarted = async () => { 
-      await maybeShowInitModal(chainId); 
+    
+    const onInitStarted = (e) => {
+      // Open modal immediately when init/scan starts on chain switch
+      if (!showSignRequestPopup) {
+        setShowSignRequestPopup(true);
+      }
+      // Ensure we don't falsely mark complete using previous chain's readiness
+      setIsChainReady(false);
+      setIsInitInProgress(true);
+      setInitFailedMessage('');
+      // Set friendly, chain-aware message
+      const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
+      setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
+      console.log('[VaultDesktop] Initialization started');
     };
-    const onInitProgress = async () => {
-      if (!isInitInProgress) return;
+    
+    const onInitProgress = () => {
+      // If scanning kicks off without our start event, open the modal now
+      if (!showSignRequestPopup && initialConnectDoneRef.current) {
+        // Double-check readiness from checkChainReady before opening
+        checkChainReady()
+          .then((ready) => {
+            if (!ready) {
+              setShowSignRequestPopup(true);
+              setIsInitInProgress(true);
+              setIsChainReady(false);
+            }
+          })
+          .catch(() => {
+            setShowSignRequestPopup(true);
+            setIsInitInProgress(true);
+            setIsChainReady(false);
+          });
+      }
       const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
       setInitProgress((prev) => ({
         percent: prev.percent,
         message: prev.message || `Setting up your LexieVault on ${chainLabel}...`,
       }));
     };
+    
     const onInitCompleted = () => {
-      console.log('[VaultDesktop] SDK reported completed; awaiting Redis confirmation');
+      // Do not set to 100% here; wait for checkChainReady to confirm
+      console.log('[VaultDesktop] SDK reported completed; awaiting confirmation');
       setInitProgress((prev) => ({ ...prev, message: prev.message || 'Finalizing...' }));
     };
+    
     const onInitFailed = (e) => {
       const msg = e?.detail?.error || 'Initialization failed';
       setInitFailedMessage(msg);
@@ -466,8 +468,33 @@ const VaultDesktopInner = () => {
       console.warn('[VaultDesktop] Initialization failed:', msg);
     };
 
+    // Begin polling exactly when refreshBalances starts in context (like old WalletPage)
+    const onPollStart = async (e) => {
+      // Do not show init modal on initial connect fast-path; only after initial connect
+      if (!initialConnectDoneRef.current) return;
+      try {
+        const ready = await checkChainReady();
+        if (!ready) onInitStarted(e);
+      } catch {
+        onInitStarted(e);
+      }
+    };
+    
+    const onScanStarted = async (e) => {
+      // Same guard: avoid modal during initial connect if wallet existed in Redis
+      if (!initialConnectDoneRef.current) return;
+      try {
+        const ready = await checkChainReady();
+        if (!ready) onInitStarted(e);
+      } catch {
+        onInitStarted(e);
+      }
+    };
+
     window.addEventListener('railgun-signature-requested', onSignRequest);
-    window.addEventListener('railgun-init-started', onInitStarted);
+    window.addEventListener('vault-poll-start', onPollStart);
+    window.addEventListener('railgun-init-started', onInitStarted); // full init always shows
+    window.addEventListener('railgun-scan-started', onScanStarted);
     window.addEventListener('railgun-init-progress', onInitProgress);
     window.addEventListener('railgun-init-completed', onInitCompleted);
     window.addEventListener('railgun-init-failed', onInitFailed);
@@ -475,27 +502,21 @@ const VaultDesktopInner = () => {
     return () => {
       window.removeEventListener('railgun-signature-requested', onSignRequest);
       window.removeEventListener('railgun-init-started', onInitStarted);
+      window.removeEventListener('vault-poll-start', onPollStart);
       window.removeEventListener('railgun-init-progress', onInitProgress);
+      window.removeEventListener('railgun-scan-started', onScanStarted);
       window.removeEventListener('railgun-init-completed', onInitCompleted);
       window.removeEventListener('railgun-init-failed', onInitFailed);
     };
-  }, [address, chainId, railgunWalletId, network, maybeShowInitModal, isInitInProgress]);
+  }, [address, chainId, railgunWalletId, network, checkChainReady, showSignRequestPopup]);
 
-  // Unlock modal when scan completes
+  // Unlock modal using the same readiness flag as old WalletPage
   useEffect(() => {
-    const onScanComplete = async () => {
-      if (!showSignRequestPopup || !isInitInProgress) return;
-      
-      console.log('[VaultDesktop] Scan complete event received, unlocking modal immediately');
-      
-      // Trust the scan complete event - if it fired, the scan is done
+    if (showSignRequestPopup && isInitInProgress && isChainReady) {
       setInitProgress({ percent: 100, message: 'Initialization complete' });
       setIsInitInProgress(false);
-    };
-
-    window.addEventListener('railgun-scan-complete', onScanComplete);
-    return () => window.removeEventListener('railgun-scan-complete', onScanComplete);
-  }, [showSignRequestPopup, isInitInProgress]);
+    }
+  }, [isChainReady, isInitInProgress, showSignRequestPopup]);
 
   // Check if this Railgun address already has a linked Lexie ID
   useEffect(() => {
@@ -741,9 +762,26 @@ const VaultDesktopInner = () => {
         </div>
       ), { duration: 2000 });
 
-      // After switch: check if modal needed for new chain
-      console.log('[VaultDesktop] Checking if modal needed after network switch');
-      await maybeShowInitModal(targetChainId);
+      // After switch: if new chain isn't ready/scanned, show initialization popup (like old WalletPage)
+      try {
+        const ready = await checkChainReady();
+        if (!ready) {
+          console.log('[VaultDesktop] Chain not ready after switch - showing modal');
+          setShowSignRequestPopup(true);
+          setIsInitInProgress(true);
+          const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
+          setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
+        } else {
+          console.log('[VaultDesktop] Chain ready after switch - no modal needed');
+        }
+      } catch (error) {
+        console.warn('[VaultDesktop] Error checking chain readiness after switch:', error);
+        // On error, show modal to be safe
+        setShowSignRequestPopup(true);
+        setIsInitInProgress(true);
+        const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
+        setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
+      }
     } catch (error) {
       console.error('[VaultDesktop] Error in handleNetworkSwitch:', error);
       toast.error(`Failed to switch network: ${error.message}`);
