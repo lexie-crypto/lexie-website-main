@@ -124,7 +124,7 @@ const VaultDesktopInner = () => {
     } finally {
       redisCheckRef.current.inFlight = false;
     }
-  }, [address, hasRedisWalletData]);
+  }, [address]);
 
   // Keep metadata status up to date when address changes; clear cached state first
   useEffect(() => { setHasRedisWalletData(null); checkRedisWalletData(); }, [address, checkRedisWalletData]);
