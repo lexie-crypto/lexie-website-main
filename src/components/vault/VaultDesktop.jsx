@@ -92,6 +92,7 @@ const VaultDesktopInner = () => {
   const [lexieMessage, setLexieMessage] = useState('');
   const [showLexieModal, setShowLexieModal] = useState(false);
   const [currentLexieId, setCurrentLexieId] = useState('');
+  const [pointsBalance, setPointsBalance] = useState(null);
   // Local state to show a refreshing indicator for Vault Balances (always available)
   const [isRefreshingBalances, setIsRefreshingBalances] = useState(false);
   // Redis metadata gating for lock modal
@@ -182,6 +183,33 @@ const VaultDesktopInner = () => {
 
         return newCount;
       });
+
+      // Points award on completion (LexieID-gated)
+      try {
+        if (!currentLexieId) return;
+        const detail = event?.detail || {};
+        const txHash = (detail.txHash || detail.hash || '').toString();
+        const usdValue = Number(detail.usdValue || detail.usd || 0);
+        if (!txHash) return;
+        // Allow awarding even if usdValue missing; backend enforces min and idempotency
+        fetch('/api/wallet-metadata?action=rewards-award', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lexieId: currentLexieId, txHash, usdValue })
+        }).then(async (r) => {
+          const json = await r.json().catch(() => ({}));
+          if (r.ok && json?.success && typeof json.balance === 'number') {
+            setPointsBalance(json.balance);
+          } else if (r.ok && json?.ok && typeof json.balance === 'number') {
+            setPointsBalance(json.balance);
+          } else if (r.ok && json?.idempotent) {
+            // fallback refresh
+            fetch(`/api/wallet-metadata?action=rewards-balance&lexieId=${encodeURIComponent(currentLexieId)}`).then(res => res.json()).then(b => {
+              if (b?.success && typeof b.balance === 'number') setPointsBalance(b.balance);
+            }).catch(() => {});
+          }
+        }).catch(() => {});
+      } catch {}
     };
 
     // Also listen for balance update completion as backup
@@ -337,6 +365,38 @@ const VaultDesktopInner = () => {
       window.removeEventListener('railgun-init-completed', markDone);
     };
   }, []);
+
+  // Fetch initial points when Lexie ID is available
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!currentLexieId) { setPointsBalance(null); return; }
+      try {
+        const resp = await fetch(`/api/wallet-metadata?action=rewards-balance&lexieId=${encodeURIComponent(currentLexieId)}`);
+        if (!cancelled && resp.ok) {
+          const json = await resp.json().catch(() => ({}));
+          if (json?.success) setPointsBalance(Number(json.balance) || 0);
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [currentLexieId]);
+
+  // Fetch points balance when we have a Lexie ID
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!currentLexieId) { setPointsBalance(null); return; }
+      try {
+        const resp = await fetch(`/api/wallet-metadata?action=rewards-balance&lexieId=${encodeURIComponent(currentLexieId)}`);
+        if (!cancelled && resp.ok) {
+          const json = await resp.json().catch(() => ({}));
+          if (json?.success) setPointsBalance(Number(json.balance) || 0);
+        }
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [currentLexieId]);
 
   // Listen for signature request and init lifecycle events from WalletContext
   useEffect(() => {
@@ -976,6 +1036,16 @@ const VaultDesktopInner = () => {
                   {currentLexieId ? (
                     <div className="flex items-center space-x-2">
                       <span className="text-purple-300 font-medium">{currentLexieId}</span>
+                      {typeof pointsBalance === 'number' && (
+                        <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-purple-600/20 text-purple-200 border border-purple-400/30 px-2 py-0.5 text-[11px]" title="Points = $ value × streak. Min $5. Streak resets if you skip a day.">
+                          ✦ {pointsBalance}
+                        </span>
+                      )}
+                      {typeof pointsBalance === 'number' && (
+                        <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-purple-600/20 text-purple-200 border border-purple-400/30 px-2 py-0.5 text-[11px]" title="Points = $ value × streak. Min $5. Streak resets if you skip a day.">
+                          ✦ {pointsBalance}
+                        </span>
+                      )}
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(currentLexieId);
