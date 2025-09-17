@@ -806,7 +806,21 @@ const VaultDesktopInner = () => {
 
   const handleNetworkSwitch = async (targetChainId) => {
     try {
-      // Switch first for instant responsiveness; gate after switch
+      // Pre-check Redis scannedChains for target chain and show modal instantly if needed
+      let scannedPre = false;
+      try {
+        scannedPre = await checkRedisChainScanned(targetChainId);
+        if (!scannedPre && !showSignRequestPopup) {
+          const targetNetwork = supportedNetworks.find(net => net.id === targetChainId);
+          const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
+          setShowSignRequestPopup(true);
+          setIsInitInProgress(true);
+          setInitFailedMessage('');
+          setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
+        }
+      } catch {}
+
+      // Switch network
       await switchNetwork(targetChainId);
       const targetNetwork = supportedNetworks.find(net => net.id === targetChainId);
       toast.custom((t) => (
@@ -823,15 +837,12 @@ const VaultDesktopInner = () => {
         </div>
       ), { duration: 2000 });
 
-      // After switch: if new chain isn't ready, only show modal for brand-new wallets and unscanned chain
+      // After switch: if new chain isn't ready, only show modal when chain is not in scannedChains
       try {
         const ready = await checkChainReady();
         if (!ready) {
-          const [hasMetaPost, scannedPost] = await Promise.all([
-            checkRedisWalletData(),
-            checkRedisChainScanned(targetChainId),
-          ]);
-          if (!hasMetaPost && !scannedPost) {
+          const scannedPost = scannedPre || await checkRedisChainScanned(targetChainId);
+          if (!scannedPost) {
             if (!showSignRequestPopup) setShowSignRequestPopup(true);
             setIsInitInProgress(true);
             const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
