@@ -145,6 +145,24 @@ const VaultDesktopInner = () => {
       try { if (address) { localStorage.removeItem(`railgun-guide-seen-${address.toLowerCase()}`); } } catch {}
       // Clear any session flags
       try { sessionStorage.clear(); } catch {}
+      // Reset WalletConnect/Wagmi cached sessions so QR code is fresh next time
+      try {
+        const lc = localStorage;
+        if (lc) {
+          try { lc.removeItem('wagmi.store'); } catch {}
+          try { lc.removeItem('walletconnect'); } catch {}
+          try { lc.removeItem('WALLETCONNECT_DEEPLINK_CHOICE'); } catch {}
+          // Remove any wc@ v2 keys and web3modal caches
+          try {
+            const keys = Object.keys(lc);
+            keys.forEach((k) => {
+              if (k.startsWith('wc@') || k.startsWith('wc:') || k.toLowerCase().includes('walletconnect') || k.toLowerCase().includes('web3modal')) {
+                try { lc.removeItem(k); } catch {}
+              }
+            });
+          } catch {}
+        }
+      } catch {}
       // Reset local UI state
       try { setCurrentLexieId(''); } catch {}
       try { setPointsBalance(null); } catch {}
@@ -455,27 +473,8 @@ const VaultDesktopInner = () => {
       console.log('[Vault Init] Initialization started');
     };
     const onInitProgress = async () => {
-      // If scanning kicks off without our start event, open the modal now
-      if (!showSignRequestPopup && initialConnectDoneRef.current) {
-        try {
-          const ready = await checkChainReady();
-          const hasMeta = await checkRedisWalletData();
-          const scanned = await checkRedisChainScanned(chainId);
-          if (!ready && !hasMeta && !scanned) {
-            setShowSignRequestPopup(true);
-            setIsInitInProgress(true);
-            setIsChainReady(false);
-          }
-        } catch {
-          const hasMeta = await checkRedisWalletData();
-          const scanned = await checkRedisChainScanned(chainId);
-          if (!hasMeta && !scanned) {
-            setShowSignRequestPopup(true);
-            setIsInitInProgress(true);
-            setIsChainReady(false);
-          }
-        }
-      }
+      // Gate progress handler to only run while initialization is actually in progress
+      if (!isInitInProgress) return;
       const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
       setInitProgress((prev) => ({
         percent: prev.percent,
