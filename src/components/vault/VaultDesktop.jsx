@@ -144,12 +144,18 @@ const VaultDesktopInner = () => {
   // Unified gate for opening the initialization modal
   async function maybeOpenInitModalByRedis(targetChainId) {
     const id = toNum(targetChainId ?? chainId);
-    if (id == null || !address) return false;
+    console.log('[DEBUG] maybeOpenInitModalByRedis: targetChainId=', targetChainId, 'calculated id=', id, 'address=', address, 'railgunWalletId=', railgunWalletId);
+    if (id == null || !address) {
+      console.log('[DEBUG] Early return: invalid id or no address');
+      return false;
+    }
 
     const scanned = await isChainScanned(address, railgunWalletId, id);
+    console.log('[DEBUG] isChainScanned result:', scanned);
 
     // Hard rule: if scanned === true → never open
     if (scanned === true) {
+      console.log('[DEBUG] Chain is scanned - not opening modal');
       setShowSignRequestPopup(false);
       setIsInitInProgress(false);
       return false;
@@ -157,6 +163,7 @@ const VaultDesktopInner = () => {
 
     // Only open when Redis explicitly says "not scanned"
     if (scanned === false) {
+      console.log('[DEBUG] Chain not scanned - opening modal');
       if (!showSignRequestPopup) setShowSignRequestPopup(true);
       setIsInitInProgress(true);
       const label =
@@ -168,6 +175,7 @@ const VaultDesktopInner = () => {
     }
 
     // scanned === null (unknown/error): do nothing
+    console.log('[DEBUG] Scanned is null - not opening modal');
     return false;
   }
 
@@ -796,9 +804,11 @@ const VaultDesktopInner = () => {
   }, [canUseRailgun, railgunWalletId, address, chainId, network, refreshBalancesAfterTransaction, getEncryptionKey]);
 
   const handleNetworkSwitch = async (targetChainId) => {
+    console.log('[DEBUG] handleNetworkSwitch called with targetChainId=', targetChainId);
     try {
       // Block chain switching until secure vault engine is initialized
       if (!canUseRailgun || !railgunWalletId) {
+        console.log('[DEBUG] Blocking switch: canUseRailgun=', canUseRailgun, 'railgunWalletId=', railgunWalletId);
         toast.custom((t) => (
           <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
             <div className="rounded-lg border border-yellow-500/30 bg-black/90 text-yellow-200 shadow-2xl">
@@ -816,6 +826,7 @@ const VaultDesktopInner = () => {
         return;
       }
       // Switch network immediately for snappy UX
+      console.log('[DEBUG] Switching network to', targetChainId);
       await switchNetwork(targetChainId);
       const targetNetwork = supportedNetworks.find(net => net.id === targetChainId);
       toast.custom((t) => (
@@ -833,8 +844,10 @@ const VaultDesktopInner = () => {
       ), { duration: 2000 });
 
       // After switch: single gate
-      try { await maybeOpenInitModalByRedis(targetChainId); } catch {}
+      console.log('[DEBUG] Calling maybeOpenInitModalByRedis after switch');
+      try { await maybeOpenInitModalByRedis(targetChainId); } catch (e) { console.error('[DEBUG] Error in maybeOpenInitModalByRedis:', e); }
     } catch (error) {
+      console.error('[DEBUG] Error in handleNetworkSwitch:', error);
       toast.error(`Failed to switch network: ${error.message}`);
     }
   };
