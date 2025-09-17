@@ -538,45 +538,21 @@ const VaultDesktopInner = () => {
     };
   }, [address, chainId, railgunWalletId, network, maybeShowInitModal, isInitInProgress]);
 
-  // Unlock modal only after scan is actually complete
+  // Unlock modal when scan completes
   useEffect(() => {
     const onScanComplete = async () => {
       if (!showSignRequestPopup || !isInitInProgress) return;
       
-      console.log('[VaultDesktop] Scan complete event received, checking if chain is actually scanned...');
+      console.log('[VaultDesktop] Scan complete event received, unlocking modal immediately');
       
-      // Double-check that the chain is actually scanned before unlocking
-      const isScanned = await checkScannedChains();
-      if (isScanned === true) {
-        console.log('[VaultDesktop] Scan confirmed complete, unlocking modal');
-        setInitProgress({ percent: 100, message: 'Initialization complete' });
-        setIsInitInProgress(false);
-      } else {
-        console.log('[VaultDesktop] Scan not yet complete, keeping modal locked');
-      }
+      // Trust the scan complete event - if it fired, the scan is done
+      setInitProgress({ percent: 100, message: 'Initialization complete' });
+      setIsInitInProgress(false);
     };
-
-    // Also set up a periodic check in case the event doesn't fire
-    let timeoutId;
-    if (showSignRequestPopup && isInitInProgress) {
-      timeoutId = setInterval(async () => {
-        console.log('[VaultDesktop] Periodic scan check...');
-        const isScanned = await checkScannedChains();
-        if (isScanned === true) {
-          console.log('[VaultDesktop] Periodic check: scan complete, unlocking modal');
-          setInitProgress({ percent: 100, message: 'Initialization complete' });
-          setIsInitInProgress(false);
-          clearInterval(timeoutId);
-        }
-      }, 5000); // Check every 5 seconds
-    }
 
     window.addEventListener('railgun-scan-complete', onScanComplete);
-    return () => {
-      window.removeEventListener('railgun-scan-complete', onScanComplete);
-      if (timeoutId) clearInterval(timeoutId);
-    };
-  }, [showSignRequestPopup, isInitInProgress, checkScannedChains]);
+    return () => window.removeEventListener('railgun-scan-complete', onScanComplete);
+  }, [showSignRequestPopup, isInitInProgress]);
 
   // Check if this Railgun address already has a linked Lexie ID
   useEffect(() => {
