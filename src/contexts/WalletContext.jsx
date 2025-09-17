@@ -613,6 +613,13 @@ const WalletContextProvider = ({ children }) => {
     disconnectWallet.isDisconnecting = true;
 
     try {
+      // Reset wallet-scoped UI/session flags to prevent stale gating on next connect
+      try { if (typeof window !== 'undefined') {
+        delete window.__LEXIE_INIT_POLL_ID;
+        window.dispatchEvent(new CustomEvent('force-disconnect'));
+        // Clear any init/scan flags used by UI gating
+        window.dispatchEvent(new CustomEvent('railgun-init-failed', { detail: { error: 'User disconnect' } }));
+      } } catch {}
       // Immediate UI state reset for snappy UX
       setIsRailgunInitialized(false);
       setRailgunAddress(null);

@@ -126,8 +126,8 @@ const VaultDesktopInner = () => {
     }
   }, [address, hasRedisWalletData]);
 
-  // Keep metadata status up to date when address changes
-  useEffect(() => { checkRedisWalletData(); }, [address, checkRedisWalletData]);
+  // Keep metadata status up to date when address changes; clear cached state first
+  useEffect(() => { setHasRedisWalletData(null); checkRedisWalletData(); }, [address, checkRedisWalletData]);
 
   // Check if a specific chain has been scanned in Redis scannedChains
   const checkRedisChainScanned = useCallback(async (targetChainId) => {
