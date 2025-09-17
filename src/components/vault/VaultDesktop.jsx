@@ -193,10 +193,9 @@ const VaultDesktopInner = () => {
       setShowSignRequestPopup(false);
       setIsInitInProgress(false);
       return false;
-    }
-
-    if (scanned === false) {
-      console.log('[DEBUG] Redis confirms not scanned - opening modal');
+    } else {
+      // false or null: open modal
+      console.log(`[DEBUG] Redis result is ${scanned === false ? 'false' : 'null'} - opening modal`);
       if (!showSignRequestPopup) setShowSignRequestPopup(true);
       setIsInitInProgress(true);
       const label =
@@ -207,10 +206,6 @@ const VaultDesktopInner = () => {
       setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${label} Network...` });
       return true;
     }
-
-    // scanned === null (error/unknown): do nothing, assume issue but don't lock
-    console.log('[DEBUG] Scanned is null - not opening modal');
-    return false;
   }
 
   // Disconnect handler: clear local/session flags and reset UI state before actual disconnect
