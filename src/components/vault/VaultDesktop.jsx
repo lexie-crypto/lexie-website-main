@@ -131,17 +131,48 @@ const VaultDesktopInner = () => {
       
       // Look for the wallet key that matches our railgunWalletId
       const walletKeys = Array.isArray(data.keys) ? data.keys : [];
-      const matchingKey = walletKeys.find(key => 
+      
+      // DEBUG: Log exact values being compared
+      console.log('[VaultDesktop] EXACT MATCHING VALUES:', {
+        ourRailgunWalletId: railgunWalletId,
+        ourAddress: address,
+        ourAddressLower: address?.toLowerCase(),
+        keysInResponse: walletKeys.map(key => ({
+          keyWalletId: key.walletId,
+          keyEoa: key.eoa,
+          keyEoaLower: key.eoa?.toLowerCase(),
+          walletIdMatch: key.walletId === railgunWalletId,
+          eoaMatch: key.eoa?.toLowerCase() === address?.toLowerCase(),
+          bothMatch: key.walletId === railgunWalletId && key.eoa?.toLowerCase() === address?.toLowerCase()
+        }))
+      });
+      
+      let matchingKey = walletKeys.find(key => 
         key.walletId === railgunWalletId && 
-        key.eoa?.toLowerCase() === address.toLowerCase()
+        key.eoa?.toLowerCase() === address?.toLowerCase()
       );
+      
+      // Fallback: if no exact match, try matching just by EOA address
+      if (!matchingKey && railgunWalletId) {
+        console.log('[VaultDesktop] No exact match found, trying EOA-only match as fallback...');
+        matchingKey = walletKeys.find(key => 
+          key.eoa?.toLowerCase() === address?.toLowerCase() &&
+          key.railgunAddress &&
+          (key.signature || key.encryptedMnemonic)
+        );
+        if (matchingKey) {
+          console.log('[VaultDesktop] Found fallback match by EOA address');
+        }
+      }
       
       console.log('[VaultDesktop] Matching key search:', {
         searchingForWalletId: railgunWalletId,
-        searchingForEoa: address.toLowerCase(),
+        searchingForEoa: address?.toLowerCase(),
         foundMatchingKey: !!matchingKey,
         matchingKeyStructure: matchingKey ? Object.keys(matchingKey) : null,
-        hasScannedChains: matchingKey ? !!matchingKey.scannedChains : false
+        hasScannedChains: matchingKey ? !!matchingKey.scannedChains : false,
+        matchedWalletId: matchingKey?.walletId,
+        matchedEoa: matchingKey?.eoa
       });
       
       if (!matchingKey) {
@@ -194,11 +225,32 @@ const VaultDesktopInner = () => {
       return;
     }
 
-    // Check Redis for scannedChains
-    const isScanned = await checkScannedChains(checkChainId);
+    // Add a small delay to allow wallet metadata to sync after network switch
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Check scannedChains with retry logic
+    let isScanned = null;
+    let retries = 3;
     
-    if (isScanned === false || isScanned === null) {
-      console.log('[VaultDesktop] Chain not scanned - showing modal');
+    while (retries > 0 && isScanned === null) {
+      console.log(`[VaultDesktop] Checking scannedChains (attempt ${4 - retries})`);
+      isScanned = await checkScannedChains(checkChainId);
+      
+      if (isScanned === null) {
+        retries--;
+        if (retries > 0) {
+          console.log('[VaultDesktop] Retrying scannedChains check in 1 second...');
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+    }
+    
+    if (isScanned === true) {
+      console.log('[VaultDesktop] Chain already scanned - no modal needed');
+      setShowSignRequestPopup(false);
+      setIsInitInProgress(false);
+    } else {
+      console.log('[VaultDesktop] Chain not scanned or check failed - showing modal');
       setShowSignRequestPopup(true);
       setIsInitInProgress(true);
       const networkName = getNetworkName(checkChainId);
@@ -206,10 +258,6 @@ const VaultDesktopInner = () => {
         percent: 0, 
         message: `Setting up your LexieVault on ${networkName} Network...` 
       });
-    } else {
-      console.log('[VaultDesktop] Chain already scanned - no modal needed');
-      setShowSignRequestPopup(false);
-      setIsInitInProgress(false);
     }
   }, [address, chainId, railgunWalletId, checkScannedChains]);
 
