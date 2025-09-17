@@ -513,14 +513,16 @@ const VaultDesktopInner = () => {
       // Same guard: avoid modal during initial connect if wallet existed in Redis
       if (!initialConnectDoneRef.current) return;
       try {
+        // If engine not fully loaded yet, still check scannedChains by EOA
+        const scanned = await checkRedisChainScanned(chainId);
+        if (scanned) return;
         const ready = await checkChainReady();
         const hasMeta = await checkRedisWalletData();
-        const scanned = await checkRedisChainScanned(chainId);
-        if (!ready && !hasMeta && !scanned) onInitStarted(e);
+        if (!ready && !hasMeta) onInitStarted(e);
       } catch {
-        const hasMeta = await checkRedisWalletData();
         const scanned = await checkRedisChainScanned(chainId);
-        if (!hasMeta && !scanned) onInitStarted(e);
+        if (scanned) return;
+        onInitStarted(e);
       }
     };
     window.addEventListener('vault-poll-start', onPollStart);
