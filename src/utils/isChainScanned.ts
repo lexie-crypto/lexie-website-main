@@ -14,21 +14,33 @@ export async function isChainScanned(
   const addr = eoa?.toLowerCase?.();
   if (!addr) return null;
 
-  const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(addr)}`, {
-    headers: { 'Content-Type': 'application/json' },
-  });
-  if (!resp.ok) return null;
+  let resp;
+  try {
+    resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(addr)}`, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (e) {
+    console.error('[isChainScanned] Fetch error:', e);
+    return false; // Treat network errors as not scanned (trigger modal)
+  }
 
-  const data = await resp.json();
+  if (!resp.ok) {
+    // Treat 404 or other errors as not scanned
+    return false;
+  }
+
+  const data = await resp.json().catch(() => ({}));
   const keys = Array.isArray(data?.keys) ? data.keys : [];
 
-  // Prefer exact walletId match, otherwise fallback to same-EOA key with signature (existing wallet)
-  const key =
-    keys.find((k: any) => k?.eoa?.toLowerCase?.() === addr && (!!walletId ? k?.walletId === walletId : true)) ??
-    keys.find((k: any) => k?.eoa?.toLowerCase?.() === addr && (k?.signature || k?.encryptedMnemonic)) ??
-    null;
+  // Strict match: require eoa match, railgunAddress, signature/encryptedMnemonic, and walletId if provided
+  const key = keys.find((k: any) => 
+    k?.eoa?.toLowerCase?.() === addr &&
+    k?.railgunAddress &&
+    (k?.signature || k?.encryptedMnemonic) &&
+    (walletId ? k?.walletId === walletId : true) // Require exact walletId if provided; allow if not
+  ) || null;
 
-  if (!key) return false;
+  if (!key) return false; // No valid key → not scanned
 
   const scanned = Array.isArray(key.scannedChains)
     ? key.scannedChains.map((n: any) => Number(n)).filter(Number.isFinite)
