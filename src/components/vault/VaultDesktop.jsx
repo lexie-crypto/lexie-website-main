@@ -99,7 +99,7 @@ const VaultDesktopInner = () => {
 
   const network = getCurrentNetwork();
 
-  // Check Redis for scannedChains status
+  // Check scannedChains status through wallet-metadata proxy
   const checkScannedChains = useCallback(async (targetChainId = null) => {
     if (!address || !railgunWalletId) return null;
     
@@ -107,27 +107,41 @@ const VaultDesktopInner = () => {
     if (!checkChainId) return null;
 
     try {
-      const redisKey = `railgun:${address}:${railgunWalletId}:meta.scannedChains`;
-      const response = await fetch(`/api/redis-check?key=${encodeURIComponent(redisKey)}`);
+      // Use the existing wallet-metadata GET endpoint to check scannedChains
+      const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
       
       if (response.status === 404) {
-        console.log('[VaultDesktop] Redis key not found - wallet needs initialization');
+        console.log('[VaultDesktop] Wallet metadata not found - wallet needs initialization');
         return false;
       }
       
       if (!response.ok) {
-        console.warn('[VaultDesktop] Redis check failed:', response.status);
+        console.warn('[VaultDesktop] Wallet metadata check failed:', response.status);
         return null;
       }
       
       const data = await response.json();
-      const scannedChains = data.value || {};
+      
+      // Look for the wallet key that matches our railgunWalletId
+      const walletKeys = Array.isArray(data.keys) ? data.keys : [];
+      const matchingKey = walletKeys.find(key => 
+        key.walletId === railgunWalletId && 
+        key.eoa?.toLowerCase() === address.toLowerCase()
+      );
+      
+      if (!matchingKey || !matchingKey.scannedChains) {
+        console.log('[VaultDesktop] No scannedChains data found - wallet needs initialization');
+        return false;
+      }
+      
+      const scannedChains = matchingKey.scannedChains || {};
       const isChainScanned = scannedChains[checkChainId.toString()];
       
-      console.log('[VaultDesktop] Redis scannedChains check:', {
+      console.log('[VaultDesktop] ScannedChains check:', {
         chainId: checkChainId,
         isScanned: isChainScanned,
-        allChains: scannedChains
+        allChains: scannedChains,
+        walletId: railgunWalletId
       });
       
       return isChainScanned === true;
