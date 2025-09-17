@@ -99,17 +99,68 @@ const VaultDesktopInner = () => {
 
   const network = getCurrentNetwork();
 
-  // Canonical check using legacy util (address lowercased, tolerant match, scannedChains gate)
-  const checkScannedChains = useCallback(async (targetChainId = null) => {
+  // Check Redis for scannedChains before showing modal or performing scan
+  const checkRedisScannedChains = useCallback(async (targetChainId = null) => {
     if (!address || !railgunWalletId) return null;
-
+    
     const checkChainId = targetChainId || chainId;
     if (!checkChainId) return null;
 
     try {
-      return await legacyIsChainScanned(address, railgunWalletId, checkChainId);
+      console.log('[VaultDesktop] Checking Redis for scannedChains before modal/scan...');
+      
+      // Use wallet-metadata proxy to get Redis data
+      const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address.toLowerCase())}`);
+      
+      if (response.status === 404) {
+        console.log('[VaultDesktop] No wallet metadata in Redis - needs initialization');
+        return false;
+      }
+      
+      if (!response.ok) {
+        console.warn('[VaultDesktop] Redis check failed:', response.status);
+        return null;
+      }
+      
+      const data = await response.json();
+      const walletKeys = Array.isArray(data.keys) ? data.keys : [];
+      
+      // Find matching key using tolerant comparison (like updated isChainScanned)
+      const matchingKey = walletKeys.find(key => {
+        const keyAddrLower = (key?.eoa || key?.walletAddress || key?.address)?.toLowerCase?.();
+        const keyWalletId = key?.walletId || key?.railgunWalletId;
+        const hasAuth = !!key?.railgunAddress && (!!key?.signature || !!key?.encryptedMnemonic);
+        const walletOk = railgunWalletId ? keyWalletId === railgunWalletId : true;
+        return keyAddrLower === address.toLowerCase() && hasAuth && walletOk;
+      });
+
+      if (!matchingKey) {
+        console.log('[VaultDesktop] No matching wallet key found in Redis');
+        return false;
+      }
+
+      // Check scannedChains (both top-level and meta.scannedChains)
+      const rawChains = Array.isArray(matchingKey?.scannedChains)
+        ? matchingKey.scannedChains
+        : (Array.isArray(matchingKey?.meta?.scannedChains) ? matchingKey.meta.scannedChains : []);
+
+      const scannedChains = rawChains
+        .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
+        .filter(n => Number.isFinite(n));
+
+      const isChainScanned = scannedChains.includes(Number(checkChainId));
+      
+      console.log('[VaultDesktop] Redis scannedChains check result:', {
+        chainId: Number(checkChainId),
+        scannedChains,
+        isChainScanned,
+        decision: isChainScanned ? 'SKIP_MODAL_AND_SCAN' : 'ALLOW_MODAL_AND_SCAN'
+      });
+      
+      return isChainScanned;
+      
     } catch (error) {
-      console.warn('[VaultDesktop] isChainScanned error:', error?.message || error);
+      console.error('[VaultDesktop] Redis check error:', error);
       return null;
     }
   }, [address, railgunWalletId, chainId]);
@@ -415,8 +466,16 @@ const VaultDesktopInner = () => {
       console.log('[VaultDesktop] Signature requested - showing modal');
     };
     
-    const onInitStarted = (e) => {
-      // Open modal immediately when init/scan starts on chain switch
+    const onInitStarted = async (e) => {
+      // Check Redis first before showing modal
+      const redisScanned = await checkRedisScannedChains();
+      if (redisScanned === true) {
+        console.log('[VaultDesktop] Redis confirms chain already scanned - skipping modal');
+        return;
+      }
+      
+      // Open modal only if Redis doesn't show chain as scanned
+      console.log('[VaultDesktop] Redis check passed - showing modal for initialization');
       if (!showSignRequestPopup) {
         setShowSignRequestPopup(true);
       }
@@ -430,9 +489,16 @@ const VaultDesktopInner = () => {
       console.log('[VaultDesktop] Initialization started');
     };
     
-    const onInitProgress = () => {
-      // If scanning kicks off without our start event, open the modal now
+    const onInitProgress = async () => {
+      // If scanning kicks off without our start event, check Redis first
       if (!showSignRequestPopup && initialConnectDoneRef.current) {
+        // Check Redis first before showing modal
+        const redisScanned = await checkRedisScannedChains();
+        if (redisScanned === true) {
+          console.log('[VaultDesktop] Redis confirms chain already scanned - skipping modal in progress');
+          return;
+        }
+        
         // Double-check readiness from checkChainReady before opening
         checkChainReady()
           .then((ready) => {
@@ -472,6 +538,14 @@ const VaultDesktopInner = () => {
     const onPollStart = async (e) => {
       // Do not show init modal on initial connect fast-path; only after initial connect
       if (!initialConnectDoneRef.current) return;
+      
+      // Check Redis first before any modal logic
+      const redisScanned = await checkRedisScannedChains();
+      if (redisScanned === true) {
+        console.log('[VaultDesktop] Redis confirms chain already scanned - skipping poll start modal');
+        return;
+      }
+      
       try {
         const ready = await checkChainReady();
         if (!ready) onInitStarted(e);
@@ -483,6 +557,14 @@ const VaultDesktopInner = () => {
     const onScanStarted = async (e) => {
       // Same guard: avoid modal during initial connect if wallet existed in Redis
       if (!initialConnectDoneRef.current) return;
+      
+      // Check Redis first before any modal logic
+      const redisScanned = await checkRedisScannedChains();
+      if (redisScanned === true) {
+        console.log('[VaultDesktop] Redis confirms chain already scanned - skipping scan start modal');
+        return;
+      }
+      
       try {
         const ready = await checkChainReady();
         if (!ready) onInitStarted(e);
@@ -508,7 +590,7 @@ const VaultDesktopInner = () => {
       window.removeEventListener('railgun-init-completed', onInitCompleted);
       window.removeEventListener('railgun-init-failed', onInitFailed);
     };
-  }, [address, chainId, railgunWalletId, network, checkChainReady, showSignRequestPopup]);
+  }, [address, chainId, railgunWalletId, network, checkChainReady, showSignRequestPopup, checkRedisScannedChains]);
 
   // Unlock modal using the same readiness flag as old WalletPage
   useEffect(() => {
@@ -762,8 +844,16 @@ const VaultDesktopInner = () => {
         </div>
       ), { duration: 2000 });
 
-      // After switch: if new chain isn't ready/scanned, show initialization popup (like old WalletPage)
+      // After switch: check Redis first, then chain readiness
       try {
+        // Check Redis first before any modal logic
+        const redisScanned = await checkRedisScannedChains(targetChainId);
+        if (redisScanned === true) {
+          console.log('[VaultDesktop] Redis confirms target chain already scanned - no modal needed');
+          return;
+        }
+        
+        console.log('[VaultDesktop] Redis check passed - checking chain readiness...');
         const ready = await checkChainReady();
         if (!ready) {
           console.log('[VaultDesktop] Chain not ready after switch - showing modal');
