@@ -150,28 +150,49 @@ const VaultDesktopInner = () => {
       return false;
     }
 
-    const scanned = await isChainScanned(address, railgunWalletId, id);
-    console.log('[DEBUG] isChainScanned result:', scanned);
-
-    // Hard rule: if scanned === true → never open
-    if (scanned === true) {
-      console.log('[DEBUG] Chain is scanned - not opening modal');
+    // Wait for Railgun engine: Check local readiness first
+    let ready;
+    try {
+      ready = await checkChainReady();
+      console.log('[DEBUG] checkChainReady result:', ready);
+    } catch (e) {
+      console.error('[DEBUG] checkChainReady error:', e);
+      ready = false; // Fallback: assume not ready on error
+    }
+    if (ready === true) {
+      console.log('[DEBUG] Engine reports chain ready - not opening modal');
       setShowSignRequestPopup(false);
       setIsInitInProgress(false);
       return false;
     }
 
-    // Open when Redis does not confirm scanned (false or null)
-    console.log('[DEBUG] Chain not confirmed scanned (false/null) - opening modal');
-    if (!showSignRequestPopup) setShowSignRequestPopup(true);
-    setIsInitInProgress(true);
-    const label =
-      id === 1 ? 'Ethereum' :
-      id === 42161 ? 'Arbitrum' :
-      id === 137 ? 'Polygon' : `Chain ${id}`;
-      id === 56 ? 'BNB Chain' : `Chain ${id}`;
-    setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${label} Network...` });
-    return true;
+    // Only if not ready locally, check Redis
+    const scanned = await isChainScanned(address, railgunWalletId, id);
+    console.log('[DEBUG] isChainScanned result:', scanned);
+
+    if (scanned === true) {
+      console.log('[DEBUG] Redis confirms scanned - not opening modal');
+      setShowSignRequestPopup(false);
+      setIsInitInProgress(false);
+      return false;
+    }
+
+    if (scanned === false) {
+      console.log('[DEBUG] Redis confirms not scanned - opening modal');
+      if (!showSignRequestPopup) setShowSignRequestPopup(true);
+      setIsInitInProgress(true);
+      const label =
+        id === 1 ? 'Ethereum' :
+        id === 42161 ? 'Arbitrum' :
+        id === 137 ? 'Polygon' :
+        id === 56 ? 'BNB Chain' : `Chain ${id}`;
+      setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${label} Network...` });
+      return true;
+    }
+
+    // scanned === null (error/unknown): do nothing, assume issue but don't lock
+    console.log('[DEBUG] Scanned is null - not opening modal');
+    return false;
   }
 
   // Disconnect handler: clear local/session flags and reset UI state before actual disconnect
