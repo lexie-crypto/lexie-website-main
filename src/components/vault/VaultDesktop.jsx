@@ -180,19 +180,22 @@ const VaultDesktopInner = () => {
 
   // Check if a specific chain has been scanned in Redis scannedChains
   const checkRedisChainScanned = useCallback(async (targetChainId) => {
-    if (!address) return false;
+    if (!address) return null;
     try {
       const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-      if (!resp.ok) return false;
+      if (!resp.ok) return null;
       const data = await resp.json().catch(() => ({}));
-      const metaKey = Array.isArray(data?.keys)
-        ? (railgunWalletId ? data.keys.find((k) => k.walletId === railgunWalletId) : data.keys[0])
-        : null;
-      const scannedChains = metaKey?.scannedChains || [];
+      const keys = Array.isArray(data?.keys) ? data.keys : [];
+      const key = keys.find((k) => (
+        (k?.eoa?.toLowerCase?.() === address.toLowerCase()) &&
+        (railgunWalletId ? k?.walletId === railgunWalletId : true)
+      )) || null;
+      if (!key) return false;
+      const scanned = Array.isArray(key?.scannedChains) ? key.scannedChains : [];
       const id = targetChainId != null ? targetChainId : chainId;
-      return Array.isArray(scannedChains) && scannedChains.includes(id);
+      return scanned.includes(id);
     } catch {
-      return false;
+      return null; // unknown
     }
   }, [address, railgunWalletId, chainId]);
 
@@ -867,7 +870,7 @@ const VaultDesktopInner = () => {
       // After switch: check Redis scannedChains first. If not scanned → show modal instantly.
       try {
         const scanned = await checkRedisChainScanned(targetChainId);
-        if (!scanned) {
+        if (scanned === false) {
           if (!showSignRequestPopup) setShowSignRequestPopup(true);
           setIsInitInProgress(true);
           const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
@@ -875,6 +878,7 @@ const VaultDesktopInner = () => {
           // Let WalletContext trigger the actual scan; we'll keep the modal until chain becomes ready
           return;
         }
+        // scanned === true → do nothing; scanned === null (unknown) → defer to readiness events without forcing modal
         // If scanned, we can skip showing the modal; readiness will follow shortly
         // Optionally confirm readiness without blocking UX
         try { await checkChainReady(); } catch {}
