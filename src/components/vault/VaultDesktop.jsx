@@ -107,10 +107,19 @@ const VaultDesktopInner = () => {
     if (!checkChainId) return null;
 
     try {
-      console.log('[VaultDesktop] Checking Redis for scannedChains before modal/scan...');
+      console.log('[VaultDesktop] Checking Redis for scannedChains before modal/scan...', {
+        address,
+        addressLower: address.toLowerCase(),
+        railgunWalletId,
+        checkChainId: Number(checkChainId)
+      });
       
       // Use wallet-metadata proxy to get Redis data
-      const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address.toLowerCase())}`);
+      const queryUrl = `/api/wallet-metadata?walletAddress=${encodeURIComponent(address.toLowerCase())}`;
+      console.log('[VaultDesktop] Redis query URL:', queryUrl);
+      const response = await fetch(queryUrl);
+      
+      console.log('[VaultDesktop] Redis response status:', response.status);
       
       if (response.status === 404) {
         console.log('[VaultDesktop] No wallet metadata in Redis - needs initialization');
