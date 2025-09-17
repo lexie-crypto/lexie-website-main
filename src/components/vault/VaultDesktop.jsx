@@ -150,6 +150,20 @@ const VaultDesktopInner = () => {
       return false;
     }
 
+    // Special case: If no railgunWalletId (new wallet, initial signature request), always open modal
+    if (!railgunWalletId) {
+      console.log('[DEBUG] No railgunWalletId - opening modal for initial setup');
+      if (!showSignRequestPopup) setShowSignRequestPopup(true);
+      setIsInitInProgress(true);
+      const label =
+        id === 1 ? 'Ethereum' :
+        id === 42161 ? 'Arbitrum' :
+        id === 137 ? 'Polygon' :
+        id === 56 ? 'BNB Chain' : `Chain ${id}`;
+      setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${label} Network...` });
+      return true;
+    }
+
     // Wait for Railgun engine: Check local readiness first
     let ready;
     try {
