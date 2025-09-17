@@ -1118,7 +1118,9 @@ const VaultDesktopInner = () => {
                   <div className="relative" ref={mobileChainMenuRef}>
                     <button
                       onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsMobileChainMenuOpen((v) => !v); }}
-                      className="px-2 py-1 text-sm bg-black text-green-300 rounded border border-green-500/40 hover:border-emerald-400"
+                      className={`px-2 py-1 text-sm bg-black text-green-300 rounded border border-green-500/40 hover:border-emerald-400 ${(!canUseRailgun || !railgunWalletId) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : 'Select network'}
+                      aria-disabled={!canUseRailgun || !railgunWalletId}
                     >
                       {supportedNetworks.find(n => n.id === chainId)?.name || 'Select'}
                       <span className="ml-1">▾</span>
@@ -1130,6 +1132,8 @@ const VaultDesktopInner = () => {
                             key={net.id}
                             onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsMobileChainMenuOpen(false); handleNetworkSwitch(net.id); }}
                             className={`w-full text-left px-3 py-2 ${(!canUseRailgun || !railgunWalletId) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-900/30 focus:bg-emerald-900/30'} focus:outline-none`}
+                            title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : `Switch to ${net.name}`}
+                            aria-disabled={!canUseRailgun || !railgunWalletId}
                           >
                             {net.name}
                           </button>
@@ -1151,7 +1155,9 @@ const VaultDesktopInner = () => {
               <div className="relative" ref={chainMenuRef}>
                 <button
                   onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsChainMenuOpen((v) => !v); }}
-                  className="px-2 py-1 text-sm bg-black text-green-300 rounded border border-green-500/40 hover:border-emerald-400"
+                  className={`px-2 py-1 text-sm bg-black text-green-300 rounded border border-green-500/40 hover:border-emerald-400 ${(!canUseRailgun || !railgunWalletId) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : 'Select network'}
+                  aria-disabled={!canUseRailgun || !railgunWalletId}
                 >
                   {supportedNetworks.find(n => n.id === chainId)?.name || 'Select'}
                   <span className="ml-1">▾</span>
@@ -1163,6 +1169,8 @@ const VaultDesktopInner = () => {
                         key={net.id}
                         onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsChainMenuOpen(false); handleNetworkSwitch(net.id); }}
                         className={`w-full text-left px-3 py-2 ${(!canUseRailgun || !railgunWalletId) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-900/30 focus:bg-emerald-900/30'} focus:outline-none`}
+                        title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : `Switch to ${net.name}`}
+                        aria-disabled={!canUseRailgun || !railgunWalletId}
                       >
                         {net.name}
                       </button>
