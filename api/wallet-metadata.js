@@ -399,15 +399,6 @@ export default async function handler(req, res) {
         backendPath = `/api/status?lexieID=${encodeURIComponent(lexieID)}`;
         backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
         console.log(`🔍 [WALLET-METADATA-PROXY-${requestId}] GET Lexie status for ${lexieID}`);
-      } else if (action === 'rewards-balance') {
-        const lexieID = req.query.lexieId || req.query.lexieID;
-        if (!lexieID) {
-          console.log(`❌ [REWARDS-PROXY-${requestId}] Missing lexieId for rewards-balance`);
-          return res.status(400).json({ success: false, error: 'Missing lexieId' });
-        }
-        backendPath = `/api/rewards/balance?lexieId=${encodeURIComponent(lexieID)}`;
-        backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
-        console.log(`🎁 [REWARDS-PROXY-${requestId}] GET balance for ${lexieID}`);
 
       } else if (action === 'lexie-resolve') {
         const lexieID = req.query.lexieID;
@@ -547,11 +538,6 @@ export default async function handler(req, res) {
         backendPath = '/api/verify';
         backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
         console.log(`✅ [WALLET-METADATA-PROXY-${requestId}] POST Lexie link verify`);
-
-      } else if (action === 'rewards-award') {
-        backendPath = '/api/rewards/award';
-        backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
-        console.log(`🎁 [REWARDS-PROXY-${requestId}] POST award points`);
 
       } else {
         // Default: store wallet metadata (signature, encryptedMnemonic, reverse index, balances merge)
