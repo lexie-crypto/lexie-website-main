@@ -114,8 +114,8 @@ const VaultDesktopInner = () => {
         checkChainId: Number(checkChainId)
       });
       
-      // Use wallet-metadata proxy to get Redis data
-      const queryUrl = `/api/wallet-metadata?walletAddress=${encodeURIComponent(address.toLowerCase())}`;
+      // Use wallet-metadata proxy to get Redis data (use original address casing)
+      const queryUrl = `/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`;
       console.log('[VaultDesktop] Redis query URL:', queryUrl);
       const response = await fetch(queryUrl);
       
