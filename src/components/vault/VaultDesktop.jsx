@@ -104,33 +104,37 @@ const VaultDesktopInner = () => {
   const network = getCurrentNetwork();
   const [isChainReady, setIsChainReady] = useState(false);
 
-  // Check Redis for existing wallet metadata for this address
-  const checkRedisWalletData = useCallback(async () => {
-    if (!address) { setHasRedisWalletData(null); return null; }
-    try {
-      if (redisCheckRef.current.inFlight && redisCheckRef.current.lastFor === address) {
-        return hasRedisWalletData == null ? null : !!hasRedisWalletData;
-      }
-      redisCheckRef.current.inFlight = true;
-      redisCheckRef.current.lastFor = address;
-      const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-      if (!resp.ok) { setHasRedisWalletData(null); return null; }
-      const data = await resp.json().catch(() => ({}));
-      const keys = Array.isArray(data?.keys) ? data.keys : [];
-      const metaKey = keys.find((k) => (k.walletId && k.railgunAddress && (k?.eoa?.toLowerCase?.() === address.toLowerCase()))) || null;
-      const exists = !!metaKey && (!!metaKey.signature || !!metaKey.encryptedMnemonic);
-      setHasRedisWalletData(exists);
-      return exists;
-    } catch {
-      setHasRedisWalletData(null);
-      return null;
-    } finally {
-      redisCheckRef.current.inFlight = false;
-    }
-  }, [address, hasRedisWalletData]);
-
   // Keep metadata status up to date when address changes; clear cached state first
-  useEffect(() => { setHasRedisWalletData(null); checkRedisWalletData(); }, [address, checkRedisWalletData]);
+  useEffect(() => {
+    setHasRedisWalletData(null);
+    if (!address) return;
+
+    const check = async () => {
+      try {
+        if (redisCheckRef.current.inFlight && redisCheckRef.current.lastFor === address) {
+          // Use current state value directly since we're inside useEffect
+          return hasRedisWalletData == null ? null : !!hasRedisWalletData;
+        }
+        redisCheckRef.current.inFlight = true;
+        redisCheckRef.current.lastFor = address;
+        const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+        if (!resp.ok) { setHasRedisWalletData(null); return null; }
+        const data = await resp.json().catch(() => ({}));
+        const keys = Array.isArray(data?.keys) ? data.keys : [];
+        const metaKey = keys.find((k) => (k.walletId && k.railgunAddress && (k?.eoa?.toLowerCase?.() === address.toLowerCase()))) || null;
+        const exists = !!metaKey && (!!metaKey.signature || !!metaKey.encryptedMnemonic);
+        setHasRedisWalletData(exists);
+        return exists;
+      } catch {
+        setHasRedisWalletData(null);
+        return null;
+      } finally {
+        redisCheckRef.current.inFlight = false;
+      }
+    };
+
+    check();
+  }, [address]);
 
   // Reset initial-connect flag and lock UI on wallet/address change
   useEffect(() => {
