@@ -107,6 +107,7 @@ const VaultDesktopInner = () => {
     if (!checkChainId) return null;
 
     const ourWalletId = railgunWalletId;
+    const ourWalletIdLower = (railgunWalletId || '').toLowerCase();
     const ourAddressLower = address.toLowerCase();
 
     try {
@@ -137,11 +138,11 @@ const VaultDesktopInner = () => {
       let matchingKey = null;
       let matchMethod = 'none';
 
-      // Method 1: Exact walletId + normalized address match
+      // Method 1: Exact walletId + normalized address match (case-insensitive on both sides)
       matchingKey = walletKeys.find(key => {
-        const keyWalletId = key.walletId;
+        const keyWalletIdLower = (key.walletId || '').toLowerCase();
         const keyAddressLower = key.eoa?.toLowerCase?.();
-        return keyWalletId === ourWalletId && keyAddressLower === ourAddressLower;
+        return keyWalletIdLower === ourWalletIdLower && keyAddressLower === ourAddressLower;
       });
       
       if (matchingKey) {
