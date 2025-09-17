@@ -30,10 +30,7 @@ import {
   parseTokenAmount,
   isTokenSupportedByRailgun,
 } from '../../utils/railgun/actions';
-// Removed deprecated checkSufficientBalance import
 import { deriveEncryptionKey } from '../../utils/railgun/wallet';
-
-import { isChainScanned, toNum } from '../../utils/isChainScanned';
 
 const VaultDesktopInner = () => {
   const {
@@ -53,7 +50,7 @@ const VaultDesktopInner = () => {
     getCurrentNetwork,
     walletProviders,
     isWalletAvailable,
-    walletProvider, // Add walletProvider to destructuring
+    walletProvider,
     checkChainReady,
   } = useWallet();
 
@@ -65,13 +62,13 @@ const VaultDesktopInner = () => {
     refreshAllBalances,
     refreshBalancesAfterTransaction,
     lastUpdateTime,
-    loadPrivateBalancesFromMetadata, // Add this for Redis-only refresh
-    isPrivateBalancesLoading, // Add this
+    loadPrivateBalancesFromMetadata,
+    isPrivateBalancesLoading,
   } = useBalances();
 
   const [showPrivateMode, setShowPrivateMode] = useState(false);
-  const [selectedView, setSelectedView] = useState('balances'); // 'balances', 'privacy', or 'history'
-  const [activeAction, setActiveAction] = useState('shield'); // 'shield', 'unshield', 'transfer'
+  const [selectedView, setSelectedView] = useState('balances');
+  const [activeAction, setActiveAction] = useState('shield');
   const [showPrivateBalances, setShowPrivateBalances] = useState(false);
   const [isShielding, setIsShielding] = useState(false);
   const [isTransactionLocked, setIsTransactionLocked] = useState(false);
@@ -83,9 +80,7 @@ const VaultDesktopInner = () => {
   const [initProgress, setInitProgress] = useState({ percent: 0, message: '' });
   const [isInitInProgress, setIsInitInProgress] = useState(false);
   const [initFailedMessage, setInitFailedMessage] = useState('');
-  const initAddressRef = React.useRef(null);
-  // Track when initial connection hydration is complete
-  const initialConnectDoneRef = React.useRef(false);
+  
   // Lexie ID linking state
   const [lexieIdInput, setLexieIdInput] = useState('');
   const [lexieLinking, setLexieLinking] = useState(false);
@@ -95,193 +90,206 @@ const VaultDesktopInner = () => {
   const [showLexieModal, setShowLexieModal] = useState(false);
   const [currentLexieId, setCurrentLexieId] = useState('');
   const [pointsBalance, setPointsBalance] = useState(null);
-  // Local state to show a refreshing indicator for Vault Balances (always available)
+  
+  // Local state to show a refreshing indicator for Vault Balances
   const [isRefreshingBalances, setIsRefreshingBalances] = useState(false);
-  // Redis metadata gating for lock modal
-  const [hasRedisWalletData, setHasRedisWalletData] = useState(null);
-  const redisCheckRef = useRef({ inFlight: false, lastFor: null });
-
-  const network = getCurrentNetwork();
+  
+  // Chain readiness state
   const [isChainReady, setIsChainReady] = useState(false);
 
-  // Keep metadata status up to date when address changes; clear cached state first
-  useEffect(() => {
-    setHasRedisWalletData(null);
-    if (!address) return;
+  const network = getCurrentNetwork();
 
-    const check = async () => {
-      try {
-        if (redisCheckRef.current.inFlight && redisCheckRef.current.lastFor === address) {
-          // Use current state value directly since we're inside useEffect
-          return hasRedisWalletData == null ? null : !!hasRedisWalletData;
-        }
-        redisCheckRef.current.inFlight = true;
-        redisCheckRef.current.lastFor = address;
-        const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-        if (!resp.ok) { setHasRedisWalletData(null); return null; }
-        const data = await resp.json().catch(() => ({}));
-        const keys = Array.isArray(data?.keys) ? data.keys : [];
-        const metaKey = keys.find((k) => (k.walletId && k.railgunAddress && (k?.eoa?.toLowerCase?.() === address.toLowerCase()))) || null;
-        const exists = !!metaKey && (!!metaKey.signature || !!metaKey.encryptedMnemonic);
-        setHasRedisWalletData(exists);
-        return exists;
-      } catch {
-        setHasRedisWalletData(null);
-        return null;
-      } finally {
-        redisCheckRef.current.inFlight = false;
+  // Check Redis for scannedChains status
+  const checkScannedChains = useCallback(async (targetChainId = null) => {
+    if (!address || !railgunWalletId) return null;
+    
+    const checkChainId = targetChainId || chainId;
+    if (!checkChainId) return null;
+
+    try {
+      const redisKey = `railgun:${address}:${railgunWalletId}:meta.scannedChains`;
+      const response = await fetch(`/api/redis-check?key=${encodeURIComponent(redisKey)}`);
+      
+      if (response.status === 404) {
+        console.log('[VaultDesktop] Redis key not found - wallet needs initialization');
+        return false;
       }
+      
+      if (!response.ok) {
+        console.warn('[VaultDesktop] Redis check failed:', response.status);
+        return null;
+      }
+      
+      const data = await response.json();
+      const scannedChains = data.value || {};
+      const isChainScanned = scannedChains[checkChainId.toString()];
+      
+      console.log('[VaultDesktop] Redis scannedChains check:', {
+        chainId: checkChainId,
+        isScanned: isChainScanned,
+        allChains: scannedChains
+      });
+      
+      return isChainScanned === true;
+    } catch (error) {
+      console.error('[VaultDesktop] Error checking scannedChains:', error);
+      return null;
+    }
+  }, [address, railgunWalletId, chainId]);
+
+  // Modal gating logic
+  const maybeShowInitModal = useCallback(async (targetChainId = null) => {
+    const checkChainId = targetChainId || chainId;
+    console.log('[VaultDesktop] maybeShowInitModal called for chain:', checkChainId);
+    
+    if (!address || !checkChainId) {
+      console.log('[VaultDesktop] No address or chainId, skipping modal check');
+      return;
+    }
+
+    // If no railgunWalletId, always show modal for initial setup
+    if (!railgunWalletId) {
+      console.log('[VaultDesktop] No railgunWalletId - showing modal for initial setup');
+      setShowSignRequestPopup(true);
+      setIsInitInProgress(true);
+      const networkName = getNetworkName(checkChainId);
+      setInitProgress({ 
+        percent: 0, 
+        message: `Setting up your LexieVault on ${networkName} Network...` 
+      });
+      return;
+    }
+
+    // Check Redis for scannedChains
+    const isScanned = await checkScannedChains(checkChainId);
+    
+    if (isScanned === false || isScanned === null) {
+      console.log('[VaultDesktop] Chain not scanned - showing modal');
+      setShowSignRequestPopup(true);
+      setIsInitInProgress(true);
+      const networkName = getNetworkName(checkChainId);
+      setInitProgress({ 
+        percent: 0, 
+        message: `Setting up your LexieVault on ${networkName} Network...` 
+      });
+    } else {
+      console.log('[VaultDesktop] Chain already scanned - no modal needed');
+      setShowSignRequestPopup(false);
+      setIsInitInProgress(false);
+    }
+  }, [address, chainId, railgunWalletId, checkScannedChains]);
+
+  // Helper function to get network name
+  const getNetworkName = (id) => {
+    const networks = {
+      1: 'Ethereum',
+      42161: 'Arbitrum',
+      137: 'Polygon',
+      56: 'BNB Chain'
     };
+    return networks[id] || `Chain ${id}`;
+  };
 
-    check();
-  }, [address]);
-
-  // Reset initial-connect flag and lock UI on wallet/address change
+  // Check modal on wallet connection
   useEffect(() => {
-    initialConnectDoneRef.current = false;
+    if (isConnected && address) {
+      console.log('[VaultDesktop] Wallet connected, checking if modal needed');
+      maybeShowInitModal();
+    }
+  }, [isConnected, address, maybeShowInitModal]);
+
+  // Reset modal state when address changes
+  useEffect(() => {
     setShowSignRequestPopup(false);
     setIsInitInProgress(false);
     setInitFailedMessage('');
     setInitProgress({ percent: 0, message: '' });
   }, [address]);
 
-  // Unified gate for opening the initialization modal
-  async function maybeOpenInitModalByRedis(targetChainId) {
-    const id = toNum(targetChainId ?? chainId);
-    console.log('[DEBUG] maybeOpenInitModalByRedis: targetChainId=', targetChainId, 'calculated id=', id, 'address=', address, 'railgunWalletId=', railgunWalletId);
-    if (id == null || !address) {
-      console.log('[DEBUG] Early return: invalid id or no address');
-      return false;
-    }
+  // Update chain readiness
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      if (mounted) setIsChainReady(false);
+      if (!canUseRailgun || !railgunWalletId || !address) return;
+      try {
+        const ready = await checkChainReady();
+        if (mounted) setIsChainReady(!!ready);
+      } catch {
+        if (mounted) setIsChainReady(false);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [canUseRailgun, railgunWalletId, address, chainId, checkChainReady]);
 
-    // Special case: If no railgunWalletId (new wallet, initial signature request), always open modal
-    if (!railgunWalletId) {
-      console.log('[DEBUG] No railgunWalletId - opening modal for initial setup');
-      if (!showSignRequestPopup) setShowSignRequestPopup(true);
-      setIsInitInProgress(true);
-      const label =
-        id === 1 ? 'Ethereum' :
-        id === 42161 ? 'Arbitrum' :
-        id === 137 ? 'Polygon' :
-        id === 56 ? 'BNB Chain' : `Chain ${id}`;
-      setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${label} Network...` });
-      return true;
-    }
-
-    // Wait for Railgun engine: Check local readiness first
-    let ready;
-    try {
-      ready = await checkChainReady();
-      console.log('[DEBUG] checkChainReady result:', ready);
-    } catch (e) {
-      console.error('[DEBUG] checkChainReady error:', e);
-      ready = false; // Fallback: assume not ready on error
-    }
-    if (ready === true) {
-      console.log('[DEBUG] Engine reports chain ready - not opening modal');
-      setShowSignRequestPopup(false);
-      setIsInitInProgress(false);
-      return false;
-    }
-
-    // Only if not ready locally, check Redis
-    const scanned = await isChainScanned(address, railgunWalletId, id);
-    console.log('[DEBUG] isChainScanned result:', scanned);
-
-    if (scanned === true) {
-      console.log('[DEBUG] Redis confirms scanned - not opening modal');
-      setShowSignRequestPopup(false);
-      setIsInitInProgress(false);
-      return false;
-    } else {
-      // false or null: open modal
-      console.log(`[DEBUG] Redis result is ${scanned === false ? 'false' : 'null'} - opening modal`);
-      if (!showSignRequestPopup) setShowSignRequestPopup(true);
-      setIsInitInProgress(true);
-      const label =
-        id === 1 ? 'Ethereum' :
-        id === 42161 ? 'Arbitrum' :
-        id === 137 ? 'Polygon' :
-        id === 56 ? 'BNB Chain' : `Chain ${id}`;
-      setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${label} Network...` });
-      return true;
-    }
-  }
-
-  // Disconnect handler: clear local/session flags and reset UI state before actual disconnect
+  // Disconnect handler
   const handleDisconnect = useCallback(async () => {
     try {
       // Clear per-address guide flag
-      try { if (address) { localStorage.removeItem(`railgun-guide-seen-${address.toLowerCase()}`); } } catch {}
-      // Clear any session flags
+      if (address) {
+        try { 
+          localStorage.removeItem(`railgun-guide-seen-${address.toLowerCase()}`); 
+        } catch {}
+      }
+      
+      // Clear session flags
       try { sessionStorage.clear(); } catch {}
-      // Reset WalletConnect/Wagmi cached sessions so QR code is fresh next time
+      
+      // Reset WalletConnect/Wagmi cached sessions
       try {
         const lc = localStorage;
         if (lc) {
           try { lc.removeItem('wagmi.store'); } catch {}
           try { lc.removeItem('walletconnect'); } catch {}
           try { lc.removeItem('WALLETCONNECT_DEEPLINK_CHOICE'); } catch {}
-          // Remove any wc@ v2 keys and web3modal caches
-          try {
-            const keys = Object.keys(lc);
-            keys.forEach((k) => {
-              if (k.startsWith('wc@') || k.startsWith('wc:') || k.toLowerCase().includes('walletconnect') || k.toLowerCase().includes('web3modal')) {
-                try { lc.removeItem(k); } catch {}
-              }
-            });
-          } catch {}
+          
+          const keys = Object.keys(lc);
+          keys.forEach((k) => {
+            if (k.startsWith('wc@') || k.startsWith('wc:') || 
+                k.toLowerCase().includes('walletconnect') || 
+                k.toLowerCase().includes('web3modal')) {
+              try { lc.removeItem(k); } catch {}
+            }
+          });
         }
       } catch {}
+      
       // Reset local UI state
-      try { setCurrentLexieId(''); } catch {}
-      try { setPointsBalance(null); } catch {}
-      try { setHasRedisWalletData(null); } catch {}
-      try {
-        setShowSignRequestPopup(false);
-        setIsInitInProgress(false);
-        setInitFailedMessage('');
-        setInitProgress({ percent: 0, message: '' });
-      } catch {}
+      setCurrentLexieId('');
+      setPointsBalance(null);
+      setShowSignRequestPopup(false);
+      setIsInitInProgress(false);
+      setInitFailedMessage('');
+      setInitProgress({ percent: 0, message: '' });
     } finally {
-      try { await disconnectWallet(); } catch {}
+      try { 
+        await disconnectWallet(); 
+      } catch {}
     }
   }, [address, disconnectWallet]);
 
-  // Listen for transaction lock/unlock events from PrivacyActions
+  // Listen for transaction lock/unlock events
   useEffect(() => {
     const handleTransactionStart = () => {
-      console.log('[WalletPage] 🔒 Transaction started, locking UI');
+      console.log('[VaultDesktop] Transaction started, locking UI');
       setIsTransactionLocked(true);
-      setActiveTransactionMonitors(prev => {
-        const newCount = prev + 1;
-        console.log(`[WalletPage] 📊 Transaction monitor count increased: ${newCount}`);
-        return newCount;
-      });
+      setActiveTransactionMonitors(prev => prev + 1);
     };
 
     const handleTransactionComplete = () => {
-      console.log('[WalletPage] 📋 Transaction form reset completed');
-      // Don't unlock UI here - let the monitor completion handle it
+      console.log('[VaultDesktop] Transaction form reset completed');
     };
 
-    // Listen for transaction monitor completion to unlock transactions
     const handleTransactionMonitorComplete = (event) => {
       const { transactionType, found, elapsedTime } = event.detail;
-      console.log(`[WalletPage] ✅ Transaction monitor completed for ${transactionType} (${found ? 'found' : 'timeout'}) in ${elapsedTime/1000}s`);
+      console.log(`[VaultDesktop] Transaction monitor completed for ${transactionType} (${found ? 'found' : 'timeout'}) in ${elapsedTime/1000}s`);
 
       setActiveTransactionMonitors(prev => {
         const newCount = prev - 1;
-        console.log(`[WalletPage] 📊 Transaction monitor count decreased: ${newCount}`);
-
-        // Only unlock UI when ALL monitors have completed
         if (newCount === 0) {
-          console.log('[WalletPage] 🔓 All transaction monitors completed, unlocking UI');
+          console.log('[VaultDesktop] All transaction monitors completed, unlocking UI');
           setIsTransactionLocked(false);
-        } else {
-          console.log(`[WalletPage] 🔒 Still ${newCount} transaction monitor(s) running, keeping UI locked`);
         }
-
         return newCount;
       });
 
@@ -292,7 +300,7 @@ const VaultDesktopInner = () => {
         const txHash = (detail.txHash || detail.hash || '').toString();
         const usdValue = Number(detail.usdValue || detail.usd || 0);
         if (!txHash) return;
-        // Allow awarding even if usdValue missing; backend enforces min and idempotency
+        
         fetch('/api/wallet-metadata?action=rewards-award', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -304,20 +312,20 @@ const VaultDesktopInner = () => {
           } else if (r.ok && json?.ok && typeof json.balance === 'number') {
             setPointsBalance(json.balance);
           } else if (r.ok && json?.idempotent) {
-            // fallback refresh
-            fetch(`/api/wallet-metadata?action=rewards-balance&lexieId=${encodeURIComponent(currentLexieId)}`).then(res => res.json()).then(b => {
-              if (b?.success && typeof b.balance === 'number') setPointsBalance(b.balance);
-            }).catch(() => {});
+            fetch(`/api/wallet-metadata?action=rewards-balance&lexieId=${encodeURIComponent(currentLexieId)}`)
+              .then(res => res.json())
+              .then(b => {
+                if (b?.success && typeof b.balance === 'number') setPointsBalance(b.balance);
+              }).catch(() => {});
           }
         }).catch(() => {});
       } catch {}
     };
 
-    // Also listen for balance update completion as backup
     const handleBalanceUpdateComplete = (event) => {
-      console.log('[WalletPage] 🔓 Balance update completed (backup unlock)');
+      console.log('[VaultDesktop] Balance update completed (backup unlock)');
       setIsTransactionLocked(false);
-      setActiveTransactionMonitors(0); // Reset counter as backup
+      setActiveTransactionMonitors(0);
     };
 
     if (typeof window !== 'undefined') {
@@ -335,33 +343,16 @@ const VaultDesktopInner = () => {
         window.removeEventListener('railgun-public-refresh', handleBalanceUpdateComplete);
       }
     };
-  }, []);
+  }, [currentLexieId]);
 
+  // Event listeners for vault balance refresh state
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      // Reset readiness when dependencies change to avoid stale "complete" state on chain switch
-      if (mounted) setIsChainReady(false);
-      if (!canUseRailgun || !railgunWalletId || !address) return;
-      try {
-        const ready = await checkChainReady();
-        if (mounted) setIsChainReady(!!ready);
-      } catch {
-        if (mounted) setIsChainReady(false);
-      }
-    })();
-    return () => { mounted = false; };
-  }, [canUseRailgun, railgunWalletId, address, chainId]);
-
-  // Event listeners for vault balance refresh state (always available in WalletPage)
-  useEffect(() => {
-    // Public balances events are ignored for UI gating; only private events control the spinner
     const onPrivateStart = () => {
-      console.log('[WalletPage] Private balances refresh started - showing spinner');
+      console.log('[VaultDesktop] Private balances refresh started - showing spinner');
       setIsRefreshingBalances(true);
     };
     const onPrivateComplete = () => {
-      console.log('[WalletPage] Private balances refresh completed - hiding spinner');
+      console.log('[VaultDesktop] Private balances refresh completed - hiding spinner');
       setIsRefreshingBalances(false);
     };
     window.addEventListener('vault-private-refresh-start', onPrivateStart);
@@ -372,11 +363,11 @@ const VaultDesktopInner = () => {
     };
   }, []);
 
-  // Full refresh: SDK refresh + Redis persist, then UI reload (public from chain + private from Redis)
+  // Full refresh: SDK refresh + Redis persist, then UI reload
   const refreshBalances = useCallback(async () => {
     try {
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
-      console.log('[WalletPage] 🔄 Full refresh — SDK refresh + Redis persist, then UI fetch...');
+      console.log('[VaultDesktop] Full refresh — SDK refresh + Redis persist, then UI fetch...');
 
       // Step 1: Trigger SDK refresh + persist authoritative balances to Redis
       try {
@@ -389,7 +380,7 @@ const VaultDesktopInner = () => {
           });
         }
       } catch (sdkErr) {
-        console.warn('[WalletPage] ⚠️ SDK refresh + persist failed (continuing to UI refresh):', sdkErr?.message);
+        console.warn('[VaultDesktop] SDK refresh + persist failed (continuing to UI refresh):', sdkErr?.message);
       }
 
       // Step 2: Refresh UI from sources of truth
@@ -410,7 +401,7 @@ const VaultDesktopInner = () => {
         </div>
       ), { duration: 2500 });
     } catch (error) {
-      console.error('[WalletPage] Full refresh failed:', error);
+      console.error('[VaultDesktop] Full refresh failed:', error);
       toast.custom((t) => (
         <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
           <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
@@ -433,10 +424,10 @@ const VaultDesktopInner = () => {
   // Auto-refresh public balances when wallet connects
   useEffect(() => {
     if (isConnected && address && chainId) {
-      console.log('[WalletPage] 🔄 Wallet connected - auto-refreshing public balances...');
+      console.log('[VaultDesktop] Wallet connected - auto-refreshing public balances...');
       refreshAllBalances();
     }
-  }, [isConnected, address, chainId]); // Removed refreshAllBalances to prevent infinite loop
+  }, [isConnected, address, chainId]);
 
   // Auto-switch to privacy view when Railgun is ready
   useEffect(() => {
@@ -445,27 +436,15 @@ const VaultDesktopInner = () => {
     }
   }, [canUseRailgun, railgunWalletId]);
 
-  // Re-check readiness immediately after scan completes and Redis updates
+  // Re-check readiness immediately after scan completes
   useEffect(() => {
     const onScanComplete = () => {
-      // Re-check readiness for the current chain only after Redis has updated scannedChains
       setIsChainReady(false);
       checkChainReady().then((ready) => setIsChainReady(!!ready)).catch(() => setIsChainReady(false));
     };
     window.addEventListener('railgun-scan-complete', onScanComplete);
     return () => window.removeEventListener('railgun-scan-complete', onScanComplete);
   }, [checkChainReady]);
-
-  // Mark initial connect as done once wallet metadata is ready or init completes
-  useEffect(() => {
-    const markDone = () => { initialConnectDoneRef.current = true; };
-    window.addEventListener('railgun-wallet-metadata-ready', markDone);
-    window.addEventListener('railgun-init-completed', markDone);
-    return () => {
-      window.removeEventListener('railgun-wallet-metadata-ready', markDone);
-      window.removeEventListener('railgun-init-completed', markDone);
-    };
-  }, []);
 
   // Fetch initial points when Lexie ID is available
   useEffect(() => {
@@ -483,30 +462,15 @@ const VaultDesktopInner = () => {
     return () => { cancelled = true; };
   }, [currentLexieId]);
 
-  // Fetch points balance when we have a Lexie ID
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      if (!currentLexieId) { setPointsBalance(null); return; }
-      try {
-        const resp = await fetch(`/api/wallet-metadata?action=rewards-balance&lexieId=${encodeURIComponent(currentLexieId)}`);
-        if (!cancelled && resp.ok) {
-          const json = await resp.json().catch(() => ({}));
-          if (json?.success) setPointsBalance(Number(json.balance) || 0);
-        }
-      } catch {}
-    })();
-    return () => { cancelled = true; };
-  }, [currentLexieId]);
-
-  // Listen for signature request and init lifecycle events from WalletContext
+  // Listen for signature request and init lifecycle events
   useEffect(() => {
     const onSignRequest = async () => {
-      await maybeOpenInitModalByRedis(chainId);
+      await maybeShowInitModal(chainId);
     };
-    const onInitStarted = async (e) => { await maybeOpenInitModalByRedis(chainId); };
+    const onInitStarted = async () => { 
+      await maybeShowInitModal(chainId); 
+    };
     const onInitProgress = async () => {
-      // Gate progress handler to only run while initialization is actually in progress
       if (!isInitInProgress) return;
       const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
       setInitProgress((prev) => ({
@@ -515,40 +479,32 @@ const VaultDesktopInner = () => {
       }));
     };
     const onInitCompleted = () => {
-      // Do not set to 100% here; wait for Redis scannedChains to confirm
-      console.log('[Vault Init] SDK reported completed; awaiting Redis confirmation');
+      console.log('[VaultDesktop] SDK reported completed; awaiting Redis confirmation');
       setInitProgress((prev) => ({ ...prev, message: prev.message || 'Finalizing...' }));
     };
     const onInitFailed = (e) => {
-      try { if (syntheticTicker) clearInterval(syntheticTicker); } catch {}
       const msg = e?.detail?.error || 'Initialization failed';
       setInitFailedMessage(msg);
       setIsInitInProgress(false);
-      console.warn('[LexieVault Init] Initialization failed:', msg);
+      console.warn('[VaultDesktop] Initialization failed:', msg);
     };
-    const onPollStart = async () => { if (!initialConnectDoneRef.current) return; await maybeOpenInitModalByRedis(chainId); };
-    const onScanStarted = async () => { if (!initialConnectDoneRef.current) return; await maybeOpenInitModalByRedis(chainId); };
+
     window.addEventListener('railgun-signature-requested', onSignRequest);
-    // Begin polling exactly when refreshBalances starts in context
-    window.addEventListener('vault-poll-start', onPollStart);
-    window.addEventListener('railgun-init-started', onInitStarted); // full init always shows
-    window.addEventListener('railgun-scan-started', onScanStarted);
+    window.addEventListener('railgun-init-started', onInitStarted);
     window.addEventListener('railgun-init-progress', onInitProgress);
     window.addEventListener('railgun-init-completed', onInitCompleted);
     window.addEventListener('railgun-init-failed', onInitFailed);
+    
     return () => {
       window.removeEventListener('railgun-signature-requested', onSignRequest);
       window.removeEventListener('railgun-init-started', onInitStarted);
-      window.removeEventListener('vault-poll-start', onPollStart);
       window.removeEventListener('railgun-init-progress', onInitProgress);
-      window.removeEventListener('railgun-scan-started', onScanStarted);
       window.removeEventListener('railgun-init-completed', onInitCompleted);
       window.removeEventListener('railgun-init-failed', onInitFailed);
-      try { if (window.__LEXIE_INIT_POLL_ID) { clearInterval(window.__LEXIE_INIT_POLL_ID); window.__LEXIE_INIT_POLL_ID = null; } } catch {}
     };
-  }, [address, chainId, railgunWalletId, network, checkChainReady, showSignRequestPopup]);
+  }, [address, chainId, railgunWalletId, network, maybeShowInitModal, isInitInProgress]);
 
-  // Unlock modal using the same readiness flag as Privacy Actions
+  // Unlock modal when chain is ready
   useEffect(() => {
     if (showSignRequestPopup && isInitInProgress && isChainReady) {
       setInitProgress({ percent: 100, message: 'Initialization complete' });
@@ -564,7 +520,6 @@ const VaultDesktopInner = () => {
     }
     (async () => {
       try {
-        // Check if this railgun address has a linked Lexie ID
         const resp = await fetch(`/api/wallet-metadata?action=by-wallet&railgunAddress=${encodeURIComponent(railgunAddress)}`);
         if (resp.ok) {
           const json = await resp.json().catch(() => ({}));
@@ -585,15 +540,12 @@ const VaultDesktopInner = () => {
   // Show signature guide on first-time EOA connection
   useEffect(() => {
     if (isConnected && address && !canUseRailgun && !isInitializingRailgun) {
-      // Check if this address has seen the guide before
       const seenGuideKey = `railgun-guide-seen-${address.toLowerCase()}`;
       const hasSeenGuide = localStorage.getItem(seenGuideKey);
       
       if (!hasSeenGuide) {
-        // Add small delay to ensure connection is fully established
         const timer = setTimeout(() => {
           setShowSignatureGuide(true);
-          // Mark this address as having seen the guide
           localStorage.setItem(seenGuideKey, 'true');
         }, 1000);
         return () => clearTimeout(timer);
@@ -612,7 +564,7 @@ const VaultDesktopInner = () => {
       const salt = `lexie-railgun-${chainId}`;
       return await deriveEncryptionKey(secret, salt, 100000);
     } catch (error) {
-      console.error('[WalletPage] Failed to derive encryption key:', error);
+      console.error('[VaultDesktop] Failed to derive encryption key:', error);
       throw new Error('Failed to derive encryption key');
     }
   }, [address, chainId]);
@@ -639,7 +591,7 @@ const VaultDesktopInner = () => {
         throw new Error(`${token.symbol} is not supported by Railgun on this network`);
       }
 
-      // Check sufficient balance - using direct balance check instead of deprecated function
+      // Check sufficient balance
       const requestedAmount = parseFloat(amount);
       const availableAmount = token.numericBalance || 0;
       
@@ -656,8 +608,7 @@ const VaultDesktopInner = () => {
       // Get encryption key
       const key = await getEncryptionKey();
 
-      // Execute shield operation with enhanced logging
-      console.log('[WalletPage] About to call shieldTokens with:', {
+      console.log('[VaultDesktop] About to call shieldTokens with:', {
         railgunWalletId: railgunWalletId ? `${railgunWalletId.slice(0, 8)}...` : 'MISSING',
         hasKey: !!key,
         tokenAddress: token.address,
@@ -674,15 +625,14 @@ const VaultDesktopInner = () => {
         railgunAddress: railgunAddress ? `${railgunAddress.slice(0, 8)}...` : 'MISSING'
       });
 
-      // Validate token address: allow undefined/null for native base tokens (e.g., ETH/MATIC/BNB)
-      const isNativeToken = token.address == null; // undefined or null means native token
+      // Validate token address: allow undefined/null for native base tokens
+      const isNativeToken = token.address == null;
       if (!isNativeToken && (typeof token.address !== 'string' || !token.address.startsWith('0x') || token.address.length !== 42)) {
         throw new Error(`Invalid token address for ${token.symbol}`);
       }
 
-      // Log token type for debugging
       const tokenType = isNativeToken ? 'NATIVE' : 'ERC20';
-      console.log('[WalletPage] About to shield', tokenType, 'token:', token.symbol);
+      console.log('[VaultDesktop] About to shield', tokenType, 'token:', token.symbol);
       
       const result = await shieldTokens({
         tokenAddress: token.address,
@@ -693,25 +643,18 @@ const VaultDesktopInner = () => {
         walletProvider: await walletProvider()
       });
 
-      // Send the transaction to the blockchain
       toast.dismiss();
-      
-      console.log('[WalletPage] Sending shield transaction:', result.transaction);
+      console.log('[VaultDesktop] Sending shield transaction:', result.transaction);
       
       // Get wallet signer
       const walletSigner = await walletProvider();
       
       // Send transaction using signer
       const txResponse = await walletSigner.sendTransaction(result.transaction);
+      console.log('[VaultDesktop] Transaction sent:', txResponse);
       
-      console.log('[WalletPage] Transaction sent:', txResponse);
-      
-      // Wait for transaction confirmation
       toast.dismiss();
       toast.loading(`Waiting for confirmation...`);
-      
-      // Note: In a production app, you'd want to wait for confirmation
-      // For now, we'll just show success after sending
       
       toast.dismiss();
       toast.success(`Successfully shielded ${amount} ${token.symbol}! TX: ${txResponse.hash}`);
@@ -721,18 +664,15 @@ const VaultDesktopInner = () => {
       
       // Enhanced transaction monitoring
       toast.dismiss();
-      console.log('[WalletPage] Starting Graph-based shield monitoring...');
+      console.log('[VaultDesktop] Starting Graph-based shield monitoring...');
       
       try {
-        // Import the enhanced transaction monitor
         const { monitorTransactionInGraph } = await import('../../utils/railgun/transactionMonitor');
         
-        // Start monitoring with transaction details for optimistic updates
         monitorTransactionInGraph({
           txHash: txResponse.hash,
           chainId: chainConfig.id,
           transactionType: 'shield',
-          // Pass transaction details for optimistic UI update and note capture
           transactionDetails: {
             walletAddress: address,
             walletId: railgunWalletId,
@@ -742,29 +682,26 @@ const VaultDesktopInner = () => {
             amount: amount,
           },
           listener: async (event) => {
-            console.log(`[WalletPage] ✅ Shield tx ${txResponse.hash} indexed on chain ${chainConfig.id}`);
-            
+            console.log(`[VaultDesktop] Shield tx ${txResponse.hash} indexed on chain ${chainConfig.id}`);
           }
         })
         .then((result) => {
           if (result.found) {
-            console.log(`[WalletPage] Shield monitoring completed in ${result.elapsedTime/1000}s`);
+            console.log(`[VaultDesktop] Shield monitoring completed in ${result.elapsedTime/1000}s`);
           } else {
-            console.warn('[WalletPage] Shield monitoring timed out');
+            console.warn('[VaultDesktop] Shield monitoring timed out');
           }
         })
         .catch((error) => {
-          console.error('[WalletPage] Shield Graph monitoring failed:', error);
-          // Let balance callback handle the update
+          console.error('[VaultDesktop] Shield Graph monitoring failed:', error);
         });
         
       } catch (monitorError) {
-        console.error('[WalletPage] Failed to start shield monitoring:', monitorError);
-        // Still rely on balance callback system
+        console.error('[VaultDesktop] Failed to start shield monitoring:', monitorError);
       }
       
     } catch (error) {
-      console.error('[WalletPage] Shield failed:', error);
+      console.error('[VaultDesktop] Shield failed:', error);
       toast.dismiss();
     } finally {
       setIsShielding(false);
@@ -776,68 +713,13 @@ const VaultDesktopInner = () => {
     }
   }, [canUseRailgun, railgunWalletId, address, chainId, network, shieldAmounts, refreshBalancesAfterTransaction, getEncryptionKey, walletProvider]);
 
-  // Handle Shield All functionality
-  const handleShieldAll = useCallback(async () => {
-    if (!canUseRailgun || !railgunWalletId || !address) {
-      toast.error('Railgun wallet not ready');
-      return;
-    }
-
-    try {
-      setIsShielding(true);
-      
-      // Get tokens that can be shielded from public balances
-      const shieldableTokens = publicBalances.filter(token => 
-        token.hasBalance && isTokenSupportedByRailgun(token.address, chainId)
-      );
-      
-      if (shieldableTokens.length === 0) {
-        toast.error('No tokens available to shield');
-        return;
-      }
-
-      // Filter out dust balances and prepare tokens
-      const tokensToShield = shieldableTokens
-        .filter(token => token.numericBalance > 0.001 && isTokenSupportedByRailgun(token.address, chainId))
-        .map(token => ({
-          address: token.address,
-          amount: parseTokenAmount(token.numericBalance.toString(), token.decimals),
-          symbol: token.symbol,
-        }));
-
-      if (tokensToShield.length === 0) {
-        toast.error('No supported tokens with sufficient balance to shield');
-        return;
-      }
-
-      // Get chain configuration
-      const chainConfig = { type: network.name.toLowerCase(), id: chainId };
-
-      // Get encryption key
-      const key = await getEncryptionKey();
-
-      // Shield All functionality temporarily disabled
-      toast.error('Shield All functionality not available in current version');
-      return;
-      
-      // Refresh balances after successful transaction
-      await refreshBalancesAfterTransaction(railgunWalletId);
-      
-    } catch (error) {
-      console.error('[WalletPage] Shield All failed:', error);
-      toast.dismiss();
-      toast.error(`Shield All failed: ${error.message}`);
-    } finally {
-      setIsShielding(false);
-    }
-  }, [canUseRailgun, railgunWalletId, address, chainId, network, refreshBalancesAfterTransaction, getEncryptionKey]);
-
+  // Handle network switch
   const handleNetworkSwitch = async (targetChainId) => {
-    console.log('[DEBUG] handleNetworkSwitch called with targetChainId=', targetChainId);
+    console.log('[VaultDesktop] handleNetworkSwitch called with targetChainId=', targetChainId);
     try {
       // Block chain switching until secure vault engine is initialized
       if (!canUseRailgun || !railgunWalletId) {
-        console.log('[DEBUG] Blocking switch: canUseRailgun=', canUseRailgun, 'railgunWalletId=', railgunWalletId);
+        console.log('[VaultDesktop] Blocking switch: canUseRailgun=', canUseRailgun, 'railgunWalletId=', railgunWalletId);
         toast.custom((t) => (
           <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
             <div className="rounded-lg border border-yellow-500/30 bg-black/90 text-yellow-200 shadow-2xl">
@@ -854,9 +736,11 @@ const VaultDesktopInner = () => {
         ), { duration: 2500 });
         return;
       }
+      
       // Switch network immediately for snappy UX
-      console.log('[DEBUG] Switching network to', targetChainId);
+      console.log('[VaultDesktop] Switching network to', targetChainId);
       await switchNetwork(targetChainId);
+      
       const targetNetwork = supportedNetworks.find(net => net.id === targetChainId);
       toast.custom((t) => (
         <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
@@ -872,11 +756,11 @@ const VaultDesktopInner = () => {
         </div>
       ), { duration: 2000 });
 
-      // After switch: single gate
-      console.log('[DEBUG] Calling maybeOpenInitModalByRedis after switch');
-      try { await maybeOpenInitModalByRedis(targetChainId); } catch (e) { console.error('[DEBUG] Error in maybeOpenInitModalByRedis:', e); }
+      // After switch: check if modal needed for new chain
+      console.log('[VaultDesktop] Checking if modal needed after network switch');
+      await maybeShowInitModal(targetChainId);
     } catch (error) {
-      console.error('[DEBUG] Error in handleNetworkSwitch:', error);
+      console.error('[VaultDesktop] Error in handleNetworkSwitch:', error);
       toast.error(`Failed to switch network: ${error.message}`);
     }
   };
@@ -921,7 +805,7 @@ const VaultDesktopInner = () => {
   if (!isConnected) {
     return (
       <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
-        {/* Navigation (same as LandingPage) */}
+        {/* Navigation */}
         <nav className="sticky top-0 z-40 w-full p-6 bg-black">
           <div className="max-w-7xl mx-auto flex justify-between items-center">
             <div className="text-4xl font-bold text-purple-300">
@@ -935,19 +819,15 @@ const VaultDesktopInner = () => {
           </div>
         </nav>
 
-        {/* Background overlays (match LandingPage) */}
+        {/* Background overlays */}
         <div className="fixed inset-0 z-0">
-          {/* Base gradient layers */}
           <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
-          {/* Futuristic cityscape silhouette */}
           <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60"></div>
           <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-purple-900/40 via-purple-800/20 to-transparent"></div>
-          {/* Dynamic grid system */}
           <div className="absolute inset-0 opacity-30">
             <div className="absolute inset-0 bg-[linear-gradient(rgba(147,51,234,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(147,51,234,0.2)_1px,transparent_1px)] bg-[size:40px_40px] animate-pulse"></div>
             <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.1)_1px,transparent_1px)] bg-[size:80px_80px] animate-pulse" style={{animationDelay: '1s'}}></div>
           </div>
-          {/* Subtle ambient orbs */}
           <div className="absolute inset-0 overflow-hidden">
             {Array.from({ length: 3 }).map((_, i) => (
               <div 
@@ -981,20 +861,17 @@ const VaultDesktopInner = () => {
               <h2 className="text-2xl font-semibold text-emerald-300 tracking-tight">Connect Wallet</h2>
               <p className="mt-2 text-emerald-300/80 text-center text-sm leading-6">
                 Connect your wallet to gain access to the LexieVault features.
-            </p>
+              </p>
             
-            <div className="space-y-4">
-              {/* Auto-detected injected providers (EIP-6963 + legacy) */}
-              <InjectedProviderButtons disabled={isConnecting} />
-
-              {/* WalletConnect tile is rendered within InjectedProviderButtons */}
-            </div>
+              <div className="space-y-4">
+                <InjectedProviderButtons disabled={isConnecting} />
+              </div>
 
               <div className="mt-6 text-sm text-green-400/70 text-center">
-              <p>Choose your preferred wallet to connect</p>
+                <p>Choose your preferred wallet to connect</p>
                 <p className="mt-1 pb-3 text-xs">Connection is zk-secured and encrypted</p>
+              </div>
             </div>
-          </div>
           </TerminalWindow>
         </div>
       </div>
@@ -1003,33 +880,29 @@ const VaultDesktopInner = () => {
 
   return (
     <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
-      {/* Navigation (same as LandingPage) */}
+      {/* Navigation */}
       <nav className="sticky top-0 z-40 w-full p-6 bg-black">
         <div className="max-w-7xl mx-auto flex justify-between items-center">
           <div className="text-4xl font-bold text-purple-300">
             LEXIEAI
-              </div>
+          </div>
           <div className="hidden md:flex space-x-6">
             <a href="/#features" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Features</a>
             <a href="/#security" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Security</a>
             <a href="/#beta" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Beta</a>
-              </div>
-            </div>
+          </div>
+        </div>
       </nav>
 
-      {/* Background overlays (match LandingPage) */}
+      {/* Background overlays */}
       <div className="fixed inset-0 z-0">
-        {/* Base gradient layers */}
         <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
-        {/* Futuristic cityscape silhouette */}
         <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60"></div>
         <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-purple-900/40 via-purple-800/20 to-transparent"></div>
-        {/* Dynamic grid system */}
         <div className="absolute inset-0 opacity-30">
           <div className="absolute inset-0 bg-[linear-gradient(rgba(147,51,234,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(147,51,234,0.2)_1px,transparent_1px)] bg-[size:40px_40px] animate-pulse"></div>
           <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.1)_1px,transparent_1px)] bg-[size:80px_80px] animate-pulse" style={{animationDelay: '1s'}}></div>
         </div>
-        {/* Subtle ambient orbs */}
         <div className="absolute inset-0 overflow-hidden">
           {Array.from({ length: 3 }).map((_, i) => (
             <div 
@@ -1149,41 +1022,41 @@ const VaultDesktopInner = () => {
               </div>
               {/* Desktop controls in original position */}
               <div className="hidden sm:flex items-center space-x-3">
-              <div className="relative" ref={chainMenuRef}>
+                <div className="relative" ref={chainMenuRef}>
+                  <button
+                    onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsChainMenuOpen((v) => !v); }}
+                    className={`px-2 py-1 text-sm bg-black text-green-300 rounded border border-green-500/40 hover:border-emerald-400 ${(!canUseRailgun || !railgunWalletId) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : 'Select network'}
+                    aria-disabled={!canUseRailgun || !railgunWalletId}
+                  >
+                    {supportedNetworks.find(n => n.id === chainId)?.name || 'Select'}
+                    <span className="ml-1">▾</span>
+                  </button>
+                  {isChainMenuOpen && (
+                    <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden z-50">
+                      {supportedNetworks.map((net) => (
+                        <button
+                          key={net.id}
+                          onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsChainMenuOpen(false); handleNetworkSwitch(net.id); }}
+                          className={`w-full text-left px-3 py-2 ${(!canUseRailgun || !railgunWalletId) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-900/30 focus:bg-emerald-900/30'} focus:outline-none`}
+                          title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : `Switch to ${net.name}`}
+                          aria-disabled={!canUseRailgun || !railgunWalletId}
+                        >
+                          {net.name}
+                        </button>
+                      ))}
+                      <div className="h-[1px] bg-green-500/40" />
+                    </div>
+                  )}
+                </div>
                 <button
-                  onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsChainMenuOpen((v) => !v); }}
-                  className={`px-2 py-1 text-sm bg-black text-green-300 rounded border border-green-500/40 hover:border-emerald-400 ${(!canUseRailgun || !railgunWalletId) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : 'Select network'}
-                  aria-disabled={!canUseRailgun || !railgunWalletId}
-                >
-                  {supportedNetworks.find(n => n.id === chainId)?.name || 'Select'}
-                  <span className="ml-1">▾</span>
-                </button>
-                {isChainMenuOpen && (
-                  <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden z-50">
-                    {supportedNetworks.map((net) => (
-                      <button
-                        key={net.id}
-                        onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsChainMenuOpen(false); handleNetworkSwitch(net.id); }}
-                        className={`w-full text-left px-3 py-2 ${(!canUseRailgun || !railgunWalletId) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-900/30 focus:bg-emerald-900/30'} focus:outline-none`}
-                        title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : `Switch to ${net.name}`}
-                        aria-disabled={!canUseRailgun || !railgunWalletId}
-                      >
-                        {net.name}
-                      </button>
-                    ))}
-                    <div className="h-[1px] bg-green-500/40" />
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={handleDisconnect}
+                  onClick={handleDisconnect}
                   className="bg-black hover:bg-red-900/30 text-red-300 px-3 py-1 rounded text-sm border border-red-500/40"
-              >
-                Disconnect
-              </button>
-          </div>
-        </div>
+                >
+                  Disconnect
+                </button>
+              </div>
+            </div>
 
             {/* Transaction Lock Status */}
             {isTransactionLocked && (
@@ -1196,7 +1069,7 @@ const VaultDesktopInner = () => {
                   </div>
                 </div>
                 <div className="mt-2 text-yellow-300/80 text-xs">
-                While you're waiting check out Lexie on <a href="https://t.me/lexie_crypto_bot" className="text-purple-300 hover:underline" target="_blank" rel="noopener noreferrer">Telegram</a> to grab your Lexie ID and play our Titans game to earn airdrop points. 
+                  While you're waiting check out Lexie on <a href="https://t.me/lexie_crypto_bot" className="text-purple-300 hover:underline" target="_blank" rel="noopener noreferrer">Telegram</a> to grab your Lexie ID and play our Titans game to earn airdrop points. 
                 </div>
               </div>
             )}
@@ -1221,21 +1094,21 @@ const VaultDesktopInner = () => {
             <div className="mb-6">
               <div className="text-xs text-green-400/60 mb-3 font-mono">LEXIE TERMINAL • commands</div>
               <div className="flex flex-wrap gap-2 mb-2">
-                  <button
+                <button
                   onClick={refreshBalances}
                   disabled={isLoading || !isConnected || isTransactionLocked}
                   className="px-2 py-1 rounded border border-emerald-400/40 bg-emerald-900/20 hover:bg-emerald-900/40 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
                 >
                   refresh
-                  </button>
-                    <button
+                </button>
+                <button
                   onClick={() => setSelectedView('balances')}
                   disabled={isTransactionLocked}
                   className="px-2 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   balances
-                    </button>
-                    <button
+                </button>
+                <button
                   onClick={() => {
                     setActiveAction('shield');
                     setSelectedView('privacy');
@@ -1244,18 +1117,18 @@ const VaultDesktopInner = () => {
                   className="px-2 py-1 rounded border border-purple-300/50 bg-purple-300/10 hover:bg-purple-300/20 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   add
-                    </button>
-                    <button
-                onClick={() => {
-                  setActiveAction('receive');
-                  setSelectedView('privacy');
-                }}
-                disabled={isTransactionLocked}
-                className="px-2 py-1 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
-              >
-                receive
-              </button>
-              <button
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveAction('receive');
+                    setSelectedView('privacy');
+                  }}
+                  disabled={isTransactionLocked}
+                  className="px-2 py-1 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
+                >
+                  receive
+                </button>
+                <button
                   onClick={() => {
                     setActiveAction('transfer');
                     setSelectedView('privacy');
@@ -1264,8 +1137,8 @@ const VaultDesktopInner = () => {
                   className="px-2 py-1 rounded border border-cyan-400/40 bg-cyan-900/20 hover:bg-cyan-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   send
-              </button>
-              <button
+                </button>
+                <button
                   onClick={() => {
                     setActiveAction('unshield');
                     setSelectedView('privacy');
@@ -1274,16 +1147,16 @@ const VaultDesktopInner = () => {
                   className="px-2 py-1 rounded border border-amber-400/40 bg-amber-900/20 hover:bg-amber-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   remove
-              </button>
-              <button
-                onClick={() => setSelectedView('history')}
-                disabled={isTransactionLocked}
+                </button>
+                <button
+                  onClick={() => setSelectedView('history')}
+                  disabled={isTransactionLocked}
                   className="px-2 py-1 rounded border border-purple-400/40 bg-purple-900/20 hover:bg-purple-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   history
-              </button>
-          </div>
-        </div>
+                </button>
+              </div>
+            </div>
 
             {/* Divider */}
             <div className="border-t border-teal-500/10 my-6"></div>
@@ -1308,8 +1181,8 @@ const VaultDesktopInner = () => {
                           {showPrivateBalances ? 'Hide' : 'Show'}
                         </button>
                       )}
-              </div>
-            </div>
+                    </div>
+                  </div>
 
                   {isRefreshingBalances && (
                     <div className="mb-3 flex items-center gap-2 text-sm text-green-300">
@@ -1321,7 +1194,7 @@ const VaultDesktopInner = () => {
                   {!canUseRailgun ? (
                     <div className="text-center py-4 text-green-400/70 text-xs">
                       Secure vault engine not ready
-                  </div>
+                    </div>
                   ) : isPrivateBalancesLoading ? (
                     <div className="text-center py-4 text-green-300 text-xs">Getting your vault balances...</div>
                   ) : privateBalances.length === 0 ? (
@@ -1333,38 +1206,38 @@ const VaultDesktopInner = () => {
                     <div className="space-y-2">
                       <div className="text-green-200 text-xs">
                         {privateBalances.length} Vault Token{privateBalances.length !== 1 ? 's' : ''}
-              </div>
+                      </div>
 
                       {(showPrivateBalances || privateBalances.length <= 3) && 
                         privateBalances.map((token) => (
                           <div key={token.symbol} className="p-2 bg-black/60 rounded text-xs">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                              <div className="text-green-200 font-medium">{token.symbol}</div>
-                              <div className="text-green-400/70">• {token.name || `${token.symbol} Token`}</div>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2">
+                                <div className="text-green-200 font-medium">{token.symbol}</div>
+                                <div className="text-green-400/70">• {token.name || `${token.symbol} Token`}</div>
+                              </div>
+                              <div className="text-green-200">{Number(token.numericBalance).toFixed(6).replace(/\.?0+$/, '')}</div>
                             </div>
-                            <div className="text-green-200">{Number(token.numericBalance).toFixed(6).replace(/\.?0+$/, '')}</div>
+                            {token.balanceUSD !== undefined && (
+                              <div className="text-right text-green-400/70 mt-1">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
+                            )}
                           </div>
-                          {token.balanceUSD !== undefined && (
-                            <div className="text-right text-green-400/70 mt-1">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
-                          )}
-                        </div>
                         ))
                       }
 
                       {!showPrivateBalances && privateBalances.length > 3 && (
                         <div className="text-center py-2">
-                  <button
+                          <button
                             onClick={() => setShowPrivateBalances(true)}
                             className="text-emerald-300 hover:text-emerald-200 text-xs"
-                  >
+                          >
                             Show {privateBalances.length - 3} more vault tokens
-                  </button>
+                          </button>
                         </div>
                       )}
-              </div>
+                    </div>
                   )}
-            </div>
+                </div>
 
                 {/* Public Balances */}
                 <div className="border-t border-teal-500/10 pt-6">
@@ -1377,7 +1250,7 @@ const VaultDesktopInner = () => {
                     >
                       {isLoading ? 'Refreshing...' : 'Refresh'}
                     </button>
-                </div>
+                  </div>
                 
                   <div className="space-y-2">
                     {publicBalances.map((token) => {
@@ -1408,7 +1281,7 @@ const VaultDesktopInner = () => {
               </>
             )}
 
-                        {/* Privacy Actions */}
+            {/* Privacy Actions */}
             {selectedView === 'privacy' && (
               <PrivacyActions activeAction={activeAction} isRefreshingBalances={isRefreshingBalances} />
             )}
@@ -1428,7 +1301,7 @@ const VaultDesktopInner = () => {
         {balanceErrors && (
           <div className="mt-4 p-3 bg-red-900/20 border border-red-500/40 rounded-lg">
             <p className="text-red-300 text-sm">Balance error: {balanceErrors}</p>
-                    </div>
+          </div>
         )}
 
         {/* Last Update Time */}
@@ -1437,10 +1310,10 @@ const VaultDesktopInner = () => {
             <p className="text-green-500/70 text-xs font-mono">
               Last updated: {new Date(lastUpdateTime).toLocaleTimeString()}
             </p>
-                        </div>
+          </div>
         )}
 
-                    </div>
+      </div>
 
       {/* Lexie ID Modal */}
       {showLexieModal && (
@@ -1453,10 +1326,10 @@ const VaultDesktopInner = () => {
                   <span className="w-3 h-3 rounded-full bg-red-500" />
                   <span className="w-3 h-3 rounded-full bg-yellow-500" />
                   <span className="w-3 h-3 rounded-full bg-green-500" />
-                            </div>
+                </div>
                 <span className="text-sm tracking-wide text-gray-400">lexie-id-setup</span>
-                            </div>
-                            <button
+              </div>
+              <button
                 onClick={() => {
                   setShowLexieModal(false);
                   setLexieNeedsCode(false);
@@ -1467,17 +1340,17 @@ const VaultDesktopInner = () => {
                 className="text-green-400/70 hover:text-green-300 transition-colors"
               >
                 ✕
-                            </button>
-                      </div>
+              </button>
+            </div>
 
             {/* Modal Content */}
             <div className="p-6 text-green-300 space-y-4">
-                              <div>
+              <div>
                 <h3 className="text-lg font-bold text-emerald-300 mb-2">Get Your Lexie ID</h3>
                 <p className="text-green-400/80 text-sm">
                   Link your Railgun wallet to a Lexie ID for easy identification and social features.
                 </p>
-                              </div>
+              </div>
 
               {canUseRailgun && railgunAddress ? (
                 <div className="space-y-4">
@@ -1493,7 +1366,7 @@ const VaultDesktopInner = () => {
                         disabled={lexieLinking}
                       />
                       {!lexieNeedsCode ? (
-                          <button
+                        <button
                           onClick={async () => {
                             try {
                               setLexieMessage('');
@@ -1531,7 +1404,7 @@ const VaultDesktopInner = () => {
                           className="bg-emerald-600/30 hover:bg-emerald-600/50 disabled:bg-black/40 text-emerald-200 px-3 py-1 rounded text-sm border border-emerald-400/40"
                         >
                           {lexieLinking ? 'Working...' : 'Add'}
-                          </button>
+                        </button>
                       ) : (
                         <div className="flex gap-2">
                           <input
@@ -1542,7 +1415,7 @@ const VaultDesktopInner = () => {
                             className="bg-black text-green-200 rounded px-2 py-1 text-sm border border-green-500/40 focus:border-emerald-400 focus:outline-none w-20"
                             disabled={lexieLinking}
                           />
-                            <button
+                          <button
                             onClick={async () => {
                               try {
                                 setLexieLinking(true); setLexieMessage('');
@@ -1566,18 +1439,18 @@ const VaultDesktopInner = () => {
                             className="bg-green-600/30 hover:bg-green-600/50 disabled:bg-black/40 text-green-200 px-2 py-1 rounded text-sm border border-green-400/40"
                           >
                             Verify
-                            </button>
-                            <button
+                          </button>
+                          <button
                             onClick={() => { setLexieNeedsCode(false); setLexieCode(''); setLexieMessage(''); }}
                             className="bg-gray-600/30 hover:bg-gray-500/30 text-gray-300 px-2 py-1 rounded text-sm border border-gray-500/40"
                           >
                             Cancel
-                            </button>
-                          </div>
-                      )}
+                          </button>
                         </div>
+                      )}
+                    </div>
                     {lexieMessage && <div className="mt-2 text-xs text-green-300/80">{lexieMessage}</div>}
-                      </div>
+                  </div>
 
                   {/* Instructions */}
                   <div className="bg-purple-900/20 border border-purple-500/40 rounded p-3">
@@ -1596,19 +1469,19 @@ const VaultDesktopInner = () => {
                       </a>
                       <span className="text-purple-300/60 text-xs">→ Use /lex command</span>
                     </div>
+                  </div>
                 </div>
-              </div>
               ) : (
                 <div className="bg-yellow-900/20 border border-yellow-500/40 rounded p-3">
                   <div className="text-yellow-300 text-xs">
                     Please connect your Railgun wallet first to link a Lexie ID.
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-        )}
-          </div>
-          </div>
-          </div>
-        )}
+        </div>
+      )}
 
       {/* Signature Guide Popup */}
       {showSignatureGuide && (
@@ -1644,7 +1517,6 @@ const VaultDesktopInner = () => {
                 <button
                   onClick={() => {
                     setShowSignatureGuide(false);
-                    // The signature will be automatically triggered by WalletContext
                     toast.success('Look for the signature request in your wallet!');
                   }}
                   className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors font-medium"
@@ -1657,7 +1529,7 @@ const VaultDesktopInner = () => {
         </div>
       )}
 
-      {/* Sign-in & Initialization Popup (terminal style; locked until completed) */}
+      {/* Sign-in & Initialization Popup */}
       {showSignRequestPopup && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center z-50 p-4 font-mono">
           <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden">
@@ -1670,7 +1542,6 @@ const VaultDesktopInner = () => {
                 </div>
                 <span className="text-sm tracking-wide text-gray-400">vault-sign</span>
               </div>
-              {/* No close button until init completes */}
               {isInitInProgress ? (
                 <div className="text-yellow-400 text-xs">LOCKED</div>
               ) : null}
@@ -1703,7 +1574,7 @@ const VaultDesktopInner = () => {
                     </div>
                   </div>
                   <div className="mt-2 text-green-400/80 text-xs">
-                  While you're waiting check out Lexie on <a href="https://t.me/lexie_crypto_bot" className="text-purple-300 hover:underline" target="_blank" rel="noopener noreferrer">Telegram</a> to grab your Lexie ID and play our Titans game to earn airdrop points. 
+                    While you're waiting check out Lexie on <a href="https://t.me/lexie_crypto_bot" className="text-purple-300 hover:underline" target="_blank" rel="noopener noreferrer">Telegram</a> to grab your Lexie ID and play our Titans game to earn airdrop points. 
                   </div>
                 </>
               )}
@@ -1782,4 +1653,4 @@ const VaultDesktop = () => {
   return <VaultDesktopInner />;
 };
 
-export default VaultDesktop; 
+export default VaultDesktop;
