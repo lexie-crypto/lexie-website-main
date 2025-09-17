@@ -138,6 +138,28 @@ const VaultDesktopInner = () => {
     setInitProgress({ percent: 0, message: '' });
   }, [address]);
 
+  // Disconnect handler: clear local/session flags and reset UI state before actual disconnect
+  const handleDisconnect = useCallback(async () => {
+    try {
+      // Clear per-address guide flag
+      try { if (address) { localStorage.removeItem(`railgun-guide-seen-${address.toLowerCase()}`); } } catch {}
+      // Clear any session flags
+      try { sessionStorage.clear(); } catch {}
+      // Reset local UI state
+      try { setCurrentLexieId(''); } catch {}
+      try { setPointsBalance(null); } catch {}
+      try { setHasRedisWalletData(null); } catch {}
+      try {
+        setShowSignRequestPopup(false);
+        setIsInitInProgress(false);
+        setInitFailedMessage('');
+        setInitProgress({ percent: 0, message: '' });
+      } catch {}
+    } finally {
+      try { await disconnectWallet(); } catch {}
+    }
+  }, [address, disconnectWallet]);
+
   // Check if a specific chain has been scanned in Redis scannedChains
   const checkRedisChainScanned = useCallback(async (targetChainId) => {
     if (!address) return false;
@@ -1038,11 +1060,6 @@ const VaultDesktopInner = () => {
                           ✦ {pointsBalance}
                         </span>
                       )}
-                      {typeof pointsBalance === 'number' && (
-                        <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-purple-600/20 text-purple-200 border border-purple-400/30 px-2 py-0.5 text-[11px]" title="Points = $ value × streak. Min $5. Streak resets if you skip a day.">
-                          ✦ {pointsBalance}
-                        </span>
-                      )}
                       <button
                         onClick={() => {
                           navigator.clipboard.writeText(currentLexieId);
@@ -1103,7 +1120,7 @@ const VaultDesktopInner = () => {
                     )}
                   </div>
                   <button
-                    onClick={disconnectWallet}
+                    onClick={handleDisconnect}
                     className="bg-black hover:bg-red-900/30 text-red-300 px-3 py-1 rounded text-sm border border-red-500/40"
                   >
                     Disconnect
@@ -1136,7 +1153,7 @@ const VaultDesktopInner = () => {
                 )}
               </div>
               <button
-                onClick={disconnectWallet}
+                onClick={handleDisconnect}
                   className="bg-black hover:bg-red-900/30 text-red-300 px-3 py-1 rounded text-sm border border-red-500/40"
               >
                 Disconnect
