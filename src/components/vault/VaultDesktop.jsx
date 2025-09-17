@@ -829,6 +829,24 @@ const VaultDesktopInner = () => {
 
   const handleNetworkSwitch = async (targetChainId) => {
     try {
+      // Block chain switching until secure vault engine is initialized
+      if (!canUseRailgun || !railgunWalletId) {
+        toast.custom((t) => (
+          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+            <div className="rounded-lg border border-yellow-500/30 bg-black/90 text-yellow-200 shadow-2xl">
+              <div className="px-4 py-3 flex items-center gap-3">
+                <div className="h-3 w-3 rounded-full bg-yellow-400" />
+                <div>
+                  <div className="text-sm">Vault engine is starting…</div>
+                  <div className="text-xs text-yellow-400/80">Please wait for initialization to complete before switching networks.</div>
+                </div>
+                <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-yellow-900/30 text-yellow-300/80">×</button>
+              </div>
+            </div>
+          </div>
+        ), { duration: 2500 });
+        return;
+      }
       // Switch network immediately for snappy UX
       await switchNetwork(targetChainId);
       const targetNetwork = supportedNetworks.find(net => net.id === targetChainId);
@@ -1099,7 +1117,7 @@ const VaultDesktopInner = () => {
                 <div className="flex items-center gap-2 mt-2 sm:hidden">
                   <div className="relative" ref={mobileChainMenuRef}>
                     <button
-                      onClick={() => setIsMobileChainMenuOpen((v) => !v)}
+                      onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsMobileChainMenuOpen((v) => !v); }}
                       className="px-2 py-1 text-sm bg-black text-green-300 rounded border border-green-500/40 hover:border-emerald-400"
                     >
                       {supportedNetworks.find(n => n.id === chainId)?.name || 'Select'}
@@ -1110,8 +1128,8 @@ const VaultDesktopInner = () => {
                         {supportedNetworks.map((net) => (
                           <button
                             key={net.id}
-                            onClick={() => { setIsMobileChainMenuOpen(false); handleNetworkSwitch(net.id); }}
-                            className="w-full text-left px-3 py-2 hover:bg-emerald-900/30 focus:bg-emerald-900/30 focus:outline-none"
+                            onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsMobileChainMenuOpen(false); handleNetworkSwitch(net.id); }}
+                            className={`w-full text-left px-3 py-2 ${(!canUseRailgun || !railgunWalletId) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-900/30 focus:bg-emerald-900/30'} focus:outline-none`}
                           >
                             {net.name}
                           </button>
@@ -1132,7 +1150,7 @@ const VaultDesktopInner = () => {
               <div className="hidden sm:flex items-center space-x-3">
               <div className="relative" ref={chainMenuRef}>
                 <button
-                  onClick={() => setIsChainMenuOpen((v) => !v)}
+                  onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsChainMenuOpen((v) => !v); }}
                   className="px-2 py-1 text-sm bg-black text-green-300 rounded border border-green-500/40 hover:border-emerald-400"
                 >
                   {supportedNetworks.find(n => n.id === chainId)?.name || 'Select'}
@@ -1143,8 +1161,8 @@ const VaultDesktopInner = () => {
                     {supportedNetworks.map((net) => (
                       <button
                         key={net.id}
-                        onClick={() => { setIsChainMenuOpen(false); handleNetworkSwitch(net.id); }}
-                        className="w-full text-left px-3 py-2 hover:bg-emerald-900/30 focus:bg-emerald-900/30 focus:outline-none"
+                        onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsChainMenuOpen(false); handleNetworkSwitch(net.id); }}
+                        className={`w-full text-left px-3 py-2 ${(!canUseRailgun || !railgunWalletId) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-900/30 focus:bg-emerald-900/30'} focus:outline-none`}
                       >
                         {net.name}
                       </button>
