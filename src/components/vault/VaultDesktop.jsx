@@ -122,6 +122,13 @@ const VaultDesktopInner = () => {
       
       const data = await response.json();
       
+      console.log('[VaultDesktop] Wallet metadata response:', {
+        success: data.success,
+        hasKeys: !!data.keys,
+        keysLength: Array.isArray(data.keys) ? data.keys.length : 0,
+        dataStructure: Object.keys(data)
+      });
+      
       // Look for the wallet key that matches our railgunWalletId
       const walletKeys = Array.isArray(data.keys) ? data.keys : [];
       const matchingKey = walletKeys.find(key => 
@@ -129,22 +136,35 @@ const VaultDesktopInner = () => {
         key.eoa?.toLowerCase() === address.toLowerCase()
       );
       
-      if (!matchingKey || !matchingKey.scannedChains) {
-        console.log('[VaultDesktop] No scannedChains data found - wallet needs initialization');
+      console.log('[VaultDesktop] Matching key search:', {
+        searchingForWalletId: railgunWalletId,
+        searchingForEoa: address.toLowerCase(),
+        foundMatchingKey: !!matchingKey,
+        matchingKeyStructure: matchingKey ? Object.keys(matchingKey) : null,
+        hasScannedChains: matchingKey ? !!matchingKey.scannedChains : false
+      });
+      
+      if (!matchingKey) {
+        console.log('[VaultDesktop] No matching wallet key found - wallet needs initialization');
         return false;
       }
       
-      const scannedChains = matchingKey.scannedChains || {};
-      const isChainScanned = scannedChains[checkChainId.toString()];
+      // scannedChains is an array of chain IDs, not an object
+      const scannedChains = Array.isArray(matchingKey.scannedChains) 
+        ? matchingKey.scannedChains.map((n) => Number(n)).filter(Number.isFinite)
+        : [];
+      
+      const isChainScanned = scannedChains.includes(Number(checkChainId));
       
       console.log('[VaultDesktop] ScannedChains check:', {
         chainId: checkChainId,
+        chainIdAsNumber: Number(checkChainId),
         isScanned: isChainScanned,
-        allChains: scannedChains,
+        scannedChainsArray: scannedChains,
         walletId: railgunWalletId
       });
       
-      return isChainScanned === true;
+      return isChainScanned;
     } catch (error) {
       console.error('[VaultDesktop] Error checking scannedChains:', error);
       return null;
