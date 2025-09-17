@@ -806,22 +806,7 @@ const VaultDesktopInner = () => {
 
   const handleNetworkSwitch = async (targetChainId) => {
     try {
-      // IMMEDIATE gate: only for brand-new wallets (no Redis metadata) AND unscanned chain
-      try {
-        const [hasMetaPre, scannedPre] = await Promise.all([
-          checkRedisWalletData(),
-          checkRedisChainScanned(targetChainId),
-        ]);
-        if (!hasMetaPre && !scannedPre && !showSignRequestPopup) {
-          const targetNetwork = supportedNetworks.find(net => net.id === targetChainId);
-          const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
-          setShowSignRequestPopup(true);
-          setIsInitInProgress(true);
-          setInitFailedMessage('');
-          setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
-        }
-      } catch {}
-
+      // Switch first for instant responsiveness; gate after switch
       await switchNetwork(targetChainId);
       const targetNetwork = supportedNetworks.find(net => net.id === targetChainId);
       toast.custom((t) => (
