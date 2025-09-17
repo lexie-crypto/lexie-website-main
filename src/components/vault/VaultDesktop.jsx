@@ -139,6 +139,34 @@ const VaultDesktopInner = () => {
     setInitProgress({ percent: 0, message: '' });
   }, [address]);
 
+  // Unified gate for opening the initialization modal
+  async function maybeOpenInitModal(targetChainId) {
+    // A. First trust readiness — if Railgun says ready, NO modal.
+    let ready = null;
+    try { ready = await checkChainReady(); } catch { ready = null; }
+    if (ready === true) {
+      setShowSignRequestPopup(false);
+      setIsInitInProgress(false);
+      return false;
+    }
+
+    // B. Probe Redis by EOA+walletId meta.scannedChains
+    const hasMeta = await checkRedisWalletData(); // true | false | null
+    const scanned = await checkRedisChainScanned(targetChainId); // true | false | null
+
+    // C. ONLY open on explicit negatives (not null/unknown)
+    if (ready === false && hasMeta === false && scanned === false) {
+      if (!showSignRequestPopup) setShowSignRequestPopup(true);
+      setIsInitInProgress(true);
+      const id = targetChainId != null ? targetChainId : chainId;
+      const net = supportedNetworks.find(n => n.id === id);
+      const label = net?.name || (id ? `Chain ${id}` : (network?.name || 'network'));
+      setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${label} Network...` });
+      return true;
+    }
+    return false;
+  }
+
   // Disconnect handler: clear local/session flags and reset UI state before actual disconnect
   const handleDisconnect = useCallback(async () => {
     try {
@@ -460,21 +488,7 @@ const VaultDesktopInner = () => {
       setInitFailedMessage('');
       console.log('[Vault Init] Signature requested - showing modal');
     };
-    const onInitStarted = async (e) => {
-      // Old behavior parity: never lock if chain already scanned
-      const scanned = await checkRedisChainScanned(chainId);
-      if (scanned === true) return;
-      if (!showSignRequestPopup) setShowSignRequestPopup(true);
-      // Ensure we don't falsely mark complete using previous chain's readiness
-      setIsChainReady(false);
-      setIsInitInProgress(true);
-      setInitFailedMessage('');
-      initAddressRef.current = e?.detail?.address || address || initAddressRef.current;
-      // Set friendly, chain-aware message
-      const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
-      setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
-      console.log('[Vault Init] Initialization started');
-    };
+    const onInitStarted = async (e) => { await maybeOpenInitModal(chainId); };
     const onInitProgress = async () => {
       // Gate progress handler to only run while initialization is actually in progress
       if (!isInitInProgress) return;
@@ -498,34 +512,8 @@ const VaultDesktopInner = () => {
     };
     window.addEventListener('railgun-signature-requested', onSignRequest);
     // Begin polling exactly when refreshBalances starts in context
-    const onPollStart = async (e) => {
-      // Do not show init modal on initial connect fast-path; only after initial connect
-      if (!initialConnectDoneRef.current) return;
-      try {
-        const scanned = await checkRedisChainScanned(chainId);
-        if (scanned === true) return;
-        const ready = await checkChainReady();
-        if (!ready) onInitStarted(e);
-      } catch {
-        const scanned = await checkRedisChainScanned(chainId);
-        if (scanned === true) return;
-        onInitStarted(e);
-      }
-    };
-    const onScanStarted = async (e) => {
-      // Same guard: avoid modal during initial connect if wallet existed in Redis
-      if (!initialConnectDoneRef.current) return;
-      try {
-        const scanned = await checkRedisChainScanned(chainId);
-        if (scanned === true) return;
-        const ready = await checkChainReady();
-        if (!ready) onInitStarted(e);
-      } catch {
-        const scanned = await checkRedisChainScanned(chainId);
-        if (scanned === true) return;
-        onInitStarted(e);
-      }
-    };
+    const onPollStart = async () => { if (!initialConnectDoneRef.current) return; await maybeOpenInitModal(chainId); };
+    const onScanStarted = async () => { if (!initialConnectDoneRef.current) return; await maybeOpenInitModal(chainId); };
     window.addEventListener('vault-poll-start', onPollStart);
     window.addEventListener('railgun-init-started', onInitStarted); // full init always shows
     window.addEventListener('railgun-scan-started', onScanStarted);
@@ -865,22 +853,8 @@ const VaultDesktopInner = () => {
         </div>
       ), { duration: 2000 });
 
-      // After switch: check Redis scannedChains first. If not scanned → show modal instantly.
-      try {
-        const scanned = await checkRedisChainScanned(targetChainId);
-        if (scanned === false) {
-          if (!showSignRequestPopup) setShowSignRequestPopup(true);
-          setIsInitInProgress(true);
-          const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
-          setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
-          // Let WalletContext trigger the actual scan; we'll keep the modal until chain becomes ready
-          return;
-        }
-        // scanned === true → do nothing; scanned === null (unknown) → defer to readiness events without forcing modal
-        // If scanned, we can skip showing the modal; readiness will follow shortly
-        // Optionally confirm readiness without blocking UX
-        try { await checkChainReady(); } catch {}
-      } catch {}
+      // After switch: single gate
+      try { await maybeOpenInitModal(targetChainId); } catch {}
     } catch (error) {
       toast.error(`Failed to switch network: ${error.message}`);
     }
