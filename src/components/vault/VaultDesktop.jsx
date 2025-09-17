@@ -33,6 +33,8 @@ import {
 // Removed deprecated checkSufficientBalance import
 import { deriveEncryptionKey } from '../../utils/railgun/wallet';
 
+import { isChainScanned, toNum } from '@/utils/isChainScanned';
+
 const VaultDesktopInner = () => {
   const {
     isConnected,
@@ -140,30 +142,32 @@ const VaultDesktopInner = () => {
   }, [address]);
 
   // Unified gate for opening the initialization modal
-  async function maybeOpenInitModal(targetChainId) {
-    // A. First trust readiness — if Railgun says ready, NO modal.
-    let ready = null;
-    try { ready = await checkChainReady(); } catch { ready = null; }
-    if (ready === true) {
+  async function maybeOpenInitModalByRedis(targetChainId) {
+    const id = toNum(targetChainId ?? chainId);
+    if (id == null || !address) return false;
+
+    const scanned = await isChainScanned(address, railgunWalletId, id);
+
+    // Hard rule: if scanned === true → never open
+    if (scanned === true) {
       setShowSignRequestPopup(false);
       setIsInitInProgress(false);
       return false;
     }
 
-    // B. Probe Redis by EOA+walletId meta.scannedChains
-    const hasMeta = await checkRedisWalletData(); // true | false | null
-    const scanned = await checkRedisChainScanned(targetChainId); // true | false | null
-
-    // C. ONLY open on explicit negatives (not null/unknown)
-    if (ready === false && hasMeta === false && scanned === false) {
+    // Only open when Redis explicitly says "not scanned"
+    if (scanned === false) {
       if (!showSignRequestPopup) setShowSignRequestPopup(true);
       setIsInitInProgress(true);
-      const id = targetChainId != null ? targetChainId : chainId;
-      const net = supportedNetworks.find(n => n.id === id);
-      const label = net?.name || (id ? `Chain ${id}` : (network?.name || 'network'));
+      const label =
+        id === 1 ? 'Ethereum' :
+        id === 42161 ? 'Arbitrum' :
+        id === 137 ? 'Polygon' : `Chain ${id}`;
       setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${label} Network...` });
       return true;
     }
+
+    // scanned === null (unknown/error): do nothing
     return false;
   }
 
@@ -206,27 +210,6 @@ const VaultDesktopInner = () => {
       try { await disconnectWallet(); } catch {}
     }
   }, [address, disconnectWallet]);
-
-  // Check if a specific chain has been scanned in Redis scannedChains
-  const checkRedisChainScanned = useCallback(async (targetChainId) => {
-    if (!address) return null;
-    try {
-      const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-      if (!resp.ok) return null;
-      const data = await resp.json().catch(() => ({}));
-      const keys = Array.isArray(data?.keys) ? data.keys : [];
-      const key = keys.find((k) => (
-        (k?.eoa?.toLowerCase?.() === address.toLowerCase()) &&
-        (railgunWalletId ? k?.walletId === railgunWalletId : true)
-      )) || null;
-      if (!key) return false;
-      const scanned = Array.isArray(key?.scannedChains) ? key.scannedChains : [];
-      const id = targetChainId != null ? targetChainId : chainId;
-      return scanned.includes(id);
-    } catch {
-      return null; // unknown
-    }
-  }, [address, railgunWalletId, chainId]);
 
   // Listen for transaction lock/unlock events from PrivacyActions
   useEffect(() => {
@@ -481,14 +464,10 @@ const VaultDesktopInner = () => {
 
   // Listen for signature request and init lifecycle events from WalletContext
   useEffect(() => {
-    const onSignRequest = () => {
-      setShowSignRequestPopup(true);
-      setIsInitInProgress(false);
-      setInitProgress({ percent: 0, message: '' });
-      setInitFailedMessage('');
-      console.log('[Vault Init] Signature requested - showing modal');
+    const onSignRequest = async () => {
+      await maybeOpenInitModalByRedis(chainId);
     };
-    const onInitStarted = async (e) => { await maybeOpenInitModal(chainId); };
+    const onInitStarted = async (e) => { await maybeOpenInitModalByRedis(chainId); };
     const onInitProgress = async () => {
       // Gate progress handler to only run while initialization is actually in progress
       if (!isInitInProgress) return;
@@ -510,10 +489,10 @@ const VaultDesktopInner = () => {
       setIsInitInProgress(false);
       console.warn('[LexieVault Init] Initialization failed:', msg);
     };
+    const onPollStart = async () => { if (!initialConnectDoneRef.current) return; await maybeOpenInitModalByRedis(chainId); };
+    const onScanStarted = async () => { if (!initialConnectDoneRef.current) return; await maybeOpenInitModalByRedis(chainId); };
     window.addEventListener('railgun-signature-requested', onSignRequest);
     // Begin polling exactly when refreshBalances starts in context
-    const onPollStart = async () => { if (!initialConnectDoneRef.current) return; await maybeOpenInitModal(chainId); };
-    const onScanStarted = async () => { if (!initialConnectDoneRef.current) return; await maybeOpenInitModal(chainId); };
     window.addEventListener('vault-poll-start', onPollStart);
     window.addEventListener('railgun-init-started', onInitStarted); // full init always shows
     window.addEventListener('railgun-scan-started', onScanStarted);
@@ -530,7 +509,7 @@ const VaultDesktopInner = () => {
       window.removeEventListener('railgun-init-failed', onInitFailed);
       try { if (window.__LEXIE_INIT_POLL_ID) { clearInterval(window.__LEXIE_INIT_POLL_ID); window.__LEXIE_INIT_POLL_ID = null; } } catch {}
     };
-  }, [address, chainId, railgunWalletId, network, checkChainReady, checkRedisWalletData, checkRedisChainScanned, showSignRequestPopup]);
+  }, [address, chainId, railgunWalletId, network, checkChainReady, showSignRequestPopup]);
 
   // Unlock modal using the same readiness flag as Privacy Actions
   useEffect(() => {
@@ -854,7 +833,7 @@ const VaultDesktopInner = () => {
       ), { duration: 2000 });
 
       // After switch: single gate
-      try { await maybeOpenInitModal(targetChainId); } catch {}
+      try { await maybeOpenInitModalByRedis(targetChainId); } catch {}
     } catch (error) {
       toast.error(`Failed to switch network: ${error.message}`);
     }
