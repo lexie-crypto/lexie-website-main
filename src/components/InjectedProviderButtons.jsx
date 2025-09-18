@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import useInjectedProviders from '../hooks/useInjectedProviders';
 import { useWallet } from '../contexts/WalletContext';
 
@@ -11,15 +11,40 @@ const InjectedProviderButtons = ({ disabled }) => {
   const { connectWallet } = useWallet();
   const [busyKey, setBusyKey] = useState(null);
 
+  // Reset busy state on disconnect to allow reconnection
+  useEffect(() => {
+    const handleDisconnect = () => {
+      setBusyKey(null);
+      // Force re-detection of providers after disconnect
+      if (typeof window !== 'undefined') {
+        setTimeout(() => {
+          window.dispatchEvent(new Event('eip6963:requestProvider'));
+        }, 200);
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('force-disconnect', handleDisconnect);
+      return () => window.removeEventListener('force-disconnect', handleDisconnect);
+    }
+  }, []);
+
   const handleClick = async (provider, meta) => {
     try {
       const key = meta?.id || meta?.name;
       setBusyKey(key);
-      await provider.request({ method: 'eth_requestAccounts' });
-      // Use generic injected connector and pass through provider metadata
+      // Use wagmi's injected connector with the specific provider
+      // Let wagmi handle the connection instead of calling provider.request directly
       await connectWallet('injected', { provider, name: meta?.name, id: meta?.id });
     } catch (err) {
       console.error('Failed to connect provider:', err);
+      // If wagmi connection fails, try direct provider request as fallback
+      try {
+        await provider.request({ method: 'eth_requestAccounts' });
+        await connectWallet('injected', { provider, name: meta?.name, id: meta?.id });
+      } catch (fallbackErr) {
+        console.error('Fallback connection also failed:', fallbackErr);
+      }
     } finally {
       setBusyKey(null);
     }
@@ -69,22 +94,31 @@ const InjectedProviderButtons = ({ disabled }) => {
             <span className="text-emerald-200 font-medium text-base whitespace-nowrap">WalletConnect</span>
           </button>
 
-          {providersSorted.map((p) => (
-            <button
-              key={p.info?.uuid || p.info?.rdns || p.info?.name}
-              onClick={() => handleClick(p.provider, { name: p.info?.name, id: p.info?.uuid || p.info?.rdns })}
-              disabled={disabled || busyKey === (p.info?.uuid || p.info?.rdns || p.info?.name)}
-              className="flex items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/5 px-6 py-4 h-16 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed"
-              aria-label={`Connect ${p.info?.name}`}
-            >
-              {p.info?.icon ? (
-                <img src={p.info.icon} alt="" className="h-6 w-6 rounded-md" />
-              ) : (
-                <span className="h-6 w-6" aria-hidden>🦊</span>
-              )}
-              <span className="text-emerald-200 font-medium text-base whitespace-nowrap">{p.info?.name}</span>
-            </button>
-          ))}
+          {providersSorted.map((p) => {
+            // Check if provider is actually available/connected
+            const isProviderConnected = p.provider?.isConnected || p.provider?.connected;
+            const isDisabled = disabled || busyKey === (p.info?.uuid || p.info?.rdns || p.info?.name) || !isProviderConnected;
+
+            return (
+              <button
+                key={p.info?.uuid || p.info?.rdns || p.info?.name}
+                onClick={() => handleClick(p.provider, { name: p.info?.name, id: p.info?.uuid || p.info?.rdns })}
+                disabled={isDisabled}
+                className={`flex items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/5 px-6 py-4 h-16 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed ${!isProviderConnected ? 'opacity-40' : ''}`}
+                aria-label={`Connect ${p.info?.name}`}
+              >
+                {p.info?.icon ? (
+                  <img src={p.info.icon} alt="" className="h-6 w-6 rounded-md" />
+                ) : (
+                  <span className="h-6 w-6" aria-hidden>🦊</span>
+                )}
+                <span className="text-emerald-200 font-medium text-base whitespace-nowrap">{p.info?.name}</span>
+                {!isProviderConnected && (
+                  <span className="text-xs text-yellow-400/70 ml-1">(disconnected)</span>
+                )}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
