@@ -30,7 +30,7 @@ import {
   parseTokenAmount,
   isTokenSupportedByRailgun,
 } from '../../utils/railgun/actions';
-import { deriveEncryptionKey } from '../../utils/railgun/wallet';
+import { deriveEncryptionKey, clearAllWallets } from '../../utils/railgun/wallet';
 
 const VaultDesktopInner = () => {
   const {
@@ -244,6 +244,10 @@ const VaultDesktopInner = () => {
   // Disconnect handler
   const handleDisconnect = useCallback(async () => {
     try {
+      // Unload all Railgun wallets/state before disconnecting
+      try {
+        await clearAllWallets();
+      } catch {}
       // Clear per-address guide flag
       if (address) {
         try { 

@@ -586,8 +586,18 @@ const WalletContextProvider = ({ children }) => {
           // Bind wagmi to the clicked provider through a minimal connector
           const { clickedInjectedConnector } = await import('../connectors/clickedInjected.js');
           const connector = clickedInjectedConnector(options.provider, options?.name);
+          // Pre-connect unload to guarantee clean slate even if connect fails mid-way
+          try {
+            const { clearAllWallets } = await import('../utils/railgun/wallet');
+            await clearAllWallets();
+          } catch {}
           await connect({ connector });
           console.log('✅ Connected via clicked injected provider:', options?.name || 'Injected');
+          // Belt-and-suspenders: ensure any stale Railgun SDK wallets are unloaded before hydration
+          try {
+            const { clearAllWallets } = await import('../utils/railgun/wallet');
+            await clearAllWallets();
+          } catch {}
           return;
         }
         // No provider supplied: fallback to generic injected connector
@@ -595,8 +605,18 @@ const WalletContextProvider = ({ children }) => {
       }
       
       if (targetConnector) {
+        // Pre-connect unload to guarantee clean slate even if connect fails mid-way
+        try {
+          const { clearAllWallets } = await import('../utils/railgun/wallet');
+          await clearAllWallets();
+        } catch {}
         await connect({ connector: targetConnector });
         console.log('✅ Connected via wagmi:', targetConnector.id, options?.name || '');
+        // Belt-and-suspenders: ensure any stale Railgun SDK wallets are unloaded before hydration
+        try {
+          const { clearAllWallets } = await import('../utils/railgun/wallet');
+          await clearAllWallets();
+        } catch {}
       }
     } catch (error) {
       console.error('❌ Wagmi connection failed:', error);
@@ -613,14 +633,25 @@ const WalletContextProvider = ({ children }) => {
     disconnectWallet.isDisconnecting = true;
 
     try {
-      // Reset wallet-scoped UI/session flags to prevent stale gating on next connect
+      // 1. Unload ALL Railgun SDK wallet state first
+      try {
+        console.log('🧹 [DISCONNECT] Clearing all Railgun wallet state...');
+        const { clearAllWallets } = await import('../utils/railgun/wallet');
+        await clearAllWallets();
+        console.log('✅ [DISCONNECT] All Railgun wallets unloaded');
+      } catch (error) {
+        console.warn('⚠️ [DISCONNECT] Failed to clear Railgun wallets:', error);
+      }
+
+      // 2. Reset wallet-scoped UI/session flags to prevent stale gating on next connect
       try { if (typeof window !== 'undefined') {
         delete window.__LEXIE_INIT_POLL_ID;
         window.dispatchEvent(new CustomEvent('force-disconnect'));
         // Clear any init/scan flags used by UI gating
         window.dispatchEvent(new CustomEvent('railgun-init-failed', { detail: { error: 'User disconnect' } }));
       } } catch {}
-      // Immediate UI state reset for snappy UX
+      
+      // 3. Immediate UI state reset for snappy UX
       setIsRailgunInitialized(false);
       setRailgunAddress(null);
       setRailgunWalletID(null);
@@ -673,6 +704,15 @@ const WalletContextProvider = ({ children }) => {
       console.log('Skipping Railgun init:', { isConnected, address: !!address, isInitializing });
       return;
     }
+
+    // Defensive unload: if this is a fresh init start, clear any lingering SDK wallet state
+    try {
+      if (!isRailgunInitialized) {
+        const { clearAllWallets } = await import('../utils/railgun/wallet');
+        await clearAllWallets();
+        console.log('[Railgun Init] 🧹 Cleared any lingering wallets before hydration');
+      }
+    } catch {}
 
     // Suppression flag for pages that only need public EOA + light engine (e.g., PaymentPage)
     try {
