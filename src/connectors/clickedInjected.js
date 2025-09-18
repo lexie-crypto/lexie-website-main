@@ -9,9 +9,20 @@ export function clickedInjectedConnector(provider, name = 'Injected') {
     name,
     type: 'injected',
     async connect() {
-      // Don't call eth_requestAccounts here - it's already called in InjectedProviderButtons.handleClick
-      // Just get the current accounts and chainId
-      const accounts = (await provider?.request?.({ method: 'eth_accounts' })) || [];
+      // First try to get existing accounts
+      let accounts = (await provider?.request?.({ method: 'eth_accounts' })) || [];
+
+      // If no accounts, request permission and re-read
+      if (!accounts || accounts.length === 0) {
+        try {
+          await provider?.request?.({ method: 'eth_requestAccounts' });
+          accounts = (await provider?.request?.({ method: 'eth_accounts' })) || [];
+        } catch (error) {
+          // If request fails, continue with empty accounts
+          console.warn('[clickedInjectedConnector] eth_requestAccounts failed:', error);
+        }
+      }
+
       const account = accounts[0] ? getAddress(accounts[0]) : undefined;
       const chainIdHex = await provider?.request?.({ method: 'eth_chainId' });
       const chainId = Number(chainIdHex);
