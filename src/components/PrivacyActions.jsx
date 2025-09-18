@@ -274,15 +274,29 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       });
     };
 
+    const handleAbortAllRequests = () => {
+      console.log('[PrivacyActions] 🛑 Received abort-all-requests event - cancelling all ongoing processes');
+      // Reset all transaction-related state
+      setIsProcessing(false);
+      setIsTransactionLocked(false);
+      setActiveTransactionMonitors(0);
+      // Reset form state
+      setAmount('');
+      setRecipientAddress('');
+      setMemoText('');
+    };
+
     if (typeof window !== 'undefined') {
       window.addEventListener('railgun-public-refresh', handleBalanceUpdateComplete);
       window.addEventListener('transaction-monitor-complete', handleTransactionMonitorComplete);
+      window.addEventListener('abort-all-requests', handleAbortAllRequests);
     }
 
     return () => {
       if (typeof window !== 'undefined') {
         window.removeEventListener('railgun-public-refresh', handleBalanceUpdateComplete);
         window.removeEventListener('transaction-monitor-complete', handleTransactionMonitorComplete);
+        window.removeEventListener('abort-all-requests', handleAbortAllRequests);
       }
     };
   }, []);

@@ -285,6 +285,21 @@ const VaultDesktopInner = () => {
       setIsInitInProgress(false);
       setInitFailedMessage('');
       setInitProgress({ percent: 0, message: '' });
+
+      // Dispatch transaction completion event to unlock UI globally (similar to txn cancellation)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
+          detail: {
+            transactionType: 'disconnect',
+            found: false, // Disconnect cancelled any ongoing processes
+            elapsedTime: 0,
+            error: 'User disconnected'
+          }
+        }));
+
+        // Dispatch abort-all-requests event to cancel any ongoing processes
+        window.dispatchEvent(new CustomEvent('abort-all-requests'));
+      }
     } finally {
       try { 
         await disconnectWallet(); 
