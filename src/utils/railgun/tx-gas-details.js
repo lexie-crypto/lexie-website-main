@@ -105,9 +105,9 @@ export const validateGasDetails = (gasDetails, networkName, transactionType = 's
 
     console.log(`[GasDetails] Validated gas details for ${transactionType} on ${networkName}:`, {
       evmGasType,
-      gasEstimate: adjustedGasEstimate.toString(),
-      multiplier,
+      gasEstimate: validatedGasDetails.gasEstimate.toString(),
       originalEstimate: gasDetails.gasEstimate.toString(),
+      note: 'Multiplier already applied by createGasDetails',
     });
 
     return validatedGasDetails;
