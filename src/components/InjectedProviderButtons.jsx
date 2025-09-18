@@ -56,9 +56,8 @@ const InjectedProviderButtons = ({ disabled }) => {
           </button>
         </div>
       ) : (
-        // Grid layout when other providers are available
-        <div className="flex justify-center">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 lg:gap-6 justify-items-center">
+        // Flex layout when other providers are available
+        <div className="flex justify-center gap-4 flex-wrap">
           {/* Always show WalletConnect first */}
           <button
             onClick={onWalletConnect}
@@ -86,7 +85,6 @@ const InjectedProviderButtons = ({ disabled }) => {
               <span className="text-emerald-200 font-medium text-base whitespace-nowrap">{p.info?.name}</span>
             </button>
           ))}
-          </div>
         </div>
       )}
     </div>
