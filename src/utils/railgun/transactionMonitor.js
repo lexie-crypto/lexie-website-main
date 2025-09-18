@@ -507,7 +507,7 @@ export const monitorTransactionInGraph = async ({
     // Cache block number after first Alchemy call
     let blockNumber = null;
     const { ethers } = await import('ethers');
-    const rpcUrl = await getRpcUrl(chainId);
+    const rpcUrl = getRpcUrl(chainId);
     const provider = new ethers.JsonRpcProvider(rpcUrl);
 
     if (!blockNumber) {
@@ -1292,23 +1292,20 @@ export const monitorTransactionInGraph = async ({
 /**
  * Get RPC URL for chain using the existing Alchemy configuration
  */
-const getRpcUrl = async (chainId) => {
+const getRpcUrl = (chainId) => {
   try {
-    // Import the existing RPC configuration that actually works
-    const { RPC_URLS } = await import('../../config/environment.js');
-    
     const chainMapping = {
       1: RPC_URLS.ethereum,
       42161: RPC_URLS.arbitrum,
       137: RPC_URLS.polygon,
       56: RPC_URLS.bsc,
     };
-    
+
     const rpcUrl = chainMapping[chainId];
     if (!rpcUrl) {
       throw new Error(`No RPC URL configured for chain ${chainId}`);
     }
-    
+
     console.log(`[TransactionMonitor] Using proxied RPC for chain ${chainId}:`, rpcUrl?.slice(0, 50) + '...');
     return rpcUrl;
   } catch (error) {
