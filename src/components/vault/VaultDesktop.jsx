@@ -1051,7 +1051,7 @@ const VaultDesktopInner = () => {
                         title="Copy Lexie ID"
                       />
                       <span className="ml-2 text-purple-300" title="Points = $ value × streak. Min $5. Streak resets if you skip a day.">
-                      <span className="text-purple-300/60">•</span> {pointsBalance !== null && pointsBalance !== undefined ? pointsBalance : '0.00'}
+                      <span className="text-purple-300/60">•</span> points: {pointsBalance !== null && pointsBalance !== undefined ? pointsBalance : '0.00'}
                       </span>
                     </div>
                   ) : (
