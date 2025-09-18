@@ -301,8 +301,13 @@ const VaultDesktopInner = () => {
         window.dispatchEvent(new CustomEvent('abort-all-requests'));
       }
     } finally {
-      try { 
-        await disconnectWallet(); 
+      try {
+        await disconnectWallet();
+        // Auto-refresh page to ensure clean state after disconnect
+        if (typeof window !== 'undefined') {
+          console.log('[VaultDesktop] Auto-refreshing page after disconnect for clean state');
+          window.location.reload();
+        }
       } catch {}
     }
   }, [address, disconnectWallet]);
