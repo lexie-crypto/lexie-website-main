@@ -29,15 +29,22 @@ const InjectedProviderButtons = ({ disabled }) => {
     }
   }, []);
 
+  // Also reset busy state when providers change (safety net)
+  useEffect(() => {
+    setBusyKey(null);
+  }, [providers]);
+
   const handleClick = async (provider, meta) => {
+    const key = meta?.id || meta?.name;
+    setBusyKey(key);
+    
     try {
-      const key = meta?.id || meta?.name;
-      setBusyKey(key);
       await provider.request({ method: 'eth_requestAccounts' });
       // Use generic injected connector and pass through provider metadata
       await connectWallet('injected', { provider, name: meta?.name, id: meta?.id });
     } catch (err) {
       console.error('Failed to connect provider:', err);
+      throw err; // Re-throw so caller can handle
     } finally {
       setBusyKey(null);
     }
