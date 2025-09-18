@@ -211,6 +211,8 @@ const wagmiConfig = createConfig({
       },
     }),
   },
+  // Prevent silent reconnection after disconnect; require explicit connect
+  autoConnect: false,
 });
 
 const WalletContext = createContext({
@@ -244,7 +246,7 @@ const WalletContextProvider = ({ children }) => {
   const [railgunError, setRailgunError] = useState(null);
 
   // Wagmi hooks - ONLY for UI wallet connection
-  const { address, isConnected, chainId, connector } = useAccount();
+  const { address, isConnected, chainId, connector, status } = useAccount();
   const { connect, connectors, isPending: isConnecting } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChain } = useSwitchChain();
@@ -263,6 +265,8 @@ const WalletContextProvider = ({ children }) => {
   const chainsScanningRef = useRef(new Set());
   // Capture explicitly selected injected provider (e.g., Rabby/Trust) from UI
   const selectedInjectedProviderRef = useRef(null);
+  const disconnectingRef = useRef(false);
+  const lastInitializedAddressRef = useRef(null);
 
   // Ensure initial full scan is completed for a given chain before user transacts
   const ensureChainScanned = useCallback(async (targetChainId) => {
@@ -631,6 +635,7 @@ const WalletContextProvider = ({ children }) => {
       return;
     }
     disconnectWallet.isDisconnecting = true;
+    disconnectingRef.current = true;
 
     try {
       // 1. Unload ALL Railgun SDK wallet state first
@@ -689,11 +694,29 @@ const WalletContextProvider = ({ children }) => {
         }
       } catch {}
 
+      // Clear wagmi/walletconnect stored connector keys so auto-connect will not trigger
+      try {
+        const lc = localStorage;
+        if (lc) {
+          try { lc.removeItem('wagmi.wallet'); } catch {}
+          try { lc.removeItem('wagmi.store'); } catch {}
+          try { lc.removeItem('walletconnect'); } catch {}
+          try { lc.removeItem('WALLETCONNECT_DEEPLINK_CHOICE'); } catch {}
+          const keys = Object.keys(lc);
+          keys.forEach((k) => {
+            if (k.startsWith('wc@') || k.startsWith('wc:') || k.toLowerCase().includes('walletconnect') || k.toLowerCase().includes('web3modal')) {
+              try { lc.removeItem(k); } catch {}
+            }
+          });
+        }
+      } catch {}
+
       // Reset RPC limiter
       try { resetRPCLimiter(); } catch {}
 
       console.log('✅ [DISCONNECT] Fast disconnect complete (no reload)');
     } finally {
+      disconnectingRef.current = false;
       disconnectWallet.isDisconnecting = false;
     }
   };
@@ -1656,11 +1679,29 @@ const WalletContextProvider = ({ children }) => {
       return;
     }
 
+    // Bail if currently disconnecting to avoid race with stale wagmi state
+    if (disconnectingRef.current) {
+      console.log('[Railgun Init] ⏳ Skipping auto-init: disconnect in progress');
+      return;
+    }
+
+    // Require wagmi status to be fully connected, not just isConnected
+    if (status !== 'connected') {
+      return;
+    }
+
+    // Prevent same-address re-init immediately after disconnect; require explicit reconnect
+    if (lastInitializedAddressRef.current && lastInitializedAddressRef.current === address) {
+      console.log('[Railgun Init] ⏭️ Skipping auto-init for same address until explicit reconnect');
+      return;
+    }
+
     if (isConnected && address && !isInitializing) {
       console.log('🚀 Auto-initializing Railgun for connected wallet:', address);
+      lastInitializedAddressRef.current = address;
       initializeRailgun();
     }
-  }, [isConnected, address, isRailgunInitialized, isInitializing, chainId]);
+  }, [isConnected, address, isRailgunInitialized, isInitializing, chainId, status]);
 
   // Update Railgun providers when chain or wallet changes - FIXED: Prevent infinite loops
   useEffect(() => {
