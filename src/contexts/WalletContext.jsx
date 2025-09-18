@@ -679,12 +679,25 @@ const WalletContextProvider = ({ children }) => {
         if (typeof window !== 'undefined') {
           try { localStorage.clear(); } catch {}
           try { sessionStorage.clear(); } catch {}
+
+          // Extra safety: clear all global cache/state and abort any active fetches
+          try { console.log('🗑️ [DISCONNECT] Clearing all global cache and state...'); } catch {}
           delete window.__RAILGUN_INITIAL_SCAN_DONE;
           delete window.__LEXIE_ENGINE_READY;
           delete window.__LEXIE_SUPPRESS_RAILGUN_INIT;
           delete window.__RAILGUN_ENGINE_INITIALIZED;
           delete window.__RAILGUN_WALLET_READY;
           delete window.__LEXIE_RAILGUN_DEBUG__;
+
+          if (window.__LEXIE_ACTIVE_FETCHES) {
+            try {
+              window.__LEXIE_ACTIVE_FETCHES.forEach(controller => {
+                try { controller.abort(); } catch {}
+              });
+            } catch {}
+            window.__LEXIE_ACTIVE_FETCHES = [];
+          }
+
           window.dispatchEvent(new CustomEvent('force-disconnect'));
         }
       } catch {}
@@ -693,6 +706,21 @@ const WalletContextProvider = ({ children }) => {
       try { resetRPCLimiter(); } catch {}
 
       console.log('✅ [DISCONNECT] Fast disconnect complete (no reload)');
+
+      // 🛑 FORCE PAGE RELOAD AS LAST RESORT
+      try {
+        console.log('🔄 [DISCONNECT] Force reloading page to ensure clean state...');
+        // Small delay to let other cleanup finish
+        setTimeout(() => {
+          if (typeof window !== 'undefined') {
+            window.location.reload();
+          }
+        }, 100);
+      } catch (reloadError) {
+        console.warn('⚠️ [DISCONNECT] Error reloading page:', reloadError);
+      }
+
+      console.log('✅ [DISCONNECT] FORCE DISCONNECT COMPLETE - User should be fully disconnected');
     } finally {
       disconnectWallet.isDisconnecting = false;
     }
