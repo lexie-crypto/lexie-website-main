@@ -1470,7 +1470,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               >
                 <span>
                   {selectedToken
-                    ? `${selectedToken.symbol} - ${formatBalance(selectedToken.numericBalance)}${selectedToken.balanceUSD !== undefined ? ` ($${typeof selectedToken.balanceUSD === 'string' && selectedToken.balanceUSD.startsWith('$') ? selectedToken.balanceUSD.substring(1) : selectedToken.balanceUSD})` : ''} available`
+                    ? `${selectedToken.symbol} - ${formatBalance(selectedToken.numericBalance)} available${selectedToken.balanceUSD !== undefined ? ` ($${typeof selectedToken.balanceUSD === 'string' && selectedToken.balanceUSD.startsWith('$') ? selectedToken.balanceUSD.substring(1) : selectedToken.balanceUSD})` : ''}`
                     : availableTokens.length === 0
                       ? 'No tokens available'
                       : 'Select token'}
@@ -1486,12 +1486,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                       onClick={() => { setSelectedToken(token); setIsTokenMenuOpen(false); }}
                       className="w-full text-left px-3 py-2 hover:bg-emerald-900/30 focus:bg-emerald-900/30 focus:outline-none"
                     >
-                      {token.symbol} - {formatBalance(token.numericBalance)}
+                      {token.symbol} - {formatBalance(token.numericBalance)} available
                       {token.balanceUSD !== undefined && (
                         <span className="text-green-400/70">
                           {' '}(${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD})
                         </span>
-                      )} available
+                      )}
                     </button>
                   ))}
                 </div>
