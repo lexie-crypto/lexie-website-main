@@ -432,9 +432,15 @@ export const shieldTokens = async ({
       }
 
       // Generate shield private key
+      console.log('[ShieldTransactions] Requesting shield signature from wallet...');
+      const toastId = showTerminalToast('info', 'Sign to add funds to your vault', 'Approve the signature in your wallet', { duration: 6000 });
       const shieldMessage = getShieldPrivateKeySignatureMessage();
       const signer = walletProvider; // walletProvider is a Signer object, not a function
       const signature = await signer.signMessage(shieldMessage);
+
+      console.log('[ShieldTransactions] Shield signature received');
+      try { toast.dismiss(toastId); } catch {}
+      showTerminalToast('success', 'Signature received');
       const shieldPrivateKey = keccak256(signature);
 
       // Estimate gas using SDK helper
