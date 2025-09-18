@@ -53,24 +53,45 @@ const InjectedProviderButtons = ({ disabled }) => {
     console.log('[InjectedProviderButtons] Meta object:', meta);
     setBusyKey(key);
 
+    // Safety timeout - reset busyKey after 30 seconds in case of hang
+    const safetyTimeout = setTimeout(() => {
+      console.log('[InjectedProviderButtons] Safety timeout - resetting busyKey');
+      setBusyKey(null);
+    }, 30000);
+
     try {
       // Just like WalletConnect - let wagmi handle the connection through the clickedInjectedConnector
       await connectWallet('injected', { provider, name: meta?.name, id: meta?.id });
+      console.log('[InjectedProviderButtons] Connection successful');
     } catch (err) {
       console.error('Failed to connect provider:', err);
-      throw err; // Re-throw so caller can handle
+      // Don't re-throw - we handle it here
     } finally {
+      clearTimeout(safetyTimeout);
+      console.log('[InjectedProviderButtons] Clearing busy key');
       setBusyKey(null);
     }
   };
 
   const onWalletConnect = async () => {
+    console.log('[InjectedProviderButtons] Setting busy key for WalletConnect: walletconnect');
+    setBusyKey('walletconnect');
+
+    // Safety timeout - reset busyKey after 30 seconds in case of hang
+    const safetyTimeout = setTimeout(() => {
+      console.log('[InjectedProviderButtons] Safety timeout - resetting busyKey for WalletConnect');
+      setBusyKey(null);
+    }, 30000);
+
     try {
-      setBusyKey('walletconnect');
       await connectWallet('walletconnect');
+      console.log('[InjectedProviderButtons] WalletConnect connection successful');
     } catch (e) {
-      console.error(e);
+      console.error('WalletConnect connection failed:', e);
+      // Don't re-throw - we handle it here
     } finally {
+      clearTimeout(safetyTimeout);
+      console.log('[InjectedProviderButtons] Clearing busy key for WalletConnect');
       setBusyKey(null);
     }
   };
@@ -108,28 +129,22 @@ const InjectedProviderButtons = ({ disabled }) => {
             <span className="text-emerald-200 font-medium text-base whitespace-nowrap">WalletConnect</span>
           </button>
 
-          {providersSorted.map((p) => {
-            const buttonKey = p.info?.uuid || p.info?.rdns || p.info?.name;
-            const isButtonDisabled = disabled || busyKey === buttonKey;
-            console.log('[InjectedProviderButtons] Rendering button for', p.info?.name, '- buttonKey:', buttonKey, '- busyKey:', busyKey, '- disabled:', isButtonDisabled);
-
-            return (
-              <button
-                key={buttonKey}
-                onClick={() => handleClick(p.provider, { name: p.info?.name, id: p.info?.uuid || p.info?.rdns })}
-                disabled={isButtonDisabled}
-                className="flex items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/5 px-6 py-4 h-16 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed"
-                aria-label={`Connect ${p.info?.name}`}
-              >
-                {p.info?.icon ? (
-                  <img src={p.info.icon} alt="" className="h-6 w-6 rounded-md" />
-                ) : (
-                  <span className="h-6 w-6" aria-hidden>🦊</span>
-                )}
-                <span className="text-emerald-200 font-medium text-base whitespace-nowrap">{p.info?.name}</span>
-              </button>
-            );
-          })}
+          {providersSorted.map((p) => (
+            <button
+              key={p.info?.uuid || p.info?.rdns || p.info?.name}
+              onClick={() => handleClick(p.provider, { name: p.info?.name, id: p.info?.uuid || p.info?.rdns })}
+              disabled={disabled || busyKey === (p.info?.uuid || p.info?.rdns || p.info?.name)}
+              className="flex items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/5 px-6 py-4 h-16 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed"
+              aria-label={`Connect ${p.info?.name}`}
+            >
+              {p.info?.icon ? (
+                <img src={p.info.icon} alt="" className="h-6 w-6 rounded-md" />
+              ) : (
+                <span className="h-6 w-6" aria-hidden>🦊</span>
+              )}
+              <span className="text-emerald-200 font-medium text-base whitespace-nowrap">{p.info?.name}</span>
+            </button>
+            ))}
         </div>
       )}
     </div>
