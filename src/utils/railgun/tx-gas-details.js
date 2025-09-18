@@ -70,14 +70,10 @@ export const validateGasDetails = (gasDetails, networkName, transactionType = 's
       throw new Error('Gas estimate must be a positive BigInt');
     }
 
-    // Apply gas limit multiplier for safety
-    const multiplier = GAS_LIMIT_MULTIPLIERS[transactionType] || 1.2;
-    const adjustedGasEstimate = BigInt(Math.ceil(Number(gasDetails.gasEstimate) * multiplier));
-
     // Validate gas fields based on EVM gas type
     const validatedGasDetails = {
       evmGasType,
-      gasEstimate: adjustedGasEstimate,
+      gasEstimate: gasDetails.gasEstimate, // Don't modify - multiplier already applied by createGasDetails
     };
 
     switch (evmGasType) {
