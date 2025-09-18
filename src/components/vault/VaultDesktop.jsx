@@ -1029,7 +1029,8 @@ const VaultDesktopInner = () => {
                   {currentLexieId ? (
                     <div className="flex items-center space-x-2">
                       <span className="text-purple-300 font-medium">{currentLexieId}</span>
-                      <button
+                      <ClipboardDocumentIcon
+                        className="h-3.5 w-3.5 text-purple-300 hover:text-purple-400 cursor-pointer transition-colors"
                         onClick={() => {
                           navigator.clipboard.writeText(currentLexieId);
                           toast.custom((t) => (
@@ -1047,11 +1048,8 @@ const VaultDesktopInner = () => {
                             </div>
                           ), { duration: 2500 });
                         }}
-                        className="inline-flex items-center justify-center bg-purple-300 hover:bg-purple-400 text-black p-1 rounded transition-colors"
                         title="Copy Lexie ID"
-                      >
-                        <ClipboardDocumentIcon className="h-3.5 w-3.5" />
-                      </button>
+                      />
                       <span className="ml-2 text-purple-200 text-[10px]" title="Points = $ value × streak. Min $5. Streak resets if you skip a day.">
                         ✦ {pointsBalance !== null && pointsBalance !== undefined ? pointsBalance : '0.00'}
                       </span>
