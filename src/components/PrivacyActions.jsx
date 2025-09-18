@@ -488,7 +488,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
       // Get normalized token address
       const tokenAddr = getTokenAddress(selectedToken);
-      if (!tokenAddr) {
+      // Allow null addresses for native tokens (e.g., ETH)
+      const isNativeToken = !tokenAddr && selectedToken.symbol === 'ETH';
+      if (!tokenAddr && !isNativeToken) {
         console.error('[PrivacyActions] Shield failed: Invalid token address', selectedToken);
         toast.error('Selected token is invalid. Please reselect the token.');
         return;
@@ -716,13 +718,13 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               <div className="px-4 py-3 flex items-center gap-3">
                 <div className="h-3 w-3 rounded-full bg-red-400" />
                 <div>
-                  <div className="text-sm">Failed to add {amount} {selectedToken.symbol} to your vault</div>
-                  <div className="text-xs text-green-400/80">Please try again</div>
+                  <div className="text-sm">Failed to add {amount} {selectedToken?.symbol || 'token'} to your vault</div>
+                  <div className="text-xs text-green-400/80">{error.message || 'Please try again'}</div>
                 </div>
               </div>
             </div>
           </div>
-        ), { duration: 3000 });
+        ), { duration: 4000 });
       }
     } finally {
       resetFormState();
