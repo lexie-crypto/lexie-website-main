@@ -1025,12 +1025,16 @@ const VaultDesktopInner = () => {
                   <span className="text-green-400/80">
                     {address?.slice(0, 6)}...{address?.slice(-4)}
                   </span>
-                  <span className="text-purple-300/60">•</span>
+                  <span className="text-green-400/60">•</span>
                   {currentLexieId ? (
                     <div className="flex items-center space-x-2">
                       <span className="text-purple-300 font-medium">{currentLexieId}</span>
-                      <ClipboardDocumentIcon
-                        className="h-3.5 w-3.5 text-purple-300 hover:text-purple-400 cursor-pointer transition-colors"
+                      {typeof pointsBalance === 'number' && (
+                        <span className="ml-1 inline-flex items-center gap-1 rounded-full bg-purple-600/20 text-purple-200 border border-purple-400/30 px-2 py-0.5 text-[11px]" title="Points = $ value × streak. Min $5. Streak resets if you skip a day.">
+                          ✦ {pointsBalance}
+                        </span>
+                      )}
+                      <button
                         onClick={() => {
                           navigator.clipboard.writeText(currentLexieId);
                           toast.custom((t) => (
@@ -1048,11 +1052,12 @@ const VaultDesktopInner = () => {
                             </div>
                           ), { duration: 2500 });
                         }}
+                        className="inline-flex items-center gap-1 bg-purple-300 hover:bg-purple-400 text-black px-2 py-0.5 rounded text-xs font-medium transition-colors"
                         title="Copy Lexie ID"
-                      />
-                      <span className="ml-2 text-purple-300" title="Points = $ value × streak. Min $5. Streak resets if you skip a day.">
-                      <span className="text-purple-300/60">•</span> points {pointsBalance !== null && pointsBalance !== undefined ? pointsBalance : '0.00'}
-                      </span>
+                      >
+                        <ClipboardDocumentIcon className="h-3.5 w-3.5" />
+                        <span>Copy</span>
+                      </button>
                     </div>
                   ) : (
                     <button
