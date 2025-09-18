@@ -75,7 +75,6 @@ const VaultDesktopInner = () => {
   const [activeTransactionMonitors, setActiveTransactionMonitors] = useState(0);
   const [shieldingTokens, setShieldingTokens] = useState(new Set());
   const [shieldAmounts, setShieldAmounts] = useState({});
-  const [showSignatureGuide, setShowSignatureGuide] = useState(false);
   const [showSignRequestPopup, setShowSignRequestPopup] = useState(false);
   const [initProgress, setInitProgress] = useState({ percent: 0, message: '' });
   const [isInitInProgress, setIsInitInProgress] = useState(false);
@@ -610,21 +609,6 @@ const VaultDesktopInner = () => {
     })();
   }, [railgunAddress]);
 
-  // Show signature guide on first-time EOA connection
-  useEffect(() => {
-    if (isConnected && address && !canUseRailgun && !isInitializingRailgun) {
-      const seenGuideKey = `railgun-guide-seen-${address.toLowerCase()}`;
-      const hasSeenGuide = localStorage.getItem(seenGuideKey);
-      
-      if (!hasSeenGuide) {
-        const timer = setTimeout(() => {
-          setShowSignatureGuide(true);
-          localStorage.setItem(seenGuideKey, 'true');
-        }, 1000);
-        return () => clearTimeout(timer);
-      }
-    }
-  }, [isConnected, address, canUseRailgun, isInitializingRailgun]);
 
   // Get encryption key
   const getEncryptionKey = useCallback(async () => {
@@ -1564,51 +1548,6 @@ const VaultDesktopInner = () => {
         </div>
       )}
 
-      {/* Signature Guide Popup */}
-      {showSignatureGuide && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-gray-800 rounded-xl shadow-2xl max-w-md w-full p-6 border border-gray-700">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center space-x-3">
-                <div className="bg-purple-100 dark:bg-purple-900 rounded-full p-2">
-                  <ShieldCheckIcon className="h-6 w-6 text-purple-600 dark:text-purple-400" />
-                </div>
-                <h3 className="text-lg font-semibold text-white">Enable Privacy Features</h3>
-              </div>
-              <button
-                onClick={() => setShowSignatureGuide(false)}
-                className="text-gray-400 hover:text-gray-300 transition-colors"
-              >
-                <XCircleIcon className="h-5 w-5" />
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              <p className="text-gray-300">
-                To unlock Railgun's privacy features, you'll need to sign a message in your wallet. This creates a secure, privacy shield that enables private token balances and transactions.
-              </p>
-              
-              <div className="bg-blue-900/30 border border-blue-700 rounded-lg p-3">
-                <p className="text-blue-300 text-sm">
-                  <strong>Note:</strong> This signature doesn't cost gas fees and only needs to be done once per wallet.
-                </p>
-              </div>
-              
-              <div className="flex space-x-3 pt-2">
-                <button
-                  onClick={() => {
-                    setShowSignatureGuide(false);
-                    toast.success('Look for the signature request in your wallet!');
-                  }}
-                  className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors font-medium"
-                >
-                  Continue
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Sign-in & Initialization Popup */}
       {showSignRequestPopup && (
