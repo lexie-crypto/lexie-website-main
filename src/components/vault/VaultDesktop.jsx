@@ -96,6 +96,7 @@ const VaultDesktopInner = () => {
   
   // Chain readiness state
   const [isChainReady, setIsChainReady] = useState(false);
+  const [scanComplete, setScanComplete] = useState(false);
 
   const network = getCurrentNetwork();
 
@@ -191,6 +192,7 @@ const VaultDesktopInner = () => {
           console.log('[VaultDesktop] Chain not scanned on connect - showing modal');
           setShowSignRequestPopup(true);
           setIsInitInProgress(true);
+          setScanComplete(false);
           const networkName = getNetworkName(chainId);
           setInitProgress({ 
             percent: 0, 
@@ -462,6 +464,7 @@ const VaultDesktopInner = () => {
   // Re-check readiness immediately after scan completes
   useEffect(() => {
     const onScanComplete = () => {
+      setScanComplete(true);
       setIsChainReady(false);
       checkChainReady().then((ready) => setIsChainReady(!!ready)).catch(() => setIsChainReady(false));
     };
@@ -500,6 +503,7 @@ const VaultDesktopInner = () => {
       if (!showSignRequestPopup) {
         setShowSignRequestPopup(true);
       }
+      setScanComplete(false);
       setIsChainReady(false);
       setIsInitInProgress(true);
       setInitFailedMessage('');
@@ -575,11 +579,11 @@ const VaultDesktopInner = () => {
 
   // Unlock modal using the same readiness flag as old WalletPage
   useEffect(() => {
-    if (showSignRequestPopup && isInitInProgress && isChainReady) {
+    if (showSignRequestPopup && isInitInProgress && scanComplete && isChainReady) {
       setInitProgress({ percent: 100, message: 'Initialization complete' });
       setIsInitInProgress(false);
     }
-  }, [isChainReady, isInitInProgress, showSignRequestPopup]);
+  }, [scanComplete, isChainReady, isInitInProgress, showSignRequestPopup]);
 
   // Check if this Railgun address already has a linked Lexie ID
   useEffect(() => {
