@@ -18,9 +18,9 @@ import { shouldSetOverallBatchMinGasPriceForNetwork } from './gasUtils.js';
  */
 const DEFAULT_GAS_ESTIMATES = {
   [NetworkName.Ethereum]: {
-    gasPrice: BigInt(20000000000), // 20 gwei
-    maxFeePerGas: BigInt(25000000000), // 25 gwei  
-    maxPriorityFeePerGas: BigInt(2000000000), // 2 gwei
+    gasPrice: BigInt(15000000000), // 15 gwei (reduced from 20)
+    maxFeePerGas: BigInt(30000000000), // 30 gwei (increased from 25 for better headroom)
+    maxPriorityFeePerGas: BigInt(2000000000), // 2 gwei (unchanged)
   },
   [NetworkName.Arbitrum]: {
     gasPrice: BigInt(100000000), // 0.1 gwei

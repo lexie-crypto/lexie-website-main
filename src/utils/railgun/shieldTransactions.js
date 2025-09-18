@@ -453,25 +453,62 @@ export const shieldTokens = async ({
         fromAddress,
       );
 
-      // Create gas details
+      // Create gas details with proper fallbacks (matching unshield approach)
       const provider = signer.provider;
       const fee = await provider.getFeeData();
       const evmGasType = getEVMGasTypeForTransaction(networkName, true);
+
+      // Add 20% padding to base token gas estimate like unshield does
+      const paddedBaseTokenGasEstimate = (gasEstimate * 120n) / 100n;
+
+      // Network-specific gas price fallbacks (matching unshield)
+      let gasPriceFallback, maxFeeFallback, priorityFeeFallback;
+      if (chain.id === 1) { // Ethereum
+        gasPriceFallback = BigInt('20000000000'); // 20 gwei
+        maxFeeFallback = BigInt('25000000000'); // 25 gwei
+        priorityFeeFallback = BigInt('2000000000'); // 2 gwei
+      } else if (chain.id === 42161) { // Arbitrum
+        gasPriceFallback = BigInt('100000000'); // 0.1 gwei
+        maxFeeFallback = BigInt('1000000000'); // 1 gwei
+        priorityFeeFallback = BigInt('10000000'); // 0.01 gwei
+      } else if (chain.id === 137) { // Polygon
+        gasPriceFallback = BigInt('30000000000'); // 30 gwei
+        maxFeeFallback = BigInt('40000000000'); // 40 gwei
+        priorityFeeFallback = BigInt('30000000000'); // 30 gwei
+      } else if (chain.id === 56) { // BNB Chain
+        gasPriceFallback = BigInt('5000000000'); // 5 gwei
+        maxFeeFallback = BigInt('6000000000'); // 6 gwei
+        priorityFeeFallback = BigInt('1000000000'); // 1 gwei
+      } else {
+        gasPriceFallback = BigInt('5000000000'); // 5 gwei
+        maxFeeFallback = BigInt('6000000000'); // 6 gwei
+        priorityFeeFallback = BigInt('1000000000'); // 1 gwei
+      }
+
       let gasDetails;
       if (evmGasType === EVMGasType.Type2) {
         gasDetails = {
           evmGasType,
-          gasEstimate,
-          maxFeePerGas: fee.maxFeePerGas || BigInt('1000000'),
-          maxPriorityFeePerGas: fee.maxPriorityFeePerGas || BigInt('100000'),
+          gasEstimate: paddedBaseTokenGasEstimate,
+          maxFeePerGas: fee.maxFeePerGas || maxFeeFallback,
+          maxPriorityFeePerGas: fee.maxPriorityFeePerGas || priorityFeeFallback,
         };
       } else {
         gasDetails = {
           evmGasType,
-          gasEstimate,
-          gasPrice: fee.gasPrice || BigInt('1000000'),
+          gasEstimate: paddedBaseTokenGasEstimate,
+          gasPrice: fee.gasPrice || gasPriceFallback,
         };
       }
+
+      console.log('[ShieldTransactions] Base token gas details:', {
+        evmGasType,
+        originalGasEstimate: gasEstimate.toString(),
+        paddedGasEstimate: paddedBaseTokenGasEstimate.toString(),
+        gasPrice: gasDetails.gasPrice?.toString(),
+        maxFeePerGas: gasDetails.maxFeePerGas?.toString(),
+        maxPriorityFeePerGas: gasDetails.maxPriorityFeePerGas?.toString(),
+      });
 
       // Build transaction via SDK
       const { transaction } = await populateShieldBaseToken(
@@ -544,9 +581,14 @@ export const shieldTokens = async ({
 
     // Extract the gas estimate value from the response
     const gasEstimate = gasEstimateResponse.gasEstimate || gasEstimateResponse;
+
+    // Add buffer to gas estimate (20% padding to match unshield approach)
+    const finalGasEstimate = (gasEstimate * 120n) / 100n;
+
     console.log('[ShieldTransactions] Gas estimate response:', {
-      gasEstimate: gasEstimate.toString(),
-      type: typeof gasEstimate
+      originalGasEstimate: gasEstimate.toString(),
+      paddedGasEstimate: finalGasEstimate.toString(),
+      padding: '20%'
     });
 
     // Create real gas details for shield operation
@@ -568,16 +610,16 @@ export const shieldTokens = async ({
         const minRequired = baseFee ? ((baseFee * 115n) / 100n) + priority : 0n;
         let desiredMax = networkMax > minRequired ? networkMax : (minRequired || (priority * 2n));
 
-        gasDetails = createShieldGasDetails(networkName, gasEstimate, {
+        gasDetails = createShieldGasDetails(networkName, finalGasEstimate, {
           maxFeePerGas: desiredMax,
           maxPriorityFeePerGas: priority,
         });
       } catch (ethFeeErr) {
         console.warn('[ShieldTransactions] Ethereum fee data failed, using defaults:', ethFeeErr?.message);
-        gasDetails = createShieldGasDetails(networkName, gasEstimate);
+        gasDetails = createShieldGasDetails(networkName, finalGasEstimate);
       }
     } else {
-      gasDetails = createShieldGasDetails(networkName, gasEstimate);
+      gasDetails = createShieldGasDetails(networkName, finalGasEstimate);
     }
     
     const broadcasterFeeInfo = null; // No broadcaster for shield
