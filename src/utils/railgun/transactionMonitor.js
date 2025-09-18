@@ -1342,6 +1342,16 @@ export const monitorShieldTransaction = async (txHash, chainId, railgunWalletId,
             timestamp: Date.now()
           }
         }));
+        // Also dispatch transaction-monitor-complete for rewards system
+        window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
+          detail: {
+            transactionType: 'shield',
+            found: true,
+            elapsedTime: Date.now() - startTime,
+            txHash,
+            usdValue: transactionDetails?.usdValue || 0
+          }
+        }));
       }
     }
   });
@@ -1370,6 +1380,16 @@ export const monitorUnshieldTransaction = async (txHash, chainId, railgunWalletI
             transactionType: 'unshield',
             event,
             timestamp: Date.now()
+          }
+        }));
+        // Also dispatch transaction-monitor-complete for rewards system
+        window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
+          detail: {
+            transactionType: 'unshield',
+            found: true,
+            elapsedTime: Date.now() - startTime,
+            txHash,
+            usdValue: transactionDetails?.usdValue || 0
           }
         }));
       }
@@ -1401,6 +1421,16 @@ export const monitorTransferTransaction = async (txHash, chainId, railgunWalletI
             event,
             timestamp: Date.now(),
             ...(transactionDetails || { walletId: railgunWalletId })
+          }
+        }));
+        // Also dispatch transaction-monitor-complete for rewards system
+        window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
+          detail: {
+            transactionType: 'transfer',
+            found: true,
+            elapsedTime: Date.now() - startTime,
+            txHash,
+            usdValue: transactionDetails?.usdValue || 0
           }
         }));
       }

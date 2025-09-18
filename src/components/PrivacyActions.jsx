@@ -61,6 +61,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     refreshBalancesAfterTransaction,
     formatBalance,
     isPrivateBalancesLoading, // Add
+    calculateUSDValue,
   } = useBalances();
 
   // isRefreshingBalances is now passed as a prop from WalletPage
@@ -629,6 +630,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             tokenAddress: tokenAddr,
             decimals: selectedToken.decimals,
             amount: amount,
+            usdValue: parseFloat(calculateUSDValue(parseFloat(amount), selectedToken.symbol)),
           },
           listener: async (event) => {
             console.log(`[PrivacyActions] ✅ Shield tx ${txResponse?.hash || txResponse} indexed on chain ${chainConfig.id}`);
@@ -867,6 +869,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             tokenAddress: tokenAddr,
             decimals: selectedToken.decimals,
             amount: amount,
+            usdValue: parseFloat(calculateUSDValue(parseFloat(amount), selectedToken.symbol)),
             recipientAddress: toAddress, // Add recipient address for unshield
             senderAddress: address, // Add sender address for unshield
             changeCommitment: result.changeCommitment, // For change notes
@@ -1111,6 +1114,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             tokenAddress: tokenAddr,
             decimals: selectedToken.decimals,
             amount: amountInUnits,
+            usdValue: parseFloat(calculateUSDValue(parseFloat(amount), selectedToken.symbol)),
             recipientAddress: timelineRecipientAddress, // Use resolved Railgun address
             memoText: memoText, // Add memo text
           },
