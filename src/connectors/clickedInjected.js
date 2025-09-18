@@ -20,7 +20,16 @@ export function clickedInjectedConnector(provider, name = 'Injected') {
         provider,
       };
     },
-    async disconnect() { /* no-op */ },
+    async disconnect() {
+      // Try to disconnect from the provider if it has a disconnect method
+      try {
+        if (provider?.disconnect) {
+          await provider.disconnect();
+        }
+      } catch (e) {
+        // Ignore disconnect errors
+      }
+    },
     async getProvider() { return provider; },
     async getChainId() {
       const id = await provider?.request?.({ method: 'eth_chainId' });

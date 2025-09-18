@@ -90,6 +90,9 @@ export default function useInjectedProviders() {
 
     // Listen for force-disconnect events to re-detect providers
     const onForceDisconnect = () => {
+      console.log('[useInjectedProviders] Force re-detecting providers after disconnect');
+      // Clear legacy providers too to ensure fresh objects
+      setLegacyProviders([]);
       setTimeout(detectProviders, 100); // Small delay to ensure cleanup is complete
     };
 

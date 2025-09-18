@@ -8,12 +8,13 @@ import { useWallet } from '../contexts/WalletContext';
  */
 const InjectedProviderButtons = ({ disabled }) => {
   const { providers } = useInjectedProviders();
-  const { connectWallet } = useWallet();
+  const { connectWallet, isConnected } = useWallet();
   const [busyKey, setBusyKey] = useState(null);
 
   // Reset busy state on disconnect to allow reconnection
   useEffect(() => {
     const handleDisconnect = () => {
+      console.log('[InjectedProviderButtons] Received force-disconnect event, resetting busyKey');
       setBusyKey(null);
       // Force re-detection of providers after disconnect
       if (typeof window !== 'undefined') {
@@ -24,8 +25,12 @@ const InjectedProviderButtons = ({ disabled }) => {
     };
 
     if (typeof window !== 'undefined') {
+      console.log('[InjectedProviderButtons] Adding force-disconnect listener');
       window.addEventListener('force-disconnect', handleDisconnect);
-      return () => window.removeEventListener('force-disconnect', handleDisconnect);
+      return () => {
+        console.log('[InjectedProviderButtons] Removing force-disconnect listener');
+        window.removeEventListener('force-disconnect', handleDisconnect);
+      };
     }
   }, []);
 
@@ -34,10 +39,20 @@ const InjectedProviderButtons = ({ disabled }) => {
     setBusyKey(null);
   }, [providers]);
 
+  // Reset busy state when wallet disconnects
+  useEffect(() => {
+    if (!isConnected) {
+      console.log('[InjectedProviderButtons] Wallet disconnected, resetting busyKey');
+      setBusyKey(null);
+    }
+  }, [isConnected]);
+
   const handleClick = async (provider, meta) => {
     const key = meta?.id || meta?.name;
+    console.log('[InjectedProviderButtons] Setting busy key for', meta?.name, ':', key);
+    console.log('[InjectedProviderButtons] Meta object:', meta);
     setBusyKey(key);
-    
+
     try {
       await provider.request({ method: 'eth_requestAccounts' });
       // Use generic injected connector and pass through provider metadata
@@ -94,22 +109,28 @@ const InjectedProviderButtons = ({ disabled }) => {
             <span className="text-emerald-200 font-medium text-base whitespace-nowrap">WalletConnect</span>
           </button>
 
-          {providersSorted.map((p) => (
-            <button
-              key={p.info?.uuid || p.info?.rdns || p.info?.name}
-              onClick={() => handleClick(p.provider, { name: p.info?.name, id: p.info?.uuid || p.info?.rdns })}
-              disabled={disabled || busyKey === (p.info?.uuid || p.info?.rdns || p.info?.name)}
-              className="flex items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/5 px-6 py-4 h-16 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed"
-              aria-label={`Connect ${p.info?.name}`}
-            >
-              {p.info?.icon ? (
-                <img src={p.info.icon} alt="" className="h-6 w-6 rounded-md" />
-              ) : (
-                <span className="h-6 w-6" aria-hidden>🦊</span>
-              )}
-              <span className="text-emerald-200 font-medium text-base whitespace-nowrap">{p.info?.name}</span>
-            </button>
-          ))}
+          {providersSorted.map((p) => {
+            const buttonKey = p.info?.uuid || p.info?.rdns || p.info?.name;
+            const isButtonDisabled = disabled || busyKey === buttonKey;
+            console.log('[InjectedProviderButtons] Rendering button for', p.info?.name, '- buttonKey:', buttonKey, '- busyKey:', busyKey, '- disabled:', isButtonDisabled);
+
+            return (
+              <button
+                key={buttonKey}
+                onClick={() => handleClick(p.provider, { name: p.info?.name, id: p.info?.uuid || p.info?.rdns })}
+                disabled={isButtonDisabled}
+                className="flex items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/5 px-6 py-4 h-16 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed"
+                aria-label={`Connect ${p.info?.name}`}
+              >
+                {p.info?.icon ? (
+                  <img src={p.info.icon} alt="" className="h-6 w-6 rounded-md" />
+                ) : (
+                  <span className="h-6 w-6" aria-hidden>🦊</span>
+                )}
+                <span className="text-emerald-200 font-medium text-base whitespace-nowrap">{p.info?.name}</span>
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
