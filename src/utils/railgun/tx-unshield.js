@@ -661,63 +661,12 @@ export const unshieldTokens = async ({
     
     const userAmountGross = BigInt(amount); // user's entered amount (private balance units)
 
-    // 🤑 FEE RECLAMATION: Calculate gas fee to recover from relayer-sponsored transaction
-    console.log('[Unshield] 🤑 Calculating gas fee reclamation for relayer transaction...');
-    let gasFeeDeducted = 0n;
-
-    try {
-      // Get network name for fee config
-      const networkName = getRailgunNetworkName(chain.id);
-
-      // Get token prices for fee calculation
-      const tokenPrices = getTokenPrices(tokenAddress);
-      const { tokenPrice, ethPrice } = await tokenPrices;
-
-      // For gas fee reclamation, we need to calculate based on the transaction gas details
-      // We'll use the gas estimation from the transaction that will be submitted
-      // For now, estimate based on typical unshield gas usage
-
-      // Create a mock gas details object for fee calculation (will be refined with actual gas)
-      const mockGasEstimate = useRelayer ? BigInt('1200000') : BigInt('800000'); // Network-appropriate estimate
-      const mockGasDetails = {
-        evmGasType: getEVMGasTypeForTransaction(networkName, sendWithPublicWallet),
-        gasEstimate: mockGasEstimate,
-        gasPrice: BigInt('20000000000'), // 20 gwei fallback
-        maxFeePerGas: BigInt('30000000000'), // 30 gwei fallback
-        maxPriorityFeePerGas: BigInt('2000000000') // 2 gwei fallback
-      };
-
-      // Calculate gas fee using official RAILGUN approach
-      const gasFeeResult = await calculateFeeForTransaction({
-        gasDetails: mockGasDetails,
-        networkName,
-        tokenAddress,
-        tokenPrice,
-        ethPrice,
-        tokenDecimals: 6, // Most stablecoins have 6 decimals
-        transactionType: 'unshield'
-      });
-
-      gasFeeDeducted = gasFeeResult.feeAmount;
-
-      console.log('[Unshield] 🤑 Gas fee calculated for reclamation:', {
-        gasFeeDeducted: gasFeeDeducted.toString(),
-        gasEstimate: mockGasEstimate.toString(),
-        tokenPrice,
-        ethPrice,
-        feeBreakdown: gasFeeResult.feeBreakdown
-      });
-
-    } catch (gasFeeError) {
-      console.warn('[Unshield] ⚠️ Gas fee calculation failed, using 0:', gasFeeError.message);
-      gasFeeDeducted = 0n;
-    }
-
     let relayerFeeBn = 0n;
+    let gasFeeDeducted = 0n; // Will be calculated after accurate gas estimation
     let recipientBn = 0n;
     let unshieldInputAmount = userAmountGross; // amount to unshield into RelayAdapt
     let feeTokenDetails = null;
-    
+
     // SDK will validate balance internally
     
     if (useRelayer) {
@@ -739,41 +688,18 @@ export const unshieldTokens = async ({
       });
 
       // Calculate relayer fee from the user's amount, then unshield NET of ALL fees
+      // Calculate relayer fee - gas fee will be calculated after accurate gas estimation
       relayerFeeBn = (userAmountGross * RELAYER_FEE_BPS) / 10000n;
-
-      // Initial calculation - will be recalculated with accurate gas estimate later
-      const initialTotalFeeDeduction = relayerFeeBn + gasFeeDeducted;
-      unshieldInputAmount = userAmountGross - initialTotalFeeDeduction;
-
-      console.log('💰 [UNSHIELD] Initial fee breakdown (will be recalculated with accurate gas):', {
+      
+      console.log('💰 [UNSHIELD] Relayer fee calculated:', {
         userAmountGross: userAmountGross.toString(),
         relayerFeeBn: relayerFeeBn.toString(),
-        gasFeeDeducted: gasFeeDeducted.toString(),
-        initialTotalFeeDeduction: initialTotalFeeDeduction.toString(),
-        initialUnshieldInputAmount: unshieldInputAmount.toString(),
-        gasRecoveryPercentage: gasFeeDeducted > 0n ? `${((Number(gasFeeDeducted) / Number(userAmountGross)) * 100).toFixed(4)}%` : '0%',
-        note: 'These are preliminary calculations using mock gas estimate'
+        note: 'Gas fee will be calculated after accurate gas estimation'
       });
       
-      // Recipient gets NET after SDK protocol fee
-      recipientBn = (unshieldInputAmount * (10000n - UNSHIELD_FEE_BPS)) / 10000n;
-      
-      console.log('💰 [UNSHIELD] Fee calculation (net broadcaster from user amount):', {
-        userAmountGross: userAmountGross.toString(),
-        relayerFeeBn: relayerFeeBn.toString(),
-        gasFeeDeducted: gasFeeDeducted.toString(),
-        unshieldInputAmount: unshieldInputAmount.toString(),
-        recipientBn: recipientBn.toString(),
-        requiredSpend: (unshieldInputAmount + relayerFeeBn + gasFeeDeducted).toString(),
-        assertion: 'requiredSpend should equal userAmountGross'
-      });
-      
-      // Assertions (before proof/populate)
-      if (recipientBn <= 0n) {
-        throw new Error(`Recipient amount must be > 0. Got: ${recipientBn.toString()}`);
-      }
-      if (unshieldInputAmount + relayerFeeBn + gasFeeDeducted !== userAmountGross) {
-        throw new Error(`Math error: unshieldInput (${unshieldInputAmount.toString()}) + relayer fee (${relayerFeeBn.toString()}) + gas fee (${gasFeeDeducted.toString()}) != userAmountGross (${userAmountGross.toString()})`);
+      // Basic validation - detailed checks happen after fee calculations
+      if (userAmountGross <= 0n) {
+        throw new Error('User amount must be positive');
       }
       
       // Guard: Relayer must provide a valid 0zk address
@@ -1047,95 +973,112 @@ export const unshieldTokens = async ({
     // Dynamic minimum for SDK calls - use padded estimate when greater
     const minGasForSDK = finalGasEstimate > MIN_GAS_LIMIT ? finalGasEstimate : MIN_GAS_LIMIT;
 
-    // 🤑 RECALCULATE GAS FEES WITH ACCURATE ESTIMATE
-    console.log('[Unshield] 🤑 Recalculating gas fees with accurate estimate...');
-
+    // 🤑 FEE RECLAMATION: Calculate gas fee after accurate gas estimation
     if (useRelayer) {
-      // Rebuild gas details with the actual final gas estimate
+      console.log('[Unshield] 🤑 Calculating gas fee reclamation with accurate estimate...');
+
+      // Get live network gas prices first
+      let liveFeeData = null;
+      try {
+        const signer = await walletProvider();
+        const provider = signer?.provider;
+        if (provider) {
+          liveFeeData = await provider.getFeeData();
+          console.log('[Unshield] 📊 Live network gas prices:', {
+            gasPrice: liveFeeData?.gasPrice?.toString(),
+            maxFeePerGas: liveFeeData?.maxFeePerGas?.toString(),
+            maxPriorityFeePerGas: liveFeeData?.maxPriorityFeePerGas?.toString(),
+            source: 'live_provider_data'
+          });
+        }
+      } catch (feeError) {
+        console.warn('[Unshield] ⚠️ Could not get live fee data:', feeError.message);
+      }
+
+      // Build gas details with live data or conservative fallback (3-4 gwei max)
+      const conservativeFallbackGasPrice = BigInt('4000000000'); // 4 gwei conservative fallback
+      const conservativeMaxFeePerGas = BigInt('3000000000'); // 3 gwei conservative fallback
+      const conservativeMaxPriorityFeePerGas = BigInt('1000000000'); // 1 gwei conservative fallback
+
       const accurateGasDetails = {
         evmGasType,
-        gasEstimate: finalGasEstimate, // Use the actual final estimate
-        gasPrice: originalGasDetails.gasPrice,
-        maxFeePerGas: originalGasDetails.maxFeePerGas,
-        maxPriorityFeePerGas: originalGasDetails.maxPriorityFeePerGas,
+        gasEstimate: finalGasEstimate,
+        gasPrice: liveFeeData?.gasPrice || conservativeFallbackGasPrice,
+        maxFeePerGas: liveFeeData?.maxFeePerGas || conservativeMaxFeePerGas,
+        maxPriorityFeePerGas: liveFeeData?.maxPriorityFeePerGas || conservativeMaxPriorityFeePerGas,
       };
 
-      // Get network name for fee config
-      const networkName = getRailgunNetworkName(chain.id);
+      // Log the raw network estimate for transparency
+      const rawGasCost = calculateTransactionCost(accurateGasDetails, { profitMargin: 0 }); // No profit for raw cost
+      const rawGasCostEth = Number(rawGasCost) / 1e18;
+      console.log('[Unshield] 📊 Raw network gas estimate:', {
+        gasEstimate: finalGasEstimate.toString(),
+        gasPrice: accurateGasDetails.gasPrice.toString(),
+        maxFeePerGas: accurateGasDetails.maxFeePerGas?.toString(),
+        rawGasCostWei: rawGasCost.toString(),
+        rawGasCostEth: rawGasCostEth.toFixed(6),
+        rawGasCostUSD: (rawGasCostEth * 3000).toFixed(2), // Assuming $3000 ETH
+        usingLiveData: !!liveFeeData,
+        fallbackUsed: !liveFeeData ? '3-4 gwei conservative' : 'live network data'
+      });
 
-      // Get token prices for fee calculation
+      // Get network name and token prices for fee calculation
+      const networkName = getRailgunNetworkName(chain.id);
       const tokenPrices = getTokenPrices(tokenAddress);
       const { tokenPrice, ethPrice } = await tokenPrices;
 
-      // Recalculate gas fee using official RAILGUN approach with REAL gas estimate
-      const accurateGasFeeResult = await calculateFeeForTransaction({
-        gasDetails: accurateGasDetails, // Now using actual finalGasEstimate
+      // Calculate gas reclamation fee using accurate gas details
+      const gasFeeResult = await calculateFeeForTransaction({
+        gasDetails: accurateGasDetails,
         networkName,
         tokenAddress,
         tokenPrice,
         ethPrice,
-        tokenDecimals: 6, // Most stablecoins have 6 decimals
+        tokenDecimals: 6,
         transactionType: 'unshield'
       });
 
-      // Update gas fee with accurate calculation
-      const oldGasFeeDeducted = gasFeeDeducted;
-      gasFeeDeducted = accurateGasFeeResult.feeAmount;
+      gasFeeDeducted = gasFeeResult.feeAmount;
 
-      console.log('[Unshield] 🤑 Gas fee recalculated with accurate estimate:', {
-        oldGasEstimate: 'mock estimate',
-        newGasEstimate: finalGasEstimate.toString(),
-        oldGasFeeDeducted: oldGasFeeDeducted.toString(),
-        newGasFeeDeducted: gasFeeDeducted.toString(),
-        difference: (gasFeeDeducted - oldGasFeeDeducted).toString(),
-        accuracyImprovement: gasFeeDeducted > oldGasFeeDeducted ? 'increased' : 'decreased',
-        feeBreakdown: accurateGasFeeResult.feeBreakdown
-      });
-
-      // Recalculate amounts with accurate fees
-      const accurateTotalFeeDeduction = relayerFeeBn + gasFeeDeducted;
-
-      // Final safety check with accurate fees
-      if (userAmountGross <= accurateTotalFeeDeduction) {
-        console.error('[Unshield] ❌ CRITICAL: Insufficient funds even with accurate gas estimate');
-        console.error('[Unshield] ❌ Accurate fee breakdown:', {
+      // Check if user has enough funds for all fees
+      const totalFeeDeduction = relayerFeeBn + gasFeeDeducted;
+      if (userAmountGross <= totalFeeDeduction) {
+        console.error('[Unshield] ❌ Insufficient funds for fees:', {
           userAmountGross: userAmountGross.toString(),
-          accurateTotalFeeDeduction: accurateTotalFeeDeduction.toString(),
+          totalFeeDeduction: totalFeeDeduction.toString(),
           relayerFeeBn: relayerFeeBn.toString(),
-          accurateGasFeeDeducted: gasFeeDeducted.toString(),
-          shortfall: (accurateTotalFeeDeduction - userAmountGross).toString()
+          gasFeeDeducted: gasFeeDeducted.toString(),
+          shortfall: (totalFeeDeduction - userAmountGross).toString()
         });
 
-        // Calculate minimum amount needed (accurate fees + small buffer)
-        const minAmountNeeded = accurateTotalFeeDeduction + 1000000n; // +1M wei buffer
-
-        // Show user-friendly error message
-        const errorMsg = `Insufficient funds. Amount must be at least ${(Number(minAmountNeeded) / 1e6).toFixed(2)} to cover all fees (relayer: ${(Number(relayerFeeBn) / 1e6).toFixed(2)}, gas: ${(Number(gasFeeDeducted) / 1e6).toFixed(2)}).`;
+        const minAmountNeeded = totalFeeDeduction + 1000000n;
+        const errorMsg = `Insufficient funds. Amount must be at least ${(Number(minAmountNeeded) / 1e6).toFixed(2)} to cover fees.`;
         showTerminalToast('error', 'Insufficient Funds', errorMsg);
         throw new Error(errorMsg);
       }
 
-      // Update unshield amount with accurate fees
-      unshieldInputAmount = userAmountGross - accurateTotalFeeDeduction;
-
-      // Update recipient amount with accurate fees
+      // Calculate amounts: subtract fees, let SDK apply 0.25% protocol fee
+      unshieldInputAmount = userAmountGross - totalFeeDeduction;
       recipientBn = (unshieldInputAmount * (10000n - UNSHIELD_FEE_BPS)) / 10000n;
 
-      console.log('[Unshield] ✅ Amounts updated with accurate gas fees:', {
+      console.log('[Unshield] ✅ Fee reclamation applied:', {
         userAmountGross: userAmountGross.toString(),
+        relayerFeeDeducted: relayerFeeBn.toString(),
+        gasFeeDeducted: gasFeeDeducted.toString(),
+        totalFeeDeduction: totalFeeDeduction.toString(),
         unshieldInputAmount: unshieldInputAmount.toString(),
         recipientBn: recipientBn.toString(),
-        accurateTotalFeeDeduction: accurateTotalFeeDeduction.toString(),
-        gasReclamationAccuracy: 'matched to actual transaction cost'
+        protocolFee: ((unshieldInputAmount * UNSHIELD_FEE_BPS) / 10000n).toString(),
+        finalRecipientAmount: (recipientBn - ((unshieldInputAmount * UNSHIELD_FEE_BPS) / 10000n)).toString(),
+        gasReclamationPercentage: `${((Number(gasFeeDeducted) / Number(userAmountGross)) * 100).toFixed(3)}%`
       });
 
-      // 🔧 REBUILD RelayAdapt OBJECTS WITH ACCURATE AMOUNTS
-      console.log('[Unshield] 🔧 Rebuilding RelayAdapt objects with accurate amounts...');
+      // 🔧 BUILD RelayAdapt OBJECTS WITH ACCURATE AMOUNTS
+      console.log('[Unshield] 🔧 Building RelayAdapt objects with calculated amounts...');
 
-      // Build updated RelayAdapt objects with corrected amounts
       relayAdaptUnshieldERC20Amounts = [{
         tokenAddress,
-        amount: unshieldInputAmount, // Now using accurate amount after fee recalculation
+        amount: unshieldInputAmount,
       }];
 
       const { ethers } = await import('ethers');
@@ -1143,40 +1086,25 @@ export const unshieldTokens = async ({
         'function transfer(address to, uint256 amount) returns (bool)'
       ]);
 
-      // Re-encode with accurate recipientBn
-      const accurateRecipientCallData = erc20Interface.encodeFunctionData('transfer', [
+      const recipientCallData = erc20Interface.encodeFunctionData('transfer', [
         recipientEVM,
-        recipientBn, // Now using accurate amount after fee recalculation
+        recipientBn,
       ]);
 
       crossContractCalls = [{
         to: tokenAddress,
-        data: accurateRecipientCallData,
+        data: recipientCallData,
         value: 0n,
       }];
 
-      console.log('[Unshield] ✅ RelayAdapt objects rebuilt with accurate amounts:', {
-        relayAdaptUnshieldERC20Amounts: relayAdaptUnshieldERC20Amounts.map(a => ({
-          tokenAddress: a.tokenAddress,
-          amount: a.amount.toString()
-        })),
-        crossContractCalls: crossContractCalls.map(c => ({
-          to: c.to,
-          dataLength: c.data.length,
-          recipientBn: recipientBn.toString()
-        })),
-        recipientEVM,
-        accuracyGuarantee: 'Amounts now match accurate gas fee calculations'
-      });
-
-      // Log final RelayAdapt recipients with accurate amounts
-      console.log('📝 [UNSHIELD] Final RelayAdapt recipients (accurate):', {
+      // Log final breakdown
+      console.log('📝 [UNSHIELD] Final transaction breakdown:', {
         recipientAmount: { amount: recipientBn.toString(), to: recipientEVM },
-        broadcasterFee: { amount: relayerFeeBn.toString(), to: selectedRelayer.railgunAddress },
+        relayerFee: { amount: relayerFeeBn.toString(), to: selectedRelayer.railgunAddress },
         gasReclamationFee: { amount: gasFeeDeducted.toString(), note: 'gas_cost_recovery' },
-        unshieldFee: { amount: ((unshieldInputAmount * UNSHIELD_FEE_BPS) / 10000n).toString(), note: 'handled_by_SDK' },
-        totalDeducted: accurateTotalFeeDeduction.toString(),
-        mode: 'RelayAdapt_CrossContractCalls_Accurate'
+        sdkProtocolFee: { amount: ((unshieldInputAmount * UNSHIELD_FEE_BPS) / 10000n).toString(), note: 'applied_by_sdk' },
+        totalFees: totalFeeDeduction.toString(),
+        mode: 'RelayAdapt_With_Gas_Reclamation'
       });
     }
     
