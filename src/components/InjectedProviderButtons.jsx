@@ -61,6 +61,7 @@ const InjectedProviderButtons = ({ disabled }) => {
       console.error('Failed to connect provider:', err);
       throw err; // Re-throw so caller can handle
     } finally {
+      console.log('[InjectedProviderButtons] Finally block in handleClick - clearing busy key');
       setBusyKey(null);
     }
   };

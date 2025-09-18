@@ -9,7 +9,8 @@ export function clickedInjectedConnector(provider, name = 'Injected') {
     name,
     type: 'injected',
     async connect() {
-      try { await provider?.request?.({ method: 'eth_requestAccounts' }); } catch {}
+      // Don't call eth_requestAccounts here - it's already called in InjectedProviderButtons.handleClick
+      // Just get the current accounts and chainId
       const accounts = (await provider?.request?.({ method: 'eth_accounts' })) || [];
       const account = accounts[0] ? getAddress(accounts[0]) : undefined;
       const chainIdHex = await provider?.request?.({ method: 'eth_chainId' });
