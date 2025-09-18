@@ -683,6 +683,19 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     } catch (error) {
       console.error('[PrivacyActions] Shield operation failed:', error);
       toast.dismiss(toastId);
+
+      // Dispatch transaction completion event to unlock UI globally
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
+          detail: {
+            transactionType: 'shield',
+            found: false, // Transaction failed/cancelled
+            elapsedTime: 0,
+            error: error.message
+          }
+        }));
+      }
+
       if ((error?.message || '').toLowerCase().includes('rejected') || error?.code === 4001) {
         toast.custom((t) => (
           <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
@@ -885,6 +898,18 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     } catch (error) {
       console.error('[PrivacyActions] Unshield operation failed:', error);
       toast.dismiss(toastId);
+
+      // Dispatch transaction completion event to unlock UI globally
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
+          detail: {
+            transactionType: 'unshield',
+            found: false, // Transaction failed/cancelled
+            elapsedTime: 0,
+            error: error.message
+          }
+        }));
+      }
     } finally {
       resetFormState();
     }
@@ -1105,6 +1130,19 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     } catch (error) {
       console.error('[PrivacyActions] Private transfer failed:', error);
       toast.dismiss(toastId);
+
+      // Dispatch transaction completion event to unlock UI globally
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
+          detail: {
+            transactionType: 'transfer',
+            found: false, // Transaction failed/cancelled
+            elapsedTime: 0,
+            error: error.message
+          }
+        }));
+      }
+
       const msg = (error?.message || '').toLowerCase();
       if (msg.includes('rejected') || error?.code === 4001) {
         toast.custom((t) => (
