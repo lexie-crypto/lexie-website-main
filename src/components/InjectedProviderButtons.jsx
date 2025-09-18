@@ -15,10 +15,7 @@ const InjectedProviderButtons = ({ disabled }) => {
   useEffect(() => {
     const handleDisconnect = () => {
       console.log('[InjectedProviderButtons] Received force-disconnect event, resetting busyKey');
-      setBusyKey(prev => {
-        console.log('[InjectedProviderButtons] force-disconnect setBusyKey callback - prev:', prev, 'setting to null');
-        return null;
-      });
+      setBusyKey(null);
       // Force re-detection of providers after disconnect
       if (typeof window !== 'undefined') {
         setTimeout(() => {
@@ -39,21 +36,14 @@ const InjectedProviderButtons = ({ disabled }) => {
 
   // Also reset busy state when providers change (safety net)
   useEffect(() => {
-    console.log('[InjectedProviderButtons] Providers changed, resetting busyKey');
-    setBusyKey(prev => {
-      console.log('[InjectedProviderButtons] providers-change setBusyKey callback - prev:', prev, 'setting to null');
-      return null;
-    });
+    setBusyKey(null);
   }, [providers]);
 
   // Reset busy state when wallet disconnects
   useEffect(() => {
     if (!isConnected) {
       console.log('[InjectedProviderButtons] Wallet disconnected, resetting busyKey');
-      setBusyKey(prev => {
-        console.log('[InjectedProviderButtons] disconnect setBusyKey callback - prev:', prev, 'setting to null');
-        return null;
-      });
+      setBusyKey(null);
     }
   }, [isConnected]);
 
@@ -72,11 +62,7 @@ const InjectedProviderButtons = ({ disabled }) => {
       throw err; // Re-throw so caller can handle
     } finally {
       console.log('[InjectedProviderButtons] Finally block in handleClick - clearing busy key');
-      // Force state update with callback to ensure it takes effect
-      setBusyKey(prev => {
-        console.log('[InjectedProviderButtons] setBusyKey callback - prev:', prev, 'setting to null');
-        return null;
-      });
+      setBusyKey(null);
     }
   };
 
@@ -127,17 +113,12 @@ const InjectedProviderButtons = ({ disabled }) => {
           {providersSorted.map((p) => {
             const buttonKey = p.info?.uuid || p.info?.rdns || p.info?.name;
             const isButtonDisabled = disabled || busyKey === buttonKey;
-            const isPropDisabled = disabled;
-            const isBusyDisabled = busyKey === buttonKey;
-            console.log('[InjectedProviderButtons] Rendering button for', p.info?.name, '- buttonKey:', buttonKey, '- busyKey:', busyKey, '- prop disabled:', isPropDisabled, '- busy disabled:', isBusyDisabled, '- final disabled:', isButtonDisabled);
+            console.log('[InjectedProviderButtons] Rendering button for', p.info?.name, '- buttonKey:', buttonKey, '- busyKey:', busyKey, '- disabled:', isButtonDisabled);
 
             return (
               <button
                 key={buttonKey}
-                onClick={() => {
-                  console.log('[InjectedProviderButtons] Button clicked for', p.info?.name);
-                  handleClick(p.provider, { name: p.info?.name, id: p.info?.uuid || p.info?.rdns });
-                }}
+                onClick={() => handleClick(p.provider, { name: p.info?.name, id: p.info?.uuid || p.info?.rdns })}
                 disabled={isButtonDisabled}
                 className="flex items-center justify-center gap-3 rounded-xl border border-white/10 bg-white/5 px-6 py-4 h-16 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed"
                 aria-label={`Connect ${p.info?.name}`}
