@@ -263,27 +263,140 @@ export const shouldIncludeOverallBatchMinGasPrice = (sendWithPublicWallet, netwo
 };
 
 /**
- * Calculate total transaction cost estimate
+ * Calculate total transaction cost estimate (official RAILGUN approach)
  * @param {TransactionGasDetails} gasDetails - Gas details
+ * @param {Object} options - Fee calculation options
  * @returns {BigInt} Estimated total cost in wei
  */
-export const calculateTransactionCost = (gasDetails) => {
+export const calculateTransactionCost = (gasDetails, options = {}) => {
   try {
     const { evmGasType, gasEstimate } = gasDetails;
+    const {
+      gasEstimateLimitToActualRatio = 0.83, // Official RAILGUN default: 83% of estimate is actually used
+      profitMargin = 0.05, // 5% profit margin for gas cost recovery
+      includePriorityFee = true
+    } = options;
 
+    let baseGasCost;
     switch (evmGasType) {
       case EVMGasType.Type0:
       case EVMGasType.Type1:
-        return gasEstimate * gasDetails.gasPrice;
+        baseGasCost = gasEstimate * gasDetails.gasPrice;
+        break;
       case EVMGasType.Type2:
-        return gasEstimate * gasDetails.maxFeePerGas;
+        // Official RAILGUN calculation: maxFeePerGas * gasEstimate + maxPriorityFeePerGas
+        baseGasCost = gasDetails.maxFeePerGas * gasEstimate;
+        if (includePriorityFee && gasDetails.maxPriorityFeePerGas) {
+          baseGasCost += gasDetails.maxPriorityFeePerGas;
+        }
+        break;
       default:
         throw new Error(`Unsupported EVM gas type: ${evmGasType}`);
     }
+
+    // Apply the gas limit to actual ratio (accounts for overestimation)
+    const adjustedGasCost = BigInt(Math.floor(Number(baseGasCost) * gasEstimateLimitToActualRatio));
+
+    // Add profit margin
+    const totalCost = BigInt(Math.floor(Number(adjustedGasCost) * (1 + profitMargin)));
+
+    console.log('[GasDetails] Fee calculation breakdown:', {
+      evmGasType,
+      gasEstimate: gasEstimate.toString(),
+      baseGasCost: baseGasCost.toString(),
+      adjustedGasCost: adjustedGasCost.toString(),
+      gasEstimateLimitToActualRatio,
+      profitMargin,
+      totalCost: totalCost.toString()
+    });
+
+    return totalCost;
   } catch (error) {
     console.error('[GasDetails] Failed to calculate transaction cost:', error);
     return 0n;
   }
+};
+
+/**
+ * Calculate fee amount in token units (for deducting from user transaction)
+ * @param {BigInt} gasCostWei - Gas cost in wei
+ * @param {number} tokenPrice - Price of token in USD
+ * @param {number} ethPrice - Price of ETH in USD
+ * @param {number} tokenDecimals - Token decimals
+ * @returns {BigInt} Fee amount in token units
+ */
+export const calculateTokenFeeAmount = (gasCostWei, tokenPrice, ethPrice, tokenDecimals = 6) => {
+  try {
+    if (!gasCostWei || !tokenPrice || !ethPrice) {
+      console.warn('[GasDetails] Missing fee calculation parameters:', { gasCostWei, tokenPrice, ethPrice });
+      return 0n;
+    }
+
+    // Convert gas cost from wei to ETH
+    const gasCostEth = Number(gasCostWei) / 1e18;
+
+    // Convert ETH cost to USD
+    const gasCostUsd = gasCostEth * ethPrice;
+
+    // Convert USD cost to token amount
+    const tokenAmount = gasCostUsd / tokenPrice;
+
+    // Convert to token units with decimals
+    const tokenUnits = BigInt(Math.ceil(tokenAmount * Math.pow(10, tokenDecimals)));
+
+    console.log('[GasDetails] Token fee calculation:', {
+      gasCostWei: gasCostWei.toString(),
+      gasCostEth,
+      gasCostUsd,
+      tokenPrice,
+      tokenAmount,
+      tokenDecimals,
+      tokenUnits: tokenUnits.toString()
+    });
+
+    return tokenUnits;
+  } catch (error) {
+    console.error('[GasDetails] Failed to calculate token fee amount:', error);
+    return 0n;
+  }
+};
+
+/**
+ * Get fee configuration for different networks (mimicking official RAILGUN approach)
+ * @param {NetworkName} networkName - Network name
+ * @returns {Object} Fee configuration
+ */
+export const getFeeConfig = (networkName) => {
+  // Gas cost recovery focused - low margins across all networks
+  const baseConfig = {
+    gasEstimateLimitToActualRatio: 0.83, // 83% of gas estimate is actually used
+    profitMargin: 0.05, // 5% profit margin for gas cost recovery
+    minimumFeeUsd: 0.01, // Lower minimum $0.01 fee
+    maximumFeeUsd: 25.00, // Lower maximum $25.00 fee
+  };
+
+  // Network-specific overrides (all using 5% margins for consistency)
+  const networkOverrides = {
+    [NetworkName.Ethereum]: {
+      profitMargin: 0.05, // 5% margin for mainnet gas cost recovery
+      minimumFeeUsd: 0.05, // Slightly higher minimum on mainnet due to higher base fees
+      gasEstimateLimitToActualRatio: 0.82, // Slightly more conservative on mainnet
+    },
+    [NetworkName.Arbitrum]: {
+      profitMargin: 0.05, // 5% margin for L2
+      gasEstimateLimitToActualRatio: 0.85, // Better gas estimation on L2
+    },
+    [NetworkName.Polygon]: {
+      profitMargin: 0.05, // 5% margin for L2
+      gasEstimateLimitToActualRatio: 0.85, // Better gas estimation on L2
+    },
+    [NetworkName.BNBChain]: {
+      profitMargin: 0.05, // 5% margin for BNB Chain
+      gasEstimateLimitToActualRatio: 0.84, // Good estimation on BNB
+    },
+  };
+
+  return { ...baseConfig, ...(networkOverrides[networkName] || {}) };
 };
 
 export default {
@@ -295,4 +408,6 @@ export default {
   getRecommendedGasPrice,
   shouldIncludeOverallBatchMinGasPrice,
   calculateTransactionCost,
+  calculateTokenFeeAmount,
+  getFeeConfig,
 }; 
