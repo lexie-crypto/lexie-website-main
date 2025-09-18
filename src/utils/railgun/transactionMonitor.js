@@ -1242,92 +1242,121 @@ export const monitorTransactionInGraph = async ({
         };
         
         // 🎯 POINTS UPDATE: Award points for successful transactions
-        try {
-          if ((transactionType === 'shield' || transactionType === 'unshield' || transactionType === 'transfer') &&
-              transactionDetails?.walletAddress && eventDetail.amount) {
+        console.log('[TransactionMonitor] 🎯 POINTS SECTION REACHED - transaction confirmed:', {
+          transactionType,
+          txHash: txHash.slice(0, 10) + '...',
+          hasTransactionDetails: !!transactionDetails,
+          hasEventDetail: !!eventDetail
+        });
 
-            console.log('[TransactionMonitor] 🎯 Attempting to award points for transaction:', {
+        console.log('[TransactionMonitor] 🔍 Checking points award conditions:', {
+          transactionType,
+          hasWalletAddress: !!transactionDetails?.walletAddress,
+          hasAmount: !!eventDetail.amount,
+          walletAddress: transactionDetails?.walletAddress?.slice(0, 10) + '...',
+          amount: eventDetail.amount,
+          tokenAddress: eventDetail.tokenAddress
+        });
+
+        try {
+          const conditionsMet = (transactionType === 'shield' || transactionType === 'unshield' || transactionType === 'transfer') &&
+              transactionDetails?.walletAddress && eventDetail.amount;
+
+          if (conditionsMet) {
+            console.log('[TransactionMonitor] 🎯 ✅ Conditions met - attempting to award points for transaction:', {
               transactionType,
               txHash: txHash.slice(0, 10) + '...',
               amount: eventDetail.amount,
               hasWalletAddress: !!transactionDetails.walletAddress
             });
+          } else {
+            console.log('[TransactionMonitor] ❌ Conditions NOT met for points award:', {
+              transactionType,
+              expectedTypes: ['shield', 'unshield', 'transfer'],
+              hasWalletAddress: !!transactionDetails?.walletAddress,
+              hasAmount: !!eventDetail.amount,
+              reason: !transactionDetails?.walletAddress ? 'missing walletAddress' :
+                     !eventDetail.amount ? 'missing amount' :
+                     !['shield', 'unshield', 'transfer'].includes(transactionType) ? `unsupported transactionType: ${transactionType}` :
+                     'unknown'
+            });
+            // Skip points award - continue with normal transaction processing
+          }
 
-            // Resolve Lexie ID from wallet address
-            let lexieId = null;
-            try {
-              const lexieResponse = await fetch('/api/wallet-metadata?action=by-wallet&railgunAddress=' + encodeURIComponent(transactionDetails.walletAddress));
-              if (lexieResponse.ok) {
-                const lexieData = await lexieResponse.json();
-                if (lexieData?.success && lexieData?.lexieID) {
-                  lexieId = lexieData.lexieID.toLowerCase();
-                  console.log('[TransactionMonitor] ✅ Resolved Lexie ID for points:', lexieId);
-                }
+          // Resolve Lexie ID from wallet address
+          let lexieId = null;
+          try {
+            const lexieResponse = await fetch('/api/wallet-metadata?action=by-wallet&railgunAddress=' + encodeURIComponent(transactionDetails.walletAddress));
+            if (lexieResponse.ok) {
+              const lexieData = await lexieResponse.json();
+              if (lexieData?.success && lexieData?.lexieID) {
+                lexieId = lexieData.lexieID.toLowerCase();
+                console.log('[TransactionMonitor] ✅ Resolved Lexie ID for points:', lexieId);
               }
-            } catch (lexieErr) {
-              console.warn('[TransactionMonitor] ⚠️ Failed to resolve Lexie ID:', lexieErr?.message);
             }
+          } catch (lexieErr) {
+            console.warn('[TransactionMonitor] ⚠️ Failed to resolve Lexie ID:', lexieErr?.message);
+          }
 
-            // Award points if we have a Lexie ID
-            if (lexieId) {
-              try {
-                // Convert token amount to USD value
-                const usdValue = await convertTokenAmountToUSD(eventDetail.amount, eventDetail.tokenAddress, chainId);
+          // Award points if we have a Lexie ID
+          if (lexieId) {
+            try {
+              // Convert token amount to USD value
+              const usdValue = await convertTokenAmountToUSD(eventDetail.amount, eventDetail.tokenAddress, chainId);
 
-                // Only award points if we have a valid USD value
-                if (usdValue > 0) {
-                  console.log('[TransactionMonitor] 💰 Awarding points:', {
+              // Only award points if we have a valid USD value
+              if (usdValue > 0) {
+                console.log('[TransactionMonitor] 💰 Awarding points:', {
+                  lexieId,
+                  txHash: txHash.slice(0, 10) + '...',
+                  usdValue,
+                  transactionType
+                });
+
+                const pointsResponse = await fetch('/api/wallet-metadata?action=rewards-award', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    // HMAC auth will be added by the proxy
+                  },
+                  body: JSON.stringify({
                     lexieId,
-                    txHash: txHash.slice(0, 10) + '...',
-                    usdValue,
-                    transactionType
-                  });
+                    txHash,
+                    usdValue
+                  })
+                });
 
-                  const pointsResponse = await fetch('/api/wallet-metadata?action=rewards-award', {
-                    method: 'POST',
-                    headers: {
-                      'Content-Type': 'application/json',
-                      // HMAC auth will be added by the proxy
-                    },
-                    body: JSON.stringify({
+                if (pointsResponse.ok) {
+                  const pointsData = await pointsResponse.json();
+                  if (pointsData?.success) {
+                    console.log('[TransactionMonitor] ✅ Points awarded successfully:', {
                       lexieId,
-                      txHash,
-                      usdValue
-                    })
-                  });
-
-                  if (pointsResponse.ok) {
-                    const pointsData = await pointsResponse.json();
-                    if (pointsData?.success) {
-                      console.log('[TransactionMonitor] ✅ Points awarded successfully:', {
-                        lexieId,
-                        awarded: pointsData.awarded || 0,
-                        newBalance: pointsData.balance || 0,
-                        multiplier: pointsData.multiplier || 1.0
-                      });
-                    } else {
-                      console.warn('[TransactionMonitor] ⚠️ Points award returned non-success:', pointsData);
-                    }
-                  } else {
-                    console.warn('[TransactionMonitor] ⚠️ Points award API failed:', {
-                      status: pointsResponse.status,
-                      statusText: pointsResponse.statusText
+                      awarded: pointsData.awarded || 0,
+                      newBalance: pointsData.balance || 0,
+                      multiplier: pointsData.multiplier || 1.0
                     });
+                  } else {
+                    console.warn('[TransactionMonitor] ⚠️ Points award returned non-success:', pointsData);
                   }
                 } else {
-                  console.log('[TransactionMonitor] ⏭️ Skipping points award - no USD value calculated:', {
-                    lexieId,
-                    txHash: txHash.slice(0, 10) + '...',
-                    amount: eventDetail.amount,
-                    tokenAddress: eventDetail.tokenAddress
+                  console.warn('[TransactionMonitor] ⚠️ Points award API failed:', {
+                    status: pointsResponse.status,
+                    statusText: pointsResponse.statusText
                   });
                 }
-              } catch (pointsErr) {
-                console.warn('[TransactionMonitor] ⚠️ Error awarding points:', pointsErr?.message);
+              } else {
+                console.log('[TransactionMonitor] ⏭️ Skipping points award - no USD value calculated:', {
+                  lexieId,
+                  txHash: txHash.slice(0, 10) + '...',
+                  amount: eventDetail.amount,
+                  tokenAddress: eventDetail.tokenAddress
+                });
               }
-            } else {
-              console.log('[TransactionMonitor] ⏭️ No Lexie ID found, skipping points award');
+            } catch (pointsErr) {
+              console.warn('[TransactionMonitor] ⚠️ Error awarding points:', pointsErr?.message);
             }
+          } else {
+            console.log('[TransactionMonitor] ⏭️ No Lexie ID found, skipping points award');
           }
         } catch (pointsError) {
           console.warn('[TransactionMonitor] ⚠️ Points update failed (non-critical):', pointsError?.message);
