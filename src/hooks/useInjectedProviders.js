@@ -5,32 +5,19 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useWallet } from '../contexts/WalletContext';
 
 export default function useInjectedProviders() {
   const [providers6963, setProviders6963] = useState([]); // [{ info, provider }]
   const [legacyProviders, setLegacyProviders] = useState([]); // [{ info, provider }]
+  const { isConnected } = useWallet();
 
-  useEffect(() => {
+  // Function to manually re-detect providers
+  const detectProviders = () => {
     const legacyList = [];
 
-    // EIP-6963 discovery
-    const onAnnounce = (event) => {
-      try {
-        const { info, provider } = event?.detail || {};
-        if (!provider || !info) return;
-        setProviders6963((prev) => {
-          const next = [...prev, { info, provider }];
-          const seen = new Set();
-          return next.filter((d) => {
-            const key = (d?.info?.rdns?.toLowerCase?.() || d?.info?.name?.toLowerCase?.() || '');
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-          });
-        });
-      } catch {}
-    };
-    try { window.addEventListener('eip6963:announceProvider', onAnnounce); } catch {}
+    // Clear existing EIP-6963 providers and re-trigger discovery
+    setProviders6963([]);
     try { window.dispatchEvent(new Event('eip6963:requestProvider')); } catch {}
 
     // Legacy discovery (single or multiple providers)
@@ -80,11 +67,43 @@ export default function useInjectedProviders() {
 
     // Commit legacy once gathered
     setLegacyProviders(legacyList);
+  };
+
+  useEffect(() => {
+    // EIP-6963 discovery
+    const onAnnounce = (event) => {
+      try {
+        const { info, provider } = event?.detail || {};
+        if (!provider || !info) return;
+        setProviders6963((prev) => {
+          const next = [...prev, { info, provider }];
+          const seen = new Set();
+          return next.filter((d) => {
+            const key = (d?.info?.rdns?.toLowerCase?.() || d?.info?.name?.toLowerCase?.() || '');
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+        });
+      } catch {}
+    };
+
+    // Listen for force-disconnect events to re-detect providers
+    const onForceDisconnect = () => {
+      setTimeout(detectProviders, 100); // Small delay to ensure cleanup is complete
+    };
+
+    try { window.addEventListener('eip6963:announceProvider', onAnnounce); } catch {}
+    try { window.addEventListener('force-disconnect', onForceDisconnect); } catch {}
+
+    // Initial detection
+    detectProviders();
 
     return () => {
       try { window.removeEventListener('eip6963:announceProvider', onAnnounce); } catch {}
+      try { window.removeEventListener('force-disconnect', onForceDisconnect); } catch {}
     };
-  }, []);
+  }, [isConnected]); // Re-run when connection status changes
 
   const providers = useMemo(() => {
     const BRAND_BY_RDNS = {
@@ -141,6 +160,14 @@ export default function useInjectedProviders() {
       const bi = ORDER.indexOf(bn);
       return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
     });
+
+    // Debug: Uncomment to see detected providers
+    // console.log('🔍 [INJECTED-PROVIDERS] Final providers list:', finalProviders.map(p => ({
+    //   name: p.info?.name,
+    //   rdns: p.info?.rdns,
+    //   uuid: p.info?.uuid,
+    //   providerAvailable: !!p.provider
+    // })));
 
     return finalProviders;
   }, [providers6963, legacyProviders]);
