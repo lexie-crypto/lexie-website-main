@@ -30,6 +30,7 @@ import {
 import { waitForRailgunReady } from './engine.js';
 import { assertNotSanctioned } from '../sanctions/chainalysis-oracle.js';
 import { calculateFeeForTransaction } from './fee-reclamation.js';
+import { calculateTransactionCost } from './tx-gas-details.js';
 
 /**
  * Terminal-themed toast helper (no JSX; compatible with .js files)
@@ -856,36 +857,54 @@ export const unshieldTokens = async ({
     }
     
     console.log('🧮 [UNSHIELD] Attempting official gas estimation with correct method...');
-    
+
     var accurateGasEstimate;
     try {
       if (useRelayer) {
         // For RelayAdapt mode, use cross-contract calls gas estimation
         console.log('🧮 [UNSHIELD] Using gasEstimateForUnprovenCrossContractCalls for RelayAdapt...');
-        
+
         const { gasEstimateForUnprovenCrossContractCalls } = await import('@railgun-community/wallet');
-        
-        // CRITICAL: RelayAdapt unshields the input amount, SDK deducts 0.25%
-        // RelayAdapt unshield amounts - input amount to SDK
-        // using hoisted relayAdaptUnshieldERC20Amounts
-        
-        // Assertion: after-fee spend matches available amount
-        const totalSpend = recipientBn + relayerFeeBn;
-        if (totalSpend !== afterFee) {
-          throw new Error(`Spend mismatch: spend ${totalSpend.toString()} != afterFee ${afterFee.toString()}`);
-        }
-        
-        // Create single cross-contract call: Forward NET amount to recipient
-        // (SDK handles relayer fee payment internally via broadcasterFeeERC20AmountRecipient)
-        // using hoisted crossContractCalls
-        
-        console.log('🔧 [UNSHIELD] Cross-contract call created:', {
+
+        // Initialize RelayAdapt objects with placeholder values for gas estimation
+        // These will be updated with accurate amounts after fee calculation
+        relayAdaptUnshieldERC20Amounts = [{
+          tokenAddress,
+          amount: userAmountGross, // Use gross amount for estimation (will be updated later)
+        }];
+
+        const { ethers } = await import('ethers');
+        const erc20Interface = new ethers.Interface([
+          'function transfer(address to, uint256 amount) returns (bool)'
+        ]);
+
+        // Create placeholder cross-contract call for gas estimation
+        // This will be updated with accurate recipient amount later
+        const placeholderRecipientAmount = userAmountGross - relayerFeeBn; // Rough estimate
+        const placeholderRecipientCallData = erc20Interface.encodeFunctionData('transfer', [
+          recipientEVM,
+          placeholderRecipientAmount,
+        ]);
+
+        crossContractCalls = [{
           to: tokenAddress,
-          recipientEVM: recipientEVM,
-          afterFee: afterFee.toString(),
-          callCount: crossContractCalls.length
+          data: placeholderRecipientCallData,
+          value: 0n,
+        }];
+
+        console.log('🔧 [UNSHIELD] RelayAdapt objects initialized for gas estimation:', {
+          relayAdaptUnshieldERC20Amounts: relayAdaptUnshieldERC20Amounts.map(a => ({
+            tokenAddress: a.tokenAddress,
+            amount: a.amount.toString()
+          })),
+          crossContractCalls: crossContractCalls.map(c => ({
+            to: c.to,
+            dataLength: c.data.length,
+            estimatedRecipientAmount: placeholderRecipientAmount.toString()
+          })),
+          note: 'These are placeholder values for gas estimation, will be updated with accurate amounts after fee calculation'
         });
-        
+
         console.log('🔧 [UNSHIELD] Gas estimation parameters:', {
           relayAdaptUnshieldERC20Amounts: relayAdaptUnshieldERC20Amounts.map(a => ({ tokenAddress: a.tokenAddress, amount: a.amount.toString() })),
           crossContractCalls: crossContractCalls.length,
@@ -1274,9 +1293,9 @@ export const unshieldTokens = async ({
         maxFeeFallback = BigInt('1000000000'); // 1 gwei
         priorityFeeFallback = BigInt('10000000'); // 0.01 gwei
       } else if (chain.id === 1) { // Ethereum
-        gasPriceFallback = BigInt('20000000000'); // 20 gwei
-        maxFeeFallback = BigInt('25000000000'); // 25 gwei
-        priorityFeeFallback = BigInt('2000000000'); // 2 gwei
+        gasPriceFallback = BigInt('3000000000'); // 3 gwei
+        maxFeeFallback = BigInt('4000000000'); // 4 gwei
+        priorityFeeFallback = BigInt('3000000000'); // 3 gwei
       } else if (chain.id === 56) { // BNB Chain - L2-like tiny fallbacks
         gasPriceFallback = BigInt('100000000'); // 0.1 gwei (same as Arbitrum)
         maxFeeFallback = BigInt('1000000000'); // 1 gwei (same as Arbitrum)
