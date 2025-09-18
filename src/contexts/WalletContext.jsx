@@ -672,6 +672,27 @@ const WalletContextProvider = ({ children }) => {
         }
       } catch {}
 
+      // Try to disconnect from the provider directly (for injected wallets)
+      try {
+        if (selectedInjectedProviderRef.current?.disconnect) {
+          console.log('[DISCONNECT] Calling provider.disconnect()');
+          await selectedInjectedProviderRef.current.disconnect();
+        } else if (selectedInjectedProviderRef.current && typeof window !== 'undefined') {
+          // Try wallet_revokePermissions for some wallets
+          try {
+            await selectedInjectedProviderRef.current.request({
+              method: 'wallet_revokePermissions',
+              params: [{ eth_accounts: {} }]
+            });
+            console.log('[DISCONNECT] Called wallet_revokePermissions');
+          } catch (revokeError) {
+            // wallet_revokePermissions not supported, that's fine
+          }
+        }
+      } catch (providerDisconnectError) {
+        console.warn('⚠️ [DISCONNECT] Error disconnecting from provider:', providerDisconnectError);
+      }
+
       // Disconnect wallet (non-blocking UX)
       try {
         await disconnect();
