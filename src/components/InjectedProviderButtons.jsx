@@ -54,8 +54,7 @@ const InjectedProviderButtons = ({ disabled }) => {
     setBusyKey(key);
 
     try {
-      await provider.request({ method: 'eth_requestAccounts' });
-      // Use generic injected connector and pass through provider metadata
+      // Just like WalletConnect - let wagmi handle the connection through the clickedInjectedConnector
       await connectWallet('injected', { provider, name: meta?.name, id: meta?.id });
     } catch (err) {
       console.error('Failed to connect provider:', err);
