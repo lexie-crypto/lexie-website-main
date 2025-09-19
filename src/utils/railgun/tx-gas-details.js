@@ -18,9 +18,9 @@ import { shouldSetOverallBatchMinGasPriceForNetwork } from './gasUtils.js';
  */
 const DEFAULT_GAS_ESTIMATES = {
   [NetworkName.Ethereum]: {
-    gasPrice: BigInt(15000000000), // 15 gwei (reduced from 20)
-    maxFeePerGas: BigInt(30000000000), // 30 gwei (increased from 25 for better headroom)
-    maxPriorityFeePerGas: BigInt(2000000000), // 2 gwei (unchanged)
+    gasPrice: BigInt(20000000000), // 20 gwei
+    maxFeePerGas: BigInt(25000000000), // 25 gwei  
+    maxPriorityFeePerGas: BigInt(2000000000), // 2 gwei
   },
   [NetworkName.Arbitrum]: {
     gasPrice: BigInt(100000000), // 0.1 gwei
@@ -70,10 +70,14 @@ export const validateGasDetails = (gasDetails, networkName, transactionType = 's
       throw new Error('Gas estimate must be a positive BigInt');
     }
 
+    // Apply gas limit multiplier for safety
+    const multiplier = GAS_LIMIT_MULTIPLIERS[transactionType] || 1.2;
+    const adjustedGasEstimate = BigInt(Math.ceil(Number(gasDetails.gasEstimate) * multiplier));
+
     // Validate gas fields based on EVM gas type
     const validatedGasDetails = {
       evmGasType,
-      gasEstimate: gasDetails.gasEstimate, // Don't modify - multiplier already applied by createGasDetails
+      gasEstimate: adjustedGasEstimate,
     };
 
     switch (evmGasType) {
@@ -105,9 +109,9 @@ export const validateGasDetails = (gasDetails, networkName, transactionType = 's
 
     console.log(`[GasDetails] Validated gas details for ${transactionType} on ${networkName}:`, {
       evmGasType,
-      gasEstimate: validatedGasDetails.gasEstimate.toString(),
+      gasEstimate: adjustedGasEstimate.toString(),
+      multiplier,
       originalEstimate: gasDetails.gasEstimate.toString(),
-      note: 'Multiplier already applied by createGasDetails',
     });
 
     return validatedGasDetails;

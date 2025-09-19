@@ -1241,128 +1241,6 @@ export const monitorTransactionInGraph = async ({
           decimals: transactionDetails?.decimals // Ensure decimals are included for proper optimistic updates
         };
         
-        // 🎯 POINTS UPDATE: Award points for successful transactions
-        console.log('[TransactionMonitor] 🎯 POINTS SECTION REACHED - transaction confirmed:', {
-          transactionType,
-          txHash: txHash.slice(0, 10) + '...',
-          hasTransactionDetails: !!transactionDetails,
-          hasEventDetail: !!eventDetail
-        });
-
-        console.log('[TransactionMonitor] 🔍 Checking points award conditions:', {
-          transactionType,
-          hasWalletAddress: !!transactionDetails?.walletAddress,
-          hasAmount: !!eventDetail.amount,
-          walletAddress: transactionDetails?.walletAddress?.slice(0, 10) + '...',
-          amount: eventDetail.amount,
-          tokenAddress: eventDetail.tokenAddress
-        });
-
-        try {
-          const conditionsMet = (transactionType === 'shield' || transactionType === 'unshield' || transactionType === 'transfer') &&
-              transactionDetails?.walletAddress && eventDetail.amount;
-
-          if (conditionsMet) {
-            console.log('[TransactionMonitor] 🎯 ✅ Conditions met - attempting to award points for transaction:', {
-              transactionType,
-              txHash: txHash.slice(0, 10) + '...',
-              amount: eventDetail.amount,
-              hasWalletAddress: !!transactionDetails.walletAddress
-            });
-          } else {
-            console.log('[TransactionMonitor] ❌ Conditions NOT met for points award:', {
-              transactionType,
-              expectedTypes: ['shield', 'unshield', 'transfer'],
-              hasWalletAddress: !!transactionDetails?.walletAddress,
-              hasAmount: !!eventDetail.amount,
-              reason: !transactionDetails?.walletAddress ? 'missing walletAddress' :
-                     !eventDetail.amount ? 'missing amount' :
-                     !['shield', 'unshield', 'transfer'].includes(transactionType) ? `unsupported transactionType: ${transactionType}` :
-                     'unknown'
-            });
-            // Skip points award - continue with normal transaction processing
-          }
-
-          // Resolve Lexie ID from wallet address
-          let lexieId = null;
-          try {
-            const lexieResponse = await fetch('/api/wallet-metadata?action=by-wallet&railgunAddress=' + encodeURIComponent(transactionDetails.walletAddress));
-            if (lexieResponse.ok) {
-              const lexieData = await lexieResponse.json();
-              if (lexieData?.success && lexieData?.lexieID) {
-                lexieId = lexieData.lexieID.toLowerCase();
-                console.log('[TransactionMonitor] ✅ Resolved Lexie ID for points:', lexieId);
-              }
-            }
-          } catch (lexieErr) {
-            console.warn('[TransactionMonitor] ⚠️ Failed to resolve Lexie ID:', lexieErr?.message);
-          }
-
-          // Award points if we have a Lexie ID
-          if (lexieId) {
-            try {
-              // Convert token amount to USD value
-              const usdValue = await convertTokenAmountToUSD(eventDetail.amount, eventDetail.tokenAddress, chainId);
-
-              // Only award points if we have a valid USD value
-              if (usdValue > 0) {
-                console.log('[TransactionMonitor] 💰 Awarding points:', {
-                  lexieId,
-                  txHash: txHash.slice(0, 10) + '...',
-                  usdValue,
-                  transactionType
-                });
-
-                const pointsResponse = await fetch('/api/wallet-metadata?action=rewards-award', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    // HMAC auth will be added by the proxy
-                  },
-                  body: JSON.stringify({
-                    lexieId,
-                    txHash,
-                    usdValue
-                  })
-                });
-
-                if (pointsResponse.ok) {
-                  const pointsData = await pointsResponse.json();
-                  if (pointsData?.success) {
-                    console.log('[TransactionMonitor] ✅ Points awarded successfully:', {
-                      lexieId,
-                      awarded: pointsData.awarded || 0,
-                      newBalance: pointsData.balance || 0,
-                      multiplier: pointsData.multiplier || 1.0
-                    });
-                  } else {
-                    console.warn('[TransactionMonitor] ⚠️ Points award returned non-success:', pointsData);
-                  }
-                } else {
-                  console.warn('[TransactionMonitor] ⚠️ Points award API failed:', {
-                    status: pointsResponse.status,
-                    statusText: pointsResponse.statusText
-                  });
-                }
-              } else {
-                console.log('[TransactionMonitor] ⏭️ Skipping points award - no USD value calculated:', {
-                  lexieId,
-                  txHash: txHash.slice(0, 10) + '...',
-                  amount: eventDetail.amount,
-                  tokenAddress: eventDetail.tokenAddress
-                });
-              }
-            } catch (pointsErr) {
-              console.warn('[TransactionMonitor] ⚠️ Error awarding points:', pointsErr?.message);
-            }
-          } else {
-            console.log('[TransactionMonitor] ⏭️ No Lexie ID found, skipping points award');
-          }
-        } catch (pointsError) {
-          console.warn('[TransactionMonitor] ⚠️ Points update failed (non-critical):', pointsError?.message);
-          // Don't throw - points are nice-to-have, transaction success is critical
-        }
-
         console.log('[TransactionMonitor] 📡 Dispatching transaction confirmed event with details:', {
           eventDetail,
           hasAmount: !!eventDetail.amount,
@@ -1370,7 +1248,7 @@ export const monitorTransactionInGraph = async ({
           hasTokenSymbol: !!eventDetail.tokenSymbol,
           eventCount: events.length
         });
-
+        
         window.dispatchEvent(new CustomEvent('railgun-transaction-confirmed', {
           detail: eventDetail
         }));
@@ -1412,100 +1290,25 @@ export const monitorTransactionInGraph = async ({
 };
 
 /**
- * Convert token amount to USD value for points calculation
- */
-const convertTokenAmountToUSD = async (amount, tokenAddress, chainId) => {
-  try {
-    if (!amount || !tokenAddress) return 0;
-
-    // Handle native tokens (ETH, MATIC, etc.)
-    const nativeTokens = {
-      1: '0x0000000000000000000000000000000000000000', // ETH
-      137: '0x0000000000000000000000000000000000000000', // MATIC
-      42161: '0x0000000000000000000000000000000000000000', // ETH
-      56: '0x0000000000000000000000000000000000000000' // BNB
-    };
-
-    const isNative = nativeTokens[chainId] === tokenAddress.toLowerCase();
-
-    // For now, use simple hardcoded prices as fallback
-    // TODO: Replace with real price API calls
-    const fallbackPrices = {
-      // Native tokens
-      '0x0000000000000000000000000000000000000000': {
-        1: 4613.75, // ETH
-        137: 0.75,   // MATIC
-        42161: 4613.75, // ETH on Arbitrum
-        56: 687.50   // BNB
-      },
-      // USDC
-      '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': 1.00,
-      '0x2791bca1f2de4661ed88a30c99a7a9449aa84174': 1.00, // Polygon USDC
-      '0xaf88d065e77c8cc2239327c5edb3a432268e5831': 1.00, // Arbitrum USDC
-      // USDT
-      '0xdac17f958d2ee523a2206206994597c13d831ec7': 1.00,
-      '0xc2132d05d31c914a87c6611c10748aeb04b58e8f': 1.00, // Polygon USDT
-      '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': 1.00, // Arbitrum USDT
-    };
-
-    let price = 0;
-
-    if (isNative) {
-      price = fallbackPrices['0x0000000000000000000000000000000000000000'][chainId] || 0;
-    } else {
-      price = fallbackPrices[tokenAddress.toLowerCase()] || 0;
-    }
-
-    if (price === 0) {
-      console.warn('[TransactionMonitor] ⚠️ No price found for token, using $0 for points:', {
-        tokenAddress,
-        chainId,
-        amount
-      });
-      return 0;
-    }
-
-    // Convert amount to human-readable format and multiply by price
-    const decimals = isNative ? 18 : 6; // Most stablecoins are 6 decimals
-    const humanAmount = Number(amount) / Math.pow(10, decimals);
-    const usdValue = humanAmount * price;
-
-    console.log('[TransactionMonitor] 💱 Token amount to USD conversion:', {
-      tokenAddress,
-      chainId,
-      rawAmount: amount,
-      humanAmount,
-      price,
-      usdValue
-    });
-
-    return usdValue;
-  } catch (error) {
-    console.warn('[TransactionMonitor] ⚠️ Error converting token to USD:', error?.message);
-    return 0;
-  }
-};
-
-/**
  * Get RPC URL for chain using the existing Alchemy configuration
  */
 const getRpcUrl = async (chainId) => {
   try {
     // Import the existing RPC configuration that actually works
     const { RPC_URLS } = await import('../../config/environment.js');
-
+    
     const chainMapping = {
       1: RPC_URLS.ethereum,
       42161: RPC_URLS.arbitrum,
       137: RPC_URLS.polygon,
       56: RPC_URLS.bsc,
     };
-
+    
     const rpcUrl = chainMapping[chainId];
     if (!rpcUrl) {
       throw new Error(`No RPC URL configured for chain ${chainId}`);
     }
-
+    
     console.log(`[TransactionMonitor] Using proxied RPC for chain ${chainId}:`, rpcUrl?.slice(0, 50) + '...');
     return rpcUrl;
   } catch (error) {

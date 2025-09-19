@@ -1082,7 +1082,7 @@ export const unshieldTokens = async ({
       originalGasEstimate: accurateGasEstimate.toString(),
       paddedGasEstimate: finalGasEstimate.toString(),
       minGasForSDK: minGasForSDK.toString(),
-      padding: '20%',
+      padding: '25%',
       evmGasType,
       hasProof: !!proofResponse,
       method: 'official-sdk-gas-estimation'
