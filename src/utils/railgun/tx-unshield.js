@@ -1135,6 +1135,13 @@ export const unshieldTokens = async ({
         amount: unshieldInputAmount,
       }];
 
+      // Add recipient as a shield recipient (this creates the output in the proof)
+      relayAdaptShieldERC20Recipients = [{
+        tokenAddress,
+        amount: recipientBn,
+        recipientAddress: recipientEVM, // Public EVM address
+      }];
+
       const { ethers } = await import('ethers');
       const erc20Interface = new ethers.Interface([
         'function transfer(address to, uint256 amount) returns (bool)'
@@ -1219,7 +1226,11 @@ export const unshieldTokens = async ({
       const proofBundle = {
         relayAdaptUnshieldERC20Amounts: relayAdaptUnshieldERC20Amounts.map(a => ({ tokenAddress: a.tokenAddress, amount: a.amount.toString() })),
         relayAdaptUnshieldNFTAmounts,
-        relayAdaptShieldERC20Recipients,
+        relayAdaptShieldERC20Recipients: relayAdaptShieldERC20Recipients.map(r => ({
+          tokenAddress: r.tokenAddress,
+          amount: r.amount.toString(),
+          recipientAddress: r.recipientAddress
+        })),
         relayAdaptShieldNFTRecipients,
         crossContractCalls: crossContractCalls.map(c => ({ to: c.to, data: String(c.data), value: c.value?.toString?.() ?? '0' })),
         broadcasterFeeERC20AmountRecipient: {
@@ -1241,7 +1252,7 @@ export const unshieldTokens = async ({
         encryptionKey,
         relayAdaptUnshieldERC20Amounts,
         relayAdaptUnshieldNFTAmounts,
-        relayAdaptShieldERC20Recipients,
+        relayAdaptShieldERC20Recipients, // Now includes recipient
         relayAdaptShieldNFTRecipients,
         crossContractCalls, // Single transfer call (recipient only)
         broadcasterFeeERC20AmountRecipient, // Official SDK pattern for relayer fees
@@ -1504,7 +1515,11 @@ export const unshieldTokens = async ({
       const populateBundle = {
         relayAdaptUnshieldERC20Amounts: relayAdaptUnshieldERC20Amounts.map(a => ({ tokenAddress: a.tokenAddress, amount: a.amount.toString() })),
         relayAdaptUnshieldNFTAmounts,
-        relayAdaptShieldERC20Recipients,
+        relayAdaptShieldERC20Recipients: relayAdaptShieldERC20Recipients.map(r => ({
+          tokenAddress: r.tokenAddress,
+          amount: r.amount.toString(),
+          recipientAddress: r.recipientAddress
+        })),
         relayAdaptShieldNFTRecipients,
         crossContractCalls: crossContractCalls.map(c => ({ to: c.to, data: String(c.data), value: c.value?.toString?.() ?? '0' })),
         broadcasterFeeERC20AmountRecipient: {
@@ -1558,7 +1573,7 @@ export const unshieldTokens = async ({
           railgunWalletID,
           relayAdaptUnshieldERC20Amounts,
           relayAdaptUnshieldNFTAmounts,
-          relayAdaptShieldERC20Recipients,
+          relayAdaptShieldERC20Recipients, // Now includes recipient
           relayAdaptShieldNFTRecipients,
           crossContractCalls, // Single transfer call (recipient only)
           broadcasterFeeERC20AmountRecipient, // Official SDK pattern for relayer fees
