@@ -725,7 +725,7 @@ export const unshieldTokens = async ({
       // ADD RECIPIENT TO SHIELD RECIPIENTS ARRAY FOR ZK PROOF CIRCUIT
       relayAdaptShieldERC20Recipients = [{
         tokenAddress,
-        amount: recipientBn, // NET amount after protocol fee
+        amount: recipientBn.toString(), // NET amount after protocol fee (convert to string)
         recipientAddress: recipientEVM
       }];
 
@@ -782,7 +782,7 @@ export const unshieldTokens = async ({
       // Hoist shared params for estimate -> proof -> populate
       relayAdaptUnshieldERC20Amounts = [{
         tokenAddress,
-        amount: unshieldInputAmount, // Net of relayer fee; SDK will apply protocol fee internally
+        amount: unshieldInputAmount.toString(), // Net of relayer fee; SDK will apply protocol fee internally
       }];
 
       const { ethers } = await import('ethers');
@@ -1084,7 +1084,11 @@ export const unshieldTokens = async ({
       const proofBundle = {
         relayAdaptUnshieldERC20Amounts: relayAdaptUnshieldERC20Amounts.map(a => ({ tokenAddress: a.tokenAddress, amount: a.amount.toString() })),
         relayAdaptUnshieldNFTAmounts,
-        relayAdaptShieldERC20Recipients,
+        relayAdaptShieldERC20Recipients: relayAdaptShieldERC20Recipients.map(r => ({
+          tokenAddress: r.tokenAddress,
+          amount: r.amount.toString(),
+          recipientAddress: r.recipientAddress
+        })),
         relayAdaptShieldNFTRecipients,
         crossContractCalls: crossContractCalls.map(c => ({ to: c.to, data: String(c.data), value: c.value?.toString?.() ?? '0' })),
         broadcasterFeeERC20AmountRecipient: {
@@ -1371,7 +1375,11 @@ export const unshieldTokens = async ({
       const populateBundle = {
         relayAdaptUnshieldERC20Amounts: relayAdaptUnshieldERC20Amounts.map(a => ({ tokenAddress: a.tokenAddress, amount: a.amount.toString() })),
         relayAdaptUnshieldNFTAmounts,
-        relayAdaptShieldERC20Recipients,
+        relayAdaptShieldERC20Recipients: relayAdaptShieldERC20Recipients.map(r => ({
+          tokenAddress: r.tokenAddress,
+          amount: r.amount.toString(),
+          recipientAddress: r.recipientAddress
+        })),
         relayAdaptShieldNFTRecipients,
         crossContractCalls: crossContractCalls.map(c => ({ to: c.to, data: String(c.data), value: c.value?.toString?.() ?? '0' })),
         broadcasterFeeERC20AmountRecipient: {
