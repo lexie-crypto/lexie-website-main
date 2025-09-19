@@ -1029,9 +1029,6 @@ const VaultDesktopInner = () => {
                   {currentLexieId ? (
                     <div className="flex items-center space-x-2">
                       <span className="text-purple-300 font-medium">{currentLexieId}</span>
-                      <span className="ml-2 text-purple-300" title="Points = $ value × streak. Min $5. Streak resets if you skip a day.">
-                        <span className="text-purple-300/60">•</span> points {pointsBalance !== null && pointsBalance !== undefined ? pointsBalance : '0.00'}
-                      </span>
                       <ClipboardDocumentIcon
                         className="h-3.5 w-3.5 text-purple-300 hover:text-purple-400 cursor-pointer transition-colors"
                         onClick={() => {
@@ -1053,6 +1050,9 @@ const VaultDesktopInner = () => {
                         }}
                         title="Copy Lexie ID"
                       />
+                      <span className="ml-2 text-purple-300" title="Points = $ value × streak. Min $5. Streak resets if you skip a day.">
+                        <span className="text-purple-300/60">•</span> points {pointsBalance !== null && pointsBalance !== undefined ? pointsBalance : '0.00'}
+                      </span>
                     </div>
                   ) : (
                     <button
