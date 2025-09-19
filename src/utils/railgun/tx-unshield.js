@@ -1239,12 +1239,12 @@ export const unshieldTokens = async ({
       proofBundleString = JSON.stringify(proofBundleForLogging);
       console.log('🔧 [UNSHIELD] Proof generation parameters:', proofBundleForLogging);
 
-      // INVARIANTS CHECK: Match old working conservation pattern
-      const totalUnshieldAmount = relayAdaptUnshieldERC20Amounts.reduce((sum, item) => sum + item.amount, 0n);
+      // INVARIANTS CHECK: Value conservation - user amount should equal all outputs
       const totalBroadcasterFee = broadcasterFeeERC20AmountRecipient ? broadcasterFeeERC20AmountRecipient.amount : 0n;
+      const protocolFee = unshieldInputAmount - totalBroadcasterFee - recipientBn;
 
-      // Conservation includes protocol fee conceptually: gross = fee + recipient + (input - recipient)
-      const expectedGross = totalBroadcasterFee + recipientBn + (unshieldInputAmount - recipientBn);
+      // Conservation: userAmountGross = recipientAmount + broadcasterFee + protocolFee
+      const expectedGross = recipientBn + totalBroadcasterFee + protocolFee;
 
       if (userAmountGross !== expectedGross) {
         const errorMsg = `❌ INVARIANT FAIL: Value conservation broken! ` +
@@ -1252,13 +1252,13 @@ export const unshieldTokens = async ({
           `expected=${expectedGross.toString()}, ` +
           `broadcasterFee=${totalBroadcasterFee.toString()}, ` +
           `recipientAmount=${recipientBn.toString()}, ` +
-          `protocolFee=${(unshieldInputAmount - recipientBn).toString()}`;
+          `protocolFee=${protocolFee.toString()}`;
         console.error('🔴 [UNSHIELD] Value conservation check failed:', {
           userAmountGross: userAmountGross.toString(),
           expectedGross: expectedGross.toString(),
           totalBroadcasterFee: totalBroadcasterFee.toString(),
           recipientAmount: recipientBn.toString(),
-          protocolFee: (unshieldInputAmount - recipientBn).toString(),
+          protocolFee: protocolFee.toString(),
           difference: (userAmountGross - expectedGross).toString()
         });
         throw new Error(errorMsg);
@@ -1268,7 +1268,7 @@ export const unshieldTokens = async ({
         userAmountGross: userAmountGross.toString(),
         totalBroadcasterFee: totalBroadcasterFee.toString(),
         recipientAmount: recipientBn.toString(),
-        protocolFee: (unshieldInputAmount - recipientBn).toString(),
+        protocolFee: protocolFee.toString(),
         balance: '✓'
       });
 
