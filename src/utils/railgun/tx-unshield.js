@@ -812,7 +812,28 @@ export const unshieldTokens = async ({
         data: recipientCallData,
         value: 0n,
       }];
-      
+
+      // DEBUG: Log crossContractCalls construction
+      console.log('🔧 [UNSHIELD] Cross-contract calls constructed:', {
+        crossContractCalls: crossContractCalls.map(c => ({
+          to: c.to,
+          dataLength: c.data.length,
+          dataPrefix: c.data.substring(0, 10),
+          value: c.value.toString(),
+          decodedTransfer: (() => {
+            try {
+              const [, to, amount] = erc20Interface.decodeFunctionData('transfer', c.data);
+              return { to, amount: amount.toString() };
+            } catch (e) {
+              return { error: e.message };
+            }
+          })()
+        })),
+        recipientEVM,
+        recipientBn: recipientBn.toString(),
+        unshieldInputAmount: unshieldInputAmount.toString()
+      });
+
     } else {
       // SELF-SIGNING MODE: Only SDK's unshield fee applies (relayer fee is 0)
       console.log('🔧 [UNSHIELD] Preparing self-signing mode (with SDK unshield fee)...');
@@ -1236,6 +1257,32 @@ export const unshieldTokens = async ({
         recipientAmount: recipientBn.toString(),
         protocolFee: (unshieldInputAmount - recipientBn).toString(),
         balance: '✓'
+      });
+
+      // DEBUG: Log what we're sending to proof generation
+      console.log('🔐 [UNSHIELD] Proof generation inputs:', {
+        relayAdaptUnshieldERC20Amounts: relayAdaptUnshieldERC20Amounts.map(a => ({
+          tokenAddress: a.tokenAddress,
+          amount: a.amount.toString()
+        })),
+        crossContractCalls: crossContractCalls.map(c => ({
+          to: c.to,
+          dataLength: c.data.length,
+          value: c.value.toString()
+        })),
+        broadcasterFeeERC20AmountRecipient: broadcasterFeeERC20AmountRecipient ? {
+          tokenAddress: broadcasterFeeERC20AmountRecipient.tokenAddress,
+          recipientAddress: broadcasterFeeERC20AmountRecipient.recipientAddress,
+          amount: broadcasterFeeERC20AmountRecipient.amount.toString()
+        } : null,
+        sendWithPublicWallet,
+        OVERALL_BATCH_MIN_GAS_PRICE: OVERALL_BATCH_MIN_GAS_PRICE.toString(),
+        minGasForSDK: minGasForSDK.toString(),
+        expectedOutputs: {
+          userRecipient: recipientBn.toString(),
+          broadcasterFee: combinedRelayerFee.toString(),
+          total: (recipientBn + combinedRelayerFee).toString()
+        }
       });
 
       proofResponse = await generateCrossContractCallsProof(
