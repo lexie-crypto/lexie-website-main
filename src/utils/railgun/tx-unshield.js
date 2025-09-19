@@ -699,11 +699,11 @@ export const unshieldTokens = async ({
         ethPrice
       });
 
-      // COMBINE FEES: Add gas reclamation to relayer fee
+      // KEEP SAME ARITHMETIC AS OLD VERSION: Only deduct relayer fee from user
       combinedRelayerFee = relayerFeeBn + gasFeeDeducted;
-      unshieldInputAmount = userAmountGross - combinedRelayerFee; // Deduct combined fee from user
+      unshieldInputAmount = userAmountGross - relayerFeeBn; // Only deduct relayer fee (same as OLD)
 
-      // UPDATE BROADCASTER FEE: Now set with combined fee for proof generation
+      // UPDATE BROADCASTER FEE: Set with combined fee for gas reclamation
       broadcasterFeeERC20AmountRecipient = {
         tokenAddress: selectedRelayer.feeToken,
         recipientAddress: selectedRelayer.railgunAddress, // RAILGUN address (0zk...)
@@ -722,6 +722,13 @@ export const unshieldTokens = async ({
       // Recipient gets NET after SDK protocol fee
       recipientBn = (unshieldInputAmount * (10000n - UNSHIELD_FEE_BPS)) / 10000n;
 
+      // ADD RECIPIENT TO SHIELD RECIPIENTS ARRAY FOR ZK PROOF CIRCUIT
+      relayAdaptShieldERC20Recipients = [{
+        tokenAddress,
+        amount: recipientBn, // NET amount after protocol fee
+        recipientAddress: recipientEVM
+      }];
+
       console.log('💰 [UNSHIELD] Combined fee calculation (relayer + gas reclamation):', {
         userAmountGross: userAmountGross.toString(),
         relayerFeeBn: relayerFeeBn.toString(),
@@ -729,16 +736,16 @@ export const unshieldTokens = async ({
         combinedRelayerFee: combinedRelayerFee.toString(),
         unshieldInputAmount: unshieldInputAmount.toString(),
         recipientBn: recipientBn.toString(),
-        requiredSpend: (unshieldInputAmount + combinedRelayerFee).toString(),
-        assertion: 'requiredSpend should equal userAmountGross'
+        requiredSpend: (unshieldInputAmount + relayerFeeBn).toString(),
+        assertion: 'requiredSpend should equal userAmountGross (relayer fee only)'
       });
       
       // Assertions (before proof/populate)
       if (recipientBn <= 0n) {
         throw new Error(`Recipient amount must be > 0. Got: ${recipientBn.toString()}`);
       }
-      if (unshieldInputAmount + combinedRelayerFee !== userAmountGross) {
-        throw new Error(`Math error: unshieldInput (${unshieldInputAmount.toString()}) + combined fee (${combinedRelayerFee.toString()}) != userAmountGross (${userAmountGross.toString()})`);
+      if (unshieldInputAmount + relayerFeeBn !== userAmountGross) {
+        throw new Error(`Math error: unshieldInput (${unshieldInputAmount.toString()}) + relayer fee (${relayerFeeBn.toString()}) != userAmountGross (${userAmountGross.toString()})`);
       }
       
       // Guard: Relayer must provide a valid 0zk address
@@ -764,12 +771,12 @@ export const unshieldTokens = async ({
       erc20AmountRecipients = [];
       
       console.log('📝 [UNSHIELD] RelayAdapt recipients prepared (with gas reclamation):', {
-        recipientAmount: { amount: recipientBn.toString(), to: recipientEVM },
+        shieldRecipients: relayAdaptShieldERC20Recipients.map(r => ({ amount: r.amount.toString(), to: r.recipientAddress })),
         relayerServiceFee: { amount: relayerFeeBn.toString(), to: selectedRelayer.railgunAddress },
         gasReclamationFee: { amount: gasFeeDeducted.toString(), to: selectedRelayer.railgunAddress },
         totalBroadcasterFee: { amount: combinedRelayerFee.toString(), to: selectedRelayer.railgunAddress },
         unshieldFee: { amount: ((unshieldInputAmount * UNSHIELD_FEE_BPS) / 10000n).toString(), note: 'handled_by_SDK' },
-        mode: 'RelayAdapt_CrossContractCalls_With_Gas_Reclamation'
+        mode: 'RelayAdapt_With_ShieldRecipients_GasReclamation'
       });
 
       // Hoist shared params for estimate -> proof -> populate
@@ -915,9 +922,9 @@ export const unshieldTokens = async ({
         // RelayAdapt unshield amounts - input amount to SDK
         // using hoisted relayAdaptUnshieldERC20Amounts
         
-        // Assertion: unshieldInputAmount + combined fee should equal userAmountGross
-        // (SDK protocol fee is handled separately and shouldn't be part of this validation)
-        const totalSpend = unshieldInputAmount + combinedRelayerFee;
+        // Assertion: unshieldInputAmount + relayer fee should equal userAmountGross (same as OLD)
+        // (SDK protocol fee and gas reclamation are handled separately)
+        const totalSpend = unshieldInputAmount + relayerFeeBn;
         if (totalSpend !== userAmountGross) {
           throw new Error(`Spend mismatch: spend ${totalSpend.toString()} != userAmountGross ${userAmountGross.toString()}`);
         }
@@ -1356,7 +1363,7 @@ export const unshieldTokens = async ({
         gasFeeDeducted: gasFeeDeducted.toString(),
         combinedRelayerFee: combinedRelayerFee.toString(),
         recipientBn: recipientBn.toString(),
-        requiredSpend: (unshieldInputAmount + combinedRelayerFee).toString()
+        requiredSpend: (unshieldInputAmount + relayerFeeBn).toString()
       });
       
       // using hoisted relayAdaptUnshieldERC20Amounts and crossContractCalls from Step 4
