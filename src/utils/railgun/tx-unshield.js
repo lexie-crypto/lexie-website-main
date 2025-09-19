@@ -638,6 +638,9 @@ export const unshieldTokens = async ({
     // Define net variable at function scope level for use throughout
     let net;
 
+    // Parity bundle variables for cross-phase validation
+    let parityBundleBeforeEstimate = null;
+
     // SDK will validate balance internally
 
     if (useRelayer) {
@@ -958,7 +961,7 @@ export const unshieldTokens = async ({
         });
 
         // LOG PARITY BUNDLE BEFORE ESTIMATE
-        const parityBundleBeforeEstimate = {
+        parityBundleBeforeEstimate = {
           relayAdaptUnshieldERC20Amounts: relayAdaptUnshieldERC20Amounts.map(a => ({
             tokenAddress: a.tokenAddress,
             amount: a.amount.toString()
@@ -1167,15 +1170,18 @@ export const unshieldTokens = async ({
 
       console.log('📋 [UNSHIELD] PARITY BUNDLE BEFORE PROOF:', parityBundleBeforeProof);
 
-      // ASSERT PARITY: Proof bundle should match estimate bundle
-      if (JSON.stringify(parityBundleBeforeEstimate) !== JSON.stringify(parityBundleBeforeProof)) {
-        console.error('❌ [UNSHIELD] PARITY MISMATCH: Estimate vs Proof bundles differ!');
-        console.error('Estimate bundle:', parityBundleBeforeEstimate);
-        console.error('Proof bundle:', parityBundleBeforeProof);
-        throw new Error('Parity mismatch between estimate and proof bundles');
+      // ASSERT PARITY: Proof bundle should match estimate bundle (only if estimate ran)
+      if (parityBundleBeforeEstimate) {
+        if (JSON.stringify(parityBundleBeforeEstimate) !== JSON.stringify(parityBundleBeforeProof)) {
+          console.error('❌ [UNSHIELD] PARITY MISMATCH: Estimate vs Proof bundles differ!');
+          console.error('Estimate bundle:', parityBundleBeforeEstimate);
+          console.error('Proof bundle:', parityBundleBeforeProof);
+          throw new Error('Parity mismatch between estimate and proof bundles');
+        }
+        console.log('✅ [UNSHIELD] Parity verified: Estimate and proof bundles match');
+      } else {
+        console.log('ℹ️ [UNSHIELD] Parity check skipped: No estimate bundle (likely fallback gas used)');
       }
-
-      console.log('✅ [UNSHIELD] Parity verified: Estimate and proof bundles match');
 
       // Create JSON-serializable version for logging
       const proofBundleForLogging = {
