@@ -719,7 +719,8 @@ export const unshieldTokens = async ({
         purpose: 'RAILGUN_BROADCASTER_FEE_VIA_SDK_WITH_GAS_RECLAMATION'
       });
 
-      // Recipient gets NET after SDK protocol fee (0.25%)
+      // Calculate recipientBn for logging/reference (after SDK protocol fee)
+      // NOTE: crossContractCalls uses unshieldInputAmount directly, SDK applies fee internally
       recipientBn = (unshieldInputAmount * (10000n - UNSHIELD_FEE_BPS)) / 10000n;
 
       // ADD RECIPIENT TO SHIELD RECIPIENTS ARRAY FOR ZK PROOF CIRCUIT
@@ -798,7 +799,7 @@ export const unshieldTokens = async ({
       ]);
       const recipientCallData = erc20Interface.encodeFunctionData('transfer', [
         recipientEVM,
-        recipientBn, // Forward NET amount (after relayer + protocol)
+        unshieldInputAmount, // Use unshieldInputAmount directly - SDK applies protocol fee internally
       ]);
       crossContractCalls = [{
         to: tokenAddress,
@@ -936,15 +937,17 @@ export const unshieldTokens = async ({
           throw new Error(`Spend mismatch: spend ${totalSpend.toString()} != userAmountGross ${userAmountGross.toString()}`);
         }
         
-        // Create single cross-contract call: Forward NET amount to recipient
+        // Create single cross-contract call: Forward unshieldInputAmount to recipient
         // (SDK handles relayer fee payment internally via broadcasterFeeERC20AmountRecipient)
+        // (SDK will apply 0.25% protocol fee to this amount internally)
         // using hoisted crossContractCalls
         
         console.log('🔧 [UNSHIELD] Cross-contract call created:', {
           to: tokenAddress,
           recipientEVM: recipientEVM,
-          recipientBn: recipientBn.toString(),
-          callCount: crossContractCalls.length
+          transferAmount: unshieldInputAmount.toString(), // Should match relayAdaptUnshieldERC20Amounts[0].amount
+          callCount: crossContractCalls.length,
+          note: 'SDK will apply 0.25% protocol fee internally'
         });
 
         console.log('🔧 [UNSHIELD] Gas estimation parameters:', {
@@ -1106,7 +1109,33 @@ export const unshieldTokens = async ({
       };
       proofBundleString = JSON.stringify(proofBundleForLogging);
       console.log('🔧 [UNSHIELD] Proof generation parameters:', proofBundleForLogging);
-      
+
+      // INVARIANTS CHECK: Ensure value conservation for ZK proof
+      const totalUnshieldAmount = relayAdaptUnshieldERC20Amounts.reduce((sum, item) => sum + item.amount, 0n);
+      const totalBroadcasterFee = broadcasterFeeERC20AmountRecipient ? broadcasterFeeERC20AmountRecipient.amount : 0n;
+
+      if (userAmountGross !== totalUnshieldAmount + totalBroadcasterFee) {
+        const errorMsg = `❌ INVARIANT FAIL: Value conservation broken! ` +
+          `userAmountGross=${userAmountGross.toString()}, ` +
+          `totalUnshieldAmount=${totalUnshieldAmount.toString()}, ` +
+          `totalBroadcasterFee=${totalBroadcasterFee.toString()}, ` +
+          `expected=${(totalUnshieldAmount + totalBroadcasterFee).toString()}`;
+        console.error('🔴 [UNSHIELD] Value conservation check failed:', {
+          userAmountGross: userAmountGross.toString(),
+          totalUnshieldAmount: totalUnshieldAmount.toString(),
+          totalBroadcasterFee: totalBroadcasterFee.toString(),
+          difference: (userAmountGross - (totalUnshieldAmount + totalBroadcasterFee)).toString()
+        });
+        throw new Error(errorMsg);
+      }
+
+      console.log('✅ [UNSHIELD] Value conservation verified:', {
+        userAmountGross: userAmountGross.toString(),
+        totalUnshieldAmount: totalUnshieldAmount.toString(),
+        totalBroadcasterFee: totalBroadcasterFee.toString(),
+        balance: '✓'
+      });
+
       proofResponse = await generateCrossContractCallsProof(
         TXIDVersion.V2_PoseidonMerkle,
         networkName,
@@ -1426,7 +1455,33 @@ export const unshieldTokens = async ({
         }
         throw new Error('Mismatch: cross-contract proof vs populate params');
       }
-      
+
+      // INVARIANTS CHECK: Ensure value conservation for populate (should match proof)
+      const populateTotalUnshieldAmount = relayAdaptUnshieldERC20Amounts.reduce((sum, item) => sum + item.amount, 0n);
+      const populateTotalBroadcasterFee = broadcasterFeeERC20AmountRecipient ? broadcasterFeeERC20AmountRecipient.amount : 0n;
+
+      if (userAmountGross !== populateTotalUnshieldAmount + populateTotalBroadcasterFee) {
+        const errorMsg = `❌ POPULATE INVARIANT FAIL: Value conservation broken! ` +
+          `userAmountGross=${userAmountGross.toString()}, ` +
+          `populateTotalUnshieldAmount=${populateTotalUnshieldAmount.toString()}, ` +
+          `populateTotalBroadcasterFee=${populateTotalBroadcasterFee.toString()}, ` +
+          `expected=${(populateTotalUnshieldAmount + populateTotalBroadcasterFee).toString()}`;
+        console.error('🔴 [UNSHIELD] Populate value conservation check failed:', {
+          userAmountGross: userAmountGross.toString(),
+          populateTotalUnshieldAmount: populateTotalUnshieldAmount.toString(),
+          populateTotalBroadcasterFee: populateTotalBroadcasterFee.toString(),
+          difference: (userAmountGross - (populateTotalUnshieldAmount + populateTotalBroadcasterFee)).toString()
+        });
+        throw new Error(errorMsg);
+      }
+
+      console.log('✅ [UNSHIELD] Populate value conservation verified:', {
+        userAmountGross: userAmountGross.toString(),
+        populateTotalUnshieldAmount: populateTotalUnshieldAmount.toString(),
+        populateTotalBroadcasterFee: populateTotalBroadcasterFee.toString(),
+        balance: '✓'
+      });
+
       try {
         populatedTransaction = await populateProvedCrossContractCalls(
           TXIDVersion.V2_PoseidonMerkle,
