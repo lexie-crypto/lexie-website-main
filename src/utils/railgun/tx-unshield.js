@@ -29,6 +29,7 @@ import {
 } from '@railgun-community/shared-models';
 import { waitForRailgunReady } from './engine.js';
 import { assertNotSanctioned } from '../sanctions/chainalysis-oracle.js';
+import { fetchTokenPrices } from '../pricing/coinGecko.js';
 
 /**
  * Terminal-themed toast helper (no JSX; compatible with .js files)
@@ -239,6 +240,23 @@ const getRailgunNetworkName = (chainId) => {
     throw new Error(`Unsupported chain ID: ${chainId}`);
   }
   return networkName;
+};
+
+/**
+ * Native gas token mapping by chain ID
+ */
+const NATIVE_GAS_TOKENS = {
+  1: 'ETH',      // Ethereum
+  137: 'MATIC',  // Polygon
+  56: 'BNB',     // BSC
+  42161: 'ETH',  // Arbitrum (uses ETH)
+};
+
+/**
+ * Get native gas token symbol for a chain ID
+ */
+const getNativeGasToken = (chainId) => {
+  return NATIVE_GAS_TOKENS[chainId] || 'ETH'; // Default to ETH
 };
 
 /**
@@ -700,22 +718,37 @@ export const unshieldTokens = async ({
       const gasPrice = networkGasPrices?.gasPrice || networkGasPrices?.maxFeePerGas || BigInt('20000000000'); // 20 gwei fallback
       const gasCostWei = estimatedGas * gasPrice;
 
-      // Convert gas cost to token amount (assume USDC for now)
-      // This is a simplified calculation - in production you'd get actual token price
-      const ethPrice = 3000; // Approximate ETH price
+      // Convert gas cost to token amount using dynamic pricing
+      const nativeGasToken = getNativeGasToken(chain.id);
+      let nativeTokenPrice = 3000; // Fallback price for ETH
+
+      // Fetch real-time price for the native gas token
+      try {
+        const prices = await fetchTokenPrices([nativeGasToken]);
+        if (prices[nativeGasToken] && prices[nativeGasToken] > 0) {
+          nativeTokenPrice = prices[nativeGasToken];
+        } else {
+          console.warn(`⚠️ [UNSHIELD] Failed to fetch price for ${nativeGasToken}, using fallback: ${nativeTokenPrice}`);
+        }
+      } catch (priceError) {
+        console.warn(`⚠️ [UNSHIELD] Price fetch failed for ${nativeGasToken}, using fallback: ${nativeTokenPrice}`, priceError.message);
+      }
+
       const tokenPrice = 1; // Assume 1:1 for stablecoins like USDC
-      const gasCostEth = Number(gasCostWei) / 1e18;
-      const gasCostUsd = gasCostEth * ethPrice;
+      const gasCostNative = Number(gasCostWei) / 1e18; // Convert wei to native token units
+      const gasCostUsd = gasCostNative * nativeTokenPrice;
       gasFeeDeducted = BigInt(Math.ceil(gasCostUsd * 1e6)); // Convert to 6-decimal token units
 
       console.log('💰 [UNSHIELD] Gas reclamation calculation:', {
         estimatedGas: estimatedGas.toString(),
         gasPrice: gasPrice.toString(),
         gasCostWei: gasCostWei.toString(),
+        nativeGasToken,
+        nativeTokenPrice: nativeTokenPrice.toFixed(2),
+        gasCostNative: gasCostNative.toFixed(8),
         gasCostUsd: gasCostUsd.toFixed(4),
         gasFeeDeducted: gasFeeDeducted.toString(),
-        tokenPrice,
-        ethPrice
+        tokenPrice
       });
 
       // COMBINE FEES FOR BROADCASTER: relayer fee + gas reclamation
