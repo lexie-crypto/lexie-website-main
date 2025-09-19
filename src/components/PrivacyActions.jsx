@@ -625,6 +625,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           transactionDetails: {
             walletAddress: address,
             walletId: railgunWalletId,
+            railgunAddress: railgunAddress,
             tokenSymbol: selectedToken.symbol,
             tokenAddress: tokenAddr,
             decimals: selectedToken.decimals,
@@ -863,6 +864,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           transactionDetails: {
             walletAddress: address,
             walletId: railgunWalletId,
+            railgunAddress: railgunAddress,
             tokenSymbol: selectedToken.symbol,
             tokenAddress: tokenAddr,
             decimals: selectedToken.decimals,
@@ -1107,6 +1109,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           transactionDetails: {
             walletId: railgunWalletId,
             walletAddress: address,
+            railgunAddress: railgunAddress,
             tokenSymbol: selectedToken.symbol,
             tokenAddress: tokenAddr,
             decimals: selectedToken.decimals,
