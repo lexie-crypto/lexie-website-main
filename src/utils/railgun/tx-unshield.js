@@ -911,8 +911,9 @@ export const unshieldTokens = async ({
         // RelayAdapt unshield amounts - input amount to SDK
         // using hoisted relayAdaptUnshieldERC20Amounts
         
-        // Assertion: after-fee spend matches available amount (now includes gas reclamation)
-        const totalSpend = recipientBn + combinedRelayerFee;
+        // Assertion: unshieldInputAmount + combined fee should equal userAmountGross
+        // (SDK protocol fee is handled separately and shouldn't be part of this validation)
+        const totalSpend = unshieldInputAmount + combinedRelayerFee;
         if (totalSpend !== userAmountGross) {
           throw new Error(`Spend mismatch: spend ${totalSpend.toString()} != userAmountGross ${userAmountGross.toString()}`);
         }
