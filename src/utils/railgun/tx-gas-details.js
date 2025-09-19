@@ -12,6 +12,14 @@ import {
   isDefined,
 } from '@railgun-community/shared-models';
 import { shouldSetOverallBatchMinGasPriceForNetwork } from './gasUtils.js';
+import {
+  gasEstimateForUnprovenCrossContractCalls,
+  gasEstimateForUnprovenUnshield,
+} from '@railgun-community/wallet';
+import {
+  calculateGasPrice,
+  TXIDVersion,
+} from '@railgun-community/shared-models';
 
 /**
  * Default gas values for different networks and transaction types
@@ -290,6 +298,188 @@ export const calculateTransactionCost = (gasDetails) => {
   }
 };
 
+/**
+ * Get live fee data or sensible per-network fallback
+ * @param {Object} provider - Ethers provider
+ * @param {EVMGasType} evmGasType - EVM gas type
+ * @param {number} chainId - Chain ID
+ * @returns {Object} Fee parameters
+ */
+export const getTxFeeParams = async (provider, evmGasType, chainId) => {
+  let feeData = null;
+  try {
+    feeData = await provider.getFeeData(); // { gasPrice, maxFeePerGas, maxPriorityFeePerGas }
+  } catch (error) {
+    console.warn('[GasDetails] Failed to get fee data from provider:', error.message);
+  }
+
+  // Helper for BigInt conversion
+  const F = (wei) => BigInt(wei);
+
+  // Network-specific fallbacks (last resort)
+  const isArb = chainId === 42161;
+  const isPolygon = chainId === 137;
+  const isBnb = chainId === 56;
+
+  // Keep tiny floors for L2s, higher for L1 — only if feeData is missing
+  const fallbacks = {
+    gasPrice: isArb || isPolygon || isBnb ? F('100000000') : F('3000000000'), // 0.1 gwei (L2) / 3 gwei (L1)
+    maxFeePerGas: isArb || isPolygon || isBnb ? F('1000000000') : F('4000000000'),
+    maxPriorityFeePerGas: isArb || isPolygon || isBnb ? F('10000000') : F('3000000000'),
+  };
+
+  if (evmGasType === EVMGasType.Type2) {
+    const maxFeePerGas = feeData?.maxFeePerGas ?? fallbacks.maxFeePerGas;
+    let maxPriorityFeePerGas = feeData?.maxPriorityFeePerGas ?? fallbacks.maxPriorityFeePerGas;
+    if (maxPriorityFeePerGas > maxFeePerGas) {
+      maxPriorityFeePerGas = maxFeePerGas / 2n;
+    }
+    return { maxFeePerGas, maxPriorityFeePerGas };
+  }
+
+  // Legacy Type0/1
+  const gasPrice = feeData?.gasPrice ?? fallbacks.gasPrice;
+  return { gasPrice };
+};
+
+/**
+ * Build gas details using SDK estimation + live fee data
+ * One true source of gas: estimate → pad → reuse for populate + submit + reclamation
+ * @param {Object} params - Parameters
+ * @returns {Object} Gas details and estimates
+ */
+export const buildGasAndEstimate = async ({
+  mode, // 'relayadapt' | 'self'
+  chainId,
+  networkName,
+  railgunWalletID,
+  encryptionKey,
+  relayAdaptUnshieldERC20Amounts,
+  crossContractCalls,
+  erc20AmountRecipients,
+  feeTokenDetails,
+  sendWithPublicWallet,
+  walletProvider,
+}) => {
+  try {
+    const signer = await walletProvider();
+    const provider = signer.provider;
+
+    const evmGasType = getEVMGasTypeForTransaction(networkName, sendWithPublicWallet);
+    const originalFeeParams = await getTxFeeParams(provider, evmGasType, chainId);
+
+    // Create originalGasDetails for SDK estimate
+    const originalGasDetails =
+      evmGasType === EVMGasType.Type2
+        ? {
+            evmGasType,
+            originalGasEstimate: 0n,
+            maxFeePerGas: originalFeeParams.maxFeePerGas,
+            maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas
+          }
+        : {
+            evmGasType,
+            originalGasEstimate: 0n,
+            gasPrice: originalFeeParams.gasPrice
+          };
+
+    // SDK dummy estimate (the "dry run")
+    let gasEstimate;
+    if (mode === 'relayadapt') {
+      const res = await gasEstimateForUnprovenCrossContractCalls(
+        TXIDVersion.V2_PoseidonMerkle,
+        networkName,
+        railgunWalletID,
+        encryptionKey,
+        relayAdaptUnshieldERC20Amounts,
+        [], [], [], // empty arrays for nftAmounts, shieldERC20Recipients, shieldNFTRecipients
+        crossContractCalls,
+        originalGasDetails,
+        feeTokenDetails,
+        sendWithPublicWallet,
+        1600000n, // min gas floor
+      );
+      gasEstimate = res.gasEstimate;
+    } else {
+      const res = await gasEstimateForUnprovenUnshield(
+        TXIDVersion.V2_PoseidonMerkle,
+        networkName,
+        railgunWalletID,
+        encryptionKey,
+        erc20AmountRecipients,
+        [], // nftAmountRecipients
+        originalGasDetails,
+        null, // feeTokenDetails not needed for self-signing
+        sendWithPublicWallet,
+      );
+      gasEstimate = res.gasEstimate;
+    }
+
+    // Pad estimate for headroom (same padding reused for populate + submit)
+    const paddedGasEstimate = (gasEstimate * 120n) / 100n;
+
+    // Compute batch min gas price (SDK helper)
+    const overallBatchMinGasPrice = await calculateGasPrice({
+      evmGasType,
+      gasEstimate,
+      gasPrice: originalFeeParams.gasPrice,
+      maxFeePerGas: originalFeeParams.maxFeePerGas,
+      maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas,
+    });
+
+    // Final gasDetails to pass into populate()
+    const gasDetails =
+      evmGasType === EVMGasType.Type2
+        ? {
+            evmGasType,
+            gasEstimate: paddedGasEstimate,
+            maxFeePerGas: originalFeeParams.maxFeePerGas,
+            maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas,
+          }
+        : {
+            evmGasType,
+            gasEstimate: paddedGasEstimate,
+            gasPrice: originalFeeParams.gasPrice,
+          };
+
+    console.log('[GasDetails] Using SDK estimate + live fee data', {
+      chainId,
+      mode,
+      evmGasType,
+      gasEstimate: gasEstimate.toString(),
+      paddedGasEstimate: paddedGasEstimate.toString(),
+      overallBatchMinGasPrice: overallBatchMinGasPrice.toString(),
+      ...gasDetails,
+    });
+
+    return { gasDetails, paddedGasEstimate, overallBatchMinGasPrice };
+
+  } catch (error) {
+    console.error('[GasDetails] Failed to build gas and estimate:', error);
+    throw new Error(`Failed to build gas and estimate: ${error.message}`);
+  }
+};
+
+/**
+ * Compute gas reclamation in wei using the exact same gas details used for the transaction
+ * @param {TransactionGasDetails} gasDetails - Gas details used in populate/submit
+ * @returns {BigInt} Gas cost in wei
+ */
+export const computeGasReclamationWei = (gasDetails) => {
+  try {
+    const gasLimit = gasDetails.gasEstimate;
+    const price =
+      'gasPrice' in gasDetails
+        ? gasDetails.gasPrice  // Legacy Type0/1
+        : gasDetails.maxFeePerGas; // Conservative: use maxFeePerGas on EIP-1559
+
+    return gasLimit * price; // Wei
+  } catch (error) {
+    console.error('[GasDetails] Failed to compute gas reclamation:', error);
+    return 0n;
+  }
+};
+
 export default {
   validateGasDetails,
   createGasDetails,
@@ -299,4 +489,7 @@ export default {
   getRecommendedGasPrice,
   shouldIncludeOverallBatchMinGasPrice,
   calculateTransactionCost,
+  getTxFeeParams,
+  buildGasAndEstimate,
+  computeGasReclamationWei,
 }; 
