@@ -2317,6 +2317,3 @@ export const privateTransferWithRelayer = async ({
     throw e;
   }
 };
-
-
-
