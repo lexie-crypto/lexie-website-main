@@ -663,9 +663,55 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             ), { duration: 3000 });
           }
         })
-        .then((result) => {
+        .then(async (result) => {
           if (result.found) {
             console.log(`[PrivacyActions] Shield monitoring completed in ${result.elapsedTime/1000}s`);
+
+            // 🎯 FALLBACK: Directly award points if transaction monitor didn't
+            try {
+              console.log('[PrivacyActions] 🎯 Checking if points need to be awarded...');
+
+              // First resolve Lexie ID from Railgun address
+              const lexieResponse = await fetch('/api/wallet-metadata?action=by-wallet&railgunAddress=' + encodeURIComponent(railgunAddress));
+              if (!lexieResponse.ok) {
+                console.warn('[PrivacyActions] Could not resolve Lexie ID for points award');
+                return;
+              }
+
+              const lexieData = await lexieResponse.json();
+              if (!lexieData?.success || !lexieData?.lexieID) {
+                console.warn('[PrivacyActions] No Lexie ID found for points award');
+                return;
+              }
+
+              const lexieId = lexieData.lexieID.toLowerCase();
+              console.log('[PrivacyActions] ✅ Resolved Lexie ID for points award:', lexieId);
+
+              // Now call rewards-award with correct format
+              const pointsResponse = await fetch('/api/wallet-metadata?action=rewards-award', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  lexieId: lexieId,
+                  txHash: txResponse?.hash || txResponse,
+                  usdValue: Number(amount) // Assume amount is in USD for simplicity
+                })
+              });
+
+              if (pointsResponse.ok) {
+                const pointsData = await pointsResponse.json();
+                if (pointsData?.success) {
+                  console.log('[PrivacyActions] ✅ Points awarded via fallback:', pointsData);
+                  // Refresh points display
+                  window.dispatchEvent(new CustomEvent('points-updated'));
+                }
+              } else {
+                console.warn('[PrivacyActions] Points award failed:', await pointsResponse.text());
+              }
+            } catch (pointsError) {
+              console.warn('[PrivacyActions] Points fallback failed:', pointsError);
+            }
+
           } else {
             console.warn('[PrivacyActions] Shield monitoring timed out');
             toast.info('Shield successful! Balance will update automatically.');
@@ -880,9 +926,55 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
           }
         })
-        .then((monitorResult) => {
+        .then(async (monitorResult) => {
           if (monitorResult.found) {
             console.log(`[PrivacyActions] Unshield monitoring completed in ${monitorResult.elapsedTime/1000}s`);
+
+            // 🎯 FALLBACK: Directly award points for unshield if transaction monitor didn't
+            try {
+              console.log('[PrivacyActions] 🎯 Checking if points need to be awarded for unshield...');
+
+              // First resolve Lexie ID from Railgun address
+              const lexieResponse = await fetch('/api/wallet-metadata?action=by-wallet&railgunAddress=' + encodeURIComponent(railgunAddress));
+              if (!lexieResponse.ok) {
+                console.warn('[PrivacyActions] Could not resolve Lexie ID for unshield points award');
+                return;
+              }
+
+              const lexieData = await lexieResponse.json();
+              if (!lexieData?.success || !lexieData?.lexieID) {
+                console.warn('[PrivacyActions] No Lexie ID found for unshield points award');
+                return;
+              }
+
+              const lexieId = lexieData.lexieID.toLowerCase();
+              console.log('[PrivacyActions] ✅ Resolved Lexie ID for unshield points award:', lexieId);
+
+              // Now call rewards-award with correct format
+              const pointsResponse = await fetch('/api/wallet-metadata?action=rewards-award', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  lexieId: lexieId,
+                  txHash: result.transactionHash,
+                  usdValue: Number(amount) // Assume amount is in USD for simplicity
+                })
+              });
+
+              if (pointsResponse.ok) {
+                const pointsData = await pointsResponse.json();
+                if (pointsData?.success) {
+                  console.log('[PrivacyActions] ✅ Points awarded for unshield via fallback:', pointsData);
+                  // Refresh points display
+                  window.dispatchEvent(new CustomEvent('points-updated'));
+                }
+              } else {
+                console.warn('[PrivacyActions] Unshield points award failed:', await pointsResponse.text());
+              }
+            } catch (pointsError) {
+              console.warn('[PrivacyActions] Unshield points fallback failed:', pointsError);
+            }
+
           } else {
             console.warn('[PrivacyActions] Unshield monitoring timed out');
           }
@@ -1118,8 +1210,56 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             memoText: memoText, // Add memo text
           },
         })
-        .then((result) => {
-          console.log(`[PrivacyActions] Transfer monitoring completed in ${result.elapsedTime/1000}s`);
+        .then(async (result) => {
+          if (result.found) {
+            console.log(`[PrivacyActions] Transfer monitoring completed in ${result.elapsedTime/1000}s`);
+
+            // 🎯 FALLBACK: Directly award points for transfer if transaction monitor didn't
+            try {
+              console.log('[PrivacyActions] 🎯 Checking if points need to be awarded for transfer...');
+
+              // First resolve Lexie ID from Railgun address
+              const lexieResponse = await fetch('/api/wallet-metadata?action=by-wallet&railgunAddress=' + encodeURIComponent(railgunAddress));
+              if (!lexieResponse.ok) {
+                console.warn('[PrivacyActions] Could not resolve Lexie ID for transfer points award');
+                return;
+              }
+
+              const lexieData = await lexieResponse.json();
+              if (!lexieData?.success || !lexieData?.lexieID) {
+                console.warn('[PrivacyActions] No Lexie ID found for transfer points award');
+                return;
+              }
+
+              const lexieId = lexieData.lexieID.toLowerCase();
+              console.log('[PrivacyActions] ✅ Resolved Lexie ID for transfer points award:', lexieId);
+
+              // Now call rewards-award with correct format
+              const pointsResponse = await fetch('/api/wallet-metadata?action=rewards-award', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  lexieId: lexieId,
+                  txHash: tx.txHash,
+                  usdValue: Number(amount) // Assume amount is in USD for simplicity
+                })
+              });
+
+              if (pointsResponse.ok) {
+                const pointsData = await pointsResponse.json();
+                if (pointsData?.success) {
+                  console.log('[PrivacyActions] ✅ Points awarded for transfer via fallback:', pointsData);
+                  // Refresh points display
+                  window.dispatchEvent(new CustomEvent('points-updated'));
+                }
+              } else {
+                console.warn('[PrivacyActions] Transfer points award failed:', await pointsResponse.text());
+              }
+            } catch (pointsError) {
+              console.warn('[PrivacyActions] Transfer points fallback failed:', pointsError);
+            }
+          }
+
           // Dispatch transaction monitor completion event
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
