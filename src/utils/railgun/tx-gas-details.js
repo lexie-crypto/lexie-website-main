@@ -452,7 +452,7 @@ export const buildGasAndEstimate = async ({
       ...gasDetails,
     });
 
-    return { gasDetails, paddedGasEstimate, overallBatchMinGasPrice };
+    return { gasDetails, paddedGasEstimate, overallBatchMinGasPrice, accurateGasEstimate: gasEstimate };
 
   } catch (error) {
     console.error('[GasDetails] Failed to build gas and estimate:', error);

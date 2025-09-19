@@ -928,7 +928,7 @@ export const unshieldTokens = async ({
 
     // Use buildGasAndEstimate for populate/submit gas details
     // Gas reclamation is already estimated above and baked into the proof
-    const { gasDetails: transactionGasDetails, paddedGasEstimate, overallBatchMinGasPrice } = await buildGasAndEstimate({
+    const { gasDetails: transactionGasDetails, paddedGasEstimate, overallBatchMinGasPrice, accurateGasEstimate } = await buildGasAndEstimate({
       mode: useRelayer ? 'relayadapt' : 'self',
       chainId: chain.id,
       networkName,
@@ -941,6 +941,13 @@ export const unshieldTokens = async ({
       sendWithPublicWallet,
       walletProvider,
     });
+
+    // Set variables to match working implementation
+    const finalGasEstimate = paddedGasEstimate;
+    const minGasForSDK = finalGasEstimate > MIN_GAS_LIMIT ? finalGasEstimate : MIN_GAS_LIMIT;
+
+    // Set evmGasType for logging (matches working implementation)
+    const evmGasType = getEVMGasTypeForTransaction(networkName, sendWithPublicWallet);
 
     // NOTE: Gas reclamation estimate is already calculated above and baked into the proof
     // The relayer takes win/loss on the difference between estimated vs actual gas costs
