@@ -788,7 +788,7 @@ export const unshieldTokens = async ({
       // Hoist shared params for estimate -> proof -> populate
       relayAdaptUnshieldERC20Amounts = [{
         tokenAddress,
-        amount: unshieldInputAmount.toString(), // Net of relayer fee; SDK will apply protocol fee internally
+        amount: unshieldInputAmount, // Net of relayer fee; SDK will apply protocol fee internally
       }];
 
       const { ethers } = await import('ethers');
@@ -1087,7 +1087,8 @@ export const unshieldTokens = async ({
       
       // using hoisted relayAdaptUnshieldERC20Amounts and crossContractCalls from Step 4
       
-      const proofBundle = {
+      // Create JSON-serializable version for logging
+      const proofBundleForLogging = {
         relayAdaptUnshieldERC20Amounts: relayAdaptUnshieldERC20Amounts.map(a => ({ tokenAddress: a.tokenAddress, amount: a.amount.toString() })),
         relayAdaptUnshieldNFTAmounts,
         relayAdaptShieldERC20Recipients: relayAdaptShieldERC20Recipients.map(r => ({
@@ -1106,8 +1107,8 @@ export const unshieldTokens = async ({
         overallBatchMinGasPrice: OVERALL_BATCH_MIN_GAS_PRICE.toString(),
         minGasLimit: MIN_GAS_LIMIT.toString()
       };
-      proofBundleString = JSON.stringify(proofBundle);
-      console.log('🔧 [UNSHIELD] Proof generation parameters:', proofBundle);
+      proofBundleString = JSON.stringify(proofBundleForLogging);
+      console.log('🔧 [UNSHIELD] Proof generation parameters:', proofBundleForLogging);
       
       proofResponse = await generateCrossContractCallsProof(
         TXIDVersion.V2_PoseidonMerkle,
@@ -1378,7 +1379,8 @@ export const unshieldTokens = async ({
       
       // using hoisted relayAdaptUnshieldERC20Amounts and crossContractCalls from Step 4
       
-      const populateBundle = {
+      // Create JSON-serializable version for logging
+      const populateBundleForLogging = {
         relayAdaptUnshieldERC20Amounts: relayAdaptUnshieldERC20Amounts.map(a => ({ tokenAddress: a.tokenAddress, amount: a.amount.toString() })),
         relayAdaptUnshieldNFTAmounts,
         relayAdaptShieldERC20Recipients: relayAdaptShieldERC20Recipients.map(r => ({
@@ -1397,8 +1399,8 @@ export const unshieldTokens = async ({
         overallBatchMinGasPrice: OVERALL_BATCH_MIN_GAS_PRICE.toString(),
         minGasLimit: MIN_GAS_LIMIT.toString()
       };
-      console.log('🔧 [UNSHIELD] Populate parameters:', populateBundle);
-      const populateBundleString = JSON.stringify(populateBundle);
+      console.log('🔧 [UNSHIELD] Populate parameters:', populateBundleForLogging);
+      const populateBundleString = JSON.stringify(populateBundleForLogging);
       if (!proofBundleString) {
         console.error('❌ [UNSHIELD] Missing proof bundle for parity check');
       } else if (proofBundleString !== populateBundleString) {
