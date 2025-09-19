@@ -729,10 +729,10 @@ export const unshieldTokens = async ({
 
       // Apply Railgun protocol fee (0.25%) to the PUBLIC transfer amount only
       const PROTOCOL_FEE_BPS = 25n;
+      // SDK receives (userAmount - broadcasterFee), then deducts protocol fee
       // Recipient gets: (userAmount - broadcasterFee) - protocolFee
-      // Protocol fee is applied to the amount remaining after broadcaster fee deduction
-      const amountAfterBroadcasterFee = unshieldInputAmount - combinedRelayerFee;
-      recipientBn = (amountAfterBroadcasterFee * (10000n - PROTOCOL_FEE_BPS)) / 10000n;
+      const sdkInputAmount = unshieldInputAmount - combinedRelayerFee;
+      recipientBn = (sdkInputAmount * (10000n - PROTOCOL_FEE_BPS)) / 10000n;
 
       // ADD RECIPIENT TO SHIELD RECIPIENTS ARRAY FOR ZK PROOF CIRCUIT
       //relayAdaptShieldERC20Recipients = [{
@@ -800,9 +800,10 @@ export const unshieldTokens = async ({
       });
 
       // RelayAdapt params (estimate, proof, populate) — reuse EXACTLY:
+      // Send amount after broadcaster fee deduction to avoid SDK balance check issues
       relayAdaptUnshieldERC20Amounts = [{
         tokenAddress,
-        amount: unshieldInputAmount, // Input amount to RelayAdapt (gross - broadcasterFee)
+        amount: unshieldInputAmount - combinedRelayerFee, // Amount after broadcaster fee deduction
       }];
 
       const { ethers } = await import('ethers');
@@ -1241,7 +1242,8 @@ export const unshieldTokens = async ({
 
       // INVARIANTS CHECK: Value conservation - user amount should equal all outputs
       const totalBroadcasterFee = broadcasterFeeERC20AmountRecipient ? broadcasterFeeERC20AmountRecipient.amount : 0n;
-      const protocolFee = unshieldInputAmount - totalBroadcasterFee - recipientBn;
+      const sdkInputAmount = unshieldInputAmount - totalBroadcasterFee;
+      const protocolFee = sdkInputAmount - recipientBn;
 
       // Conservation: userAmountGross = recipientAmount + broadcasterFee + protocolFee
       const expectedGross = recipientBn + totalBroadcasterFee + protocolFee;
