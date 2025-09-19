@@ -1025,7 +1025,7 @@ const VaultDesktopInner = () => {
                   <span className="text-green-400/80">
                     {address?.slice(0, 6)}...{address?.slice(-4)}
                   </span>
-                  <span className="text-green-400/60">•</span>
+                  <span className="text-purple-300/60">•</span>
                   {currentLexieId ? (
                     <div className="flex items-center space-x-2">
                       <span className="text-purple-300 font-medium">{currentLexieId}</span>
