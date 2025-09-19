@@ -1641,12 +1641,18 @@ export const unshieldTokens = async ({
       }
 
       // INVARIANTS CHECK: Conservation check for populate
-      const populateTotalRecipientAmount = erc20AmountRecipients.reduce((sum, r) => sum + r.amount, 0n);
+      const populateTotalRecipientAmount = useRelayer ?
+        recipientBn : // RelayAdapt mode: recipient amount from cross-contract call
+        erc20AmountRecipients.reduce((sum, r) => sum + r.amount, 0n); // Self-signing mode: from recipients array
+
       const populateTotalBroadcasterFee = broadcasterFeeERC20AmountRecipient ? broadcasterFeeERC20AmountRecipient.amount : 0n;
 
       // Conservation: gross = broadcasterFee + protocolFee + recipientAmount
-      const populateProtocolFee = unshieldInputAmount - recipientBn;
-      const populateExpectedGross = populateTotalBroadcasterFee + populateProtocolFee + recipientBn;
+      const populateProtocolFee = useRelayer ?
+        (unshieldInputAmount - combinedRelayerFee) - recipientBn : // RelayAdapt: protocol fee deducted from (input - broadcaster)
+        unshieldInputAmount - recipientBn; // Self-signing: protocol fee deducted from input
+
+      const populateExpectedGross = populateTotalBroadcasterFee + populateProtocolFee + populateTotalRecipientAmount;
 
       if (userAmountGross !== populateExpectedGross) {
         const errorMsg = `❌ POPULATE INVARIANT FAIL: Value conservation broken! ` +
@@ -1654,7 +1660,7 @@ export const unshieldTokens = async ({
           `expected=${populateExpectedGross.toString()}, ` +
           `broadcasterFee=${populateTotalBroadcasterFee.toString()}, ` +
           `recipientAmount=${recipientBn.toString()}, ` +
-          `protocolFee=${(unshieldInputAmount - recipientBn).toString()}`;
+          `protocolFee=${populateProtocolFee.toString()}`;
         console.error('🔴 [UNSHIELD] Populate value conservation check failed:', {
           userAmountGross: userAmountGross.toString(),
           expectedGross: populateExpectedGross.toString(),
