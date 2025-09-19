@@ -706,9 +706,10 @@ export const unshieldTokens = async ({
         ethPrice
       });
 
-      // DEDUCT COMBINED FEE FROM USER: relayer fee + gas reclamation
+      // COMBINE FEES FOR BROADCASTER: relayer fee + gas reclamation
+      // NOTE: Do NOT deduct from user amount - let Railgun SDK handle fee deduction internally
       combinedRelayerFee = relayerFeeBn + gasFeeDeducted;
-      unshieldInputAmount = userAmountGross - combinedRelayerFee; // Deduct both fees from user
+      unshieldInputAmount = userAmountGross; // Send full amount to SDK, let it deduct fees
 
       // CREATE SINGLE BROADCASTER FEE OBJECT: Used for both estimate and proof calls
       broadcasterFeeERC20AmountRecipient = {
@@ -728,7 +729,10 @@ export const unshieldTokens = async ({
 
       // Apply Railgun protocol fee (0.25%) to the PUBLIC transfer amount only
       const PROTOCOL_FEE_BPS = 25n;
-      recipientBn = (unshieldInputAmount * (10000n - PROTOCOL_FEE_BPS)) / 10000n;
+      // Recipient gets: (userAmount - broadcasterFee) - protocolFee
+      // Protocol fee is applied to the amount remaining after broadcaster fee deduction
+      const amountAfterBroadcasterFee = unshieldInputAmount - combinedRelayerFee;
+      recipientBn = (amountAfterBroadcasterFee * (10000n - PROTOCOL_FEE_BPS)) / 10000n;
 
       // ADD RECIPIENT TO SHIELD RECIPIENTS ARRAY FOR ZK PROOF CIRCUIT
       //relayAdaptShieldERC20Recipients = [{
@@ -745,7 +749,7 @@ export const unshieldTokens = async ({
         unshieldInputAmount: unshieldInputAmount.toString(),
         recipientBn: recipientBn.toString(),
         requiredSpend: (unshieldInputAmount + combinedRelayerFee).toString(),
-        assertion: 'requiredSpend should equal userAmountGross (both fees deducted)',
+        assertion: 'SDK receives full amount, deducts fees internally',
         balanceCheck: `recipient (${recipientBn.toString()}) + broadcaster (${combinedRelayerFee.toString()}) ≤ userGross (${userAmountGross.toString()})`
       });
       
@@ -753,8 +757,12 @@ export const unshieldTokens = async ({
       if (recipientBn <= 0n) {
         throw new Error(`Recipient amount must be > 0. Got: ${recipientBn.toString()}`);
       }
-      if (unshieldInputAmount + combinedRelayerFee !== userAmountGross) {
-        throw new Error(`Math error: unshieldInput (${unshieldInputAmount.toString()}) + combined fee (${combinedRelayerFee.toString()}) != userAmountGross (${userAmountGross.toString()})`);
+      if (unshieldInputAmount !== userAmountGross) {
+        throw new Error(`Math error: unshieldInput (${unshieldInputAmount.toString()}) != userAmountGross (${userAmountGross.toString()})`);
+      }
+      const protocolFee = (unshieldInputAmount - combinedRelayerFee) - recipientBn;
+      if (recipientBn + combinedRelayerFee + protocolFee !== userAmountGross) {
+        throw new Error(`Conservation error: recipient (${recipientBn.toString()}) + broadcaster (${combinedRelayerFee.toString()}) + protocol (${protocolFee.toString()}) != userGross (${userAmountGross.toString()})`);
       }
 
       // SANITY CHECK: Ensure proof outputs don't exceed user balance
@@ -956,12 +964,7 @@ export const unshieldTokens = async ({
         // RelayAdapt unshield amounts - input amount to SDK
         // using hoisted relayAdaptUnshieldERC20Amounts
 
-        // Assertion: unshieldInputAmount + combined fee should equal userAmountGross
-        // (SDK protocol fee is applied to unshieldInputAmount)
-        const totalSpend = unshieldInputAmount + combinedRelayerFee;
-        if (totalSpend !== userAmountGross) {
-          throw new Error(`Spend mismatch: spend ${totalSpend.toString()} != userAmountGross ${userAmountGross.toString()}`);
-        }
+        // SDK receives full userAmountGross and deducts fees internally
 
         // Create single cross-contract call: Forward NET amount to recipient
         // (SDK handles relayer fee payment internally via broadcasterFeeERC20AmountRecipient)
