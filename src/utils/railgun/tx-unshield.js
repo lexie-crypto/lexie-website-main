@@ -633,6 +633,7 @@ export const unshieldTokens = async ({
     let recipientBn = 0n;
     let unshieldInputAmount = userAmountGross; // amount to unshield into RelayAdapt
     let feeTokenDetails = null;
+    let combinedRelayerFee = 0n;  // Hoisted variable for gas reclamation
     
     // SDK will validate balance internally
     
@@ -699,7 +700,7 @@ export const unshieldTokens = async ({
       });
 
       // COMBINE FEES: Add gas reclamation to relayer fee
-      const combinedRelayerFee = relayerFeeBn + gasFeeDeducted;
+      combinedRelayerFee = relayerFeeBn + gasFeeDeducted;
       unshieldInputAmount = userAmountGross - combinedRelayerFee; // Deduct combined fee from user
 
       // Recipient gets NET after SDK protocol fee
