@@ -725,12 +725,9 @@ export const unshieldTokens = async ({
         purpose: 'RAILGUN_BROADCASTER_FEE_VIA_SDK_WITH_GAS_RECLAMATION'
       });
 
-      // Create single net amount used consistently throughout
-      net = BigInt(unshieldInputAmount);
-
-      // Calculate recipientBn for logging/reference (after SDK protocol fee)
-      // NOTE: This is just for logging - actual transfer uses net amount
-      recipientBn = (net * (10000n - UNSHIELD_FEE_BPS)) / 10000n;
+      // Apply Railgun protocol fee (0.25%) to the PUBLIC transfer amount only
+      const PROTOCOL_FEE_BPS = 25n;
+      recipientBn = (unshieldInputAmount * (10000n - PROTOCOL_FEE_BPS)) / 10000n;
 
       // ADD RECIPIENT TO SHIELD RECIPIENTS ARRAY FOR ZK PROOF CIRCUIT
       //relayAdaptShieldERC20Recipients = [{
@@ -796,10 +793,10 @@ export const unshieldTokens = async ({
         mode: 'RelayAdapt_Unshielding_With_GasReclamation'
       });
 
-      // Hoist shared params for estimate -> proof -> populate
+      // RelayAdapt params (estimate, proof, populate) — reuse EXACTLY:
       relayAdaptUnshieldERC20Amounts = [{
         tokenAddress,
-        amount: net, // Use consistent net amount
+        amount: unshieldInputAmount, // Input amount to RelayAdapt (gross - broadcasterFee)
       }];
 
       const { ethers } = await import('ethers');
@@ -808,7 +805,7 @@ export const unshieldTokens = async ({
       ]);
       const recipientCallData = erc20Interface.encodeFunctionData('transfer', [
         recipientEVM,
-        net, // Use consistent net amount - SDK applies protocol fee internally
+        recipientBn, // Use recipientAmount (after protocol fee) for the transfer
       ]);
       crossContractCalls = [{
         to: tokenAddress,
@@ -955,7 +952,9 @@ export const unshieldTokens = async ({
         console.log('🔧 [UNSHIELD] Cross-contract call created:', {
           to: tokenAddress,
           recipientEVM: recipientEVM,
-          transferAmount: net.toString(), // Should match relayAdaptUnshieldERC20Amounts[0].amount
+          unshieldInputAmount: unshieldInputAmount.toString(),
+          recipientAmount: recipientBn.toString(),
+          protocolFee: (unshieldInputAmount - recipientBn).toString(),
           callCount: crossContractCalls.length,
           note: 'SDK will apply 0.25% protocol fee internally'
         });
@@ -980,7 +979,9 @@ export const unshieldTokens = async ({
             amount: broadcasterFeeERC20AmountRecipient.amount.toString()
           } : null,
           sendWithPublicWallet,
-          net: net.toString(),
+          unshieldInputAmount: unshieldInputAmount.toString(),
+          recipientAmount: recipientBn.toString(),
+          protocolFee: (unshieldInputAmount - recipientBn).toString(),
           userAmountGross: userAmountGross.toString(),
           combinedRelayerFee: combinedRelayerFee.toString()
         };
@@ -1163,7 +1164,9 @@ export const unshieldTokens = async ({
           amount: broadcasterFeeERC20AmountRecipient.amount.toString()
         } : null,
         sendWithPublicWallet,
-        net: net.toString(),
+        unshieldInputAmount: unshieldInputAmount.toString(),
+        recipientAmount: recipientBn.toString(),
+        protocolFee: (unshieldInputAmount - recipientBn).toString(),
         userAmountGross: userAmountGross.toString(),
         combinedRelayerFee: combinedRelayerFee.toString()
       };
@@ -1202,29 +1205,36 @@ export const unshieldTokens = async ({
       proofBundleString = JSON.stringify(proofBundleForLogging);
       console.log('🔧 [UNSHIELD] Proof generation parameters:', proofBundleForLogging);
 
-      // INVARIANTS CHECK: Ensure value conservation for ZK proof
+      // INVARIANTS CHECK: Match old working conservation pattern
       const totalUnshieldAmount = relayAdaptUnshieldERC20Amounts.reduce((sum, item) => sum + item.amount, 0n);
       const totalBroadcasterFee = broadcasterFeeERC20AmountRecipient ? broadcasterFeeERC20AmountRecipient.amount : 0n;
 
-      if (userAmountGross !== totalUnshieldAmount + totalBroadcasterFee) {
+      // Conservation includes protocol fee conceptually: gross = fee + recipient + (input - recipient)
+      const expectedGross = totalBroadcasterFee + recipientBn + (unshieldInputAmount - recipientBn);
+
+      if (userAmountGross !== expectedGross) {
         const errorMsg = `❌ INVARIANT FAIL: Value conservation broken! ` +
           `userAmountGross=${userAmountGross.toString()}, ` +
-          `totalUnshieldAmount=${totalUnshieldAmount.toString()}, ` +
-          `totalBroadcasterFee=${totalBroadcasterFee.toString()}, ` +
-          `expected=${(totalUnshieldAmount + totalBroadcasterFee).toString()}`;
+          `expected=${expectedGross.toString()}, ` +
+          `broadcasterFee=${totalBroadcasterFee.toString()}, ` +
+          `recipientAmount=${recipientBn.toString()}, ` +
+          `protocolFee=${(unshieldInputAmount - recipientBn).toString()}`;
         console.error('🔴 [UNSHIELD] Value conservation check failed:', {
           userAmountGross: userAmountGross.toString(),
-          totalUnshieldAmount: totalUnshieldAmount.toString(),
+          expectedGross: expectedGross.toString(),
           totalBroadcasterFee: totalBroadcasterFee.toString(),
-          difference: (userAmountGross - (totalUnshieldAmount + totalBroadcasterFee)).toString()
+          recipientAmount: recipientBn.toString(),
+          protocolFee: (unshieldInputAmount - recipientBn).toString(),
+          difference: (userAmountGross - expectedGross).toString()
         });
         throw new Error(errorMsg);
       }
 
       console.log('✅ [UNSHIELD] Value conservation verified:', {
         userAmountGross: userAmountGross.toString(),
-        totalUnshieldAmount: totalUnshieldAmount.toString(),
         totalBroadcasterFee: totalBroadcasterFee.toString(),
+        recipientAmount: recipientBn.toString(),
+        protocolFee: (unshieldInputAmount - recipientBn).toString(),
         balance: '✓'
       });
 
@@ -1548,29 +1558,36 @@ export const unshieldTokens = async ({
         throw new Error('Mismatch: cross-contract proof vs populate params');
       }
 
-      // INVARIANTS CHECK: Ensure value conservation for populate (should match proof)
+      // INVARIANTS CHECK: Match old working conservation pattern for populate
       const populateTotalUnshieldAmount = relayAdaptUnshieldERC20Amounts.reduce((sum, item) => sum + item.amount, 0n);
       const populateTotalBroadcasterFee = broadcasterFeeERC20AmountRecipient ? broadcasterFeeERC20AmountRecipient.amount : 0n;
 
-      if (userAmountGross !== populateTotalUnshieldAmount + populateTotalBroadcasterFee) {
+      // Conservation includes protocol fee conceptually: gross = fee + recipient + (input - recipient)
+      const populateExpectedGross = populateTotalBroadcasterFee + recipientBn + (unshieldInputAmount - recipientBn);
+
+      if (userAmountGross !== populateExpectedGross) {
         const errorMsg = `❌ POPULATE INVARIANT FAIL: Value conservation broken! ` +
           `userAmountGross=${userAmountGross.toString()}, ` +
-          `populateTotalUnshieldAmount=${populateTotalUnshieldAmount.toString()}, ` +
-          `populateTotalBroadcasterFee=${populateTotalBroadcasterFee.toString()}, ` +
-          `expected=${(populateTotalUnshieldAmount + populateTotalBroadcasterFee).toString()}`;
+          `expected=${populateExpectedGross.toString()}, ` +
+          `broadcasterFee=${populateTotalBroadcasterFee.toString()}, ` +
+          `recipientAmount=${recipientBn.toString()}, ` +
+          `protocolFee=${(unshieldInputAmount - recipientBn).toString()}`;
         console.error('🔴 [UNSHIELD] Populate value conservation check failed:', {
           userAmountGross: userAmountGross.toString(),
-          populateTotalUnshieldAmount: populateTotalUnshieldAmount.toString(),
-          populateTotalBroadcasterFee: populateTotalBroadcasterFee.toString(),
-          difference: (userAmountGross - (populateTotalUnshieldAmount + populateTotalBroadcasterFee)).toString()
+          expectedGross: populateExpectedGross.toString(),
+          totalBroadcasterFee: populateTotalBroadcasterFee.toString(),
+          recipientAmount: recipientBn.toString(),
+          protocolFee: (unshieldInputAmount - recipientBn).toString(),
+          difference: (userAmountGross - populateExpectedGross).toString()
         });
         throw new Error(errorMsg);
       }
 
       console.log('✅ [UNSHIELD] Populate value conservation verified:', {
         userAmountGross: userAmountGross.toString(),
-        populateTotalUnshieldAmount: populateTotalUnshieldAmount.toString(),
-        populateTotalBroadcasterFee: populateTotalBroadcasterFee.toString(),
+        totalBroadcasterFee: populateTotalBroadcasterFee.toString(),
+        recipientAmount: recipientBn.toString(),
+        protocolFee: (unshieldInputAmount - recipientBn).toString(),
         balance: '✓'
       });
 
