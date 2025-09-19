@@ -610,7 +610,7 @@ export const unshieldTokens = async ({
     }
 
     // RELAYER MODE: Prepare recipients with broadcaster fee (deduct relayer fee from user's amount)
-    let erc20AmountRecipients;
+    let erc20AmountRecipients = [];
     let broadcasterFeeERC20AmountRecipient = null;
     // Cross-contract (RelayAdapt) shared objects used across estimate → proof → populate
     let relayAdaptUnshieldERC20Amounts = undefined;
@@ -722,9 +722,12 @@ export const unshieldTokens = async ({
       // Recipient gets NET after SDK protocol fee (0.25%)
       recipientBn = (unshieldInputAmount * (10000n - UNSHIELD_FEE_BPS)) / 10000n;
 
-      // RELAYADAPT: relayAdaptShieldERC20Recipients should be EMPTY for unshielding
-      // (this array is for tokens being shielded INTO Railgun, not unshielded FROM Railgun)
-      // relayAdaptShieldERC20Recipients = []; // Already initialized as empty array
+      // ADD RECIPIENT TO SHIELD RECIPIENTS ARRAY FOR ZK PROOF CIRCUIT
+      //relayAdaptShieldERC20Recipients = [{
+        //tokenAddress,
+        //amount: recipientBn.toString(), // NET amount after protocol fee (convert to string)
+        //recipientAddress: recipientEVM
+      //}];
 
       console.log('💰 [UNSHIELD] Combined fee calculation (relayer + gas reclamation):', {
         userAmountGross: userAmountGross.toString(),
@@ -771,11 +774,11 @@ export const unshieldTokens = async ({
       
       // Note: erc20AmountRecipients is not used in cross-contract calls mode
       // Instead, we use relayAdaptUnshieldERC20Amounts + crossContractCalls
-      erc20AmountRecipients = [];
+      // erc20AmountRecipients is already initialized as empty array
       
       console.log('📝 [UNSHIELD] RelayAdapt recipients prepared (with gas reclamation):', {
         shieldRecipients: 'empty (unshielding operation)',
-        crossContractCalls: crossContractCalls.length + ' call(s)',
+        crossContractCalls: (crossContractCalls?.length || 0) + ' call(s)',
         relayerServiceFee: { amount: relayerFeeBn.toString(), to: selectedRelayer.railgunAddress },
         gasReclamationFee: { amount: gasFeeDeducted.toString(), to: selectedRelayer.railgunAddress },
         totalBroadcasterFee: { amount: combinedRelayerFee.toString(), to: selectedRelayer.railgunAddress },
@@ -943,7 +946,7 @@ export const unshieldTokens = async ({
           recipientBn: recipientBn.toString(),
           callCount: crossContractCalls.length
         });
-        
+
         console.log('🔧 [UNSHIELD] Gas estimation parameters:', {
           relayAdaptUnshieldERC20Amounts: relayAdaptUnshieldERC20Amounts.map(a => ({ tokenAddress: a.tokenAddress, amount: a.amount.toString() })),
           crossContractCalls: crossContractCalls.length,
@@ -1082,16 +1085,15 @@ export const unshieldTokens = async ({
       
       // Import the cross-contract calls proof generation function
       const { generateCrossContractCallsProof } = await import('@railgun-community/wallet');
-
+      
       // using hoisted relayAdaptUnshieldERC20Amounts and crossContractCalls from Step 4
-      // relayAdaptShieldERC20Recipients should be empty for unshielding operations
       
       // Create JSON-serializable version for logging
       const proofBundleForLogging = {
         relayAdaptUnshieldERC20Amounts: relayAdaptUnshieldERC20Amounts.map(a => ({ tokenAddress: a.tokenAddress, amount: a.amount.toString() })),
-        relayAdaptUnshieldNFTAmounts,
+        relayAdaptUnshieldNFTAmounts: relayAdaptUnshieldNFTAmounts || [],
         relayAdaptShieldERC20Recipients: [], // Empty for unshielding operations
-        relayAdaptShieldNFTRecipients,
+        relayAdaptShieldNFTRecipients: relayAdaptShieldNFTRecipients || [],
         crossContractCalls: crossContractCalls.map(c => ({ to: c.to, data: String(c.data), value: c.value?.toString?.() ?? '0' })),
         broadcasterFeeERC20AmountRecipient: {
           tokenAddress: broadcasterFeeERC20AmountRecipient.tokenAddress,
@@ -1361,7 +1363,7 @@ export const unshieldTokens = async ({
       
       // Import the cross-contract calls function
       const { populateProvedCrossContractCalls } = await import('@railgun-community/wallet');
-
+      
       console.log('💰 [UNSHIELD] RelayAdapt SDK-compatible calculation (with gas reclamation):', {
         userAmountGross: userAmountGross.toString(),
         unshieldInputAmount: unshieldInputAmount.toString(),
@@ -1371,16 +1373,15 @@ export const unshieldTokens = async ({
         recipientBn: recipientBn.toString(),
         requiredSpend: (unshieldInputAmount + combinedRelayerFee).toString()
       });
-
+      
       // using hoisted relayAdaptUnshieldERC20Amounts and crossContractCalls from Step 4
-      // relayAdaptShieldERC20Recipients should be empty for unshielding operations
       
       // Create JSON-serializable version for logging
       const populateBundleForLogging = {
         relayAdaptUnshieldERC20Amounts: relayAdaptUnshieldERC20Amounts.map(a => ({ tokenAddress: a.tokenAddress, amount: a.amount.toString() })),
-        relayAdaptUnshieldNFTAmounts,
+        relayAdaptUnshieldNFTAmounts: relayAdaptUnshieldNFTAmounts || [],
         relayAdaptShieldERC20Recipients: [], // Empty for unshielding operations
-        relayAdaptShieldNFTRecipients,
+        relayAdaptShieldNFTRecipients: relayAdaptShieldNFTRecipients || [],
         crossContractCalls: crossContractCalls.map(c => ({ to: c.to, data: String(c.data), value: c.value?.toString?.() ?? '0' })),
         broadcasterFeeERC20AmountRecipient: {
           tokenAddress: broadcasterFeeERC20AmountRecipient.tokenAddress,
