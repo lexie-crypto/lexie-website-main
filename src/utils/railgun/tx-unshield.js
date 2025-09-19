@@ -634,6 +634,7 @@ export const unshieldTokens = async ({
     let unshieldInputAmount = userAmountGross; // amount to unshield into RelayAdapt
     let feeTokenDetails = null;
     let combinedRelayerFee = 0n;  // Hoisted variable for gas reclamation
+    let gasFeeDeducted = 0n;  // Initialize gas fee deduction at function scope
 
     // Define net variable at function scope level for use throughout
     let net;
@@ -693,7 +694,7 @@ export const unshieldTokens = async ({
       const tokenPrice = 1; // Assume 1:1 for stablecoins like USDC
       const gasCostEth = Number(gasCostWei) / 1e18;
       const gasCostUsd = gasCostEth * ethPrice;
-      const gasFeeDeducted = BigInt(Math.ceil(gasCostUsd * 1e6)); // Convert to 6-decimal token units
+      gasFeeDeducted = BigInt(Math.ceil(gasCostUsd * 1e6)); // Convert to 6-decimal token units
 
       console.log('💰 [UNSHIELD] Gas reclamation calculation:', {
         estimatedGas: estimatedGas.toString(),
