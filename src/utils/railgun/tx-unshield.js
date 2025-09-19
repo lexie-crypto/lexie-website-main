@@ -29,8 +29,6 @@ import {
 } from '@railgun-community/shared-models';
 import { waitForRailgunReady } from './engine.js';
 import { assertNotSanctioned } from '../sanctions/chainalysis-oracle.js';
-import { calculateFeeForTransaction } from './fee-reclamation.js';
-import { calculateTransactionCost } from './tx-gas-details.js';
 
 /**
  * Terminal-themed toast helper (no JSX; compatible with .js files)
@@ -99,9 +97,9 @@ const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
 import { 
   estimateRelayerFee, 
   submitRelayedTransaction, 
-  shouldUseRelayer,
-  checkRelayerHealth,
-  getRelayerAddress,
+  shouldUseRelayer, 
+  checkRelayerHealth, 
+  getRelayerAddress 
 } from './relayer-client.js';
 import {
   gasEstimateForUnprovenUnshieldBaseToken,
@@ -248,7 +246,7 @@ const getRailgunNetworkName = (chainId) => {
  */
 const getKnownTokenDecimals = (tokenAddress, chainId) => {
   if (!tokenAddress) return null;
-
+  
   const address = tokenAddress.toLowerCase();
   const knownTokens = {
     // Ethereum
@@ -264,42 +262,11 @@ const getKnownTokenDecimals = (tokenAddress, chainId) => {
       '0xda10009cbd5d07dd0cecc66161fc93d7c9000da1': { decimals: 18, symbol: 'DAI' },
     },
   };
-
+  
   const chainTokens = knownTokens[chainId];
   if (!chainTokens) return null;
-
+  
   return chainTokens[address] || null;
-};
-
-/**
- * Get hardcoded token prices (temporary - replace with API calls)
- * @param {string} tokenAddress - Token contract address
- * @returns {Promise<Object>} Price data
- */
-const getTokenPrices = async (tokenAddress) => {
-  const address = tokenAddress?.toLowerCase() || '';
-
-  // Common token prices (update regularly)
-  const tokenPrices = {
-    // USDC (Ethereum)
-    '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': { tokenPrice: 1.00, ethPrice: 3000.00 },
-    // USDT (Ethereum)
-    '0xdac17f958d2ee523a2206206994597c13d831ec7': { tokenPrice: 1.00, ethPrice: 3000.00 },
-    // DAI (Ethereum)
-    '0x6b175474e89094c44da98b954eedeac495271d0f': { tokenPrice: 1.00, ethPrice: 3000.00 },
-    // USDC (Polygon)
-    '0x2791bca1f2de4661ed88a30c99a7a9449aa84174': { tokenPrice: 1.00, ethPrice: 3000.00 },
-    // USDT (Polygon)
-    '0xc2132d05d31c914a87c6611c10748aeb04b58e8f': { tokenPrice: 1.00, ethPrice: 3000.00 },
-    // USDC (Arbitrum)
-    '0xaf88d065e77c8cc2239327c5edb3a432268e5831': { tokenPrice: 1.00, ethPrice: 3000.00 },
-    // USDT (Arbitrum)
-    '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': { tokenPrice: 1.00, ethPrice: 3000.00 },
-    // Default for unknown tokens
-    'default': { tokenPrice: 1.00, ethPrice: 3000.00 }
-  };
-
-  return tokenPrices[address] || tokenPrices.default;
 };
 
 // Note management removed - SDK handles internally
@@ -653,55 +620,108 @@ export const unshieldTokens = async ({
     let relayAdaptUnshieldNFTAmounts = [];
     // Parity checksum across proof → populate
     let proofBundleString = null;
-
+    
     // Protocol fee is handled by SDK internally. We still account for it in the
     // NET sent to the recipient, but we DO NOT add it to the spend requirement.
     const UNSHIELD_FEE_BPS = 25n; // 0.25%
     const RELAYER_FEE_BPS = 50n; // 0.5% (or from relayer quote)
     const MIN_GAS_LIMIT = 1600000n; // Lower floor - real txs land ~1.1-1.3M
-
+    
     const userAmountGross = BigInt(amount); // user's entered amount (private balance units)
-
+    
     let relayerFeeBn = 0n;
-    let gasFeeDeducted = 0n; // Will be calculated after accurate gas estimation
     let recipientBn = 0n;
     let unshieldInputAmount = userAmountGross; // amount to unshield into RelayAdapt
     let feeTokenDetails = null;
-    let selectedRelayer = null; // Declare at higher scope for use in fee reclamation
-
+    
     // SDK will validate balance internally
-
+    
     if (useRelayer) {
       console.log('🔧 [UNSHIELD] Preparing RelayAdapt mode with cross-contract calls...');
-
+      
       // CRITICAL: Select relayer once, reuse everywhere
-      selectedRelayer = await getSelectedRelayer(tokenAddress);
+      const selectedRelayer = await getSelectedRelayer(tokenAddress);
       if (!selectedRelayer || !selectedRelayer.railgunAddress?.startsWith('0zk')) {
         throw new Error(`Invalid RAILGUN address: ${selectedRelayer?.railgunAddress}. Must start with '0zk'`);
       }
       if (selectedRelayer.railgunAddress.startsWith('0x')) {
         throw new Error(`RAILGUN address cannot start with '0x': ${selectedRelayer.railgunAddress}`);
       }
-
+      
       console.log('🔍 [UNSHIELD] Selected relayer details:', {
         railgunAddress: selectedRelayer.railgunAddress,
         feeToken: selectedRelayer.feeToken,
         feePerUnitGas: selectedRelayer.feePerUnitGas.toString()
       });
-
-      // Calculate relayer fee from the user's amount, then unshield NET of ALL fees
-      // Calculate relayer fee - gas fee will be calculated after accurate gas estimation
-      relayerFeeBn = (userAmountGross * RELAYER_FEE_BPS) / 10000n;
       
-      console.log('💰 [UNSHIELD] Relayer fee calculated:', {
+      // Calculate relayer fee from the user's amount, then unshield NET of that fee
+      relayerFeeBn = (userAmountGross * RELAYER_FEE_BPS) / 10000n;
+
+      // ADD GAS RECLAMATION: Calculate gas costs and add to relayer fee
+      console.log('🤑 [UNSHIELD] Calculating gas reclamation...');
+
+      // Get network gas prices for accurate calculation
+      let networkGasPrices = null;
+      try {
+        const signer = await walletProvider();
+        const provider = signer?.provider;
+        if (provider) {
+          const feeData = await provider.getFeeData();
+          if (feeData?.gasPrice || feeData?.maxFeePerGas) {
+            networkGasPrices = feeData;
+          }
+        }
+      } catch (gasPriceError) {
+        console.warn('⚠️ [UNSHIELD] Failed to get network gas prices for reclamation:', gasPriceError.message);
+      }
+
+      // Estimate gas cost using conservative estimate (2M gas for relayer transactions)
+      const estimatedGas = BigInt('2000000'); // Conservative 2M gas estimate
+      const gasPrice = networkGasPrices?.gasPrice || networkGasPrices?.maxFeePerGas || BigInt('20000000000'); // 20 gwei fallback
+      const gasCostWei = estimatedGas * gasPrice;
+
+      // Convert gas cost to token amount (assume USDC for now)
+      // This is a simplified calculation - in production you'd get actual token price
+      const ethPrice = 3000; // Approximate ETH price
+      const tokenPrice = 1; // Assume 1:1 for stablecoins like USDC
+      const gasCostEth = Number(gasCostWei) / 1e18;
+      const gasCostUsd = gasCostEth * ethPrice;
+      const gasFeeDeducted = BigInt(Math.ceil(gasCostUsd * 1e6)); // Convert to 6-decimal token units
+
+      console.log('💰 [UNSHIELD] Gas reclamation calculation:', {
+        estimatedGas: estimatedGas.toString(),
+        gasPrice: gasPrice.toString(),
+        gasCostWei: gasCostWei.toString(),
+        gasCostUsd: gasCostUsd.toFixed(4),
+        gasFeeDeducted: gasFeeDeducted.toString(),
+        tokenPrice,
+        ethPrice
+      });
+
+      // COMBINE FEES: Add gas reclamation to relayer fee
+      const combinedRelayerFee = relayerFeeBn + gasFeeDeducted;
+      unshieldInputAmount = userAmountGross - combinedRelayerFee; // Deduct combined fee from user
+
+      // Recipient gets NET after SDK protocol fee
+      recipientBn = (unshieldInputAmount * (10000n - UNSHIELD_FEE_BPS)) / 10000n;
+
+      console.log('💰 [UNSHIELD] Combined fee calculation (relayer + gas reclamation):', {
         userAmountGross: userAmountGross.toString(),
         relayerFeeBn: relayerFeeBn.toString(),
-        note: 'Gas fee will be calculated after accurate gas estimation'
+        gasFeeDeducted: gasFeeDeducted.toString(),
+        combinedRelayerFee: combinedRelayerFee.toString(),
+        unshieldInputAmount: unshieldInputAmount.toString(),
+        recipientBn: recipientBn.toString(),
+        requiredSpend: (unshieldInputAmount + combinedRelayerFee).toString(),
+        assertion: 'requiredSpend should equal userAmountGross'
       });
       
-      // Basic validation - detailed checks happen after fee calculations
-      if (userAmountGross <= 0n) {
-        throw new Error('User amount must be positive');
+      // Assertions (before proof/populate)
+      if (recipientBn <= 0n) {
+        throw new Error(`Recipient amount must be > 0. Got: ${recipientBn.toString()}`);
+      }
+      if (unshieldInputAmount + combinedRelayerFee !== userAmountGross) {
+        throw new Error(`Math error: unshieldInput (${unshieldInputAmount.toString()}) + combined fee (${combinedRelayerFee.toString()}) != userAmountGross (${userAmountGross.toString()})`);
       }
       
       // Guard: Relayer must provide a valid 0zk address
@@ -710,11 +730,11 @@ export const unshieldTokens = async ({
       }
 
       // SDK handles relayer fee via RAILGUN's internal mechanism
-      // NOTE: This will be updated later to include gas compensation
+      // Now includes both relayer service fee + gas reclamation
       broadcasterFeeERC20AmountRecipient = {
         tokenAddress: selectedRelayer.feeToken,
         recipientAddress: selectedRelayer.railgunAddress, // RAILGUN address (0zk...)
-        amount: relayerFeeBn, // Will be updated to include gas compensation
+        amount: combinedRelayerFee, // Combined: relayer fee + gas reclamation
       };
       
       // Create consistent objects for all SDK calls
@@ -723,11 +743,13 @@ export const unshieldTokens = async ({
         feePerUnitGas: selectedRelayer.feePerUnitGas,
       };
       
-      console.log('🔍 [UNSHIELD] CRITICAL - Broadcaster fee setup:', {
+      console.log('🔍 [UNSHIELD] CRITICAL - Broadcaster fee setup (with gas reclamation):', {
         feeRecipient: selectedRelayer.railgunAddress,
         relayerFeeBn: relayerFeeBn.toString(),
+        gasFeeDeducted: gasFeeDeducted.toString(),
+        combinedRelayerFee: combinedRelayerFee.toString(),
         tokenAddress: tokenAddress,
-        purpose: 'RAILGUN_BROADCASTER_FEE_VIA_SDK'
+        purpose: 'RAILGUN_BROADCASTER_FEE_VIA_SDK_WITH_GAS_RECLAMATION'
       });
       
       // Protocol fee is deducted internally by SDK from unshieldInputAmount
@@ -736,26 +758,42 @@ export const unshieldTokens = async ({
       // Instead, we use relayAdaptUnshieldERC20Amounts + crossContractCalls
       erc20AmountRecipients = [];
       
-      // Note: RelayAdapt objects will be built after accurate gas recalculation
-      console.log('📝 [UNSHIELD] RelayAdapt setup deferred until accurate gas fees calculated');
+      console.log('📝 [UNSHIELD] RelayAdapt recipients prepared (with gas reclamation):', {
+        recipientAmount: { amount: recipientBn.toString(), to: recipientEVM },
+        relayerServiceFee: { amount: relayerFeeBn.toString(), to: selectedRelayer.railgunAddress },
+        gasReclamationFee: { amount: gasFeeDeducted.toString(), to: selectedRelayer.railgunAddress },
+        totalBroadcasterFee: { amount: combinedRelayerFee.toString(), to: selectedRelayer.railgunAddress },
+        unshieldFee: { amount: ((unshieldInputAmount * UNSHIELD_FEE_BPS) / 10000n).toString(), note: 'handled_by_SDK' },
+        mode: 'RelayAdapt_CrossContractCalls_With_Gas_Reclamation'
+      });
+
+      // Hoist shared params for estimate -> proof -> populate
+      relayAdaptUnshieldERC20Amounts = [{
+        tokenAddress,
+        amount: unshieldInputAmount, // Net of relayer fee; SDK will apply protocol fee internally
+      }];
+
+      const { ethers } = await import('ethers');
+      const erc20Interface = new ethers.Interface([
+        'function transfer(address to, uint256 amount) returns (bool)'
+      ]);
+      const recipientCallData = erc20Interface.encodeFunctionData('transfer', [
+        recipientEVM,
+        recipientBn, // Forward NET amount (after relayer + protocol)
+      ]);
+      crossContractCalls = [{
+        to: tokenAddress,
+        data: recipientCallData,
+        value: 0n,
+      }];
       
     } else {
       // SELF-SIGNING MODE: Only SDK's unshield fee applies (relayer fee is 0)
       console.log('🔧 [UNSHIELD] Preparing self-signing mode (with SDK unshield fee)...');
-
+      
       // Self-signing: no relayer fee. Unshield full user amount, recipient gets net of protocol fee
       unshieldInputAmount = userAmountGross;
       recipientBn = (unshieldInputAmount * (10000n - UNSHIELD_FEE_BPS)) / 10000n;
-
-      // Check if user has enough for protocol fee
-      const protocolFee = (unshieldInputAmount * UNSHIELD_FEE_BPS) / 10000n;
-      if (recipientBn <= 0n) {
-        console.error('[Unshield] ❌ CRITICAL: Amount too small for protocol fee');
-        const minAmount = (protocolFee * 10000n) / (10000n - UNSHIELD_FEE_BPS) + 1000000n;
-        const errorMsg = `Amount too small. Minimum amount needed: ${(Number(minAmount) / 1e6).toFixed(2)} to cover protocol fee.`;
-        showTerminalToast('error', 'Amount Too Small', errorMsg);
-        throw new Error(errorMsg);
-      }
 
       console.log('💰 [UNSHIELD] Self-signing fee calculation:', {
         userAmountGross: userAmountGross.toString(),
@@ -859,7 +897,7 @@ export const unshieldTokens = async ({
     }
     
     console.log('🧮 [UNSHIELD] Attempting official gas estimation with correct method...');
-
+    
     var accurateGasEstimate;
     try {
       if (useRelayer) {
@@ -868,51 +906,33 @@ export const unshieldTokens = async ({
 
         const { gasEstimateForUnprovenCrossContractCalls } = await import('@railgun-community/wallet');
 
-        // Initialize RelayAdapt objects with placeholder values for gas estimation
-        // These will be updated with accurate amounts after fee calculation
-        relayAdaptUnshieldERC20Amounts = [{
-          tokenAddress,
-          amount: userAmountGross, // Use gross amount for estimation (will be updated later)
-        }];
-
-        const { ethers } = await import('ethers');
-        const erc20Interface = new ethers.Interface([
-          'function transfer(address to, uint256 amount) returns (bool)'
-        ]);
-
-        // Create placeholder cross-contract call for gas estimation
-        // This will be updated with accurate recipient amount later
-        const placeholderRecipientAmount = userAmountGross - relayerFeeBn; // Rough estimate
-        const placeholderRecipientCallData = erc20Interface.encodeFunctionData('transfer', [
-          recipientEVM,
-          placeholderRecipientAmount,
-        ]);
-
-        crossContractCalls = [{
+        // CRITICAL: RelayAdapt unshields the input amount, SDK deducts 0.25%
+        // RelayAdapt unshield amounts - input amount to SDK
+        // using hoisted relayAdaptUnshieldERC20Amounts
+        
+        // Assertion: after-fee spend matches available amount (now includes gas reclamation)
+        const totalSpend = recipientBn + combinedRelayerFee;
+        if (totalSpend !== userAmountGross) {
+          throw new Error(`Spend mismatch: spend ${totalSpend.toString()} != userAmountGross ${userAmountGross.toString()}`);
+        }
+        
+        // Create single cross-contract call: Forward NET amount to recipient
+        // (SDK handles relayer fee payment internally via broadcasterFeeERC20AmountRecipient)
+        // using hoisted crossContractCalls
+        
+        console.log('🔧 [UNSHIELD] Cross-contract call created:', {
           to: tokenAddress,
-          data: placeholderRecipientCallData,
-          value: 0n,
-        }];
-
-        console.log('🔧 [UNSHIELD] RelayAdapt objects initialized for gas estimation:', {
-          relayAdaptUnshieldERC20Amounts: relayAdaptUnshieldERC20Amounts.map(a => ({
-            tokenAddress: a.tokenAddress,
-            amount: a.amount.toString()
-          })),
-          crossContractCalls: crossContractCalls.map(c => ({
-            to: c.to,
-            dataLength: c.data.length,
-            estimatedRecipientAmount: placeholderRecipientAmount.toString()
-          })),
-          note: 'These are placeholder values for gas estimation, will be updated with accurate amounts after fee calculation'
+          recipientEVM: recipientEVM,
+          recipientBn: recipientBn.toString(),
+          callCount: crossContractCalls.length
         });
-
+        
         console.log('🔧 [UNSHIELD] Gas estimation parameters:', {
           relayAdaptUnshieldERC20Amounts: relayAdaptUnshieldERC20Amounts.map(a => ({ tokenAddress: a.tokenAddress, amount: a.amount.toString() })),
           crossContractCalls: crossContractCalls.length,
-          feeTokenDetails: feeTokenDetails ? { tokenAddress: feeTokenDetails.tokenAddress, feePerUnitGas: feeTokenDetails.feePerUnitGas.toString() } : null,
+          feeTokenDetails: { tokenAddress: feeTokenDetails.tokenAddress, feePerUnitGas: feeTokenDetails.feePerUnitGas.toString() },
           sendWithPublicWallet,
-          minGasLimit: minGasForSDK.toString()
+          minGasLimit: MIN_GAS_LIMIT.toString()
         });
         
         const gasEstimateResponse = await gasEstimateForUnprovenCrossContractCalls(
@@ -926,9 +946,9 @@ export const unshieldTokens = async ({
           [], // shieldNFTRecipients
           crossContractCalls, // Single transfer call (recipient only)
           originalGasDetails,
-          feeTokenDetails || undefined, // Official SDK pattern for relayer fees
+          feeTokenDetails, // Official SDK pattern for relayer fees
           sendWithPublicWallet,
-          minGasForSDK // Dynamic minimum based on estimate
+          MIN_GAS_LIMIT // Dynamic minimum based on estimate
         );
         
         accurateGasEstimate = gasEstimateResponse.gasEstimate;
@@ -990,160 +1010,9 @@ export const unshieldTokens = async ({
     
     // Add buffer to gas estimate (20% padding to match SDK usage)
     const finalGasEstimate = (accurateGasEstimate * 120n) / 100n;
-
+    
     // Dynamic minimum for SDK calls - use padded estimate when greater
     const minGasForSDK = finalGasEstimate > MIN_GAS_LIMIT ? finalGasEstimate : MIN_GAS_LIMIT;
-
-    // 🤑 FEE RECLAMATION: Calculate gas fee after accurate gas estimation
-    if (useRelayer) {
-      console.log('[Unshield] 🤑 Calculating gas fee reclamation with accurate estimate...');
-
-      // Get live network gas prices first
-      let liveFeeData = null;
-      try {
-        const signer = await walletProvider();
-        const provider = signer?.provider;
-        if (provider) {
-          liveFeeData = await provider.getFeeData();
-          console.log('[Unshield] 📊 Live network gas prices:', {
-            gasPrice: liveFeeData?.gasPrice?.toString(),
-            maxFeePerGas: liveFeeData?.maxFeePerGas?.toString(),
-            maxPriorityFeePerGas: liveFeeData?.maxPriorityFeePerGas?.toString(),
-            source: 'live_provider_data'
-          });
-        }
-      } catch (feeError) {
-        console.warn('[Unshield] ⚠️ Could not get live fee data:', feeError.message);
-      }
-
-      // Build gas details with live data or conservative fallback (3-4 gwei max)
-      const conservativeFallbackGasPrice = BigInt('4000000000'); // 4 gwei conservative fallback
-      const conservativeMaxFeePerGas = BigInt('3000000000'); // 3 gwei conservative fallback
-      const conservativeMaxPriorityFeePerGas = BigInt('1000000000'); // 1 gwei conservative fallback
-
-      const accurateGasDetails = {
-        evmGasType,
-        gasEstimate: finalGasEstimate,
-        gasPrice: liveFeeData?.gasPrice || conservativeFallbackGasPrice,
-        maxFeePerGas: liveFeeData?.maxFeePerGas || conservativeMaxFeePerGas,
-        maxPriorityFeePerGas: liveFeeData?.maxPriorityFeePerGas || conservativeMaxPriorityFeePerGas,
-      };
-
-      // Log the raw network estimate for transparency
-      const rawGasCost = calculateTransactionCost(accurateGasDetails, { profitMargin: 0 }); // No profit for raw cost
-      const rawGasCostEth = Number(rawGasCost) / 1e18;
-      console.log('[Unshield] 📊 Raw network gas estimate:', {
-        gasEstimate: finalGasEstimate.toString(),
-        gasPrice: accurateGasDetails.gasPrice.toString(),
-        maxFeePerGas: accurateGasDetails.maxFeePerGas?.toString(),
-        rawGasCostWei: rawGasCost.toString(),
-        rawGasCostEth: rawGasCostEth.toFixed(6),
-        rawGasCostUSD: (rawGasCostEth * 3000).toFixed(2), // Assuming $3000 ETH
-        usingLiveData: !!liveFeeData,
-        fallbackUsed: !liveFeeData ? '3-4 gwei conservative' : 'live network data'
-      });
-
-      // Get network name and token prices for fee calculation
-      const networkName = getRailgunNetworkName(chain.id);
-      const tokenPrices = getTokenPrices(tokenAddress);
-      const { tokenPrice, ethPrice } = await tokenPrices;
-
-      // Calculate gas reclamation fee using accurate gas details
-      const gasFeeResult = await calculateFeeForTransaction({
-        gasDetails: accurateGasDetails,
-        networkName,
-        tokenAddress,
-        tokenPrice,
-        ethPrice,
-        tokenDecimals: 6,
-        transactionType: 'unshield'
-      });
-
-      gasFeeDeducted = gasFeeResult.feeAmount;
-
-      // Update broadcaster fee to include gas compensation
-      broadcasterFeeERC20AmountRecipient = {
-        ...broadcasterFeeERC20AmountRecipient,
-        amount: relayerFeeBn + gasFeeDeducted, // Combined fee reclamation
-      };
-
-      // Combine relayer fee + gas compensation for complete fee reclamation
-      // This matches official RAILGUN relayer approach: users pay for gas costs
-      const totalFeeDeduction = relayerFeeBn + gasFeeDeducted;
-      if (userAmountGross <= totalFeeDeduction) {
-        console.error('[Unshield] ❌ Insufficient funds for fees:', {
-          userAmountGross: userAmountGross.toString(),
-          totalFeeDeduction: totalFeeDeduction.toString(),
-          relayerFeeBn: relayerFeeBn.toString(),
-          gasFeeDeducted: gasFeeDeducted.toString(),
-          shortfall: (totalFeeDeduction - userAmountGross).toString()
-        });
-
-        const minAmountNeeded = totalFeeDeduction + 1000000n;
-        const errorMsg = `Insufficient funds. Amount must be at least ${(Number(minAmountNeeded) / 1e6).toFixed(2)} to cover fees.`;
-        showTerminalToast('error', 'Insufficient Funds', errorMsg);
-        throw new Error(errorMsg);
-      }
-
-      // Calculate amounts: subtract total fees (relayer + gas), let SDK apply 0.25% protocol fee
-      unshieldInputAmount = userAmountGross - totalFeeDeduction;
-      recipientBn = (unshieldInputAmount * (10000n - UNSHIELD_FEE_BPS)) / 10000n;
-
-      console.log('[Unshield] ✅ Complete fee reclamation structure:', {
-        userAmountGross: userAmountGross.toString(),
-        relayerServiceFee: relayerFeeBn.toString(),
-        gasReclamationFee: gasFeeDeducted.toString(),
-        totalRelayerCompensation: (relayerFeeBn + gasFeeDeducted).toString(),
-        unshieldInputAmount: unshieldInputAmount.toString(),
-        protocolFee: ((unshieldInputAmount * UNSHIELD_FEE_BPS) / 10000n).toString(),
-        finalRecipientAmount: recipientBn.toString(),
-        totalUserDeduction: totalFeeDeduction.toString(),
-        note: 'Gas costs fully reclaimed by relayer'
-      });
-
-      console.log('[UNSHIELD] Relayer receives complete compensation:', {
-        serviceFee: relayerFeeBn.toString(),
-        gasReimbursement: gasFeeDeducted.toString(),
-        totalCompensation: (relayerFeeBn + gasFeeDeducted).toString(),
-        totalUSD: `$${(Number(relayerFeeBn + gasFeeDeducted) * Number(tokenPrice) / 1e6).toFixed(4)}`,
-        to: selectedRelayer.railgunAddress,
-        covers: 'service_fee + gas_cost_reimbursement'
-      });
-
-      // 🔧 BUILD RelayAdapt OBJECTS WITH ACCURATE AMOUNTS
-      console.log('[Unshield] 🔧 Building RelayAdapt objects with calculated amounts...');
-
-      relayAdaptUnshieldERC20Amounts = [{
-        tokenAddress,
-        amount: unshieldInputAmount,
-      }];
-
-      const { ethers } = await import('ethers');
-      const erc20Interface = new ethers.Interface([
-        'function transfer(address to, uint256 amount) returns (bool)'
-      ]);
-
-      const recipientCallData = erc20Interface.encodeFunctionData('transfer', [
-        recipientEVM,
-        recipientBn,
-      ]);
-
-      crossContractCalls = [{
-        to: tokenAddress,
-        data: recipientCallData,
-        value: 0n,
-      }];
-
-      // Log final breakdown
-      console.log('📝 [UNSHIELD] Final transaction breakdown:', {
-        recipientAmount: { amount: recipientBn.toString(), to: recipientEVM },
-        relayerFee: { amount: relayerFeeBn.toString(), to: selectedRelayer.railgunAddress },
-        gasReclamationFee: { amount: gasFeeDeducted.toString(), note: 'gas_cost_recovery' },
-        sdkProtocolFee: { amount: ((unshieldInputAmount * UNSHIELD_FEE_BPS) / 10000n).toString(), note: 'applied_by_sdk' },
-        totalFees: totalFeeDeduction.toString(),
-        mode: 'RelayAdapt_With_Gas_Reclamation'
-      });
-    }
     
     // Derive overallBatchMinGasPrice from transaction gas details (per docs)
     const txGasForBatchPrice = {
@@ -1474,12 +1343,14 @@ export const unshieldTokens = async ({
       // Import the cross-contract calls function
       const { populateProvedCrossContractCalls } = await import('@railgun-community/wallet');
       
-      console.log('💰 [UNSHIELD] RelayAdapt SDK-compatible calculation:', {
+      console.log('💰 [UNSHIELD] RelayAdapt SDK-compatible calculation (with gas reclamation):', {
         userAmountGross: userAmountGross.toString(),
         unshieldInputAmount: unshieldInputAmount.toString(),
         relayerFeeBn: relayerFeeBn.toString(),
+        gasFeeDeducted: gasFeeDeducted.toString(),
+        combinedRelayerFee: combinedRelayerFee.toString(),
         recipientBn: recipientBn.toString(),
-        requiredSpend: (unshieldInputAmount + relayerFeeBn).toString()
+        requiredSpend: (unshieldInputAmount + combinedRelayerFee).toString()
       });
       
       // using hoisted relayAdaptUnshieldERC20Amounts and crossContractCalls from Step 4
@@ -1770,10 +1641,7 @@ export const unshieldTokens = async ({
 
 export default {
   unshieldTokens,
-};
-
-
-// --- Private Transfer via Relayer (docs flow, our relayer submission) ---
+};// --- Private Transfer via Relayer (docs flow, our relayer submission) ---
 export const privateTransferWithRelayer = async ({
   railgunWalletID,
   encryptionKey,
@@ -2499,3 +2367,6 @@ export const privateTransferWithRelayer = async ({
     throw e;
   }
 };
+
+
+
