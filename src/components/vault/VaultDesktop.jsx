@@ -753,6 +753,7 @@ const VaultDesktopInner = () => {
           transactionDetails: {
             walletAddress: address,
             walletId: railgunWalletId,
+            railgunAddress: railgunAddress,
             tokenSymbol: token.symbol,
             tokenAddress: token.address,
             decimals: token.decimals,

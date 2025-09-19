@@ -1286,7 +1286,7 @@ export const monitorTransactionInGraph = async ({
           // Resolve Lexie ID from wallet address
           let lexieId = null;
           try {
-            const lexieResponse = await fetch('/api/wallet-metadata?action=by-wallet&railgunAddress=' + encodeURIComponent(transactionDetails.walletAddress));
+            const lexieResponse = await fetch('/api/wallet-metadata?action=by-wallet&railgunAddress=' + encodeURIComponent(transactionDetails.railgunAddress || transactionDetails.walletAddress));
             if (lexieResponse.ok) {
               const lexieData = await lexieResponse.json();
               if (lexieData?.success && lexieData?.lexieID) {
