@@ -710,22 +710,24 @@ export const unshieldTokens = async ({
       }
 
       // SDK handles relayer fee via RAILGUN's internal mechanism
+      // Note: This will be updated to include gas reclamation after fee calculation
       broadcasterFeeERC20AmountRecipient = {
         tokenAddress: selectedRelayer.feeToken,
         recipientAddress: selectedRelayer.railgunAddress, // RAILGUN address (0zk...)
-        amount: relayerFeeBn,
+        amount: relayerFeeBn, // Initial value, will be updated with gas reclamation
       };
-      
+
       // Create consistent objects for all SDK calls
       feeTokenDetails = {
         tokenAddress: selectedRelayer.feeToken,
         feePerUnitGas: selectedRelayer.feePerUnitGas,
       };
-      
-      console.log('🔍 [UNSHIELD] CRITICAL - Broadcaster fee setup:', {
+
+      console.log('🔍 [UNSHIELD] CRITICAL - Broadcaster fee setup (initial):', {
         feeRecipient: selectedRelayer.railgunAddress,
         relayerFeeBn: relayerFeeBn.toString(),
         tokenAddress: tokenAddress,
+        note: 'This will be updated to include gas reclamation after fee calculation',
         purpose: 'RAILGUN_BROADCASTER_FEE_VIA_SDK'
       });
       
@@ -1081,6 +1083,27 @@ export const unshieldTokens = async ({
       unshieldInputAmount = userAmountGross - totalFeeDeduction;
       recipientBn = (unshieldInputAmount * (10000n - UNSHIELD_FEE_BPS)) / 10000n;
 
+      // Guard: if net recipient ≤ 0, throw "Insufficient funds"
+      if (recipientBn <= 0n) {
+        console.error('[Unshield] ❌ Net recipient amount <= 0 after fees:', {
+          recipientBn: recipientBn.toString(),
+          unshieldInputAmount: unshieldInputAmount.toString(),
+          totalFeeDeduction: totalFeeDeduction.toString(),
+          sdkProtocolFee: ((unshieldInputAmount * UNSHIELD_FEE_BPS) / 10000n).toString()
+        });
+        const errorMsg = 'Insufficient funds. Net recipient amount would be zero or negative after all fees.';
+        showTerminalToast('error', 'Insufficient Funds', errorMsg);
+        throw new Error(errorMsg);
+      }
+
+      // Update broadcaster fee to include both relayer fee and gas reclamation
+      const totalRelayerComp = relayerFeeBn + gasFeeDeducted;
+      broadcasterFeeERC20AmountRecipient = {
+        tokenAddress: selectedRelayer.feeToken,
+        recipientAddress: selectedRelayer.railgunAddress,
+        amount: totalRelayerComp,
+      };
+
       console.log('[Unshield] ✅ Fee reclamation applied:', {
         userAmountGross: userAmountGross.toString(),
         relayerFeeDeducted: relayerFeeBn.toString(),
@@ -1091,6 +1114,17 @@ export const unshieldTokens = async ({
         protocolFee: ((unshieldInputAmount * UNSHIELD_FEE_BPS) / 10000n).toString(),
         finalRecipientAmount: (recipientBn - ((unshieldInputAmount * UNSHIELD_FEE_BPS) / 10000n)).toString(),
         gasReclamationPercentage: `${((Number(gasFeeDeducted) / Number(userAmountGross)) * 100).toFixed(3)}%`
+      });
+
+      console.log('[UNSHIELD] Relayer total compensation (fee + gas reclamation):', {
+        amount: totalRelayerComp.toString(),
+        amountUSD: `$${(Number(totalRelayerComp) * Number(tokenPrice) / 1e6).toFixed(4)}`,
+        to: selectedRelayer.railgunAddress,
+        breakdown: {
+          relayerFee: relayerFeeBn.toString(),
+          gasReclamation: gasFeeDeducted.toString(),
+          total: totalRelayerComp.toString()
+        }
       });
 
       // 🔧 BUILD RelayAdapt OBJECTS WITH ACCURATE AMOUNTS
