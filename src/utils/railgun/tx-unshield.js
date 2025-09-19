@@ -703,6 +703,22 @@ export const unshieldTokens = async ({
       combinedRelayerFee = relayerFeeBn + gasFeeDeducted;
       unshieldInputAmount = userAmountGross - combinedRelayerFee; // Deduct combined fee from user
 
+      // UPDATE BROADCASTER FEE: Now set with combined fee for proof generation
+      broadcasterFeeERC20AmountRecipient = {
+        tokenAddress: selectedRelayer.feeToken,
+        recipientAddress: selectedRelayer.railgunAddress, // RAILGUN address (0zk...)
+        amount: combinedRelayerFee, // Combined: relayer fee + gas reclamation
+      };
+
+      console.log('🔍 [UNSHIELD] CRITICAL - Broadcaster fee updated with combined fee:', {
+        feeRecipient: selectedRelayer.railgunAddress,
+        relayerFeeBn: relayerFeeBn.toString(),
+        gasFeeDeducted: gasFeeDeducted.toString(),
+        combinedRelayerFee: combinedRelayerFee.toString(),
+        tokenAddress: tokenAddress,
+        purpose: 'RAILGUN_BROADCASTER_FEE_VIA_SDK_WITH_GAS_RECLAMATION'
+      });
+
       // Recipient gets NET after SDK protocol fee
       recipientBn = (unshieldInputAmount * (10000n - UNSHIELD_FEE_BPS)) / 10000n;
 
@@ -731,12 +747,7 @@ export const unshieldTokens = async ({
       }
 
       // SDK handles relayer fee via RAILGUN's internal mechanism
-      // Now includes both relayer service fee + gas reclamation
-      broadcasterFeeERC20AmountRecipient = {
-        tokenAddress: selectedRelayer.feeToken,
-        recipientAddress: selectedRelayer.railgunAddress, // RAILGUN address (0zk...)
-        amount: combinedRelayerFee, // Combined: relayer fee + gas reclamation
-      };
+      // Note: broadcasterFeeERC20AmountRecipient will be set after combined fee calculation
       
       // Create consistent objects for all SDK calls
       feeTokenDetails = {
@@ -744,14 +755,7 @@ export const unshieldTokens = async ({
         feePerUnitGas: selectedRelayer.feePerUnitGas,
       };
       
-      console.log('🔍 [UNSHIELD] CRITICAL - Broadcaster fee setup (with gas reclamation):', {
-        feeRecipient: selectedRelayer.railgunAddress,
-        relayerFeeBn: relayerFeeBn.toString(),
-        gasFeeDeducted: gasFeeDeducted.toString(),
-        combinedRelayerFee: combinedRelayerFee.toString(),
-        tokenAddress: tokenAddress,
-        purpose: 'RAILGUN_BROADCASTER_FEE_VIA_SDK_WITH_GAS_RECLAMATION'
-      });
+      // Note: Detailed broadcaster fee logging happens after combined fee calculation
       
       // Protocol fee is deducted internally by SDK from unshieldInputAmount
       
