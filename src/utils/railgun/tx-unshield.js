@@ -634,9 +634,12 @@ export const unshieldTokens = async ({
     let unshieldInputAmount = userAmountGross; // amount to unshield into RelayAdapt
     let feeTokenDetails = null;
     let combinedRelayerFee = 0n;  // Hoisted variable for gas reclamation
-    
+
+    // Define net variable at function scope level for use throughout
+    let net;
+
     // SDK will validate balance internally
-    
+
     if (useRelayer) {
       console.log('🔧 [UNSHIELD] Preparing RelayAdapt mode with cross-contract calls...');
       
@@ -720,7 +723,7 @@ export const unshieldTokens = async ({
       });
 
       // Create single net amount used consistently throughout
-      const net = BigInt(unshieldInputAmount);
+      net = BigInt(unshieldInputAmount);
 
       // Calculate recipientBn for logging/reference (after SDK protocol fee)
       // NOTE: This is just for logging - actual transfer uses net amount
@@ -816,6 +819,7 @@ export const unshieldTokens = async ({
       
       // Self-signing: no relayer fee. Unshield full user amount, recipient gets net of protocol fee
       unshieldInputAmount = userAmountGross;
+      net = BigInt(unshieldInputAmount); // Set net for consistency
       recipientBn = (unshieldInputAmount * (10000n - UNSHIELD_FEE_BPS)) / 10000n;
 
       console.log('💰 [UNSHIELD] Self-signing fee calculation:', {
@@ -967,11 +971,11 @@ export const unshieldTokens = async ({
             data: String(c.data),
             value: c.value?.toString?.() ?? '0'
           })),
-          broadcasterFeeERC20AmountRecipient: {
+          broadcasterFeeERC20AmountRecipient: broadcasterFeeERC20AmountRecipient ? {
             tokenAddress: broadcasterFeeERC20AmountRecipient.tokenAddress,
             recipientAddress: broadcasterFeeERC20AmountRecipient.recipientAddress,
             amount: broadcasterFeeERC20AmountRecipient.amount.toString()
-          },
+          } : null,
           sendWithPublicWallet,
           net: net.toString(),
           userAmountGross: userAmountGross.toString(),
@@ -1150,11 +1154,11 @@ export const unshieldTokens = async ({
           data: String(c.data),
           value: c.value?.toString?.() ?? '0'
         })),
-        broadcasterFeeERC20AmountRecipient: {
+        broadcasterFeeERC20AmountRecipient: broadcasterFeeERC20AmountRecipient ? {
           tokenAddress: broadcasterFeeERC20AmountRecipient.tokenAddress,
           recipientAddress: broadcasterFeeERC20AmountRecipient.recipientAddress,
           amount: broadcasterFeeERC20AmountRecipient.amount.toString()
-        },
+        } : null,
         sendWithPublicWallet,
         net: net.toString(),
         userAmountGross: userAmountGross.toString(),
@@ -1494,11 +1498,11 @@ export const unshieldTokens = async ({
         relayAdaptShieldERC20Recipients: [], // Empty for unshielding operations
         relayAdaptShieldNFTRecipients: relayAdaptShieldNFTRecipients || [],
         crossContractCalls: crossContractCalls.map(c => ({ to: c.to, data: String(c.data), value: c.value?.toString?.() ?? '0' })),
-        broadcasterFeeERC20AmountRecipient: {
+        broadcasterFeeERC20AmountRecipient: broadcasterFeeERC20AmountRecipient ? {
           tokenAddress: broadcasterFeeERC20AmountRecipient.tokenAddress,
           recipientAddress: broadcasterFeeERC20AmountRecipient.recipientAddress,
           amount: broadcasterFeeERC20AmountRecipient.amount.toString()
-        },
+        } : null,
         sendWithPublicWallet,
         overallBatchMinGasPrice: OVERALL_BATCH_MIN_GAS_PRICE.toString(),
         minGasLimit: MIN_GAS_LIMIT.toString()
