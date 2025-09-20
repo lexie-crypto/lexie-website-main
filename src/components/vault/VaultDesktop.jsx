@@ -516,20 +516,20 @@ const VaultDesktopInner = () => {
         console.log('[VaultDesktop] 🔄 Refreshing points balance after award...');
         setIsUpdatingPoints(true);
 
-        try {
-          const resp = await fetch(`/api/wallet-metadata?action=rewards-balance&lexieId=${encodeURIComponent(currentLexieId)}`);
+      try {
+        const resp = await fetch(`/api/wallet-metadata?action=rewards-balance&lexieId=${encodeURIComponent(currentLexieId)}`);
 
-          if (resp.ok) {
-            const json = await resp.json().catch(() => ({}));
-            if (json?.success) {
-              const newBalance = Number(json.balance) || 0;
-              const previousBalance = pointsBalance;
-              console.log('[VaultDesktop] ✅ Points balance updated:', newBalance);
+        if (resp.ok) {
+          const json = await resp.json().catch(() => ({}));
+          if (json?.success) {
+            const newBalance = Number(json.balance) || 0;
+            const previousBalance = pointsBalance;
+            console.log('[VaultDesktop] ✅ Points balance updated:', newBalance);
 
-              setPointsBalance(newBalance);
+            setPointsBalance(newBalance);
 
-              // Show success toast if points actually increased
-              if (previousBalance !== null && newBalance > previousBalance) {
+            // Show success toast if points actually increased
+            if (previousBalance !== null && newBalance > previousBalance) {
                 try {
                   // Use the existing toast import at the top of the file
                   toast.custom((t) => (
@@ -584,7 +584,7 @@ const VaultDesktopInner = () => {
               pointsUpdateTimeoutRef.current = setTimeout(() => {
                 setIsUpdatingPoints(false);
                 pointsUpdateTimeoutRef.current = null;
-              }, 1000);
+              }, 500);
             } else {
               console.warn('[VaultDesktop] Points balance response not successful:', json);
               setIsUpdatingPoints(false);
@@ -620,6 +620,11 @@ const VaultDesktopInner = () => {
       if (pointsUpdateTimeoutRef.current) {
         clearTimeout(pointsUpdateTimeoutRef.current);
         pointsUpdateTimeoutRef.current = null;
+      }
+      // Reset updating state if component unmounts during update
+      if (isUpdatingPoints) {
+        console.log('[VaultDesktop] 🧹 Component cleanup: resetting isUpdatingPoints');
+        setIsUpdatingPoints(false);
       }
     };
   }, [currentLexieId, isUpdatingPoints]);
