@@ -23,7 +23,8 @@ import {
   gasEstimateForShieldBaseToken,
   populateShieldBaseToken,
 } from '@railgun-community/wallet';
-import { createShieldGasDetails } from './tx-gas-details.js';
+import { calculateGasPrice } from '@railgun-community/shared-models';
+import { createShieldGasDetails, getTxFeeParams } from './tx-gas-details.js';
 import { estimateGasWithBroadcasterFee } from './tx-gas-broadcaster-fee-estimator.js';
 import { assertNotSanctioned } from '../sanctions/chainalysis-oracle.js';
 
@@ -332,6 +333,212 @@ export const estimateShieldGas = async (
 };
 
 /**
+ * Build gas details for base token shield using dummy transaction approach
+ * @param {Object} params - Parameters
+ * @returns {Object} Gas details and estimates
+ */
+export const buildBaseTokenShieldGasAndEstimate = async ({
+  chainId,
+  networkName,
+  railgunAddress,
+  shieldPrivateKey,
+  amount,
+  tokenAddress,
+  walletProvider,
+}) => {
+  try {
+    const signer = walletProvider; // walletProvider is a Signer object, not a function
+    const provider = signer.provider;
+
+    const evmGasType = getEVMGasTypeForTransaction(networkName, true); // Always true for shield
+    const originalFeeParams = await getTxFeeParams(provider, evmGasType, chainId);
+
+    // Create originalGasDetails for SDK estimate
+    const originalGasDetails =
+      evmGasType === EVMGasType.Type2
+        ? {
+            evmGasType,
+            originalGasEstimate: 0n,
+            maxFeePerGas: originalFeeParams.maxFeePerGas,
+            maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas
+          }
+        : {
+            evmGasType,
+            originalGasEstimate: 0n,
+            gasPrice: originalFeeParams.gasPrice
+          };
+
+    // SDK dummy estimate for base token (the "dry run")
+    console.log('[ShieldTransactions] Running dummy base token shield gas estimation...');
+    const { gasEstimate } = await gasEstimateForShieldBaseToken(
+      TXIDVersion.V2_PoseidonMerkle,
+      networkName,
+      railgunAddress,
+      shieldPrivateKey,
+      { tokenAddress, amount: BigInt(amount) },
+      await signer.getAddress() // fromAddress
+    );
+
+    console.log('[ShieldTransactions] Base token dummy gas estimate result:', {
+      gasEstimate: gasEstimate.toString(),
+      evmGasType,
+      networkName
+    });
+
+    // Pad estimate for headroom (same padding reused for populate + submit)
+    const paddedGasEstimate = (gasEstimate * 120n) / 100n;
+
+    // Compute batch min gas price (SDK helper)
+    const overallBatchMinGasPrice = await calculateGasPrice({
+      evmGasType,
+      gasEstimate,
+      gasPrice: originalFeeParams.gasPrice,
+      maxFeePerGas: originalFeeParams.maxFeePerGas,
+      maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas,
+    });
+
+    // Final gasDetails to pass into populate()
+    const gasDetails =
+      evmGasType === EVMGasType.Type2
+        ? {
+            evmGasType,
+            gasEstimate: paddedGasEstimate,
+            maxFeePerGas: originalFeeParams.maxFeePerGas,
+            maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas,
+          }
+        : {
+            evmGasType,
+            gasEstimate: paddedGasEstimate,
+            gasPrice: originalFeeParams.gasPrice,
+          };
+
+    console.log('[ShieldTransactions] Using SDK dummy estimate for base token + live fee data', {
+      chainId,
+      evmGasType,
+      gasEstimate: gasEstimate.toString(),
+      paddedGasEstimate: paddedGasEstimate.toString(),
+      overallBatchMinGasPrice: overallBatchMinGasPrice.toString(),
+      ...gasDetails,
+    });
+
+    return {
+      gasDetails,
+      paddedGasEstimate,
+      overallBatchMinGasPrice,
+      accurateGasEstimate: gasEstimate
+    };
+
+  } catch (error) {
+    console.error('[ShieldTransactions] Failed to build base token shield gas and estimate:', error);
+    throw new Error(`Failed to build base token shield gas and estimate: ${error.message}`);
+  }
+};
+
+/**
+ * Build gas details for shield using dummy transaction approach
+ * One true source of gas: estimate → pad → reuse for populate + submit
+ * @param {Object} params - Parameters
+ * @returns {Object} Gas details and estimates
+ */
+export const buildShieldGasAndEstimate = async ({
+  chainId,
+  networkName,
+  shieldPrivateKey,
+  erc20AmountRecipients,
+  nftAmountRecipients,
+  fromWalletAddress,
+  walletProvider,
+}) => {
+  try {
+    const signer = walletProvider; // walletProvider is a Signer object, not a function
+    const provider = signer.provider;
+
+    const evmGasType = getEVMGasTypeForTransaction(networkName, true); // Always true for shield
+    const originalFeeParams = await getTxFeeParams(provider, evmGasType, chainId);
+
+    // Create originalGasDetails for SDK estimate
+    const originalGasDetails =
+      evmGasType === EVMGasType.Type2
+        ? {
+            evmGasType,
+            originalGasEstimate: 0n,
+            maxFeePerGas: originalFeeParams.maxFeePerGas,
+            maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas
+          }
+        : {
+            evmGasType,
+            originalGasEstimate: 0n,
+            gasPrice: originalFeeParams.gasPrice
+          };
+
+    // SDK dummy estimate (the "dry run")
+    console.log('[ShieldTransactions] Running dummy shield gas estimation...');
+    const gasEstimateResponse = await gasEstimateForShield(
+      TXIDVersion.V2_PoseidonMerkle,
+      networkName,
+      shieldPrivateKey,
+      erc20AmountRecipients,
+      nftAmountRecipients,
+      fromWalletAddress
+    );
+
+    const gasEstimate = gasEstimateResponse.gasEstimate || gasEstimateResponse;
+    console.log('[ShieldTransactions] Dummy gas estimate result:', {
+      gasEstimate: gasEstimate.toString(),
+      evmGasType,
+      networkName
+    });
+
+    // Pad estimate for headroom (same padding reused for populate + submit)
+    const paddedGasEstimate = (gasEstimate * 120n) / 100n;
+
+    // Compute batch min gas price (SDK helper)
+    const overallBatchMinGasPrice = await calculateGasPrice({
+      evmGasType,
+      gasEstimate,
+      gasPrice: originalFeeParams.gasPrice,
+      maxFeePerGas: originalFeeParams.maxFeePerGas,
+      maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas,
+    });
+
+    // Final gasDetails to pass into populate()
+    const gasDetails =
+      evmGasType === EVMGasType.Type2
+        ? {
+            evmGasType,
+            gasEstimate: paddedGasEstimate,
+            maxFeePerGas: originalFeeParams.maxFeePerGas,
+            maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas,
+          }
+        : {
+            evmGasType,
+            gasEstimate: paddedGasEstimate,
+            gasPrice: originalFeeParams.gasPrice,
+          };
+
+    console.log('[ShieldTransactions] Using SDK dummy estimate + live fee data', {
+      chainId,
+      evmGasType,
+      gasEstimate: gasEstimate.toString(),
+      paddedGasEstimate: paddedGasEstimate.toString(),
+      overallBatchMinGasPrice: overallBatchMinGasPrice.toString(),
+      ...gasDetails,
+    });
+
+    return {
+      gasDetails,
+      paddedGasEstimate,
+      overallBatchMinGasPrice,
+      accurateGasEstimate: gasEstimate
+    };
+
+  } catch (error) {
+    console.error('[ShieldTransactions] Failed to build shield gas and estimate:', error);
+    throw new Error(`Failed to build shield gas and estimate: ${error.message}`);
+  }
+};
+
+/**
  * Populate shield transaction - Official SDK pattern
  */
 export const createShieldTransaction = async (
@@ -443,35 +650,17 @@ export const shieldTokens = async ({
       showTerminalToast('success', 'Signature received');
       const shieldPrivateKey = keccak256(signature);
 
-      // Estimate gas using SDK helper
-      const { gasEstimate } = await gasEstimateForShieldBaseToken(
-        TXIDVersion.V2_PoseidonMerkle,
+      // Use dummy transaction gas estimation approach for base token
+      console.log('[ShieldTransactions] Building base token gas details using dummy transaction approach...');
+      const { gasDetails, paddedGasEstimate, overallBatchMinGasPrice, accurateGasEstimate } = await buildBaseTokenShieldGasAndEstimate({
+        chainId: chain.id,
         networkName,
         railgunAddress,
         shieldPrivateKey,
-        { tokenAddress: wrappedAddress, amount: BigInt(amount) },
-        fromAddress,
-      );
-
-      // Create gas details
-      const provider = signer.provider;
-      const fee = await provider.getFeeData();
-      const evmGasType = getEVMGasTypeForTransaction(networkName, true);
-      let gasDetails;
-      if (evmGasType === EVMGasType.Type2) {
-        gasDetails = {
-          evmGasType,
-          gasEstimate,
-          maxFeePerGas: fee.maxFeePerGas || BigInt('1000000'),
-          maxPriorityFeePerGas: fee.maxPriorityFeePerGas || BigInt('100000'),
-        };
-      } else {
-        gasDetails = {
-          evmGasType,
-          gasEstimate,
-          gasPrice: fee.gasPrice || BigInt('1000000'),
-        };
-      }
+        amount,
+        tokenAddress: wrappedAddress,
+        walletProvider,
+      });
 
       // Build transaction via SDK
       const { transaction } = await populateShieldBaseToken(
@@ -488,10 +677,12 @@ export const shieldTokens = async ({
       // Return transaction for the caller to send (consistent with ERC20 flow)
       console.log('[ShieldTransactions] Base token shield transaction prepared');
       return {
-        gasEstimate: gasDetails.gasEstimate,
+        gasEstimate: accurateGasEstimate, // Return accurate estimate, not padded
         gasDetails,
         transaction,
         shieldPrivateKey,
+        paddedGasEstimate,
+        overallBatchMinGasPrice,
       };
     }
 
@@ -531,63 +722,30 @@ export const shieldTokens = async ({
     console.log('[ShieldTransactions] Ensuring token approval...');
     await ensureTokenApproval(tokenAddress, fromAddress, amount, walletProvider, dummyTx);
 
-    // Now do the real gas estimation after approval is confirmed
-    console.log('[ShieldTransactions] Estimating gas for shield operation...');
-    const gasEstimateResponse = await gasEstimateForShield(
-      txidVersion,
+    // Use dummy transaction gas estimation approach (same as unshield)
+    console.log('[ShieldTransactions] Building gas details using dummy transaction approach...');
+    const { gasDetails, paddedGasEstimate, overallBatchMinGasPrice, accurateGasEstimate } = await buildShieldGasAndEstimate({
+      chainId: chain.id,
       networkName,
       shieldPrivateKey,
       erc20AmountRecipients,
       nftAmountRecipients,
-      fromAddress
-    );
-
-    // Extract the gas estimate value from the response
-    const gasEstimate = gasEstimateResponse.gasEstimate || gasEstimateResponse;
-    console.log('[ShieldTransactions] Gas estimate response:', {
-      gasEstimate: gasEstimate.toString(),
-      type: typeof gasEstimate
+      fromWalletAddress: fromAddress,
+      walletProvider,
     });
 
-    // Create real gas details for shield operation
-    let gasDetails;
-    if (networkName === NetworkName.Ethereum) {
-      // For Ethereum, avoid static high defaults. Use live fee data with light padding,
-      // mirroring our L2 approach of small sensible fallbacks.
-      try {
-        const signer = walletProvider; // signer provided by caller
-        const provider = signer.provider;
-        const feeData = await provider.getFeeData();
-        const latestBlock = await provider.getBlock('latest').catch(() => null);
-
-        const baseFee = latestBlock?.baseFeePerGas ? BigInt(latestBlock.baseFeePerGas) : undefined;
-        const priority = feeData.maxPriorityFeePerGas ? BigInt(feeData.maxPriorityFeePerGas) : BigInt('1000000000'); // 1 gwei
-
-        // Ensure maxFee >= baseFee * 1.15 + priority for headroom
-        const networkMax = feeData.maxFeePerGas ? BigInt(feeData.maxFeePerGas) : 0n;
-        const minRequired = baseFee ? ((baseFee * 115n) / 100n) + priority : 0n;
-        let desiredMax = networkMax > minRequired ? networkMax : (minRequired || (priority * 2n));
-
-        gasDetails = createShieldGasDetails(networkName, gasEstimate, {
-          maxFeePerGas: desiredMax,
-          maxPriorityFeePerGas: priority,
-        });
-      } catch (ethFeeErr) {
-        console.warn('[ShieldTransactions] Ethereum fee data failed, using defaults:', ethFeeErr?.message);
-        gasDetails = createShieldGasDetails(networkName, gasEstimate);
-      }
-    } else {
-      gasDetails = createShieldGasDetails(networkName, gasEstimate);
-    }
+    const gasEstimate = accurateGasEstimate; // For compatibility with existing code
     
     const broadcasterFeeInfo = null; // No broadcaster for shield
-    const iterations = 1; // Direct estimation
-    
-    console.log('[ShieldTransactions] Gas estimation completed:', {
-      gasEstimate: gasDetails.gasEstimate.toString(),
+    const iterations = 1; // Dummy transaction estimation
+
+    console.log('[ShieldTransactions] Dummy transaction gas estimation completed:', {
+      accurateGasEstimate: accurateGasEstimate.toString(),
+      paddedGasEstimate: paddedGasEstimate.toString(),
       evmGasType: gasDetails.evmGasType,
       iterations,
       hasBroadcasterFee: !!broadcasterFeeInfo,
+      overallBatchMinGasPrice: overallBatchMinGasPrice.toString(),
     });
 
     // Create final transaction with proper gas
@@ -606,12 +764,14 @@ export const shieldTokens = async ({
 
     console.log('[ShieldTransactions] Shield operation completed successfully');
     return {
-      gasEstimate: gasDetails.gasEstimate,
+      gasEstimate: accurateGasEstimate, // Return the accurate estimate, not padded
       gasDetails,
       transaction,
       shieldPrivateKey,
       broadcasterFeeInfo,
       gasEstimationIterations: iterations,
+      paddedGasEstimate,
+      overallBatchMinGasPrice,
     };
 
   } catch (error) {
@@ -624,4 +784,6 @@ export default {
   shieldTokens,
   estimateShieldGas,
   createShieldTransaction,
+  buildShieldGasAndEstimate,
+  buildBaseTokenShieldGasAndEstimate,
 }; 
