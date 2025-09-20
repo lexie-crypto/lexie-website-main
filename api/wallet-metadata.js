@@ -462,6 +462,11 @@ export default async function handler(req, res) {
         backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
         console.log(`📊 [WALLET-TIMELINE-PROXY-${requestId}] GET wallet timeline for wallet: ${walletId.slice(0, 8)}... (page: ${page}, size: ${pageSize})`);
 
+      } else if (action === 'get-all-points') {
+        backendPath = '/api/wallet-metadata/get-all-points';
+        backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+        console.log(`📊 [POINTS-PROXY-${requestId}] GET all points data`);
+
       } else {
         // Handle GET: retrieve wallet metadata (original functionality)
         if (!walletAddress) {

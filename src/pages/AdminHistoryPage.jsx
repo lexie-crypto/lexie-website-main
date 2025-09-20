@@ -84,6 +84,15 @@ const AdminDashboard = () => {
   // UI state
   const [logs, setLogs] = useState([]);
 
+  // Tab management
+  const [activeTab, setActiveTab] = useState('compliance'); // 'compliance' or 'points'
+
+  // Points tab state
+  const [pointsData, setPointsData] = useState([]);
+  const [isLoadingPoints, setIsLoadingPoints] = useState(false);
+  const [pointsSortBy, setPointsSortBy] = useState('lexieId'); // 'lexieId' or 'points'
+  const [pointsSortOrder, setPointsSortOrder] = useState('asc'); // 'asc' or 'desc'
+
   // Add log entry - memoized to prevent infinite re-renders
   const addLog = useCallback((message, type = 'info') => {
     const timestamp = new Date().toISOString();
@@ -102,6 +111,121 @@ const AdminDashboard = () => {
       addLog('Dashboard cleared', 'info');
     }
   }, [walletId, resolutionType, transactionHistory.length, addLog]);
+
+  // Load points data for Points tab
+  const loadPointsData = async () => {
+    setIsLoadingPoints(true);
+    addLog('📊 Loading points data...', 'info');
+
+    try {
+      const pointsParams = new URLSearchParams({
+        action: 'get-all-points'
+      });
+
+      const pointsResponse = await fetch(`/api/wallet-metadata?${pointsParams}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Origin': window.location.origin,
+          'User-Agent': navigator.userAgent
+        }
+      });
+
+      if (!pointsResponse.ok) {
+        throw new Error(`Points data fetch failed: ${pointsResponse.status}`);
+      }
+
+      const pointsResult = await pointsResponse.json();
+
+      if (pointsResult.success) {
+        const data = pointsResult.points || [];
+        setPointsData(data);
+        addLog(`✅ Loaded ${data.length} users with points`, 'success');
+      } else {
+        addLog(`❌ Failed to load points data: ${pointsResult.error || 'Unknown error'}`, 'error');
+      }
+
+    } catch (error) {
+      addLog(`❌ Points data loading failed: ${error.message}`, 'error');
+      console.error('Points data loading error:', error);
+    } finally {
+      setIsLoadingPoints(false);
+    }
+  };
+
+  // Sort points data
+  const getSortedPointsData = () => {
+    return [...pointsData].sort((a, b) => {
+      let aValue, bValue;
+
+      if (pointsSortBy === 'lexieId') {
+        aValue = a.lexieId?.toLowerCase() || '';
+        bValue = b.lexieId?.toLowerCase() || '';
+      } else if (pointsSortBy === 'points') {
+        aValue = a.points || 0;
+        bValue = b.points || 0;
+      }
+
+      if (pointsSortOrder === 'asc') {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      } else {
+        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+      }
+    });
+  };
+
+  // Export points data to CSV
+  const exportPointsToCSV = () => {
+    if (!pointsData.length) {
+      addLog('No points data to export', 'error');
+      return;
+    }
+
+    try {
+      const sortedData = getSortedPointsData();
+
+      // CSV headers
+      const headers = ['LexieID', 'Railgun Wallet Address', 'Total Points'];
+
+      // Convert data to CSV rows
+      const csvRows = sortedData.map(user => [
+        user.lexieId || '',
+        user.walletAddress || '',
+        user.points || 0
+      ]);
+
+      // Create CSV content
+      const csvContent = [
+        headers.join(','),
+        ...csvRows.map(row => row.map(field => `"${field}"`).join(','))
+      ].join('\n');
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+
+      link.setAttribute('href', url);
+      link.setAttribute('download', `lexie-points-${new Date().toISOString().split('T')[0]}.csv`);
+      link.style.visibility = 'hidden';
+
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      addLog(`CSV export completed: ${pointsData.length} users`, 'success');
+    } catch (error) {
+      console.error('Failed to export points CSV:', error);
+      addLog('Failed to export points CSV', 'error');
+    }
+  };
+
+  // Load points data when Points tab is selected
+  useEffect(() => {
+    if (activeTab === 'points' && pointsData.length === 0 && !isLoadingPoints) {
+      loadPointsData();
+    }
+  }, [activeTab, pointsData.length, isLoadingPoints]);
 
   // Password authentication UI
   if (!isAuthenticated) {
@@ -568,8 +692,8 @@ ${JSON.stringify(tx, null, 2)}
         <div className="mb-8">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-blue-400 mb-2">Admin History Dashboard</h1>
-              <p className="text-gray-400">Search and view user transaction histories</p>
+              <h1 className="text-3xl font-bold text-blue-400 mb-2">Admin Dashboard</h1>
+              <p className="text-gray-400">Manage compliance and points data</p>
             </div>
             <button
               onClick={handleLogout}
@@ -581,9 +705,40 @@ ${JSON.stringify(tx, null, 2)}
           </div>
         </div>
 
-        {/* Search Section */}
-        <div className="bg-gray-800 rounded-lg p-6 mb-6">
-          <h2 className="text-xl font-semibold mb-4 text-blue-300">🔍 Search Wallet</h2>
+        {/* Tab Navigation */}
+        <div className="mb-6">
+          <div className="bg-gray-800 rounded-lg p-1">
+            <div className="flex">
+              <button
+                onClick={() => setActiveTab('compliance')}
+                className={`flex-1 px-6 py-3 rounded-md font-medium transition-colors ${
+                  activeTab === 'compliance'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                }`}
+              >
+                📋 Compliance
+              </button>
+              <button
+                onClick={() => setActiveTab('points')}
+                className={`flex-1 px-6 py-3 rounded-md font-medium transition-colors ${
+                  activeTab === 'points'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                }`}
+              >
+                💰 Points
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Compliance Tab Content */}
+        {activeTab === 'compliance' && (
+          <>
+            {/* Search Section */}
+            <div className="bg-gray-800 rounded-lg p-6 mb-6">
+              <h2 className="text-xl font-semibold mb-4 text-blue-300">🔍 Search Wallet</h2>
 
           <div className="space-y-4">
             <div>
@@ -864,32 +1019,164 @@ ${JSON.stringify(tx, null, 2)}
           </div>
         )}
 
-        {/* Activity Logs */}
-        <div className="bg-gray-800 rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4 text-blue-300">Activity Logs</h2>
+            {/* Activity Logs */}
+            <div className="bg-gray-800 rounded-lg p-6">
+              <h2 className="text-xl font-semibold mb-4 text-blue-300">Activity Logs</h2>
 
-          <div className="bg-gray-900 rounded-md p-4 max-h-64 overflow-y-auto">
-            {logs.length === 0 ? (
-              <p className="text-gray-500 text-center">No logs yet. Start by searching for a wallet.</p>
-            ) : (
-              <div className="space-y-2">
-                {logs.map((log, index) => (
-                  <div key={index} className={`text-sm p-2 rounded-md ${
-                    log.type === 'error' ? 'bg-red-900/30 text-red-300' :
-                    log.type === 'success' ? 'bg-green-900/30 text-green-300' :
-                    log.type === 'warning' ? 'bg-yellow-900/30 text-yellow-300' :
-                    'bg-gray-700/30 text-gray-300'
-                  }`}>
-                    <span className="text-xs text-gray-500 mr-2">
-                      {new Date(log.timestamp).toLocaleTimeString()}
-                    </span>
-                    <span>{log.message}</span>
+              <div className="bg-gray-900 rounded-md p-4 max-h-64 overflow-y-auto">
+                {logs.length === 0 ? (
+                  <p className="text-gray-500 text-center">No logs yet. Start by searching for a wallet.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {logs.map((log, index) => (
+                      <div key={index} className={`text-sm p-2 rounded-md ${
+                        log.type === 'error' ? 'bg-red-900/30 text-red-300' :
+                        log.type === 'success' ? 'bg-green-900/30 text-green-300' :
+                        log.type === 'warning' ? 'bg-yellow-900/30 text-yellow-300' :
+                        'bg-gray-700/30 text-gray-300'
+                      }`}>
+                        <span className="text-xs text-gray-500 mr-2">
+                          {new Date(log.timestamp).toLocaleTimeString()}
+                        </span>
+                        <span>{log.message}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                )}
               </div>
-            )}
+            </div>
+          </>
+        )}
+
+        {/* Points Tab Content */}
+        {activeTab === 'points' && (
+          <div className="space-y-6">
+            {/* Points Overview */}
+            <div className="bg-gray-800 rounded-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-blue-300">💰 Points Dashboard</h2>
+                <div className="text-sm text-gray-400">
+                  Total Users: {pointsData.length}
+                </div>
+              </div>
+
+              {/* Sorting Controls */}
+              <div className="flex items-center gap-4 mb-6">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-300">Sort by:</label>
+                  <select
+                    value={pointsSortBy}
+                    onChange={(e) => setPointsSortBy(e.target.value)}
+                    className="px-3 py-1 bg-gray-700 border border-gray-600 rounded-md text-white text-sm"
+                  >
+                    <option value="lexieId">LexieID</option>
+                    <option value="points">Points</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-300">Order:</label>
+                  <select
+                    value={pointsSortOrder}
+                    onChange={(e) => setPointsSortOrder(e.target.value)}
+                    className="px-3 py-1 bg-gray-700 border border-gray-600 rounded-md text-white text-sm"
+                  >
+                    <option value="asc">A-Z / Low-High</option>
+                    <option value="desc">Z-A / High-Low</option>
+                  </select>
+                </div>
+
+                <button
+                  onClick={exportPointsToCSV}
+                  disabled={isLoadingPoints || !pointsData.length}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm font-medium rounded-md transition-colors flex items-center gap-2"
+                  title="Export points data to CSV"
+                >
+                  📥 Export CSV
+                </button>
+              </div>
+
+              {/* Loading State */}
+              {isLoadingPoints && (
+                <div className="text-center py-8">
+                  <div className="text-blue-400">Loading points data...</div>
+                </div>
+              )}
+
+              {/* Points Table */}
+              {!isLoadingPoints && pointsData.length > 0 && (
+                <div className="bg-gray-900 rounded-md overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-800">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                            LexieID
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                            Railgun Wallet Address
+                          </th>
+                          <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">
+                            Total Points
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-700">
+                        {getSortedPointsData().map((user, index) => (
+                          <tr key={index} className="hover:bg-gray-800/50">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-300">
+                              {user.lexieId || 'N/A'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-purple-300 break-all">
+                              {user.walletAddress ? `${user.walletAddress.slice(0, 10)}...${user.walletAddress.slice(-8)}` : 'N/A'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-green-300 text-right font-medium">
+                              {user.points?.toLocaleString() || 0}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* No Data Message */}
+              {!isLoadingPoints && pointsData.length === 0 && (
+                <div className="text-center py-8 text-gray-400">
+                  No users with points found
+                </div>
+              )}
+            </div>
+
+            {/* Activity Logs for Points Tab */}
+            <div className="bg-gray-800 rounded-lg p-6">
+              <h2 className="text-xl font-semibold mb-4 text-blue-300">Activity Logs</h2>
+
+              <div className="bg-gray-900 rounded-md p-4 max-h-64 overflow-y-auto">
+                {logs.length === 0 ? (
+                  <p className="text-gray-500 text-center">No logs yet. Points data will be logged here.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {logs.map((log, index) => (
+                      <div key={index} className={`text-sm p-2 rounded-md ${
+                        log.type === 'error' ? 'bg-red-900/30 text-red-300' :
+                        log.type === 'success' ? 'bg-green-900/30 text-green-300' :
+                        log.type === 'warning' ? 'bg-yellow-900/30 text-yellow-300' :
+                        'bg-gray-700/30 text-gray-300'
+                      }`}>
+                        <span className="text-xs text-gray-500 mr-2">
+                          {new Date(log.timestamp).toLocaleTimeString()}
+                        </span>
+                        <span>{log.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
