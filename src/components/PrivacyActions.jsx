@@ -701,9 +701,19 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               if (pointsResponse.ok) {
                 const pointsData = await pointsResponse.json();
                 if (pointsData?.success) {
-                  console.log('[PrivacyActions] ✅ Points awarded via fallback:', pointsData);
-                  // Refresh points display
-                  window.dispatchEvent(new CustomEvent('points-updated'));
+                  console.log('[PrivacyActions] ✅ Points awarded via fallback (10x multiplier):', {
+                    awarded: pointsData.awarded,
+                    balance: pointsData.balance,
+                    multiplier: pointsData.multiplier,
+                    pointsMultiplier: pointsData.pointsMultiplier,
+                    basePointsBefore: pointsData.basePointsBeforeMultiplier,
+                    basePointsAfter: pointsData.basePointsAfterMultiplier,
+                    dayCount: pointsData.dayCount
+                  });
+                  // Refresh points display with small delay to ensure backend processing is complete
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('points-updated'));
+                  }, 500);
                 }
               } else {
                 console.warn('[PrivacyActions] Points award failed:', await pointsResponse.text());
@@ -964,9 +974,19 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               if (pointsResponse.ok) {
                 const pointsData = await pointsResponse.json();
                 if (pointsData?.success) {
-                  console.log('[PrivacyActions] ✅ Points awarded for unshield via fallback:', pointsData);
-                  // Refresh points display
-                  window.dispatchEvent(new CustomEvent('points-updated'));
+                  console.log('[PrivacyActions] ✅ Points awarded for unshield via fallback (10x multiplier):', {
+                    awarded: pointsData.awarded,
+                    balance: pointsData.balance,
+                    multiplier: pointsData.multiplier,
+                    pointsMultiplier: pointsData.pointsMultiplier,
+                    basePointsBefore: pointsData.basePointsBeforeMultiplier,
+                    basePointsAfter: pointsData.basePointsAfterMultiplier,
+                    dayCount: pointsData.dayCount
+                  });
+                  // Refresh points display with small delay to ensure backend processing is complete
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('points-updated'));
+                  }, 500);
                 }
               } else {
                 console.warn('[PrivacyActions] Unshield points award failed:', await pointsResponse.text());
@@ -1248,9 +1268,19 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               if (pointsResponse.ok) {
                 const pointsData = await pointsResponse.json();
                 if (pointsData?.success) {
-                  console.log('[PrivacyActions] ✅ Points awarded for transfer via fallback:', pointsData);
-                  // Refresh points display
-                  window.dispatchEvent(new CustomEvent('points-updated'));
+                  console.log('[PrivacyActions] ✅ Points awarded for transfer via fallback (10x multiplier):', {
+                    awarded: pointsData.awarded,
+                    balance: pointsData.balance,
+                    multiplier: pointsData.multiplier,
+                    pointsMultiplier: pointsData.pointsMultiplier,
+                    basePointsBefore: pointsData.basePointsBeforeMultiplier,
+                    basePointsAfter: pointsData.basePointsAfterMultiplier,
+                    dayCount: pointsData.dayCount
+                  });
+                  // Refresh points display with small delay to ensure backend processing is complete
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('points-updated'));
+                  }, 500);
                 }
               } else {
                 console.warn('[PrivacyActions] Transfer points award failed:', await pointsResponse.text());
