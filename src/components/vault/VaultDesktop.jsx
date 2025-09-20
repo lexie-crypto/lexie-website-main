@@ -582,9 +582,22 @@ const VaultDesktopInner = () => {
                 clearTimeout(pointsUpdateTimeoutRef.current);
               }
               pointsUpdateTimeoutRef.current = setTimeout(() => {
+                console.log('[VaultDesktop] ⏰ Points update timeout completed, resetting isUpdatingPoints');
                 setIsUpdatingPoints(false);
                 pointsUpdateTimeoutRef.current = null;
               }, 500);
+
+              // Fallback: if timeout doesn't fire for some reason, reset after 3 seconds
+              setTimeout(() => {
+                if (isUpdatingPoints) {
+                  console.log('[VaultDesktop] 🚨 Fallback timeout - force resetting isUpdatingPoints');
+                  setIsUpdatingPoints(false);
+                  if (pointsUpdateTimeoutRef.current) {
+                    clearTimeout(pointsUpdateTimeoutRef.current);
+                    pointsUpdateTimeoutRef.current = null;
+                  }
+                }
+              }, 3000);
             } else {
               console.warn('[VaultDesktop] Points balance response not successful:', json);
               setIsUpdatingPoints(false);

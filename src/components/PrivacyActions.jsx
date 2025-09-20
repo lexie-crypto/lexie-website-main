@@ -272,6 +272,16 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
         return newCount;
       });
+
+      // 🎯 TRIGGER POINTS UPDATE: When transaction monitor completes successfully,
+      // check if points were awarded and update the UI
+      if (found && (transactionType === 'shield' || transactionType === 'unshield' || transactionType === 'transfer')) {
+        console.log(`[PrivacyActions] 🎯 Transaction monitor completed successfully for ${transactionType}, triggering points update`);
+        // Dispatch points update event to refresh points balance from Redis
+        setTimeout(() => {
+          window.dispatchEvent(new CustomEvent('points-updated'));
+        }, 500); // Small delay to ensure backend processing is complete
+      }
     };
 
     const handleAbortAllRequests = () => {
