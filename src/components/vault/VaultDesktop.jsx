@@ -89,8 +89,6 @@ const VaultDesktopInner = () => {
   const [showLexieModal, setShowLexieModal] = useState(false);
   const [currentLexieId, setCurrentLexieId] = useState('');
   const [pointsBalance, setPointsBalance] = useState(null);
-  const [isUpdatingPoints, setIsUpdatingPoints] = useState(false);
-  const pointsUpdateTimeoutRef = useRef(null);
   
   // Local state to show a refreshing indicator for Vault Balances
   const [isRefreshingBalances, setIsRefreshingBalances] = useState(false);
@@ -512,9 +510,9 @@ const VaultDesktopInner = () => {
   // Listen for points update events
   useEffect(() => {
     const handlePointsUpdated = async () => {
-      if (currentLexieId && !isUpdatingPoints) {
-        console.log('[VaultDesktop] 🔄 Refreshing points balance after award...');
-        setIsUpdatingPoints(true);
+      if (!currentLexieId) return;
+
+      console.log('[VaultDesktop] 🔄 Refreshing points balance after award...');
 
       try {
         const resp = await fetch(`/api/wallet-metadata?action=rewards-balance&lexieId=${encodeURIComponent(currentLexieId)}`);
@@ -530,92 +528,59 @@ const VaultDesktopInner = () => {
 
             // Show success toast if points actually increased
             if (previousBalance !== null && newBalance > previousBalance) {
-                try {
-                  // Use the existing toast import at the top of the file
-                  toast.custom((t) => (
+              try {
+                toast.custom((t) => (
+                  React.createElement(
+                    'div',
+                    {
+                      className: `font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`,
+                      style: { zIndex: 9999 }
+                    },
                     React.createElement(
                       'div',
-                      {
-                        className: `font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`,
-                        style: { zIndex: 9999 }
-                      },
+                      { className: 'rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl' },
                       React.createElement(
                         'div',
-                        { className: 'rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl' },
-                        React.createElement(
-                          'div',
-                          { className: 'px-4 py-3 flex items-center gap-3' },
-                          [
-                            React.createElement('div', { key: 'dot', className: 'h-3 w-3 rounded-full bg-emerald-400' }),
-                            React.createElement(
-                              'div',
-                              { key: 'text' },
-                              `Points updated! You now have ${newBalance} points`
-                            ),
-                            React.createElement(
-                              'button',
-                              {
-                                key: 'close',
-                                type: 'button',
-                                'aria-label': 'Dismiss',
-                                onClick: (e) => {
-                                  e.preventDefault();
-                                  e.stopPropagation();
-                                  toast.dismiss(t.id);
-                                },
-                                className: 'ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer'
+                        { className: 'px-4 py-3 flex items-center gap-3' },
+                        [
+                          React.createElement('div', { key: 'dot', className: 'h-3 w-3 rounded-full bg-emerald-400' }),
+                          React.createElement(
+                            'div',
+                            { key: 'text' },
+                            `Points updated! You now have ${newBalance} points`
+                          ),
+                          React.createElement(
+                            'button',
+                            {
+                              key: 'close',
+                              type: 'button',
+                              'aria-label': 'Dismiss',
+                              onClick: (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                toast.dismiss(t.id);
                               },
-                              '×'
-                            )
-                          ]
-                        )
+                              className: 'ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer'
+                            },
+                            '×'
+                          )
+                        ]
                       )
                     )
-                  ), { duration: 3000 });
-                } catch (toastError) {
-                  console.warn('[VaultDesktop] Could not show points update toast:', toastError);
-                }
+                  )
+                ), { duration: 3000 });
+              } catch (toastError) {
+                console.warn('[VaultDesktop] Could not show points update toast:', toastError);
               }
-
-              // Add a small visual feedback delay to show the update
-              if (pointsUpdateTimeoutRef.current) {
-                clearTimeout(pointsUpdateTimeoutRef.current);
-              }
-              pointsUpdateTimeoutRef.current = setTimeout(() => {
-                console.log('[VaultDesktop] ⏰ Points update timeout completed, resetting isUpdatingPoints');
-                setIsUpdatingPoints(false);
-                pointsUpdateTimeoutRef.current = null;
-              }, 500);
-
-              // Fallback: if timeout doesn't fire for some reason, reset after 3 seconds
-              setTimeout(() => {
-                if (isUpdatingPoints) {
-                  console.log('[VaultDesktop] 🚨 Fallback timeout - force resetting isUpdatingPoints');
-                  setIsUpdatingPoints(false);
-                  if (pointsUpdateTimeoutRef.current) {
-                    clearTimeout(pointsUpdateTimeoutRef.current);
-                    pointsUpdateTimeoutRef.current = null;
-                  }
-                }
-              }, 3000);
-            } else {
-              console.warn('[VaultDesktop] Points balance response not successful:', json);
-              setIsUpdatingPoints(false);
             }
           } else {
-            console.warn('[VaultDesktop] Points balance fetch failed:', resp.status);
-            setIsUpdatingPoints(false);
+            console.warn('[VaultDesktop] Points balance response not successful:', json);
           }
-        } catch (error) {
-          console.error('[VaultDesktop] Error fetching points balance:', error);
-          setIsUpdatingPoints(false);
-        } finally {
-          // Clean up timeout if it exists
-          if (pointsUpdateTimeoutRef.current) {
-            clearTimeout(pointsUpdateTimeoutRef.current);
-            pointsUpdateTimeoutRef.current = null;
-          }
+        } else {
+          console.warn('[VaultDesktop] Points balance fetch failed:', resp.status);
         }
+      } catch (error) {
+        console.error('[VaultDesktop] Error fetching points balance:', error);
       }
     };
 
@@ -629,18 +594,8 @@ const VaultDesktopInner = () => {
         window.removeEventListener('points-updated', handlePointsUpdated);
         console.log('[VaultDesktop] 🔇 Points update event listener removed');
       }
-      // Clean up any pending timeout
-      if (pointsUpdateTimeoutRef.current) {
-        clearTimeout(pointsUpdateTimeoutRef.current);
-        pointsUpdateTimeoutRef.current = null;
-      }
-      // Reset updating state if component unmounts during update
-      if (isUpdatingPoints) {
-        console.log('[VaultDesktop] 🧹 Component cleanup: resetting isUpdatingPoints');
-        setIsUpdatingPoints(false);
-      }
     };
-  }, [currentLexieId, isUpdatingPoints]);
+  }, [currentLexieId]);
 
   // Listen for signature request and init lifecycle events (like old WalletPage)
   useEffect(() => {
@@ -1188,14 +1143,7 @@ const VaultDesktopInner = () => {
                       />
                       <span className="ml-2 text-purple-300" title="Points = $ value × streak. Min $5. Streak resets if you skip a day.">
                         <span className="text-purple-300/60">•</span> points{' '}
-                        {isUpdatingPoints ? (
-                          <span className="inline-flex items-center">
-                            <div className="h-3 w-3 rounded-full border-2 border-purple-400 border-t-transparent animate-spin mr-1" />
-                            updating...
-                          </span>
-                        ) : (
-                          pointsBalance !== null && pointsBalance !== undefined ? pointsBalance : '0.00'
-                        )}
+                        {pointsBalance !== null && pointsBalance !== undefined ? pointsBalance : '0.00'}
                       </span>
                     </div>
                   ) : (
