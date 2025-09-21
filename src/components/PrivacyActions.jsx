@@ -40,6 +40,8 @@ import {
   getCurrentWallet,
 } from '../utils/railgun/wallet';
 import { getTokenAddress, areTokensEqual } from '../utils/tokens';
+import { estimateGasWithBroadcasterFee, calculateTransactionCost } from '../utils/railgun/tx-gas-broadcaster-fee-estimator';
+import { TXIDVersion, TransactionType, EVMGasType } from '@railgun-community/wallet';
 
 const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false }) => {
   const {
@@ -375,6 +377,120 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     }
   }, [amount, selectedToken]);
 
+  // State to hold gas fee estimation result
+  const [gasFeeData, setGasFeeData] = useState(null);
+
+  // Effect to run gas estimation when dependencies change
+  useEffect(() => {
+    if (activeTab === 'shield' || !amount || !selectedToken || !isValidAmount || !address || !railgunWalletId || !chainId) {
+      setGasFeeData(null);
+      return;
+    }
+
+    const runGasEstimation = async () => {
+      try {
+        const numAmount = parseFloat(amount);
+        const amountInUnits = parseTokenAmount(amount, selectedToken.decimals);
+        const tokenAddr = getTokenAddress(selectedToken);
+
+        if (!tokenAddr) {
+          setGasFeeData(null);
+          return;
+        }
+
+        // Determine transaction type
+        const transactionType = activeTab === 'transfer' ? TransactionType.TRANSFER : TransactionType.UNSHIELD;
+
+        // Get network name
+        const networkName = getCurrentNetwork()?.name?.toLowerCase();
+        if (!networkName) {
+          setGasFeeData(null);
+          return;
+        }
+
+        // Get encryption key
+        const key = await getEncryptionKey();
+
+        // Configure gas estimation based on transaction type
+        let gasEstimateFunction;
+        let gasEstimateParams;
+
+        if (transactionType === TransactionType.UNSHIELD) {
+          gasEstimateFunction = async (...params) => {
+            return await import('@railgun-community/wallet').then(wallet =>
+              wallet.gasEstimateForUnprovenUnshield(...params)
+            );
+          };
+          gasEstimateParams = [
+            TXIDVersion.V2_PoseidonMerkle,
+            networkName,
+            railgunWalletId,
+            key,
+            [{
+              tokenAddress: tokenAddr,
+              amount: amountInUnits,
+            }],
+            address,
+            false, // isBaseTokenUnshield
+          ];
+        } else if (transactionType === TransactionType.TRANSFER) {
+          gasEstimateFunction = async (...params) => {
+            return await import('@railgun-community/wallet').then(wallet =>
+              wallet.gasEstimateForUnprovenTransfer(...params)
+            );
+          };
+          gasEstimateParams = [
+            TXIDVersion.V2_PoseidonMerkle,
+            networkName,
+            railgunWalletId,
+            key,
+            [], // erc20AmountRecipients - we'll fill this
+            [], // nftAmountRecipients
+          ];
+
+          // For transfer, add the recipient info
+          if (recipientAddress) {
+            gasEstimateParams[4] = [{
+              tokenAddress: tokenAddr,
+              amount: amountInUnits,
+              recipientAddress: recipientAddress,
+            }];
+          }
+        }
+
+        // Estimate gas
+        const gasResult = await estimateGasWithBroadcasterFee(
+          networkName,
+          gasEstimateFunction,
+          gasEstimateParams,
+          null, // selectedBroadcaster
+          transactionType
+        );
+
+        if (gasResult?.gasDetails) {
+          const gasCostWei = calculateTransactionCost(gasResult.gasDetails);
+
+          // Convert wei to ETH, then to USD (rough estimate: 1 ETH = $3000)
+          const ethPrice = 3000; // This could be made dynamic
+          const gasCostEth = Number(gasCostWei) / 1e18;
+          const gasCostUSD = gasCostEth * ethPrice;
+
+          setGasFeeData({
+            gasCostUSD: gasCostUSD.toFixed(2),
+            gasCostEth: gasCostEth.toFixed(6)
+          });
+        } else {
+          setGasFeeData(null);
+        }
+      } catch (error) {
+        console.warn('[PrivacyActions] Gas estimation failed:', error.message);
+        setGasFeeData(null);
+      }
+    };
+
+    runGasEstimation();
+  }, [amount, selectedToken, isValidAmount, activeTab, address, railgunWalletId, chainId, recipientAddress, getCurrentNetwork]);
+
   // Calculate fees and totals
   const feeInfo = useMemo(() => {
     if (!amount || !selectedToken || !isValidAmount) {
@@ -395,18 +511,25 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     const feeRate = activeTab === 'shield' ? 0.0025 : 0.0075; // 0.25% = 0.0025, 0.75% = 0.0075
     const feeUSD = amountUSD * feeRate;
 
-    // Total received/sent = amount - fee
-    const netAmount = numAmount - (feeUSD / usdValue * numAmount);
-    const netAmountUSD = amountUSD - feeUSD;
+    // Gas fees for unshield and transfer operations
+    const gasFeeUSD = gasFeeData ? parseFloat(gasFeeData.gasCostUSD) : 0;
+
+    // Total fees = service fee + gas fee
+    const totalFeesUSD = feeUSD + gasFeeUSD;
+
+    // Total received/sent = amount - total fees
+    const netAmount = numAmount - (totalFeesUSD / usdValue * numAmount);
+    const netAmountUSD = amountUSD - totalFeesUSD;
 
     return {
       amountUSD: amountUSD.toFixed(2),
       feeUSD: feeUSD.toFixed(2),
+      gasFeeUSD: gasFeeData ? gasFeeData.gasCostUSD : null,
       feePercent: (feeRate * 100).toFixed(2),
       netAmount: netAmount.toFixed(6),
       netAmountUSD: netAmountUSD.toFixed(2)
     };
-  }, [amount, selectedToken, isValidAmount, activeTab]);
+  }, [amount, selectedToken, isValidAmount, activeTab, gasFeeData]);
 
   // Detect recipient address type for smart handling
   const recipientType = useMemo(() => {
@@ -1756,6 +1879,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                     <span className="text-green-400/80">Fees:</span>
                     <span className="text-green-200">${feeInfo.feeUSD} ({feeInfo.feePercent}%)</span>
                   </div>
+                  {feeInfo.gasFeeUSD && activeTab !== 'shield' && (
+                    <div className="flex justify-between">
+                      <span className="text-green-400/80">Gas Fees:</span>
+                      <span className="text-green-200">${feeInfo.gasFeeUSD}</span>
+                    </div>
+                  )}
                   <div className="flex justify-between font-medium">
                     <span className="text-green-300">
                       Total {activeTab === 'shield' ? 'Added' : activeTab === 'unshield' ? 'Received' : 'Sent'}:
