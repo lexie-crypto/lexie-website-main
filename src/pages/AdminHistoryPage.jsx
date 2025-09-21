@@ -93,6 +93,13 @@ const AdminDashboard = () => {
   const [pointsSortBy, setPointsSortBy] = useState('lexieId'); // 'lexieId' or 'points'
   const [pointsSortOrder, setPointsSortOrder] = useState('asc'); // 'asc' or 'desc'
 
+  // Analytics tab state
+  const [analyticsData, setAnalyticsData] = useState(null);
+  const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
+  const [analyticsPeriod, setAnalyticsPeriod] = useState('all'); // 'all', '24h', '7d', '30d', '90d', 'custom'
+  const [analyticsStartDate, setAnalyticsStartDate] = useState('');
+  const [analyticsEndDate, setAnalyticsEndDate] = useState('');
+
   // Add log entry - memoized to prevent infinite re-renders
   const addLog = useCallback((message, type = 'info') => {
     const timestamp = new Date().toISOString();
@@ -220,12 +227,70 @@ const AdminDashboard = () => {
     }
   };
 
+  // Load analytics data
+  const loadAnalyticsData = async () => {
+    setIsLoadingAnalytics(true);
+    addLog('📊 Loading analytics data...', 'info');
+
+    try {
+      const analyticsParams = new URLSearchParams({
+        action: 'get-analytics'
+      });
+
+      // Add time filters if selected
+      if (analyticsPeriod !== 'all') {
+        if (analyticsPeriod === 'custom') {
+          if (analyticsStartDate) analyticsParams.append('startDate', analyticsStartDate);
+          if (analyticsEndDate) analyticsParams.append('endDate', analyticsEndDate);
+        } else {
+          analyticsParams.append('period', analyticsPeriod);
+        }
+      }
+
+      const analyticsResponse = await fetch(`/api/wallet-metadata?${analyticsParams}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Origin': window.location.origin,
+          'User-Agent': navigator.userAgent
+        }
+      });
+
+      if (!analyticsResponse.ok) {
+        throw new Error(`Analytics data fetch failed: ${analyticsResponse.status}`);
+      }
+
+      const analyticsResult = await analyticsResponse.json();
+
+      if (analyticsResult.success) {
+        setAnalyticsData(analyticsResult.analytics);
+        const periodText = analyticsPeriod === 'all' ? 'all time' : analyticsPeriod;
+        addLog(`✅ Analytics data loaded successfully (${periodText})`, 'success');
+      } else {
+        addLog(`❌ Failed to load analytics data: ${analyticsResult.error || 'Unknown error'}`, 'error');
+      }
+
+    } catch (error) {
+      addLog(`❌ Analytics data loading failed: ${error.message}`, 'error');
+      console.error('Analytics data loading error:', error);
+    } finally {
+      setIsLoadingAnalytics(false);
+    }
+  };
+
   // Load points data when Points tab is selected
   useEffect(() => {
     if (activeTab === 'points' && pointsData.length === 0 && !isLoadingPoints) {
       loadPointsData();
     }
   }, [activeTab, pointsData.length, isLoadingPoints]);
+
+  // Load analytics data when Analytics tab is selected
+  useEffect(() => {
+    if (activeTab === 'analytics' && !analyticsData && !isLoadingAnalytics) {
+      loadAnalyticsData();
+    }
+  }, [activeTab, analyticsData, isLoadingAnalytics]);
 
   // Password authentication UI
   if (!isAuthenticated) {
@@ -729,6 +794,16 @@ ${JSON.stringify(tx, null, 2)}
               >
                 💰 Points
               </button>
+              <button
+                onClick={() => setActiveTab('analytics')}
+                className={`flex-1 px-6 py-3 rounded-md font-medium transition-colors ${
+                  activeTab === 'analytics'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                }`}
+              >
+                📊 Analytics
+              </button>
             </div>
           </div>
         </div>
@@ -1156,6 +1231,251 @@ ${JSON.stringify(tx, null, 2)}
               <div className="bg-gray-900 rounded-md p-4 max-h-64 overflow-y-auto">
                 {logs.length === 0 ? (
                   <p className="text-gray-500 text-center">No logs yet. Points data will be logged here.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {logs.map((log, index) => (
+                      <div key={index} className={`text-sm p-2 rounded-md ${
+                        log.type === 'error' ? 'bg-red-900/30 text-red-300' :
+                        log.type === 'success' ? 'bg-green-900/30 text-green-300' :
+                        log.type === 'warning' ? 'bg-yellow-900/30 text-yellow-300' :
+                        'bg-gray-700/30 text-gray-300'
+                      }`}>
+                        <span className="text-xs text-gray-500 mr-2">
+                          {new Date(log.timestamp).toLocaleTimeString()}
+                        </span>
+                        <span>{log.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Analytics Tab Content */}
+        {activeTab === 'analytics' && (
+          <div className="space-y-6">
+            {/* Analytics Overview */}
+            <div className="bg-gray-800 rounded-lg p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold text-blue-300">📊 Platform Analytics</h2>
+                <button
+                  onClick={loadAnalyticsData}
+                  disabled={isLoadingAnalytics}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm font-medium rounded-md transition-colors flex items-center gap-2"
+                  title="Refresh analytics data"
+                >
+                  🔄 {isLoadingAnalytics ? 'Loading...' : 'Refresh'}
+                </button>
+              </div>
+
+              {/* Time Filters */}
+              <div className="mb-6 p-4 bg-gray-900 rounded-lg">
+                <h3 className="text-sm font-medium text-gray-300 mb-3">Time Filters</h3>
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-400">Period:</label>
+                    <select
+                      value={analyticsPeriod}
+                      onChange={(e) => setAnalyticsPeriod(e.target.value)}
+                      className="px-3 py-1 bg-gray-700 border border-gray-600 rounded-md text-white text-sm"
+                    >
+                      <option value="all">All Time</option>
+                      <option value="24h">Last 24 Hours</option>
+                      <option value="7d">Last 7 Days</option>
+                      <option value="30d">Last 30 Days</option>
+                      <option value="90d">Last 90 Days</option>
+                      <option value="custom">Custom Range</option>
+                    </select>
+                  </div>
+
+                  {analyticsPeriod === 'custom' && (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-400">Start:</label>
+                        <input
+                          type="date"
+                          value={analyticsStartDate}
+                          onChange={(e) => setAnalyticsStartDate(e.target.value)}
+                          className="px-3 py-1 bg-gray-700 border border-gray-600 rounded-md text-white text-sm"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <label className="text-sm text-gray-400">End:</label>
+                        <input
+                          type="date"
+                          value={analyticsEndDate}
+                          onChange={(e) => setAnalyticsEndDate(e.target.value)}
+                          className="px-3 py-1 bg-gray-700 border border-gray-600 rounded-md text-white text-sm"
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  <button
+                    onClick={loadAnalyticsData}
+                    disabled={isLoadingAnalytics}
+                    className="px-3 py-1 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm font-medium rounded-md transition-colors"
+                  >
+                    Apply Filter
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  {analyticsPeriod === 'all' && 'Showing data for all time'}
+                  {analyticsPeriod === '24h' && 'Showing data from the last 24 hours'}
+                  {analyticsPeriod === '7d' && 'Showing data from the last 7 days'}
+                  {analyticsPeriod === '30d' && 'Showing data from the last 30 days'}
+                  {analyticsPeriod === '90d' && 'Showing data from the last 90 days'}
+                  {analyticsPeriod === 'custom' && `Showing data from ${analyticsStartDate || 'start'} to ${analyticsEndDate || 'end'}`}
+                </p>
+              </div>
+
+              {/* Loading State */}
+              {isLoadingAnalytics && (
+                <div className="text-center py-8">
+                  <div className="text-blue-400">Loading analytics data...</div>
+                </div>
+              )}
+
+              {/* Analytics Data */}
+              {!isLoadingAnalytics && analyticsData && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* Wallet Statistics */}
+                  <div className="bg-gray-900 rounded-lg p-4">
+                    <h3 className="text-lg font-medium text-blue-300 mb-4">🏦 Wallet Statistics</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Total Railgun Wallets:</span>
+                        <span className="text-blue-300 font-medium">{analyticsData.totalRailgunWallets?.toLocaleString() || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Total EOA Wallets:</span>
+                        <span className="text-green-300 font-medium">{analyticsData.totalEOAWallets?.toLocaleString() || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Wallets with Balances:</span>
+                        <span className="text-purple-300 font-medium">{analyticsData.walletsWithBalances?.toLocaleString() || 'N/A'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Transaction Statistics */}
+                  <div className="bg-gray-900 rounded-lg p-4">
+                    <h3 className="text-lg font-medium text-blue-300 mb-4">💸 Transaction Statistics</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Total Transactions:</span>
+                        <span className="text-green-300 font-medium">{analyticsData.totalTransactions?.toLocaleString() || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Shield Transactions:</span>
+                        <span className="text-blue-300 font-medium">{analyticsData.shieldTransactions?.toLocaleString() || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Unshield Transactions:</span>
+                        <span className="text-red-300 font-medium">{analyticsData.unshieldTransactions?.toLocaleString() || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Transfer Transactions:</span>
+                        <span className="text-purple-300 font-medium">{analyticsData.transferTransactions?.toLocaleString() || 'N/A'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Volume Statistics */}
+                  <div className="bg-gray-900 rounded-lg p-4">
+                    <h3 className="text-lg font-medium text-blue-300 mb-4">💰 Volume Statistics</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Total Shielded Volume:</span>
+                        <span className="text-green-300 font-medium">{analyticsData.totalShieldedVolume ? `$${analyticsData.totalShieldedVolume.toLocaleString()}` : 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Total Unshielded Volume:</span>
+                        <span className="text-red-300 font-medium">{analyticsData.totalUnshieldedVolume ? `$${analyticsData.totalUnshieldedVolume.toLocaleString()}` : 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Average Transaction:</span>
+                        <span className="text-blue-300 font-medium">{analyticsData.averageTransactionValue ? `$${analyticsData.averageTransactionValue.toLocaleString()}` : 'N/A'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* User Statistics */}
+                  <div className="bg-gray-900 rounded-lg p-4">
+                    <h3 className="text-lg font-medium text-blue-300 mb-4">👥 User Statistics</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Total Lexie IDs:</span>
+                        <span className="text-green-300 font-medium">{analyticsData.totalLexieIds?.toLocaleString() || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Users with Points:</span>
+                        <span className="text-blue-300 font-medium">{analyticsData.usersWithPoints?.toLocaleString() || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Total Points Awarded:</span>
+                        <span className="text-purple-300 font-medium">{analyticsData.totalPointsAwarded?.toLocaleString() || 'N/A'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Activity Statistics */}
+                  <div className="bg-gray-900 rounded-lg p-4">
+                    <h3 className="text-lg font-medium text-blue-300 mb-4">📈 Activity Statistics</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Active Wallets (30d):</span>
+                        <span className="text-green-300 font-medium">{analyticsData.activeWallets30d?.toLocaleString() || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Transactions (24h):</span>
+                        <span className="text-blue-300 font-medium">{analyticsData.transactions24h?.toLocaleString() || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Volume (24h):</span>
+                        <span className="text-purple-300 font-medium">{analyticsData.volume24h ? `$${analyticsData.volume24h.toLocaleString()}` : 'N/A'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Token Statistics */}
+                  <div className="bg-gray-900 rounded-lg p-4">
+                    <h3 className="text-lg font-medium text-blue-300 mb-4">🪙 Token Statistics</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Unique Tokens:</span>
+                        <span className="text-green-300 font-medium">{analyticsData.uniqueTokens?.toLocaleString() || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Most Used Token:</span>
+                        <span className="text-blue-300 font-medium text-sm">{analyticsData.mostUsedToken || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Total Nullifiers:</span>
+                        <span className="text-red-300 font-medium">{analyticsData.totalNullifiers?.toLocaleString() || 'N/A'}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* No Data Message */}
+              {!isLoadingAnalytics && !analyticsData && (
+                <div className="text-center py-8 text-gray-400">
+                  No analytics data available. Click refresh to load data.
+                </div>
+              )}
+            </div>
+
+            {/* Activity Logs for Analytics Tab */}
+            <div className="bg-gray-800 rounded-lg p-6">
+              <h2 className="text-xl font-semibold mb-4 text-blue-300">Activity Logs</h2>
+
+              <div className="bg-gray-900 rounded-md p-4 max-h-64 overflow-y-auto">
+                {logs.length === 0 ? (
+                  <p className="text-gray-500 text-center">No logs yet. Analytics activity will be logged here.</p>
                 ) : (
                   <div className="space-y-2">
                     {logs.map((log, index) => (

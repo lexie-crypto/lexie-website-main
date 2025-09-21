@@ -607,6 +607,64 @@ export default async function handler(req, res) {
     // Forward the backend response
     res.status(backendResponse.status).json(result);
 
+  // Handle analytics endpoint
+  if (action === 'get-analytics') {
+    console.log(`✅ [ANALYTICS-PROXY-${requestId}] Analytics endpoint detected`);
+
+    // Build query string from analytics parameters
+    const { period, startDate, endDate } = req.query;
+    const analyticsQueryParams = new URLSearchParams();
+
+    if (period && typeof period === 'string') {
+      analyticsQueryParams.append('period', period);
+    }
+    if (startDate && typeof startDate === 'string') {
+      analyticsQueryParams.append('startDate', startDate);
+    }
+    if (endDate && typeof endDate === 'string') {
+      analyticsQueryParams.append('endDate', endDate);
+    }
+
+    const queryString = analyticsQueryParams.toString();
+    backendPath = queryString ? `/api/get-analytics?${queryString}` : '/api/get-analytics';
+    backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+
+    const signature = generateHmacSignature('GET', backendPath, timestamp, hmacSecret);
+
+    headers = {
+      'Accept': 'application/json',
+      'X-Lexie-Timestamp': timestamp,
+      'X-Lexie-Signature': signature,
+      'Origin': 'https://staging.lexiecrypto.com',
+      'User-Agent': 'Lexie-Analytics-Proxy/1.0',
+    };
+
+    console.log(`🔐 [ANALYTICS-PROXY-${requestId}] Generated HMAC headers`, {
+      method: 'GET',
+      timestamp,
+      signature: headers['X-Lexie-Signature'].substring(0, 20) + '...',
+      path: backendPath
+    });
+
+    console.log(`📡 [ANALYTICS-PROXY-${requestId}] Forwarding to backend: ${backendUrl}`);
+
+    // Make the backend request
+    const fetchOptions = {
+      method: 'GET',
+      headers,
+      signal: AbortSignal.timeout(30000),
+    };
+
+    const backendResponse = await fetch(backendUrl, fetchOptions);
+    const result = await backendResponse.json();
+
+    console.log(`✅ [ANALYTICS-PROXY-${requestId}] Backend responded with status ${backendResponse.status}`);
+
+    // Forward the backend response
+    res.status(backendResponse.status).json(result);
+    return; // Exit after handling analytics
+  }
+
   } catch (error) {
     console.error(`❌ [WALLET-METADATA-PROXY-${requestId}] Error:`, {
       method: req.method,
@@ -615,7 +673,7 @@ export default async function handler(req, res) {
       action: req.query.action || 'metadata',
       walletAddress: req.query.walletAddress?.slice(0, 8) + '...' || 'N/A'
     });
-    
+
     if (!res.headersSent) {
       res.status(500).json({
         success: false,
