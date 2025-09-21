@@ -15,6 +15,7 @@ import { shouldSetOverallBatchMinGasPriceForNetwork } from './gasUtils.js';
 import {
   gasEstimateForUnprovenCrossContractCalls,
   gasEstimateForUnprovenUnshield,
+  gasEstimateForUnprovenTransfer,
 } from '@railgun-community/wallet';
 import {
   calculateGasPrice,
