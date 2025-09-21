@@ -554,7 +554,10 @@ export const estimateGasForTransaction = async ({
       gasEstimate = res.gasEstimate;
 
     } else if (transactionType === 'transfer') {
-      // Use transfer gas estimation
+      // Use transfer gas estimation - use dummy RAILGUN address for estimation
+      // (since we're just estimating gas, the actual recipient validation happens later)
+      const dummyRailgunAddress = '0zk1234567890123456789012345678901234567890123456789012345678901234'; // Dummy 0zk address
+
       const res = await gasEstimateForUnprovenTransfer(
         TXIDVersion.V2_PoseidonMerkle,
         networkName,
@@ -564,11 +567,11 @@ export const estimateGasForTransaction = async ({
         [{
           tokenAddress,
           amount,
-          recipientAddress,
+          recipientAddress: dummyRailgunAddress, // Use dummy address for gas estimation
         }],
         [], // nftAmountRecipients
         originalGasDetails,
-        null, // feeTokenDetails not needed for self-signing
+        null, // feeTokenDetails not needed for gas estimation
         sendWithPublicWallet,
       );
       gasEstimate = res.gasEstimate;
