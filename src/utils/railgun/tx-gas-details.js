@@ -606,27 +606,33 @@ export const estimateGasForTransaction = async ({
     const ethPrice = 3000; // Could be made dynamic
     const gasCostUSD = gasCostEth * ethPrice;
 
+    // Add 20% buffer to displayed gas fees for safety
+    const bufferedGasCostUSD = gasCostUSD * 1.2;
+    const bufferedGasCostEth = gasCostEth * 1.2;
+
     console.log(`[GasEstimation] Gas estimation complete for ${transactionType}:`, {
       gasEstimate: gasEstimate.toString(),
       paddedGasEstimate: paddedGasEstimate.toString(),
       gasCostWei: gasCostWei.toString(),
       gasCostEth: gasCostEth.toFixed(6),
-      gasCostUSD: gasCostUSD.toFixed(2)
+      gasCostUSD: gasCostUSD.toFixed(2),
+      bufferedGasCostUSD: bufferedGasCostUSD.toFixed(2),
+      bufferedGasCostEth: bufferedGasCostEth.toFixed(6)
     });
 
     return {
-      gasCostUSD: gasCostUSD.toFixed(2),
-      gasCostEth: gasCostEth.toFixed(6),
+      gasCostUSD: bufferedGasCostUSD.toFixed(2),
+      gasCostEth: bufferedGasCostEth.toFixed(6),
       gasEstimate: paddedGasEstimate.toString(),
       evmGasType,
     };
 
   } catch (error) {
     console.error(`[GasEstimation] Failed to estimate gas for ${transactionType}:`, error);
-    // Return fallback estimates
+    // Return fallback estimates with 20% buffer
     return {
-      gasCostUSD: '5.00', // Conservative fallback
-      gasCostEth: '0.001667',
+      gasCostUSD: '6.00', // Conservative fallback with 20% buffer (5.00 * 1.2)
+      gasCostEth: '0.002000', // Conservative fallback with 20% buffer (0.001667 * 1.2)
       gasEstimate: '2000000',
       evmGasType: EVMGasType.Type2,
       error: error.message
