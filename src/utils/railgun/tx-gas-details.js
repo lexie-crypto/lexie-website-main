@@ -480,6 +480,156 @@ export const computeGasReclamationWei = (gasDetails) => {
   }
 };
 
+/**
+ * Estimate gas costs for unshield/transfer operations using dummy transactions
+ * This can be called from UI components before proof generation to show estimated fees
+ * @param {Object} params - Estimation parameters
+ * @returns {Object} Gas cost estimates in USD and ETH
+ */
+export const estimateGasForTransaction = async ({
+  transactionType, // 'unshield' | 'transfer'
+  chainId,
+  networkName,
+  railgunWalletID,
+  encryptionKey,
+  tokenAddress,
+  amount, // BigInt amount in token units
+  recipientAddress, // For transfer operations
+  walletProvider,
+}) => {
+  try {
+    console.log(`[GasEstimation] Estimating gas for ${transactionType} transaction:`, {
+      chainId,
+      networkName,
+      tokenAddress,
+      amount: amount.toString(),
+      recipientAddress: recipientAddress?.substring(0, 20) + '...'
+    });
+
+    const signer = await walletProvider();
+    const provider = signer.provider;
+
+    // Determine if we're using relayer or self-signing
+    // For UI estimation, we'll assume self-signing (sendWithPublicWallet = false)
+    // since we want to show the worst-case gas costs
+    const sendWithPublicWallet = false;
+
+    const evmGasType = getEVMGasTypeForTransaction(networkName, sendWithPublicWallet);
+    const originalFeeParams = await getTxFeeParams(provider, evmGasType, chainId);
+
+    // Create originalGasDetails for SDK estimate
+    const originalGasDetails =
+      evmGasType === EVMGasType.Type2
+        ? {
+            evmGasType,
+            originalGasEstimate: 0n,
+            maxFeePerGas: originalFeeParams.maxFeePerGas,
+            maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas
+          }
+        : {
+            evmGasType,
+            originalGasEstimate: 0n,
+            gasPrice: originalFeeParams.gasPrice
+          };
+
+    let gasEstimate;
+
+    if (transactionType === 'unshield') {
+      // Use unshield gas estimation
+      const res = await gasEstimateForUnprovenUnshield(
+        TXIDVersion.V2_PoseidonMerkle,
+        networkName,
+        railgunWalletID,
+        encryptionKey,
+        [{
+          tokenAddress,
+          amount,
+          recipientAddress: await walletProvider().getAddress(), // User's EOA address
+        }],
+        [], // nftAmountRecipients
+        originalGasDetails,
+        null, // feeTokenDetails not needed for self-signing
+        sendWithPublicWallet,
+      );
+      gasEstimate = res.gasEstimate;
+
+    } else if (transactionType === 'transfer') {
+      // Use transfer gas estimation
+      const res = await gasEstimateForUnprovenTransfer(
+        TXIDVersion.V2_PoseidonMerkle,
+        networkName,
+        railgunWalletID,
+        encryptionKey,
+        '', // memoText
+        [{
+          tokenAddress,
+          amount,
+          recipientAddress,
+        }],
+        [], // nftAmountRecipients
+        originalGasDetails,
+        null, // feeTokenDetails not needed for self-signing
+        sendWithPublicWallet,
+      );
+      gasEstimate = res.gasEstimate;
+    } else {
+      throw new Error(`Unsupported transaction type: ${transactionType}`);
+    }
+
+    // Pad estimate for headroom (same as buildGasAndEstimate)
+    const paddedGasEstimate = (gasEstimate * 120n) / 100n;
+
+    // Create final gas details
+    const gasDetails =
+      evmGasType === EVMGasType.Type2
+        ? {
+            evmGasType,
+            gasEstimate: paddedGasEstimate,
+            maxFeePerGas: originalFeeParams.maxFeePerGas,
+            maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas,
+          }
+        : {
+            evmGasType,
+            gasEstimate: paddedGasEstimate,
+            gasPrice: originalFeeParams.gasPrice,
+          };
+
+    // Calculate gas cost in wei
+    const gasCostWei = calculateTransactionCost(gasDetails);
+
+    // Convert to ETH and USD
+    const gasCostEth = Number(gasCostWei) / 1e18;
+    const ethPrice = 3000; // Could be made dynamic
+    const gasCostUSD = gasCostEth * ethPrice;
+
+    console.log(`[GasEstimation] Gas estimation complete for ${transactionType}:`, {
+      gasEstimate: gasEstimate.toString(),
+      paddedGasEstimate: paddedGasEstimate.toString(),
+      gasCostWei: gasCostWei.toString(),
+      gasCostEth: gasCostEth.toFixed(6),
+      gasCostUSD: gasCostUSD.toFixed(2)
+    });
+
+    return {
+      gasCostUSD: gasCostUSD.toFixed(2),
+      gasCostEth: gasCostEth.toFixed(6),
+      gasEstimate: paddedGasEstimate.toString(),
+      evmGasType,
+    };
+
+  } catch (error) {
+    console.error(`[GasEstimation] Failed to estimate gas for ${transactionType}:`, error);
+    // Return fallback estimates
+    return {
+      gasCostUSD: '5.00', // Conservative fallback
+      gasCostEth: '0.001667',
+      gasEstimate: '2000000',
+      evmGasType: EVMGasType.Type2,
+      error: error.message
+    };
+  }
+};
+
 export default {
   validateGasDetails,
   createGasDetails,
@@ -492,4 +642,5 @@ export default {
   getTxFeeParams,
   buildGasAndEstimate,
   computeGasReclamationWei,
+  estimateGasForTransaction,
 }; 
