@@ -366,7 +366,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   // Validate amount input
   const isValidAmount = useMemo(() => {
     if (!amount || !selectedToken) return false;
-    
+
     try {
       const numAmount = parseFloat(amount);
       return numAmount > 0 && numAmount <= selectedToken.numericBalance;
@@ -374,6 +374,39 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       return false;
     }
   }, [amount, selectedToken]);
+
+  // Calculate fees and totals
+  const feeInfo = useMemo(() => {
+    if (!amount || !selectedToken || !isValidAmount) {
+      return null;
+    }
+
+    const numAmount = parseFloat(amount);
+    const usdValue = selectedToken.balanceUSD ? (
+      typeof selectedToken.balanceUSD === 'string' && selectedToken.balanceUSD.startsWith('$')
+        ? parseFloat(selectedToken.balanceUSD.substring(1))
+        : parseFloat(selectedToken.balanceUSD)
+    ) : 0;
+
+    // Calculate USD value of the amount being processed
+    const amountUSD = usdValue * (numAmount / selectedToken.numericBalance);
+
+    // Fee rates: 0.25% for shield/add, 0.75% for unshield/remove/send
+    const feeRate = activeTab === 'shield' ? 0.0025 : 0.0075; // 0.25% = 0.0025, 0.75% = 0.0075
+    const feeUSD = amountUSD * feeRate;
+
+    // Total received/sent = amount - fee
+    const netAmount = numAmount - (feeUSD / usdValue * numAmount);
+    const netAmountUSD = amountUSD - feeUSD;
+
+    return {
+      amountUSD: amountUSD.toFixed(2),
+      feeUSD: feeUSD.toFixed(2),
+      feePercent: (feeRate * 100).toFixed(2),
+      netAmount: netAmount.toFixed(6),
+      netAmountUSD: netAmountUSD.toFixed(2)
+    };
+  }, [amount, selectedToken, isValidAmount, activeTab]);
 
   // Detect recipient address type for smart handling
   const recipientType = useMemo(() => {
@@ -1713,6 +1746,26 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               <p className="mt-1 text-sm text-green-400/70">
                 Available: {formatBalance(selectedToken.numericBalance)} {selectedToken.symbol}
               </p>
+            )}
+
+            {/* Fee Display */}
+            {feeInfo && (
+              <div className="mt-3 p-3 bg-black/40 border border-green-500/20 rounded text-xs">
+                <div className="space-y-1">
+                  <div className="flex justify-between">
+                    <span className="text-green-400/80">Fees:</span>
+                    <span className="text-green-200">${feeInfo.feeUSD} ({feeInfo.feePercent}%)</span>
+                  </div>
+                  <div className="flex justify-between font-medium">
+                    <span className="text-green-300">
+                      Total {activeTab === 'shield' ? 'Added' : activeTab === 'unshield' ? 'Received' : 'Sent'}:
+                    </span>
+                    <span className="text-emerald-300">
+                      {feeInfo.netAmount} {selectedToken.symbol} (${feeInfo.netAmountUSD})
+                    </span>
+                  </div>
+                </div>
+              </div>
             )}
           </div>
 
