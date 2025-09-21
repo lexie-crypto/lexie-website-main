@@ -1843,7 +1843,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                   )}
                   <div className="flex justify-between font-medium">
                     <span className="text-green-300">
-                      Est. Total {activeTab === 'shield' ? 'Added' : activeTab === 'unshield' ? 'Received' : 'Sent'}:
+                      {feeInfo.gasFeeUSD && activeTab !== 'shield' ? 'Est. ' : ''}Total {activeTab === 'shield' ? 'Added' : activeTab === 'unshield' ? 'Received' : 'Sent'}:
                     </span>
                     <span className="text-emerald-300">
                       {feeInfo.netAmount} {selectedToken.symbol} (${feeInfo.netAmountUSD})
