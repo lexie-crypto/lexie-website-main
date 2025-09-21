@@ -17,6 +17,7 @@ import {
   gasEstimateForUnprovenUnshield,
   gasEstimateForUnprovenTransfer,
 } from '@railgun-community/wallet';
+import { getRelayerAddress } from './relayer-client';
 import {
   calculateGasPrice,
   TXIDVersion,
@@ -554,9 +555,9 @@ export const estimateGasForTransaction = async ({
       gasEstimate = res.gasEstimate;
 
     } else if (transactionType === 'transfer') {
-      // Use transfer gas estimation - use dummy RAILGUN address for estimation
+      // Use transfer gas estimation - use relayer RAILGUN address for estimation
       // (since we're just estimating gas, the actual recipient validation happens later)
-      const dummyRailgunAddress = '0zk1234567890123456789012345678901234567890123456789012345678901234'; // Dummy 0zk address
+      const relayerAddress = await getRelayerAddress();
 
       const res = await gasEstimateForUnprovenTransfer(
         TXIDVersion.V2_PoseidonMerkle,
@@ -567,7 +568,7 @@ export const estimateGasForTransaction = async ({
         [{
           tokenAddress,
           amount,
-          recipientAddress: dummyRailgunAddress, // Use dummy address for gas estimation
+          recipientAddress: relayerAddress, // Use relayer address for gas estimation
         }],
         [], // nftAmountRecipients
         originalGasDetails,
