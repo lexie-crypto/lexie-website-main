@@ -510,10 +510,9 @@ export const estimateGasForTransaction = async ({
     const signer = await walletProvider();
     const provider = signer.provider;
 
-    // Determine if we're using relayer or self-signing
-    // For UI estimation, we'll assume self-signing (sendWithPublicWallet = false)
-    // since we want to show the worst-case gas costs
-    const sendWithPublicWallet = false;
+    // For gas estimation, we need sendWithPublicWallet = true for self-signing
+    // This is required by RAILGUN SDK for gas estimation
+    const sendWithPublicWallet = true;
 
     const evmGasType = getEVMGasTypeForTransaction(networkName, sendWithPublicWallet);
     const originalFeeParams = await getTxFeeParams(provider, evmGasType, chainId);
