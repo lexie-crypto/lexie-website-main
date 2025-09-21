@@ -1831,13 +1831,19 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                   </div>
                   {feeInfo.gasFeeUSD && activeTab !== 'shield' && (
                     <div className="flex justify-between">
-                      <span className="text-green-400/80">Gas Fees:</span>
+                      <span className="text-green-400/80">Est. Gas Fees:</span>
                       <span className="text-green-200">${feeInfo.gasFeeUSD}</span>
+                    </div>
+                  )}
+                  {feeInfo.gasFeeUSD && activeTab !== 'shield' && (
+                    <div className="flex justify-between">
+                      <span className="text-green-400/80">Est. Total Fees:</span>
+                      <span className="text-green-200">${(parseFloat(feeInfo.feeUSD) + parseFloat(feeInfo.gasFeeUSD)).toFixed(2)}</span>
                     </div>
                   )}
                   <div className="flex justify-between font-medium">
                     <span className="text-green-300">
-                      Total {activeTab === 'shield' ? 'Added' : activeTab === 'unshield' ? 'Received' : 'Sent'}:
+                      Est. Total {activeTab === 'shield' ? 'Added' : activeTab === 'unshield' ? 'Received' : 'Sent'}:
                     </span>
                     <span className="text-emerald-300">
                       {feeInfo.netAmount} {selectedToken.symbol} (${feeInfo.netAmountUSD})
