@@ -41,6 +41,7 @@ import {
 } from '../utils/railgun/wallet';
 import { getTokenAddress, areTokensEqual } from '../utils/tokens';
 import { estimateGasForTransaction } from '../utils/railgun/tx-gas-details';
+import { getRailgunNetworkName } from '../utils/railgun/tx-unshield';
 
 const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false }) => {
   const {
@@ -400,8 +401,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         // Determine transaction type
         const transactionType = activeTab === 'transfer' ? 'transfer' : 'unshield';
 
-        // Get network name
-        const networkName = getCurrentNetwork()?.name?.toLowerCase();
+        // Get network name (using RAILGUN's proper network name)
+        const networkName = getRailgunNetworkName(chainId);
         if (!networkName) {
           setGasFeeData(null);
           return;
@@ -438,7 +439,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     };
 
     runGasEstimation();
-  }, [amount, selectedToken, isValidAmount, activeTab, address, railgunWalletId, chainId, recipientAddress, getCurrentNetwork]);
+  }, [amount, selectedToken, isValidAmount, activeTab, address, railgunWalletId, chainId, recipientAddress]);
 
   // Calculate fees and totals
   const feeInfo = useMemo(() => {

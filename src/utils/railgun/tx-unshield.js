@@ -2472,7 +2472,6 @@ export const privateTransferWithRelayer = async ({
   }
 };
 
-
-
+export { getRailgunNetworkName };
 
 
