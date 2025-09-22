@@ -335,25 +335,9 @@ const formatTransactionHistoryItem = async (historyItem, chainId) => {
 const getTokenSymbol = (tokenAddress, chainId) => {
   if (!tokenAddress) return 'UNKNOWN';
 
-  // Debug logging
-  console.log('[TransactionHistory] getTokenSymbol called:', {
-    tokenAddress,
-    chainId,
-    normalized: tokenAddress?.toLowerCase()
-  });
-
-  // Handle native token (multiple representations)
-  const normalizedTokenAddress = tokenAddress?.toLowerCase();
-  const nativeAddresses = [
-    '0x0000000000000000000000000000000000000000', // Zero address
-    '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee',   // EEE address
-    '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',   // Checksummed EEE
-    '',                                             // Empty string
-  ];
-
-  if (!tokenAddress ||
-      nativeAddresses.includes(tokenAddress) ||
-      nativeAddresses.includes(normalizedTokenAddress)) {
+  // Handle native token (zero address)
+  if (tokenAddress === '0x0000000000000000000000000000000000000000' ||
+      tokenAddress === '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee') {
     const nativeSymbols = { 1: 'ETH', 42161: 'ETH', 137: 'MATIC', 56: 'BNB' };
     return nativeSymbols[chainId] || 'ETH';
   }
@@ -365,7 +349,6 @@ const getTokenSymbol = (tokenAddress, chainId) => {
   const knownTokens = {
     // Ethereum
     1: {
-      '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2': 'WETH',
       '0xdac17f958d2ee523a2206206994597c13d831ec7': 'USDT',
       '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': 'USDC', // This is the address from the user's screenshot
       '0x6b175474e89094c44da98b954eedeac495271d0f': 'DAI',
@@ -376,7 +359,6 @@ const getTokenSymbol = (tokenAddress, chainId) => {
     },
     // Arbitrum
     42161: {
-      '0x82af49447d8a07e3bd95bd0d56f35241523fbab1': 'WETH',
       '0xaf88d065e77c8cc2239327c5edb3a432268e5831': 'USDC',
       '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': 'USDT',
       '0xda10009cbd5d07dd0cecc66161fc93d7c9000da1': 'DAI',
@@ -385,7 +367,6 @@ const getTokenSymbol = (tokenAddress, chainId) => {
     },
     // BNB Chain
     56: {
-      '0x2170ed0880ac9a755fd29b2688956bd959f933f8': 'WETH',
       '0x55d398326f99059ff775485246999027b3197955': 'USDT',
       '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': 'USDC',
       '0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3': 'DAI',
@@ -393,7 +374,6 @@ const getTokenSymbol = (tokenAddress, chainId) => {
     },
     // Polygon
     137: {
-      '0x7ceb23fd6bc0add59e62ac25578270cff1b9f619': 'WETH',
       '0xc2132d05d31c914a87c6611c10748aeb04b58e8f': 'USDT',
       '0x2791bca1f2de4661ed88a30c99a7a9449aa84174': 'USDC',
       '0x8f3cf7ad23cd3cadbd9735aff958023239c6a063': 'DAI',
@@ -425,7 +405,6 @@ const getTokenDecimals = (tokenAddress, chainId) => {
   const knownDecimals = {
     // Ethereum
     1: {
-      '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2': 18, // WETH
       '0xdac17f958d2ee523a2206206994597c13d831ec7': 6,  // USDT
       '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': 6,  // USDC
       '0x6b175474e89094c44da98b954eedeac495271d0f': 18, // DAI
@@ -436,7 +415,6 @@ const getTokenDecimals = (tokenAddress, chainId) => {
     },
     // Arbitrum
     42161: {
-      '0x82af49447d8a07e3bd95bd0d56f35241523fbab1': 18, // WETH
       '0xaf88d065e77c8cc2239327c5edb3a432268e5831': 6,  // USDC
       '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': 6,  // USDT
       '0xda10009cbd5d07dd0cecc66161fc93d7c9000da1': 18, // DAI
@@ -445,7 +423,6 @@ const getTokenDecimals = (tokenAddress, chainId) => {
     },
     // BNB Chain
     56: {
-      '0x2170ed0880ac9a755fd29b2688956bd959f933f8': 18, // WETH
       '0x55d398326f99059ff775485246999027b3197955': 18, // USDT
       '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': 18, // USDC
       '0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3': 18, // DAI
@@ -453,7 +430,6 @@ const getTokenDecimals = (tokenAddress, chainId) => {
     },
     // Polygon
     137: {
-      '0x7ceb23fd6bc0add59e62ac25578270cff1b9f619': 18, // WETH
       '0xc2132d05d31c914a87c6611c10748aeb04b58e8f': 6,  // USDT
       '0x2791bca1f2de4661ed88a30c99a7a9449aa84174': 6,  // USDC
       '0x8f3cf7ad23cd3cadbd9735aff958023239c6a063': 18, // DAI
