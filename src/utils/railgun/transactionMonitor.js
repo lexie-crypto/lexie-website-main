@@ -1344,98 +1344,102 @@ export const monitorTransactionInGraph = async ({
           hasEventDetail: !!eventDetail
         });
 
-        // ✅ SAVE TO REDIS: Now that transaction is confirmed in Graph API - COMMENTED OUT (using immediate save instead)
-        /*
+        // ✅ UPDATE EXISTING REDIS ENTRY: Amend previous save with block # and confirmed status
         try {
-          console.log('[TransactionMonitor] 💾 Saving confirmed transaction to Redis timeline...');
+          console.log('[TransactionMonitor] 🔄 Amending existing transaction with Graph API confirmation...');
 
-          // Convert transaction details to timeline event format
-          let confirmedEventData = null;
+          // Extract block number from Graph events if available
+          let blockNumber = null;
+          if (events && events.length > 0 && events[0].blockNumber) {
+            blockNumber = events[0].blockNumber;
+          }
+
+          // Create updated event data with same traceId to amend existing record
+          let updatedEventData = null;
 
           if (transactionType === 'shield') {
-            confirmedEventData = {
-              traceId: txHash,
+            updatedEventData = {
+              traceId: txHash, // Same traceId to update existing record
               type: 'shield',
               txHash: txHash,
-              status: 'confirmed', // Now confirmed via Graph API
+              status: 'confirmed', // Update status to confirmed
               token: eventDetail?.tokenSymbol || transactionDetails?.tokenSymbol || 'UNKNOWN',
               amount: eventDetail?.amount?.toString() || transactionDetails?.amount?.toString() || '0',
               zkAddr: transactionDetails?.walletAddress || 'unknown',
               nullifiers: [],
               memo: null,
-              timestamp: Math.floor(Date.now() / 1000),
-              blockNumber: null, // Could be extracted from Graph events if needed
+              timestamp: Math.floor(Date.now() / 1000), // Keep original timestamp
+              blockNumber: blockNumber, // Add block number from Graph API
               recipientAddress: null,
               senderAddress: transactionDetails?.walletAddress || null
             };
           } else if (transactionType === 'unshield') {
-            confirmedEventData = {
-              traceId: txHash,
+            updatedEventData = {
+              traceId: txHash, // Same traceId to update existing record
               type: 'unshield',
               txHash: txHash,
-              status: 'confirmed',
+              status: 'confirmed', // Update status to confirmed
               token: eventDetail?.tokenSymbol || transactionDetails?.tokenSymbol || 'UNKNOWN',
               amount: eventDetail?.amount?.toString() || transactionDetails?.amount?.toString() || '0',
               zkAddr: transactionDetails?.walletAddress || 'unknown',
-              nullifiers: events?.map(e => e.nullifier) || [], // Include nullifiers from Graph events
+              nullifiers: events?.map(e => e.nullifier) || [], // Add nullifiers from Graph
               memo: null,
-              timestamp: Math.floor(Date.now() / 1000),
-              blockNumber: null,
+              timestamp: Math.floor(Date.now() / 1000), // Keep original timestamp
+              blockNumber: blockNumber, // Add block number from Graph API
               recipientAddress: eventDetail?.recipientAddress || transactionDetails?.recipientAddress || null,
               senderAddress: transactionDetails?.walletAddress || null
             };
           } else if (transactionType === 'transfer') {
-            confirmedEventData = {
-              traceId: txHash,
+            updatedEventData = {
+              traceId: txHash, // Same traceId to update existing record
               type: 'transfer_send',
               txHash: txHash,
-              status: 'confirmed',
+              status: 'confirmed', // Update status to confirmed
               token: eventDetail?.tokenSymbol || transactionDetails?.tokenSymbol || 'UNKNOWN',
               amount: eventDetail?.amount?.toString() || transactionDetails?.amount?.toString() || '0',
               zkAddr: transactionDetails?.walletAddress || 'unknown',
-              nullifiers: events?.map(e => e.nullifier) || [],
+              nullifiers: events?.map(e => e.nullifier) || [], // Add nullifiers from Graph
               memo: eventDetail?.memoText || transactionDetails?.memoText || null,
-              timestamp: Math.floor(Date.now() / 1000),
-              blockNumber: null,
+              timestamp: Math.floor(Date.now() / 1000), // Keep original timestamp
+              blockNumber: blockNumber, // Add block number from Graph API
               recipientAddress: eventDetail?.recipientAddress || transactionDetails?.recipientAddress || null,
               senderAddress: transactionDetails?.walletAddress || null
             };
           }
 
-          if (confirmedEventData && transactionDetails?.walletId) {
+          if (updatedEventData && transactionDetails?.walletId) {
             const tlBody = {
               walletId: transactionDetails.walletId,
-              event: confirmedEventData
+              event: updatedEventData // Same structure, timeline-append will update by traceId
             };
 
-            console.log('[TransactionMonitor] 📡 Saving confirmed transaction to Redis via proxy:', {
+            console.log('[TransactionMonitor] 📡 Amending existing transaction via proxy:', {
               walletId: transactionDetails.walletId?.slice(0, 10) + '...',
-              type: confirmedEventData.type,
-              txHash: txHash?.slice(0, 10) + '...',
-              status: 'confirmed'
+              traceId: txHash?.slice(0, 10) + '...',
+              status: 'confirmed',
+              blockNumber: blockNumber
             });
 
-            // Save through frontend proxy (adds HMAC automatically)
-            const saveResponse = await fetch('/api/wallet-metadata?action=timeline-append', {
+            // Use existing timeline-append - backend should update existing record by traceId
+            const updateResponse = await fetch('/api/wallet-metadata?action=timeline-append', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(tlBody)
             });
 
-            if (saveResponse.ok) {
-              console.log('[TransactionMonitor] ✅ Successfully saved confirmed transaction to Redis timeline');
+            if (updateResponse.ok) {
+              console.log('[TransactionMonitor] ✅ Successfully amended transaction with Graph confirmation');
             } else {
-              console.warn('[TransactionMonitor] ⚠️ Failed to save confirmed transaction to timeline:', {
-                status: saveResponse.status,
+              console.warn('[TransactionMonitor] ⚠️ Failed to amend transaction:', {
+                status: updateResponse.status,
                 txHash: txHash?.slice(0, 10) + '...'
               });
             }
           }
-        } catch (saveError) {
-          console.warn('[TransactionMonitor] ⚠️ Error saving confirmed transaction to timeline (non-critical):', saveError?.message);
-          // Don't throw - timeline saving is not critical to transaction processing
+        } catch (amendError) {
+          console.warn('[TransactionMonitor] ⚠️ Error amending transaction (non-critical):', amendError?.message);
+          // Don't throw - amending is not critical to transaction processing
         }
-        */
 
         console.log('[TransactionMonitor] 🔍 Checking points award conditions:', {
           transactionType,
