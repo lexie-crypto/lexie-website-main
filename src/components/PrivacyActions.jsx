@@ -431,7 +431,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         if (result && !result.error) {
           setGasFeeData({
             gasCostUSD: result.gasCostUSD,
-            gasCostEth: result.gasCostEth
+            gasCostNative: result.gasCostNative,
+            gasToken: result.gasToken
           });
         } else {
           setGasFeeData(null);
