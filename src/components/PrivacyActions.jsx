@@ -39,7 +39,7 @@ import {
   getCurrentWalletID,
   getCurrentWallet,
 } from '../utils/railgun/wallet';
-import { getTokenAddress, areTokensEqual } from '../utils/tokens';
+import { getTokenAddress, areTokensEqual, isValidTokenForChain } from '../utils/tokens';
 import { estimateGasForTransaction } from '../utils/railgun/tx-gas-details';
 import { getRailgunNetworkName } from '../utils/railgun/tx-unshield';
 
@@ -371,7 +371,15 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
     try {
       const numAmount = parseFloat(amount);
-      return numAmount > 0 && numAmount <= selectedToken.numericBalance;
+      // Must be positive and not exceed balance
+      if (numAmount <= 0 || numAmount > selectedToken.numericBalance) {
+        return false;
+      }
+
+      // Prevent amounts that would leave zero change (causes ZK proof failures)
+      // Always leave at least a tiny amount as change for RAILGUN circuits
+      const minChange = Math.max(1, Math.floor(selectedToken.numericBalance * 0.0001)); // 0.01% minimum change
+      return (selectedToken.numericBalance - numAmount) >= minChange;
     } catch {
       return false;
     }
@@ -379,13 +387,17 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
   // State to hold gas fee estimation result
   const [gasFeeData, setGasFeeData] = useState(null);
+  const [gasEstimationLoading, setGasEstimationLoading] = useState(false);
 
   // Effect to run gas estimation when dependencies change
   useEffect(() => {
     if (activeTab === 'shield' || !amount || !selectedToken || !isValidAmount || !address || !railgunWalletId || !chainId) {
       setGasFeeData(null);
+      setGasEstimationLoading(false);
       return;
     }
+
+    setGasEstimationLoading(true);
 
     const runGasEstimation = async () => {
       try {
@@ -427,7 +439,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         if (result && !result.error) {
           setGasFeeData({
             gasCostUSD: result.gasCostUSD,
-            gasCostEth: result.gasCostEth
+            gasCostNative: result.gasCostNative,
+            gasToken: result.gasToken
           });
         } else {
           setGasFeeData(null);
@@ -435,6 +448,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       } catch (error) {
         console.warn('[PrivacyActions] Gas estimation failed:', error.message);
         setGasFeeData(null);
+      } finally {
+        setGasEstimationLoading(false);
       }
     };
 
@@ -616,15 +631,15 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       // Get wallet signer (not provider to avoid re-wrapping)
       const walletSigner = await walletProvider(); // This now returns a signer
 
-      // Get normalized token address
-      const tokenAddr = getTokenAddress(selectedToken);
-      // Allow null addresses for native tokens (e.g., ETH)
-      const isNativeToken = !tokenAddr && selectedToken.symbol === 'ETH';
-      if (!tokenAddr && !isNativeToken) {
+      // Validate token is valid for this chain (has address or is native token)
+      if (!isValidTokenForChain(selectedToken, chainId)) {
         console.error('[PrivacyActions] Shield failed: Invalid token address', selectedToken);
         toast.error('Selected token is invalid. Please reselect the token.');
         return;
       }
+
+      // Get normalized token address for the shield operation
+      const tokenAddr = getTokenAddress(selectedToken);
 
       // Execute shield operation
       const result = await shieldTokens({
@@ -925,12 +940,15 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     }
 
     // 🚨 CRITICAL: Validate tokenAddress to prevent USDT decimals miscalculation
-    const tokenAddr = getTokenAddress(selectedToken);
-    if (!tokenAddr) {
+    // Validate token is valid for this chain (has address or is native token)
+    if (!isValidTokenForChain(selectedToken, chainId)) {
       console.error('[PrivacyActions] Unshield failed: Invalid token address', selectedToken);
       toast.error('Selected token is invalid. Please reselect the token.');
       return;
     }
+
+    // Get normalized token address for the unshield operation
+    const tokenAddr = getTokenAddress(selectedToken);
 
     setIsProcessing(true);
     setIsTransactionLocked(true); // Lock all transaction actions
@@ -1271,13 +1289,16 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
       const encryptionKey = await getEncryptionKey();
       const amountInUnits = parseTokenAmount(amount, selectedToken.decimals);
-      const tokenAddr = getTokenAddress(selectedToken);
 
-      if (!tokenAddr) {
+      // Validate token is valid for this chain (has address or is native token)
+      if (!isValidTokenForChain(selectedToken, chainId)) {
         console.error('[PrivacyActions] Transfer failed: Invalid token address', selectedToken);
         toast.error('Selected token is invalid. Please reselect the token.');
         return;
       }
+
+      // Get normalized token address for the transfer operation
+      const tokenAddr = getTokenAddress(selectedToken);
 
       const tx = await privateTransfer({
         chainId,
@@ -1801,14 +1822,20 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 placeholder="0.0"
                 step="any"
                 min="0"
-                max={selectedToken?.numericBalance || 0}
+                max={selectedToken ? Math.max(0, selectedToken.numericBalance - Math.max(1, Math.floor(selectedToken.numericBalance * 0.0001))) : 0}
                 className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
                 disabled={!selectedToken}
               />
               {selectedToken && (
                 <button
                   type="button"
-                  onClick={() => setAmount(selectedToken.numericBalance.toString())}
+                  onClick={() => {
+                    // For MAX, leave minimum change required by RAILGUN circuits
+                    // Prevents "SnarkJS failed to fullProveRailgun" error from zero change outputs
+                    const minChange = Math.max(1, Math.floor(selectedToken.numericBalance * 0.0001)); // 0.01%
+                    const maxAmount = selectedToken.numericBalance - minChange;
+                    setAmount(maxAmount.toString());
+                  }}
                   className="absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded hover:bg-green-900/20"
                 >
                   Max
@@ -1829,16 +1856,34 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                     <span className="text-green-400/80">Network Fees:</span>
                     <span className="text-green-200">${feeInfo.feeUSD} ({feeInfo.feePercent}%)</span>
                   </div>
-                  {feeInfo.gasFeeUSD && activeTab !== 'shield' && (
+                  {(gasEstimationLoading || gasFeeData) && activeTab !== 'shield' && (
                     <div className="flex justify-between border-b border-green-500/20 pb-1 mb-1">
                       <span className="text-green-400/80">Est. Gas Fees:</span>
-                      <span className="text-green-200">${feeInfo.gasFeeUSD}</span>
+                      <span className="text-green-200 flex items-center gap-2">
+                        {gasEstimationLoading ? (
+                          <>
+                            <div className="animate-spin rounded-full h-3 w-3 border-b border-green-400"></div>
+                            Calculating...
+                          </>
+                        ) : (
+                          `$${gasFeeData.gasCostUSD}`
+                        )}
+                      </span>
                     </div>
                   )}
-                  {feeInfo.gasFeeUSD && activeTab !== 'shield' && (
+                  {(gasEstimationLoading || gasFeeData) && activeTab !== 'shield' && (
                     <div className="flex justify-between">
                       <span className="text-green-400/80">Est. Total Fees:</span>
-                      <span className="text-green-200">${(parseFloat(feeInfo.feeUSD) + parseFloat(feeInfo.gasFeeUSD)).toFixed(2)}</span>
+                      <span className="text-green-200 flex items-center gap-2">
+                        {gasEstimationLoading ? (
+                          <>
+                            <div className="animate-spin rounded-full h-3 w-3 border-b border-green-400"></div>
+                            Calculating...
+                          </>
+                        ) : (
+                          `$${(parseFloat(feeInfo.feeUSD) + parseFloat(gasFeeData.gasCostUSD)).toFixed(2)}`
+                        )}
+                      </span>
                     </div>
                   )}
                   <div className="flex justify-between font-medium">
