@@ -267,6 +267,8 @@ const WalletContextProvider = ({ children }) => {
   const selectedInjectedProviderRef = useRef(null);
   const disconnectingRef = useRef(false);
   const lastInitializedAddressRef = useRef(null);
+  // Global flag to prevent auto-connections after user disconnects
+  const userDisconnectedRef = useRef(false);
 
   // Ensure initial full scan is completed for a given chain before user transacts
   const ensureChainScanned = useCallback(async (targetChainId) => {
@@ -411,6 +413,15 @@ const WalletContextProvider = ({ children }) => {
       rpcLimiter.current.totalAttempts = 0;
       rpcLimiter.current.isBlocked = false;
       rpcLimiter.current.blockedForSession = null;
+    }
+  }, [isConnected]);
+
+  // Block auto-connections after user disconnects
+  useEffect(() => {
+    if (isConnected && userDisconnectedRef.current && !disconnectingRef.current) {
+      console.log('🚫 [AUTO-CONNECT] Detected unauthorized connection after user disconnect - disconnecting immediately');
+      // Disconnect immediately if user has previously disconnected
+      disconnectWallet();
     }
   }, [isConnected]);
 
@@ -565,6 +576,12 @@ const WalletContextProvider = ({ children }) => {
   // Simple wallet connection - UI layer only
   const connectWallet = async (connectorType = 'metamask', options = {}) => {
     try {
+      // Prevent ANY auto-connection after user disconnects
+      if (userDisconnectedRef.current) {
+        console.log('🚫 [CONNECT] Blocking all auto-connections - user previously disconnected');
+        return;
+      }
+
       // Prevent Phantom auto-connection if user previously disconnected
       if (connectorType === 'injected' && options?.provider?.isPhantom) {
         const hasDisconnectedPhantom = localStorage.getItem('lexie:phantom:disconnected') === 'true';
@@ -626,6 +643,9 @@ const WalletContextProvider = ({ children }) => {
         await connect({ connector: targetConnector });
         console.log('✅ Connected via wagmi:', targetConnector.id, options?.name || '');
 
+        // Clear global disconnect flag - user explicitly connected
+        userDisconnectedRef.current = false;
+
         // Clear Phantom disconnect flag if user explicitly connected to Phantom
         if (connectorType === 'injected' && options?.provider?.isPhantom) {
           try {
@@ -656,6 +676,9 @@ const WalletContextProvider = ({ children }) => {
     }
     disconnectWallet.isDisconnecting = true;
     disconnectingRef.current = true;
+
+    // Set global disconnect flag to prevent auto-connections
+    userDisconnectedRef.current = true;
 
     try {
       // 1. Unload ALL Railgun SDK wallet state first
