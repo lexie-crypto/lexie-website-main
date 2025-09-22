@@ -549,13 +549,10 @@ const WalletContextProvider = ({ children }) => {
       throw new Error('Failed to get EIP-1193 provider');
     }
 
-    // WalletConnect works the same as other EIP-1193 providers
-    // No special handling needed - gas estimation will use our fallback logic if provider gives bad data
-
     const { BrowserProvider } = await import('ethers');
     const provider = new BrowserProvider(selectedProvider);
     const signer = await provider.getSigner();
-
+    
     console.log('✅ Wallet signer created using actual EIP-1193 provider:', {
       connectorId: connector?.id,
       connectorName: connector?.name,
