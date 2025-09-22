@@ -612,7 +612,7 @@ export const estimateGasForTransaction = async ({
       } catch (error) {
         // If balance is insufficient for estimation, use conservative hardcoded estimate
         console.warn('[GasEstimation] Insufficient balance for SDK estimation, using conservative fallback');
-        gasEstimate = 2000000n; // Conservative 2M gas estimate for unshield
+        gasEstimate = 1000000n; // Conservative 1M gas estimate for unshield
       }
 
     } else if (transactionType === 'transfer') {
