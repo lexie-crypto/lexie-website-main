@@ -1637,7 +1637,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             <h3 className="text-emerald-300 font-semibold">{getCurrentNetwork()?.name || 'Network'} Vault Balances</h3>
           </div>
           <div className="mt-3 text-green-300/80">
-            {isPrivateBalancesLoading ? (
+            {(isPrivateBalancesLoading || isRefreshingBalances) ? (
               <div className="mb-3 flex items-center gap-2 text-sm text-green-300">
                 <div className="h-4 w-4 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
                 Getting your vault balances...
