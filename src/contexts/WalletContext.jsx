@@ -154,7 +154,12 @@ const queryClient = new QueryClient();
 const wagmiConfig = createConfig({
   chains: [mainnet, polygon, arbitrum, bsc],
   connectors: [
-    injected({ shimDisconnect: true }),
+    // Injected connector with aggressive disconnect settings
+    injected({
+      shimDisconnect: true,
+      // Only connect when explicitly requested, not on page load
+      target: undefined, // Don't target any specific provider
+    }),
     metaMask(),
     walletConnect({
       projectId: WALLETCONNECT_CONFIG.projectId,
@@ -433,36 +438,24 @@ const WalletContextProvider = ({ children }) => {
       // Small delay to let wagmi initialize
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      if (userDisconnectedRef.current && isConnected && !disconnectingRef.current) {
-        console.log('🚫 [STARTUP] User previously disconnected - disconnecting auto-connection on startup');
-        disconnectWallet();
-      }
-
-      // Also disconnect on every page load if flag is set (extra aggressive)
-      if (userDisconnectedRef.current && !disconnectingRef.current) {
-        console.log('🚫 [STARTUP] Aggressive disconnect on page load');
+      // If connected on startup, this is an auto-connection - disconnect immediately
+      if (isConnected) {
+        console.log('🚫 [STARTUP] Disconnecting auto-connection on startup');
         try {
           await disconnect();
         } catch (error) {
-          console.warn('⚠️ [STARTUP] Error disconnecting on page load:', error);
+          console.warn('⚠️ [STARTUP] Error disconnecting auto-connection:', error);
         }
       }
+
+      // Set the disconnect flag to prevent future auto-connections
+      console.log('🔒 [STARTUP] Setting disconnect flag to prevent auto-connections');
+      userDisconnectedRef.current = true;
     };
 
     checkAndDisconnectOnStartup();
 
-    // Add window event listener to catch any sneaky connections
-    const handleVisibilityChange = async () => {
-      if (document.visibilityState === 'visible' && userDisconnectedRef.current && isConnected && !disconnectingRef.current) {
-        console.log('🚫 [VISIBILITY] Detected connection when user should be disconnected - disconnecting');
-        disconnectWallet();
-      }
-    };
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('visibilitychange', handleVisibilityChange);
-      return () => window.removeEventListener('visibilitychange', handleVisibilityChange);
-    }
+    // No need for visibility listener - startup check handles auto-connections
   }, []); // Run only once on mount
 
   // Global fetch interceptor to block RPC calls when rate limited

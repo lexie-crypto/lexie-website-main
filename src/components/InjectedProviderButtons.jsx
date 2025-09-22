@@ -57,11 +57,12 @@ const InjectedProviderButtons = ({ disabled }) => {
       await provider.request({ method: 'eth_requestAccounts' });
       // Use generic injected connector and pass through provider metadata
       await connectWallet('injected', { provider, name: meta?.name, id: meta?.id });
+      console.log('[InjectedProviderButtons] Connection successful for', meta?.name);
     } catch (err) {
       console.error('Failed to connect provider:', err);
       throw err; // Re-throw so caller can handle
     } finally {
-      console.log('[InjectedProviderButtons] Finally block in handleClick - clearing busy key');
+      console.log('[InjectedProviderButtons] Finally block in handleClick - clearing busy key for', meta?.name);
       setBusyKey(null);
     }
   };
