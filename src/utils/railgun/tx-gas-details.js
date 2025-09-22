@@ -590,24 +590,30 @@ export const estimateGasForTransaction = async ({
     let gasEstimate;
 
     if (transactionType === 'unshield') {
-      // Use unshield gas estimation - use minimal amount to avoid balance checks
-      const estimationAmount = 1n; // Use 1 unit for gas estimation (minimal amount)
-      const res = await gasEstimateForUnprovenUnshield(
-        TXIDVersion.V2_PoseidonMerkle,
-        networkName,
-        railgunWalletID,
-        encryptionKey,
-        [{
-          tokenAddress,
-          amount: estimationAmount, // Use minimal amount for estimation
-          recipientAddress: (await walletProvider()).address, // User's EOA address
-        }],
-        [], // nftAmountRecipients
-        originalGasDetails,
-        null, // feeTokenDetails not needed for self-signing
-        sendWithPublicWallet,
-      );
-      gasEstimate = res.gasEstimate;
+      // Check if we have enough balance for estimation, otherwise use conservative estimate
+      try {
+        const estimationAmount = 1n; // Use 1 unit for gas estimation (minimal amount)
+        const res = await gasEstimateForUnprovenUnshield(
+          TXIDVersion.V2_PoseidonMerkle,
+          networkName,
+          railgunWalletID,
+          encryptionKey,
+          [{
+            tokenAddress,
+            amount: estimationAmount, // Use minimal amount for estimation
+            recipientAddress: (await walletProvider()).address, // User's EOA address
+          }],
+          [], // nftAmountRecipients
+          originalGasDetails,
+          null, // feeTokenDetails not needed for self-signing
+          sendWithPublicWallet,
+        );
+        gasEstimate = res.gasEstimate;
+      } catch (error) {
+        // If balance is insufficient for estimation, use conservative hardcoded estimate
+        console.warn('[GasEstimation] Insufficient balance for SDK estimation, using conservative fallback');
+        gasEstimate = 2000000n; // Conservative 2M gas estimate for unshield
+      }
 
     } else if (transactionType === 'transfer') {
       // Use transfer gas estimation - use relayer RAILGUN address for estimation
