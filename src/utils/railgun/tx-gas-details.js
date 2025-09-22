@@ -22,7 +22,6 @@ import {
   calculateGasPrice,
   TXIDVersion,
 } from '@railgun-community/shared-models';
-import { calculateUSDValue } from '../pricing/coinGecko.js';
 
 /**
  * Default gas values for different networks and transaction types
@@ -312,12 +311,6 @@ export const getTxFeeParams = async (provider, evmGasType, chainId) => {
   let feeData = null;
   try {
     feeData = await provider.getFeeData(); // { gasPrice, maxFeePerGas, maxPriorityFeePerGas }
-    console.log('[GasDetails] Provider fee data:', {
-      chainId,
-      gasPrice: feeData?.gasPrice?.toString(),
-      maxFeePerGas: feeData?.maxFeePerGas?.toString(),
-      maxPriorityFeePerGas: feeData?.maxPriorityFeePerGas?.toString(),
-    });
   } catch (error) {
     console.warn('[GasDetails] Failed to get fee data from provider:', error.message);
   }
@@ -336,21 +329,6 @@ export const getTxFeeParams = async (provider, evmGasType, chainId) => {
     maxFeePerGas: isArb || isPolygon || isBnb ? F('1000000000') : F('4000000000'),
     maxPriorityFeePerGas: isArb || isPolygon || isBnb ? F('10000000') : F('3000000000'),
   };
-
-  // Cap provider fee data to reasonable maximums for L2 networks
-  const maxReasonableGasPrice = isArb || isPolygon || isBnb ? F('5000000000') : F('100000000000'); // 5 gwei (L2) / 100 gwei (L1)
-  const maxReasonableMaxFeePerGas = isArb || isPolygon || isBnb ? F('50000000000') : F('200000000000'); // 50 gwei (L2) / 200 gwei (L1)
-
-  if (feeData) {
-    if (feeData.gasPrice && feeData.gasPrice > maxReasonableGasPrice) {
-      console.warn(`[GasDetails] Provider gas price too high (${feeData.gasPrice.toString()} wei), using fallback`);
-      feeData.gasPrice = null;
-    }
-    if (feeData.maxFeePerGas && feeData.maxFeePerGas > maxReasonableMaxFeePerGas) {
-      console.warn(`[GasDetails] Provider maxFeePerGas too high (${feeData.maxFeePerGas.toString()} wei), using fallback`);
-      feeData.maxFeePerGas = null;
-    }
-  }
 
   if (evmGasType === EVMGasType.Type2) {
     const maxFeePerGas = feeData?.maxFeePerGas ?? fallbacks.maxFeePerGas;
@@ -505,33 +483,10 @@ export const computeGasReclamationWei = (gasDetails) => {
 };
 
 /**
- * Get the gas token symbol for a given chain
- * @param {number} chainId - Chain ID
- * @returns {string} Gas token symbol
- */
-const getGasTokenSymbol = (chainId) => {
-  switch (chainId) {
-    case 1: // Ethereum
-      return 'ETH';
-    case 137: // Polygon
-      return 'MATIC';
-    case 56: // BNB Chain
-      return 'BNB';
-    case 42161: // Arbitrum
-    case 10: // Optimism
-    case 42170: // Arbitrum Nova
-      return 'ETH'; // L2s use ETH for gas
-    default:
-      console.warn(`[GasEstimation] Unknown chain ID ${chainId}, defaulting to ETH`);
-      return 'ETH';
-  }
-};
-
-/**
  * Estimate gas costs for unshield/transfer operations using dummy transactions
  * This can be called from UI components before proof generation to show estimated fees
  * @param {Object} params - Estimation parameters
- * @returns {Object} Gas cost estimates in USD and native token
+ * @returns {Object} Gas cost estimates in USD and ETH
  */
 export const estimateGasForTransaction = async ({
   transactionType, // 'unshield' | 'transfer'
@@ -648,35 +603,28 @@ export const estimateGasForTransaction = async ({
     // Calculate gas cost in wei
     const gasCostWei = calculateTransactionCost(gasDetails);
 
-    // Get the correct gas token symbol for this chain
-    const gasTokenSymbol = getGasTokenSymbol(chainId);
-    const gasDecimals = gasTokenSymbol === 'ETH' || gasTokenSymbol === 'BNB' ? 18 : 18; // Most tokens are 18 decimals
-
-    // Convert to native gas token amount and USD using dynamic CoinGecko pricing
-    const gasCostNative = Number(gasCostWei) / Math.pow(10, gasDecimals);
-    const gasTokenPriceUSD = await calculateUSDValue(gasTokenSymbol, 1);
-    const gasCostUSD = gasCostNative * parseFloat(gasTokenPriceUSD.replace(/[$,]/g, ''));
+    // Convert to ETH and USD
+    const gasCostEth = Number(gasCostWei) / 1e18;
+    const ethPrice = 3000; // Could be made dynamic
+    const gasCostUSD = gasCostEth * ethPrice;
 
     // Add 20% buffer to displayed gas fees for safety
     const bufferedGasCostUSD = gasCostUSD * 1.2;
-    const bufferedGasCostNative = gasCostNative * 1.2;
+    const bufferedGasCostEth = gasCostEth * 1.2;
 
     console.log(`[GasEstimation] Gas estimation complete for ${transactionType}:`, {
-      chainId,
-      gasToken: gasTokenSymbol,
       gasEstimate: gasEstimate.toString(),
       paddedGasEstimate: paddedGasEstimate.toString(),
       gasCostWei: gasCostWei.toString(),
-      gasCostNative: gasCostNative.toFixed(6),
+      gasCostEth: gasCostEth.toFixed(6),
       gasCostUSD: gasCostUSD.toFixed(2),
       bufferedGasCostUSD: bufferedGasCostUSD.toFixed(2),
-      bufferedGasCostNative: bufferedGasCostNative.toFixed(6)
+      bufferedGasCostEth: bufferedGasCostEth.toFixed(6)
     });
 
     return {
       gasCostUSD: bufferedGasCostUSD.toFixed(2),
-      gasCostNative: bufferedGasCostNative.toFixed(6),
-      gasToken: gasTokenSymbol,
+      gasCostEth: bufferedGasCostEth.toFixed(6),
       gasEstimate: paddedGasEstimate.toString(),
       evmGasType,
     };
@@ -684,11 +632,9 @@ export const estimateGasForTransaction = async ({
   } catch (error) {
     console.error(`[GasEstimation] Failed to estimate gas for ${transactionType}:`, error);
     // Return fallback estimates with 20% buffer
-    const gasTokenSymbol = getGasTokenSymbol(chainId);
     return {
-      gasCostUSD: '6.00', // Conservative fallback with 20% buffer
-      gasCostNative: '0.002000', // Conservative fallback with 20% buffer
-      gasToken: gasTokenSymbol,
+      gasCostUSD: '6.00', // Conservative fallback with 20% buffer (5.00 * 1.2)
+      gasCostEth: '0.002000', // Conservative fallback with 20% buffer (0.001667 * 1.2)
       gasEstimate: '2000000',
       evmGasType: EVMGasType.Type2,
       error: error.message
