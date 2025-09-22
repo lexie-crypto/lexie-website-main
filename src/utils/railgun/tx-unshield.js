@@ -30,7 +30,7 @@ import {
 import { waitForRailgunReady } from './engine.js';
 import { assertNotSanctioned } from '../sanctions/chainalysis-oracle.js';
 import { fetchTokenPrices } from '../pricing/coinGecko.js';
-import { buildGasAndEstimate, computeGasReclamationWei, DEFAULT_GAS_ESTIMATES } from './tx-gas-details.js';
+import { buildGasAndEstimate, computeGasReclamationWei } from './tx-gas-details.js';
 
 /**
  * Terminal-themed toast helper (no JSX; compatible with .js files)
@@ -506,30 +506,80 @@ export const unshieldTokens = async ({
       // Prepare wrapped ERC20 amount object (tokenAddress must be the wrapped base token used privately)
       const wrappedERC20Amount = { tokenAddress, amount: BigInt(amount) };
 
-      // Gas details using default conservative prices for consistency
+      // Gas details with network prices and BNB floor
       const evmGasType = getEVMGasTypeForTransaction(networkName, true);
-      const defaults = DEFAULT_GAS_ESTIMATES[networkName];
-
-      const originalGasDetails = evmGasType === EVMGasType.Type2
-        ? {
-            evmGasType,
-            originalGasEstimate: 0n,
-            maxFeePerGas: defaults.maxFeePerGas,
-            maxPriorityFeePerGas: defaults.maxPriorityFeePerGas,
-          }
-        : {
-            evmGasType,
-            originalGasEstimate: 0n,
-            gasPrice: defaults.gasPrice,
-          };
-
-      console.log('💰 [UNSHIELD] Base-token gas details using default prices:', {
-        evmGasType,
-        gasPrice: originalGasDetails.gasPrice?.toString(),
-        maxFeePerGas: originalGasDetails.maxFeePerGas?.toString(),
-        maxPriorityFeePerGas: originalGasDetails.maxPriorityFeePerGas?.toString(),
-        chainId: chain.id
-      });
+      let originalGasDetails;
+      
+      try {
+        // Get current network gas prices for base token unshield too
+        const signer = await walletProvider();
+        const provider = signer?.provider;
+        let networkGasPrices = null;
+        
+        if (provider) {
+          const feeData = await provider.getFeeData();
+          networkGasPrices = feeData;
+        }
+        
+        switch (evmGasType) {
+          case EVMGasType.Type0:
+          case EVMGasType.Type1:
+            let gasPrice = networkGasPrices?.gasPrice || BigInt('0x100000');
+            // No special floor for BNB - treat like other L2s
+            originalGasDetails = {
+              evmGasType,
+              originalGasEstimate: 0n,
+              gasPrice,
+            };
+            break;
+          case EVMGasType.Type2:
+            let maxFeePerGas = networkGasPrices?.maxFeePerGas || BigInt('0x100000');
+            let maxPriorityFeePerGas = networkGasPrices?.maxPriorityFeePerGas || BigInt('0x010000');
+            // No special floor for BNB - treat like other L2s
+            originalGasDetails = {
+              evmGasType,
+              originalGasEstimate: 0n,
+              maxFeePerGas,
+              maxPriorityFeePerGas,
+            };
+            break;
+          default:
+            throw new Error(`Unsupported EVM gas type`);
+        }
+        
+        console.log('💰 [UNSHIELD] Base-token gas details with network prices:', {
+          evmGasType,
+          gasPrice: originalGasDetails.gasPrice?.toString(),
+          maxFeePerGas: originalGasDetails.maxFeePerGas?.toString(),
+          maxPriorityFeePerGas: originalGasDetails.maxPriorityFeePerGas?.toString(),
+          chainId: chain.id
+        });
+        
+      } catch (gasError) {
+        console.warn('⚠️ [UNSHIELD] Failed to get network gas prices for base token, using fallbacks:', gasError.message);
+        
+        // Fallback with BNB floor
+        switch (evmGasType) {
+          case EVMGasType.Type0:
+          case EVMGasType.Type1:
+            originalGasDetails = {
+              evmGasType,
+              originalGasEstimate: 0n,
+              gasPrice: BigInt('0x100000'),
+            };
+            break;
+          case EVMGasType.Type2:
+            originalGasDetails = {
+              evmGasType,
+              originalGasEstimate: 0n,
+              maxFeePerGas: BigInt('0x100000'),
+              maxPriorityFeePerGas: BigInt('0x010000'),
+            };
+            break;
+          default:
+            throw new Error(`Unsupported EVM gas type`);
+        }
+      }
 
       // Estimate (dummy tx via SDK) and add a small 20% buffer for headroom
       const { gasEstimate: baseTokenGasEstimate } = await gasEstimateForUnprovenUnshieldBaseToken(
@@ -652,57 +702,57 @@ export const unshieldTokens = async ({
       // Calculate relayer fee from the user's amount, then unshield NET of that fee
       relayerFeeBn = (userAmountGross * RELAYER_FEE_BPS) / 10000n;
 
-      // ESTIMATE GAS COST BEFORE PROOF GENERATION (using default prices for consistency)
-      console.log('🤑 [UNSHIELD] Estimating gas cost for reclamation (using default prices)...');
+      // ESTIMATE GAS COST BEFORE PROOF GENERATION (dummy txn approach)
+      console.log('🤑 [UNSHIELD] Estimating gas cost for reclamation (dummy txn)...');
 
+      // Get network gas prices for estimation
+      let networkGasPrices = null;
       try {
-        // Use default gas prices for consistent estimation
-        const defaults = DEFAULT_GAS_ESTIMATES[networkName];
-        if (!defaults) {
-          throw new Error(`No default gas estimates found for network: ${networkName}`);
-        }
-
-        const evmGasType = getEVMGasTypeForTransaction(networkName, false);
-
-        // Use conservative estimate for dummy txn
-        const estimatedGas = BigInt('2000000'); // Conservative 2M gas estimate
-        const gasPrice = evmGasType === EVMGasType.Type2 ? defaults.maxFeePerGas : defaults.gasPrice;
-        const gasCostWei = estimatedGas * gasPrice;
-
-        // Convert gas cost to token amount using dynamic pricing
-        const nativeGasToken = getNativeGasToken(chain?.id || 1); // Safe access with fallback
-        let nativeTokenPrice = 3000; // Fallback price
-        try {
-          const prices = await fetchTokenPrices([nativeGasToken]);
-          if (prices && prices[nativeGasToken] && prices[nativeGasToken] > 0) {
-            nativeTokenPrice = prices[nativeGasToken];
+        const signer = await walletProvider();
+        const provider = signer?.provider;
+        if (provider) {
+          const feeData = await provider.getFeeData();
+          if (feeData?.gasPrice || feeData?.maxFeePerGas) {
+            networkGasPrices = feeData;
           }
-        } catch (priceError) {
-          console.warn(`⚠️ [UNSHIELD] Price fetch failed for ${nativeGasToken}, using fallback: ${nativeTokenPrice}`, priceError?.message);
         }
-
-        // Calculate gas reclamation fee (this gets baked into the proof)
-        const gasCostNative = Number(gasCostWei) / 1e18;
-        const gasCostUsd = gasCostNative * nativeTokenPrice;
-        gasFeeDeducted = BigInt(Math.ceil(gasCostUsd * 1e6)); // 6-decimal token units
-
-        console.log('💰 [UNSHIELD] Gas reclamation estimated (for proof):', {
-          estimatedGas: estimatedGas.toString(),
-          gasPrice: gasPrice.toString(),
-          gasCostWei: gasCostWei.toString(),
-          nativeGasToken,
-          nativeTokenPrice: nativeTokenPrice.toFixed(2),
-          gasCostNative: gasCostNative.toFixed(8),
-          gasCostUsd: gasCostUsd.toFixed(4),
-          gasFeeDeducted: gasFeeDeducted.toString(),
-          note: 'This estimate gets baked into the proof - relayer takes win/loss on actual vs estimated'
-        });
-      } catch (gasEstimationError) {
-        console.error('❌ [UNSHIELD] Gas estimation failed:', gasEstimationError);
-        // Use fallback values if gas estimation fails
-        gasFeeDeducted = BigInt('1000000'); // 1 USDC unit fallback
-        console.warn('⚠️ [UNSHIELD] Using fallback gas fee deduction:', gasFeeDeducted.toString());
+      } catch (gasPriceError) {
+        console.warn('⚠️ [UNSHIELD] Failed to get network gas prices for estimation:', gasPriceError.message);
       }
+
+      // Use conservative estimate for dummy txn (similar to old implementation)
+      const estimatedGas = BigInt('2000000'); // Conservative 2M gas estimate
+      const gasPrice = networkGasPrices?.gasPrice || networkGasPrices?.maxFeePerGas || BigInt('20000000000'); // 20 gwei fallback
+      const gasCostWei = estimatedGas * gasPrice;
+
+      // Convert gas cost to token amount using dynamic pricing
+      const nativeGasToken = getNativeGasToken(chain.id);
+      let nativeTokenPrice = 3000; // Fallback price
+      try {
+        const prices = await fetchTokenPrices([nativeGasToken]);
+        if (prices[nativeGasToken] && prices[nativeGasToken] > 0) {
+          nativeTokenPrice = prices[nativeGasToken];
+        }
+      } catch (priceError) {
+        console.warn(`⚠️ [UNSHIELD] Price fetch failed for ${nativeGasToken}, using fallback: ${nativeTokenPrice}`, priceError.message);
+      }
+
+      // Calculate gas reclamation fee (this gets baked into the proof)
+      const gasCostNative = Number(gasCostWei) / 1e18;
+      const gasCostUsd = gasCostNative * nativeTokenPrice;
+      gasFeeDeducted = BigInt(Math.ceil(gasCostUsd * 1e6)); // 6-decimal token units
+
+      console.log('💰 [UNSHIELD] Gas reclamation estimated (for proof):', {
+        estimatedGas: estimatedGas.toString(),
+        gasPrice: gasPrice.toString(),
+        gasCostWei: gasCostWei.toString(),
+        nativeGasToken,
+        nativeTokenPrice: nativeTokenPrice.toFixed(2),
+        gasCostNative: gasCostNative.toFixed(8),
+        gasCostUsd: gasCostUsd.toFixed(4),
+        gasFeeDeducted: gasFeeDeducted.toString(),
+        note: 'This estimate gets baked into the proof - relayer takes win/loss on actual vs estimated'
+      });
 
       // COMBINE FEES FOR BROADCASTER: relayer fee + estimated gas reclamation
       // This amount gets baked into the proof and cannot be changed
@@ -1152,32 +1202,161 @@ export const unshieldTokens = async ({
       method: 'official-sdk-gas-estimation'
     });
 
-    // Create gas details using default conservative prices for consistency
-    console.log('💰 [UNSHIELD] Creating transaction gas details using default prices...');
-
-    const defaults = DEFAULT_GAS_ESTIMATES[networkName];
-
-    const gasDetails = evmGasType === EVMGasType.Type2
-      ? {
-          evmGasType,
-          gasEstimate: finalGasEstimate, // Use padded estimate
-          maxFeePerGas: defaults.maxFeePerGas,
-          maxPriorityFeePerGas: defaults.maxPriorityFeePerGas,
+    // Create proper gas details using official RAILGUN pattern
+    console.log('💰 [UNSHIELD] Creating transaction gas details using SDK pattern...');
+    
+    let gasDetails;
+    try {
+      // Get current network gas prices
+      const signer = await walletProvider();
+      const provider = signer?.provider;
+      
+      let networkGasPrices = null;
+      if (provider) {
+        try {
+          const feeData = await provider.getFeeData();
+          console.log('💰 [UNSHIELD] Network gas prices:', {
+            gasPrice: feeData.gasPrice?.toString(),
+            maxFeePerGas: feeData.maxFeePerGas?.toString(),
+            maxPriorityFeePerGas: feeData.maxPriorityFeePerGas?.toString()
+          });
+          
+          // Use network prices if available and reasonable
+          if (feeData.maxFeePerGas && feeData.maxPriorityFeePerGas) {
+            // Ensure priority fee is not higher than max fee
+            if (feeData.maxPriorityFeePerGas > feeData.maxFeePerGas) {
+              feeData.maxPriorityFeePerGas = feeData.maxFeePerGas / 2n;
+            }
+            networkGasPrices = feeData;
+          }
+        } catch (feeError) {
+          console.warn('⚠️ [UNSHIELD] Failed to get network gas prices:', feeError.message);
         }
-      : {
-          evmGasType,
-          gasEstimate: finalGasEstimate, // Use padded estimate
-          gasPrice: defaults.gasPrice,
-        };
-
-    console.log('✅ [UNSHIELD] Gas details created using defaults:', {
-      evmGasType,
-      gasEstimate: gasDetails.gasEstimate.toString(),
-      gasPrice: gasDetails.gasPrice?.toString(),
-      maxFeePerGas: gasDetails.maxFeePerGas?.toString(),
-      maxPriorityFeePerGas: gasDetails.maxPriorityFeePerGas?.toString(),
-      chainId: chain.id
-    });
+      }
+      
+      // Create gas details following official SDK pattern with network-appropriate fallbacks
+      let gasPriceFallback, maxFeeFallback, priorityFeeFallback;
+      
+      // Network-specific gas price fallbacks
+      if (chain.id === 42161) { // Arbitrum
+        gasPriceFallback = BigInt('100000000'); // 0.1 gwei
+        maxFeeFallback = BigInt('1000000000'); // 1 gwei
+        priorityFeeFallback = BigInt('10000000'); // 0.01 gwei
+      } else if (chain.id === 1) { // Ethereum
+        gasPriceFallback = BigInt('3000000000'); // 3 gwei
+        maxFeeFallback = BigInt('4000000000'); // 4 gwei
+        priorityFeeFallback = BigInt('3000000000'); // 3 gwei
+      } else if (chain.id === 56) { // BNB Chain - L2-like tiny fallbacks
+        gasPriceFallback = BigInt('100000000'); // 0.1 gwei (same as Arbitrum)
+        maxFeeFallback = BigInt('1000000000'); // 1 gwei (same as Arbitrum)
+        priorityFeeFallback = BigInt('10000000'); // 0.01 gwei (same as Arbitrum)
+      } else if (chain.id === 137) { // Polygon - L2-like tiny fallbacks
+        gasPriceFallback = BigInt('100000000'); // 0.1 gwei (same as Arbitrum)
+        maxFeeFallback = BigInt('1000000000'); // 1 gwei (same as Arbitrum)
+        priorityFeeFallback = BigInt('10000000'); // 0.01 gwei (same as Arbitrum)
+      } else { // Default for other networks
+        gasPriceFallback = BigInt('5000000000'); // 5 gwei
+        maxFeeFallback = BigInt('6000000000'); // 6 gwei
+        priorityFeeFallback = BigInt('1000000000'); // 1 gwei
+      }
+      
+      console.log('💰 [UNSHIELD] Using network-specific gas fallbacks:', {
+        chainId: chain.id,
+        gasPriceFallback: gasPriceFallback.toString(),
+        maxFeeFallback: maxFeeFallback.toString(),
+        priorityFeeFallback: priorityFeeFallback.toString(),
+        accurateGasEstimate: accurateGasEstimate.toString()
+      });
+      
+      switch (evmGasType) {
+        case EVMGasType.Type0:
+        case EVMGasType.Type1:
+          let finalGasPrice = networkGasPrices?.gasPrice || gasPriceFallback;
+          // No special gas price floor for BNB - treat like other L2s
+          gasDetails = {
+            evmGasType,
+            gasEstimate: finalGasEstimate, // Use padded estimate
+            gasPrice: finalGasPrice,
+          };
+          break;
+        case EVMGasType.Type2:
+          let finalMaxFee = networkGasPrices?.maxFeePerGas || maxFeeFallback;
+          // No special gas price floor for BNB - treat like other L2s
+          gasDetails = {
+            evmGasType,
+            gasEstimate: finalGasEstimate, // Use padded estimate
+            maxFeePerGas: finalMaxFee,
+            maxPriorityFeePerGas: networkGasPrices?.maxPriorityFeePerGas || priorityFeeFallback,
+          };
+          break;
+        default:
+          throw new Error(`Unsupported EVM gas type: ${evmGasType}`);
+      }
+      
+      console.log('✅ [UNSHIELD] Gas details created:', {
+        evmGasType,
+        gasEstimate: gasDetails.gasEstimate.toString(),
+        gasPrice: gasDetails.gasPrice?.toString(),
+        maxFeePerGas: gasDetails.maxFeePerGas?.toString(),
+        maxPriorityFeePerGas: gasDetails.maxPriorityFeePerGas?.toString(),
+        usingNetworkPrices: !!networkGasPrices
+      });
+      
+    } catch (gasError) {
+      console.error('❌ [UNSHIELD] Failed to create gas details:', gasError.message);
+      
+      // Create fallback gas details with network-appropriate values
+      let gasPriceFallback, maxFeeFallback, priorityFeeFallback;
+      
+      if (chain.id === 42161) { // Arbitrum
+        gasPriceFallback = BigInt('100000000'); // 0.1 gwei
+        maxFeeFallback = BigInt('1000000000'); // 1 gwei
+        priorityFeeFallback = BigInt('10000000'); // 0.01 gwei
+      } else if (chain.id === 1) { // Ethereum
+        gasPriceFallback = BigInt('20000000000'); // 20 gwei
+        maxFeeFallback = BigInt('25000000000'); // 25 gwei
+        priorityFeeFallback = BigInt('2000000000'); // 2 gwei
+      } else if (chain.id === 56) { // BNB Chain - L2-like tiny fallbacks
+        gasPriceFallback = BigInt('100000000'); // 0.1 gwei (same as Arbitrum)
+        maxFeeFallback = BigInt('1000000000'); // 1 gwei (same as Arbitrum)
+        priorityFeeFallback = BigInt('10000000'); // 0.01 gwei (same as Arbitrum)
+      } else if (chain.id === 137) { // Polygon - L2-like tiny fallbacks
+        gasPriceFallback = BigInt('100000000'); // 0.1 gwei (same as Arbitrum)
+        maxFeeFallback = BigInt('1000000000'); // 1 gwei (same as Arbitrum)
+        priorityFeeFallback = BigInt('10000000'); // 0.01 gwei (same as Arbitrum)
+      } else {
+        gasPriceFallback = BigInt('5000000000'); // 5 gwei
+        maxFeeFallback = BigInt('6000000000'); // 6 gwei
+        priorityFeeFallback = BigInt('1000000000'); // 1 gwei
+      }
+      
+      switch (evmGasType) {
+        case EVMGasType.Type0:
+        case EVMGasType.Type1:
+          let fallbackGasPrice = gasPriceFallback;
+          // No special gas price floor for BNB - treat like other L2s
+          gasDetails = {
+            evmGasType,
+            gasEstimate: finalGasEstimate, // Use padded estimate
+            gasPrice: fallbackGasPrice,
+          };
+          break;
+        case EVMGasType.Type2:
+          let fallbackMaxFee = maxFeeFallback;
+          // No special gas price floor for BNB - treat like other L2s
+          gasDetails = {
+            evmGasType,
+            gasEstimate: finalGasEstimate, // Use padded estimate
+            maxFeePerGas: fallbackMaxFee,
+            maxPriorityFeePerGas: priorityFeeFallback,
+          };
+          break;
+        default:
+          throw new Error(`Unsupported EVM gas type: ${evmGasType}`);
+      }
+      
+      console.log('⚠️ [UNSHIELD] Using fallback gas details due to error');
+    }
 
     // STEP 6: Populate transaction using generated proof
     console.log('📝 [UNSHIELD] Step 6: Populating transaction with proof...');
@@ -1663,30 +1842,85 @@ export const privateTransferWithRelayer = async ({
       throw new Error(`Failed to rescan network: ${rescanError.message}`);
     }
 
-    // STEP 2: Gas details using default conservative prices for consistency
+    // STEP 2: Gas details (relayer path) - Use same approach as unshield for consistency
     const evmGasType = getEVMGasTypeForTransaction(networkName, false);
-    const defaults = DEFAULT_GAS_ESTIMATES[networkName];
 
-    const originalGasDetails = evmGasType === EVMGasType.Type2
-      ? {
-          evmGasType,
-          originalGasEstimate: 0n,
-          maxFeePerGas: defaults.maxFeePerGas,
-          maxPriorityFeePerGas: defaults.maxPriorityFeePerGas,
-        }
-      : {
-          evmGasType,
-          originalGasEstimate: 0n,
-          gasPrice: defaults.gasPrice,
-        };
+    // Fetch real-time network gas prices like unshield function does
+    let originalGasDetails;
+    try {
+      // Get current network gas prices for realistic originalGasDetails
+      const { ethers } = await import('ethers');
+      let networkGasPrices = null;
 
-    console.log('💰 [PRIVATE TRANSFER] Gas details using default prices:', {
-      evmGasType,
-      gasPrice: originalGasDetails.gasPrice?.toString(),
-      maxFeePerGas: originalGasDetails.maxFeePerGas?.toString(),
-      maxPriorityFeePerGas: originalGasDetails.maxPriorityFeePerGas?.toString(),
-      chainId
-    });
+      // Try to get provider for gas price fetching (similar to unshield approach)
+      try {
+        // Use our proxied RPC to avoid exposing keys (same as unshield)
+        const origin = (typeof window !== 'undefined' ? window.location.origin : '');
+        const provider = new ethers.JsonRpcProvider(origin + '/api/rpc?chainId=' + chainId + '&provider=auto');
+        const feeData = await provider.getFeeData();
+        networkGasPrices = feeData;
+      } catch (providerError) {
+        console.warn('⚠️ [PRIVATE TRANSFER] Failed to get network gas prices:', providerError.message);
+      }
+
+      // Create gas details following same pattern as unshield
+      switch (evmGasType) {
+        case EVMGasType.Type0:
+        case EVMGasType.Type1:
+          let gasPrice = networkGasPrices?.gasPrice || BigInt('0x100000');
+          originalGasDetails = {
+            evmGasType,
+            originalGasEstimate: 0n,
+            gasPrice,
+          };
+          break;
+        case EVMGasType.Type2:
+          let maxFeePerGas = networkGasPrices?.maxFeePerGas || BigInt('0x100000');
+          let maxPriorityFeePerGas = networkGasPrices?.maxPriorityFeePerGas || BigInt('0x010000');
+          originalGasDetails = {
+            evmGasType,
+            originalGasEstimate: 0n,
+            maxFeePerGas,
+            maxPriorityFeePerGas,
+          };
+          break;
+        default:
+          throw new Error(`Unsupported EVM gas type: ${evmGasType}`);
+      }
+
+      console.log('💰 [PRIVATE TRANSFER] Gas details with network prices:', {
+        evmGasType,
+        gasPrice: originalGasDetails.gasPrice?.toString(),
+        maxFeePerGas: originalGasDetails.maxFeePerGas?.toString(),
+        maxPriorityFeePerGas: originalGasDetails.maxPriorityFeePerGas?.toString(),
+        chainId
+      });
+
+    } catch (gasError) {
+      console.warn('⚠️ [PRIVATE TRANSFER] Failed to get network gas prices, using fallbacks:', gasError.message);
+
+      // Fallback with network-appropriate values (same as unshield)
+      switch (evmGasType) {
+        case EVMGasType.Type0:
+        case EVMGasType.Type1:
+          originalGasDetails = {
+            evmGasType,
+            originalGasEstimate: 0n,
+            gasPrice: BigInt('0x100000'),
+          };
+          break;
+        case EVMGasType.Type2:
+          originalGasDetails = {
+            evmGasType,
+            originalGasEstimate: 0n,
+            maxFeePerGas: BigInt('0x100000'),
+            maxPriorityFeePerGas: BigInt('0x010000'),
+          };
+          break;
+        default:
+          throw new Error(`Unsupported EVM gas type: ${evmGasType}`);
+      }
+    }
 
     // STEP 4: STANDARD TRANSFER PATH (no RelayAdapt): estimate → proof → populate
     // Convert amount to BigInt (same as unshield function) - Store original amount

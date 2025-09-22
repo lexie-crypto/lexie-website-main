@@ -549,13 +549,10 @@ const WalletContextProvider = ({ children }) => {
       throw new Error('Failed to get EIP-1193 provider');
     }
 
-    // WalletConnect works the same as other EIP-1193 providers
-    // No special handling needed - gas estimation will use our fallback logic if provider gives bad data
-
     const { BrowserProvider } = await import('ethers');
     const provider = new BrowserProvider(selectedProvider);
     const signer = await provider.getSigner();
-
+    
     console.log('✅ Wallet signer created using actual EIP-1193 provider:', {
       connectorId: connector?.id,
       connectorName: connector?.name,
@@ -568,15 +565,6 @@ const WalletContextProvider = ({ children }) => {
   // Simple wallet connection - UI layer only
   const connectWallet = async (connectorType = 'metamask', options = {}) => {
     try {
-      // Prevent Phantom auto-connection if user previously disconnected
-      if (connectorType === 'injected' && options?.provider?.isPhantom) {
-        const hasDisconnectedPhantom = localStorage.getItem('lexie:phantom:disconnected') === 'true';
-        if (hasDisconnectedPhantom) {
-          console.log('🚫 [CONNECT] Blocking Phantom auto-connection - user previously disconnected');
-          return;
-        }
-      }
-
       let targetConnector = null;
 
       // If UI passed a specific injected provider, capture it for signer preference
@@ -628,16 +616,6 @@ const WalletContextProvider = ({ children }) => {
         } catch {}
         await connect({ connector: targetConnector });
         console.log('✅ Connected via wagmi:', targetConnector.id, options?.name || '');
-
-        // Clear Phantom disconnect flag if user explicitly connected to Phantom
-        if (connectorType === 'injected' && options?.provider?.isPhantom) {
-          try {
-            localStorage.removeItem('lexie:phantom:disconnected');
-            console.log('✅ Cleared Phantom disconnect flag - user explicitly connected');
-          } catch (storageError) {
-            console.warn('⚠️ Failed to clear Phantom disconnect flag:', storageError);
-          }
-        }
         // Belt-and-suspenders: ensure any stale Railgun SDK wallets are unloaded before hydration
         try {
           const { clearAllWallets } = await import('../utils/railgun/wallet');
@@ -700,50 +678,15 @@ const WalletContextProvider = ({ children }) => {
           console.log('[DISCONNECT] Calling provider.disconnect()');
           await selectedInjectedProviderRef.current.disconnect();
         } else if (selectedInjectedProviderRef.current && typeof window !== 'undefined') {
-          // Special handling for Phantom wallet - it aggressively auto-connects
-          if (selectedInjectedProviderRef.current.isPhantom ||
-              selectedInjectedProviderRef.current.constructor?.name === 'PhantomProvider' ||
-              (connector && connector.name === 'Phantom')) {
-            console.log('[DISCONNECT] Phantom wallet detected - attempting aggressive disconnect');
-
-            // Mark Phantom as disconnected to prevent auto-reconnection
-            try {
-              localStorage.setItem('lexie:phantom:disconnected', 'true');
-            } catch (storageError) {
-              console.warn('[DISCONNECT] Failed to set Phantom disconnect flag:', storageError);
-            }
-
-            // Try to revoke permissions specifically for Phantom
-            try {
-              await selectedInjectedProviderRef.current.request({
-                method: 'wallet_revokePermissions',
-                params: [{ eth_accounts: {} }]
-              });
-              console.log('[DISCONNECT] Called wallet_revokePermissions for Phantom');
-            } catch (revokeError) {
-              console.log('[DISCONNECT] wallet_revokePermissions not supported by Phantom');
-            }
-
-            // Try Phantom-specific disconnect method
-            try {
-              if (selectedInjectedProviderRef.current.disconnect) {
-                await selectedInjectedProviderRef.current.disconnect();
-                console.log('[DISCONNECT] Called Phantom disconnect method');
-              }
-            } catch (phantomError) {
-              console.log('[DISCONNECT] Phantom disconnect method failed');
-            }
-          } else {
-            // Standard wallet_revokePermissions for other wallets
-            try {
-              await selectedInjectedProviderRef.current.request({
-                method: 'wallet_revokePermissions',
-                params: [{ eth_accounts: {} }]
-              });
-              console.log('[DISCONNECT] Called wallet_revokePermissions');
-            } catch (revokeError) {
-              // wallet_revokePermissions not supported, that's fine
-            }
+          // Try wallet_revokePermissions for some wallets
+          try {
+            await selectedInjectedProviderRef.current.request({
+              method: 'wallet_revokePermissions',
+              params: [{ eth_accounts: {} }]
+            });
+            console.log('[DISCONNECT] Called wallet_revokePermissions');
+          } catch (revokeError) {
+            // wallet_revokePermissions not supported, that's fine
           }
         }
       } catch (providerDisconnectError) {
@@ -779,9 +722,6 @@ const WalletContextProvider = ({ children }) => {
           try { lc.removeItem('wagmi.wallet'); } catch {}
           try { lc.removeItem('wagmi.store'); } catch {}
           try { lc.removeItem('walletconnect'); } catch {}
-          // Additional Phantom-specific cleanup
-          try { lc.removeItem('phantom:connected'); } catch {}
-          try { lc.removeItem('phantom:autoConnect'); } catch {}
           try { lc.removeItem('WALLETCONNECT_DEEPLINK_CHOICE'); } catch {}
           const keys = Object.keys(lc);
           keys.forEach((k) => {
