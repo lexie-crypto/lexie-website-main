@@ -670,15 +670,15 @@ export const unshieldTokens = async ({
         const gasCostWei = estimatedGas * gasPrice;
 
         // Convert gas cost to token amount using dynamic pricing
-        const nativeGasToken = getNativeGasToken(chain.id);
+        const nativeGasToken = getNativeGasToken(chain?.id || 1); // Safe access with fallback
         let nativeTokenPrice = 3000; // Fallback price
         try {
           const prices = await fetchTokenPrices([nativeGasToken]);
-          if (prices[nativeGasToken] && prices[nativeGasToken] > 0) {
+          if (prices && prices[nativeGasToken] && prices[nativeGasToken] > 0) {
             nativeTokenPrice = prices[nativeGasToken];
           }
         } catch (priceError) {
-          console.warn(`⚠️ [UNSHIELD] Price fetch failed for ${nativeGasToken}, using fallback: ${nativeTokenPrice}`, priceError.message);
+          console.warn(`⚠️ [UNSHIELD] Price fetch failed for ${nativeGasToken}, using fallback: ${nativeTokenPrice}`, priceError?.message);
         }
 
         // Calculate gas reclamation fee (this gets baked into the proof)
