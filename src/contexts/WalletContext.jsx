@@ -267,6 +267,8 @@ const WalletContextProvider = ({ children }) => {
   const chainsScanningRef = useRef(new Set());
   // Capture explicitly selected injected provider (e.g., Rabby/Trust) from UI
   const selectedInjectedProviderRef = useRef(null);
+  // Keep Phantom provider reference until session ends (for blocking)
+  const phantomProviderRef = useRef(null);
   const disconnectingRef = useRef(false);
   const lastInitializedAddressRef = useRef(null);
   // Global flag to prevent auto-connections after user disconnects
@@ -437,11 +439,23 @@ const WalletContextProvider = ({ children }) => {
           return;
         }
 
-        // Extra protection: if Phantom is blocked, disconnect immediately regardless of timing
-        if (connector && connector.name === 'Phantom') {
+        // Strong Phantom detection and blocking
+        const isPhantomConnection = (
+          // Check wagmi connector name
+          (connector && connector.name === 'Phantom') ||
+          // Check provider properties
+          (selectedInjectedProviderRef.current?.isPhantom ||
+           selectedInjectedProviderRef.current?.constructor?.name === 'PhantomProvider') ||
+          // Check phantomProviderRef
+          phantomProviderRef.current ||
+          // Check window.phantom reference
+          (typeof window !== 'undefined' && window.phantom?.ethereum?.isPhantom)
+        );
+
+        if (isPhantomConnection) {
           const hasDisconnectedPhantom = localStorage.getItem('lexie:phantom:disconnected') === 'true';
           if (hasDisconnectedPhantom) {
-            console.log('🚫 [HARD-GATE] Phantom blocked - disconnecting immediately');
+            console.log('🚫 [HARD-GATE] Phantom blocked by persistent flag - disconnecting immediately');
             try {
               await disconnect();
             } catch (error) {
@@ -472,12 +486,20 @@ const WalletContextProvider = ({ children }) => {
           console.log('🚫 [STARTUP] Disconnecting auto-connection on startup');
         }
 
-        // Extra check: if Phantom is blocked, always disconnect
-        if (connector && connector.name === 'Phantom') {
+        // Extra check: if Phantom is blocked (strong detection), always disconnect
+        const isPhantomOnStartup = (
+          (connector && connector.name === 'Phantom') ||
+          (selectedInjectedProviderRef.current?.isPhantom ||
+           selectedInjectedProviderRef.current?.constructor?.name === 'PhantomProvider') ||
+          phantomProviderRef.current ||
+          (typeof window !== 'undefined' && window.phantom?.ethereum?.isPhantom)
+        );
+
+        if (isPhantomOnStartup) {
           const hasDisconnectedPhantom = localStorage.getItem('lexie:phantom:disconnected') === 'true';
           if (hasDisconnectedPhantom) {
             shouldDisconnect = true;
-            console.log('🚫 [STARTUP] Phantom blocked - disconnecting on startup');
+            console.log('🚫 [STARTUP] Phantom blocked (strong detection) - disconnecting on startup');
           }
         }
 
@@ -651,19 +673,39 @@ const WalletContextProvider = ({ children }) => {
       // Record user action timestamp
       lastUserActionAt.current = Date.now();
 
+      // EARLY PHANTOM BLOCK: Check before any wagmi operations
+      const isPhantomProvider = (
+        // Check provider object
+        options?.provider?.isPhantom ||
+        // Check window.phantom reference
+        (typeof window !== 'undefined' && window.phantom?.ethereum?.isPhantom) ||
+        // Check constructor name
+        options?.provider?.constructor?.name === 'PhantomProvider' ||
+        // Check name in options
+        options?.name?.toLowerCase().includes('phantom')
+      );
+
+      if (isPhantomProvider) {
+        const hasDisconnectedPhantom = localStorage.getItem('lexie:phantom:disconnected') === 'true';
+        if (hasDisconnectedPhantom) {
+          console.log('🚫 [CONNECT] Phantom blocked by user - refusing connection');
+          // Store provider reference for persistent blocking
+          if (options?.provider) {
+            phantomProviderRef.current = options.provider;
+          }
+          return;
+        } else {
+          // Store provider reference when connecting (for future blocking)
+          if (options?.provider) {
+            phantomProviderRef.current = options.provider;
+          }
+        }
+      }
+
       // Clear disconnect flag when user explicitly connects (allows future connections)
       if (userDisconnectedRef.current) {
         console.log('✅ [CONNECT] User explicitly connecting - clearing disconnect flag');
         userDisconnectedRef.current = false;
-      }
-
-      // Prevent Phantom auto-connection if user previously disconnected
-      if (connectorType === 'injected' && options?.provider?.isPhantom) {
-        const hasDisconnectedPhantom = localStorage.getItem('lexie:phantom:disconnected') === 'true';
-        if (hasDisconnectedPhantom) {
-          console.log('🚫 [CONNECT] Blocking Phantom auto-connection - user previously disconnected');
-          return;
-        }
       }
 
       let targetConnector = null;
@@ -721,11 +763,12 @@ const WalletContextProvider = ({ children }) => {
         // Clear global disconnect flag - user explicitly connected
         userDisconnectedRef.current = false;
 
-        // Clear Phantom disconnect flag if user explicitly connected to Phantom
-        if (connectorType === 'injected' && options?.provider?.isPhantom) {
+        // Clear Phantom disconnect flag and provider ref if user explicitly connected to Phantom
+        if (isPhantomProvider) {
           try {
             localStorage.removeItem('lexie:phantom:disconnected');
-            console.log('✅ Cleared Phantom disconnect flag - user explicitly connected');
+            phantomProviderRef.current = null; // Clear provider reference
+            console.log('✅ Cleared Phantom disconnect flag and provider ref - user explicitly connected');
           } catch (storageError) {
             console.warn('⚠️ Failed to clear Phantom disconnect flag:', storageError);
           }
@@ -780,7 +823,12 @@ const WalletContextProvider = ({ children }) => {
       setRailgunWalletID(null);
       setRailgunError(null);
       setIsInitializing(false);
-      selectedInjectedProviderRef.current = null;
+      // DON'T clear selectedInjectedProviderRef for Phantom - keep it for blocking
+      // Only clear for non-Phantom providers
+      if (!(selectedInjectedProviderRef.current?.isPhantom ||
+            selectedInjectedProviderRef.current?.constructor?.name === 'PhantomProvider')) {
+        selectedInjectedProviderRef.current = null;
+      }
 
       // Best-effort: pause Railgun polling quickly
       try {
