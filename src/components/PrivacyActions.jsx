@@ -730,7 +730,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       
       try {
         // Import the enhanced transaction monitor
-        const { monitorTransactionInGraph } = await import('../utils/railgun/transactionMonitor');
+        const { monitorTransactionInGraph } = await import('../utils/railgun/transactionMonitor.js');
         
         // Start monitoring in background with new API specification
         monitorTransactionInGraph({
@@ -1025,7 +1025,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       console.log('[PrivacyActions] Starting Graph-based unshield monitoring...');
       
       try {
-        const { monitorTransactionInGraph } = await import('../utils/railgun/transactionMonitor');
+        const { monitorTransactionInGraph } = await import('../utils/railgun/transactionMonitor.js');
         
         // Start monitoring with new API specification
         monitorTransactionInGraph({
@@ -1329,7 +1329,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
       // Optional: Graph monitoring (transfer)
       try {
-        const { monitorTransactionInGraph } = await import('../utils/railgun/transactionMonitor');
+        const { monitorTransactionInGraph } = await import('../utils/railgun/transactionMonitor.js');
         monitorTransactionInGraph({
           txHash: tx.txHash,
           chainId,

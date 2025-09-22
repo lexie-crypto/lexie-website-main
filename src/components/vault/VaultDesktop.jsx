@@ -834,7 +834,7 @@ const VaultDesktopInner = () => {
       console.log('[VaultDesktop] Starting Graph-based shield monitoring...');
       
       try {
-        const { monitorTransactionInGraph } = await import('../../utils/railgun/transactionMonitor');
+        const { monitorTransactionInGraph } = await import('../../utils/railgun/transactionMonitor.js');
         
         monitorTransactionInGraph({
           txHash: txResponse.hash,
