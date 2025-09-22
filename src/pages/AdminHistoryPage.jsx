@@ -1386,18 +1386,19 @@ ${JSON.stringify(tx, null, 2)}
                   {/* Volume Statistics */}
                   <div className="bg-gray-900 rounded-lg p-4">
                     <h3 className="text-lg font-medium text-blue-300 mb-4">💰 Volume Statistics</h3>
+                    <p className="text-xs text-gray-500 mb-3">USD value of tokens processed through privacy system</p>
                     <div className="space-y-3">
                       <div className="flex justify-between items-center">
                         <span className="text-gray-400">Total Shielded Volume:</span>
-                        <span className="text-green-300 font-medium">{analyticsData.totalShieldedVolume ? `$${analyticsData.totalShieldedVolume.toLocaleString()}` : 'N/A'}</span>
+                        <span className="text-green-300 font-medium">{analyticsData.totalShieldedVolume ? `$${analyticsData.totalShieldedVolume.toLocaleString(undefined, {maximumFractionDigits: 2})}` : 'N/A'}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-gray-400">Total Unshielded Volume:</span>
-                        <span className="text-red-300 font-medium">{analyticsData.totalUnshieldedVolume ? `$${analyticsData.totalUnshieldedVolume.toLocaleString()}` : 'N/A'}</span>
+                        <span className="text-red-300 font-medium">{analyticsData.totalUnshieldedVolume ? `$${analyticsData.totalUnshieldedVolume.toLocaleString(undefined, {maximumFractionDigits: 2})}` : 'N/A'}</span>
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-gray-400">Average Transaction:</span>
-                        <span className="text-blue-300 font-medium">{analyticsData.averageTransactionValue ? `$${analyticsData.averageTransactionValue.toLocaleString()}` : 'N/A'}</span>
+                        <span className="text-blue-300 font-medium">{analyticsData.averageTransactionValue ? `$${analyticsData.averageTransactionValue.toLocaleString(undefined, {maximumFractionDigits: 2})}` : 'N/A'}</span>
                       </div>
                     </div>
                   </div>
@@ -1435,7 +1436,7 @@ ${JSON.stringify(tx, null, 2)}
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-gray-400">Volume (24h):</span>
-                        <span className="text-purple-300 font-medium">{analyticsData.volume24h ? `$${analyticsData.volume24h.toLocaleString()}` : 'N/A'}</span>
+                        <span className="text-purple-300 font-medium">{analyticsData.volume24h ? `$${analyticsData.volume24h.toLocaleString(undefined, {maximumFractionDigits: 2})}` : 'N/A'}</span>
                       </div>
                     </div>
                   </div>
