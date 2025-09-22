@@ -568,16 +568,9 @@ export const estimateGasForTransaction = async ({
 
     const evmGasType = getEVMGasTypeForTransaction(networkName, sendWithPublicWallet);
 
-    // Use default gas prices for estimation instead of potentially inflated provider prices
-    const defaults = DEFAULT_GAS_ESTIMATES[networkName];
-    const originalFeeParams = evmGasType === EVMGasType.Type2
-      ? {
-          maxFeePerGas: defaults.maxFeePerGas,
-          maxPriorityFeePerGas: defaults.maxPriorityFeePerGas,
-        }
-      : {
-          gasPrice: defaults.gasPrice,
-        };
+    // Use current provider gas prices, but cap them to reasonable maximums
+    // This gives more accurate estimates than hardcoded defaults
+    const originalFeeParams = await getTxFeeParams(provider, evmGasType, chainId);
 
     // Create originalGasDetails for SDK estimate
     const originalGasDetails =
@@ -673,9 +666,9 @@ export const estimateGasForTransaction = async ({
     const gasTokenPriceUSD = await calculateUSDValue(gasTokenSymbol, 1);
     const gasCostUSD = gasCostNative * parseFloat(gasTokenPriceUSD.replace(/[$,]/g, ''));
 
-    // Add 20% buffer to displayed gas fees for safety
-    const bufferedGasCostUSD = gasCostUSD * 1.2;
-    const bufferedGasCostNative = gasCostNative * 1.2;
+    // Add 10% buffer to displayed gas fees for safety (reduced since we now use current prices)
+    const bufferedGasCostUSD = gasCostUSD * 1.1;
+    const bufferedGasCostNative = gasCostNative * 1.1;
 
     console.log(`[GasEstimation] Gas estimation complete for ${transactionType}:`, {
       chainId,
@@ -686,7 +679,8 @@ export const estimateGasForTransaction = async ({
       gasCostNative: gasCostNative.toFixed(6),
       gasCostUSD: gasCostUSD.toFixed(2),
       bufferedGasCostUSD: bufferedGasCostUSD.toFixed(2),
-      bufferedGasCostNative: bufferedGasCostNative.toFixed(6)
+      bufferedGasCostNative: bufferedGasCostNative.toFixed(6),
+      bufferPercentage: '10%'
     });
 
     return {
