@@ -709,6 +709,8 @@ export const estimateGasForTransaction = async ({
   }
 };
 
+export { DEFAULT_GAS_ESTIMATES };
+
 export default {
   validateGasDetails,
   createGasDetails,
@@ -722,4 +724,5 @@ export default {
   buildGasAndEstimate,
   computeGasReclamationWei,
   estimateGasForTransaction,
+  DEFAULT_GAS_ESTIMATES,
 }; 
