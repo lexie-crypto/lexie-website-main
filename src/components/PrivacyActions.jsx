@@ -630,6 +630,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         return;
       }
 
+      // Get normalized token address for the shield operation
+      const tokenAddr = getTokenAddress(selectedToken);
+
       // Execute shield operation
       const result = await shieldTokens({
         tokenAddress: tokenAddr,
@@ -935,6 +938,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       toast.error('Selected token is invalid. Please reselect the token.');
       return;
     }
+
+    // Get normalized token address for the unshield operation
+    const tokenAddr = getTokenAddress(selectedToken);
 
     setIsProcessing(true);
     setIsTransactionLocked(true); // Lock all transaction actions
@@ -1282,6 +1288,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         toast.error('Selected token is invalid. Please reselect the token.');
         return;
       }
+
+      // Get normalized token address for the transfer operation
+      const tokenAddr = getTokenAddress(selectedToken);
 
       const tx = await privateTransfer({
         chainId,
