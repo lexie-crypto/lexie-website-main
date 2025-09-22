@@ -341,21 +341,24 @@ export const getTxFeeParams = async (provider, evmGasType, chainId) => {
   const maxReasonableGasPrice = isArb || isPolygon || isBnb ? F('500000000') : F('100000000000'); // 0.5 gwei (L2) / 100 gwei (L1)
   const maxReasonableMaxFeePerGas = isArb || isPolygon || isBnb ? F('1000000000') : F('200000000000'); // 1 gwei (L2) / 200 gwei (L1)
 
-  if (feeData) {
-    if (feeData.gasPrice && feeData.gasPrice > maxReasonableGasPrice) {
-      console.warn(`[GasDetails] Provider gas price too high (${feeData.gasPrice.toString()} wei > ${maxReasonableGasPrice.toString()}), using fallback`);
-      feeData.gasPrice = null;
+  // Create a copy of feeData since FeeData objects are read-only
+  let validatedFeeData = feeData ? { ...feeData } : null;
+
+  if (validatedFeeData) {
+    if (validatedFeeData.gasPrice && validatedFeeData.gasPrice > maxReasonableGasPrice) {
+      console.warn(`[GasDetails] Provider gas price too high (${validatedFeeData.gasPrice.toString()} wei > ${maxReasonableGasPrice.toString()}), using fallback`);
+      validatedFeeData.gasPrice = null;
     }
-    if (feeData.maxFeePerGas && feeData.maxFeePerGas > maxReasonableMaxFeePerGas) {
-      console.warn(`[GasDetails] Provider maxFeePerGas too high (${feeData.maxFeePerGas.toString()} wei > ${maxReasonableMaxFeePerGas.toString()}), using fallback`);
-      feeData.maxFeePerGas = null;
-      feeData.maxPriorityFeePerGas = null;
+    if (validatedFeeData.maxFeePerGas && validatedFeeData.maxFeePerGas > maxReasonableMaxFeePerGas) {
+      console.warn(`[GasDetails] Provider maxFeePerGas too high (${validatedFeeData.maxFeePerGas.toString()} wei > ${maxReasonableMaxFeePerGas.toString()}), using fallback`);
+      validatedFeeData.maxFeePerGas = null;
+      validatedFeeData.maxPriorityFeePerGas = null;
     }
   }
 
   if (evmGasType === EVMGasType.Type2) {
-    const maxFeePerGas = feeData?.maxFeePerGas ?? fallbacks.maxFeePerGas;
-    let maxPriorityFeePerGas = feeData?.maxPriorityFeePerGas ?? fallbacks.maxPriorityFeePerGas;
+    const maxFeePerGas = validatedFeeData?.maxFeePerGas ?? fallbacks.maxFeePerGas;
+    let maxPriorityFeePerGas = validatedFeeData?.maxPriorityFeePerGas ?? fallbacks.maxPriorityFeePerGas;
     if (maxPriorityFeePerGas > maxFeePerGas) {
       maxPriorityFeePerGas = maxFeePerGas / 2n;
     }
@@ -364,7 +367,7 @@ export const getTxFeeParams = async (provider, evmGasType, chainId) => {
   }
 
   // Legacy Type0/1
-  const gasPrice = feeData?.gasPrice ?? fallbacks.gasPrice;
+  const gasPrice = validatedFeeData?.gasPrice ?? fallbacks.gasPrice;
   console.log(`[GasDetails] Final fee params for ${chainId}: gasPrice=${gasPrice.toString()}`);
   return { gasPrice };
 };
