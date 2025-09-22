@@ -413,9 +413,12 @@ const VaultDesktopInner = () => {
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
       console.log('[VaultDesktop] Full refresh — SDK refresh + Redis persist, then UI fetch...');
 
-      // Step 1: Trigger SDK refresh + persist authoritative balances to Redis
+      // Step 1: Trigger full SDK validation (same as chain switch) + persist to Redis
       try {
         if (railgunWalletId && address && chainId) {
+          // Dispatch scan-started event to trigger full SDK validation like chain switch
+          try { window.dispatchEvent(new CustomEvent('railgun-scan-started', { detail: { chainId } })); } catch {}
+
           const { syncBalancesAfterTransaction } = await import('../../utils/railgun/syncBalances.js');
           await syncBalancesAfterTransaction({
             walletAddress: address,
