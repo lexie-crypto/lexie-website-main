@@ -536,7 +536,8 @@ export const estimateGasForTransaction = async ({
     let gasEstimate;
 
     if (transactionType === 'unshield') {
-      // Use unshield gas estimation
+      // Use unshield gas estimation - use smaller amount to avoid balance checks
+      const estimationAmount = amount > 1000000n ? 1000000n : amount; // Cap at 1M units for gas estimation
       const res = await gasEstimateForUnprovenUnshield(
         TXIDVersion.V2_PoseidonMerkle,
         networkName,
@@ -544,7 +545,7 @@ export const estimateGasForTransaction = async ({
         encryptionKey,
         [{
           tokenAddress,
-          amount,
+          amount: estimationAmount, // Use smaller amount for estimation
           recipientAddress: (await walletProvider()).address, // User's EOA address
         }],
         [], // nftAmountRecipients
@@ -558,6 +559,7 @@ export const estimateGasForTransaction = async ({
       // Use transfer gas estimation - use relayer RAILGUN address for estimation
       // (since we're just estimating gas, the actual recipient validation happens later)
       const relayerAddress = await getRelayerAddress();
+      const estimationAmount = amount > 1000000n ? 1000000n : amount; // Cap at 1M units for gas estimation
 
       const res = await gasEstimateForUnprovenTransfer(
         TXIDVersion.V2_PoseidonMerkle,
@@ -567,7 +569,7 @@ export const estimateGasForTransaction = async ({
         '', // memoText
         [{
           tokenAddress,
-          amount,
+          amount: estimationAmount, // Use smaller amount for estimation
           recipientAddress: relayerAddress, // Use relayer address for gas estimation
         }],
         [], // nftAmountRecipients
