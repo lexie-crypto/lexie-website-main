@@ -545,7 +545,7 @@ export const estimateGasForTransaction = async ({
         [{
           tokenAddress,
           amount,
-          recipientAddress: await walletProvider().getAddress(), // User's EOA address
+          recipientAddress: (await walletProvider()).address, // User's EOA address
         }],
         [], // nftAmountRecipients
         originalGasDetails,
