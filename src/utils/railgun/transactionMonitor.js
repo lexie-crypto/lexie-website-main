@@ -1249,6 +1249,97 @@ export const monitorTransactionInGraph = async ({
           hasEventDetail: !!eventDetail
         });
 
+        // ✅ SAVE TO REDIS: Now that transaction is confirmed in Graph API, save to Redis timeline
+        try {
+          console.log('[TransactionMonitor] 💾 Saving confirmed transaction to Redis timeline...');
+
+          // Convert transaction details to timeline event format
+          let confirmedEventData = null;
+
+          if (transactionType === 'shield') {
+            confirmedEventData = {
+              traceId: txHash,
+              type: 'shield',
+              txHash: txHash,
+              status: 'confirmed', // Now confirmed via Graph API
+              token: eventDetail?.tokenSymbol || transactionDetails?.tokenSymbol || 'UNKNOWN',
+              amount: eventDetail?.amount?.toString() || transactionDetails?.amount?.toString() || '0',
+              zkAddr: transactionDetails?.walletAddress || 'unknown',
+              nullifiers: [],
+              memo: null,
+              timestamp: Math.floor(Date.now() / 1000),
+              blockNumber: null, // Could be extracted from Graph events if needed
+              recipientAddress: null,
+              senderAddress: transactionDetails?.walletAddress || null
+            };
+          } else if (transactionType === 'unshield') {
+            confirmedEventData = {
+              traceId: txHash,
+              type: 'unshield',
+              txHash: txHash,
+              status: 'confirmed',
+              token: eventDetail?.tokenSymbol || transactionDetails?.tokenSymbol || 'UNKNOWN',
+              amount: eventDetail?.amount?.toString() || transactionDetails?.amount?.toString() || '0',
+              zkAddr: transactionDetails?.walletAddress || 'unknown',
+              nullifiers: events?.map(e => e.nullifier) || [], // Include nullifiers from Graph events
+              memo: null,
+              timestamp: Math.floor(Date.now() / 1000),
+              blockNumber: null,
+              recipientAddress: eventDetail?.recipientAddress || transactionDetails?.recipientAddress || null,
+              senderAddress: transactionDetails?.walletAddress || null
+            };
+          } else if (transactionType === 'transfer') {
+            confirmedEventData = {
+              traceId: txHash,
+              type: 'transfer_send',
+              txHash: txHash,
+              status: 'confirmed',
+              token: eventDetail?.tokenSymbol || transactionDetails?.tokenSymbol || 'UNKNOWN',
+              amount: eventDetail?.amount?.toString() || transactionDetails?.amount?.toString() || '0',
+              zkAddr: transactionDetails?.walletAddress || 'unknown',
+              nullifiers: events?.map(e => e.nullifier) || [],
+              memo: eventDetail?.memoText || transactionDetails?.memoText || null,
+              timestamp: Math.floor(Date.now() / 1000),
+              blockNumber: null,
+              recipientAddress: eventDetail?.recipientAddress || transactionDetails?.recipientAddress || null,
+              senderAddress: transactionDetails?.walletAddress || null
+            };
+          }
+
+          if (confirmedEventData && transactionDetails?.walletId) {
+            const tlBody = {
+              walletId: transactionDetails.walletId,
+              event: confirmedEventData
+            };
+
+            console.log('[TransactionMonitor] 📡 Saving confirmed transaction to Redis via proxy:', {
+              walletId: transactionDetails.walletId?.slice(0, 10) + '...',
+              type: confirmedEventData.type,
+              txHash: txHash?.slice(0, 10) + '...',
+              status: 'confirmed'
+            });
+
+            // Save through frontend proxy (adds HMAC automatically)
+            const saveResponse = await fetch('/api/wallet-metadata?action=timeline-append', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(tlBody)
+            });
+
+            if (saveResponse.ok) {
+              console.log('[TransactionMonitor] ✅ Successfully saved confirmed transaction to Redis timeline');
+            } else {
+              console.warn('[TransactionMonitor] ⚠️ Failed to save confirmed transaction to timeline:', {
+                status: saveResponse.status,
+                txHash: txHash?.slice(0, 10) + '...'
+              });
+            }
+          }
+        } catch (saveError) {
+          console.warn('[TransactionMonitor] ⚠️ Error saving confirmed transaction to timeline (non-critical):', saveError?.message);
+          // Don't throw - timeline saving is not critical to transaction processing
+        }
+
         console.log('[TransactionMonitor] 🔍 Checking points award conditions:', {
           transactionType,
           hasWalletAddress: !!transactionDetails?.walletAddress,
