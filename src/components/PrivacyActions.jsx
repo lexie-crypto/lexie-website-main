@@ -371,39 +371,11 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
     try {
       const numAmount = parseFloat(amount);
-      if (numAmount <= 0) return false;
-
-      // For shield operations, allow up to full balance
-      if (activeTab === 'shield') {
-        return numAmount <= selectedToken.numericBalance;
-      }
-
-      // For unshield/transfer, leave $0.0001 worth to prevent ZK proof failures
-      const usdValue = selectedToken.balanceUSD ? (
-        typeof selectedToken.balanceUSD === 'string' && selectedToken.balanceUSD.startsWith('$')
-          ? parseFloat(selectedToken.balanceUSD.substring(1))
-          : parseFloat(selectedToken.balanceUSD)
-      ) : 0;
-
-      let maxAllowed;
-      if (usdValue > 0) {
-        // Calculate token units worth $0.0001
-        const usdPerUnit = usdValue / selectedToken.numericBalance;
-        const minChangeUnits = 0.0001 / usdPerUnit;
-
-        // Leave at least this much, or 1 unit minimum
-        const bufferAmount = Math.max(1, Math.ceil(minChangeUnits));
-        maxAllowed = Math.max(0, selectedToken.numericBalance - bufferAmount);
-      } else {
-        // Fallback: leave 1% of balance if no USD value available
-        maxAllowed = Math.floor(selectedToken.numericBalance * 0.99);
-      }
-
-      return numAmount <= maxAllowed;
+      return numAmount > 0 && numAmount <= selectedToken.numericBalance;
     } catch {
       return false;
     }
-  }, [amount, selectedToken, activeTab]);
+  }, [amount, selectedToken]);
 
   // State to hold gas fee estimation result
   const [gasFeeData, setGasFeeData] = useState(null);
@@ -1829,70 +1801,14 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 placeholder="0.0"
                 step="any"
                 min="0"
-                max={(() => {
-                  if (!selectedToken) return 0;
-
-                  // For shield operations, allow full balance
-                  if (activeTab === 'shield') {
-                    return selectedToken.numericBalance;
-                  }
-
-                  // For unshield/transfer, leave $0.0001 worth to prevent ZK proof failures
-                  const usdValue = selectedToken.balanceUSD ? (
-                    typeof selectedToken.balanceUSD === 'string' && selectedToken.balanceUSD.startsWith('$')
-                      ? parseFloat(selectedToken.balanceUSD.substring(1))
-                      : parseFloat(selectedToken.balanceUSD)
-                  ) : 0;
-
-                  if (usdValue > 0) {
-                    // Calculate token units worth $0.0001
-                    const usdPerUnit = usdValue / selectedToken.numericBalance;
-                    const minChangeUnits = 0.0001 / usdPerUnit;
-
-                    // Leave at least this much, or 1 unit minimum
-                    const bufferAmount = Math.max(1, Math.ceil(minChangeUnits));
-                    return Math.max(0, selectedToken.numericBalance - bufferAmount);
-                  } else {
-                    // Fallback: leave 1% of balance if no USD value available
-                    return Math.floor(selectedToken.numericBalance * 0.99);
-                  }
-                })()}
+                max={selectedToken?.numericBalance || 0}
                 className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
                 disabled={!selectedToken}
               />
               {selectedToken && (
                 <button
                   type="button"
-                  onClick={() => {
-                    // For shield operations, allow full balance
-                    if (activeTab === 'shield') {
-                      setAmount(selectedToken.numericBalance.toString());
-                      return;
-                    }
-
-                    // For unshield/transfer, leave $0.0001 worth to prevent ZK proof failures
-                    const usdValue = selectedToken.balanceUSD ? (
-                      typeof selectedToken.balanceUSD === 'string' && selectedToken.balanceUSD.startsWith('$')
-                        ? parseFloat(selectedToken.balanceUSD.substring(1))
-                        : parseFloat(selectedToken.balanceUSD)
-                    ) : 0;
-
-                    if (usdValue > 0) {
-                      // Calculate token units worth $0.0001
-                      const usdPerUnit = usdValue / selectedToken.numericBalance;
-                      const minChangeUnits = 0.0001 / usdPerUnit;
-
-                      // Leave at least this much, or 1 unit minimum
-                      const bufferAmount = Math.max(1, Math.ceil(minChangeUnits));
-                      const maxAmount = Math.max(0, selectedToken.numericBalance - bufferAmount);
-
-                      setAmount(maxAmount.toString());
-                    } else {
-                      // Fallback: leave 1% of balance if no USD value available
-                      const maxAmount = selectedToken.numericBalance * 0.99;
-                      setAmount(Math.floor(maxAmount).toString());
-                    }
-                  }}
+                  onClick={() => setAmount(selectedToken.numericBalance.toString())}
                   className="absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded hover:bg-green-900/20"
                 >
                   Max

@@ -16,9 +16,12 @@ const InjectedProviderButtons = ({ disabled }) => {
     const handleDisconnect = () => {
       console.log('[InjectedProviderButtons] Received force-disconnect event, resetting busyKey');
       setBusyKey(null);
-      // DON'T re-request EIP-6963 immediately after disconnect to prevent auto-connections
-      // Provider discovery will happen again when user clicks a connect button
-      console.log('[InjectedProviderButtons] Skipping EIP-6963 re-request after disconnect');
+      // Force re-detection of providers after disconnect
+      if (typeof window !== 'undefined') {
+        setTimeout(() => {
+          window.dispatchEvent(new Event('eip6963:requestProvider'));
+        }, 200);
+      }
     };
 
     if (typeof window !== 'undefined') {
@@ -54,12 +57,11 @@ const InjectedProviderButtons = ({ disabled }) => {
       await provider.request({ method: 'eth_requestAccounts' });
       // Use generic injected connector and pass through provider metadata
       await connectWallet('injected', { provider, name: meta?.name, id: meta?.id });
-      console.log('[InjectedProviderButtons] Connection successful for', meta?.name);
     } catch (err) {
       console.error('Failed to connect provider:', err);
       throw err; // Re-throw so caller can handle
     } finally {
-      console.log('[InjectedProviderButtons] Finally block in handleClick - clearing busy key for', meta?.name);
+      console.log('[InjectedProviderButtons] Finally block in handleClick - clearing busy key');
       setBusyKey(null);
     }
   };
