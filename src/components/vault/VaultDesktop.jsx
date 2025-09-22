@@ -473,6 +473,31 @@ const VaultDesktopInner = () => {
     }
   }, [isConnected, address, chainId]);
 
+  // Listen for full balance refresh events (wallet connection and chain changes)
+  useEffect(() => {
+    const handleWalletConnectedRefresh = () => {
+      console.log('[VaultDesktop] Received wallet-connected-refresh-balances event - triggering full refresh...');
+      refreshBalances();
+    };
+
+    const handleChainChangedRefresh = () => {
+      console.log('[VaultDesktop] Received chain-changed-refresh-balances event - triggering full refresh...');
+      refreshBalances();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('wallet-connected-refresh-balances', handleWalletConnectedRefresh);
+      window.addEventListener('chain-changed-refresh-balances', handleChainChangedRefresh);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('wallet-connected-refresh-balances', handleWalletConnectedRefresh);
+        window.removeEventListener('chain-changed-refresh-balances', handleChainChangedRefresh);
+      }
+    };
+  }, [refreshBalances]);
+
   // Auto-switch to privacy view when Railgun is ready
   useEffect(() => {
     if (canUseRailgun && railgunWalletId) {
