@@ -22,6 +22,7 @@ import {
   calculateGasPrice,
   TXIDVersion,
 } from '@railgun-community/shared-models';
+import { calculateUSDValue } from '../pricing/coinGecko.js';
 
 /**
  * Default gas values for different networks and transaction types
@@ -311,6 +312,12 @@ export const getTxFeeParams = async (provider, evmGasType, chainId) => {
   let feeData = null;
   try {
     feeData = await provider.getFeeData(); // { gasPrice, maxFeePerGas, maxPriorityFeePerGas }
+    console.log('[GasDetails] Provider fee data:', {
+      chainId,
+      gasPrice: feeData?.gasPrice?.toString(),
+      maxFeePerGas: feeData?.maxFeePerGas?.toString(),
+      maxPriorityFeePerGas: feeData?.maxPriorityFeePerGas?.toString(),
+    });
   } catch (error) {
     console.warn('[GasDetails] Failed to get fee data from provider:', error.message);
   }
@@ -329,6 +336,21 @@ export const getTxFeeParams = async (provider, evmGasType, chainId) => {
     maxFeePerGas: isArb || isPolygon || isBnb ? F('1000000000') : F('4000000000'),
     maxPriorityFeePerGas: isArb || isPolygon || isBnb ? F('10000000') : F('3000000000'),
   };
+
+  // Cap provider fee data to reasonable maximums for L2 networks
+  const maxReasonableGasPrice = isArb || isPolygon || isBnb ? F('5000000000') : F('100000000000'); // 5 gwei (L2) / 100 gwei (L1)
+  const maxReasonableMaxFeePerGas = isArb || isPolygon || isBnb ? F('50000000000') : F('200000000000'); // 50 gwei (L2) / 200 gwei (L1)
+
+  if (feeData) {
+    if (feeData.gasPrice && feeData.gasPrice > maxReasonableGasPrice) {
+      console.warn(`[GasDetails] Provider gas price too high (${feeData.gasPrice.toString()} wei), using fallback`);
+      feeData.gasPrice = null;
+    }
+    if (feeData.maxFeePerGas && feeData.maxFeePerGas > maxReasonableMaxFeePerGas) {
+      console.warn(`[GasDetails] Provider maxFeePerGas too high (${feeData.maxFeePerGas.toString()} wei), using fallback`);
+      feeData.maxFeePerGas = null;
+    }
+  }
 
   if (evmGasType === EVMGasType.Type2) {
     const maxFeePerGas = feeData?.maxFeePerGas ?? fallbacks.maxFeePerGas;
@@ -603,10 +625,10 @@ export const estimateGasForTransaction = async ({
     // Calculate gas cost in wei
     const gasCostWei = calculateTransactionCost(gasDetails);
 
-    // Convert to ETH and USD
+    // Convert to ETH and USD using dynamic CoinGecko pricing
     const gasCostEth = Number(gasCostWei) / 1e18;
-    const ethPrice = 3000; // Could be made dynamic
-    const gasCostUSD = gasCostEth * ethPrice;
+    const ethPriceUSD = await calculateUSDValue('ETH', 1);
+    const gasCostUSD = gasCostEth * parseFloat(ethPriceUSD.replace(/[$,]/g, ''));
 
     // Add 20% buffer to displayed gas fees for safety
     const bufferedGasCostUSD = gasCostUSD * 1.2;
