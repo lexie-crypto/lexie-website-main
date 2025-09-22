@@ -504,6 +504,99 @@ export const monitorTransactionInGraph = async ({
 
     await waitForRailgunReady();
 
+    // ✅ SAVE TO REDIS IMMEDIATELY: As soon as we have transaction hash, save to timeline
+    if (transactionDetails?.walletId && txHash) {
+      try {
+        console.log('[TransactionMonitor] 🧾 Saving transaction to Redis timeline immediately on monitor start...');
+
+        // Convert transaction details to timeline event format
+        let eventData = null;
+
+        if (transactionType === 'shield') {
+          eventData = {
+            traceId: txHash,
+            type: 'shield',
+            txHash: txHash,
+            status: 'pending', // Transaction hash exists = submitted, status TBD
+            token: transactionDetails?.tokenSymbol || 'UNKNOWN',
+            amount: transactionDetails?.amount?.toString() || '0',
+            zkAddr: transactionDetails?.walletAddress || 'unknown',
+            nullifiers: [],
+            memo: null,
+            timestamp: Math.floor(Date.now() / 1000),
+            blockNumber: null, // Will be updated when receipt is available
+            recipientAddress: null,
+            senderAddress: transactionDetails?.walletAddress || null
+          };
+        } else if (transactionType === 'unshield') {
+          eventData = {
+            traceId: txHash,
+            type: 'unshield',
+            txHash: txHash,
+            status: 'confirmed',
+            token: transactionDetails?.tokenSymbol || 'UNKNOWN',
+            amount: transactionDetails?.amount?.toString() || '0',
+            zkAddr: transactionDetails?.walletAddress || 'unknown',
+            nullifiers: [],
+            memo: null,
+            timestamp: Math.floor(Date.now() / 1000),
+            blockNumber: null,
+            recipientAddress: transactionDetails?.recipientAddress || null,
+            senderAddress: transactionDetails?.walletAddress || null
+          };
+        } else if (transactionType === 'transfer') {
+          eventData = {
+            traceId: txHash,
+            type: 'transfer_send',
+            txHash: txHash,
+            status: 'confirmed',
+            token: transactionDetails?.tokenSymbol || 'UNKNOWN',
+            amount: transactionDetails?.amount?.toString() || '0',
+            zkAddr: transactionDetails?.walletAddress || 'unknown',
+            nullifiers: [],
+            memo: transactionDetails?.memoText || null,
+            timestamp: Math.floor(Date.now() / 1000),
+            blockNumber: null,
+            recipientAddress: transactionDetails?.recipientAddress || null,
+            senderAddress: transactionDetails?.walletAddress || null
+          };
+        }
+
+        if (eventData) {
+          const tlBody = {
+            walletId: transactionDetails.walletId,
+            event: eventData
+          };
+
+          console.log('[TransactionMonitor] 📡 Saving transaction immediately to Redis via proxy:', {
+            walletId: transactionDetails.walletId?.slice(0, 10) + '...',
+            type: eventData.type,
+            txHash: txHash?.slice(0, 10) + '...',
+            status: 'confirmed'
+          });
+
+          // Save through frontend proxy (adds HMAC automatically)
+          const saveResponse = await fetch('/api/wallet-metadata?action=timeline-append', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(tlBody)
+          });
+
+          if (saveResponse.ok) {
+            console.log('[TransactionMonitor] ✅ Successfully saved transaction immediately to Redis timeline');
+          } else {
+            console.warn('[TransactionMonitor] ⚠️ Failed to save transaction immediately to timeline:', {
+              status: saveResponse.status,
+              txHash: txHash?.slice(0, 10) + '...'
+            });
+          }
+        }
+      } catch (saveError) {
+        console.warn('[TransactionMonitor] ⚠️ Error saving transaction immediately to timeline (non-critical):', saveError?.message);
+        // Don't throw - timeline saving is not critical to transaction processing
+      }
+    }
+
     // Cache block number after first Alchemy call
     let blockNumber = null;
     const { ethers } = await import('ethers');
@@ -533,7 +626,8 @@ export const monitorTransactionInGraph = async ({
           logs: receipt?.logs?.length || 0
         });
 
-        // 🚀 SAVE TO REDIS TIMELINE AFTER RECEIPT CONFIRMATION
+        // 🚀 SAVE TO REDIS TIMELINE AFTER RECEIPT CONFIRMATION - COMMENTED OUT (using immediate save instead)
+        /*
         if (transactionDetails?.walletId && receipt) {
           try {
             console.log('[TransactionMonitor] 🧾 Saving confirmed transaction to Redis timeline...');
@@ -629,6 +723,7 @@ export const monitorTransactionInGraph = async ({
             // Don't throw - timeline saving is not critical to transaction processing
           }
         }
+        */
 
         if (!receipt) {
           console.warn(`[TransactionMonitor] ⚠️ No receipt found for ${txHash} on chain ${chainId} - transaction may not be mined yet`);
@@ -1249,7 +1344,8 @@ export const monitorTransactionInGraph = async ({
           hasEventDetail: !!eventDetail
         });
 
-        // ✅ SAVE TO REDIS: Now that transaction is confirmed in Graph API, save to Redis timeline
+        // ✅ SAVE TO REDIS: Now that transaction is confirmed in Graph API - COMMENTED OUT (using immediate save instead)
+        /*
         try {
           console.log('[TransactionMonitor] 💾 Saving confirmed transaction to Redis timeline...');
 
@@ -1339,6 +1435,7 @@ export const monitorTransactionInGraph = async ({
           console.warn('[TransactionMonitor] ⚠️ Error saving confirmed transaction to timeline (non-critical):', saveError?.message);
           // Don't throw - timeline saving is not critical to transaction processing
         }
+        */
 
         console.log('[TransactionMonitor] 🔍 Checking points award conditions:', {
           transactionType,
