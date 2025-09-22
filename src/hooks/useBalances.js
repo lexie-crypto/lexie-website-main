@@ -743,12 +743,20 @@ export function useBalances() {
     });
   };
 
-  // Auto-fetch public balances on wallet connect (ONCE per connection)
+  // Auto-fetch public balances AND trigger full SDK validation on wallet connect (ONCE per connection)
   useEffect(() => {
     if (address && chainId && !hasAutoRefreshed.current) {
       hasAutoRefreshed.current = true;
       console.log('[useBalances] ✅ Running public balance refresh ONCE after connect');
       refreshAllBalances();
+
+      // Also trigger full SDK validation for private balances (same as refresh button)
+      setTimeout(() => {
+        console.log('[useBalances] 🔄 Triggering full SDK validation after connect...');
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('wallet-connected-refresh-balances'));
+        }
+      }, 1500); // Delay to let public balances load first
     } else if (!address) {
       // Reset flag when wallet disconnects so new connections can auto-refresh
       hasAutoRefreshed.current = false;
