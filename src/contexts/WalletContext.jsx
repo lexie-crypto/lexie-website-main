@@ -549,10 +549,51 @@ const WalletContextProvider = ({ children }) => {
       throw new Error('Failed to get EIP-1193 provider');
     }
 
+    // For WalletConnect, override the RPC endpoint to use our premium RPCs
+    if (connector?.id === 'walletConnect') {
+      console.log('🔧 WalletConnect detected - overriding RPC endpoint for premium gas data');
+
+      // Get the current chain ID
+      let chainId = 1; // Default to Ethereum
+      try {
+        // Try to get chainId from the provider
+        if (selectedProvider.request) {
+          const chainIdHex = await selectedProvider.request({ method: 'eth_chainId' });
+          chainId = parseInt(chainIdHex, 16);
+        }
+      } catch (e) {
+        console.warn('⚠️ Could not get chainId from WalletConnect provider, using default');
+      }
+
+      // Create a custom provider that uses our RPC endpoint
+      const { JsonRpcProvider } = await import('ethers');
+      const rpcUrl = RPC_URLS.ethereum; // Default fallback
+
+      // Map chainId to RPC URL
+      if (chainId === 137) rpcUrl = RPC_URLS.polygon;
+      else if (chainId === 42161) rpcUrl = RPC_URLS.arbitrum;
+      else if (chainId === 56) rpcUrl = RPC_URLS.bsc;
+
+      console.log(`🔧 WalletConnect using premium RPC for chain ${chainId}:`, rpcUrl);
+
+      const customProvider = new JsonRpcProvider(rpcUrl);
+      const signer = await customProvider.getSigner(await selectedProvider.request({ method: 'eth_accounts' }).then(accounts => accounts[0]));
+
+      console.log('✅ Wallet signer created using premium RPC provider:', {
+        connectorId: connector?.id,
+        connectorName: connector?.name,
+        address: await signer.getAddress(),
+        providerType: 'PremiumRPC',
+        chainId,
+        rpcUrl
+      });
+      return signer;
+    }
+
     const { BrowserProvider } = await import('ethers');
     const provider = new BrowserProvider(selectedProvider);
     const signer = await provider.getSigner();
-    
+
     console.log('✅ Wallet signer created using actual EIP-1193 provider:', {
       connectorId: connector?.id,
       connectorName: connector?.name,
