@@ -211,8 +211,10 @@ const wagmiConfig = createConfig({
       },
     }),
   },
-  // Prevent silent reconnection after disconnect; require explicit connect
+  // AGGRESSIVE: Prevent ANY auto-connection or persistence
   autoConnect: false,
+  persist: false,
+  storage: null, // Disable wagmi storage completely
 });
 
 const WalletContext = createContext({
@@ -424,6 +426,44 @@ const WalletContextProvider = ({ children }) => {
       disconnectWallet();
     }
   }, [isConnected]);
+
+  // On app startup, disconnect immediately if user previously disconnected
+  useEffect(() => {
+    const checkAndDisconnectOnStartup = async () => {
+      // Small delay to let wagmi initialize
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      if (userDisconnectedRef.current && isConnected && !disconnectingRef.current) {
+        console.log('🚫 [STARTUP] User previously disconnected - disconnecting auto-connection on startup');
+        disconnectWallet();
+      }
+
+      // Also disconnect on every page load if flag is set (extra aggressive)
+      if (userDisconnectedRef.current && !disconnectingRef.current) {
+        console.log('🚫 [STARTUP] Aggressive disconnect on page load');
+        try {
+          await disconnect();
+        } catch (error) {
+          console.warn('⚠️ [STARTUP] Error disconnecting on page load:', error);
+        }
+      }
+    };
+
+    checkAndDisconnectOnStartup();
+
+    // Add window event listener to catch any sneaky connections
+    const handleVisibilityChange = async () => {
+      if (document.visibilityState === 'visible' && userDisconnectedRef.current && isConnected && !disconnectingRef.current) {
+        console.log('🚫 [VISIBILITY] Detected connection when user should be disconnected - disconnecting');
+        disconnectWallet();
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('visibilitychange', handleVisibilityChange);
+      return () => window.removeEventListener('visibilitychange', handleVisibilityChange);
+    }
+  }, []); // Run only once on mount
 
   // Global fetch interceptor to block RPC calls when rate limited
   useEffect(() => {
@@ -784,11 +824,32 @@ const WalletContextProvider = ({ children }) => {
         console.warn('⚠️ [DISCONNECT] Error disconnecting wallet:', disconnectError);
       }
 
-      // Light cleanup of storage and globals without heavy timers/reload
+      // Aggressive cleanup of ALL storage and wagmi state
       try {
         if (typeof window !== 'undefined') {
-          try { localStorage.clear(); } catch {}
+          // Clear ALL localStorage to prevent wagmi auto-connect
+          try {
+            const keys = Object.keys(localStorage);
+            keys.forEach(key => {
+              if (key.includes('wagmi') || key.includes('wallet') || key.includes('connect')) {
+                localStorage.removeItem(key);
+              }
+            });
+            localStorage.clear(); // Fallback: clear everything
+          } catch {}
+
+          // Clear sessionStorage
           try { sessionStorage.clear(); } catch {}
+
+          // Clear wagmi-specific keys that might persist
+          try {
+            localStorage.removeItem('wagmi.wallet');
+            localStorage.removeItem('wagmi.connected');
+            localStorage.removeItem('wagmi.recentConnectorId');
+            localStorage.removeItem('wagmi.store');
+          } catch {}
+
+          // Clear window globals
           delete window.__RAILGUN_INITIAL_SCAN_DONE;
           delete window.__LEXIE_ENGINE_READY;
           delete window.__LEXIE_SUPPRESS_RAILGUN_INIT;
