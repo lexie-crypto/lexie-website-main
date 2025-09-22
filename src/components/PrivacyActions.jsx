@@ -39,7 +39,7 @@ import {
   getCurrentWalletID,
   getCurrentWallet,
 } from '../utils/railgun/wallet';
-import { getTokenAddress, areTokensEqual } from '../utils/tokens';
+import { getTokenAddress, areTokensEqual, isValidTokenForChain } from '../utils/tokens';
 import { estimateGasForTransaction } from '../utils/railgun/tx-gas-details';
 import { getRailgunNetworkName } from '../utils/railgun/tx-unshield';
 
@@ -623,11 +623,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       // Get wallet signer (not provider to avoid re-wrapping)
       const walletSigner = await walletProvider(); // This now returns a signer
 
-      // Get normalized token address
-      const tokenAddr = getTokenAddress(selectedToken);
-      // Allow null addresses for native tokens (e.g., ETH)
-      const isNativeToken = !tokenAddr && selectedToken.symbol === 'ETH';
-      if (!tokenAddr && !isNativeToken) {
+      // Validate token is valid for this chain (has address or is native token)
+      if (!isValidTokenForChain(selectedToken, chainId)) {
         console.error('[PrivacyActions] Shield failed: Invalid token address', selectedToken);
         toast.error('Selected token is invalid. Please reselect the token.');
         return;
@@ -932,8 +929,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     }
 
     // 🚨 CRITICAL: Validate tokenAddress to prevent USDT decimals miscalculation
-    const tokenAddr = getTokenAddress(selectedToken);
-    if (!tokenAddr) {
+    // Validate token is valid for this chain (has address or is native token)
+    if (!isValidTokenForChain(selectedToken, chainId)) {
       console.error('[PrivacyActions] Unshield failed: Invalid token address', selectedToken);
       toast.error('Selected token is invalid. Please reselect the token.');
       return;
@@ -1278,9 +1275,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
       const encryptionKey = await getEncryptionKey();
       const amountInUnits = parseTokenAmount(amount, selectedToken.decimals);
-      const tokenAddr = getTokenAddress(selectedToken);
 
-      if (!tokenAddr) {
+      // Validate token is valid for this chain (has address or is native token)
+      if (!isValidTokenForChain(selectedToken, chainId)) {
         console.error('[PrivacyActions] Transfer failed: Invalid token address', selectedToken);
         toast.error('Selected token is invalid. Please reselect the token.');
         return;
