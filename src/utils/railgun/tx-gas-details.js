@@ -508,136 +508,152 @@ export const estimateGasForTransaction = async ({
       recipientAddress: recipientAddress?.substring(0, 20) + '...'
     });
 
-    const signer = await walletProvider();
-    const provider = signer.provider;
+    // Use hardcoded gas limit instead of SDK dummy transactions
+    const gasLimit = 1000000n; // 1M gas limit
 
-    // For gas estimation, we need sendWithPublicWallet = true for self-signing
-    // This is required by RAILGUN SDK for gas estimation
-    const sendWithPublicWallet = true;
+    // Get current gas prices from RPC provider
+    const gasPrices = await fetchGasPricesFromRPC(chainId);
 
-    const evmGasType = getEVMGasTypeForTransaction(networkName, sendWithPublicWallet);
-    const originalFeeParams = await getTxFeeParams(provider, evmGasType, chainId);
+    // Calculate gas cost based on gas type
+    const evmGasType = getEVMGasTypeForTransaction(networkName, true); // Assume self-signing for estimation
 
-    // Create originalGasDetails for SDK estimate
-    const originalGasDetails =
-      evmGasType === EVMGasType.Type2
-        ? {
-            evmGasType,
-            originalGasEstimate: 0n,
-            maxFeePerGas: originalFeeParams.maxFeePerGas,
-            maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas
-          }
-        : {
-            evmGasType,
-            originalGasEstimate: 0n,
-            gasPrice: originalFeeParams.gasPrice
-          };
-
-    let gasEstimate;
-
-    if (transactionType === 'unshield') {
-      // Use unshield gas estimation - use minimal amount to avoid balance checks
-      const estimationAmount = 1n; // Use 1 unit for gas estimation (minimal amount)
-      const res = await gasEstimateForUnprovenUnshield(
-        TXIDVersion.V2_PoseidonMerkle,
-        networkName,
-        railgunWalletID,
-        encryptionKey,
-        [{
-          tokenAddress,
-          amount: estimationAmount, // Use minimal amount for estimation
-          recipientAddress: (await walletProvider()).address, // User's EOA address
-        }],
-        [], // nftAmountRecipients
-        originalGasDetails,
-        null, // feeTokenDetails not needed for self-signing
-        sendWithPublicWallet,
-      );
-      gasEstimate = res.gasEstimate;
-
-    } else if (transactionType === 'transfer') {
-      // Use transfer gas estimation - use relayer RAILGUN address for estimation
-      // (since we're just estimating gas, the actual recipient validation happens later)
-      const relayerAddress = await getRelayerAddress();
-      const estimationAmount = 1n; // Use 1 unit for gas estimation (minimal amount)
-
-      const res = await gasEstimateForUnprovenTransfer(
-        TXIDVersion.V2_PoseidonMerkle,
-        networkName,
-        railgunWalletID,
-        encryptionKey,
-        '', // memoText
-        [{
-          tokenAddress,
-          amount: estimationAmount, // Use smaller amount for estimation
-          recipientAddress: relayerAddress, // Use relayer address for gas estimation
-        }],
-        [], // nftAmountRecipients
-        originalGasDetails,
-        null, // feeTokenDetails not needed for gas estimation
-        sendWithPublicWallet,
-      );
-      gasEstimate = res.gasEstimate;
+    let gasCostWei;
+    if (evmGasType === EVMGasType.Type2) {
+      // EIP-1559: use maxFeePerGas
+      gasCostWei = gasLimit * gasPrices.maxFeePerGas;
     } else {
-      throw new Error(`Unsupported transaction type: ${transactionType}`);
+      // Legacy: use gasPrice
+      gasCostWei = gasLimit * gasPrices.gasPrice;
     }
 
-    // Pad estimate for headroom (same as buildGasAndEstimate)
-    const paddedGasEstimate = (gasEstimate * 120n) / 100n;
+    // Determine native gas token symbol for this chain
+    const NATIVE_GAS_TOKENS = {
+      1: 'ETH',      // Ethereum
+      137: 'MATIC',  // Polygon
+      56: 'BNB',     // BSC
+      42161: 'ETH',  // Arbitrum (uses ETH)
+    };
+    const nativeGasToken = NATIVE_GAS_TOKENS[chainId] || 'ETH';
 
-    // Create final gas details
-    const gasDetails =
-      evmGasType === EVMGasType.Type2
-        ? {
-            evmGasType,
-            gasEstimate: paddedGasEstimate,
-            maxFeePerGas: originalFeeParams.maxFeePerGas,
-            maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas,
-          }
-        : {
-            evmGasType,
-            gasEstimate: paddedGasEstimate,
-            gasPrice: originalFeeParams.gasPrice,
-          };
+    // Convert to native gas token amount and get real USD cost from CoinGecko
+    const gasCostNative = Number(gasCostWei) / 1e18; // All chains use 18 decimals for gas
+    const { fetchTokenPrices } = await import('../pricing/coinGecko.js');
+    const prices = await fetchTokenPrices([nativeGasToken]);
+    const tokenPrice = prices[nativeGasToken] || (nativeGasToken === 'ETH' ? 3000 : 1); // Fallback prices
+    const gasCostUSD = gasCostNative * tokenPrice;
 
-    // Calculate gas cost in wei
-    const gasCostWei = calculateTransactionCost(gasDetails);
-
-    // Convert to ETH and USD
-    const gasCostEth = Number(gasCostWei) / 1e18;
-    const ethPrice = 3000; // Could be made dynamic
-    const gasCostUSD = gasCostEth * ethPrice;
-
-    // Add 20% buffer to displayed gas fees for safety
-    const bufferedGasCostUSD = gasCostUSD * 1.2;
-    const bufferedGasCostEth = gasCostEth * 1.2;
-
-    console.log(`[GasEstimation] Gas estimation complete for ${transactionType}:`, {
-      gasEstimate: gasEstimate.toString(),
-      paddedGasEstimate: paddedGasEstimate.toString(),
+    console.log(`[GasEstimation] Simple gas estimation result:`, {
+      chainId,
+      nativeGasToken,
+      gasLimit: gasLimit.toString(),
       gasCostWei: gasCostWei.toString(),
-      gasCostEth: gasCostEth.toFixed(6),
-      gasCostUSD: gasCostUSD.toFixed(2),
-      bufferedGasCostUSD: bufferedGasCostUSD.toFixed(2),
-      bufferedGasCostEth: bufferedGasCostEth.toFixed(6)
+      gasCostNative: gasCostNative.toFixed(8),
+      tokenPrice: tokenPrice.toFixed(4),
+      gasCostUSD: gasCostUSD.toFixed(4),
+      evmGasType,
+      method: 'hardcoded-limit-rpc-prices-coingecko'
     });
 
     return {
-      gasCostUSD: bufferedGasCostUSD.toFixed(2),
-      gasCostEth: bufferedGasCostEth.toFixed(6),
-      gasEstimate: paddedGasEstimate.toString(),
+      gasCostUSD: gasCostUSD.toFixed(2),
+      gasCostNative: gasCostNative.toFixed(6),
+      nativeGasToken,
+      gasEstimate: gasLimit.toString(),
       evmGasType,
     };
 
   } catch (error) {
     console.error(`[GasEstimation] Failed to estimate gas for ${transactionType}:`, error);
-    // Return fallback estimates with 20% buffer
+    // Return fallback estimates
+    const fallbackToken = { 1: 'ETH', 137: 'MATIC', 56: 'BNB', 42161: 'ETH' }[chainId] || 'ETH';
     return {
-      gasCostUSD: '6.00', // Conservative fallback with 20% buffer (5.00 * 1.2)
-      gasCostEth: '0.002000', // Conservative fallback with 20% buffer (0.001667 * 1.2)
-      gasEstimate: '2000000',
+      gasCostUSD: '0.10',
+      gasCostNative: '0.00004167',
+      nativeGasToken: fallbackToken,
+      gasEstimate: '1000000',
       evmGasType: EVMGasType.Type2,
       error: error.message
+    };
+  }
+};
+
+/**
+ * Fetch current gas prices from RPC provider
+ */
+const fetchGasPricesFromRPC = async (chainId) => {
+  try {
+    const rpcUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/api/rpc?chainId=${chainId}&provider=auto`;
+
+    // Try eth_gasPrice first (works on most networks)
+    try {
+      const gasPriceResponse = await fetch(rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'eth_gasPrice',
+          params: [],
+          id: 1
+        })
+      });
+
+      if (gasPriceResponse.ok) {
+        const gasPriceData = await gasPriceResponse.json();
+        const gasPrice = BigInt(gasPriceData.result);
+
+        return {
+          gasPrice,
+          maxFeePerGas: gasPrice,
+          maxPriorityFeePerGas: gasPrice / 10n // Conservative priority fee
+        };
+      }
+    } catch (gasPriceError) {
+      console.warn('[GasEstimation] eth_gasPrice failed:', gasPriceError.message);
+    }
+
+    // Fallback to eth_feeHistory for EIP-1559 networks
+    try {
+      const feeHistoryResponse = await fetch(rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'eth_feeHistory',
+          params: [1, 'latest', [10, 50, 90]], // 1 block, latest, priority fee percentiles
+          id: 2
+        })
+      });
+
+      if (feeHistoryResponse.ok) {
+        const feeHistoryData = await feeHistoryResponse.json();
+        const baseFee = BigInt(feeHistoryData.result.baseFeePerGas[0]);
+        const priorityFee = BigInt(feeHistoryData.result.reward[0][1]); // 50th percentile
+
+        return {
+          gasPrice: baseFee + priorityFee,
+          maxFeePerGas: baseFee + priorityFee,
+          maxPriorityFeePerGas: priorityFee
+        };
+      }
+    } catch (feeHistoryError) {
+      console.warn('[GasEstimation] eth_feeHistory failed:', feeHistoryError.message);
+    }
+
+    // Final fallback to hardcoded values
+    console.warn('[GasEstimation] All RPC gas price methods failed, using hardcoded fallbacks');
+    return {
+      gasPrice: 20000000000n, // 20 gwei
+      maxFeePerGas: 25000000000n, // 25 gwei
+      maxPriorityFeePerGas: 2000000000n // 2 gwei
+    };
+
+  } catch (error) {
+    console.error('[GasEstimation] Failed to fetch gas prices from RPC:', error);
+    // Return safe fallback values
+    return {
+      gasPrice: 20000000000n,
+      maxFeePerGas: 25000000000n,
+      maxPriorityFeePerGas: 2000000000n
     };
   }
 };

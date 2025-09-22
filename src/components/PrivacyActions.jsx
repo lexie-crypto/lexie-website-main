@@ -437,7 +437,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         if (result && !result.error) {
           setGasFeeData({
             gasCostUSD: result.gasCostUSD,
-            gasCostEth: result.gasCostEth
+            gasCostNative: result.gasCostNative,
+            nativeGasToken: result.nativeGasToken
           });
         } else {
           setGasFeeData(null);
@@ -485,6 +486,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       amountUSD: amountUSD.toFixed(2),
       feeUSD: feeUSD.toFixed(2),
       gasFeeUSD: gasFeeData ? gasFeeData.gasCostUSD : null,
+      gasCostNative: gasFeeData ? gasFeeData.gasCostNative : null,
+      nativeGasToken: gasFeeData ? gasFeeData.nativeGasToken : null,
       feePercent: (feeRate * 100).toFixed(2),
       netAmount: netAmount.toFixed(6),
       netAmountUSD: netAmountUSD.toFixed(2)
@@ -1858,7 +1861,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                   {feeInfo.gasFeeUSD && activeTab !== 'shield' && (
                     <div className="flex justify-between border-b border-green-500/20 pb-1 mb-1">
                       <span className="text-green-400/80">Est. Gas Fees:</span>
-                      <span className="text-green-200">${feeInfo.gasFeeUSD}</span>
+                      <span className="text-green-200">${feeInfo.gasFeeUSD} ({feeInfo.gasCostNative} {feeInfo.nativeGasToken})</span>
                     </div>
                   )}
                   {feeInfo.gasFeeUSD && activeTab !== 'shield' && (
