@@ -1828,49 +1828,60 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             )}
 
             {/* Fee Display */}
-            {feeInfo && (
+            {activeTab !== 'shield' && (
               <div className="mt-3 p-3 bg-black/40 border border-green-500/20 rounded text-xs">
                 <div className="space-y-1">
-                  <div className="flex justify-between">
-                    <span className="text-green-400/80">Network Fees:</span>
-                    <span className="text-green-200">${feeInfo.feeUSD} ({feeInfo.feePercent}%)</span>
-                  </div>
-                  {(gasEstimationLoading || gasFeeData) && activeTab !== 'shield' && (
-                    <div className="flex justify-between border-b border-green-500/20 pb-1 mb-1">
-                      <span className="text-green-400/80">Est. Gas Fees:</span>
-                      <span className="text-green-200 flex items-center gap-2">
-                        {gasEstimationLoading ? (
-                          <>
-                            <div className="animate-spin rounded-full h-3 w-3 border-b border-green-400"></div>
-                            Calculating...
-                          </>
-                        ) : (
-                          `$${gasFeeData.gasCostUSD}`
-                        )}
-                      </span>
-                    </div>
-                  )}
-                  {(gasEstimationLoading || gasFeeData) && activeTab !== 'shield' && (
+                  {feeInfo && (
                     <div className="flex justify-between">
-                      <span className="text-green-400/80">Est. Total Fees:</span>
-                      <span className="text-green-200 flex items-center gap-2">
-                        {gasEstimationLoading ? (
-                          <>
-                            <div className="animate-spin rounded-full h-3 w-3 border-b border-green-400"></div>
-                            Calculating...
-                          </>
-                        ) : (
-                          `$${(parseFloat(feeInfo.feeUSD) + parseFloat(gasFeeData.gasCostUSD)).toFixed(2)}`
-                        )}
-                      </span>
+                      <span className="text-green-400/80">Network Fees:</span>
+                      <span className="text-green-200">${feeInfo.feeUSD} ({feeInfo.feePercent}%)</span>
                     </div>
                   )}
+                  <div className="flex justify-between border-b border-green-500/20 pb-1 mb-1">
+                    <span className="text-green-400/80">Est. Gas Fees:</span>
+                    <span className="text-green-200 flex items-center gap-2">
+                      {gasEstimationLoading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-3 w-3 border-b border-green-400"></div>
+                          Calculating...
+                        </>
+                      ) : gasFeeData ? (
+                        `$${gasFeeData.gasCostUSD}`
+                      ) : (
+                        '-'
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-green-400/80">Est. Total Fees:</span>
+                    <span className="text-green-200 flex items-center gap-2">
+                      {gasEstimationLoading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-3 w-3 border-b border-green-400"></div>
+                          Calculating...
+                        </>
+                      ) : feeInfo && gasFeeData ? (
+                        `$${(parseFloat(feeInfo.feeUSD) + parseFloat(gasFeeData.gasCostUSD)).toFixed(2)}`
+                      ) : (
+                        '-'
+                      )}
+                    </span>
+                  </div>
                   <div className="flex justify-between font-medium">
                     <span className="text-green-300">
-                      {(gasEstimationLoading || gasFeeData) && activeTab !== 'shield' ? 'Est. ' : ''}Total {activeTab === 'shield' ? 'Added' : activeTab === 'unshield' ? 'Received' : 'Sent'}:
+                      Est. Total {activeTab === 'unshield' ? 'Received' : 'Sent'}:
                     </span>
-                    <span className="text-emerald-300">
-                      {feeInfo.netAmount} {selectedToken.symbol} (${feeInfo.netAmountUSD})
+                    <span className="text-emerald-300 flex items-center gap-2">
+                      {gasEstimationLoading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-3 w-3 border-b border-emerald-400"></div>
+                          Calculating...
+                        </>
+                      ) : feeInfo && gasFeeData ? (
+                        `${feeInfo.netAmount} ${selectedToken.symbol} ($${feeInfo.netAmountUSD})`
+                      ) : (
+                        '-'
+                      )}
                     </span>
                   </div>
                 </div>
