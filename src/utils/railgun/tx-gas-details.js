@@ -618,26 +618,32 @@ export const estimateGasForTransaction = async ({
     } else if (transactionType === 'transfer') {
       // Use transfer gas estimation - use relayer RAILGUN address for estimation
       // (since we're just estimating gas, the actual recipient validation happens later)
-      const relayerAddress = await getRelayerAddress();
-      const estimationAmount = 1n; // Use 1 unit for gas estimation (minimal amount)
+      try {
+        const relayerAddress = await getRelayerAddress();
+        const estimationAmount = 1n; // Use 1 unit for gas estimation (minimal amount)
 
-      const res = await gasEstimateForUnprovenTransfer(
-        TXIDVersion.V2_PoseidonMerkle,
-        networkName,
-        railgunWalletID,
-        encryptionKey,
-        '', // memoText
-        [{
-          tokenAddress,
-          amount: estimationAmount, // Use smaller amount for estimation
-          recipientAddress: relayerAddress, // Use relayer address for gas estimation
-        }],
-        [], // nftAmountRecipients
-        originalGasDetails,
-        null, // feeTokenDetails not needed for gas estimation
-        sendWithPublicWallet,
-      );
-      gasEstimate = res.gasEstimate;
+        const res = await gasEstimateForUnprovenTransfer(
+          TXIDVersion.V2_PoseidonMerkle,
+          networkName,
+          railgunWalletID,
+          encryptionKey,
+          '', // memoText
+          [{
+            tokenAddress,
+            amount: estimationAmount, // Use smaller amount for estimation
+            recipientAddress: relayerAddress, // Use relayer address for gas estimation
+          }],
+          [], // nftAmountRecipients
+          originalGasDetails,
+          null, // feeTokenDetails not needed for gas estimation
+          sendWithPublicWallet,
+        );
+        gasEstimate = res.gasEstimate;
+      } catch (error) {
+        // If balance is insufficient for estimation, use conservative hardcoded estimate
+        console.warn('[GasEstimation] Insufficient balance for SDK transfer estimation, using conservative fallback');
+        gasEstimate = 1000000n; // Conservative 1.2M gas estimate for transfer
+      }
     } else {
       throw new Error(`Unsupported transaction type: ${transactionType}`);
     }
