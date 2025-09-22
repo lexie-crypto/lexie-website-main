@@ -1721,30 +1721,8 @@ const WalletContextProvider = ({ children }) => {
       console.log('🚀 Auto-initializing Railgun for connected wallet:', address);
       lastInitializedAddressRef.current = address;
       initializeRailgun();
-
-      // Trigger full balance refresh on wallet connection (same as refresh button)
-      setTimeout(() => {
-        console.log('🔄 Triggering full balance refresh on wallet connection...');
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('wallet-connected-refresh-balances'));
-        }
-      }, 2000); // Small delay to let Railgun init complete
     }
   }, [isConnected, address, isRailgunInitialized, isInitializing, chainId, status]);
-
-  // Detect chain changes and trigger balance refresh
-  const prevChainIdRef = useRef(chainId);
-  useEffect(() => {
-    if (prevChainIdRef.current && prevChainIdRef.current !== chainId && isConnected && address) {
-      console.log('🔄 Chain changed from', prevChainIdRef.current, 'to', chainId, '- triggering full balance refresh...');
-      setTimeout(() => {
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('chain-changed-refresh-balances'));
-        }
-      }, 1000); // Small delay to let chain switch complete
-    }
-    prevChainIdRef.current = chainId;
-  }, [chainId, isConnected, address]);
 
   // Update Railgun providers when chain or wallet changes - FIXED: Prevent infinite loops
   useEffect(() => {

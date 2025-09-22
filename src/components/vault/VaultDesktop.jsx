@@ -413,12 +413,9 @@ const VaultDesktopInner = () => {
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
       console.log('[VaultDesktop] Full refresh — SDK refresh + Redis persist, then UI fetch...');
 
-      // Step 1: Trigger full SDK validation (same as chain switch) + persist to Redis
+      // Step 1: Trigger SDK refresh + persist authoritative balances to Redis
       try {
         if (railgunWalletId && address && chainId) {
-          // Dispatch scan-started event to trigger full SDK validation like chain switch
-          try { window.dispatchEvent(new CustomEvent('railgun-scan-started', { detail: { chainId } })); } catch {}
-
           const { syncBalancesAfterTransaction } = await import('../../utils/railgun/syncBalances.js');
           await syncBalancesAfterTransaction({
             walletAddress: address,
@@ -475,31 +472,6 @@ const VaultDesktopInner = () => {
       refreshAllBalances();
     }
   }, [isConnected, address, chainId]);
-
-  // Listen for full balance refresh events (wallet connection and chain changes)
-  useEffect(() => {
-    const handleWalletConnectedRefresh = () => {
-      console.log('[VaultDesktop] Received wallet-connected-refresh-balances event - triggering full refresh...');
-      refreshBalances();
-    };
-
-    const handleChainChangedRefresh = () => {
-      console.log('[VaultDesktop] Received chain-changed-refresh-balances event - triggering full refresh...');
-      refreshBalances();
-    };
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('wallet-connected-refresh-balances', handleWalletConnectedRefresh);
-      window.addEventListener('chain-changed-refresh-balances', handleChainChangedRefresh);
-    }
-
-    return () => {
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('wallet-connected-refresh-balances', handleWalletConnectedRefresh);
-        window.removeEventListener('chain-changed-refresh-balances', handleChainChangedRefresh);
-      }
-    };
-  }, [refreshBalances]);
 
   // Auto-switch to privacy view when Railgun is ready
   useEffect(() => {
