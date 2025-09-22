@@ -154,12 +154,7 @@ const queryClient = new QueryClient();
 const wagmiConfig = createConfig({
   chains: [mainnet, polygon, arbitrum, bsc],
   connectors: [
-    // Injected connector with aggressive disconnect settings
-    injected({
-      shimDisconnect: true,
-      // Only connect when explicitly requested, not on page load
-      target: undefined, // Don't target any specific provider
-    }),
+    injected({ shimDisconnect: true }), // Required for injected wallets like Phantom
     metaMask(),
     walletConnect({
       projectId: WALLETCONNECT_CONFIG.projectId,
@@ -423,16 +418,28 @@ const WalletContextProvider = ({ children }) => {
     }
   }, [isConnected]);
 
-  // Block auto-connections after user disconnects
+  // Block lingering auto-connections after user disconnects
   useEffect(() => {
-    if (isConnected && userDisconnectedRef.current && !disconnectingRef.current) {
-      console.log('🚫 [AUTO-CONNECT] Detected unauthorized connection after user disconnect - disconnecting immediately');
-      // Disconnect immediately if user has previously disconnected
-      disconnectWallet();
-    }
+    const checkForAutoConnection = async () => {
+      if (isConnected && userDisconnectedRef.current && !disconnectingRef.current) {
+        // Small delay to allow explicit connections to complete
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        if (isConnected && userDisconnectedRef.current && !disconnectingRef.current) {
+          console.log('🚫 [AUTO-CONNECT] Detected lingering auto-connection - disconnecting');
+          try {
+            await disconnect();
+          } catch (error) {
+            console.warn('⚠️ [AUTO-CONNECT] Error disconnecting auto-connection:', error);
+          }
+        }
+      }
+    };
+
+    checkForAutoConnection();
   }, [isConnected]);
 
-  // On app startup, disconnect immediately if user previously disconnected
+  // On app startup, disconnect any auto-connections but allow manual connections
   useEffect(() => {
     const checkAndDisconnectOnStartup = async () => {
       // Small delay to let wagmi initialize
@@ -448,14 +455,11 @@ const WalletContextProvider = ({ children }) => {
         }
       }
 
-      // Set the disconnect flag to prevent future auto-connections
-      console.log('🔒 [STARTUP] Setting disconnect flag to prevent auto-connections');
-      userDisconnectedRef.current = true;
+      // DON'T set the global disconnect flag - that blocks ALL connections
+      // Only set it after user explicitly disconnects
     };
 
     checkAndDisconnectOnStartup();
-
-    // No need for visibility listener - startup check handles auto-connections
   }, []); // Run only once on mount
 
   // Global fetch interceptor to block RPC calls when rate limited
@@ -609,10 +613,10 @@ const WalletContextProvider = ({ children }) => {
   // Simple wallet connection - UI layer only
   const connectWallet = async (connectorType = 'metamask', options = {}) => {
     try {
-      // Prevent ANY auto-connection after user disconnects
+      // Clear disconnect flag when user explicitly connects (allows future connections)
       if (userDisconnectedRef.current) {
-        console.log('🚫 [CONNECT] Blocking all auto-connections - user previously disconnected');
-        return;
+        console.log('✅ [CONNECT] User explicitly connecting - clearing disconnect flag');
+        userDisconnectedRef.current = false;
       }
 
       // Prevent Phantom auto-connection if user previously disconnected
