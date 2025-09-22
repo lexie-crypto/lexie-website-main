@@ -16,12 +16,9 @@ const InjectedProviderButtons = ({ disabled }) => {
     const handleDisconnect = () => {
       console.log('[InjectedProviderButtons] Received force-disconnect event, resetting busyKey');
       setBusyKey(null);
-      // Force re-detection of providers after disconnect
-      if (typeof window !== 'undefined') {
-        setTimeout(() => {
-          window.dispatchEvent(new Event('eip6963:requestProvider'));
-        }, 200);
-      }
+      // DON'T re-request EIP-6963 immediately after disconnect to prevent auto-connections
+      // Provider discovery will happen again when user clicks a connect button
+      console.log('[InjectedProviderButtons] Skipping EIP-6963 re-request after disconnect');
     };
 
     if (typeof window !== 'undefined') {

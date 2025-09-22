@@ -271,6 +271,8 @@ const WalletContextProvider = ({ children }) => {
   const lastInitializedAddressRef = useRef(null);
   // Global flag to prevent auto-connections after user disconnects
   const userDisconnectedRef = useRef(false);
+  // Track when user last performed an action (button click)
+  const lastUserActionAt = useRef(0);
 
   // Ensure initial full scan is completed for a given chain before user transacts
   const ensureChainScanned = useCallback(async (targetChainId) => {
@@ -418,40 +420,73 @@ const WalletContextProvider = ({ children }) => {
     }
   }, [isConnected]);
 
-  // Block lingering auto-connections after user disconnects
+  // Hard gate against auto-connections: continuously monitor and block unauthorized connections
   useEffect(() => {
-    const checkForAutoConnection = async () => {
-      if (isConnected && userDisconnectedRef.current && !disconnectingRef.current) {
-        // Small delay to allow explicit connections to complete
-        await new Promise(resolve => setTimeout(resolve, 200));
+    const enforceConnectionGate = async () => {
+      if (isConnected && !disconnectingRef.current) {
+        const timeSinceUserAction = Date.now() - lastUserActionAt.current;
 
-        if (isConnected && userDisconnectedRef.current && !disconnectingRef.current) {
-          console.log('🚫 [AUTO-CONNECT] Detected lingering auto-connection - disconnecting');
+        // If user has disconnected AND this connection happened >1s after last user action, it's auto-connect
+        if (userDisconnectedRef.current && timeSinceUserAction > 1000) {
+          console.log('🚫 [HARD-GATE] Detected auto-connection after user disconnect - blocking immediately');
           try {
             await disconnect();
           } catch (error) {
-            console.warn('⚠️ [AUTO-CONNECT] Error disconnecting auto-connection:', error);
+            console.warn('⚠️ [HARD-GATE] Error disconnecting auto-connection:', error);
+          }
+          return;
+        }
+
+        // Extra protection: if Phantom is blocked, disconnect immediately regardless of timing
+        if (connector && connector.name === 'Phantom') {
+          const hasDisconnectedPhantom = localStorage.getItem('lexie:phantom:disconnected') === 'true';
+          if (hasDisconnectedPhantom) {
+            console.log('🚫 [HARD-GATE] Phantom blocked - disconnecting immediately');
+            try {
+              await disconnect();
+            } catch (error) {
+              console.warn('⚠️ [HARD-GATE] Error disconnecting blocked Phantom:', error);
+            }
+            return;
           }
         }
       }
     };
 
-    checkForAutoConnection();
-  }, [isConnected]);
+    enforceConnectionGate();
+  }, [isConnected, connector]); // Run continuously when connection state changes
 
-  // On app startup, disconnect any auto-connections but allow manual connections
+  // On app startup, disconnect any auto-connections and respect Phantom blocking
   useEffect(() => {
     const checkAndDisconnectOnStartup = async () => {
       // Small delay to let wagmi initialize
       await new Promise(resolve => setTimeout(resolve, 100));
 
-      // If connected on startup, this is an auto-connection - disconnect immediately
+      // If connected on startup, check if it should be blocked
       if (isConnected) {
-        console.log('🚫 [STARTUP] Disconnecting auto-connection on startup');
-        try {
-          await disconnect();
-        } catch (error) {
-          console.warn('⚠️ [STARTUP] Error disconnecting auto-connection:', error);
+        let shouldDisconnect = false;
+
+        // Always disconnect auto-connections on startup (they shouldn't exist)
+        if (true) { // This is startup, so any connection is auto
+          shouldDisconnect = true;
+          console.log('🚫 [STARTUP] Disconnecting auto-connection on startup');
+        }
+
+        // Extra check: if Phantom is blocked, always disconnect
+        if (connector && connector.name === 'Phantom') {
+          const hasDisconnectedPhantom = localStorage.getItem('lexie:phantom:disconnected') === 'true';
+          if (hasDisconnectedPhantom) {
+            shouldDisconnect = true;
+            console.log('🚫 [STARTUP] Phantom blocked - disconnecting on startup');
+          }
+        }
+
+        if (shouldDisconnect) {
+          try {
+            await disconnect();
+          } catch (error) {
+            console.warn('⚠️ [STARTUP] Error disconnecting on startup:', error);
+          }
         }
       }
 
@@ -613,6 +648,9 @@ const WalletContextProvider = ({ children }) => {
   // Simple wallet connection - UI layer only
   const connectWallet = async (connectorType = 'metamask', options = {}) => {
     try {
+      // Record user action timestamp
+      lastUserActionAt.current = Date.now();
+
       // Clear disconnect flag when user explicitly connects (allows future connections)
       if (userDisconnectedRef.current) {
         console.log('✅ [CONNECT] User explicitly connecting - clearing disconnect flag');
@@ -753,6 +791,7 @@ const WalletContextProvider = ({ children }) => {
       } catch {}
 
       // Try to disconnect from the provider directly (for injected wallets)
+      // CRITICAL: Must complete permission revocation before UI cleanup
       try {
         // Special handling for Phantom wallet - it aggressively auto-connects
         if (selectedInjectedProviderRef.current?.isPhantom ||
@@ -767,7 +806,7 @@ const WalletContextProvider = ({ children }) => {
             console.warn('[DISCONNECT] Failed to set Phantom disconnect flag:', storageError);
           }
 
-          // Try to revoke permissions specifically for Phantom
+          // CRITICAL: Await permission revocation before proceeding
           try {
             await selectedInjectedProviderRef.current.request({
               method: 'wallet_revokePermissions',
@@ -798,7 +837,7 @@ const WalletContextProvider = ({ children }) => {
             console.log('[DISCONNECT] Calling provider.disconnect()');
             await selectedInjectedProviderRef.current.disconnect();
           } else if (selectedInjectedProviderRef.current && typeof window !== 'undefined') {
-            // Try wallet_revokePermissions for some wallets
+            // CRITICAL: Await permission revocation before proceeding
             try {
               await selectedInjectedProviderRef.current.request({
                 method: 'wallet_revokePermissions',
@@ -1850,6 +1889,12 @@ const WalletContextProvider = ({ children }) => {
 
     // Require wagmi status to be fully connected, not just isConnected
     if (status !== 'connected') {
+      return;
+    }
+
+    // CRITICAL: Respect user disconnect guard - don't auto-init if user disconnected
+    if (userDisconnectedRef.current) {
+      console.log('[Railgun Init] ⏭️ Suppressed by user-disconnect guard');
       return;
     }
 
