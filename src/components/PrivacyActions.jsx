@@ -376,14 +376,20 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         return false;
       }
 
-      // Prevent amounts that would leave zero change (causes ZK proof failures)
-      // Always leave at least a tiny amount as change for RAILGUN circuits
-      const minChange = Math.max(1, Math.floor(selectedToken.numericBalance * 0.0001)); // 0.01% minimum change
-      return (selectedToken.numericBalance - numAmount) >= minChange;
+      // For unshield/transfer operations, prevent amounts that would leave zero change
+      // (causes ZK proof failures). Shield operations can use full balance.
+      if (activeTab === 'unshield' || activeTab === 'transfer') {
+        const minChange = Math.max(1, Math.floor(selectedToken.numericBalance * 0.0001)); // 0.01% minimum change
+        if ((selectedToken.numericBalance - numAmount) < minChange) {
+          return false;
+        }
+      }
+
+      return true;
     } catch {
       return false;
     }
-  }, [amount, selectedToken]);
+  }, [amount, selectedToken, activeTab]);
 
   // State to hold gas fee estimation result
   const [gasFeeData, setGasFeeData] = useState(null);
@@ -1822,7 +1828,11 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 placeholder="0.0"
                 step="any"
                 min="0"
-                max={selectedToken ? Math.max(0, selectedToken.numericBalance - Math.max(1, Math.floor(selectedToken.numericBalance * 0.0001))) : 0}
+                max={selectedToken ? (
+                  (activeTab === 'unshield' || activeTab === 'transfer')
+                    ? Math.max(0, selectedToken.numericBalance - Math.max(1, Math.floor(selectedToken.numericBalance * 0.0001)))
+                    : selectedToken.numericBalance
+                ) : 0}
                 className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
                 disabled={!selectedToken}
               />
@@ -1830,11 +1840,16 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <button
                   type="button"
                   onClick={() => {
-                    // For MAX, leave minimum change required by RAILGUN circuits
-                    // Prevents "SnarkJS failed to fullProveRailgun" error from zero change outputs
-                    const minChange = Math.max(1, Math.floor(selectedToken.numericBalance * 0.0001)); // 0.01%
-                    const maxAmount = selectedToken.numericBalance - minChange;
-                    setAmount(maxAmount.toString());
+                    if (activeTab === 'unshield' || activeTab === 'transfer') {
+                      // For unshield/transfer, leave minimum change required by RAILGUN circuits
+                      // Prevents "SnarkJS failed to fullProveRailgun" error from zero change outputs
+                      const minChange = Math.max(1, Math.floor(selectedToken.numericBalance * 0.0001)); // 0.01%
+                      const maxAmount = selectedToken.numericBalance - minChange;
+                      setAmount(maxAmount.toString());
+                    } else {
+                      // For shield, allow full balance
+                      setAmount(selectedToken.numericBalance.toString());
+                    }
                   }}
                   className="absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded hover:bg-green-900/20"
                 >
