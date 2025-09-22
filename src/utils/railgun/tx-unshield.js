@@ -655,43 +655,54 @@ export const unshieldTokens = async ({
       // ESTIMATE GAS COST BEFORE PROOF GENERATION (using default prices for consistency)
       console.log('🤑 [UNSHIELD] Estimating gas cost for reclamation (using default prices)...');
 
-      // Use default gas prices for consistent estimation
-      const defaults = DEFAULT_GAS_ESTIMATES[networkName];
-      const evmGasType = getEVMGasTypeForTransaction(networkName, false);
-
-      // Use conservative estimate for dummy txn
-      const estimatedGas = BigInt('2000000'); // Conservative 2M gas estimate
-      const gasPrice = evmGasType === EVMGasType.Type2 ? defaults.maxFeePerGas : defaults.gasPrice;
-      const gasCostWei = estimatedGas * gasPrice;
-
-      // Convert gas cost to token amount using dynamic pricing
-      const nativeGasToken = getNativeGasToken(chain.id);
-      let nativeTokenPrice = 3000; // Fallback price
       try {
-        const prices = await fetchTokenPrices([nativeGasToken]);
-        if (prices[nativeGasToken] && prices[nativeGasToken] > 0) {
-          nativeTokenPrice = prices[nativeGasToken];
+        // Use default gas prices for consistent estimation
+        const defaults = DEFAULT_GAS_ESTIMATES[networkName];
+        if (!defaults) {
+          throw new Error(`No default gas estimates found for network: ${networkName}`);
         }
-      } catch (priceError) {
-        console.warn(`⚠️ [UNSHIELD] Price fetch failed for ${nativeGasToken}, using fallback: ${nativeTokenPrice}`, priceError.message);
+
+        const evmGasType = getEVMGasTypeForTransaction(networkName, false);
+
+        // Use conservative estimate for dummy txn
+        const estimatedGas = BigInt('2000000'); // Conservative 2M gas estimate
+        const gasPrice = evmGasType === EVMGasType.Type2 ? defaults.maxFeePerGas : defaults.gasPrice;
+        const gasCostWei = estimatedGas * gasPrice;
+
+        // Convert gas cost to token amount using dynamic pricing
+        const nativeGasToken = getNativeGasToken(chain.id);
+        let nativeTokenPrice = 3000; // Fallback price
+        try {
+          const prices = await fetchTokenPrices([nativeGasToken]);
+          if (prices[nativeGasToken] && prices[nativeGasToken] > 0) {
+            nativeTokenPrice = prices[nativeGasToken];
+          }
+        } catch (priceError) {
+          console.warn(`⚠️ [UNSHIELD] Price fetch failed for ${nativeGasToken}, using fallback: ${nativeTokenPrice}`, priceError.message);
+        }
+
+        // Calculate gas reclamation fee (this gets baked into the proof)
+        const gasCostNative = Number(gasCostWei) / 1e18;
+        const gasCostUsd = gasCostNative * nativeTokenPrice;
+        gasFeeDeducted = BigInt(Math.ceil(gasCostUsd * 1e6)); // 6-decimal token units
+
+        console.log('💰 [UNSHIELD] Gas reclamation estimated (for proof):', {
+          estimatedGas: estimatedGas.toString(),
+          gasPrice: gasPrice.toString(),
+          gasCostWei: gasCostWei.toString(),
+          nativeGasToken,
+          nativeTokenPrice: nativeTokenPrice.toFixed(2),
+          gasCostNative: gasCostNative.toFixed(8),
+          gasCostUsd: gasCostUsd.toFixed(4),
+          gasFeeDeducted: gasFeeDeducted.toString(),
+          note: 'This estimate gets baked into the proof - relayer takes win/loss on actual vs estimated'
+        });
+      } catch (gasEstimationError) {
+        console.error('❌ [UNSHIELD] Gas estimation failed:', gasEstimationError);
+        // Use fallback values if gas estimation fails
+        gasFeeDeducted = BigInt('1000000'); // 1 USDC unit fallback
+        console.warn('⚠️ [UNSHIELD] Using fallback gas fee deduction:', gasFeeDeducted.toString());
       }
-
-      // Calculate gas reclamation fee (this gets baked into the proof)
-      const gasCostNative = Number(gasCostWei) / 1e18;
-      const gasCostUsd = gasCostNative * nativeTokenPrice;
-      gasFeeDeducted = BigInt(Math.ceil(gasCostUsd * 1e6)); // 6-decimal token units
-
-      console.log('💰 [UNSHIELD] Gas reclamation estimated (for proof):', {
-        estimatedGas: estimatedGas.toString(),
-        gasPrice: gasPrice.toString(),
-        gasCostWei: gasCostWei.toString(),
-        nativeGasToken,
-        nativeTokenPrice: nativeTokenPrice.toFixed(2),
-        gasCostNative: gasCostNative.toFixed(8),
-        gasCostUsd: gasCostUsd.toFixed(4),
-        gasFeeDeducted: gasFeeDeducted.toString(),
-        note: 'This estimate gets baked into the proof - relayer takes win/loss on actual vs estimated'
-      });
 
       // COMBINE FEES FOR BROADCASTER: relayer fee + estimated gas reclamation
       // This amount gets baked into the proof and cannot be changed
