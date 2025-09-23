@@ -837,13 +837,14 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               console.log('[PrivacyActions] ✅ Resolved Lexie ID for points award:', lexieId);
 
               // Calculate actual USD value for points
+              const amountInUnitsForPoints = parseTokenAmount(amount, selectedToken.decimals);
               const transactionMonitor = await import('../utils/railgun/transactionMonitor.js');
               const convertTokenAmountToUSD = transactionMonitor.default.convertTokenAmountToUSD;
-              const usdValue = await convertTokenAmountToUSD(amountInUnits, tokenAddr, chainId);
+              const usdValue = await convertTokenAmountToUSD(amountInUnitsForPoints, tokenAddr, chainId);
 
               console.log('[PrivacyActions] 💰 Calculated USD value for points fallback:', {
                 amount: amount,
-                amountInUnits,
+                amountInUnits: amountInUnitsForPoints,
                 tokenAddress: tokenAddr,
                 chainId,
                 usdValue
@@ -1126,13 +1127,14 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               console.log('[PrivacyActions] ✅ Resolved Lexie ID for unshield points award:', lexieId);
 
               // Calculate actual USD value for points
+              const amountInUnitsForPoints = parseTokenAmount(amount, selectedToken.decimals);
               const transactionMonitor = await import('../utils/railgun/transactionMonitor.js');
               const convertTokenAmountToUSD = transactionMonitor.default.convertTokenAmountToUSD;
-              const usdValue = await convertTokenAmountToUSD(amountInUnits, tokenAddr, chainId);
+              const usdValue = await convertTokenAmountToUSD(amountInUnitsForPoints, tokenAddr, chainId);
 
               console.log('[PrivacyActions] 💰 Calculated USD value for unshield points fallback:', {
                 amount: amount,
-                amountInUnits,
+                amountInUnits: amountInUnitsForPoints,
                 tokenAddress: tokenAddr,
                 chainId,
                 usdValue
@@ -1436,13 +1438,14 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               console.log('[PrivacyActions] ✅ Resolved Lexie ID for transfer points award:', lexieId);
 
               // Calculate actual USD value for points
+              const amountInUnitsForPoints = parseTokenAmount(amount, selectedToken.decimals);
               const transactionMonitor = await import('../utils/railgun/transactionMonitor.js');
               const convertTokenAmountToUSD = transactionMonitor.default.convertTokenAmountToUSD;
-              const usdValue = await convertTokenAmountToUSD(amountInUnits, tokenAddr, chainId);
+              const usdValue = await convertTokenAmountToUSD(amountInUnitsForPoints, tokenAddr, chainId);
 
               console.log('[PrivacyActions] 💰 Calculated USD value for transfer points fallback:', {
                 amount: amount,
-                amountInUnits,
+                amountInUnits: amountInUnitsForPoints,
                 tokenAddress: tokenAddr,
                 chainId,
                 usdValue
