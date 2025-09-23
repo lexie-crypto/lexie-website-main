@@ -6,7 +6,6 @@
 
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'react-hot-toast';
-import { parseUnits } from 'ethers';
 import {
   ShieldCheckIcon,
   EyeSlashIcon,
@@ -57,53 +56,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   } = useWallet();
 
 
-  // Helper function to calculate max spendable amount (single source of truth)
-  const getMaxSpendableAmount = useCallback((token, tab) => {
-    if (!token) return 0;
-
-    let maxAmount = token.numericBalance;
-
-    // For transfers, subtract estimated broadcaster fee (1%)
-    if (tab === 'transfer') {
-      const feeEstimate = token.numericBalance * 0.01;
-      maxAmount = Math.max(0, token.numericBalance - feeEstimate);
-    }
-
-    // For shield operations, don't subtract fees - gas is paid in native token, not ERC-20
-    // User can use full ERC-20 balance for shielding
-
-    // Subtract tiny dust amount to prevent precision issues
-    // Use token-specific precision (e.g., 1e-18 for 18-decimal tokens)
-    const dustAmount = Math.pow(10, -token.decimals);
-    maxAmount = Math.max(0, maxAmount - dustAmount);
-
-    return maxAmount;
-  }, []);
-
-  // Get max spendable amount in base units (BigInt) for precise validation
-  const getMaxSpendableUnits = useCallback((token, tab) => {
-    if (!token || !token.balanceUnits) return 0n;
-
-    let maxUnits = token.balanceUnits;
-
-    // For transfers, subtract estimated broadcaster fee in token units (1% of balance)
-    if (tab === 'transfer') {
-      const feeEstimate = maxUnits / 100n; // 1% fee
-      maxUnits = maxUnits > feeEstimate ? maxUnits - feeEstimate : 0n;
-    }
-
-    // For unshield operations, subtract broadcaster fee in token units
-    if (tab === 'unshield') {
-      // Estimate broadcaster fee as 0.25% (RAILGUN protocol fee)
-      const broadcasterFee = maxUnits * 25n / 10000n; // 0.25%
-      maxUnits = maxUnits > broadcasterFee ? maxUnits - broadcasterFee : 0n;
-    }
-
-    // For shield operations, don't subtract fees - gas is paid in native token, not ERC-20
-    // User can use full ERC-20 balance for shielding
-
-    return maxUnits;
-  }, []);
 
   const {
     publicBalances,
@@ -415,25 +367,13 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     return getSupportedChainIds().includes(chainId);
   }, [chainId]);
 
-  // Validate amount input
+  // Basic amount validation (allow any positive amount)
   const isValidAmount = useMemo(() => {
     if (!amount || !selectedToken) return false;
 
-    try {
-      // Parse input amount to BigInt for precise comparison
-      const requestedUnits = parseUnits(amount, selectedToken.decimals);
-      if (requestedUnits <= 0n) return false;
-
-      // Get max spendable amount in base units (BigInt)
-      const maxUnits = getMaxSpendableUnits(selectedToken, activeTab);
-
-      // Use BigInt comparison for exact equality validation
-      return requestedUnits <= maxUnits;
-
-    } catch {
-      return false;
-    }
-  }, [amount, selectedToken, activeTab, getMaxSpendableUnits]);
+    const numAmount = parseFloat(amount);
+    return !isNaN(numAmount) && numAmount > 0;
+  }, [amount, selectedToken]);
 
   // State to hold gas fee estimation result
   const [gasFeeData, setGasFeeData] = useState(null);
@@ -1911,9 +1851,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 placeholder="0.0"
                 step="any"
                 min="0"
-                max={selectedToken ? (() => {
-                  return getMaxSpendableAmount(selectedToken, activeTab);
-                })() : 0}
                 className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
                 disabled={!selectedToken}
               />
@@ -1921,11 +1858,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               <button
                 type="button"
                 onClick={() => {
-                  // Use BigInt max units for precise Max button value
-                  const maxUnits = getMaxSpendableUnits(selectedToken, activeTab);
-                  // Convert back to display format using the same precision as validation
-                  const maxAmount = Number(maxUnits) / Math.pow(10, selectedToken.decimals);
-                  setAmount(maxAmount.toString());
+                  // Set the full available balance
+                  setAmount(selectedToken.numericBalance.toString());
                 }}
                   className="absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded hover:bg-green-900/20"
                 >
