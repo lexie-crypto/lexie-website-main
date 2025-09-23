@@ -270,6 +270,7 @@ const getKnownTokenDecimals = (tokenAddress, chainId) => {
   const knownTokens = {
     // Ethereum
     1: {
+      '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2': { decimals: 18, symbol: 'WETH' },
       '0xdac17f958d2ee523a2206206994597c13d831ec7': { decimals: 6, symbol: 'USDT' },
       '0xa0b86a33e6416a86f2016c97db4ad0a23a5b7b73': { decimals: 6, symbol: 'USDC' },
       '0x6b175474e89094c44da98b954eedeac495271d0f': { decimals: 18, symbol: 'DAI' },
@@ -278,6 +279,7 @@ const getKnownTokenDecimals = (tokenAddress, chainId) => {
     },
     // Polygon
     137: {
+      '0x7ceb23fd6bc0add59e62ac25578270cff1b9f619': { decimals: 18, symbol: 'WETH' },
       '0xc2132d05d31c914a87c6611c10748aeb04b58e8f': { decimals: 6, symbol: 'USDT' },
       '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359': { decimals: 6, symbol: 'USDC' },
       '0x8f3cf7ad23cd3cadbd9735aff958023239c6a063': { decimals: 18, symbol: 'DAI' },
@@ -286,6 +288,7 @@ const getKnownTokenDecimals = (tokenAddress, chainId) => {
     },
     // BNB Chain
     56: {
+      '0x2170ed0880ac9a755fd29b2688956bd959f933f8': { decimals: 18, symbol: 'WETH' },
       '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': { decimals: 18, symbol: 'WBNB' },
       '0x55d398326f99059ff775485246999027b3197955': { decimals: 18, symbol: 'USDT' },
       '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': { decimals: 18, symbol: 'USDC' },
@@ -294,6 +297,7 @@ const getKnownTokenDecimals = (tokenAddress, chainId) => {
     },
     // Arbitrum
     42161: {
+      '0x82af49447d8a07e3bd95bd0d56f35241523fbab1': { decimals: 18, symbol: 'WETH' },
       '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': { decimals: 6, symbol: 'USDT' },
       '0xaf88d065e77c8cc2239327c5edb3a432268e5831': { decimals: 6, symbol: 'USDC' },
       '0xda10009cbd5d07dd0cecc66161fc93d7c9000da1': { decimals: 18, symbol: 'DAI' },
