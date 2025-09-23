@@ -55,34 +55,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     walletProvider,
   } = useWallet();
 
-  // Helper function to compute max spendable units as BigInt
-  const getMaxSpendableUnits = useCallback((token, activeTab, feeUnits = 0n) => {
-    if (!token) return 0n;
-
-    // Get balance in base units - prefer BigInt, then string reconstruction, never float
-    let balanceInUnits;
-    if (token.balanceUnitsBigInt) {
-      balanceInUnits = token.balanceUnitsBigInt;
-    } else if (token.balance && typeof token.balance === 'string') {
-      // Reconstruct from string balance to avoid float precision issues
-      balanceInUnits = BigInt(token.balance);
-    } else {
-      // Emergency fallback - should not happen with proper balanceUnitsBigInt
-      console.warn('[PrivacyActions] Using emergency float fallback for balance reconstruction');
-      balanceInUnits = BigInt(Math.floor(token.numericBalance * Math.pow(10, token.decimals)));
-    }
-
-    const DUST = 1000n; // Small dust buffer
-    const reserve = feeUnits + DUST;
-
-    if (activeTab === 'unshield' || activeTab === 'transfer') {
-      // For unshield/transfer, subtract fees + dust
-      return balanceInUnits > reserve ? balanceInUnits - reserve : 0n;
-    } else {
-      // For shield, allow full balance minus dust
-      return balanceInUnits > 0n ? balanceInUnits - DUST : 0n;
-    }
-  }, []);
 
   const {
     publicBalances,
@@ -399,43 +371,25 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     if (!amount || !selectedToken) return false;
 
     try {
-      // Parse amount using the existing parseTokenAmount function to avoid issues
-      const amountFloat = parseFloat(amount);
-      if (amountFloat <= 0) return false;
+      const numAmount = parseFloat(amount);
+      if (numAmount <= 0) return false;
 
-      // Use parseTokenAmount for consistent BigInt conversion
-      const requestedInUnits = parseTokenAmount(amount, selectedToken.decimals);
-
-      // Get max spendable units using the same helper function as Max button
-      // For unshield operations, estimate broadcaster/relayer fees
-      let estimatedFeeUnits = 0n;
-      if (activeTab === 'unshield' || activeTab === 'transfer') {
-        // Estimate broadcaster fee (typically 0.5-1% of amount + gas costs)
-        // For now, use a conservative estimate: 1% of amount + gas equivalent in token units
-        if (gasFeeData && gasFeeData.gasCostNative) {
-          const gasCostNative = parseFloat(gasFeeData.gasCostNative);
-          // Convert gas cost to token units (rough approximation)
-          // This is not perfect but better than hardcoded values
-          const tokenPrice = selectedToken?.symbol === 'WBNB' ? 300 : 1; // Rough price estimates
-          const nativePrice = chainId === 56 ? 300 : 2000; // BNB vs ETH price
-          const gasCostInTokenUnits = gasCostNative * (nativePrice / tokenPrice);
-          estimatedFeeUnits = BigInt(Math.floor(gasCostInTokenUnits * Math.pow(10, selectedToken.decimals)));
-        } else {
-          // Fallback: 1% of amount as estimated fee
-          estimatedFeeUnits = requestedInUnits / 100n;
-        }
+      // Calculate max allowed amount accounting for fees (simple version for now)
+      let maxAllowed = selectedToken.numericBalance;
+      if (activeTab === 'transfer') {
+        // For transfers, subtract estimated fees (simplified)
+        const feeEstimate = selectedToken.numericBalance * 0.01; // 1% fee estimate
+        maxAllowed = Math.max(0, selectedToken.numericBalance - feeEstimate);
       }
-      const maxSpendableInUnits = getMaxSpendableUnits(selectedToken, activeTab, estimatedFeeUnits);
 
-      // Use tolerant comparison: allow amounts within 1 wei of max allowed
-      const epsilon = 1n;
-      return requestedInUnits <= maxSpendableInUnits ||
-             (requestedInUnits > maxSpendableInUnits && requestedInUnits - maxSpendableInUnits <= epsilon);
+      // Allow some tolerance for floating point precision issues
+      const tolerance = Math.pow(10, -selectedToken.decimals);
+      return numAmount <= maxAllowed + tolerance;
 
     } catch {
       return false;
     }
-  }, [amount, selectedToken, activeTab, chainId, gasFeeData, getMaxSpendableUnits]);
+  }, [amount, selectedToken, activeTab]);
 
   // State to hold gas fee estimation result
   const [gasFeeData, setGasFeeData] = useState(null);
@@ -1911,23 +1865,13 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 step="any"
                 min="0"
                 max={selectedToken ? (() => {
-                  // Estimate broadcaster/relayer fees using same logic
-                  let estimatedFeeUnits = 0n;
-                  if (activeTab === 'unshield' || activeTab === 'transfer') {
-                    if (gasFeeData && gasFeeData.gasCostNative) {
-                      const gasCostNative = parseFloat(gasFeeData.gasCostNative);
-                      const tokenPrice = selectedToken?.symbol === 'WBNB' ? 300 : 1;
-                      const nativePrice = chainId === 56 ? 300 : 2000;
-                      const gasCostInTokenUnits = gasCostNative * (nativePrice / tokenPrice);
-                      estimatedFeeUnits = BigInt(Math.floor(gasCostInTokenUnits * Math.pow(10, selectedToken.decimals)));
-                    } else {
-                      const balanceInUnits = selectedToken.balanceUnitsBigInt ||
-                        BigInt(Math.floor(selectedToken.numericBalance * Math.pow(10, selectedToken.decimals)));
-                      estimatedFeeUnits = balanceInUnits / 100n; // 1% of balance
-                    }
+                  let maxAllowed = selectedToken.numericBalance;
+                  if (activeTab === 'transfer') {
+                    const feeEstimate = selectedToken.numericBalance * 0.01;
+                    maxAllowed = Math.max(0, selectedToken.numericBalance - feeEstimate);
                   }
-                  const maxSpendableInUnits = getMaxSpendableUnits(selectedToken, activeTab, estimatedFeeUnits);
-                  return Number(maxSpendableInUnits) / Math.pow(10, selectedToken.decimals);
+                  const dustAmount = Math.pow(10, -selectedToken.decimals);
+                  return Math.max(0, maxAllowed - dustAmount);
                 })() : 0}
                 className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
                 disabled={!selectedToken}
@@ -1936,32 +1880,19 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <button
                   type="button"
                   onClick={() => {
-                    // Get max spendable units using the same helper as validation
-                    // Estimate broadcaster/relayer fees using same logic as validation
-                    let estimatedFeeUnits = 0n;
-                    if (activeTab === 'unshield' || activeTab === 'transfer') {
-                      if (gasFeeData && gasFeeData.gasCostNative) {
-                        const gasCostNative = parseFloat(gasFeeData.gasCostNative);
-                        const tokenPrice = selectedToken?.symbol === 'WBNB' ? 300 : 1;
-                        const nativePrice = chainId === 56 ? 300 : 2000;
-                        const gasCostInTokenUnits = gasCostNative * (nativePrice / tokenPrice);
-                        estimatedFeeUnits = BigInt(Math.floor(gasCostInTokenUnits * Math.pow(10, selectedToken.decimals)));
-                      } else {
-                        // Use balance-based estimate when no gas data available
-                        const balanceInUnits = selectedToken.balanceUnitsBigInt ||
-                          BigInt(Math.floor(selectedToken.numericBalance * Math.pow(10, selectedToken.decimals)));
-                        estimatedFeeUnits = balanceInUnits / 100n; // 1% of balance
-                      }
+                    // Calculate max sendable amount accounting for fees (simple version)
+                    let maxSendable = selectedToken.numericBalance;
+                    if (activeTab === 'transfer') {
+                      // For transfers, subtract estimated fees
+                      const feeEstimate = selectedToken.numericBalance * 0.01; // 1% fee estimate
+                      maxSendable = Math.max(0, selectedToken.numericBalance - feeEstimate);
                     }
-                    const maxSendableInUnits = getMaxSpendableUnits(selectedToken, activeTab, estimatedFeeUnits);
 
-                    // Format BigInt directly to decimal string to avoid floating point precision issues
-                    const decimals = selectedToken.decimals;
-                    const integerPart = maxSendableInUnits / (10n ** BigInt(decimals));
-                    const fractionalPart = maxSendableInUnits % (10n ** BigInt(decimals));
-                    const fractionalStr = fractionalPart.toString().padStart(decimals, '0').replace(/0+$/, '');
-                    const maxSendableDisplay = fractionalStr ? `${integerPart}.${fractionalStr}` : integerPart.toString();
-                    setAmount(maxSendableDisplay);
+                    // Subtract a small dust amount to avoid precision issues
+                    const dustAmount = Math.pow(10, -selectedToken.decimals);
+                    maxSendable = Math.max(0, maxSendable - dustAmount);
+
+                    setAmount(maxSendable.toFixed(selectedToken.decimals));
                   }}
                   className="absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded hover:bg-green-900/20"
                 >
