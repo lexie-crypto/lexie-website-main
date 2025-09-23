@@ -69,11 +69,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       maxAmount = Math.max(0, token.numericBalance - feeEstimate);
     }
 
-    // For shield operations, subtract estimated gas fee (0.25%)
-    if (tab === 'shield') {
-      const gasFeeEstimate = token.numericBalance * 0.0025; // 0.25% fee
-      maxAmount = Math.max(0, token.numericBalance - gasFeeEstimate);
-    }
+    // For shield operations, don't subtract fees - gas is paid in native token, not ERC-20
+    // User can use full ERC-20 balance for shielding
 
     // Subtract tiny dust amount to prevent precision issues
     // Use token-specific precision (e.g., 1e-18 for 18-decimal tokens)
@@ -102,12 +99,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       maxUnits = maxUnits > broadcasterFee ? maxUnits - broadcasterFee : 0n;
     }
 
-    // For shield operations, subtract estimated gas fee in token units
-    if (tab === 'shield') {
-      // Estimate gas fee as 0.25% of balance (same as unshield protocol fee)
-      const gasFeeEstimate = maxUnits * 25n / 10000n; // 0.25% fee
-      maxUnits = maxUnits > gasFeeEstimate ? maxUnits - gasFeeEstimate : 0n;
-    }
+    // For shield operations, don't subtract fees - gas is paid in native token, not ERC-20
+    // User can use full ERC-20 balance for shielding
 
     return maxUnits;
   }, []);
