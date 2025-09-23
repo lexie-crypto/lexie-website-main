@@ -67,17 +67,18 @@ const getGraphEndpoint = (chainId) => {
 /**
  * Query Graph API for nullifier events (production: Vercel proxy, dev: direct with CORS)
  */
-const queryNullifiers = async (chainId, fromBlock, txHash = null) => {
+const queryNullifiers = async (chainId, fromBlock, txHash = null, toBlock = null) => {
   try {
     const { isProxy, endpoint } = getGraphEndpoint(chainId);
     
-    // Updated Squid V2 Nullifiers query structure
+    // Updated Squid V2 Nullifiers query structure - SOLUTION 2: Block range query
     const query = `
-      query Nullifiers($blockNumber: BigInt = 0, $txHash: Bytes) {
+      query Nullifiers($blockNumber: BigInt = 0, $toBlock: BigInt, $txHash: Bytes) {
         nullifiers(
           orderBy: blockNumber_ASC
-          where: { 
+          where: {
             blockNumber_gte: $blockNumber
+            ${toBlock !== null ? 'blockNumber_lte: $toBlock' : ''}
             ${txHash ? ', transactionHash_eq: $txHash' : ''}
           }
           limit: 10000
@@ -94,12 +95,13 @@ const queryNullifiers = async (chainId, fromBlock, txHash = null) => {
 
     const variables = {
       blockNumber: fromBlock ? fromBlock.toString() : "0",
+      ...(toBlock !== null && { toBlock: toBlock.toString() }),
       ...(txHash && { txHash: txHash.toLowerCase() })
     };
 
-    const requestBody = { 
+    const requestBody = {
       chainId,
-      query, 
+      query,
       variables
     };
 
@@ -181,17 +183,18 @@ const queryNullifiers = async (chainId, fromBlock, txHash = null) => {
 /**
  * Query Graph API for unshield events (production: Vercel proxy, dev: direct with CORS) 
  */
-const queryUnshields = async (chainId, fromBlock, txHash = null) => {
+const queryUnshields = async (chainId, fromBlock, txHash = null, toBlock = null) => {
   try {
     const { isProxy, endpoint } = getGraphEndpoint(chainId);
     
-    // Updated Squid V2 Unshields query structure
+    // Updated Squid V2 Unshields query structure - SOLUTION 2: Block range query
     const query = `
-      query Unshields($blockNumber: BigInt = 0, $txHash: Bytes) {
+      query Unshields($blockNumber: BigInt = 0, $toBlock: BigInt, $txHash: Bytes) {
         unshields(
           orderBy: blockNumber_ASC
-          where: { 
+          where: {
             blockNumber_gte: $blockNumber
+            ${toBlock !== null ? 'blockNumber_lte: $toBlock' : ''}
             ${txHash ? ', transactionHash_eq: $txHash' : ''}
           }
           limit: 10000
@@ -216,12 +219,13 @@ const queryUnshields = async (chainId, fromBlock, txHash = null) => {
 
     const variables = {
       blockNumber: fromBlock ? fromBlock.toString() : "0",
+      ...(toBlock !== null && { toBlock: toBlock.toString() }),
       ...(txHash && { txHash: txHash.toLowerCase() })
     };
 
-    const requestBody = { 
+    const requestBody = {
       chainId,
-      query, 
+      query,
       variables
     };
 
@@ -304,17 +308,18 @@ const queryUnshields = async (chainId, fromBlock, txHash = null) => {
 /**
  * Query Graph API for commitments (production: Vercel proxy, dev: direct with CORS)
  */
-const queryCommitments = async (chainId, fromBlock, txHash = null) => {
+const queryCommitments = async (chainId, fromBlock, txHash = null, toBlock = null) => {
   try {
     const { isProxy, endpoint } = getGraphEndpoint(chainId);
     
-    // Updated Squid V2 Shield Commitments query structure
+    // Updated Squid V2 Shield Commitments query structure - SOLUTION 2: Block range query
     const query = `
-      query ShieldCommitments($blockNumber: BigInt = 0, $txHash: Bytes) {
+      query ShieldCommitments($blockNumber: BigInt = 0, $toBlock: BigInt, $txHash: Bytes) {
         shieldCommitments(
           orderBy: blockNumber_ASC
-          where: { 
+          where: {
             blockNumber_gte: $blockNumber
+            ${toBlock !== null ? 'blockNumber_lte: $toBlock' : ''}
             ${txHash ? ', transactionHash_eq: $txHash' : ''}
           }
           limit: 10000
@@ -346,12 +351,13 @@ const queryCommitments = async (chainId, fromBlock, txHash = null) => {
 
     const variables = {
       blockNumber: fromBlock ? fromBlock.toString() : "0",
+      ...(toBlock !== null && { toBlock: toBlock.toString() }),
       ...(txHash && { txHash: txHash.toLowerCase() })
     };
 
-    const requestBody = { 
+    const requestBody = {
       chainId,
-      query, 
+      query,
       variables
     };
 
@@ -869,14 +875,20 @@ export const monitorTransactionInGraph = async ({
 
     // Poll the Graph endpoint
     const startTime = Date.now();
-    const pollInterval = 30000; // 30 seconds
     let attempts = 0;
     const maxAttempts = 40;
+
+    // SOLUTION 1: Dynamic polling intervals for faster detection
+    const getPollInterval = (attempt) => {
+      if (attempt <= 3) return 5000;   // 5s for first 3 attempts (15s total)
+      if (attempt <= 6) return 10000;  // 10s for next 3 attempts (30s total)
+      return 30000;                    // 30s thereafter (normal pace)
+    };
 
     const { isProxy, endpoint } = getGraphEndpoint(chainId);
     console.log('[TransactionMonitor] 🕒 Starting polling:', {
       blockNumber,
-      pollInterval: `${pollInterval/1000}s`,
+      pollIntervals: '5s→10s→30s (dynamic)',
       maxAttempts,
       graphEndpoint: endpoint,
       isProxy,
@@ -893,14 +905,21 @@ export const monitorTransactionInGraph = async ({
       attempts++;
       console.log(`[TransactionMonitor] 🔍 Polling attempt ${attempts}/${maxAttempts} for ${transactionType} events on block ${blockNumber} with txHash ${txHash}`);
 
+      // SOLUTION 2: Use block range queries to catch delayed indexing
+      // Look back 10 blocks and forward 5 blocks from transaction block
+      const fromBlock = Math.max(0, blockNumber - 10);
+      const toBlock = blockNumber + 5;
+
+      console.log(`[TransactionMonitor] 🔍 Querying block range: ${fromBlock} to ${toBlock} (target: ${blockNumber})`);
+
       let events = [];
       if (transactionType === 'shield') {
-        events = await queryCommitments(chainId, blockNumber, txHash);
+        events = await queryCommitments(chainId, fromBlock, txHash, toBlock);
       } else if (transactionType === 'unshield') {
         // Use nullifiers for unshield (spent notes) – these include the 'nullifier' field
-        events = await queryNullifiers(chainId, blockNumber, txHash);
+        events = await queryNullifiers(chainId, fromBlock, txHash, toBlock);
       } else if (transactionType === 'transfer') {
-        events = await queryNullifiers(chainId, blockNumber, txHash);
+        events = await queryNullifiers(chainId, fromBlock, txHash, toBlock);
       }
 
       const hasEvent = events.length > 0;
@@ -1602,7 +1621,10 @@ export const monitorTransactionInGraph = async ({
         listener({ progress: `Checking... (${attempts}/${maxAttempts})` });
       }
 
-      await new Promise(resolve => setTimeout(resolve, pollInterval));
+      // Use dynamic polling interval for faster detection
+      const currentPollInterval = getPollInterval(attempts);
+      console.log(`[TransactionMonitor] ⏱️ Waiting ${currentPollInterval/1000}s before next attempt...`);
+      await new Promise(resolve => setTimeout(resolve, currentPollInterval));
     }
 
     console.warn('[TransactionMonitor] ❌ Transaction confirmation timed out but tx was mined');
