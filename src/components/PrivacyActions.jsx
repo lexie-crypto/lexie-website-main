@@ -375,6 +375,15 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     return !isNaN(numAmount) && numAmount > 0;
   }, [amount, selectedToken]);
 
+  // Validation check: amount cannot exceed safe cap (99.99% of available balance)
+  const exceedsAvailableBalance = useMemo(() => {
+    if (!amount || !selectedToken) return false;
+
+    const numAmount = parseFloat(amount);
+    const safeCap = selectedToken.numericBalance * 0.9999;
+    return numAmount > safeCap;
+  }, [amount, selectedToken]);
+
   // State to hold gas fee estimation result
   const [gasFeeData, setGasFeeData] = useState(null);
 
@@ -481,6 +490,43 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       netAmountUSD: netAmountUSD.toFixed(2)
     };
   }, [amount, selectedToken, isValidAmount, activeTab, gasFeeData]);
+
+  // Calculate max amount for Max button
+  const calculateMaxAmount = useCallback(() => {
+    if (!selectedToken) return '0';
+
+    const availableBalance = selectedToken.numericBalance;
+
+    // Start with 99.99% of available balance to ensure we don't overshoot
+    const safeBalance = availableBalance * 0.9999;
+
+    if (activeTab === 'shield') {
+      // Shields: subtract protocol fee (0.25% of the amount being shielded)
+      const protocolFeeRate = 0.0025; // 0.25%
+      const protocolFeeInTokens = safeBalance * protocolFeeRate;
+      const maxAmount = Math.max(0, safeBalance - protocolFeeInTokens);
+      return maxAmount.toString();
+    } else {
+      // Unshields/Remove/Private transfers: subtract combined fee estimation
+      const protocolFeeRate = 0.0075; // 0.75%
+      const protocolFeeInTokens = safeBalance * protocolFeeRate;
+      // For gas fees, convert the fixed gas cost in USD to token amount
+      let gasFeeInTokens = 0;
+      if (gasFeeData && selectedToken.balanceUSD) {
+        const usdValue = typeof selectedToken.balanceUSD === 'string' && selectedToken.balanceUSD.startsWith('$')
+          ? parseFloat(selectedToken.balanceUSD.substring(1))
+          : parseFloat(selectedToken.balanceUSD);
+        if (usdValue > 0) {
+          const gasFeeUSD = parseFloat(gasFeeData.gasCostUSD);
+          // Gas fee is fixed in USD, convert to token amount using token price
+          gasFeeInTokens = gasFeeUSD / (usdValue / selectedToken.numericBalance);
+        }
+      }
+      const totalFeeInTokens = protocolFeeInTokens + gasFeeInTokens;
+      const maxAmount = Math.max(0, safeBalance - totalFeeInTokens);
+      return maxAmount.toString();
+    }
+  }, [selectedToken, activeTab, gasFeeData]);
 
   // Detect recipient address type for smart handling
   const recipientType = useMemo(() => {
@@ -1858,8 +1904,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               <button
                 type="button"
                 onClick={() => {
-                  // Set the full available balance
-                  setAmount(selectedToken.numericBalance.toString());
+                  // Set the calculated max amount accounting for fees
+                  setAmount(calculateMaxAmount());
                 }}
                   className="absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded hover:bg-green-900/20"
                 >
@@ -1870,6 +1916,11 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             {selectedToken && (
               <p className="mt-1 text-sm text-green-400/70">
                 Available: {formatBalance(selectedToken.numericBalance)} {selectedToken.symbol}
+              </p>
+            )}
+            {exceedsAvailableBalance && (
+              <p className="mt-1 text-sm text-red-400">
+                You've entered more than your available balance
               </p>
             )}
 
@@ -1951,9 +2002,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={!isValidAmount || isProcessing || isTransactionLocked || !selectedToken || (activeTab === 'transfer' && (!recipientAddress || recipientType === 'invalid'))}
+            disabled={!isValidAmount || exceedsAvailableBalance || isProcessing || isTransactionLocked || !selectedToken || (activeTab === 'transfer' && (!recipientAddress || recipientType === 'invalid'))}
             className={`w-full py-3 px-4 rounded font-medium transition-colors ${
-              isValidAmount && !isProcessing && !isTransactionLocked && selectedToken && (activeTab !== 'transfer' || (recipientAddress && recipientType !== 'invalid'))
+              isValidAmount && !exceedsAvailableBalance && !isProcessing && !isTransactionLocked && selectedToken && (activeTab !== 'transfer' || (recipientAddress && recipientType !== 'invalid'))
                 ? 'bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 border border-emerald-400/40'
                 : 'bg-black/40 text-green-400/50 border border-green-500/20 cursor-not-allowed'
             }`}
