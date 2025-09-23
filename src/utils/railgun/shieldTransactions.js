@@ -151,7 +151,7 @@ const ensureTokenApproval = async (tokenAddress, ownerAddress, amount, walletPro
 
     // Allow for small precision differences (within 1% or 10000 units, whichever is larger)
     // This handles cases where MAX calculations have tiny discrepancies
-    const tolerance = Math.max(10000n, balance / 100n); // 1% of balance or 10000 units minimum
+    const tolerance = balance / 100n > 10000n ? balance / 100n : 10000n; // 1% of balance or 10000 units minimum
     const hasBalance = balance >= amountBigInt && (balance - amountBigInt) <= tolerance;
 
     console.log('[ShieldTransactions] Token balance check:', {
