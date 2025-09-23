@@ -6,6 +6,7 @@
 
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'react-hot-toast';
+import { parseUnits } from 'ethers';
 import {
   ShieldCheckIcon,
   EyeSlashIcon,
@@ -74,6 +75,30 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     maxAmount = Math.max(0, maxAmount - dustAmount);
 
     return maxAmount;
+  }, []);
+
+  // Get max spendable amount in base units (BigInt) for precise validation
+  const getMaxSpendableUnits = useCallback((token, tab) => {
+    if (!token || !token.balanceUnits) return 0n;
+
+    let maxUnits = token.balanceUnits;
+
+    // For transfers, subtract estimated broadcaster fee in token units (1% of balance)
+    if (tab === 'transfer') {
+      const feeEstimate = maxUnits / 100n; // 1% fee
+      maxUnits = maxUnits > feeEstimate ? maxUnits - feeEstimate : 0n;
+    }
+
+    // For unshield operations, subtract broadcaster fee in token units
+    if (tab === 'unshield') {
+      // Estimate broadcaster fee as 0.25% (RAILGUN protocol fee)
+      const broadcasterFee = maxUnits * 25n / 10000n; // 0.25%
+      maxUnits = maxUnits > broadcasterFee ? maxUnits - broadcasterFee : 0n;
+    }
+
+    // For shield operations, don't subtract fees (user can use full balance)
+
+    return maxUnits;
   }, []);
 
   const {
@@ -391,20 +416,20 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     if (!amount || !selectedToken) return false;
 
     try {
-      const numAmount = parseFloat(amount);
-      if (numAmount <= 0) return false;
+      // Parse input amount to BigInt for precise comparison
+      const requestedUnits = parseUnits(amount, selectedToken.decimals);
+      if (requestedUnits <= 0n) return false;
 
-      // Use the same calculation as Max button for consistency
-      const maxAllowed = getMaxSpendableAmount(selectedToken, activeTab);
+      // Get max spendable amount in base units (BigInt)
+      const maxUnits = getMaxSpendableUnits(selectedToken, activeTab);
 
-      // Allow some tolerance for floating point precision issues
-      const tolerance = Math.pow(10, -selectedToken.decimals);
-      return numAmount <= maxAllowed + tolerance;
+      // Use BigInt comparison for exact equality validation
+      return requestedUnits <= maxUnits;
 
     } catch {
       return false;
     }
-  }, [amount, selectedToken, activeTab, getMaxSpendableAmount]);
+  }, [amount, selectedToken, activeTab, getMaxSpendableUnits]);
 
   // State to hold gas fee estimation result
   const [gasFeeData, setGasFeeData] = useState(null);
@@ -1889,13 +1914,15 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 disabled={!selectedToken}
               />
               {selectedToken && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    // Use the same calculation as validation for perfect consistency
-                    const maxSendable = getMaxSpendableAmount(selectedToken, activeTab);
-                    setAmount(maxSendable.toFixed(selectedToken.decimals));
-                  }}
+              <button
+                type="button"
+                onClick={() => {
+                  // Use BigInt max units for precise Max button value
+                  const maxUnits = getMaxSpendableUnits(selectedToken, activeTab);
+                  // Convert back to display format using the same precision as validation
+                  const maxAmount = Number(maxUnits) / Math.pow(10, selectedToken.decimals);
+                  setAmount(maxAmount.toString());
+                }}
                   className="absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded hover:bg-green-900/20"
                 >
                   Max
