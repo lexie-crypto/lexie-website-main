@@ -921,14 +921,14 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         }));
       }
 
-      if ((error?.message || '').toLowerCase().includes('rejected') || error?.code === 4001) {
+      if ((error?.message || '').toLowerCase().includes('rejected') || (error?.message || '').toLowerCase().includes('reject') || error?.code === 4001 || error?.code === 5000) {
         toast.custom((t) => (
           <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
             <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
               <div className="px-4 py-3 flex items-center gap-3">
                 <div className="h-3 w-3 rounded-full bg-red-400" />
                 <div>
-                  <div className="text-sm">Rejected by User</div>
+                  <div className="text-sm">Transaction rejected by user</div>
                 </div>
               </div>
             </div>
@@ -1515,14 +1515,14 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       }
 
       const msg = (error?.message || '').toLowerCase();
-      if (msg.includes('rejected') || error?.code === 4001) {
+      if (msg.includes('rejected') || msg.includes('reject') || error?.code === 4001 || error?.code === 5000) {
         toast.custom((t) => (
           <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
             <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
               <div className="px-4 py-3 flex items-center gap-3">
                 <div className="h-3 w-3 rounded-full bg-red-400" />
                 <div>
-                  <div className="text-sm">Rejected by User</div>
+                  <div className="text-sm">Transaction rejected by user</div>
                 </div>
                 <button 
                 type="button" 
