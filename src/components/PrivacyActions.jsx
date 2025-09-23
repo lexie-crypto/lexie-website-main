@@ -370,28 +370,36 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     if (!amount || !selectedToken) return false;
 
     try {
-      const numAmount = parseFloat(amount);
-      if (numAmount <= 0) return false;
+      // Parse amount to BigInt for precise comparison
+      const amountFloat = parseFloat(amount);
+      if (amountFloat <= 0) return false;
 
-      // Calculate max allowed amount accounting for fees
-      let maxAllowed = selectedToken.numericBalance > 0
-        ? selectedToken.numericBalance - (1 / Math.pow(10, selectedToken.decimals))
-        : 0;
+      // Convert requested amount to base units (BigInt)
+      const requestedInUnits = BigInt(Math.floor(amountFloat * Math.pow(10, selectedToken.decimals)));
+
+      // Get balance in base units
+      const balanceInUnits = BigInt(Math.floor(selectedToken.numericBalance * Math.pow(10, selectedToken.decimals)));
 
       // For transfers, account for broadcaster fee
+      let maxAllowedInUnits = balanceInUnits;
       if (activeTab === 'transfer') {
-        const balanceInUnits = BigInt(Math.floor(selectedToken.numericBalance * Math.pow(10, selectedToken.decimals)));
         // Estimate broadcaster fee: 0.5% + buffer for gas costs
         const estimatedFeeBps = 50n + 50n; // 0.5% + 0.5% buffer
         const estimatedFee = (balanceInUnits * estimatedFeeBps) / 10000n;
         const dustBuffer = 10000n;
-        const maxSendableInUnits = maxAllowed > 0
-          ? BigInt(Math.floor(maxAllowed * Math.pow(10, selectedToken.decimals))) - estimatedFee - dustBuffer
+        maxAllowedInUnits = maxAllowedInUnits > (estimatedFee + dustBuffer)
+          ? maxAllowedInUnits - estimatedFee - dustBuffer
           : 0n;
-        maxAllowed = Number(maxSendableInUnits) / Math.pow(10, selectedToken.decimals);
+      } else {
+        // For shield/unshield, allow full balance (no extra fee deduction beyond the 1 wei buffer)
+        maxAllowedInUnits = balanceInUnits > 0n ? balanceInUnits - 1n : 0n;
       }
 
-      return numAmount <= maxAllowed;
+      // Use tolerant comparison: allow amounts within 1 wei of max allowed
+      const epsilon = 1n;
+      return requestedInUnits <= maxAllowedInUnits ||
+             (requestedInUnits > maxAllowedInUnits && requestedInUnits - maxAllowedInUnits <= epsilon);
+
     } catch {
       return false;
     }
@@ -1891,7 +1899,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <button
                   type="button"
                   onClick={() => {
-                    // Calculate max sendable amount accounting for fees
+                    // Calculate max sendable amount accounting for fees using BigInt
                     const balanceInUnits = BigInt(Math.floor(selectedToken.numericBalance * Math.pow(10, selectedToken.decimals)));
                     let maxSendableInUnits = balanceInUnits > 0n ? balanceInUnits - 1n : 0n;
 
@@ -1906,8 +1914,13 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                         : 0n;
                     }
 
-                    const maxSendableDisplay = Number(maxSendableInUnits) / Math.pow(10, selectedToken.decimals);
-                    setAmount(maxSendableDisplay.toString());
+                    // Format BigInt directly to decimal string to avoid floating point precision issues
+                    const decimals = selectedToken.decimals;
+                    const integerPart = maxSendableInUnits / (10n ** BigInt(decimals));
+                    const fractionalPart = maxSendableInUnits % (10n ** BigInt(decimals));
+                    const fractionalStr = fractionalPart.toString().padStart(decimals, '0').replace(/0+$/, '');
+                    const maxSendableDisplay = fractionalStr ? `${integerPart}.${fractionalStr}` : integerPart.toString();
+                    setAmount(maxSendableDisplay);
                   }}
                   className="absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded hover:bg-green-900/20"
                 >
