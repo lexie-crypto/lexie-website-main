@@ -1642,8 +1642,7 @@ const convertTokenAmountToUSD = async (amount, tokenAddress, chainId) => {
       tokenSymbol = nativeTokenMap[chainId];
     } else {
       // Get token symbol from known tokens list
-      const { getKnownTokenDecimals } = await import('./tx-unshield.js');
-      const tokenInfo = getKnownTokenDecimals(tokenAddress, chainId);
+      const tokenInfo = getKnownTokenDecimalsInMonitor(tokenAddress, chainId);
       tokenSymbol = tokenInfo?.symbol;
     }
 
@@ -1694,8 +1693,7 @@ const convertTokenAmountToUSD = async (amount, tokenAddress, chainId) => {
     let decimals = isNative ? 18 : 6; // Default fallback
 
     // Try to get decimals from known tokens list
-    const { getKnownTokenDecimals } = await import('./tx-unshield.js');
-    const knownTokenInfo = getKnownTokenDecimals(tokenAddress, chainId);
+    const knownTokenInfo = getKnownTokenDecimalsInMonitor(tokenAddress, chainId);
     if (knownTokenInfo) {
       decimals = knownTokenInfo.decimals;
     }
