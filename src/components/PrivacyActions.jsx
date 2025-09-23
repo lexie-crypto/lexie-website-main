@@ -836,7 +836,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               console.log('[PrivacyActions] ✅ Resolved Lexie ID for points award:', lexieId);
 
               // Calculate actual USD value for points
-              const { convertTokenAmountToUSD } = await import('../utils/railgun/transactionMonitor.js');
+              const transactionMonitor = await import('../utils/railgun/transactionMonitor.js');
+              const convertTokenAmountToUSD = transactionMonitor.default.convertTokenAmountToUSD;
               const usdValue = await convertTokenAmountToUSD(amountInUnits, tokenAddr, chainId);
 
               console.log('[PrivacyActions] 💰 Calculated USD value for points fallback:', {
@@ -1124,7 +1125,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               console.log('[PrivacyActions] ✅ Resolved Lexie ID for unshield points award:', lexieId);
 
               // Calculate actual USD value for points
-              const { convertTokenAmountToUSD } = await import('../utils/railgun/transactionMonitor.js');
+              const transactionMonitor = await import('../utils/railgun/transactionMonitor.js');
+              const convertTokenAmountToUSD = transactionMonitor.default.convertTokenAmountToUSD;
               const usdValue = await convertTokenAmountToUSD(amountInUnits, tokenAddr, chainId);
 
               console.log('[PrivacyActions] 💰 Calculated USD value for unshield points fallback:', {
@@ -1433,7 +1435,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               console.log('[PrivacyActions] ✅ Resolved Lexie ID for transfer points award:', lexieId);
 
               // Calculate actual USD value for points
-              const { convertTokenAmountToUSD } = await import('../utils/railgun/transactionMonitor.js');
+              const transactionMonitor = await import('../utils/railgun/transactionMonitor.js');
+              const convertTokenAmountToUSD = transactionMonitor.default.convertTokenAmountToUSD;
               const usdValue = await convertTokenAmountToUSD(amountInUnits, tokenAddr, chainId);
 
               console.log('[PrivacyActions] 💰 Calculated USD value for transfer points fallback:', {
