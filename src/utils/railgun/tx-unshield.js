@@ -31,6 +31,7 @@ import { waitForRailgunReady } from './engine.js';
 import { assertNotSanctioned } from '../sanctions/chainalysis-oracle.js';
 import { fetchTokenPrices } from '../pricing/coinGecko.js';
 import { buildGasAndEstimate, computeGasReclamationWei } from './tx-gas-details.js';
+import { getKnownTokenDecimals, getNativeGasToken } from './balances.js';
 import {
   calculateGasReclamationERC20,
   calculateGasReclamationBaseToken,
@@ -253,71 +254,6 @@ const getRailgunNetworkName = (chainId) => {
 /**
  * Native gas token mapping by chain ID
  */
-const NATIVE_GAS_TOKENS = {
-  1: 'ETH',      // Ethereum
-  137: 'MATIC',  // Polygon
-  56: 'BNB',     // BSC
-  42161: 'ETH',  // Arbitrum (uses ETH)
-};
-
-/**
- * Get native gas token symbol for a chain ID
- */
-const getNativeGasToken = (chainId) => {
-  return NATIVE_GAS_TOKENS[chainId] || 'ETH'; // Default to ETH
-};
-
-/**
- * Emergency hardcoded token decimals for critical tokens
- */
-const getKnownTokenDecimals = (tokenAddress, chainId) => {
-  if (!tokenAddress) return null;
-  
-  const address = tokenAddress.toLowerCase();
-  const knownTokens = {
-    // Ethereum
-    1: {
-      '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2': { decimals: 18, symbol: 'WETH' },
-      '0xdac17f958d2ee523a2206206994597c13d831ec7': { decimals: 6, symbol: 'USDT' },
-      '0xa0b86a33e6416a86f2016c97db4ad0a23a5b7b73': { decimals: 6, symbol: 'USDC' },
-      '0x6b175474e89094c44da98b954eedeac495271d0f': { decimals: 18, symbol: 'DAI' },
-      '0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0': { decimals: 18, symbol: 'MATIC' },
-      '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': { decimals: 18, symbol: 'WBNB' },
-    },
-    // Polygon
-    137: {
-      '0x7ceb23fd6bc0add59e62ac25578270cff1b9f619': { decimals: 18, symbol: 'WETH' },
-      '0xc2132d05d31c914a87c6611c10748aeb04b58e8f': { decimals: 6, symbol: 'USDT' },
-      '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359': { decimals: 6, symbol: 'USDC' },
-      '0x8f3cf7ad23cd3cadbd9735aff958023239c6a063': { decimals: 18, symbol: 'DAI' },
-      '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270': { decimals: 18, symbol: 'WMATIC' },
-      '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': { decimals: 18, symbol: 'WBNB' },
-    },
-    // BNB Chain
-    56: {
-      '0x2170ed0880ac9a755fd29b2688956bd959f933f8': { decimals: 18, symbol: 'WETH' },
-      '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': { decimals: 18, symbol: 'WBNB' },
-      '0x55d398326f99059ff775485246999027b3197955': { decimals: 18, symbol: 'USDT' },
-      '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': { decimals: 18, symbol: 'USDC' },
-      '0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3': { decimals: 18, symbol: 'DAI' },
-      '0xCC42724C6683B7E57334c4E856f4c9965ED682bD': { decimals: 18, symbol: 'MATIC' },
-    },
-    // Arbitrum
-    42161: {
-      '0x82af49447d8a07e3bd95bd0d56f35241523fbab1': { decimals: 18, symbol: 'WETH' },
-      '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': { decimals: 6, symbol: 'USDT' },
-      '0xaf88d065e77c8cc2239327c5edb3a432268e5831': { decimals: 6, symbol: 'USDC' },
-      '0xda10009cbd5d07dd0cecc66161fc93d7c9000da1': { decimals: 18, symbol: 'DAI' },
-      '0x561877b6b3DD7651313794e5F2894B2F18bE0766': { decimals: 18, symbol: 'MATIC' },
-      '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': { decimals: 18, symbol: 'WBNB' },
-    },
-  };
-  
-  const chainTokens = knownTokens[chainId];
-  if (!chainTokens) return null;
-  
-  return chainTokens[address] || null;
-};
 
 // Note management removed - SDK handles internally
 
