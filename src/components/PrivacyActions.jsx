@@ -373,10 +373,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       const numAmount = parseFloat(amount);
       if (numAmount <= 0) return false;
 
-      // For all operations, ensure tiny buffer to prevent precision issues and approval failures
-      const buffer = Math.pow(10, -selectedToken.decimals);
-      const maxAmount = Math.max(0, selectedToken.numericBalance - buffer);
-      return numAmount <= maxAmount;
+      // Allow full balance - no buffer restrictions
+      return numAmount <= selectedToken.numericBalance;
     } catch {
       return false;
     }
@@ -1816,11 +1814,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 placeholder="0.0"
                 step="any"
                 min="0"
-                max={selectedToken ? (() => {
-                  const buffer = Math.pow(10, -selectedToken.decimals);
-                  const maxAmount = Math.max(0, selectedToken.numericBalance - buffer);
-                  return Number(maxAmount.toFixed(selectedToken.decimals));
-                })() : 0}
+                max={selectedToken ? selectedToken.numericBalance : 0}
                 className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
                 disabled={!selectedToken}
               />
@@ -1828,12 +1822,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <button
                   type="button"
                   onClick={() => {
-                    // For all operations, leave tiny buffer to prevent precision issues and approval failures
-                    const buffer = Math.pow(10, -selectedToken.decimals); // 1 unit in the smallest denomination
-                    const maxAmount = Math.max(0, selectedToken.numericBalance - buffer);
-                    // Format to token's decimal precision to avoid ethers.js parsing errors
-                    const formattedAmount = Number(maxAmount.toFixed(selectedToken.decimals));
-                    setAmount(formattedAmount.toString());
+                    // Use the exact balance from blockchain - no calculations, no buffers
+                    setAmount(selectedToken.numericBalance.toString());
                   }}
                   className="absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded hover:bg-green-900/20"
                 >
