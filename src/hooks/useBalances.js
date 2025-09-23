@@ -225,6 +225,7 @@ export function useBalances() {
         name: nativeToken.name,
         decimals: nativeToken.decimals,
         balance: balance.toString(),
+        balanceUnitsBigInt: balance, // Raw BigInt balance
         formattedBalance: formattedBalance,
         numericBalance: numericBalance,
         hasBalance: numericBalance > 0,
@@ -260,6 +261,7 @@ export function useBalances() {
         name: name,
         decimals: Number(decimals),
         balance: balance.toString(),
+        balanceUnitsBigInt: balance, // Raw BigInt balance
         formattedBalance: formattedBalance,
         numericBalance: numericBalance,
         hasBalance: numericBalance > 0,
@@ -329,12 +331,17 @@ export function useBalances() {
             const privateBalancesFromRedis = balancesForCurrentChain.map(balance => {
               const tokenInfo = getTokenInfo(balance.tokenAddress, chainId);
               const numeric = Number(balance.numericBalance) || 0;
+              // Prefer BigInt, then string reconstruction, never float
+              const balanceUnitsBigInt = balance.balanceUnitsBigInt ||
+                (balance.balance ? BigInt(balance.balance) :
+                 BigInt(Math.floor(numeric * Math.pow(10, balance.decimals ?? 18))));
               return {
                 symbol: balance.symbol,
                 address: balance.tokenAddress,
                 tokenAddress: balance.tokenAddress,
                 name: tokenInfo?.name || `${balance.symbol} Token`,
                 numericBalance: numeric,
+                balanceUnitsBigInt, // Raw BigInt balance
                 formattedBalance: numeric.toFixed(6),
                 balance: String(balance.numericBalance ?? '0'),
                 decimals: balance.decimals ?? 18,
@@ -390,12 +397,17 @@ export function useBalances() {
       const privateBalancesFromRedis = balancesForCurrentChain.map(balance => {
         const tokenInfo = getTokenInfo(balance.tokenAddress, chainId);
         const numeric = Number(balance.numericBalance) || 0;
+        // Prefer BigInt, then string reconstruction, never float
+        const balanceUnitsBigInt = balance.balanceUnitsBigInt ||
+          (balance.balance ? BigInt(balance.balance) :
+           BigInt(Math.floor(numeric * Math.pow(10, balance.decimals))));
         return {
           symbol: balance.symbol,
           address: balance.tokenAddress,
           tokenAddress: balance.tokenAddress,
           name: tokenInfo?.name || `${balance.symbol} Token`,
           numericBalance: numeric,
+          balanceUnitsBigInt, // Raw BigInt balance
           formattedBalance: numeric.toFixed(6),
           balance: String(numeric),
           decimals: balance.decimals,
@@ -467,12 +479,17 @@ export function useBalances() {
               const privateWithUSD = listForChain.map(token => {
                 const numeric = Number(token.numericBalance || 0);
                 const tokenInfo = getTokenInfo(token.tokenAddress, chainId);
+                // Prefer BigInt, then string reconstruction, never float
+                const balanceUnitsBigInt = token.balanceUnitsBigInt ||
+                  (token.balance ? BigInt(token.balance) :
+                   BigInt(Math.floor(numeric * Math.pow(10, token.decimals ?? 18))));
                 return {
                   ...token,
                   address: token.tokenAddress,
                   tokenAddress: token.tokenAddress,
                   name: tokenInfo?.name || `${token.symbol} Token`,
                   numericBalance: numeric,
+                  balanceUnitsBigInt, // Raw BigInt balance
                   hasBalance: numeric > 0,
                   decimals: token.decimals ?? 18,
                   formattedBalance: Number(numeric).toFixed(6),
