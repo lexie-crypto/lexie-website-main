@@ -56,6 +56,26 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   } = useWallet();
 
 
+  // Helper function to calculate max spendable amount (single source of truth)
+  const getMaxSpendableAmount = useCallback((token, tab) => {
+    if (!token) return 0;
+
+    let maxAmount = token.numericBalance;
+
+    // For transfers, subtract estimated broadcaster fee (1%)
+    if (tab === 'transfer') {
+      const feeEstimate = token.numericBalance * 0.01;
+      maxAmount = Math.max(0, token.numericBalance - feeEstimate);
+    }
+
+    // Subtract tiny dust amount to prevent precision issues
+    // Use token-specific precision (e.g., 1e-18 for 18-decimal tokens)
+    const dustAmount = Math.pow(10, -token.decimals);
+    maxAmount = Math.max(0, maxAmount - dustAmount);
+
+    return maxAmount;
+  }, []);
+
   const {
     publicBalances,
     privateBalances,
@@ -374,13 +394,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       const numAmount = parseFloat(amount);
       if (numAmount <= 0) return false;
 
-      // Calculate max allowed amount accounting for fees (simple version for now)
-      let maxAllowed = selectedToken.numericBalance;
-      if (activeTab === 'transfer') {
-        // For transfers, subtract estimated fees (simplified)
-        const feeEstimate = selectedToken.numericBalance * 0.01; // 1% fee estimate
-        maxAllowed = Math.max(0, selectedToken.numericBalance - feeEstimate);
-      }
+      // Use the same calculation as Max button for consistency
+      const maxAllowed = getMaxSpendableAmount(selectedToken, activeTab);
 
       // Allow some tolerance for floating point precision issues
       const tolerance = Math.pow(10, -selectedToken.decimals);
@@ -389,7 +404,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     } catch {
       return false;
     }
-  }, [amount, selectedToken, activeTab]);
+  }, [amount, selectedToken, activeTab, getMaxSpendableAmount]);
 
   // State to hold gas fee estimation result
   const [gasFeeData, setGasFeeData] = useState(null);
@@ -1865,13 +1880,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 step="any"
                 min="0"
                 max={selectedToken ? (() => {
-                  let maxAllowed = selectedToken.numericBalance;
-                  if (activeTab === 'transfer') {
-                    const feeEstimate = selectedToken.numericBalance * 0.01;
-                    maxAllowed = Math.max(0, selectedToken.numericBalance - feeEstimate);
-                  }
-                  const dustAmount = Math.pow(10, -selectedToken.decimals);
-                  return Math.max(0, maxAllowed - dustAmount);
+                  return getMaxSpendableAmount(selectedToken, activeTab);
                 })() : 0}
                 className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
                 disabled={!selectedToken}
@@ -1880,18 +1889,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <button
                   type="button"
                   onClick={() => {
-                    // Calculate max sendable amount accounting for fees (simple version)
-                    let maxSendable = selectedToken.numericBalance;
-                    if (activeTab === 'transfer') {
-                      // For transfers, subtract estimated fees
-                      const feeEstimate = selectedToken.numericBalance * 0.01; // 1% fee estimate
-                      maxSendable = Math.max(0, selectedToken.numericBalance - feeEstimate);
-                    }
-
-                    // Subtract a small dust amount to avoid precision issues
-                    const dustAmount = Math.pow(10, -selectedToken.decimals);
-                    maxSendable = Math.max(0, maxSendable - dustAmount);
-
+                    // Use the same calculation as validation for perfect consistency
+                    const maxSendable = getMaxSpendableAmount(selectedToken, activeTab);
                     setAmount(maxSendable.toFixed(selectedToken.decimals));
                   }}
                   className="absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded hover:bg-green-900/20"
