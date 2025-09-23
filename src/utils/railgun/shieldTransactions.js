@@ -114,6 +114,7 @@ const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
  * @param {string} amount - Amount to approve
  * @param {Signer} walletProvider - Ethers signer (not provider)
  * @param {Object} transaction - Transaction object to get RAILGUN contract address
+ * @returns {bigint} The effective amount that was approved (clamped to balance)
  */
 const ensureTokenApproval = async (tokenAddress, ownerAddress, amount, walletProvider, transaction) => {
   if (!tokenAddress) {
@@ -188,12 +189,12 @@ const ensureTokenApproval = async (tokenAddress, ownerAddress, amount, walletPro
       });
       try { toast.dismiss(toastId); } catch {}
       showTerminalToast('success', 'Approval confirmed', 'Continue in your wallet to complete');
-      
-      return true;
+
+      return amountBigInt; // Return the effective approved amount
     }
-    
+
     console.log('[ShieldTransactions] Token already approved, no action needed');
-    return true;
+    return amountBigInt; // Return the effective approved amount
     
   } catch (error) {
     console.error('[ShieldTransactions] Token approval failed:', error);
@@ -723,9 +724,48 @@ export const shieldTokens = async ({
 
     // Now ensure token approval using the contract address from the transaction
     console.log('[ShieldTransactions] Ensuring token approval...');
-    await ensureTokenApproval(tokenAddress, fromAddress, amount, walletProvider, dummyTx);
+    const approvedAmount = await ensureTokenApproval(tokenAddress, fromAddress, amount, walletProvider, dummyTx);
 
-    // Use dummy transaction gas estimation approach (same as unshield)
+    // After approval, re-read balance and allowance to compute effective amount
+    const requestedBigInt = BigInt(amount);
+    let effectiveAmount = requestedBigInt;
+
+    if (tokenAddress) {
+      // For ERC20 tokens, check balance and allowance
+      const erc20Abi = [
+        'function allowance(address owner, address spender) view returns (uint256)',
+        'function balanceOf(address account) view returns (uint256)'
+      ];
+      const signer = walletProvider;
+      const tokenContract = new Contract(tokenAddress, erc20Abi, signer);
+      const railgunContractAddress = dummyTx.to;
+
+      const finalBalance = await tokenContract.balanceOf(fromAddress);
+      const finalAllowance = await tokenContract.allowance(fromAddress, railgunContractAddress);
+
+      // Compute effective amount: min(requested, balance, allowance)
+      effectiveAmount = requestedBigInt < finalBalance && requestedBigInt < finalAllowance
+        ? requestedBigInt
+        : finalBalance < finalAllowance ? finalBalance : finalAllowance;
+
+      console.log('[ShieldTransactions] Effective amount calculation:', {
+        requested: requestedBigInt.toString(),
+        balance: finalBalance.toString(),
+        allowance: finalAllowance.toString(),
+        effectiveAmount: effectiveAmount.toString()
+      });
+    } else {
+      // For native tokens, just use the requested amount (balance check happens elsewhere)
+      console.log('[ShieldTransactions] Effective amount for native token:', {
+        requested: requestedBigInt.toString(),
+        effectiveAmount: effectiveAmount.toString()
+      });
+    }
+
+    // Update erc20AmountRecipients with effective amount
+    erc20AmountRecipients[0].amount = effectiveAmount;
+
+    // Use dummy transaction gas estimation approach with effective amount
     console.log('[ShieldTransactions] Building gas details using dummy transaction approach...');
     const { gasDetails, paddedGasEstimate, overallBatchMinGasPrice, accurateGasEstimate } = await buildShieldGasAndEstimate({
       chainId: chain.id,
