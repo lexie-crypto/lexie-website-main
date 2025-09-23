@@ -145,18 +145,24 @@ const ensureTokenApproval = async (tokenAddress, ownerAddress, amount, walletPro
     const signer = walletProvider; // This is now a signer, not a provider
     const tokenContract = new Contract(tokenAddress, erc20Abi, signer);
     
-    // Check balance first
+    // Check balance first - add buffer to prevent precision issues
     const balance = await tokenContract.balanceOf(ownerAddress);
     const amountBigInt = BigInt(amount);
-    
+
+    // Add a buffer to prevent precision issues (same as MAX button logic)
+    // This handles cases where amount calculations have tiny discrepancies
+    const buffer = 10000n; // 10,000 units buffer for precision issues
+    const adjustedRequired = amountBigInt + buffer;
+
     console.log('[ShieldTransactions] Token balance check:', {
       balance: balance.toString(),
       required: amountBigInt.toString(),
-      hasBalance: balance >= amountBigInt
+      adjustedRequired: adjustedRequired.toString(),
+      hasBalance: balance >= adjustedRequired
     });
-    
-    if (balance < amountBigInt) {
-      throw new Error(`Insufficient token balance. Have: ${balance.toString()}, Need: ${amountBigInt.toString()}`);
+
+    if (balance < adjustedRequired) {
+      throw new Error(`Insufficient token balance. Have: ${balance.toString()}, Need: ${adjustedRequired.toString()} (includes buffer)`);
     }
     
     // Check current allowance
