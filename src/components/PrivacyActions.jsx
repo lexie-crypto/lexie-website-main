@@ -1882,7 +1882,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                       {feeInfo.gasFeeUSD && activeTab !== 'shield' ? 'Est. ' : ''}Total {activeTab === 'shield' ? 'Added' : activeTab === 'unshield' ? 'Received' : 'Sent'}:
                     </span>
                     <span className="text-emerald-300">
-                      {feeInfo.netAmount} {selectedToken.symbol} (${feeInfo.netAmountUSD})
+                      ({feeInfo.netAmount} {selectedToken.symbol}) ${feeInfo.netAmountUSD}
                     </span>
                   </div>
                 </div>
