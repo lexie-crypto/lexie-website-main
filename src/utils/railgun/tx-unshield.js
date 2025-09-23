@@ -31,6 +31,13 @@ import { waitForRailgunReady } from './engine.js';
 import { assertNotSanctioned } from '../sanctions/chainalysis-oracle.js';
 import { fetchTokenPrices } from '../pricing/coinGecko.js';
 import { buildGasAndEstimate, computeGasReclamationWei } from './tx-gas-details.js';
+import {
+  calculateGasReclamationERC20,
+  calculateGasReclamationBaseToken,
+  applyGasPriceGuard,
+  validateCombinedFee,
+  calculateRelayerFee
+} from './fee-calculator.js';
 
 /**
  * Terminal-themed toast helper (no JSX; compatible with .js files)
@@ -543,7 +550,7 @@ export const unshieldTokens = async ({
         });
 
         // Calculate relayer fee from the user's amount
-        relayerFeeBn = (userAmountGross * RELAYER_FEE_BPS) / 10000n;
+        relayerFeeBn = calculateRelayerFee(userAmountGross);
 
         // ESTIMATE GAS COST BEFORE PROOF GENERATION (same as ERC-20 relayer mode)
         console.log('🤑 [UNSHIELD] Estimating gas cost for base token reclamation (dummy txn)...');
@@ -565,46 +572,22 @@ export const unshieldTokens = async ({
 
         // Use conservative estimate for dummy txn
         const estimatedGas = BigInt('1000000'); // Conservative 1M gas estimate
-        const gasPrice = networkGasPrices?.gasPrice || networkGasPrices?.maxFeePerGas || BigInt('20000000000'); // 20 gwei fallback
+
+        // Get gas price with safety guard
+        const rawGasPrice = networkGasPrices?.gasPrice || networkGasPrices?.maxFeePerGas || BigInt('20000000000'); // 20 gwei fallback
+        const gasPrice = applyGasPriceGuard(rawGasPrice);
+
         const gasCostWei = estimatedGas * gasPrice;
 
-        // Convert gas cost to token amount using dynamic pricing
-        const nativeGasToken = getNativeGasToken(chain.id);
-        let nativeTokenPrice = 3000; // Fallback price
-        try {
-          const prices = await fetchTokenPrices([nativeGasToken]);
-          if (prices[nativeGasToken] && prices[nativeGasToken] > 0) {
-            nativeTokenPrice = prices[nativeGasToken];
-          }
-        } catch (priceError) {
-          console.warn(`⚠️ [UNSHIELD] Price fetch failed for ${nativeGasToken}, using fallback: ${nativeTokenPrice}`, priceError.message);
-        }
-
-        // Calculate gas reclamation fee
-        const gasCostNative = Number(gasCostWei) / 1e18;
-        const gasCostUsd = gasCostNative * nativeTokenPrice;
-
-        // Get token decimals for proper conversion (6 for USDC/USDT, 18 for WETH/DAI/native tokens, etc.)
-        const tokenDecimals = getKnownTokenDecimals(tokenAddress, chain.id)?.decimals || 18; // Default to 18 for native/base tokens
-        const decimalMultiplier = BigInt(10) ** BigInt(tokenDecimals);
-
-        gasFeeDeducted = BigInt(Math.ceil(gasCostUsd * Number(decimalMultiplier)));
-
-        console.log('💰 [UNSHIELD] Base token gas reclamation estimated:', {
-          estimatedGas: estimatedGas.toString(),
-          gasPrice: gasPrice.toString(),
-          gasCostWei: gasCostWei.toString(),
-          nativeGasToken,
-          nativeTokenPrice: nativeTokenPrice.toFixed(2),
-          gasCostNative: gasCostNative.toFixed(8),
-          gasCostUsd: gasCostUsd.toFixed(4),
-          tokenDecimals,
-          gasFeeDeducted: gasFeeDeducted.toString(),
-          note: 'This estimate gets baked into the proof - relayer takes win/loss on actual vs estimated'
-        });
+        // For base tokens, gas reclamation is simply the gas cost in wei
+        // No USD conversion needed since we're dealing with native tokens
+        gasFeeDeducted = calculateGasReclamationBaseToken(gasCostWei);
 
         // COMBINE FEES FOR BROADCASTER: relayer fee + estimated gas reclamation
         combinedRelayerFee = relayerFeeBn + gasFeeDeducted;
+
+        // PREFLIGHT GUARD: Prevent combined fees from exceeding user amount
+        validateCombinedFee(combinedRelayerFee, userAmountGross, 'Base token');
 
         console.log('🔍 [UNSHIELD] CRITICAL - Base token broadcaster fee updated with combined fee:', {
           relayerFeeBn: relayerFeeBn.toString(),
@@ -953,7 +936,7 @@ export const unshieldTokens = async ({
       });
       
       // Calculate relayer fee from the user's amount, then unshield NET of that fee
-      relayerFeeBn = (userAmountGross * RELAYER_FEE_BPS) / 10000n;
+      relayerFeeBn = calculateRelayerFee(userAmountGross);
 
       // ESTIMATE GAS COST BEFORE PROOF GENERATION (dummy txn approach)
       console.log('🤑 [UNSHIELD] Estimating gas cost for reclamation (dummy txn)...');
@@ -975,48 +958,28 @@ export const unshieldTokens = async ({
 
       // Use conservative estimate for dummy txn (similar to old implementation)
       const estimatedGas = BigInt('1000000'); // Conservative 1M gas estimate
-      const gasPrice = networkGasPrices?.gasPrice || networkGasPrices?.maxFeePerGas || BigInt('20000000000'); // 20 gwei fallback
+
+      // Get gas price with safety guard
+      const rawGasPrice = networkGasPrices?.gasPrice || networkGasPrices?.maxFeePerGas || BigInt('20000000000'); // 20 gwei fallback
+      const gasPrice = applyGasPriceGuard(rawGasPrice);
+
       const gasCostWei = estimatedGas * gasPrice;
 
-      // Convert gas cost to token amount using dynamic pricing
-      const nativeGasToken = getNativeGasToken(chain.id);
-      let nativeTokenPrice = 3000; // Fallback price
-      try {
-        const prices = await fetchTokenPrices([nativeGasToken]);
-        if (prices[nativeGasToken] && prices[nativeGasToken] > 0) {
-          nativeTokenPrice = prices[nativeGasToken];
-        }
-      } catch (priceError) {
-        console.warn(`⚠️ [UNSHIELD] Price fetch failed for ${nativeGasToken}, using fallback: ${nativeTokenPrice}`, priceError.message);
-      }
-
-      // Calculate gas reclamation fee (this gets baked into the proof)
-      const gasCostNative = Number(gasCostWei) / 1e18;
-      const gasCostUsd = gasCostNative * nativeTokenPrice;
-
-      // Get token decimals for proper conversion (6 for USDC/USDT, 18 for WETH/DAI, etc.)
-      const tokenDecimals = getKnownTokenDecimals(tokenAddress, chain.id)?.decimals || 18; // Default to 18 if unknown
-      const decimalMultiplier = BigInt(10) ** BigInt(tokenDecimals);
-
-      gasFeeDeducted = BigInt(Math.ceil(gasCostUsd * Number(decimalMultiplier)));
-
-      console.log('💰 [UNSHIELD] Gas reclamation estimated (for proof):', {
-        estimatedGas: estimatedGas.toString(),
-        gasPrice: gasPrice.toString(),
-        gasCostWei: gasCostWei.toString(),
-        nativeGasToken,
-        nativeTokenPrice: nativeTokenPrice.toFixed(2),
-        gasCostNative: gasCostNative.toFixed(8),
-        gasCostUsd: gasCostUsd.toFixed(4),
-        tokenDecimals,
-        gasFeeDeducted: gasFeeDeducted.toString(),
-        note: 'This estimate gets baked into the proof - relayer takes win/loss on actual vs estimated'
-      });
+      // Calculate gas reclamation fee using proper unit conversion
+      gasFeeDeducted = await calculateGasReclamationERC20(
+        gasCostWei,
+        selectedRelayer.feeToken,
+        chain.id,
+        fetchTokenPrices
+      );
 
       // COMBINE FEES FOR BROADCASTER: relayer fee + estimated gas reclamation
       // This amount gets baked into the proof and cannot be changed
       combinedRelayerFee = relayerFeeBn + gasFeeDeducted;
       unshieldInputAmount = userAmountGross; // Send full amount to SDK, let it deduct fees
+
+      // PREFLIGHT GUARD: Prevent combined fees from exceeding user amount
+      validateCombinedFee(combinedRelayerFee, userAmountGross, 'ERC-20');
 
       // CREATE SINGLE BROADCASTER FEE OBJECT: Used for proof generation
       // This includes the ESTIMATED gas reclamation that gets baked into the proof
