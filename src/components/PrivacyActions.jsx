@@ -827,6 +827,18 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               const lexieId = lexieData.lexieID.toLowerCase();
               console.log('[PrivacyActions] ✅ Resolved Lexie ID for points award:', lexieId);
 
+              // Calculate actual USD value for points
+              const { convertTokenAmountToUSD } = await import('../utils/railgun/transactionMonitor.js');
+              const usdValue = await convertTokenAmountToUSD(amountInUnits, tokenAddr, chainId);
+
+              console.log('[PrivacyActions] 💰 Calculated USD value for points fallback:', {
+                amount: amount,
+                amountInUnits,
+                tokenAddress: tokenAddr,
+                chainId,
+                usdValue
+              });
+
               // Now call rewards-award with correct format
               const pointsResponse = await fetch('/api/wallet-metadata?action=rewards-award', {
                 method: 'POST',
@@ -834,7 +846,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 body: JSON.stringify({
                   lexieId: lexieId,
                   txHash: txResponse?.hash || txResponse,
-                  usdValue: Number(amount) // Assume amount is in USD for simplicity
+                  usdValue: usdValue
                 })
               });
 
@@ -1103,6 +1115,18 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               const lexieId = lexieData.lexieID.toLowerCase();
               console.log('[PrivacyActions] ✅ Resolved Lexie ID for unshield points award:', lexieId);
 
+              // Calculate actual USD value for points
+              const { convertTokenAmountToUSD } = await import('../utils/railgun/transactionMonitor.js');
+              const usdValue = await convertTokenAmountToUSD(amountInUnits, tokenAddr, chainId);
+
+              console.log('[PrivacyActions] 💰 Calculated USD value for unshield points fallback:', {
+                amount: amount,
+                amountInUnits,
+                tokenAddress: tokenAddr,
+                chainId,
+                usdValue
+              });
+
               // Now call rewards-award with correct format
               const pointsResponse = await fetch('/api/wallet-metadata?action=rewards-award', {
                 method: 'POST',
@@ -1110,7 +1134,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 body: JSON.stringify({
                   lexieId: lexieId,
                   txHash: result.transactionHash,
-                  usdValue: Number(amount) // Assume amount is in USD for simplicity
+                  usdValue: usdValue
                 })
               });
 
@@ -1400,6 +1424,18 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               const lexieId = lexieData.lexieID.toLowerCase();
               console.log('[PrivacyActions] ✅ Resolved Lexie ID for transfer points award:', lexieId);
 
+              // Calculate actual USD value for points
+              const { convertTokenAmountToUSD } = await import('../utils/railgun/transactionMonitor.js');
+              const usdValue = await convertTokenAmountToUSD(amountInUnits, tokenAddr, chainId);
+
+              console.log('[PrivacyActions] 💰 Calculated USD value for transfer points fallback:', {
+                amount: amount,
+                amountInUnits,
+                tokenAddress: tokenAddr,
+                chainId,
+                usdValue
+              });
+
               // Now call rewards-award with correct format
               const pointsResponse = await fetch('/api/wallet-metadata?action=rewards-award', {
                 method: 'POST',
@@ -1407,7 +1443,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 body: JSON.stringify({
                   lexieId: lexieId,
                   txHash: tx.txHash,
-                  usdValue: Number(amount) // Assume amount is in USD for simplicity
+                  usdValue: usdValue
                 })
               });
 

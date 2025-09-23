@@ -1625,45 +1625,82 @@ const convertTokenAmountToUSD = async (amount, tokenAddress, chainId) => {
 
     const isNative = nativeTokens[chainId] === tokenAddress.toLowerCase();
 
-    // For now, use simple hardcoded prices as fallback
-    // TODO: Replace with real price API calls
-    const fallbackPrices = {
-      // Native tokens
-      '0x0000000000000000000000000000000000000000': {
-        1: 4613.75, // ETH
-        137: 0.75,   // MATIC
-        42161: 4613.75, // ETH on Arbitrum
-        56: 687.50   // BNB
-      },
-      // USDC
-      '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': 1.00,
-      '0x2791bca1f2de4661ed88a30c99a7a9449aa84174': 1.00, // Polygon USDC
-      '0xaf88d065e77c8cc2239327c5edb3a432268e5831': 1.00, // Arbitrum USDC
-      // USDT
-      '0xdac17f958d2ee523a2206206994597c13d831ec7': 1.00,
-      '0xc2132d05d31c914a87c6611c10748aeb04b58e8f': 1.00, // Polygon USDT
-      '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': 1.00, // Arbitrum USDT
-    };
+    // Get real-time prices from CoinGecko
+    const { fetchTokenPrices } = await import('../pricing/coinGecko.js');
+
+    // Determine token symbol for CoinGecko API
+    let tokenSymbol = null;
+
+    if (isNative) {
+      // Map native token addresses to symbols
+      const nativeTokenMap = {
+        1: 'ETH',      // Ethereum
+        137: 'MATIC',  // Polygon
+        42161: 'ETH',  // Arbitrum (uses ETH)
+        56: 'BNB'      // BSC
+      };
+      tokenSymbol = nativeTokenMap[chainId];
+    } else {
+      // Get token symbol from known tokens list
+      const { getKnownTokenDecimals } = await import('./tx-unshield.js');
+      const tokenInfo = getKnownTokenDecimals(tokenAddress, chainId);
+      tokenSymbol = tokenInfo?.symbol;
+    }
 
     let price = 0;
 
-    if (isNative) {
-      price = fallbackPrices['0x0000000000000000000000000000000000000000'][chainId] || 0;
-    } else {
-      price = fallbackPrices[tokenAddress.toLowerCase()] || 0;
+    if (tokenSymbol) {
+      try {
+        const prices = await fetchTokenPrices([tokenSymbol]);
+        price = prices[tokenSymbol] || 0;
+
+        if (price > 0) {
+          console.log(`[TransactionMonitor] 💰 Using real-time price for ${tokenSymbol}: $${price}`);
+        } else {
+          console.warn(`[TransactionMonitor] ⚠️ CoinGecko returned $0 price for ${tokenSymbol}, using fallback`);
+        }
+      } catch (error) {
+        console.warn(`[TransactionMonitor] ⚠️ CoinGecko fetch failed for ${tokenSymbol}:`, error.message);
+      }
     }
 
+    // Fallback prices if CoinGecko fails
     if (price === 0) {
-      console.warn('[TransactionMonitor] ⚠️ No price found for token, using $0 for points:', {
-        tokenAddress,
-        chainId,
-        amount
-      });
-      return 0;
+      const fallbackPrices = {
+        'ETH': 4613.75,
+        'MATIC': 0.75,
+        'BNB': 687.50,
+        'USDC': 1.00,
+        'USDT': 1.00,
+        'DAI': 1.00,
+      };
+
+      price = fallbackPrices[tokenSymbol] || 0;
+
+      if (price > 0) {
+        console.log(`[TransactionMonitor] 💰 Using fallback price for ${tokenSymbol}: $${price}`);
+      } else {
+        console.warn('[TransactionMonitor] ⚠️ No price found for token, using $0 for points:', {
+          tokenAddress,
+          tokenSymbol,
+          chainId,
+          amount
+        });
+        return 0;
+      }
+    }
+
+    // Get actual decimals for the token
+    let decimals = isNative ? 18 : 6; // Default fallback
+
+    // Try to get decimals from known tokens list
+    const { getKnownTokenDecimals } = await import('./tx-unshield.js');
+    const knownTokenInfo = getKnownTokenDecimals(tokenAddress, chainId);
+    if (knownTokenInfo) {
+      decimals = knownTokenInfo.decimals;
     }
 
     // Convert amount to human-readable format and multiply by price
-    const decimals = isNative ? 18 : 6; // Most stablecoins are 6 decimals
     const humanAmount = Number(amount) / Math.pow(10, decimals);
     const usdValue = humanAmount * price;
 
@@ -1671,6 +1708,7 @@ const convertTokenAmountToUSD = async (amount, tokenAddress, chainId) => {
       tokenAddress,
       chainId,
       rawAmount: amount,
+      decimals,
       humanAmount,
       price,
       usdValue
