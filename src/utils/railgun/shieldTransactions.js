@@ -24,7 +24,8 @@ import {
   populateShieldBaseToken,
 } from '@railgun-community/wallet';
 import { calculateGasPrice } from '@railgun-community/shared-models';
-import { createShieldGasDetails, getTxFeeParams } from './tx-gas-details.js';
+import { createShieldGasDetails, getTxFeeParams, estimateGasForTransaction } from './tx-gas-details.js';
+import { fetchGasPricesFromRPC } from './tx-gas-details.js';
 import { estimateGasWithBroadcasterFee } from './tx-gas-broadcaster-fee-estimator.js';
 import { assertNotSanctioned } from '../sanctions/chainalysis-oracle.js';
 
@@ -352,76 +353,61 @@ export const buildBaseTokenShieldGasAndEstimate = async ({
 }) => {
   try {
     const signer = walletProvider; // walletProvider is a Signer object, not a function
-    const provider = signer.provider;
 
-    const evmGasType = getEVMGasTypeForTransaction(networkName, true); // Always true for shield
-    const originalFeeParams = await getTxFeeParams(provider, evmGasType, chainId);
-
-    // Create originalGasDetails for SDK estimate
-    const originalGasDetails =
-      evmGasType === EVMGasType.Type2
-        ? {
-            evmGasType,
-            originalGasEstimate: 0n,
-            maxFeePerGas: originalFeeParams.maxFeePerGas,
-            maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas
-          }
-        : {
-            evmGasType,
-            originalGasEstimate: 0n,
-            gasPrice: originalFeeParams.gasPrice
-          };
-
-    // SDK dummy estimate for base token (the "dry run")
-    console.log('[ShieldTransactions] Running dummy base token shield gas estimation...');
-    const { gasEstimate } = await gasEstimateForShieldBaseToken(
-      TXIDVersion.V2_PoseidonMerkle,
+    // Use simple gas estimation for reasonable gas prices
+    console.log('[ShieldTransactions] Using simple gas estimation for base token shield...');
+    const gasCostEstimate = await estimateGasForTransaction({
+      transactionType: 'shield',
+      chainId,
       networkName,
-      railgunAddress,
-      shieldPrivateKey,
-      { tokenAddress, amount: BigInt(amount) },
-      await signer.getAddress() // fromAddress
-    );
-
-    console.log('[ShieldTransactions] Base token dummy gas estimate result:', {
-      gasEstimate: gasEstimate.toString(),
-      evmGasType,
-      networkName
+      tokenAddress,
+      amount: BigInt(amount),
+      walletProvider: signer,
     });
+
+    // Get gas prices from the simple estimation
+    const gasPrices = await fetchGasPricesFromRPC(chainId);
+    const evmGasType = EVMGasType.Type2; // Most networks use EIP-1559
+
+    // For SDK population, use a reasonable gas estimate (not the hardcoded 1M from simple estimation)
+    const sdkGasEstimate = 800000n; // Reasonable base token shield gas estimate
+
+    // Final gasDetails to pass into populate() - include gas prices for MetaMask
+    const gasDetails = evmGasType === EVMGasType.Type2
+      ? {
+          evmGasType,
+          gasEstimate: sdkGasEstimate,
+          maxFeePerGas: gasPrices.maxFeePerGas,
+          maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas,
+        }
+      : {
+          evmGasType,
+          gasEstimate: sdkGasEstimate,
+          gasPrice: gasPrices.gasPrice,
+        };
 
     // Pad estimate for headroom (applied to transaction.gasLimit, not gasDetails)
-    const paddedGasEstimate = (gasEstimate * 120n) / 100n;
+    const paddedGasEstimate = (sdkGasEstimate * 120n) / 100n;
 
-    // Compute batch min gas price (SDK helper)
-    const overallBatchMinGasPrice = await calculateGasPrice({
-      evmGasType,
-      gasEstimate,
-      gasPrice: originalFeeParams.gasPrice,
-      maxFeePerGas: originalFeeParams.maxFeePerGas,
-      maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas,
-    });
-
-    // Final gasDetails to pass into populate() - use accurate estimate (no padding)
-    const gasDetails = {
-      evmGasType,
-      gasEstimate: gasEstimate, // Accurate estimate for SDK population
-      // Remove gas price fields to let MetaMask use market rates
-    };
-
-    console.log('[ShieldTransactions] Using SDK dummy estimate for base token + live fee data', {
+    console.log('[ShieldTransactions] Base token shield gas estimation complete:', {
       chainId,
-      evmGasType,
-      gasEstimate: gasEstimate.toString(),
+      gasEstimate: sdkGasEstimate.toString(),
       paddedGasEstimate: paddedGasEstimate.toString(),
-      overallBatchMinGasPrice: overallBatchMinGasPrice.toString(),
+      uiEstimate: gasCostEstimate.gasCostUSD,
+      gasPrices: {
+        maxFeePerGas: gasPrices.maxFeePerGas?.toString(),
+        maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas?.toString(),
+        gasPrice: gasPrices.gasPrice?.toString(),
+      },
       ...gasDetails,
     });
 
     return {
       gasDetails,
       paddedGasEstimate,
-      overallBatchMinGasPrice,
-      accurateGasEstimate: gasEstimate
+      overallBatchMinGasPrice: '0',
+      accurateGasEstimate: sdkGasEstimate,
+      uiGasEstimate: gasCostEstimate // For UI display
     };
 
   } catch (error) {
@@ -447,77 +433,63 @@ export const buildShieldGasAndEstimate = async ({
 }) => {
   try {
     const signer = walletProvider; // walletProvider is a Signer object, not a function
-    const provider = signer.provider;
 
-    const evmGasType = getEVMGasTypeForTransaction(networkName, true); // Always true for shield
-    const originalFeeParams = await getTxFeeParams(provider, evmGasType, chainId);
-
-    // Create originalGasDetails for SDK estimate
-    const originalGasDetails =
-      evmGasType === EVMGasType.Type2
-        ? {
-            evmGasType,
-            originalGasEstimate: 0n,
-            maxFeePerGas: originalFeeParams.maxFeePerGas,
-            maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas
-          }
-        : {
-            evmGasType,
-            originalGasEstimate: 0n,
-            gasPrice: originalFeeParams.gasPrice
-          };
-
-    // SDK dummy estimate (the "dry run")
-    console.log('[ShieldTransactions] Running dummy shield gas estimation...');
-    const gasEstimateResponse = await gasEstimateForShield(
-      TXIDVersion.V2_PoseidonMerkle,
+    // Use simple gas estimation for reasonable gas prices
+    // Use the first ERC20 recipient for estimation
+    const firstRecipient = erc20AmountRecipients?.[0];
+    console.log('[ShieldTransactions] Using simple gas estimation for shield...');
+    const gasCostEstimate = await estimateGasForTransaction({
+      transactionType: 'shield',
+      chainId,
       networkName,
-      shieldPrivateKey,
-      erc20AmountRecipients,
-      nftAmountRecipients,
-      fromWalletAddress
-    );
-
-    const gasEstimate = gasEstimateResponse.gasEstimate || gasEstimateResponse;
-    console.log('[ShieldTransactions] Dummy gas estimate result:', {
-      gasEstimate: gasEstimate.toString(),
-      evmGasType,
-      networkName
+      tokenAddress: firstRecipient?.tokenAddress,
+      amount: firstRecipient?.amount || 0n,
+      walletProvider: signer,
     });
+
+    // Get gas prices from the simple estimation
+    const gasPrices = await fetchGasPricesFromRPC(chainId);
+    const evmGasType = EVMGasType.Type2; // Most networks use EIP-1559
+
+    // For SDK population, use a reasonable gas estimate (not the hardcoded 1M from simple estimation)
+    const sdkGasEstimate = 600000n; // Reasonable ERC20 shield gas estimate
+
+    // Final gasDetails to pass into populate() - include gas prices for MetaMask
+    const gasDetails = evmGasType === EVMGasType.Type2
+      ? {
+          evmGasType,
+          gasEstimate: sdkGasEstimate,
+          maxFeePerGas: gasPrices.maxFeePerGas,
+          maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas,
+        }
+      : {
+          evmGasType,
+          gasEstimate: sdkGasEstimate,
+          gasPrice: gasPrices.gasPrice,
+        };
 
     // Pad estimate for headroom (applied to transaction.gasLimit, not gasDetails)
-    const paddedGasEstimate = (gasEstimate * 120n) / 100n;
+    const paddedGasEstimate = (sdkGasEstimate * 120n) / 100n;
 
-    // Compute batch min gas price (SDK helper)
-    const overallBatchMinGasPrice = await calculateGasPrice({
-      evmGasType,
-      gasEstimate,
-      gasPrice: originalFeeParams.gasPrice,
-      maxFeePerGas: originalFeeParams.maxFeePerGas,
-      maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas,
-    });
-
-    // Final gasDetails to pass into populate() - use accurate estimate (no padding)
-    const gasDetails = {
-      evmGasType,
-      gasEstimate: gasEstimate, // Accurate estimate for SDK population
-      // Remove gas price fields to let MetaMask use market rates
-    };
-
-    console.log('[ShieldTransactions] Using SDK dummy estimate + live fee data', {
+    console.log('[ShieldTransactions] Shield gas estimation complete:', {
       chainId,
-      evmGasType,
-      gasEstimate: gasEstimate.toString(),
+      gasEstimate: sdkGasEstimate.toString(),
       paddedGasEstimate: paddedGasEstimate.toString(),
-      overallBatchMinGasPrice: overallBatchMinGasPrice.toString(),
+      uiEstimate: gasCostEstimate.gasCostUSD,
+      gasPrices: {
+        maxFeePerGas: gasPrices.maxFeePerGas?.toString(),
+        maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas?.toString(),
+        gasPrice: gasPrices.gasPrice?.toString(),
+      },
       ...gasDetails,
     });
 
     return {
       gasDetails,
       paddedGasEstimate,
-      overallBatchMinGasPrice,
-      accurateGasEstimate: gasEstimate
+      overallBatchMinGasPrice: '0',
+      accurateGasEstimate: sdkGasEstimate,
+      uiGasEstimate: gasCostEstimate // For UI display
     };
 
   } catch (error) {
