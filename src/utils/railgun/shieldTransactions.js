@@ -369,8 +369,8 @@ export const buildBaseTokenShieldGasAndEstimate = async ({
     const gasPrices = await fetchGasPricesFromRPC(chainId);
     const evmGasType = EVMGasType.Type2; // Most networks use EIP-1559
 
-    // For SDK population, use a reasonable gas estimate (not the hardcoded 1M from simple estimation)
-    const sdkGasEstimate = 800000n; // Reasonable base token shield gas estimate
+    // For SDK population, use a conservative gas estimate (not the hardcoded 1M from simple estimation)
+    const sdkGasEstimate = 1200000n; // Conservative base token shield gas estimate
 
     // Final gasDetails to pass into populate() - include gas prices for MetaMask
     const gasDetails = evmGasType === EVMGasType.Type2
@@ -451,8 +451,8 @@ export const buildShieldGasAndEstimate = async ({
     const gasPrices = await fetchGasPricesFromRPC(chainId);
     const evmGasType = EVMGasType.Type2; // Most networks use EIP-1559
 
-    // For SDK population, use a reasonable gas estimate (not the hardcoded 1M from simple estimation)
-    const sdkGasEstimate = 600000n; // Reasonable ERC20 shield gas estimate
+    // For SDK population, use a conservative gas estimate (not the hardcoded 1M from simple estimation)
+    const sdkGasEstimate = 1000000n; // Conservative ERC20 shield gas estimate
 
     // Final gasDetails to pass into populate() - include gas prices for MetaMask
     const gasDetails = evmGasType === EVMGasType.Type2
