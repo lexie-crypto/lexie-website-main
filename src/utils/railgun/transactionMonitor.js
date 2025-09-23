@@ -1846,4 +1846,5 @@ export default {
   monitorShieldTransaction,
   monitorUnshieldTransaction,
   monitorTransferTransaction,
+  convertTokenAmountToUSD,
 }; 
