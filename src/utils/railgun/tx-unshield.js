@@ -312,6 +312,23 @@ const getKnownTokenDecimals = (tokenAddress, chainId) => {
   return chainTokens[address] || null;
 };
 
+/**
+ * Check if token is wrapped version of native token for this chain
+ */
+const isWrappedNativeToken = (tokenAddress, chainId) => {
+  if (!tokenAddress) return false;
+
+  const address = tokenAddress.toLowerCase();
+  const wrappedTokens = {
+    1: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',      // WETH on Ethereum
+    137: '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270',    // WMATIC on Polygon
+    56: '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c',     // WBNB on BSC
+    42161: '0x82af49447d8a07e3bd95bd0d56f35241523fbab1',   // WETH on Arbitrum
+  };
+
+  return wrappedTokens[chainId] === address;
+};
+
 // Note management removed - SDK handles internally
 
 /**
@@ -509,7 +526,21 @@ export const unshieldTokens = async ({
       console.log('🚀 [UNSHIELD] Zero-Delay mode active - bypassing spendable balance checks');
     }
 
-    // If unshielding base token (wETH unwrap): use base-token SDK path
+    // Check if token should use combined fee approach (native or wrapped native tokens)
+    const isNativeOrWrapped = !tokenAddress ||
+                             tokenAddress === '0x0000000000000000000000000000000000000000' ||
+                             isWrappedNativeToken(tokenAddress, chain.id);
+
+    console.log(`🔍 [UNSHIELD] Token analysis:`, {
+      tokenAddress: tokenAddress?.substring(0, 10) + '...',
+      isNative: !tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000',
+      isWrappedNative: isWrappedNativeToken(tokenAddress, chain.id),
+      isNativeOrWrapped,
+      useRelayer,
+      chainId: chain.id
+    });
+
+    // If unshielding base token (native or wrapped native): use combined fee approach when relayer is used
     const isBaseToken = !tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000';
     if (isBaseToken) {
       console.log('🔧 [UNSHIELD] Base token flow: using SDK unshield base token');
@@ -888,6 +919,14 @@ export const unshieldTokens = async ({
     }
 
     // RELAYER MODE: Prepare recipients with broadcaster fee (deduct relayer fee from user's amount)
+    // This applies to all ERC-20 tokens including wrapped tokens (WETH, WMATIC, WBNB, etc.)
+    console.log(`💰 [UNSHIELD] ERC-20 token transaction method: ${useRelayer ? 'RelayAdapt Mode (with broadcaster fee)' : 'Self-Signing (Direct)'}`);
+    console.log(`🔍 [UNSHIELD] ERC-20 token details:`, {
+      tokenAddress: tokenAddress?.substring(0, 10) + '...',
+      isWrappedNative: isWrappedNativeToken(tokenAddress, chain.id),
+      useCombinedFees: useRelayer
+    });
+
     let erc20AmountRecipients = [];
     let broadcasterFeeERC20AmountRecipient = null;
     // Cross-contract (RelayAdapt) shared objects used across estimate → proof → populate
@@ -925,6 +964,10 @@ export const unshieldTokens = async ({
 
     if (useRelayer) {
       console.log('🔧 [UNSHIELD] Preparing RelayAdapt mode with cross-contract calls...');
+      console.log('💰 [UNSHIELD] Combined fees will be applied: relayer fee (0.5%) + gas reclamation');
+      if (isWrappedNativeToken(tokenAddress, chain.id)) {
+        console.log('🎯 [UNSHIELD] Wrapped native token detected - using same combined fee structure as native tokens');
+      }
       
       // CRITICAL: Select relayer once, reuse everywhere
       selectedRelayer = await getSelectedRelayer(tokenAddress);
