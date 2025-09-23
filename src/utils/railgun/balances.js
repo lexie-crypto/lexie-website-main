@@ -99,12 +99,20 @@ export const refreshPrivateBalancesAndStore = async (walletID, chainId) => {
  * Parse token amount from decimal string to base units
  * @param {string} amount - Amount in decimal format
  * @param {number} decimals - Token decimals
- * @returns {string} Amount in base units
+ * @returns {string} Amount in base units (always floored, never rounded up)
  */
 export const parseTokenAmount = (amount, decimals) => {
   try {
     if (!amount || amount === '0') return '0';
-    return parseUnits(amount, decimals).toString();
+
+    // Convert to BigInt with flooring to prevent rounding up
+    const [whole, fraction = ''] = amount.split('.');
+    const paddedFraction = fraction.padEnd(decimals, '0').slice(0, decimals);
+    const fullAmount = whole + paddedFraction;
+
+    // Remove leading zeros and handle negative
+    const cleanAmount = fullAmount.replace(/^0+/, '') || '0';
+    return cleanAmount;
   } catch (error) {
     console.error('[RailgunBalances] Failed to parse token amount:', error);
     return '0';

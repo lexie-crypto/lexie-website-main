@@ -147,17 +147,20 @@ const ensureTokenApproval = async (tokenAddress, ownerAddress, amount, walletPro
     
     // Check balance first
     const balance = await tokenContract.balanceOf(ownerAddress);
-    const amountBigInt = BigInt(amount);
+    const rawAmountBigInt = BigInt(amount);
+
+    // Clamp approval request to never exceed balance
+    const amountForApproval = rawAmountBigInt > balance ? balance : rawAmountBigInt;
 
     console.log('[ShieldTransactions] Token balance check:', {
       balance: balance.toString(),
-      required: amountBigInt.toString(),
-      hasBalance: balance >= amountBigInt
+      requested: rawAmountBigInt.toString(),
+      clamped: amountForApproval.toString(),
+      wasClamped: amountForApproval < rawAmountBigInt
     });
 
-    if (balance < amountBigInt) {
-      throw new Error(`Insufficient token balance. Have: ${balance.toString()}, Need: ${amountBigInt.toString()}`);
-    }
+    // Use clamped amount for approval
+    const amountBigInt = amountForApproval;
     
     // Check current allowance
     const currentAllowance = await tokenContract.allowance(ownerAddress, railgunContractAddress);

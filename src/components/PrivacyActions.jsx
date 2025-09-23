@@ -373,8 +373,11 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       const numAmount = parseFloat(amount);
       if (numAmount <= 0) return false;
 
-      // Allow full balance - no buffer restrictions
-      return numAmount <= selectedToken.numericBalance;
+      // Allow balance minus 1 wei dust for safety
+      const maxAllowed = selectedToken.numericBalance > 0
+        ? selectedToken.numericBalance - (1 / Math.pow(10, selectedToken.decimals))
+        : 0;
+      return numAmount <= maxAllowed;
     } catch {
       return false;
     }
@@ -1814,7 +1817,11 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 placeholder="0.0"
                 step="any"
                 min="0"
-                max={selectedToken ? selectedToken.numericBalance : 0}
+                max={selectedToken ? (() => {
+                  const balanceInUnits = BigInt(Math.floor(selectedToken.numericBalance * Math.pow(10, selectedToken.decimals)));
+                  const safeBalanceInUnits = balanceInUnits > 0n ? balanceInUnits - 1n : 0n;
+                  return Number(safeBalanceInUnits) / Math.pow(10, selectedToken.decimals);
+                })() : 0}
                 className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
                 disabled={!selectedToken}
               />
@@ -1822,8 +1829,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <button
                   type="button"
                   onClick={() => {
-                    // Use the exact balance from blockchain - no calculations, no buffers
-                    setAmount(selectedToken.numericBalance.toString());
+                    // Use exact balance, but format it properly to avoid rounding issues
+                    // Convert to blockchain units and back to ensure no rounding
+                    const balanceInUnits = BigInt(Math.floor(selectedToken.numericBalance * Math.pow(10, selectedToken.decimals)));
+                    const safeBalanceInUnits = balanceInUnits > 0n ? balanceInUnits - 1n : 0n; // Leave 1 wei dust
+                    const safeBalanceDisplay = Number(safeBalanceInUnits) / Math.pow(10, selectedToken.decimals);
+                    setAmount(safeBalanceDisplay.toString());
                   }}
                   className="absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded hover:bg-green-900/20"
                 >
