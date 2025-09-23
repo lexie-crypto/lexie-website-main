@@ -34,7 +34,7 @@ const DEFAULT_GAS_ESTIMATES = {
   },
   [NetworkName.Arbitrum]: {
     gasPrice: BigInt(100000000), // 0.1 gwei
-    maxFeePerGas: BigInt(1000000000), // 1 gwei
+    maxFeePerGas: BigInt(200000000), // 0.2 gwei
     maxPriorityFeePerGas: BigInt(10000000), // 0.01 gwei
   },
   [NetworkName.Polygon]: {
@@ -313,6 +313,15 @@ export const getTxFeeParams = async (provider, evmGasType, chainId) => {
     feeData = await provider.getFeeData(); // { gasPrice, maxFeePerGas, maxPriorityFeePerGas }
   } catch (error) {
     console.warn('[GasDetails] Failed to get fee data from provider:', error.message);
+
+    // Try fallback RPC-based gas price fetching
+    try {
+      console.log('[GasDetails] Attempting RPC fallback for gas prices...');
+      feeData = await fetchGasPricesFromRPC(chainId);
+      console.log('[GasDetails] RPC fallback succeeded:', feeData);
+    } catch (rpcError) {
+      console.warn('[GasDetails] RPC fallback also failed:', rpcError.message);
+    }
   }
 
   // Helper for BigInt conversion
@@ -326,8 +335,8 @@ export const getTxFeeParams = async (provider, evmGasType, chainId) => {
   // Keep tiny floors for L2s, higher for L1 — only if feeData is missing
   const fallbacks = {
     gasPrice: isArb || isPolygon || isBnb ? F('100000000') : F('3000000000'), // 0.1 gwei (L2) / 3 gwei (L1)
-    maxFeePerGas: isArb || isPolygon || isBnb ? F('1000000000') : F('4000000000'),
-    maxPriorityFeePerGas: isArb || isPolygon || isBnb ? F('10000000') : F('3000000000'),
+    maxFeePerGas: isArb ? F('200000000') : isPolygon || isBnb ? F('500000000') : F('4000000000'), // 0.2 gwei (Arb) / 0.5 gwei (L2) / 4 gwei (L1)
+    maxPriorityFeePerGas: isArb ? F('10000000') : isPolygon || isBnb ? F('30000000') : F('3000000000'), // 0.01 gwei (Arb) / 0.03 gwei (L2) / 3 gwei (L1)
   };
 
   if (evmGasType === EVMGasType.Type2) {
