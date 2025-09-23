@@ -699,15 +699,18 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       
       console.log('[PrivacyActions] Sending shield transaction:', result.transaction);
       
-      // Convert BigInt values to hex strings for JSON serialization
+      // Convert BigInt values to hex strings for JSON serialization - let MetaMask handle gas pricing
       const txForSending = {
         ...result.transaction,
-        gasLimit: result.transaction.gasLimit ? '0x' + result.transaction.gasLimit.toString(16) : undefined,
-        gasPrice: result.transaction.gasPrice ? '0x' + result.transaction.gasPrice.toString(16) : undefined,
-        maxFeePerGas: result.transaction.maxFeePerGas ? '0x' + result.transaction.maxFeePerGas.toString(16) : undefined,
-        maxPriorityFeePerGas: result.transaction.maxPriorityFeePerGas ? '0x' + result.transaction.maxPriorityFeePerGas.toString(16) : undefined,
+        gasLimit: result.paddedGasEstimate ? '0x' + BigInt(result.paddedGasEstimate).toString(16) : undefined, // Use padded gas limit for safety
         value: result.transaction.value ? '0x' + result.transaction.value.toString(16) : '0x0',
+        // Remove gasPrice, maxFeePerGas, maxPriorityFeePerGas to let MetaMask use market rates
       };
+
+      // Strip out any gas price fields that might have been set by the SDK
+      delete txForSending.gasPrice;
+      delete txForSending.maxFeePerGas;
+      delete txForSending.maxPriorityFeePerGas;
       
       console.log('[PrivacyActions] Formatted transaction for sending:', txForSending);
       

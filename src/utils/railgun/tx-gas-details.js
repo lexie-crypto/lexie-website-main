@@ -80,8 +80,10 @@ export const validateGasDetails = (gasDetails, networkName, transactionType = 's
       throw new Error('Gas estimate must be a positive BigInt');
     }
 
-    // Apply gas limit multiplier for safety
-    const multiplier = GAS_LIMIT_MULTIPLIERS[transactionType] || 1.2;
+    // Apply gas limit multiplier for safety only when gas prices are present
+    // When no gas prices are set (letting MetaMask handle pricing), use accurate estimate
+    const hasGasPrices = 'gasPrice' in gasDetails || 'maxFeePerGas' in gasDetails;
+    const multiplier = hasGasPrices ? (GAS_LIMIT_MULTIPLIERS[transactionType] || 1.2) : 1.0;
     const adjustedGasEstimate = BigInt(Math.ceil(Number(gasDetails.gasEstimate) * multiplier));
 
     // Validate gas fields based on EVM gas type

@@ -389,7 +389,7 @@ export const buildBaseTokenShieldGasAndEstimate = async ({
       networkName
     });
 
-    // Pad estimate for headroom (same padding reused for populate + submit)
+    // Pad estimate for headroom (applied to transaction.gasLimit, not gasDetails)
     const paddedGasEstimate = (gasEstimate * 120n) / 100n;
 
     // Compute batch min gas price (SDK helper)
@@ -401,20 +401,12 @@ export const buildBaseTokenShieldGasAndEstimate = async ({
       maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas,
     });
 
-    // Final gasDetails to pass into populate() - use accurate estimate for MetaMask
-    const gasDetails =
-      evmGasType === EVMGasType.Type2
-        ? {
-            evmGasType,
-            gasEstimate: gasEstimate, // Use accurate estimate for MetaMask, keep padding for UI headroom
-            maxFeePerGas: originalFeeParams.maxFeePerGas,
-            maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas,
-          }
-        : {
-            evmGasType,
-            gasEstimate: gasEstimate, // Use accurate estimate for MetaMask, keep padding for UI headroom
-            gasPrice: originalFeeParams.gasPrice,
-          };
+    // Final gasDetails to pass into populate() - use accurate estimate (no padding)
+    const gasDetails = {
+      evmGasType,
+      gasEstimate: gasEstimate, // Accurate estimate for SDK population
+      // Remove gas price fields to let MetaMask use market rates
+    };
 
     console.log('[ShieldTransactions] Using SDK dummy estimate for base token + live fee data', {
       chainId,
@@ -493,7 +485,7 @@ export const buildShieldGasAndEstimate = async ({
       networkName
     });
 
-    // Pad estimate for headroom (same padding reused for populate + submit)
+    // Pad estimate for headroom (applied to transaction.gasLimit, not gasDetails)
     const paddedGasEstimate = (gasEstimate * 120n) / 100n;
 
     // Compute batch min gas price (SDK helper)
@@ -505,20 +497,12 @@ export const buildShieldGasAndEstimate = async ({
       maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas,
     });
 
-    // Final gasDetails to pass into populate() - use accurate estimate for MetaMask
-    const gasDetails =
-      evmGasType === EVMGasType.Type2
-        ? {
-            evmGasType,
-            gasEstimate: gasEstimate, // Use accurate estimate for MetaMask, keep padding for UI headroom
-            maxFeePerGas: originalFeeParams.maxFeePerGas,
-            maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas,
-          }
-        : {
-            evmGasType,
-            gasEstimate: gasEstimate, // Use accurate estimate for MetaMask, keep padding for UI headroom
-            gasPrice: originalFeeParams.gasPrice,
-          };
+    // Final gasDetails to pass into populate() - use accurate estimate (no padding)
+    const gasDetails = {
+      evmGasType,
+      gasEstimate: gasEstimate, // Accurate estimate for SDK population
+      // Remove gas price fields to let MetaMask use market rates
+    };
 
     console.log('[ShieldTransactions] Using SDK dummy estimate + live fee data', {
       chainId,
