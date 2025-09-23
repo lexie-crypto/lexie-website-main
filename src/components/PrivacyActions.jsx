@@ -853,7 +853,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   lexieId: lexieId,
-                  txHash: txResponse?.hash || txResponse,
+                  txHash: result.transactionHash,
                   usdValue: usdValue
                 })
               });
