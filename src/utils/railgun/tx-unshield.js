@@ -1704,7 +1704,7 @@ export const unshieldTokens = async ({
       stack: error.stack,
     });
     // Normalize user reject
-    if ((error?.message || '').toLowerCase().includes('rejected') || error?.code === 4001) {
+    if ((error?.message || '').toLowerCase().includes('rejected') || (error?.message || '').toLowerCase().includes('reject') || error?.code === 4001 || error?.code === 5000) {
       showTerminalToast('error', 'Rejected by User');
       throw new Error('Rejected by User');
     }

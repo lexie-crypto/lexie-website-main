@@ -198,7 +198,7 @@ const ensureTokenApproval = async (tokenAddress, ownerAddress, amount, walletPro
     
   } catch (error) {
     console.error('[ShieldTransactions] Token approval failed:', error);
-    if (error.code === 4001 || /rejected/i.test(error?.message || '')) {
+    if (error.code === 4001 || error.code === 5000 || /reject/i.test(error?.message || '')) {
       showTerminalToast('error', 'Rejected by User');
       throw new Error('Rejected by User');
     }
@@ -242,7 +242,7 @@ const generateShieldPrivateKey = async (fromAddress, walletSigner) => {
     return keccak256(signature);
   } catch (error) {
     console.error('[ShieldTransactions] Failed to generate shield private key:', error);
-    if (error.code === 4001 || /rejected/i.test(error?.message || '')) {
+    if (error.code === 4001 || error.code === 5000 || /reject/i.test(error?.message || '')) {
       showTerminalToast('error', 'Rejected by User');
       throw new Error('Rejected by User');
     }
