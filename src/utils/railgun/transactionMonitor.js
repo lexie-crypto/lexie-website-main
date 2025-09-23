@@ -1652,7 +1652,9 @@ const convertTokenAmountToUSD = async (amount, tokenAddress, chainId) => {
     if (tokenSymbol) {
       try {
         const prices = await fetchTokenPrices([tokenSymbol]);
+        console.log(`[TransactionMonitor] 📊 CoinGecko prices response:`, prices);
         price = prices[tokenSymbol] || 0;
+        console.log(`[TransactionMonitor] 💰 Price for ${tokenSymbol}:`, price, typeof price);
 
         if (price > 0) {
           console.log(`[TransactionMonitor] 💰 Using real-time price for ${tokenSymbol}: $${price}`);
@@ -1700,7 +1702,23 @@ const convertTokenAmountToUSD = async (amount, tokenAddress, chainId) => {
     }
 
     // Convert amount to human-readable format and multiply by price
-    const humanAmount = Number(amount) / Math.pow(10, decimals);
+    // Detect if amount is already in decimal form (short) or wei form (long)
+    const amountStr = String(amount);
+    const isDecimalFormat = amountStr.includes('.') || Number(amount) < Math.pow(10, decimals / 2);
+    const humanAmount = isDecimalFormat ? Number(amount) : Number(amount) / Math.pow(10, decimals);
+
+    console.log('[TransactionMonitor] 🔢 Pre-calculation values:', {
+      amount,
+      amountType: typeof amount,
+      amountStr,
+      isDecimalFormat,
+      amountParsed: Number(amount),
+      decimals,
+      divisor: Math.pow(10, decimals),
+      humanAmount,
+      price,
+      priceType: typeof price
+    });
     const usdValue = humanAmount * price;
 
     console.log('[TransactionMonitor] 💱 Token amount to USD conversion:', {
@@ -1710,7 +1728,8 @@ const convertTokenAmountToUSD = async (amount, tokenAddress, chainId) => {
       decimals,
       humanAmount,
       price,
-      usdValue
+      usdValue,
+      calculation: `${humanAmount} * ${price} = ${usdValue}`
     });
 
     return usdValue;
