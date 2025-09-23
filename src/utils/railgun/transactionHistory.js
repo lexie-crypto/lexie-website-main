@@ -373,6 +373,7 @@ const getTokenSymbol = (tokenAddress, chainId) => {
       '0x514910771af9ca656af840dff83e8264ecf986ca': 'LINK',
       '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984': 'UNI',
       '0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9': 'AAVE',
+      '0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0': 'MATIC',
     },
     // Arbitrum
     42161: {
@@ -382,6 +383,7 @@ const getTokenSymbol = (tokenAddress, chainId) => {
       '0xda10009cbd5d07dd0cecc66161fc93d7c9000da1': 'DAI',
       '0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f': 'WBTC',
       '0xfa7f8980b0f1e64a2062791cc3b087ef6cd93df': 'UNI',
+      '0x561877b6b3DD7651313794e5F2894B2F18bE0766': 'MATIC',
     },
     // BNB Chain
     56: {
@@ -390,6 +392,7 @@ const getTokenSymbol = (tokenAddress, chainId) => {
       '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': 'USDC',
       '0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3': 'DAI',
       '0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c': 'BTCB',
+      '0xCC42724C6683B7E57334c4E856f4c9965ED682bD': 'MATIC',
     },
     // Polygon
     137: {
@@ -397,7 +400,9 @@ const getTokenSymbol = (tokenAddress, chainId) => {
       '0xc2132d05d31c914a87c6611c10748aeb04b58e8f': 'USDT',
       '0x2791bca1f2de4661ed88a30c99a7a9449aa84174': 'USDC',
       '0x8f3cf7ad23cd3cadbd9735aff958023239c6a063': 'DAI',
+      '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270': 'WMATIC',
       '0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6': 'WBTC',
+      '0x0000000000000000000000000000000000001010': 'MATIC', // Native MATIC on Polygon
     }
   };
 

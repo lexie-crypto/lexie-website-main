@@ -447,6 +447,7 @@ const getKnownTokenDecimalsInMonitor = (tokenAddress, chainId) => {
       '0xa0b86a33e6416a86f2016c97db4ad0a23a5b7b73': { decimals: 6, symbol: 'USDC' }, // USDC
       '0x6b175474e89094c44da98b954eedeac495271d0f': { decimals: 18, symbol: 'DAI' }, // DAI
       '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599': { decimals: 8, symbol: 'WBTC' }, // WBTC
+      '0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0': { decimals: 18, symbol: 'MATIC' }, // MATIC
     },
     // Arbitrum
     42161: {
@@ -455,6 +456,7 @@ const getKnownTokenDecimalsInMonitor = (tokenAddress, chainId) => {
       '0xff970a61a04b1ca14834a43f5de4533ebddb5cc8': { decimals: 6, symbol: 'USDC.e' }, // USDC Bridged
       '0xda10009cbd5d07dd0cecc66161fc93d7c9000da1': { decimals: 18, symbol: 'DAI' }, // DAI
       '0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f': { decimals: 8, symbol: 'WBTC' }, // WBTC
+      '0x561877b6b3DD7651313794e5F2894B2F18bE0766': { decimals: 18, symbol: 'MATIC' }, // MATIC
     },
     // Polygon
     137: {
@@ -462,6 +464,8 @@ const getKnownTokenDecimalsInMonitor = (tokenAddress, chainId) => {
       '0x2791bca1f2de4661ed88a30c99a7a9449aa84174': { decimals: 6, symbol: 'USDC' }, // USDC
       '0x8f3cf7ad23cd3cadbd9735aff958023239c6a063': { decimals: 18, symbol: 'DAI' }, // DAI
       '0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6': { decimals: 8, symbol: 'WBTC' }, // WBTC
+      '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270': { decimals: 18, symbol: 'WMATIC' }, // WMATIC
+      '0x0000000000000000000000000000000000001010': { decimals: 18, symbol: 'MATIC' }, // Native MATIC
     },
     // BSC
     56: {
@@ -469,6 +473,7 @@ const getKnownTokenDecimalsInMonitor = (tokenAddress, chainId) => {
       '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': { decimals: 18, symbol: 'USDC' }, // BSC USDC uses 18 decimals!
       '0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3': { decimals: 18, symbol: 'DAI' }, // DAI
       '0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c': { decimals: 18, symbol: 'BTCB' }, // BTCB
+      '0xCC42724C6683B7E57334c4E856f4c9965ED682bD': { decimals: 18, symbol: 'MATIC' }, // MATIC
     }
   };
   
