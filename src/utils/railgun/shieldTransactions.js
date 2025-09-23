@@ -401,18 +401,18 @@ export const buildBaseTokenShieldGasAndEstimate = async ({
       maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas,
     });
 
-    // Final gasDetails to pass into populate()
+    // Final gasDetails to pass into populate() - use accurate estimate for MetaMask
     const gasDetails =
       evmGasType === EVMGasType.Type2
         ? {
             evmGasType,
-            gasEstimate: paddedGasEstimate,
+            gasEstimate: gasEstimate, // Use accurate estimate for MetaMask, keep padding for UI headroom
             maxFeePerGas: originalFeeParams.maxFeePerGas,
             maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas,
           }
         : {
             evmGasType,
-            gasEstimate: paddedGasEstimate,
+            gasEstimate: gasEstimate, // Use accurate estimate for MetaMask, keep padding for UI headroom
             gasPrice: originalFeeParams.gasPrice,
           };
 
@@ -505,18 +505,18 @@ export const buildShieldGasAndEstimate = async ({
       maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas,
     });
 
-    // Final gasDetails to pass into populate()
+    // Final gasDetails to pass into populate() - use accurate estimate for MetaMask
     const gasDetails =
       evmGasType === EVMGasType.Type2
         ? {
             evmGasType,
-            gasEstimate: paddedGasEstimate,
+            gasEstimate: gasEstimate, // Use accurate estimate for MetaMask, keep padding for UI headroom
             maxFeePerGas: originalFeeParams.maxFeePerGas,
             maxPriorityFeePerGas: originalFeeParams.maxPriorityFeePerGas,
           }
         : {
             evmGasType,
-            gasEstimate: paddedGasEstimate,
+            gasEstimate: gasEstimate, // Use accurate estimate for MetaMask, keep padding for UI headroom
             gasPrice: originalFeeParams.gasPrice,
           };
 
