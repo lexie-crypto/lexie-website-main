@@ -513,10 +513,124 @@ export const unshieldTokens = async ({
     const isBaseToken = !tokenAddress || tokenAddress === '0x0000000000000000000000000000000000000000';
     if (isBaseToken) {
       console.log('🔧 [UNSHIELD] Base token flow: using SDK unshield base token');
-      const networkName = getRailgunNetworkName(chain.id);
+      console.log(`💰 [UNSHIELD] Base token transaction method: ${useRelayer ? 'RelayAdapt Mode (with broadcaster fee)' : 'Self-Signing (Direct)'}`);
 
-      // Prepare wrapped ERC20 amount object (tokenAddress must be the wrapped base token used privately)
-      const wrappedERC20Amount = { tokenAddress, amount: BigInt(amount) };
+      // Use existing function-scope variables for fee calculation
+      let adjustedAmount = userAmountGross; // Default to full amount for base tokens
+
+      // Apply combined fee approach for base tokens when using relayer
+      if (useRelayer) {
+        console.log('🔧 [UNSHIELD] Base token relayer mode: applying combined fee calculation');
+
+        // CRITICAL: Select relayer once, reuse everywhere
+        selectedRelayer = await getSelectedRelayer(tokenAddress);
+        console.log('🔧 [UNSHIELD] selectedRelayer assigned:', {
+          selectedRelayer: selectedRelayer ? 'defined' : 'null',
+          address: selectedRelayer?.railgunAddress?.substring(0, 20) + '...'
+        });
+
+        if (!selectedRelayer || !selectedRelayer.railgunAddress?.startsWith('0zk')) {
+          throw new Error(`Invalid RAILGUN address: ${selectedRelayer?.railgunAddress}. Must start with '0zk'`);
+        }
+        if (selectedRelayer.railgunAddress.startsWith('0x')) {
+          throw new Error(`RAILGUN address cannot start with '0x': ${selectedRelayer.railgunAddress}`);
+        }
+
+        console.log('🔍 [UNSHIELD] Selected relayer details:', {
+          railgunAddress: selectedRelayer.railgunAddress,
+          feeToken: selectedRelayer.feeToken,
+          feePerUnitGas: selectedRelayer.feePerUnitGas.toString()
+        });
+
+        // Calculate relayer fee from the user's amount
+        relayerFeeBn = (userAmountGross * RELAYER_FEE_BPS) / 10000n;
+
+        // ESTIMATE GAS COST BEFORE PROOF GENERATION (same as ERC-20 relayer mode)
+        console.log('🤑 [UNSHIELD] Estimating gas cost for base token reclamation (dummy txn)...');
+
+        // Get network gas prices for estimation
+        let networkGasPrices = null;
+        try {
+          const signer = await walletProvider();
+          const provider = signer?.provider;
+          if (provider) {
+            const feeData = await provider.getFeeData();
+            if (feeData?.gasPrice || feeData?.maxFeePerGas) {
+              networkGasPrices = feeData;
+            }
+          }
+        } catch (gasPriceError) {
+          console.warn('⚠️ [UNSHIELD] Failed to get network gas prices for base token estimation:', gasPriceError.message);
+        }
+
+        // Use conservative estimate for dummy txn
+        const estimatedGas = BigInt('1000000'); // Conservative 1M gas estimate
+        const gasPrice = networkGasPrices?.gasPrice || networkGasPrices?.maxFeePerGas || BigInt('20000000000'); // 20 gwei fallback
+        const gasCostWei = estimatedGas * gasPrice;
+
+        // Convert gas cost to token amount using dynamic pricing
+        const nativeGasToken = getNativeGasToken(chain.id);
+        let nativeTokenPrice = 3000; // Fallback price
+        try {
+          const prices = await fetchTokenPrices([nativeGasToken]);
+          if (prices[nativeGasToken] && prices[nativeGasToken] > 0) {
+            nativeTokenPrice = prices[nativeGasToken];
+          }
+        } catch (priceError) {
+          console.warn(`⚠️ [UNSHIELD] Price fetch failed for ${nativeGasToken}, using fallback: ${nativeTokenPrice}`, priceError.message);
+        }
+
+        // Calculate gas reclamation fee
+        const gasCostNative = Number(gasCostWei) / 1e18;
+        const gasCostUsd = gasCostNative * nativeTokenPrice;
+        gasFeeDeducted = BigInt(Math.ceil(gasCostUsd * 1e6)); // 6-decimal token units
+
+        console.log('💰 [UNSHIELD] Base token gas reclamation estimated:', {
+          estimatedGas: estimatedGas.toString(),
+          gasPrice: gasPrice.toString(),
+          gasCostWei: gasCostWei.toString(),
+          nativeGasToken,
+          nativeTokenPrice: nativeTokenPrice.toFixed(2),
+          gasCostNative: gasCostNative.toFixed(8),
+          gasCostUsd: gasCostUsd.toFixed(4),
+          gasFeeDeducted: gasFeeDeducted.toString(),
+          note: 'This estimate gets baked into the proof - relayer takes win/loss on actual vs estimated'
+        });
+
+        // COMBINE FEES FOR BROADCASTER: relayer fee + estimated gas reclamation
+        combinedRelayerFee = relayerFeeBn + gasFeeDeducted;
+
+        console.log('🔍 [UNSHIELD] CRITICAL - Base token broadcaster fee updated with combined fee:', {
+          relayerFeeBn: relayerFeeBn.toString(),
+          gasFeeDeducted: gasFeeDeducted.toString(),
+          combinedRelayerFee: combinedRelayerFee.toString(),
+          tokenAddress: tokenAddress,
+          purpose: 'RAILGUN_BROADCASTER_FEE_VIA_SDK_WITH_GAS_RECLAMATION_BASE_TOKEN'
+        });
+
+        // For base tokens, we need to handle the fee differently since we're unshielding the native token
+        // The relayer will need to receive the fee in the native token being unshielded
+        adjustedAmount = userAmountGross - combinedRelayerFee;
+
+        if (adjustedAmount <= 0n) {
+          throw new Error(`Base token amount after fees is too small: ${adjustedAmount.toString()}`);
+        }
+
+        console.log('💰 [UNSHIELD] Base token combined fee calculation:', {
+          userAmountGross: userAmountGross.toString(),
+          relayerFeeBn: relayerFeeBn.toString(),
+          gasFeeDeducted: gasFeeDeducted.toString(),
+          combinedRelayerFee: combinedRelayerFee.toString(),
+          adjustedAmount: adjustedAmount.toString(),
+          mode: 'Base token relayer mode with combined fees'
+        });
+
+        // Update the wrapped amount to reflect fees
+        const wrappedERC20Amount = { tokenAddress, amount: adjustedAmount };
+
+      }
+
+      const networkName = getRailgunNetworkName(chain.id);
 
       // Gas details with network prices and BNB floor
       const evmGasType = getEVMGasTypeForTransaction(networkName, true);
@@ -647,9 +761,130 @@ export const unshieldTokens = async ({
         gasDetails,
       );
 
-      // Submit using same path as self-signing (public wallet)
-      const txHash = await submitTransactionSelfSigned(populateResponse, walletProvider);
-      return { hash: txHash, method: 'base-token', privacy: 'public' };
+      // Submit transaction based on mode
+      let transactionHash;
+      let usedRelayer = false;
+      let privacyLevel = 'self-signed';
+
+      if (useRelayer) {
+        console.log('🚀 [GAS RELAYER] Attempting base token submission via transparent gas relayer...');
+
+        try {
+          // Check relayer health
+          const relayerHealthy = await checkRelayerHealth();
+          if (!relayerHealthy) {
+            throw new Error('Gas relayer service is not available');
+          }
+
+          // Get the transaction from RAILGUN
+          const contractTransaction = populateResponse.transaction;
+
+          if (!contractTransaction) {
+            throw new Error('No transaction found in populated response');
+          }
+
+          console.log('🔧 [GAS RELAYER] Preparing base token transaction for relayer signing:', {
+            to: contractTransaction.to,
+            data: contractTransaction.data ? 'present' : 'missing',
+            value: contractTransaction.value?.toString(),
+            gasLimit: contractTransaction.gasLimit?.toString(),
+            noFees: false,
+            format: 'self-signing-compatible'
+          });
+
+          // Prepare transaction object
+          const transactionObject = {
+            to: contractTransaction.to,
+            data: contractTransaction.data,
+            value: contractTransaction.value || '0x0',
+            gasLimit: contractTransaction.gasLimit ? contractTransaction.gasLimit.toString() : undefined,
+            gasPrice: contractTransaction.gasPrice ? contractTransaction.gasPrice.toString() : undefined,
+            maxFeePerGas: contractTransaction.maxFeePerGas ? contractTransaction.maxFeePerGas.toString() : undefined,
+            maxPriorityFeePerGas: contractTransaction.maxPriorityFeePerGas ? contractTransaction.maxPriorityFeePerGas.toString() : undefined,
+            type: contractTransaction.type
+          };
+
+          // Clean up undefined values
+          Object.keys(transactionObject).forEach(key => {
+            if (transactionObject[key] === undefined) {
+              delete transactionObject[key];
+            }
+          });
+
+          console.log('🔧 [GAS RELAYER] Base token transaction formatted for relayer:', {
+            to: transactionObject.to,
+            dataLength: transactionObject.data?.length,
+            value: transactionObject.value,
+            gasLimit: transactionObject.gasLimit,
+            gasPrice: transactionObject.gasPrice,
+            maxFeePerGas: transactionObject.maxFeePerGas,
+            maxPriorityFeePerGas: transactionObject.maxPriorityFeePerGas,
+            type: transactionObject.type,
+            mode: transactionObject.type === 2 ? 'EIP-1559' : 'Legacy'
+          });
+
+          // Send transaction object as hex-encoded JSON
+          const serializedTransaction = '0x' + Buffer.from(JSON.stringify(transactionObject)).toString('hex');
+
+          console.log('📤 [GAS RELAYER] Submitting base token transaction to transparent relayer...');
+
+          // Calculate fee details for base token relayer mode
+          const relayerFeeAmount = relayerFeeBn?.toString() || '0';
+          const gasReclamationAmount = gasFeeDeducted?.toString() || '0';
+
+          const totalFeeAmount = BigInt(relayerFeeAmount) + BigInt(gasReclamationAmount);
+
+          const feeDetails = {
+            relayerFee: relayerFeeAmount,
+            gasReclamation: gasReclamationAmount,
+            totalFee: totalFeeAmount.toString()
+          };
+
+          console.log('💰 [GAS RELAYER] Base token fee details for submission:', feeDetails);
+
+          const relayed = await submitRelayedTransaction({
+            chainId: chain.id,
+            serializedTransaction,
+            tokenAddress,
+            amount: adjustedAmount?.toString() || amount,
+            userAddress: walletAddress,
+            feeDetails,
+            gasEstimate: contractTransaction.gasLimit?.toString()
+          });
+
+          transactionHash = relayed.transactionHash;
+          usedRelayer = true;
+          privacyLevel = 'transparent-relayer-base-token';
+
+          console.log('✅ [GAS RELAYER] Base token transaction submitted successfully!', {
+            transactionHash,
+            privacyLevel,
+            adjustedAmount: adjustedAmount?.toString() || amount,
+            combinedFee: combinedRelayerFee?.toString() || '0'
+          });
+
+        } catch (gasRelayerError) {
+          console.error('❌ [GAS RELAYER] Base token submission failed:', gasRelayerError.message);
+          console.log('🔄 [GAS RELAYER] Falling back to self-signing...');
+
+          // Fallback to self-signing
+          transactionHash = await submitTransactionSelfSigned(populateResponse, walletProvider);
+          usedRelayer = false;
+          privacyLevel = 'self-signed';
+        }
+      } else {
+        console.log('🔐 [UNSHIELD] Using self-signing mode for base token');
+        transactionHash = await submitTransactionSelfSigned(populateResponse, walletProvider);
+        privacyLevel = 'self-signed';
+      }
+
+      return {
+        hash: transactionHash,
+        method: 'base-token',
+        privacy: privacyLevel,
+        usedRelayer,
+        combinedRelayerFee: combinedRelayerFee?.toString() || '0'
+      };
     }
 
     // RELAYER MODE: Prepare recipients with broadcaster fee (deduct relayer fee from user's amount)
@@ -733,7 +968,7 @@ export const unshieldTokens = async ({
       }
 
       // Use conservative estimate for dummy txn (similar to old implementation)
-      const estimatedGas = BigInt('2000000'); // Conservative 2M gas estimate
+      const estimatedGas = BigInt('1000000'); // Conservative 1M gas estimate
       const gasPrice = networkGasPrices?.gasPrice || networkGasPrices?.maxFeePerGas || BigInt('20000000000'); // 20 gwei fallback
       const gasCostWei = estimatedGas * gasPrice;
 
