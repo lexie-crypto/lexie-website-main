@@ -399,28 +399,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     if (!amount || !selectedToken) return false;
 
     try {
-      // Parse amount string directly to BigInt to avoid floating point precision loss
-      // Remove any commas or spaces and handle decimal places precisely
-      const cleanAmount = amount.replace(/,/g, '').trim();
-      if (!cleanAmount || cleanAmount === '0' || cleanAmount === '0.' || cleanAmount === '.') return false;
+      // Parse amount using the existing parseTokenAmount function to avoid issues
+      const amountFloat = parseFloat(amount);
+      if (amountFloat <= 0) return false;
 
-      // Split into integer and decimal parts
-      const [integerPart, decimalPart] = cleanAmount.split('.');
-      const decimals = selectedToken.decimals;
-
-      // Convert to BigInt by handling decimal places manually
-      let requestedInUnits;
-      if (decimalPart !== undefined) {
-        // Pad or truncate decimal part to match token decimals
-        const paddedDecimal = (decimalPart + '0'.repeat(decimals)).substring(0, decimals);
-        const fullNumberStr = integerPart + paddedDecimal;
-        requestedInUnits = BigInt(fullNumberStr);
-      } else {
-        // No decimal part
-        requestedInUnits = BigInt(integerPart) * (10n ** BigInt(decimals));
-      }
-
-      if (requestedInUnits <= 0n) return false;
+      // Use parseTokenAmount for consistent BigInt conversion
+      const requestedInUnits = parseTokenAmount(amount, selectedToken.decimals);
 
       // Get max spendable units using the same helper function as Max button
       // For unshield operations, estimate broadcaster/relayer fees
