@@ -583,7 +583,7 @@ export const estimateGasForTransaction = async ({
 /**
  * Fetch current gas prices from RPC provider
  */
-const fetchGasPricesFromRPC = async (chainId) => {
+export const fetchGasPricesFromRPC = async (chainId) => {
   try {
     const rpcUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/api/rpc?chainId=${chainId}&provider=auto`;
 
