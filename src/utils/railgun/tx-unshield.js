@@ -511,7 +511,7 @@ export const unshieldTokens = async ({
 
         // Get gas price with safety guard
         const rawGasPrice = networkGasPrices?.gasPrice || networkGasPrices?.maxFeePerGas || BigInt('20000000000'); // 20 gwei fallback
-        const gasPrice = applyGasPriceGuard(rawGasPrice);
+        const gasPrice = applyGasPriceGuard(chain.id, rawGasPrice, networkGasPrices);
 
         const gasCostWei = estimatedGas * gasPrice;
 
@@ -897,7 +897,7 @@ export const unshieldTokens = async ({
 
       // Get gas price with safety guard
       const rawGasPrice = networkGasPrices?.gasPrice || networkGasPrices?.maxFeePerGas || BigInt('20000000000'); // 20 gwei fallback
-      const gasPrice = applyGasPriceGuard(rawGasPrice);
+      const gasPrice = applyGasPriceGuard(chain.id, rawGasPrice, networkGasPrices);
 
       const gasCostWei = estimatedGas * gasPrice;
 

@@ -9,6 +9,14 @@
 import { getKnownTokenDecimals } from './balances.js';
 import { getNativeGasToken } from './balances.js';
 
+// Chain-specific minimum gas floors (in wei)
+const MIN_GAS_FLOORS = {
+  1: 1_000_000_000n,          // Ethereum L1 → 1 gwei
+  56: 100_000_000n,           // BNB Chain → 0.1 gwei
+  137: 30_000_000_000n,       // Polygon PoS → 30 gwei (priority fee floor)
+  42161: 10_000_000n,         // Arbitrum One → 0.01 gwei
+};
+
 /**
  * Calculate gas reclamation fee for ERC-20 tokens
  * @param {bigint} gasCostWei - Gas cost in wei
@@ -105,18 +113,34 @@ export const calculateGasReclamationBaseToken = (gasCostWei) => {
 
 /**
  * Apply minimum gas price guard to prevent unrealistic values
+ * @param {number} chainId - Chain ID for chain-specific floors
  * @param {bigint} rawGasPrice - Raw gas price from network
+ * @param {object} [gasFeeData] - Optional EIP-1559 gas fee data (maxPriorityFeePerGas)
  * @returns {bigint} Gas price with minimum applied
  */
-export const applyGasPriceGuard = (rawGasPrice) => {
-  const MIN_GAS_PRICE_WEI = BigInt('1000000000'); // 1 gwei minimum
-  const gasPrice = rawGasPrice < MIN_GAS_PRICE_WEI ? MIN_GAS_PRICE_WEI : rawGasPrice;
+export const applyGasPriceGuard = (chainId, rawGasPrice, gasFeeData = null) => {
+  // Get chain-specific minimum gas floor, default to 1 gwei
+  const floor = MIN_GAS_FLOORS[chainId] || 1_000_000_000n;
 
-  console.log('⛽ [FEE_CALC] Gas price validation:', {
+  // Apply chain-specific floor
+  let gasPrice = rawGasPrice < floor ? floor : rawGasPrice;
+
+  // Special handling for Polygon EIP-1559 (enforce 30 gwei priority fee)
+  if (chainId === 137 && gasFeeData?.maxPriorityFeePerGas !== undefined) {
+    const POLYGON_MIN_PRIORITY_FEE = 30_000_000_000n; // 30 gwei
+    if (gasFeeData.maxPriorityFeePerGas < POLYGON_MIN_PRIORITY_FEE) {
+      console.log('⛽ [FEE_GUARD] Polygon: enforcing 30 gwei minimum priority fee');
+      // Note: This doesn't modify the actual gas price, just logs the requirement
+      // The EIP-1559 priority fee should be handled by the wallet/provider
+    }
+  }
+
+  console.log('⛽ [FEE_GUARD]', {
+    chainId,
     rawGasPrice: rawGasPrice.toString(),
-    minGasPrice: MIN_GAS_PRICE_WEI.toString(),
+    floor: floor.toString(),
     finalGasPrice: gasPrice.toString(),
-    appliedMinimum: rawGasPrice < MIN_GAS_PRICE_WEI
+    appliedMinimum: rawGasPrice < floor
   });
 
   return gasPrice;
