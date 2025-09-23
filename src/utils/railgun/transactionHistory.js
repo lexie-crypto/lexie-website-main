@@ -374,6 +374,7 @@ const getTokenSymbol = (tokenAddress, chainId) => {
       '0x1f9840a85d5af5bf1d1762f925bdaddc4201f984': 'UNI',
       '0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9': 'AAVE',
       '0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0': 'MATIC',
+      '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': 'WBNB',
     },
     // Arbitrum
     42161: {
@@ -384,6 +385,7 @@ const getTokenSymbol = (tokenAddress, chainId) => {
       '0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f': 'WBTC',
       '0xfa7f8980b0f1e64a2062791cc3b087ef6cd93df': 'UNI',
       '0x561877b6b3DD7651313794e5F2894B2F18bE0766': 'MATIC',
+      '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': 'WBNB',
     },
     // BNB Chain
     56: {
@@ -403,6 +405,7 @@ const getTokenSymbol = (tokenAddress, chainId) => {
       '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270': 'WMATIC',
       '0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6': 'WBTC',
       '0x0000000000000000000000000000000000001010': 'MATIC', // Native MATIC on Polygon
+      '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': 'WBNB',
     }
   };
 

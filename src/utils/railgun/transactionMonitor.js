@@ -448,6 +448,7 @@ const getKnownTokenDecimalsInMonitor = (tokenAddress, chainId) => {
       '0x6b175474e89094c44da98b954eedeac495271d0f': { decimals: 18, symbol: 'DAI' }, // DAI
       '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599': { decimals: 8, symbol: 'WBTC' }, // WBTC
       '0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0': { decimals: 18, symbol: 'MATIC' }, // MATIC
+      '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': { decimals: 18, symbol: 'WBNB' }, // WBNB
     },
     // Arbitrum
     42161: {
@@ -457,6 +458,7 @@ const getKnownTokenDecimalsInMonitor = (tokenAddress, chainId) => {
       '0xda10009cbd5d07dd0cecc66161fc93d7c9000da1': { decimals: 18, symbol: 'DAI' }, // DAI
       '0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f': { decimals: 8, symbol: 'WBTC' }, // WBTC
       '0x561877b6b3DD7651313794e5F2894B2F18bE0766': { decimals: 18, symbol: 'MATIC' }, // MATIC
+      '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': { decimals: 18, symbol: 'WBNB' }, // WBNB
     },
     // Polygon
     137: {
@@ -466,6 +468,7 @@ const getKnownTokenDecimalsInMonitor = (tokenAddress, chainId) => {
       '0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6': { decimals: 8, symbol: 'WBTC' }, // WBTC
       '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270': { decimals: 18, symbol: 'WMATIC' }, // WMATIC
       '0x0000000000000000000000000000000000001010': { decimals: 18, symbol: 'MATIC' }, // Native MATIC
+      '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': { decimals: 18, symbol: 'WBNB' }, // WBNB
     },
     // BSC
     56: {
