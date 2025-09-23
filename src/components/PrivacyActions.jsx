@@ -1863,7 +1863,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div className="space-y-1">
                   <div className="flex justify-between">
                     <span className="text-green-400/80">Network Fees:</span>
-                    <span className="text-green-200">${feeInfo.feeUSD} ({feeInfo.feePercent}%)</span>
+                    <span className="text-green-200">${feeInfo.feeUSD}</span>
                   </div>
                   {feeInfo.gasFeeUSD && activeTab !== 'shield' && (
                     <div className="flex justify-between border-b border-green-500/20 pb-1 mb-1">
