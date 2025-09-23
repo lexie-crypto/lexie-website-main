@@ -250,10 +250,16 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   // Listen for balance update completion to unlock transactions
   useEffect(() => {
     const handleBalanceUpdateComplete = (event) => {
-      console.log('[PrivacyActions] 🔓 Balance update completed (backup unlock)');
-      setIsProcessing(false); // Stop showing "Processing..."
-      setIsTransactionLocked(false);
-      setActiveTransactionMonitors(0); // Reset counter as backup
+      // Only unlock on balance updates if no transaction monitors are active
+      // This prevents premature unlocking during vault building/commitment decryption
+      if (activeTransactionMonitors === 0) {
+        console.log('[PrivacyActions] 🔓 Balance update completed (backup unlock) - no active monitors');
+        setIsProcessing(false); // Stop showing "Processing..."
+        setIsTransactionLocked(false);
+        setActiveTransactionMonitors(0); // Reset counter as backup
+      } else {
+        console.log('[PrivacyActions] 🔒 Balance update received but transaction monitors still active - keeping UI locked');
+      }
     };
 
     // Listen for transaction monitor completion to unlock transactions
