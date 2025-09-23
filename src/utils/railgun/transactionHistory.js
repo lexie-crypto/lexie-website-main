@@ -389,6 +389,7 @@ const getTokenSymbol = (tokenAddress, chainId) => {
     },
     // BNB Chain
     56: {
+      '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': 'WBNB',
       '0x2170ed0880ac9a755fd29b2688956bd959f933f8': 'WETH',
       '0x55d398326f99059ff775485246999027b3197955': 'USDT',
       '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': 'USDC',
