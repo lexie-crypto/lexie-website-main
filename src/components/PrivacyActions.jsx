@@ -373,10 +373,24 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       const numAmount = parseFloat(amount);
       if (numAmount <= 0) return false;
 
-      // Allow balance minus 1 wei dust for safety
-      const maxAllowed = selectedToken.numericBalance > 0
+      // Calculate max allowed amount accounting for fees
+      let maxAllowed = selectedToken.numericBalance > 0
         ? selectedToken.numericBalance - (1 / Math.pow(10, selectedToken.decimals))
         : 0;
+
+      // For transfers, account for broadcaster fee
+      if (activeTab === 'transfer') {
+        const balanceInUnits = BigInt(Math.floor(selectedToken.numericBalance * Math.pow(10, selectedToken.decimals)));
+        // Estimate broadcaster fee: 0.5% + buffer for gas costs
+        const estimatedFeeBps = 50n + 50n; // 0.5% + 0.5% buffer
+        const estimatedFee = (balanceInUnits * estimatedFeeBps) / 10000n;
+        const dustBuffer = 10000n;
+        const maxSendableInUnits = maxAllowed > 0
+          ? BigInt(Math.floor(maxAllowed * Math.pow(10, selectedToken.decimals))) - estimatedFee - dustBuffer
+          : 0n;
+        maxAllowed = Number(maxSendableInUnits) / Math.pow(10, selectedToken.decimals);
+      }
+
       return numAmount <= maxAllowed;
     } catch {
       return false;
@@ -1819,7 +1833,19 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 min="0"
                 max={selectedToken ? (() => {
                   const balanceInUnits = BigInt(Math.floor(selectedToken.numericBalance * Math.pow(10, selectedToken.decimals)));
-                  const safeBalanceInUnits = balanceInUnits > 0n ? balanceInUnits - 1n : 0n;
+                  let safeBalanceInUnits = balanceInUnits > 0n ? balanceInUnits - 1n : 0n;
+
+                  // For transfers, account for broadcaster fee (0.5% + gas buffer)
+                  if (activeTab === 'transfer') {
+                    // Estimate broadcaster fee: 0.5% + buffer for gas costs
+                    const estimatedFeeBps = 50n + 50n; // 0.5% + 0.5% buffer
+                    const estimatedFee = (balanceInUnits * estimatedFeeBps) / 10000n;
+                    const dustBuffer = 10000n; // Additional dust buffer
+                    safeBalanceInUnits = safeBalanceInUnits > (estimatedFee + dustBuffer)
+                      ? safeBalanceInUnits - estimatedFee - dustBuffer
+                      : 0n;
+                  }
+
                   return Number(safeBalanceInUnits) / Math.pow(10, selectedToken.decimals);
                 })() : 0}
                 className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
@@ -1829,12 +1855,23 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <button
                   type="button"
                   onClick={() => {
-                    // Use exact balance, but format it properly to avoid rounding issues
-                    // Convert to blockchain units and back to ensure no rounding
+                    // Calculate max sendable amount accounting for fees
                     const balanceInUnits = BigInt(Math.floor(selectedToken.numericBalance * Math.pow(10, selectedToken.decimals)));
-                    const safeBalanceInUnits = balanceInUnits > 0n ? balanceInUnits - 1n : 0n; // Leave 1 wei dust
-                    const safeBalanceDisplay = Number(safeBalanceInUnits) / Math.pow(10, selectedToken.decimals);
-                    setAmount(safeBalanceDisplay.toString());
+                    let maxSendableInUnits = balanceInUnits > 0n ? balanceInUnits - 1n : 0n;
+
+                    // For transfers, account for broadcaster fee (0.5% + gas buffer)
+                    if (activeTab === 'transfer') {
+                      // Estimate broadcaster fee: 0.5% + buffer for gas costs
+                      const estimatedFeeBps = 50n + 50n; // 0.5% + 0.5% buffer
+                      const estimatedFee = (balanceInUnits * estimatedFeeBps) / 10000n;
+                      const dustBuffer = 10000n; // Additional dust buffer
+                      maxSendableInUnits = maxSendableInUnits > (estimatedFee + dustBuffer)
+                        ? maxSendableInUnits - estimatedFee - dustBuffer
+                        : 0n;
+                    }
+
+                    const maxSendableDisplay = Number(maxSendableInUnits) / Math.pow(10, selectedToken.decimals);
+                    setAmount(maxSendableDisplay.toString());
                   }}
                   className="absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded hover:bg-green-900/20"
                 >

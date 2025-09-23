@@ -1925,13 +1925,38 @@ export const privateTransferWithRelayer = async ({
     // STEP 4: STANDARD TRANSFER PATH (no RelayAdapt): estimate → proof → populate
     // Convert amount to BigInt (same as unshield function) - Store original amount
     const originalAmountBn = BigInt(erc20AmountRecipients[0].amount);
-    const amountBn = originalAmountBn;
+    let amountBn = originalAmountBn;
 
     console.log('💰 [PRIVATE TRANSFER] Original amount conversion:', {
       originalAmountString: erc20AmountRecipients[0].amount,
       originalAmountBn: originalAmountBn.toString(),
       amountBn: amountBn.toString()
     });
+
+    // Calculate effective max sendable amount accounting for fees
+    // We don't have direct balance access here, but we can estimate based on the requested amount
+    // If the requested amount is very close to what might be the full balance, apply fee deductions
+
+    // Estimate broadcaster fee: 0.5% + buffer for gas costs
+    const ESTIMATED_RELAYER_FEE_BPS = 50n; // 0.5%
+    const estimatedRelayerFee = (originalAmountBn * ESTIMATED_RELAYER_FEE_BPS) / 10000n;
+    const gasBuffer = 10000n; // Small gas buffer
+    const dustBuffer = 1000n; // Tiny dust buffer
+
+    // Calculate what the max sendable would be if originalAmountBn represents the full balance
+    const estimatedMaxSend = originalAmountBn - estimatedRelayerFee - gasBuffer - dustBuffer;
+
+    // If requested amount exceeds estimated max send, auto-shave it down
+    if (amountBn > estimatedMaxSend && estimatedMaxSend > 0n) {
+      console.log('💰 [PRIVATE TRANSFER] Auto-shaving amount to account for fees:', {
+        requested: amountBn.toString(),
+        estimatedMaxSend: estimatedMaxSend.toString(),
+        shaved: (amountBn - estimatedMaxSend).toString()
+      });
+      amountBn = estimatedMaxSend;
+      // Update the recipients array with the shaved amount
+      erc20AmountRecipients[0].amount = amountBn;
+    }
 
     // STEP 3: Fee token details (from our relayer; use more realistic fallback values)
     let relayerFeePerUnitGas = originalGasDetails.gasPrice || originalGasDetails.maxFeePerGas || BigInt('20000000000'); // 20 gwei fallback instead of 1 gwei
