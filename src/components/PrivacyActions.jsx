@@ -1141,7 +1141,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   lexieId: lexieId,
-                  txHash: result.transactionHash,
+                  txHash: monitorResult.transactionHash,
                   usdValue: usdValue
                 })
               });
