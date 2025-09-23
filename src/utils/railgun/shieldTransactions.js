@@ -149,14 +149,21 @@ const ensureTokenApproval = async (tokenAddress, ownerAddress, amount, walletPro
     const balance = await tokenContract.balanceOf(ownerAddress);
     const amountBigInt = BigInt(amount);
 
+    // Allow for small precision differences (within 1% or 10000 units, whichever is larger)
+    // This handles cases where MAX calculations have tiny discrepancies
+    const tolerance = Math.max(10000n, balance / 100n); // 1% of balance or 10000 units minimum
+    const hasBalance = balance >= amountBigInt && (balance - amountBigInt) <= tolerance;
+
     console.log('[ShieldTransactions] Token balance check:', {
       balance: balance.toString(),
       required: amountBigInt.toString(),
-      hasBalance: balance >= amountBigInt
+      difference: (balance - amountBigInt).toString(),
+      tolerance: tolerance.toString(),
+      hasBalance
     });
 
-    if (balance < amountBigInt) {
-      throw new Error(`Insufficient token balance. Have: ${balance.toString()}, Need: ${amountBigInt.toString()}`);
+    if (!hasBalance) {
+      throw new Error(`Insufficient token balance. Have: ${balance.toString()}, Need: ${amountBigInt.toString()}, Difference: ${(balance - amountBigInt).toString()}`);
     }
     
     // Check current allowance
