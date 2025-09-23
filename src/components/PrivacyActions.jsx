@@ -631,8 +631,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
       // Get normalized token address
       const tokenAddr = getTokenAddress(selectedToken);
-      // Allow null addresses for native tokens (e.g., ETH)
-      const isNativeToken = !tokenAddr && selectedToken.symbol === 'ETH';
+      // Allow null addresses for native tokens (ETH, MATIC, BNB)
+      const nativeTokenSymbols = ['ETH', 'MATIC', 'BNB'];
+      const isNativeToken = !tokenAddr && nativeTokenSymbols.includes(selectedToken.symbol);
       if (!tokenAddr && !isNativeToken) {
         console.error('[PrivacyActions] Shield failed: Invalid token address', selectedToken);
         toast.error('Selected token is invalid. Please reselect the token.');
@@ -939,7 +940,10 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
     // 🚨 CRITICAL: Validate tokenAddress to prevent USDT decimals miscalculation
     const tokenAddr = getTokenAddress(selectedToken);
-    if (!tokenAddr) {
+    // Allow null addresses for native tokens (ETH, MATIC, BNB)
+    const nativeTokenSymbols = ['ETH', 'MATIC', 'BNB'];
+    const isNativeToken = !tokenAddr && nativeTokenSymbols.includes(selectedToken.symbol);
+    if (!tokenAddr && !isNativeToken) {
       console.error('[PrivacyActions] Unshield failed: Invalid token address', selectedToken);
       toast.error('Selected token is invalid. Please reselect the token.');
       return;
@@ -1285,8 +1289,11 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       const encryptionKey = await getEncryptionKey();
       const amountInUnits = parseTokenAmount(amount, selectedToken.decimals);
       const tokenAddr = getTokenAddress(selectedToken);
+      // Allow null addresses for native tokens (ETH, MATIC, BNB)
+      const nativeTokenSymbols = ['ETH', 'MATIC', 'BNB'];
+      const isNativeToken = !tokenAddr && nativeTokenSymbols.includes(selectedToken.symbol);
 
-      if (!tokenAddr) {
+      if (!tokenAddr && !isNativeToken) {
         console.error('[PrivacyActions] Transfer failed: Invalid token address', selectedToken);
         toast.error('Selected token is invalid. Please reselect the token.');
         return;
