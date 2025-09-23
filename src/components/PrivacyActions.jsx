@@ -373,15 +373,10 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       const numAmount = parseFloat(amount);
       if (numAmount <= 0) return false;
 
-      // For shield operations, allow full balance
-      if (activeTab === 'shield') {
-        return numAmount <= selectedToken.numericBalance;
-      } else {
-        // For unshield/transfer, ensure tiny buffer to prevent ZK-SNARK failures
-        const buffer = Math.pow(10, -selectedToken.decimals);
-        const maxAmount = Math.max(0, selectedToken.numericBalance - buffer);
-        return numAmount <= maxAmount;
-      }
+      // For all operations, ensure tiny buffer to prevent precision issues and approval failures
+      const buffer = Math.pow(10, -selectedToken.decimals);
+      const maxAmount = Math.max(0, selectedToken.numericBalance - buffer);
+      return numAmount <= maxAmount;
     } catch {
       return false;
     }
@@ -1821,11 +1816,11 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 placeholder="0.0"
                 step="any"
                 min="0"
-                max={selectedToken ? (activeTab === 'shield' ? selectedToken.numericBalance : (() => {
+                max={selectedToken ? (() => {
                   const buffer = Math.pow(10, -selectedToken.decimals);
                   const maxAmount = Math.max(0, selectedToken.numericBalance - buffer);
                   return Number(maxAmount.toFixed(selectedToken.decimals));
-                })()) : 0}
+                })() : 0}
                 className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
                 disabled={!selectedToken}
               />
@@ -1833,17 +1828,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <button
                   type="button"
                   onClick={() => {
-                    // For shield operations, allow full balance
-                    if (activeTab === 'shield') {
-                      setAmount(selectedToken.numericBalance.toString());
-                    } else {
-                      // For unshield/transfer, leave tiny buffer to prevent ZK-SNARK failures
-                      const buffer = Math.pow(10, -selectedToken.decimals); // 1 unit in the smallest denomination
-                      const maxAmount = Math.max(0, selectedToken.numericBalance - buffer);
-                      // Format to token's decimal precision to avoid ethers.js parsing errors
-                      const formattedAmount = Number(maxAmount.toFixed(selectedToken.decimals));
-                      setAmount(formattedAmount.toString());
-                    }
+                    // For all operations, leave tiny buffer to prevent precision issues and approval failures
+                    const buffer = Math.pow(10, -selectedToken.decimals); // 1 unit in the smallest denomination
+                    const maxAmount = Math.max(0, selectedToken.numericBalance - buffer);
+                    // Format to token's decimal precision to avoid ethers.js parsing errors
+                    const formattedAmount = Number(maxAmount.toFixed(selectedToken.decimals));
+                    setAmount(formattedAmount.toString());
                   }}
                   className="absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded hover:bg-green-900/20"
                 >
