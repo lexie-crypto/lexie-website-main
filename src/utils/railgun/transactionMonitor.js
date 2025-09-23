@@ -474,6 +474,7 @@ const getKnownTokenDecimalsInMonitor = (tokenAddress, chainId) => {
       '0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3': { decimals: 18, symbol: 'DAI' }, // DAI
       '0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c': { decimals: 18, symbol: 'BTCB' }, // BTCB
       '0xCC42724C6683B7E57334c4E856f4c9965ED682bD': { decimals: 18, symbol: 'MATIC' }, // MATIC
+      '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': { decimals: 18, symbol: 'WBNB' }, // WBNB
     }
   };
   
