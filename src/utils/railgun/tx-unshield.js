@@ -892,15 +892,6 @@ export const unshieldTokens = async ({
         console.warn('⚠️ [UNSHIELD] Failed to get network gas prices for estimation:', gasPriceError.message);
       }
 
-      // Use conservative estimate for dummy txn (similar to old implementation)
-      const estimatedGas = BigInt('1000000'); // Conservative 1M gas estimate
-
-      // Get gas price with safety guard
-      const rawGasPrice = networkGasPrices?.gasPrice || networkGasPrices?.maxFeePerGas || BigInt('20000000000'); // 20 gwei fallback
-      const gasPrice = applyGasPriceGuard(chain.id, rawGasPrice, networkGasPrices);
-
-      const gasCostWei = estimatedGas * gasPrice;
-
       // Snapshot token prices once for both preview and proof (single source)
       const nativeGasToken = getNativeGasToken(chain.id);
       const feeTokenInfo = getKnownTokenDecimals(selectedRelayer.feeToken, chain.id);
@@ -916,12 +907,12 @@ export const unshieldTokens = async ({
         )
       });
 
-      // Calculate gas reclamation fee using pre-fetched prices and single gas source
+      // Calculate gas reclamation fee using the exact same estimator as UI preview
       gasFeeDeducted = await calculateGasReclamationERC20(
-        gasCostWei,
         selectedRelayer.feeToken,
         chain.id,
-        tokenPrices
+        tokenPrices,
+        walletProvider
       );
 
       // COMBINE FEES FOR BROADCASTER: relayer fee + estimated gas reclamation

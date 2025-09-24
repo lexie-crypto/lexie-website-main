@@ -18,21 +18,48 @@ const MIN_GAS_FLOORS = {
 };
 
 /**
- * Calculate gas reclamation fee for ERC-20 tokens
- * @param {bigint} gasCostWei - Gas cost in wei (padded estimate)
+ * Calculate gas reclamation fee for ERC-20 tokens using the same estimator as UI preview
  * @param {string} feeTokenAddress - Address of token used for fees
  * @param {number} chainId - Chain ID
  * @param {object} tokenPrices - Pre-fetched token prices {symbol: price}
+ * @param {Function} walletProvider - Wallet provider function
  * @returns {bigint} Gas fee in fee token units (ceiled to never under-collect)
  */
 export const calculateGasReclamationERC20 = async (
-  gasCostWei,
   feeTokenAddress,
   chainId,
-  tokenPrices
+  tokenPrices,
+  walletProvider
 ) => {
   // BigInt-safe price scaling (1e8 scale for precision)
   const PRICE_SCALE = 100_000_000n;
+
+  // Use the exact same gas estimator as UI preview for perfect fee matching
+  const { estimateGasForTransaction } = await import('./tx-gas-details.js');
+
+  // Get network name for the estimator
+  const networkName = { 1: 'Ethereum', 42161: 'Arbitrum', 137: 'Polygon', 56: 'BNBChain' }[chainId] || 'Ethereum';
+
+  const gasEstimate = await estimateGasForTransaction({
+    transactionType: 'unshield',
+    chainId,
+    networkName,
+    railgunWalletID: null, // Not needed for gas estimation
+    encryptionKey: null,   // Not needed for gas estimation
+    tokenAddress: feeTokenAddress,
+    amount: BigInt(0),     // Not needed for gas estimation
+    recipientAddress: null, // Not needed for gas estimation
+    walletProvider,
+  });
+
+  // Extract gas cost from the shared estimator
+  const gasCostWei = BigInt(gasEstimate.gasCostWei);
+
+  console.log('💰 [FEE_CALC] Using shared gas estimator (identical to UI preview):', {
+    gasCostWei: gasCostWei.toString(),
+    gasEstimate: gasEstimate.gasEstimate,
+    method: 'shared-estimator-with-ui-preview'
+  });
 
   // Get native token symbol and price from pre-fetched prices
   const nativeGasToken = getNativeGasToken(chainId);

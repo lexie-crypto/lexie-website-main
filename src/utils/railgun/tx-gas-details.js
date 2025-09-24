@@ -594,6 +594,11 @@ export const estimateGasForTransaction = async ({
       nativeGasToken,
       gasEstimate: gasLimit.toString(),
       evmGasType,
+      // Raw gas data for fee calculations
+      gasCostWei: gasCostWei.toString(),
+      gasPrice: gasPrices.gasPrice?.toString(),
+      maxFeePerGas: gasPrices.maxFeePerGas?.toString(),
+      maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas?.toString(),
     };
 
   } catch (error) {
