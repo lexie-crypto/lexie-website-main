@@ -34,7 +34,8 @@ export const calculateGasReclamationERC20 = async (
   const PRICE_SCALE = 100_000_000n;
 
   // Use the exact same gas calculation as the working estimateGasForTransaction
-  const { fetchGasPricesFromRPC, getEVMGasTypeForTransaction } = await import('./tx-gas-details.js');
+  const { fetchGasPricesFromRPC } = await import('./tx-gas-details.js');
+  const { getEVMGasTypeForTransaction } = await import('@railgun-community/shared-models');
 
   // Get network name for gas type calculation
   const networkName = {
