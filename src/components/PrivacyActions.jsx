@@ -381,13 +381,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     return !isNaN(numAmount) && numAmount > 0;
   }, [amount, selectedToken]);
 
-  // Validation check: amount cannot exceed safe cap (99.99% of available balance)
+  // Validation check: amount cannot exceed available balance
   const exceedsAvailableBalance = useMemo(() => {
     if (!amount || !selectedToken) return false;
 
     const numAmount = parseFloat(amount);
-    const safeCap = selectedToken.numericBalance * 0.9999;
-    return numAmount > safeCap;
+    return numAmount > selectedToken.numericBalance;
   }, [amount, selectedToken]);
 
   // State to hold gas fee estimation result
@@ -468,12 +467,15 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         : parseFloat(selectedToken.balanceUSD)
     ) : 0;
 
-    // Calculate USD value of the amount being processed
-    const amountUSD = usdValue * (numAmount / selectedToken.numericBalance);
+    // Guard against invalid USD values
+    const hasValidUSD = usdValue > 0 && !isNaN(usdValue) && isFinite(usdValue);
+
+    // Calculate USD value of the amount being processed (only if USD data is valid)
+    const amountUSD = hasValidUSD ? usdValue * (numAmount / selectedToken.numericBalance) : 0;
 
     // Fee rates: 0.25% for shield/add, 0.75% for unshield/remove/send
     const feeRate = activeTab === 'shield' ? 0.0025 : 0.0075; // 0.25% = 0.0025, 0.75% = 0.0075
-    const feeUSD = amountUSD * feeRate;
+    const feeUSD = hasValidUSD ? amountUSD * feeRate : 0;
 
     // Gas fees for unshield and transfer operations
     const gasFeeUSD = gasFeeData ? parseFloat(gasFeeData.gasCostUSD) : 0;
@@ -481,19 +483,32 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     // Total fees = service fee + gas fee
     const totalFeesUSD = feeUSD + gasFeeUSD;
 
-    // Total received/sent = amount - total fees
-    const netAmount = numAmount - (totalFeesUSD / usdValue * numAmount);
-    const netAmountUSD = amountUSD - totalFeesUSD;
+    // Calculate net amounts safely
+    let netAmount, netAmountUSD;
+    if (hasValidUSD) {
+      // Total received/sent = amount - total fees (converted back to token amount)
+      netAmount = numAmount - (totalFeesUSD / usdValue * numAmount);
+      netAmountUSD = amountUSD - totalFeesUSD;
+    } else {
+      // Fallback: calculate net amount in tokens only, no USD conversion
+      // For token-denominated calculation, we need to estimate fees in tokens
+      const protocolFeeInTokens = numAmount * feeRate;
+      const gasFeeInTokens = gasFeeData && selectedToken.decimals ?
+        parseFloat(gasFeeData.gasCostNative || '0') : 0;
+      netAmount = numAmount - protocolFeeInTokens - gasFeeInTokens;
+      netAmountUSD = 0; // Will show as "N/A"
+    }
 
     return {
-      amountUSD: amountUSD.toFixed(2),
-      feeUSD: feeUSD.toFixed(2),
+      amountUSD: hasValidUSD ? amountUSD.toFixed(2) : 'N/A',
+      feeUSD: hasValidUSD ? feeUSD.toFixed(2) : 'N/A',
       gasFeeUSD: gasFeeData ? gasFeeData.gasCostUSD : null,
       gasCostNative: gasFeeData ? gasFeeData.gasCostNative : null,
       nativeGasToken: gasFeeData ? gasFeeData.nativeGasToken : null,
       feePercent: (feeRate * 100).toFixed(2),
       netAmount: netAmount.toFixed(6),
-      netAmountUSD: netAmountUSD.toFixed(2)
+      netAmountUSD: hasValidUSD ? netAmountUSD.toFixed(2) : 'N/A',
+      hasValidUSD
     };
   }, [amount, selectedToken, isValidAmount, activeTab, gasFeeData]);
 
@@ -503,20 +518,18 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
     const availableBalance = selectedToken.numericBalance;
 
-    // Start with 99.99% of available balance to ensure we don't overshoot
-    const safeBalance = availableBalance * 0.9999;
-
     if (activeTab === 'shield') {
-      // Shields: subtract protocol fee (0.25% of the amount being shielded)
+      // Shields: maxAmount = availableBalance - protocolFee(0.25%)
       const protocolFeeRate = 0.0025; // 0.25%
-      const protocolFeeInTokens = safeBalance * protocolFeeRate;
-      const maxAmount = Math.max(0, safeBalance - protocolFeeInTokens);
+      const protocolFeeInTokens = availableBalance * protocolFeeRate;
+      const maxAmount = Math.max(0, availableBalance - protocolFeeInTokens);
       return maxAmount.toString();
     } else {
-      // Unshields/Remove/Private transfers: subtract combined fee estimation
+      // Unshields/Remove/Private transfers: maxAmount = availableBalance - (protocolFee + broadcasterFee + gasEstimate)
       const protocolFeeRate = 0.0075; // 0.75%
-      const protocolFeeInTokens = safeBalance * protocolFeeRate;
-      // For gas fees, convert the fixed gas cost in USD to token amount
+      const protocolFeeInTokens = availableBalance * protocolFeeRate;
+
+      // Gas fee estimation
       let gasFeeInTokens = 0;
       if (gasFeeData && selectedToken.balanceUSD) {
         const usdValue = typeof selectedToken.balanceUSD === 'string' && selectedToken.balanceUSD.startsWith('$')
@@ -528,8 +541,13 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           gasFeeInTokens = gasFeeUSD / (usdValue / selectedToken.numericBalance);
         }
       }
-      const totalFeeInTokens = protocolFeeInTokens + gasFeeInTokens;
-      const maxAmount = Math.max(0, safeBalance - totalFeeInTokens);
+
+      // broadcasterFee: estimate relayer fee (typically 0.25% + gas reclamation)
+      const broadcasterFeeRate = 0.0025; // 0.25%
+      const broadcasterFeeInTokens = availableBalance * broadcasterFeeRate;
+
+      const totalFeeInTokens = protocolFeeInTokens + broadcasterFeeInTokens + gasFeeInTokens;
+      const maxAmount = Math.max(0, availableBalance - totalFeeInTokens);
       return maxAmount.toString();
     }
   }, [selectedToken, activeTab, gasFeeData]);
@@ -1913,7 +1931,13 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                   // Set the calculated max amount accounting for fees
                   setAmount(calculateMaxAmount());
                 }}
-                  className="absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded hover:bg-green-900/20"
+                disabled={(activeTab === 'unshield' || activeTab === 'transfer') && !gasFeeData}
+                title={(activeTab === 'unshield' || activeTab === 'transfer') && !gasFeeData ? 'Estimating gas…' : undefined}
+                className={`absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded ${
+                  (activeTab === 'unshield' || activeTab === 'transfer') && !gasFeeData
+                    ? 'opacity-50 cursor-not-allowed'
+                    : 'hover:bg-green-900/20'
+                }`}
                 >
                   Max
                 </button>
@@ -1936,7 +1960,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div className="space-y-1">
                   <div className="flex justify-between">
                     <span className="text-green-400/80">Network Fees:</span>
-                    <span className="text-green-200">${feeInfo.feeUSD}</span>
+                    <span className="text-green-200">{feeInfo.feeUSD === 'N/A' ? 'N/A' : `$${feeInfo.feeUSD}`}</span>
                   </div>
                   {feeInfo.gasFeeUSD && activeTab !== 'shield' && (
                     <div className="flex justify-between border-b border-green-500/20 pb-1 mb-1">
@@ -1944,7 +1968,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                       <span className="text-green-200">({feeInfo.gasCostNative} {feeInfo.nativeGasToken}) ${feeInfo.gasFeeUSD}</span>
                     </div>
                   )}
-                  {feeInfo.gasFeeUSD && activeTab !== 'shield' && (
+                  {feeInfo.gasFeeUSD && activeTab !== 'shield' && feeInfo.feeUSD !== 'N/A' && (
                     <div className="flex justify-between">
                       <span className="text-green-400/80">Est. Total Fees:</span>
                       <span className="text-green-200">${(parseFloat(feeInfo.feeUSD) + parseFloat(feeInfo.gasFeeUSD)).toFixed(2)}</span>
@@ -1955,7 +1979,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                       {feeInfo.gasFeeUSD && activeTab !== 'shield' ? 'Est. ' : ''}Total {activeTab === 'shield' ? 'Added' : activeTab === 'unshield' ? 'Received' : 'Sent'}:
                     </span>
                     <span className="text-emerald-300">
-                      ({feeInfo.netAmount} {selectedToken.symbol}) ${feeInfo.netAmountUSD}
+                      ({feeInfo.netAmount} {selectedToken.symbol}){feeInfo.netAmountUSD === 'N/A' ? '' : ` $${feeInfo.netAmountUSD}`}
                     </span>
                   </div>
                 </div>
