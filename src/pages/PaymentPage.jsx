@@ -335,12 +335,8 @@ const PaymentPage = () => {
       console.log('[PaymentPage] Screening payer wallet:', address);
       await assertNotSanctioned(chainId, address);
       console.log('[PaymentPage] Payer screening passed');
-      // Only support ERC-20 for payment page flow
-      if (!selectedToken.address) {
-        throw new Error('Native token shielding is not supported on this payment flow. Please select an ERC-20 token.');
-      }
 
-      // Check token support
+      // Check token support (supports both native and ERC-20 tokens)
       if (!isTokenSupportedByRailgun(selectedToken.address, chainId)) {
         throw new Error(`${selectedToken.symbol} is not supported on this network`);
       }
