@@ -928,7 +928,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       }
 
     } catch (error) {
-      console.error('[PrivacyActions] Shield operation failed:', error);
+      console.error('[PrivacyActions] Shield operation failed: Network error. Please retry your transaction');
       toast.dismiss(toastId);
 
       // Dispatch transaction completion event to unlock UI globally
