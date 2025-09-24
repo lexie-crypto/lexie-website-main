@@ -20,9 +20,8 @@ import useInjectedProviders from '../hooks/useInjectedProviders';
 import InjectedProviderButtons from '../components/InjectedProviderButtons.jsx';
 // Client-only shield flow (avoid initializing recipient vault)
 import { assertNotSanctioned } from '../utils/sanctions/chainalysis-oracle';
-import { isTokenSupportedByRailgun } from '../utils/railgun/actions';
-import { TXIDVersion, EVMGasType, NetworkName, getEVMGasTypeForTransaction } from '@railgun-community/shared-models';
-import { gasEstimateForShield, populateShield } from '@railgun-community/wallet';
+import { isTokenSupportedByRailgun, shieldTokens } from '../utils/railgun/actions';
+import { NetworkName } from '@railgun-community/shared-models';
 import { Contract, parseUnits, JsonRpcProvider } from 'ethers';
 import { fetchTokenPrices } from '../utils/pricing/coinGecko';
 import { RPC_URLS } from '../config/environment';
@@ -361,129 +360,41 @@ const PaymentPage = () => {
       }[chainId];
       if (!railgunNetwork) throw new Error(`Unsupported network: ${chainId}`);
 
-      // Parse amount to base units
-      const weiAmount = parseUnits(amount, selectedToken.decimals);
-
       // Validate recipient address
       if (!resolvedRecipientAddress) {
         throw new Error('Recipient address not resolved. Please check the payment link.');
       }
 
-      // Prepare recipients (use resolved Railgun address)
-      const erc20AmountRecipients = [
-        { tokenAddress: selectedToken.address, amount: weiAmount, recipientAddress: resolvedRecipientAddress },
-      ];
+      // Parse amount to base units
+      const weiAmount = parseUnits(amount, selectedToken.decimals);
 
-      // Create ephemeral shield private key
-      const getRandomHex32 = () => {
-        const bytes = new Uint8Array(32);
-        (window.crypto || globalThis.crypto).getRandomValues(bytes);
-        return '0x' + Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
-      };
-      const shieldPrivateKey = getRandomHex32();
+      // Get chain configuration
+      const chainConfig = { id: chainId };
 
-      // Determine gas type and preliminary gas details (to discover spender address)
-      const evmGasType = getEVMGasTypeForTransaction(railgunNetwork, true);
-      let feeData;
-      try {
-        feeData = await provider.getFeeData();
-      } catch (feeError) {
-        console.warn('[PaymentPage] Failed to get fee data, using defaults:', feeError.message);
-        feeData = { gasPrice: BigInt('1000000') };
-      }
+      // Get wallet signer
+      const walletSigner = await walletProvider();
 
-      let prelimGasDetails;
-      if (evmGasType === EVMGasType.Type2) {
-        prelimGasDetails = {
-          evmGasType,
-          gasEstimate: BigInt(300000),
-          maxFeePerGas: feeData.maxFeePerGas || feeData.gasPrice || BigInt('1000000'),
-          maxPriorityFeePerGas: feeData.maxPriorityFeePerGas || BigInt('100000'),
-        };
-      } else {
-        prelimGasDetails = {
-          evmGasType,
-          gasEstimate: BigInt(300000),
-          gasPrice: feeData.gasPrice || BigInt('1000000'),
-        };
-      }
+      console.log('[PaymentPage] About to call shieldTokens with:', {
+        tokenAddress: selectedToken.address,
+        amount: weiAmount.toString(),
+        chainId: chainConfig.id,
+        fromAddress: address,
+        railgunAddress: railgunAddress ? `${railgunAddress.slice(0, 8)}...` : 'MISSING'
+      });
 
-      // Build a preliminary shield tx to get the RAILGUN shield contract (spender)
-      const { transaction: prelimTx } = await populateShield(
-        TXIDVersion.V2_PoseidonMerkle,
-        railgunNetwork,
-        shieldPrivateKey,
-        erc20AmountRecipients,
-        [],
-        prelimGasDetails,
-      );
-      const spender = prelimTx.to;
-      if (!spender) throw new Error('Failed to resolve Railgun shield contract address');
+      // Execute shield operation using the proper shieldTokens function
+      const result = await shieldTokens({
+        tokenAddress: selectedToken.address,
+        amount: weiAmount.toString(),
+        chain: chainConfig,
+        fromAddress: address,
+        railgunAddress: railgunAddress,
+        walletProvider: walletSigner
+      });
 
-      // Ensure ERC-20 allowance (skip for native tokens)
-      if (selectedToken.address) {
-        const erc20Abi = [
-          'function allowance(address owner,address spender) view returns (uint256)',
-          'function approve(address spender,uint256 amount) returns (bool)',
-        ];
-        const erc20 = new Contract(selectedToken.address, erc20Abi, signer);
-        const currentAllowance = await erc20.allowance(payerEOA, spender);
-        if (currentAllowance < weiAmount) {
-          showTerminalToast('info', 'Approval Required', 'Please sign the token approval in your wallet to allow the deposit', { duration: 4000 });
-          const approveTx = await erc20.approve(spender, weiAmount);
-          await approveTx.wait();
-        }
-      }
-
-      // Final gas estimate for shield
-      const { gasEstimate } = await gasEstimateForShield(
-        TXIDVersion.V2_PoseidonMerkle,
-        railgunNetwork,
-        shieldPrivateKey,
-        erc20AmountRecipients,
-        [],
-        payerEOA,
-      );
-
-      // Final gas details
-      let refreshedFee;
-      try {
-        refreshedFee = await provider.getFeeData();
-      } catch (feeError) {
-        console.warn('[PaymentPage] Failed to get refreshed fee data, using previous values:', feeError.message);
-        refreshedFee = feeData;
-      }
-
-      let gasDetails;
-      if (evmGasType === EVMGasType.Type2) {
-        gasDetails = {
-          evmGasType,
-          gasEstimate,
-          maxFeePerGas: refreshedFee.maxFeePerGas || feeData.maxFeePerGas || BigInt('1000000'),
-          maxPriorityFeePerGas: refreshedFee.maxPriorityFeePerGas || feeData.maxPriorityFeePerGas || BigInt('100000'),
-        };
-      } else {
-        gasDetails = {
-          evmGasType,
-          gasEstimate,
-          gasPrice: refreshedFee.gasPrice || feeData.gasPrice || BigInt('1000000'),
-        };
-      }
-
-      // Build final shield transaction
-      const { transaction } = await populateShield(
-        TXIDVersion.V2_PoseidonMerkle,
-        railgunNetwork,
-        shieldPrivateKey,
-        erc20AmountRecipients,
-        [],
-        gasDetails,
-      );
-      transaction.from = payerEOA;
-
-      // Send from payer's EOA
+      // Send transaction
       showTerminalToast('info', 'Deposit Transaction', 'Please sign the deposit transaction in your wallet', { duration: 4000 });
-      const sent = await signer.sendTransaction(transaction);
+      const sent = await walletSigner.sendTransaction(result.transaction);
 
       showTerminalToast('info', 'Transaction Submitted', 'Waiting for blockchain confirmation...', { duration: 3000 });
       const receipt = await sent.wait();
