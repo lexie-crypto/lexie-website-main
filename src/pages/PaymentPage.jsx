@@ -21,7 +21,7 @@ import InjectedProviderButtons from '../components/InjectedProviderButtons.jsx';
 // Client-only shield flow (avoid initializing recipient vault)
 import { assertNotSanctioned } from '../utils/sanctions/chainalysis-oracle';
 import { isTokenSupportedByRailgun } from '../utils/railgun/actions';
-import { TXIDVersion, EVMGasType, NetworkName } from '@railgun-community/shared-models';
+import { TXIDVersion, EVMGasType, NetworkName, getEVMGasTypeForTransaction } from '@railgun-community/shared-models';
 import { gasEstimateForShield, populateShield, populateShieldBaseToken } from '@railgun-community/wallet';
 import { Contract, parseUnits } from 'ethers';
 import { fetchTokenPrices } from '../utils/pricing/coinGecko';
@@ -363,12 +363,25 @@ const PaymentPage = () => {
       const shieldPrivateKey = getRandomHex32();
 
       // Determine gas type and preliminary gas details (to discover spender address)
-      // Force legacy gas pricing for all networks to avoid EIP-1559 compatibility issues
-      const prelimGasDetails = {
-        evmGasType: EVMGasType.Type0, // Always use legacy gas type
-        gasEstimate: BigInt(300000),
-        gasPrice: BigInt('20000000000'), // 20 gwei - reasonable for most networks
-      };
+      const evmGasType = getEVMGasTypeForTransaction(railgunNetwork, true);
+
+      let prelimGasDetails;
+      if (evmGasType === EVMGasType.Type2) {
+        // EIP-1559 networks (Arbitrum)
+        prelimGasDetails = {
+          evmGasType,
+          gasEstimate: BigInt(300000),
+          maxFeePerGas: BigInt('100000000'), // 100 gwei
+          maxPriorityFeePerGas: BigInt('2000000'), // 2 gwei priority
+        };
+      } else {
+        // Legacy networks (Ethereum, Polygon, BNB Chain)
+        prelimGasDetails = {
+          evmGasType: EVMGasType.Type0,
+          gasEstimate: BigInt(300000),
+          gasPrice: BigInt('20000000000'), // 20 gwei
+        };
+      }
 
       // Build a preliminary shield tx to get the RAILGUN shield contract (spender)
       let prelimTx;
@@ -442,12 +455,24 @@ const PaymentPage = () => {
         gasEstimate = gasResult.gasEstimate;
       }
 
-      // Final gas details - use legacy gas pricing for all networks
-      const gasDetails = {
-        evmGasType: EVMGasType.Type0, // Always use legacy gas type
-        gasEstimate,
-        gasPrice: BigInt('20000000000'), // 20 gwei - reasonable for most networks
-      };
+      // Final gas details
+      let gasDetails;
+      if (evmGasType === EVMGasType.Type2) {
+        // EIP-1559 networks (Arbitrum)
+        gasDetails = {
+          evmGasType,
+          gasEstimate,
+          maxFeePerGas: BigInt('100000000'), // 100 gwei
+          maxPriorityFeePerGas: BigInt('2000000'), // 2 gwei priority
+        };
+      } else {
+        // Legacy networks (Ethereum, Polygon, BNB Chain)
+        gasDetails = {
+          evmGasType: EVMGasType.Type0,
+          gasEstimate,
+          gasPrice: BigInt('20000000000'), // 20 gwei
+        };
+      }
 
       // Build final shield transaction
       let transaction;
