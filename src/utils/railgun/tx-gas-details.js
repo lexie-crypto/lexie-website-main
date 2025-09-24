@@ -478,7 +478,18 @@ export const computeGasReclamationWei = (gasDetails) => {
         ? gasDetails.gasPrice  // Legacy Type0/1
         : gasDetails.maxFeePerGas; // Conservative: use maxFeePerGas on EIP-1559
 
-    return gasLimit * price; // Wei
+    const baseCost = gasLimit * price; // Base wei cost
+    const reclamationCost = (baseCost * 120n) / 100n; // Add 20% multiplier for fee reclamation
+
+    console.log('[GasDetails] Computed gas reclamation with 20% multiplier:', {
+      gasLimit: gasLimit.toString(),
+      price: price.toString(),
+      baseCost: baseCost.toString(),
+      reclamationCost: reclamationCost.toString(),
+      multiplier: '1.2x'
+    });
+
+    return reclamationCost;
   } catch (error) {
     console.error('[GasDetails] Failed to compute gas reclamation:', error);
     return 0n;
