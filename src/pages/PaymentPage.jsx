@@ -436,14 +436,22 @@ const PaymentPage = () => {
       }
 
       // Final gas estimate for shield
-      const { gasEstimate } = await gasEstimateForShield(
-        TXIDVersion.V2_PoseidonMerkle,
-        railgunNetwork,
-        shieldPrivateKey,
-        erc20AmountRecipients,
-        [],
-        payerEOA,
-      );
+      let gasEstimate;
+      if (!selectedToken.address) {
+        // For native tokens, use a simpler gas estimate since gasEstimateForShield doesn't work
+        gasEstimate = BigInt(150000); // Conservative estimate for base token shielding
+      } else {
+        // For ERC-20 tokens, use the standard gas estimation
+        const gasResult = await gasEstimateForShield(
+          TXIDVersion.V2_PoseidonMerkle,
+          railgunNetwork,
+          shieldPrivateKey,
+          erc20AmountRecipients,
+          [],
+          payerEOA,
+        );
+        gasEstimate = gasResult.gasEstimate;
+      }
 
       // Final gas details
       const refreshedFee = await provider.getFeeData();
