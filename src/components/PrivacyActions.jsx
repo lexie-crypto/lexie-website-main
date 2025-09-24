@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { ethers } from 'ethers';
 import { toast } from 'react-hot-toast';
 import {
   ShieldCheckIcon,
@@ -512,12 +513,24 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     };
   }, [amount, selectedToken, isValidAmount, activeTab, gasFeeData]);
 
-  // Calculate max amount for Max button (returns full available balance)
+  // Calculate max amount for Max button (returns precise decimal balance)
   const calculateMaxAmount = useCallback(() => {
     if (!selectedToken) return '0';
 
-    // Return full available balance - backend handles fee deductions
-    return selectedToken.numericBalance.toString();
+    // Use precise wei balance converted to decimal to avoid rounding errors
+    try {
+      const preciseDecimal = ethers.formatUnits(selectedToken.balance || '0', selectedToken.decimals);
+      console.log('[Max Button] Precise balance:', {
+        weiBalance: selectedToken.balance,
+        decimals: selectedToken.decimals,
+        preciseDecimal,
+        roundedNumeric: selectedToken.numericBalance
+      });
+      return preciseDecimal;
+    } catch (error) {
+      console.warn('[Max Button] Failed to calculate precise amount, falling back to numericBalance:', error);
+      return selectedToken.numericBalance.toString();
+    }
   }, [selectedToken]);
 
   // Detect recipient address type for smart handling
