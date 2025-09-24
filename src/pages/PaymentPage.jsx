@@ -196,7 +196,6 @@ const PaymentPage = () => {
             // Native USDC
             { symbol: 'USDC', address: '0xaf88d065e77c8cc2239327c5edb3a432268e5831', name: 'USD Coin', decimals: 6 },
             // Bridged USDC.e
-            { symbol: 'USDC.e', address: '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8', name: 'USD Coin (USDC.e)', decimals: 6 },
             { symbol: 'USDT', address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', name: 'Tether USD', decimals: 6 },
           ],
           56: [ // BNB Chain
