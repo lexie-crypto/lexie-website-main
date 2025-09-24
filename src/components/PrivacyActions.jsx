@@ -512,45 +512,13 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     };
   }, [amount, selectedToken, isValidAmount, activeTab, gasFeeData]);
 
-  // Calculate max amount for Max button
+  // Calculate max amount for Max button (shows full available balance, fees shown in UI)
   const calculateMaxAmount = useCallback(() => {
     if (!selectedToken) return '0';
 
-    const availableBalance = selectedToken.numericBalance;
-
-    if (activeTab === 'shield') {
-      // Shields: maxAmount = availableBalance - protocolFee(0.25%)
-      const protocolFeeRate = 0.0025; // 0.25%
-      const protocolFeeInTokens = availableBalance * protocolFeeRate;
-      const maxAmount = Math.max(0, availableBalance - protocolFeeInTokens);
-      return maxAmount.toString();
-    } else {
-      // Unshields/Remove/Private transfers: maxAmount = availableBalance - (protocolFee + broadcasterFee + gasEstimate)
-      const protocolFeeRate = 0.0075; // 0.75%
-      const protocolFeeInTokens = availableBalance * protocolFeeRate;
-
-      // Gas fee estimation
-      let gasFeeInTokens = 0;
-      if (gasFeeData && selectedToken.balanceUSD) {
-        const usdValue = typeof selectedToken.balanceUSD === 'string' && selectedToken.balanceUSD.startsWith('$')
-          ? parseFloat(selectedToken.balanceUSD.substring(1))
-          : parseFloat(selectedToken.balanceUSD);
-        if (usdValue > 0) {
-          const gasFeeUSD = parseFloat(gasFeeData.gasCostUSD);
-          // Gas fee is fixed in USD, convert to token amount using token price
-          gasFeeInTokens = gasFeeUSD / (usdValue / selectedToken.numericBalance);
-        }
-      }
-
-      // broadcasterFee: estimate relayer fee (typically 0.25% + gas reclamation)
-      const broadcasterFeeRate = 0.0025; // 0.25%
-      const broadcasterFeeInTokens = availableBalance * broadcasterFeeRate;
-
-      const totalFeeInTokens = protocolFeeInTokens + broadcasterFeeInTokens + gasFeeInTokens;
-      const maxAmount = Math.max(0, availableBalance - totalFeeInTokens);
-      return maxAmount.toString();
-    }
-  }, [selectedToken, activeTab, gasFeeData]);
+    // Return full available balance - fees will be shown in the UI and net amount used for submission
+    return selectedToken.numericBalance.toString();
+  }, [selectedToken]);
 
   // Detect recipient address type for smart handling
   const recipientType = useMemo(() => {
@@ -644,15 +612,19 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       // Get encryption key
       const encryptionKey = await getEncryptionKey();
 
+      // Determine actual amount to use (net amount if Max was clicked showing full balance)
+      const actualAmount = (parseFloat(amount) === selectedToken.numericBalance && feeInfo) ?
+        feeInfo.netAmount : amount;
+
       // Parse amount to base units
-      const amountInUnits = parseTokenAmount(amount, selectedToken.decimals);
+      const amountInUnits = parseTokenAmount(actualAmount, selectedToken.decimals);
 
       // Get chain configuration
       const chainConfig = { id: chainId };
 
       console.log('[PrivacyActions] Starting shield operation:', {
         token: selectedToken.symbol,
-        amount,
+        amount: actualAmount,
         amountInUnits,
         railgunAddress,
       });
@@ -762,7 +734,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             <div className="px-4 py-3 flex items-center gap-3">
               <div className="h-3 w-3 rounded-full bg-emerald-400" />
               <div>
-                <div className="text-sm">Added {amount} {selectedToken.symbol} to your vault</div>
+                <div className="text-sm">Added {actualAmount} {selectedToken.symbol} to your vault</div>
                 <div className="text-xs text-green-400/80">TX sent</div>
               </div>
               <button 
@@ -829,7 +801,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                   <div className="px-4 py-3 flex items-center gap-3">
                     <div className="h-3 w-3 rounded-full bg-emerald-400" />
                     <div>
-                      <div className="text-sm">Added {amount} {selectedToken.symbol} to your vault</div>
+                      <div className="text-sm">Added {actualAmount} {selectedToken.symbol} to your vault</div>
                       <div className="text-xs text-green-400/80">Balance will update automatically</div>
                     </div>
                     <button 
@@ -876,13 +848,13 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               console.log('[PrivacyActions] ✅ Resolved Lexie ID for points award:', lexieId);
 
               // Calculate actual USD value for points
-              const amountInUnitsForPoints = parseTokenAmount(amount, selectedToken.decimals);
+              const amountInUnitsForPoints = parseTokenAmount(actualAmount, selectedToken.decimals);
               const transactionMonitor = await import('../utils/railgun/transactionMonitor.js');
               const convertTokenAmountToUSD = transactionMonitor.default.convertTokenAmountToUSD;
               const usdValue = await convertTokenAmountToUSD(amountInUnitsForPoints, tokenAddr, chainId);
 
               console.log('[PrivacyActions] 💰 Calculated USD value for points fallback:', {
-                amount: amount,
+                amount: actualAmount,
                 amountInUnits: amountInUnitsForPoints,
                 tokenAddress: tokenAddr,
                 chainId,
@@ -1039,8 +1011,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       // Get encryption key
       const encryptionKey = await getEncryptionKey();
 
+      // Determine actual amount to use (net amount if Max was clicked showing full balance)
+      const actualAmount = (parseFloat(amount) === selectedToken.numericBalance && feeInfo) ?
+        feeInfo.netAmount : amount;
+
       // Parse amount to base units
-      const amountInUnits = parseTokenAmount(amount, selectedToken.decimals);
+      const amountInUnits = parseTokenAmount(actualAmount, selectedToken.decimals);
 
       // Get chain configuration
       const chainConfig = { id: chainId };
@@ -1051,7 +1027,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       console.log('[PrivacyActions] Starting unshield operation:', {
         token: selectedToken.symbol,
         tokenAddress: tokenAddr,
-        amount,
+        amount: actualAmount,
         amountInUnits,
         toAddress,
         decimals: selectedToken.decimals,
@@ -1166,13 +1142,13 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               console.log('[PrivacyActions] ✅ Resolved Lexie ID for unshield points award:', lexieId);
 
               // Calculate actual USD value for points
-              const amountInUnitsForPoints = parseTokenAmount(amount, selectedToken.decimals);
+              const amountInUnitsForPoints = parseTokenAmount(actualAmount, selectedToken.decimals);
               const transactionMonitor = await import('../utils/railgun/transactionMonitor.js');
               const convertTokenAmountToUSD = transactionMonitor.default.convertTokenAmountToUSD;
               const usdValue = await convertTokenAmountToUSD(amountInUnitsForPoints, tokenAddr, chainId);
 
               console.log('[PrivacyActions] 💰 Calculated USD value for unshield points fallback:', {
-                amount: amount,
+                amount: actualAmount,
                 amountInUnits: amountInUnitsForPoints,
                 tokenAddress: tokenAddr,
                 chainId,
@@ -1373,7 +1349,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       ));
 
       const encryptionKey = await getEncryptionKey();
-      const amountInUnits = parseTokenAmount(amount, selectedToken.decimals);
+
+      // Determine actual amount to use (net amount if Max was clicked showing full balance)
+      const actualAmount = (parseFloat(amount) === selectedToken.numericBalance && feeInfo) ?
+        feeInfo.netAmount : amount;
+
+      const amountInUnits = parseTokenAmount(actualAmount, selectedToken.decimals);
       const tokenAddr = getTokenAddress(selectedToken);
       // Allow null addresses for native tokens (ETH, MATIC, BNB)
       const nativeTokenSymbols = ['ETH', 'MATIC', 'BNB'];
@@ -1448,6 +1429,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             tokenAddress: tokenAddr,
             decimals: selectedToken.decimals,
             amount: amountInUnits,
+            displayAmount: actualAmount,
             recipientAddress: timelineRecipientAddress, // Use resolved Railgun address
             memoText: memoText, // Add memo text
           },
@@ -1477,13 +1459,13 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               console.log('[PrivacyActions] ✅ Resolved Lexie ID for transfer points award:', lexieId);
 
               // Calculate actual USD value for points
-              const amountInUnitsForPoints = parseTokenAmount(amount, selectedToken.decimals);
+              const amountInUnitsForPoints = parseTokenAmount(actualAmount, selectedToken.decimals);
               const transactionMonitor = await import('../utils/railgun/transactionMonitor.js');
               const convertTokenAmountToUSD = transactionMonitor.default.convertTokenAmountToUSD;
               const usdValue = await convertTokenAmountToUSD(amountInUnitsForPoints, tokenAddr, chainId);
 
               console.log('[PrivacyActions] 💰 Calculated USD value for transfer points fallback:', {
-                amount: amount,
+                amount: actualAmount,
                 amountInUnits: amountInUnitsForPoints,
                 tokenAddress: tokenAddr,
                 chainId,
