@@ -320,10 +320,6 @@ const PaymentPage = () => {
       console.log('[PaymentPage] Screening payer wallet:', address);
       await assertNotSanctioned(chainId, address);
       console.log('[PaymentPage] Payer screening passed');
-      // Only support ERC-20 for payment page flow
-      if (!selectedToken.address) {
-        throw new Error('Native token shielding is not supported on this payment flow. Please select an ERC-20 token.');
-      }
 
       // Check token support
       if (!isTokenSupportedByRailgun(selectedToken.address, chainId)) {
@@ -397,17 +393,19 @@ const PaymentPage = () => {
       const spender = prelimTx.to;
       if (!spender) throw new Error('Failed to resolve Railgun shield contract address');
 
-      // Ensure ERC-20 allowance
-      const erc20Abi = [
-        'function allowance(address owner,address spender) view returns (uint256)',
-        'function approve(address spender,uint256 amount) returns (bool)',
-      ];
-      const erc20 = new Contract(selectedToken.address, erc20Abi, signer);
-      const currentAllowance = await erc20.allowance(payerEOA, spender);
-      if (currentAllowance < weiAmount) {
-        showTerminalToast('info', 'Approval Required', 'Please sign the token approval in your wallet to allow the deposit', { duration: 4000 });
-        const approveTx = await erc20.approve(spender, weiAmount);
-        await approveTx.wait();
+      // Ensure ERC-20 allowance (skip for native tokens)
+      if (selectedToken.address) {
+        const erc20Abi = [
+          'function allowance(address owner,address spender) view returns (uint256)',
+          'function approve(address spender,uint256 amount) returns (bool)',
+        ];
+        const erc20 = new Contract(selectedToken.address, erc20Abi, signer);
+        const currentAllowance = await erc20.allowance(payerEOA, spender);
+        if (currentAllowance < weiAmount) {
+          showTerminalToast('info', 'Approval Required', 'Please sign the token approval in your wallet to allow the deposit', { duration: 4000 });
+          const approveTx = await erc20.approve(spender, weiAmount);
+          await approveTx.wait();
+        }
       }
 
       // Final gas estimate for shield
