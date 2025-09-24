@@ -64,7 +64,6 @@ const calculateUSDValue = (numericBalance, symbol, prices) => {
     WETH: 'ETH',
     WMATIC: 'MATIC',
     WBNB: 'BNB',
-    'USDC.e': 'USDC',
   };
   const resolvedSymbol = prices[symbol] != null ? symbol : (aliasMap[symbol] || symbol);
   const price = prices[resolvedSymbol];
@@ -166,7 +165,7 @@ const PaymentPage = () => {
         await ensureEngineForShield().catch(() => {});
 
         // Fetch token prices first
-        const symbols = ['ETH', 'USDC', 'USDT', 'DAI', 'MATIC', 'BNB', 'WETH', 'WMATIC', 'WBNB', 'USDC.e'];
+        const symbols = ['ETH', 'USDC', 'USDT', 'DAI', 'MATIC', 'BNB', 'WETH', 'WMATIC', 'WBNB'];
         try {
           const prices = await fetchTokenPrices(symbols);
           setTokenPrices(prices);
@@ -195,7 +194,6 @@ const PaymentPage = () => {
             { symbol: 'ETH', address: null, name: 'Ethereum', decimals: 18 },
             // Native USDC
             { symbol: 'USDC', address: '0xaf88d065e77c8cc2239327c5edb3a432268e5831', name: 'USD Coin', decimals: 6 },
-            // Bridged USDC.e
             { symbol: 'USDT', address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', name: 'Tether USD', decimals: 6 },
           ],
           56: [ // BNB Chain
@@ -249,13 +247,6 @@ const PaymentPage = () => {
         setPublicBalances(
           balancesWithData
             .filter(token => isTokenSupportedByRailgun(token.address, chainId))
-            // Prefer native USDC over USDC.e when both present
-            .filter((t, idx, arr) => {
-              if (chainId !== 42161) return true;
-              if (t.symbol !== 'USDC.e') return true;
-              const hasNativeUSDC = arr.some(x => x.symbol === 'USDC');
-              return !hasNativeUSDC;
-            })
         );
       } catch (error) {
         console.error('Failed to fetch balances:', error);
