@@ -1070,7 +1070,9 @@ export function useBalances() {
                 const backendMap = new Map(backendList.map(t => [String((t.tokenAddress || '').toLowerCase()), t]));
 
                 // Merge with current UI state, biasing toward the most conservative (lower) spendable to avoid overstatement
+                let balancesToPersist = null;
                 setPrivateBalances(current => {
+                  let updatedBalances;
                   if (!current || current.length === 0) {
                     const fromBackend = backendList.map(token => {
                       // Handle backend balance - backend returns decimal amounts, convert to wei for consistency
@@ -1111,84 +1113,106 @@ export function useBalances() {
                         balanceUSD: calculateUSDValue(numeric, token.symbol)
                       };
                     });
-                    return recentSpendable ? current : fromBackend;
-                  }
-                  const merged = current.map(tok => {
-                    const key = String((tok.address || tok.tokenAddress || '').toLowerCase());
-                    const b = backendMap.get(key);
-                   if (!b) return tok; // keep current when backend missing
-                    // Compare balances as BigInts for precision
-                    const currentBalance = BigInt(tok.balance || '0');
-                    const backendBalanceStr = String(b.numericBalance || '0');
-                    let backendBalance;
-                    if (backendBalanceStr.includes('.')) {
-                      // Decimal - convert to wei for comparison
-                      const decimals = tok.decimals ?? 18;
-                      backendBalance = BigInt(Math.floor(Number(backendBalanceStr) * 10**decimals));
-                    } else {
-                      backendBalance = BigInt(backendBalanceStr);
-                    }
-                    const minBalance = currentBalance < backendBalance ? currentBalance : backendBalance;
-
-                    // Convert back to decimal for UI
-                    const decimals = tok.decimals ?? 18;
-                    const numeric = parseFloat(ethers.formatUnits(minBalance.toString(), decimals));
-
-                    return {
-                      ...tok,
-                      numericBalance: numeric,
-                      balance: minBalance.toString(),
-                      formattedBalance: Number.isFinite(numeric) ? Number(numeric).toFixed(6) : tok.formattedBalance,
-                      balanceUSD: calculateUSDValue(numeric, tok.symbol)
-                    };
-                  });
-                  // Also include any backend tokens not present in current (e.g., new dust asset symbols)
-                  const currentKeys = new Set(merged.map(t => String((t.address || t.tokenAddress || '').toLowerCase())));
-                   backendList.forEach(b => {
-                    const key = String((b.tokenAddress || '').toLowerCase());
-                    if (!currentKeys.has(key)) {
-                      // Handle new backend balance - convert to wei for consistency
-                      const backendBalance = b.numericBalance || 0;
-                      let numeric, weiBalanceStr;
-
-                      if (typeof backendBalance === 'string' && backendBalance.includes('.')) {
-                        // Backend returned decimal string
-                        numeric = Number(backendBalance);
-                        const decimals = b.decimals ?? 18;
-                        weiBalanceStr = ethers.parseUnits(backendBalance, decimals).toString();
-                      } else if (typeof backendBalance === 'number') {
-                        // Backend returned decimal number
-                        numeric = backendBalance;
-                        const decimals = b.decimals ?? 18;
-                        weiBalanceStr = ethers.parseUnits(backendBalance.toString(), decimals).toString();
+                    updatedBalances = recentSpendable ? current : fromBackend;
+                  } else {
+                    const merged = current.map(tok => {
+                      const key = String((tok.address || tok.tokenAddress || '').toLowerCase());
+                      const b = backendMap.get(key);
+                     if (!b) return tok; // keep current when backend missing
+                      // Compare balances as BigInts for precision
+                      const currentBalance = BigInt(tok.balance || '0');
+                      const backendBalanceStr = String(b.numericBalance || '0');
+                      let backendBalance;
+                      if (backendBalanceStr.includes('.')) {
+                        // Decimal - convert to wei for comparison
+                        const decimals = tok.decimals ?? 18;
+                        backendBalance = BigInt(Math.floor(Number(backendBalanceStr) * 10**decimals));
                       } else {
-                        // Backend returned wei string
-                        const decimals = b.decimals ?? 18;
-                        weiBalanceStr = backendBalance.toString();
-                        try {
-                          numeric = parseFloat(ethers.formatUnits(weiBalanceStr, decimals));
-                        } catch (e) {
-                          console.warn('[useBalances] Failed to parse new backend wei balance, using 0:', weiBalanceStr);
-                          numeric = 0;
-                        }
+                        backendBalance = BigInt(backendBalanceStr);
                       }
+                      const minBalance = currentBalance < backendBalance ? currentBalance : backendBalance;
 
-                      merged.push({
-                        ...b,
-                        address: b.tokenAddress,
-                        tokenAddress: b.tokenAddress,
+                      // Convert back to decimal for UI
+                      const decimals = tok.decimals ?? 18;
+                      const numeric = parseFloat(ethers.formatUnits(minBalance.toString(), decimals));
+
+                      return {
+                        ...tok,
                         numericBalance: numeric,
-                        hasBalance: numeric > 0,
-                        decimals: b.decimals ?? 18,
-                        formattedBalance: Number(numeric).toFixed(6),
-                        balance: weiBalanceStr, // Store as wei string for precision
-                        balanceUSD: calculateUSDValue(numeric, b.symbol)
-                      });
-                    }
-                  });
-                  return recentSpendable ? current : merged;
+                        balance: minBalance.toString(),
+                        formattedBalance: Number.isFinite(numeric) ? Number(numeric).toFixed(6) : tok.formattedBalance,
+                        balanceUSD: calculateUSDValue(numeric, tok.symbol)
+                      };
+                    });
+                    // Also include any backend tokens not present in current (e.g., new dust asset symbols)
+                    const currentKeys = new Set(merged.map(t => String((t.address || t.tokenAddress || '').toLowerCase())));
+                     backendList.forEach(b => {
+                      const key = String((b.tokenAddress || '').toLowerCase());
+                      if (!currentKeys.has(key)) {
+                        // Handle new backend balance - convert to wei for consistency
+                        const backendBalance = b.numericBalance || 0;
+                        let numeric, weiBalanceStr;
+
+                        if (typeof backendBalance === 'string' && backendBalance.includes('.')) {
+                          // Backend returned decimal string
+                          numeric = Number(backendBalance);
+                          const decimals = b.decimals ?? 18;
+                          weiBalanceStr = ethers.parseUnits(backendBalance, decimals).toString();
+                        } else if (typeof backendBalance === 'number') {
+                          // Backend returned decimal number
+                          numeric = backendBalance;
+                          const decimals = b.decimals ?? 18;
+                          weiBalanceStr = ethers.parseUnits(backendBalance.toString(), decimals).toString();
+                        } else {
+                          // Backend returned wei string
+                          const decimals = b.decimals ?? 18;
+                          weiBalanceStr = backendBalance.toString();
+                          try {
+                            numeric = parseFloat(ethers.formatUnits(weiBalanceStr, decimals));
+                          } catch (e) {
+                            console.warn('[useBalances] Failed to parse new backend wei balance, using 0:', weiBalanceStr);
+                            numeric = 0;
+                          }
+                        }
+
+                        merged.push({
+                          ...b,
+                          address: b.tokenAddress,
+                          tokenAddress: b.tokenAddress,
+                          numericBalance: numeric,
+                          hasBalance: numeric > 0,
+                          decimals: b.decimals ?? 18,
+                          formattedBalance: Number(numeric).toFixed(6),
+                          balance: weiBalanceStr, // Store as wei string for precision
+                          balanceUSD: calculateUSDValue(numeric, b.symbol)
+                        });
+                      }
+                    });
+                    updatedBalances = recentSpendable ? current : merged;
+                  }
+
+                  // Store balances for persistence (only if they were updated)
+                  if (!recentSpendable && updatedBalances && updatedBalances.length > 0) {
+                    balancesToPersist = updatedBalances;
+                  }
+
+                  return updatedBalances;
                 });
-                
+
+                // Persist the updated balances to Redis (with wei strings for precision)
+                // This ensures future loads get the correct balances, not corrupted decimal versions
+                if (balancesToPersist) {
+                  console.log('[useBalances] 💾 Persisting updated balances to Redis after transaction confirmation...');
+                  persistPrivateBalancesToWalletMetadata(
+                    currentWalletAddress,
+                    currentWalletId,
+                    balancesToPersist,
+                    currentChainId
+                  ).catch(error => {
+                    console.error('[useBalances] Failed to persist balances after transaction:', error);
+                  });
+                }
+
                 // Also refresh public balances
                 const freshPublicBalances = await fetchPublicBalances();
                 const publicWithUSD = freshPublicBalances.map(token => ({
@@ -1196,8 +1220,8 @@ export function useBalances() {
                   balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
                 }));
                 setPublicBalances(publicWithUSD);
-                
-                console.log('[useBalances] ✅ All balances refreshed after unshield/transfer confirmation');
+
+                console.log('[useBalances] ✅ All balances refreshed and persisted after unshield/transfer confirmation');
               }
             } else {
               const errorText = await response.text();
