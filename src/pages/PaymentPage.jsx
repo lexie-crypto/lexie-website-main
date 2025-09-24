@@ -364,20 +364,33 @@ const PaymentPage = () => {
 
       // Determine gas type and preliminary gas details (to discover spender address)
       const evmGasType = getEVMGasTypeForTransaction(railgunNetwork, true);
-      const feeData = await provider.getFeeData();
+      let feeData;
+      try {
+        feeData = await provider.getFeeData();
+      } catch (feeError) {
+        console.warn('[PaymentPage] getFeeData failed, using fallback values:', feeError.message);
+        // Fallback for networks that don't support EIP-1559
+        feeData = {
+          gasPrice: BigInt('20000000000'), // 20 gwei fallback
+          maxFeePerGas: undefined,
+          maxPriorityFeePerGas: undefined
+        };
+      }
+
       let prelimGasDetails;
-      if (evmGasType === EVMGasType.Type2) {
+      if (evmGasType === EVMGasType.Type2 && feeData.maxFeePerGas) {
         prelimGasDetails = {
           evmGasType,
           gasEstimate: BigInt(300000),
-          maxFeePerGas: feeData.maxFeePerGas || BigInt('1000000'),
-          maxPriorityFeePerGas: feeData.maxPriorityFeePerGas || BigInt('100000'),
+          maxFeePerGas: feeData.maxFeePerGas,
+          maxPriorityFeePerGas: feeData.maxPriorityFeePerGas || BigInt('2000000000'), // 2 gwei priority
         };
       } else {
+        // Fallback to legacy gas pricing
         prelimGasDetails = {
-          evmGasType,
+          evmGasType: EVMGasType.Type0, // Force legacy gas type
           gasEstimate: BigInt(300000),
-          gasPrice: feeData.gasPrice || BigInt('1000000'),
+          gasPrice: feeData.gasPrice || BigInt('20000000000'), // 20 gwei fallback
         };
       }
 
@@ -454,20 +467,28 @@ const PaymentPage = () => {
       }
 
       // Final gas details
-      const refreshedFee = await provider.getFeeData();
+      let refreshedFee;
+      try {
+        refreshedFee = await provider.getFeeData();
+      } catch (feeError) {
+        console.warn('[PaymentPage] Final getFeeData failed, using previous values:', feeError.message);
+        refreshedFee = feeData;
+      }
+
       let gasDetails;
-      if (evmGasType === EVMGasType.Type2) {
+      if (evmGasType === EVMGasType.Type2 && refreshedFee.maxFeePerGas) {
         gasDetails = {
           evmGasType,
           gasEstimate,
-          maxFeePerGas: refreshedFee.maxFeePerGas || feeData.maxFeePerGas || BigInt('1000000'),
-          maxPriorityFeePerGas: refreshedFee.maxPriorityFeePerGas || feeData.maxPriorityFeePerGas || BigInt('100000'),
+          maxFeePerGas: refreshedFee.maxFeePerGas,
+          maxPriorityFeePerGas: refreshedFee.maxPriorityFeePerGas || BigInt('2000000000'), // 2 gwei priority
         };
       } else {
+        // Fallback to legacy gas pricing
         gasDetails = {
-          evmGasType,
+          evmGasType: EVMGasType.Type0, // Force legacy gas type
           gasEstimate,
-          gasPrice: refreshedFee.gasPrice || feeData.gasPrice || BigInt('1000000'),
+          gasPrice: refreshedFee.gasPrice || feeData.gasPrice || BigInt('20000000000'), // 20 gwei fallback
         };
       }
 
