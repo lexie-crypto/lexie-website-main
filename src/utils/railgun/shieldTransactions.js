@@ -367,7 +367,7 @@ export const buildBaseTokenShieldGasAndEstimate = async ({
 
     // Get gas prices from the simple estimation
     const gasPrices = await fetchGasPricesFromRPC(chainId);
-    const evmGasType = EVMGasType.Type2; // Most networks use EIP-1559
+    const evmGasType = getEVMGasTypeForTransaction(networkName, true); // Use correct gas type for self-signing
 
     // For SDK population, use a conservative gas estimate (not the hardcoded 1M from simple estimation)
     const sdkGasEstimate = 1200000n; // Conservative base token shield gas estimate
@@ -449,7 +449,7 @@ export const buildShieldGasAndEstimate = async ({
 
     // Get gas prices from the simple estimation
     const gasPrices = await fetchGasPricesFromRPC(chainId);
-    const evmGasType = EVMGasType.Type2; // Most networks use EIP-1559
+    const evmGasType = getEVMGasTypeForTransaction(networkName, true); // Use correct gas type for self-signing
 
     // For SDK population, use a conservative gas estimate (not the hardcoded 1M from simple estimation)
     const sdkGasEstimate = 1000000n; // Conservative ERC20 shield gas estimate
