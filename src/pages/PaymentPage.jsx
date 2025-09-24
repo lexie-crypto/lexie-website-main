@@ -22,7 +22,7 @@ import InjectedProviderButtons from '../components/InjectedProviderButtons.jsx';
 import { assertNotSanctioned } from '../utils/sanctions/chainalysis-oracle';
 import { isTokenSupportedByRailgun } from '../utils/railgun/actions';
 import { TXIDVersion, EVMGasType, NetworkName, getEVMGasTypeForTransaction } from '@railgun-community/shared-models';
-import { gasEstimateForShield, populateShield } from '@railgun-community/wallet';
+import { gasEstimateForShield, populateShield, populateShieldBaseToken } from '@railgun-community/wallet';
 import { Contract, parseUnits } from 'ethers';
 import { fetchTokenPrices } from '../utils/pricing/coinGecko';
 
@@ -382,14 +382,41 @@ const PaymentPage = () => {
       }
 
       // Build a preliminary shield tx to get the RAILGUN shield contract (spender)
-      const { transaction: prelimTx } = await populateShield(
-        TXIDVersion.V2_PoseidonMerkle,
-        railgunNetwork,
-        shieldPrivateKey,
-        erc20AmountRecipients,
-        [],
-        prelimGasDetails,
-      );
+      let prelimTx;
+      if (!selectedToken.address) {
+        // Native token - use populateShieldBaseToken
+        const wrappedTokenAddress = {
+          1: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', // WETH
+          137: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', // WMATIC
+          42161: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1', // WETH
+          56: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', // WBNB
+        }[chainId];
+
+        if (!wrappedTokenAddress) {
+          throw new Error(`Unsupported chain for native token shielding: ${chainId}`);
+        }
+
+        const result = await populateShieldBaseToken(
+          TXIDVersion.V2_PoseidonMerkle,
+          railgunNetwork,
+          resolvedRecipientAddress,
+          shieldPrivateKey,
+          { tokenAddress: wrappedTokenAddress, amount: weiAmount },
+          prelimGasDetails,
+        );
+        prelimTx = result.transaction;
+      } else {
+        // ERC-20 token - use populateShield
+        const result = await populateShield(
+          TXIDVersion.V2_PoseidonMerkle,
+          railgunNetwork,
+          shieldPrivateKey,
+          erc20AmountRecipients,
+          [],
+          prelimGasDetails,
+        );
+        prelimTx = result.transaction;
+      }
       const spender = prelimTx.to;
       if (!spender) throw new Error('Failed to resolve Railgun shield contract address');
 
@@ -437,14 +464,37 @@ const PaymentPage = () => {
       }
 
       // Build final shield transaction
-      const { transaction } = await populateShield(
-        TXIDVersion.V2_PoseidonMerkle,
-        railgunNetwork,
-        shieldPrivateKey,
-        erc20AmountRecipients,
-        [],
-        gasDetails,
-      );
+      let transaction;
+      if (!selectedToken.address) {
+        // Native token - use populateShieldBaseToken
+        const wrappedTokenAddress = {
+          1: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', // WETH
+          137: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', // WMATIC
+          42161: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1', // WETH
+          56: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', // WBNB
+        }[chainId];
+
+        const result = await populateShieldBaseToken(
+          TXIDVersion.V2_PoseidonMerkle,
+          railgunNetwork,
+          resolvedRecipientAddress,
+          shieldPrivateKey,
+          { tokenAddress: wrappedTokenAddress, amount: weiAmount },
+          gasDetails,
+        );
+        transaction = result.transaction;
+      } else {
+        // ERC-20 token - use populateShield
+        const result = await populateShield(
+          TXIDVersion.V2_PoseidonMerkle,
+          railgunNetwork,
+          shieldPrivateKey,
+          erc20AmountRecipients,
+          [],
+          gasDetails,
+        );
+        transaction = result.transaction;
+      }
       transaction.from = payerEOA;
 
       // Send from payer's EOA
