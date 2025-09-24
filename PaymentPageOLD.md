@@ -55,50 +55,6 @@ const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
   ), { duration: type === 'error' ? 4000 : 2500, ...opts });
 };
 
-// Calculate USD value for a balance (similar to useBalances hook)
-const calculateUSDValue = (numericBalance, symbol, prices) => {
-  // Resolve common wrapper/alias symbols to their base asset prices if needed
-  const aliasMap = {
-    WETH: 'ETH',
-    WMATIC: 'MATIC',
-    WBNB: 'BNB',
-  };
-  const resolvedSymbol = prices[symbol] != null ? symbol : (aliasMap[symbol] || symbol);
-  const price = prices[resolvedSymbol];
-  if (price && typeof price === 'number' && numericBalance > 0) {
-    return (numericBalance * price).toFixed(2);
-  }
-  return undefined;
-};
-
-// Format balance similar to useBalances hook
-const formatBalance = (balance, decimals = 2) => {
-  if (typeof balance !== 'number') return '0.00';
-  if (balance === 0) return '0.00';
-  if (balance < 0.001) return '<0.001';
-  if (balance < 1) return balance.toFixed(Math.min(decimals + 2, 6));
-  return balance.toLocaleString(undefined, {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
-};
-
-// Get read-only RPC provider for balance fetching
-const getRpcProvider = (chainId) => {
-  const rpcUrls = {
-    1: RPC_URLS.ethereum,
-    42161: RPC_URLS.arbitrum,
-    137: RPC_URLS.polygon,
-    56: RPC_URLS.bsc,
-  };
-
-  const rpcUrl = rpcUrls[chainId];
-  if (!rpcUrl) {
-    throw new Error(`No RPC URL configured for chain ${chainId}`);
-  }
-  return new JsonRpcProvider(rpcUrl);
-};
-
 const PaymentPage = () => {
   const [searchParams] = useSearchParams();
   const toParam = searchParams.get('to');
@@ -122,7 +78,6 @@ const PaymentPage = () => {
   const [publicBalances, setPublicBalances] = useState([]);
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
   const [isTokenMenuOpen, setIsTokenMenuOpen] = useState(false);
-  const [tokenPrices, setTokenPrices] = useState({});
   const tokenMenuRef = useRef(null);
 
   // Parse target chain ID
@@ -162,20 +117,11 @@ const PaymentPage = () => {
         // Ensure light Railgun engine is up (no wallet init)
         await ensureEngineForShield().catch(() => {});
 
-        // Fetch token prices first
-        const symbols = ['ETH', 'USDC', 'USDT', 'DAI', 'MATIC', 'BNB', 'WETH', 'WMATIC', 'WBNB'];
-        let prices = {};
-        try {
-          prices = await fetchTokenPrices(symbols);
-          setTokenPrices(prices);
-        } catch (priceError) {
-          console.warn('[PaymentPage] Failed to fetch token prices:', priceError);
-        }
-
-        // Use read-only RPC provider for balance fetching
-        const providerInstance = getRpcProvider(chainId);
+        // Use ethers to get balances directly
+        const provider = await walletProvider();
+        const providerInstance = provider.provider;
         const ethersLib = await import('ethers');
-
+        
         // Common tokens per chain
         const commonTokens = {
           1: [ // Ethereum
@@ -193,6 +139,8 @@ const PaymentPage = () => {
             { symbol: 'ETH', address: null, name: 'Ethereum', decimals: 18 },
             // Native USDC
             { symbol: 'USDC', address: '0xaf88d065e77c8cc2239327c5edb3a432268e5831', name: 'USD Coin', decimals: 6 },
+            // Bridged USDC.e
+            { symbol: 'USDC.e', address: '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8', name: 'USD Coin (USDC.e)', decimals: 6 },
             { symbol: 'USDT', address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', name: 'Tether USD', decimals: 6 },
           ],
           56: [ // BNB Chain
@@ -224,12 +172,10 @@ const PaymentPage = () => {
                 balance = erc20Bal.toString();
               }
               const numericBalance = Number(ethersLib.formatUnits(balance, token.decimals));
-              const balanceUSD = calculateUSDValue(numericBalance, token.symbol, prices);
               return {
                 ...token,
                 numericBalance: Number(numericBalance.toFixed(6)),
                 hasBalance: Number(numericBalance) > 0,
-                balanceUSD,
               };
             } catch (error) {
               console.warn(`Failed to get balance for ${token.symbol}:`, error);
@@ -237,7 +183,6 @@ const PaymentPage = () => {
                 ...token,
                 numericBalance: 0,
                 hasBalance: false,
-                balanceUSD: undefined,
               };
             }
           })
@@ -246,19 +191,24 @@ const PaymentPage = () => {
         setPublicBalances(
           balancesWithData
             .filter(token => isTokenSupportedByRailgun(token.address, chainId))
+            // Prefer native USDC over USDC.e when both present
+            .filter((t, idx, arr) => {
+              if (chainId !== 42161) return true;
+              if (t.symbol !== 'USDC.e') return true;
+              const hasNativeUSDC = arr.some(x => x.symbol === 'USDC');
+              return !hasNativeUSDC;
+            })
         );
       } catch (error) {
         console.error('Failed to fetch balances:', error);
         // Fallback to basic token structure
-        const fallbackSymbol = networks[chainId]?.symbol || 'ETH';
         setPublicBalances([
-          {
-            symbol: fallbackSymbol,
-            address: null,
+          { 
+            symbol: networks[chainId]?.symbol || 'ETH', 
+            address: null, 
             name: networks[chainId]?.name || 'Ethereum',
             numericBalance: 0,
             decimals: 18,
-            balanceUSD: undefined,
           }
         ]);
       } finally {
@@ -671,7 +621,7 @@ const PaymentPage = () => {
                     >
                       <span>
                         {selectedToken
-                          ? `${selectedToken.symbol} - ${formatBalance(selectedToken.numericBalance)} available${selectedToken.balanceUSD !== undefined ? ` ($${typeof selectedToken.balanceUSD === 'string' && selectedToken.balanceUSD.startsWith('$') ? selectedToken.balanceUSD.substring(1) : selectedToken.balanceUSD})` : ''}`
+                          ? `${selectedToken.symbol} - ${selectedToken.numericBalance} available`
                           : isLoadingBalances
                             ? 'Loading tokens...'
                             : 'Select token'}
@@ -687,12 +637,7 @@ const PaymentPage = () => {
                             onClick={() => { setSelectedToken(token); setIsTokenMenuOpen(false); }}
                             className="w-full text-left px-3 py-2 hover:bg-emerald-900/30 focus:bg-emerald-900/30 focus:outline-none"
                           >
-                            {token.symbol} - {formatBalance(token.numericBalance)} available
-                            {token.balanceUSD !== undefined && (
-                              <span className="text-green-400/70">
-                                {' '}(${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD})
-                              </span>
-                            )}
+                            {token.symbol} - {token.numericBalance} available
                           </button>
                         ))}
                       </div>
@@ -729,12 +674,7 @@ const PaymentPage = () => {
                   </div>
                   {selectedToken && (
                     <p className="mt-1 text-sm text-green-400/70">
-                      Available: {formatBalance(selectedToken.numericBalance)} {selectedToken.symbol}
-                      {selectedToken.balanceUSD !== undefined && (
-                        <span className="ml-2">
-                          (${typeof selectedToken.balanceUSD === 'string' && selectedToken.balanceUSD.startsWith('$') ? selectedToken.balanceUSD.substring(1) : selectedToken.balanceUSD})
-                        </span>
-                      )}
+                      Available: {selectedToken.numericBalance} {selectedToken.symbol}
                     </p>
                   )}
                 </div>
