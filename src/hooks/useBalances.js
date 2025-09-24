@@ -915,13 +915,26 @@ export function useBalances() {
       console.log('[useBalances] 🛡️ Railgun wallet ready - triggering SDK balance refresh (like refresh button)...');
       setIsPrivateBalancesLoading(true);
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
-      // Use the same SDK refresh logic as the refresh button for accurate balances
-      refreshAllBalances().finally(() => {
-        setIsPrivateBalancesLoading(false);
-        try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
-      });
+
+      // Use the same SDK refresh + persist logic as the refresh button
+      (async () => {
+        try {
+          const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
+          await syncBalancesAfterTransaction({
+            walletAddress: address,
+            walletId: railgunWalletId,
+            chainId,
+          });
+          console.log('[useBalances] ✅ SDK balance refresh completed on wallet connect');
+        } catch (error) {
+          console.error('[useBalances] ❌ SDK balance refresh failed on wallet connect:', error.message);
+        } finally {
+          setIsPrivateBalancesLoading(false);
+          try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
+        }
+      })();
     }
-  }, [railgunWalletId, address, isRailgunInitialized, chainId, refreshAllBalances]);
+  }, [railgunWalletId, address, isRailgunInitialized, chainId]);
 
   // Listen for Railgun SDK balance updates (real-time balance updates from SDK callbacks)
   useEffect(() => {
