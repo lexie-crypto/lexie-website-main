@@ -21,7 +21,7 @@ import InjectedProviderButtons from '../components/InjectedProviderButtons.jsx';
 // Client-only shield flow (avoid initializing recipient vault)
 import { assertNotSanctioned } from '../utils/sanctions/chainalysis-oracle';
 import { isTokenSupportedByRailgun } from '../utils/railgun/actions';
-import { TXIDVersion, EVMGasType, NetworkName, getEVMGasTypeForTransaction } from '@railgun-community/shared-models';
+import { TXIDVersion, EVMGasType, NetworkName } from '@railgun-community/shared-models';
 import { gasEstimateForShield, populateShield, populateShieldBaseToken } from '@railgun-community/wallet';
 import { Contract, parseUnits } from 'ethers';
 import { fetchTokenPrices } from '../utils/pricing/coinGecko';
@@ -363,36 +363,12 @@ const PaymentPage = () => {
       const shieldPrivateKey = getRandomHex32();
 
       // Determine gas type and preliminary gas details (to discover spender address)
-      const evmGasType = getEVMGasTypeForTransaction(railgunNetwork, true);
-      let feeData;
-      try {
-        feeData = await provider.getFeeData();
-      } catch (feeError) {
-        console.warn('[PaymentPage] getFeeData failed, using fallback values:', feeError.message);
-        // Fallback for networks that don't support EIP-1559
-        feeData = {
-          gasPrice: BigInt('20000000000'), // 20 gwei fallback
-          maxFeePerGas: undefined,
-          maxPriorityFeePerGas: undefined
-        };
-      }
-
-      let prelimGasDetails;
-      if (evmGasType === EVMGasType.Type2 && feeData.maxFeePerGas) {
-        prelimGasDetails = {
-          evmGasType,
-          gasEstimate: BigInt(300000),
-          maxFeePerGas: feeData.maxFeePerGas,
-          maxPriorityFeePerGas: feeData.maxPriorityFeePerGas || BigInt('2000000000'), // 2 gwei priority
-        };
-      } else {
-        // Fallback to legacy gas pricing
-        prelimGasDetails = {
-          evmGasType: EVMGasType.Type0, // Force legacy gas type
-          gasEstimate: BigInt(300000),
-          gasPrice: feeData.gasPrice || BigInt('20000000000'), // 20 gwei fallback
-        };
-      }
+      // Force legacy gas pricing for all networks to avoid EIP-1559 compatibility issues
+      const prelimGasDetails = {
+        evmGasType: EVMGasType.Type0, // Always use legacy gas type
+        gasEstimate: BigInt(300000),
+        gasPrice: BigInt('20000000000'), // 20 gwei - reasonable for most networks
+      };
 
       // Build a preliminary shield tx to get the RAILGUN shield contract (spender)
       let prelimTx;
@@ -466,31 +442,12 @@ const PaymentPage = () => {
         gasEstimate = gasResult.gasEstimate;
       }
 
-      // Final gas details
-      let refreshedFee;
-      try {
-        refreshedFee = await provider.getFeeData();
-      } catch (feeError) {
-        console.warn('[PaymentPage] Final getFeeData failed, using previous values:', feeError.message);
-        refreshedFee = feeData;
-      }
-
-      let gasDetails;
-      if (evmGasType === EVMGasType.Type2 && refreshedFee.maxFeePerGas) {
-        gasDetails = {
-          evmGasType,
-          gasEstimate,
-          maxFeePerGas: refreshedFee.maxFeePerGas,
-          maxPriorityFeePerGas: refreshedFee.maxPriorityFeePerGas || BigInt('2000000000'), // 2 gwei priority
-        };
-      } else {
-        // Fallback to legacy gas pricing
-        gasDetails = {
-          evmGasType: EVMGasType.Type0, // Force legacy gas type
-          gasEstimate,
-          gasPrice: refreshedFee.gasPrice || feeData.gasPrice || BigInt('20000000000'), // 20 gwei fallback
-        };
-      }
+      // Final gas details - use legacy gas pricing for all networks
+      const gasDetails = {
+        evmGasType: EVMGasType.Type0, // Always use legacy gas type
+        gasEstimate,
+        gasPrice: BigInt('20000000000'), // 20 gwei - reasonable for most networks
+      };
 
       // Build final shield transaction
       let transaction;
