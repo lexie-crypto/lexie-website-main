@@ -8,9 +8,11 @@ export function Navbar({ variant = 'website' }) {
     if (variant === 'chat') {
       return (
         <div className="hidden md:flex space-x-6">
-          <a href="/" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Home</a>
-          <a href="/chat" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Chat</a>
-          <a href="/docs" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Docs</a>
+          <a href="/" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Features</a>
+          <a href="/chat" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Security</a>
+          <a href="/docs" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Beta</a>
+          <a href="/lexievault" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">LexieVault</a>
+          <a href="https://chatroom.lexiecrypto.com" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">LexieChat</a>
         </div>
       );
     }
@@ -20,6 +22,8 @@ export function Navbar({ variant = 'website' }) {
         <a href="#features" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Features</a>
         <a href="#security" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Security</a>
         <a href="#beta" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Beta</a>
+        <a href="/lexievault" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">LexieVault</a>
+        <a href="https://chatroom.lexiecrypto.com" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">LexieChat</a>
       </div>
     );
   };
