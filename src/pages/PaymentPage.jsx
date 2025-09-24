@@ -23,8 +23,9 @@ import { assertNotSanctioned } from '../utils/sanctions/chainalysis-oracle';
 import { isTokenSupportedByRailgun } from '../utils/railgun/actions';
 import { TXIDVersion, EVMGasType, NetworkName, getEVMGasTypeForTransaction } from '@railgun-community/shared-models';
 import { gasEstimateForShield, populateShield } from '@railgun-community/wallet';
-import { Contract, parseUnits } from 'ethers';
+import { Contract, parseUnits, JsonRpcProvider } from 'ethers';
 import { fetchTokenPrices } from '../utils/pricing/coinGecko';
+import { RPC_URLS } from '../config/environment';
 
 // Terminal-themed toast helper (matches tx-unshield.js and PrivacyActions.jsx)
 const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
