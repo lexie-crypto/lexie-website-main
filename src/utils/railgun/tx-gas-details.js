@@ -479,7 +479,7 @@ export const computeGasReclamationWei = (gasDetails) => {
         : gasDetails.maxFeePerGas; // Conservative: use maxFeePerGas on EIP-1559
 
     const baseCost = gasLimit * price; // Base wei cost
-    const reclamationCost = (baseCost * 120n) / 100n; // Add 20% multiplier for fee reclamation
+    const reclamationCost = (baseCost * 110n) / 100n; // Add 20% multiplier for fee reclamation
 
     console.log('[GasDetails] Computed gas reclamation with 20% multiplier:', {
       gasLimit: gasLimit.toString(),
