@@ -22,7 +22,7 @@ import InjectedProviderButtons from '../components/InjectedProviderButtons.jsx';
 import { assertNotSanctioned } from '../utils/sanctions/chainalysis-oracle';
 import { isTokenSupportedByRailgun } from '../utils/railgun/actions';
 import { TXIDVersion, EVMGasType, NetworkName, getEVMGasTypeForTransaction } from '@railgun-community/shared-models';
-import { gasEstimateForShield, populateShield, populateShieldBaseToken } from '@railgun-community/wallet';
+import { populateShield, populateShieldBaseToken } from '@railgun-community/wallet';
 import { Contract, parseUnits } from 'ethers';
 import { fetchTokenPrices } from '../utils/pricing/coinGecko';
 
@@ -367,18 +367,18 @@ const PaymentPage = () => {
 
       let prelimGasDetails;
       if (evmGasType === EVMGasType.Type2) {
-        // EIP-1559 networks (Arbitrum)
+        // EIP-1559 networks (Arbitrum) - use same limits as shieldTransactions.js
         prelimGasDetails = {
           evmGasType,
-          gasEstimate: BigInt(300000),
-          maxFeePerGas: BigInt('100000000'), // 100 gwei
-          maxPriorityFeePerGas: BigInt('2000000'), // 2 gwei priority
+          gasEstimate: BigInt(1200000), // 1.2M gas (same as base token shield in shieldTransactions.js)
+          maxFeePerGas: BigInt('200000000'), // 200 gwei (higher for L2)
+          maxPriorityFeePerGas: BigInt('1000000'), // 1 gwei priority
         };
       } else {
         // Legacy networks (Ethereum, Polygon, BNB Chain)
         prelimGasDetails = {
           evmGasType: EVMGasType.Type0,
-          gasEstimate: BigInt(300000),
+          gasEstimate: BigInt(1000000), // 1M gas (same as ERC-20 shield in shieldTransactions.js)
           gasPrice: BigInt('20000000000'), // 20 gwei
         };
       }
@@ -437,39 +437,34 @@ const PaymentPage = () => {
         }
       }
 
-      // Final gas estimate for shield
+      // Final gas estimate for shield - use same logic as shieldTransactions.js
       let gasEstimate;
       if (!selectedToken.address) {
-        // For native tokens, use a simpler gas estimate since gasEstimateForShield doesn't work
-        gasEstimate = BigInt(150000); // Conservative estimate for base token shielding
+        // For native tokens, use same base estimate as shieldTransactions.js base token shields
+        gasEstimate = BigInt(1200000); // 1.2M gas (same as shieldTransactions.js)
       } else {
-        // For ERC-20 tokens, use the standard gas estimation
-        const gasResult = await gasEstimateForShield(
-          TXIDVersion.V2_PoseidonMerkle,
-          railgunNetwork,
-          shieldPrivateKey,
-          erc20AmountRecipients,
-          [],
-          payerEOA,
-        );
-        gasEstimate = gasResult.gasEstimate;
+        // For ERC-20 tokens, use same base estimate as shieldTransactions.js ERC-20 shields
+        gasEstimate = BigInt(1000000); // 1M gas (same as shieldTransactions.js)
       }
 
-      // Final gas details
+      // Apply 20% padding for safety (same as shieldTransactions.js)
+      const paddedGasEstimate = (gasEstimate * 120n) / 100n;
+
+      // Final gas details - use same structure as shieldTransactions.js
       let gasDetails;
       if (evmGasType === EVMGasType.Type2) {
         // EIP-1559 networks (Arbitrum)
         gasDetails = {
           evmGasType,
-          gasEstimate,
-          maxFeePerGas: BigInt('100000000'), // 100 gwei
-          maxPriorityFeePerGas: BigInt('2000000'), // 2 gwei priority
+          gasEstimate: paddedGasEstimate,
+          maxFeePerGas: BigInt('200000000'), // 200 gwei (higher for L2)
+          maxPriorityFeePerGas: BigInt('1000000'), // 1 gwei priority
         };
       } else {
         // Legacy networks (Ethereum, Polygon, BNB Chain)
         gasDetails = {
           evmGasType: EVMGasType.Type0,
-          gasEstimate,
+          gasEstimate: paddedGasEstimate,
           gasPrice: BigInt('20000000000'), // 20 gwei
         };
       }
