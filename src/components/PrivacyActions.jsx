@@ -964,7 +964,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div className="h-3 w-3 rounded-full bg-red-400" />
                 <div>
                   <div className="text-sm">Failed to add {amount} {selectedToken?.symbol || 'token'} to your vault</div>
-                  <div className="text-xs text-green-400/80">{error.message || 'Please try again'}</div>
+                  <div className="text-xs text-green-400/80">Network error. Please retry your transaction</div>
                 </div>
               </div>
             </div>
