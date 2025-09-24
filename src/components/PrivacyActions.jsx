@@ -512,11 +512,11 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     };
   }, [amount, selectedToken, isValidAmount, activeTab, gasFeeData]);
 
-  // Calculate max amount for Max button (shows full available balance, fees shown in UI)
+  // Calculate max amount for Max button (returns full available balance)
   const calculateMaxAmount = useCallback(() => {
     if (!selectedToken) return '0';
 
-    // Return full available balance - fees will be shown in the UI and net amount used for submission
+    // Return full available balance - backend handles fee deductions
     return selectedToken.numericBalance.toString();
   }, [selectedToken]);
 
@@ -612,9 +612,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       // Get encryption key
       const encryptionKey = await getEncryptionKey();
 
-      // Determine actual amount to use (net amount if Max was clicked showing full balance)
-      const actualAmount = (parseFloat(amount) === selectedToken.numericBalance && feeInfo) ?
-        feeInfo.netAmount : amount;
+      // Use the entered amount directly - backend handles fee deductions
+      const actualAmount = amount;
 
       // Parse amount to base units
       const amountInUnits = parseTokenAmount(actualAmount, selectedToken.decimals);
@@ -1011,9 +1010,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       // Get encryption key
       const encryptionKey = await getEncryptionKey();
 
-      // Determine actual amount to use (net amount if Max was clicked showing full balance)
-      const actualAmount = (parseFloat(amount) === selectedToken.numericBalance && feeInfo) ?
-        feeInfo.netAmount : amount;
+      // Use the entered amount directly - backend handles fee deductions
+      const actualAmount = amount;
 
       // Parse amount to base units
       const amountInUnits = parseTokenAmount(actualAmount, selectedToken.decimals);
@@ -1350,9 +1348,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
       const encryptionKey = await getEncryptionKey();
 
-      // Determine actual amount to use (net amount if Max was clicked showing full balance)
-      const actualAmount = (parseFloat(amount) === selectedToken.numericBalance && feeInfo) ?
-        feeInfo.netAmount : amount;
+      // Use the entered amount directly - backend handles fee deductions
+      const actualAmount = amount;
 
       const amountInUnits = parseTokenAmount(actualAmount, selectedToken.decimals);
       const tokenAddr = getTokenAddress(selectedToken);
@@ -1910,7 +1907,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               <button
                 type="button"
                 onClick={() => {
-                  // Set the calculated max amount accounting for fees
+                  // Set the full available balance - backend handles fee deductions
                   setAmount(calculateMaxAmount());
                 }}
                 className="absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded hover:bg-green-900/20"
