@@ -479,7 +479,7 @@ export const computeGasReclamationWei = (gasDetails) => {
         : gasDetails.maxFeePerGas; // Conservative: use maxFeePerGas on EIP-1559
 
     const baseCost = gasLimit * price; // Base wei cost
-    const reclamationCost = (baseCost * 110n) / 100n; // Add 20% multiplier for fee reclamation
+    const reclamationCost = (baseCost * 120n) / 100n; // Add 20% multiplier for fee reclamation
 
     console.log('[GasDetails] Computed gas reclamation with 20% multiplier:', {
       gasLimit: gasLimit.toString(),
@@ -523,7 +523,7 @@ export const estimateGasForTransaction = async ({
     });
 
     // Use hardcoded gas limit instead of SDK dummy transactions
-    const gasLimit = 1000000n; // 1M gas limit
+    const gasLimit = 1200000n; // 1.2M gas limit
 
     // Get current gas prices from RPC provider
     const gasPrices = await fetchGasPricesFromRPC(chainId);
@@ -581,10 +581,10 @@ export const estimateGasForTransaction = async ({
     // Return fallback estimates
     const fallbackToken = { 1: 'ETH', 137: 'MATIC', 56: 'BNB', 42161: 'ETH' }[chainId] || 'ETH';
     return {
-      gasCostUSD: '0.10',
+      gasCostUSD: '0.12',
       gasCostNative: '0.00004167',
       nativeGasToken: fallbackToken,
-      gasEstimate: '1000000',
+      gasEstimate: '1200000',
       evmGasType: EVMGasType.Type2,
       error: error.message
     };
