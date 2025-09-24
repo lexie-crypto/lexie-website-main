@@ -364,6 +364,11 @@ const PaymentPage = () => {
       // Parse amount to base units
       const weiAmount = parseUnits(amount, selectedToken.decimals);
 
+      // Validate recipient address
+      if (!resolvedRecipientAddress) {
+        throw new Error('Recipient address not resolved. Please check the payment link.');
+      }
+
       // Prepare recipients (use resolved Railgun address)
       const erc20AmountRecipients = [
         { tokenAddress: selectedToken.address, amount: weiAmount, recipientAddress: resolvedRecipientAddress },
@@ -379,13 +384,20 @@ const PaymentPage = () => {
 
       // Determine gas type and preliminary gas details (to discover spender address)
       const evmGasType = getEVMGasTypeForTransaction(railgunNetwork, true);
-      const feeData = await provider.getFeeData();
+      let feeData;
+      try {
+        feeData = await provider.getFeeData();
+      } catch (feeError) {
+        console.warn('[PaymentPage] Failed to get fee data, using defaults:', feeError.message);
+        feeData = { gasPrice: BigInt('1000000') };
+      }
+
       let prelimGasDetails;
       if (evmGasType === EVMGasType.Type2) {
         prelimGasDetails = {
           evmGasType,
           gasEstimate: BigInt(300000),
-          maxFeePerGas: feeData.maxFeePerGas || BigInt('1000000'),
+          maxFeePerGas: feeData.maxFeePerGas || feeData.gasPrice || BigInt('1000000'),
           maxPriorityFeePerGas: feeData.maxPriorityFeePerGas || BigInt('100000'),
         };
       } else {
@@ -408,17 +420,19 @@ const PaymentPage = () => {
       const spender = prelimTx.to;
       if (!spender) throw new Error('Failed to resolve Railgun shield contract address');
 
-      // Ensure ERC-20 allowance
-      const erc20Abi = [
-        'function allowance(address owner,address spender) view returns (uint256)',
-        'function approve(address spender,uint256 amount) returns (bool)',
-      ];
-      const erc20 = new Contract(selectedToken.address, erc20Abi, signer);
-      const currentAllowance = await erc20.allowance(payerEOA, spender);
-      if (currentAllowance < weiAmount) {
-        showTerminalToast('info', 'Approval Required', 'Please sign the token approval in your wallet to allow the deposit', { duration: 4000 });
-        const approveTx = await erc20.approve(spender, weiAmount);
-        await approveTx.wait();
+      // Ensure ERC-20 allowance (skip for native tokens)
+      if (selectedToken.address) {
+        const erc20Abi = [
+          'function allowance(address owner,address spender) view returns (uint256)',
+          'function approve(address spender,uint256 amount) returns (bool)',
+        ];
+        const erc20 = new Contract(selectedToken.address, erc20Abi, signer);
+        const currentAllowance = await erc20.allowance(payerEOA, spender);
+        if (currentAllowance < weiAmount) {
+          showTerminalToast('info', 'Approval Required', 'Please sign the token approval in your wallet to allow the deposit', { duration: 4000 });
+          const approveTx = await erc20.approve(spender, weiAmount);
+          await approveTx.wait();
+        }
       }
 
       // Final gas estimate for shield
@@ -432,7 +446,14 @@ const PaymentPage = () => {
       );
 
       // Final gas details
-      const refreshedFee = await provider.getFeeData();
+      let refreshedFee;
+      try {
+        refreshedFee = await provider.getFeeData();
+      } catch (feeError) {
+        console.warn('[PaymentPage] Failed to get refreshed fee data, using previous values:', feeError.message);
+        refreshedFee = feeData;
+      }
+
       let gasDetails;
       if (evmGasType === EVMGasType.Type2) {
         gasDetails = {
