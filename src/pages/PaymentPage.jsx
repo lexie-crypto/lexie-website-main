@@ -24,6 +24,7 @@ import { isTokenSupportedByRailgun } from '../utils/railgun/actions';
 import { TXIDVersion, EVMGasType, NetworkName, getEVMGasTypeForTransaction } from '@railgun-community/shared-models';
 import { gasEstimateForShield, populateShield } from '@railgun-community/wallet';
 import { Contract, parseUnits } from 'ethers';
+import { fetchTokenPrices } from '../utils/pricing/coinGecko';
 
 // Terminal-themed toast helper (matches tx-unshield.js and PrivacyActions.jsx)
 const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
@@ -83,21 +84,6 @@ const formatBalance = (balance, decimals = 2) => {
   });
 };
 
-// Get read-only RPC provider for balance fetching
-const getRpcProvider = (chainId) => {
-  const rpcUrls = {
-    1: RPC_URLS.ethereum,
-    42161: RPC_URLS.arbitrum,
-    137: RPC_URLS.polygon,
-    56: RPC_URLS.bsc,
-  };
-
-  const rpcUrl = rpcUrls[chainId];
-  if (!rpcUrl) {
-    throw new Error(`No RPC URL configured for chain ${chainId}`);
-  }
-  return new JsonRpcProvider(rpcUrl);
-};
 
 const PaymentPage = () => {
   const [searchParams] = useSearchParams();
@@ -172,8 +158,9 @@ const PaymentPage = () => {
           console.warn('[PaymentPage] Failed to fetch token prices:', priceError);
         }
 
-        // Use read-only RPC provider for balance fetching
-        const providerInstance = getRpcProvider(chainId);
+        // Use ethers to get balances directly
+        const provider = await walletProvider();
+        const providerInstance = provider.provider;
         const ethersLib = await import('ethers');
 
         // Common tokens per chain
