@@ -911,8 +911,7 @@ export const unshieldTokens = async ({
       gasFeeDeducted = await calculateGasReclamationERC20(
         selectedRelayer.feeToken,
         chain.id,
-        tokenPrices,
-        walletProvider
+        tokenPrices
       );
 
       // COMBINE FEES FOR BROADCASTER: relayer fee + estimated gas reclamation
