@@ -476,8 +476,7 @@ export const buildGasAndEstimate = async ({
       gasDetails,
       paddedGasEstimate,
       overallBatchMinGasPrice,
-      accurateGasEstimate: gasEstimate,
-      gasCostWei // Single source for gas reclamation calculations
+      accurateGasEstimate: gasEstimate
     };
 
   } catch (error) {
