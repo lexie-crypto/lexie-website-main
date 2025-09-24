@@ -344,21 +344,16 @@ export function useBalances() {
           if (Array.isArray(balancesForCurrentChain) && balancesForCurrentChain.length > 0) {
             const privateBalancesFromRedis = balancesForCurrentChain.map(balance => {
               const tokenInfo = getTokenInfo(balance.tokenAddress, chainId);
-              // Handle balance as string to preserve precision for large amounts
-              const balanceStr = String(balance.numericBalance || '0');
+              // Handle Redis balance - stored as wei string, convert to decimal
+              const weiBalanceStr = String(balance.numericBalance || '0');
               let numeric;
-              if (balanceStr.includes('.')) {
-                // Already a decimal number
-                numeric = Number(balanceStr) || 0;
-              } else {
-                // Wei amount as string - convert to decimal
-                const decimals = balance.decimals ?? 18;
-                try {
-                  numeric = parseFloat(ethers.formatUnits(balanceStr, decimals));
-                } catch (e) {
-                  console.warn('[useBalances] Failed to parse balance, falling back to 0:', balanceStr);
-                  numeric = 0;
-                }
+
+              const decimals = balance.decimals ?? 18;
+              try {
+                numeric = parseFloat(ethers.formatUnits(weiBalanceStr, decimals));
+              } catch (e) {
+                console.warn('[useBalances] Failed to parse Redis balance, falling back to 0:', weiBalanceStr);
+                numeric = 0;
               }
               return {
                 symbol: balance.symbol,
@@ -367,7 +362,7 @@ export function useBalances() {
                 name: tokenInfo?.name || `${balance.symbol} Token`,
                 numericBalance: numeric,
                 formattedBalance: numeric.toFixed(6),
-                balance: balanceStr, // Preserve original string for precision
+                balance: weiBalanceStr, // Wei string for precision
                 decimals: balance.decimals ?? 18,
                 hasBalance: numeric > 0,
                 isPrivate: true,
@@ -420,22 +415,18 @@ export function useBalances() {
       }
       const privateBalancesFromRedis = balancesForCurrentChain.map(balance => {
         const tokenInfo = getTokenInfo(balance.tokenAddress, chainId);
-        // Handle balance as string to preserve precision for large amounts
-        const balanceStr = String(balance.numericBalance || '0');
+        // Handle Redis balance - stored as wei string, convert to decimal
+        const weiBalanceStr = String(balance.numericBalance || '0');
         let numeric;
-        if (balanceStr.includes('.')) {
-          // Already a decimal number
-          numeric = Number(balanceStr) || 0;
-        } else {
-          // Wei amount as string - convert to decimal
-          const decimals = balance.decimals ?? 18;
-          try {
-            numeric = parseFloat(ethers.formatUnits(balanceStr, decimals));
-          } catch (e) {
-            console.warn('[useBalances] Failed to parse balance (fallback), using 0:', balanceStr);
-            numeric = 0;
-          }
+
+        const decimals = balance.decimals ?? 18;
+        try {
+          numeric = parseFloat(ethers.formatUnits(weiBalanceStr, decimals));
+        } catch (e) {
+          console.warn('[useBalances] Failed to parse Redis balance (fallback), using 0:', weiBalanceStr);
+          numeric = 0;
         }
+
         return {
           symbol: balance.symbol,
           address: balance.tokenAddress,
@@ -443,7 +434,7 @@ export function useBalances() {
           name: tokenInfo?.name || `${balance.symbol} Token`,
           numericBalance: numeric,
           formattedBalance: numeric.toFixed(6),
-          balance: balanceStr, // Preserve original string for precision
+          balance: weiBalanceStr, // Wei string for precision
           decimals: balance.decimals,
           hasBalance: numeric > 0,
           isPrivate: true,
@@ -511,20 +502,32 @@ export function useBalances() {
             const listForChain = list.filter(t => Number(t.chainId) === Number(chainId));
             if (Array.isArray(listForChain) && listForChain.length > 0) {
               const privateWithUSD = listForChain.map(token => {
-                // Handle balance as string to preserve precision
-                const balanceStr = String(token.numericBalance || '0');
-                let numeric;
-                if (balanceStr.includes('.')) {
-                  numeric = Number(balanceStr) || 0;
-                } else {
+                // Handle backend balance - convert to wei for consistency
+                const backendBalance = token.numericBalance || 0;
+                let numeric, weiBalanceStr;
+
+                if (typeof backendBalance === 'string' && backendBalance.includes('.')) {
+                  // Backend returned decimal string
+                  numeric = Number(backendBalance);
                   const decimals = token.decimals ?? 18;
+                  weiBalanceStr = ethers.parseUnits(backendBalance, decimals).toString();
+                } else if (typeof backendBalance === 'number') {
+                  // Backend returned decimal number
+                  numeric = backendBalance;
+                  const decimals = token.decimals ?? 18;
+                  weiBalanceStr = ethers.parseUnits(backendBalance.toString(), decimals).toString();
+                } else {
+                  // Backend returned wei string
+                  const decimals = token.decimals ?? 18;
+                  weiBalanceStr = backendBalance.toString();
                   try {
-                    numeric = parseFloat(ethers.formatUnits(balanceStr, decimals));
+                    numeric = parseFloat(ethers.formatUnits(weiBalanceStr, decimals));
                   } catch (e) {
-                    console.warn('[useBalances] Failed to parse refresh balance, using 0:', balanceStr);
+                    console.warn('[useBalances] Failed to parse refresh wei balance, using 0:', weiBalanceStr);
                     numeric = 0;
                   }
                 }
+
                 const tokenInfo = getTokenInfo(token.tokenAddress, chainId);
                 return {
                   ...token,
@@ -535,7 +538,7 @@ export function useBalances() {
                   hasBalance: numeric > 0,
                   decimals: token.decimals ?? 18,
                   formattedBalance: Number(numeric).toFixed(6),
-                  balance: balanceStr, // Preserve string for precision
+                  balance: weiBalanceStr, // Store as wei string for precision
                   balanceUSD: calculateUSDValue(numeric, token.symbol)
                 };
               });
@@ -1070,20 +1073,32 @@ export function useBalances() {
                 setPrivateBalances(current => {
                   if (!current || current.length === 0) {
                     const fromBackend = backendList.map(token => {
-                      // Handle backend balance as string to preserve precision
-                      const balanceStr = String(token.numericBalance || '0');
-                      let numeric;
-                      if (balanceStr.includes('.')) {
-                        numeric = Number(balanceStr) || 0;
-                      } else {
+                      // Handle backend balance - backend returns decimal amounts, convert to wei for consistency
+                      const backendBalance = token.numericBalance || 0;
+                      let numeric, weiBalanceStr;
+
+                      if (typeof backendBalance === 'string' && backendBalance.includes('.')) {
+                        // Backend returned decimal string - convert to numeric then to wei
+                        numeric = Number(backendBalance);
                         const decimals = token.decimals ?? 18;
+                        weiBalanceStr = ethers.parseUnits(backendBalance, decimals).toString();
+                      } else if (typeof backendBalance === 'number') {
+                        // Backend returned decimal number - convert to wei
+                        numeric = backendBalance;
+                        const decimals = token.decimals ?? 18;
+                        weiBalanceStr = ethers.parseUnits(backendBalance.toString(), decimals).toString();
+                      } else {
+                        // Backend returned wei string - convert to decimal
+                        const decimals = token.decimals ?? 18;
+                        weiBalanceStr = backendBalance.toString();
                         try {
-                          numeric = parseFloat(ethers.formatUnits(balanceStr, decimals));
+                          numeric = parseFloat(ethers.formatUnits(weiBalanceStr, decimals));
                         } catch (e) {
-                          console.warn('[useBalances] Failed to parse backend balance, using 0:', balanceStr);
+                          console.warn('[useBalances] Failed to parse backend wei balance, using 0:', weiBalanceStr);
                           numeric = 0;
                         }
                       }
+
                       return {
                         ...token,
                         address: token.tokenAddress,
@@ -1092,7 +1107,7 @@ export function useBalances() {
                         hasBalance: numeric > 0,
                         decimals: token.decimals ?? 18,
                         formattedBalance: Number(numeric).toFixed(6),
-                        balance: balanceStr, // Preserve string for precision
+                        balance: weiBalanceStr, // Store as wei string for precision
                         balanceUSD: calculateUSDValue(numeric, token.symbol)
                       };
                     });
@@ -1132,20 +1147,32 @@ export function useBalances() {
                    backendList.forEach(b => {
                     const key = String((b.tokenAddress || '').toLowerCase());
                     if (!currentKeys.has(key)) {
-                      // Handle new backend balance as string
-                      const balanceStr = String(b.numericBalance || '0');
-                      let numeric;
-                      if (balanceStr.includes('.')) {
-                        numeric = Number(balanceStr) || 0;
-                      } else {
+                      // Handle new backend balance - convert to wei for consistency
+                      const backendBalance = b.numericBalance || 0;
+                      let numeric, weiBalanceStr;
+
+                      if (typeof backendBalance === 'string' && backendBalance.includes('.')) {
+                        // Backend returned decimal string
+                        numeric = Number(backendBalance);
                         const decimals = b.decimals ?? 18;
+                        weiBalanceStr = ethers.parseUnits(backendBalance, decimals).toString();
+                      } else if (typeof backendBalance === 'number') {
+                        // Backend returned decimal number
+                        numeric = backendBalance;
+                        const decimals = b.decimals ?? 18;
+                        weiBalanceStr = ethers.parseUnits(backendBalance.toString(), decimals).toString();
+                      } else {
+                        // Backend returned wei string
+                        const decimals = b.decimals ?? 18;
+                        weiBalanceStr = backendBalance.toString();
                         try {
-                          numeric = parseFloat(ethers.formatUnits(balanceStr, decimals));
+                          numeric = parseFloat(ethers.formatUnits(weiBalanceStr, decimals));
                         } catch (e) {
-                          console.warn('[useBalances] Failed to parse new backend balance, using 0:', balanceStr);
+                          console.warn('[useBalances] Failed to parse new backend wei balance, using 0:', weiBalanceStr);
                           numeric = 0;
                         }
                       }
+
                       merged.push({
                         ...b,
                         address: b.tokenAddress,
@@ -1154,7 +1181,7 @@ export function useBalances() {
                         hasBalance: numeric > 0,
                         decimals: b.decimals ?? 18,
                         formattedBalance: Number(numeric).toFixed(6),
-                        balance: balanceStr, // Preserve string for precision
+                        balance: weiBalanceStr, // Store as wei string for precision
                         balanceUSD: calculateUSDValue(numeric, b.symbol)
                       });
                     }
