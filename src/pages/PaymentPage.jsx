@@ -86,6 +86,22 @@ const formatBalance = (balance, decimals = 2) => {
   });
 };
 
+// Get read-only RPC provider for balance fetching
+const getRpcProvider = (chainId) => {
+  const rpcUrls = {
+    1: RPC_URLS.ethereum,
+    42161: RPC_URLS.arbitrum,
+    137: RPC_URLS.polygon,
+    56: RPC_URLS.bsc,
+  };
+
+  const rpcUrl = rpcUrls[chainId];
+  if (!rpcUrl) {
+    throw new Error(`No RPC URL configured for chain ${chainId}`);
+  }
+  return new JsonRpcProvider(rpcUrl);
+};
+
 const PaymentPage = () => {
   const [searchParams] = useSearchParams();
   const toParam = searchParams.get('to');
@@ -158,9 +174,8 @@ const PaymentPage = () => {
           console.warn('[PaymentPage] Failed to fetch token prices:', priceError);
         }
 
-        // Use ethers to get balances directly
-        const provider = await walletProvider();
-        const providerInstance = provider.provider;
+        // Use read-only RPC provider for balance fetching
+        const providerInstance = getRpcProvider(chainId);
         const ethersLib = await import('ethers');
 
         // Common tokens per chain
