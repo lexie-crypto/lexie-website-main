@@ -1931,13 +1931,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                   // Set the calculated max amount accounting for fees
                   setAmount(calculateMaxAmount());
                 }}
-                disabled={(activeTab === 'unshield' || activeTab === 'transfer') && !gasFeeData}
-                title={(activeTab === 'unshield' || activeTab === 'transfer') && !gasFeeData ? 'Estimating gas…' : undefined}
-                className={`absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded ${
-                  (activeTab === 'unshield' || activeTab === 'transfer') && !gasFeeData
-                    ? 'opacity-50 cursor-not-allowed'
-                    : 'hover:bg-green-900/20'
-                }`}
+                className="absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded hover:bg-green-900/20"
                 >
                   Max
                 </button>
