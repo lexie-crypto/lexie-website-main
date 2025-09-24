@@ -110,6 +110,7 @@ const PaymentPage = () => {
     isConnected,
     address,
     chainId,
+    railgunAddress,
     connectWallet,
     disconnectWallet,
     switchNetwork,
@@ -330,6 +331,9 @@ const PaymentPage = () => {
     showTerminalToast('info', 'Starting Deposit', 'Preparing your private vault deposit...', { duration: 2000 });
 
     try {
+      // Ensure Railgun engine is ready
+      await ensureEngineForShield();
+
       // Sanctions screening for the payer (current user)
       console.log('[PaymentPage] Screening payer wallet:', address);
       await assertNotSanctioned(chainId, address);
@@ -363,6 +367,11 @@ const PaymentPage = () => {
       // Validate recipient address
       if (!resolvedRecipientAddress) {
         throw new Error('Recipient address not resolved. Please check the payment link.');
+      }
+
+      // Validate that we have a Railgun address
+      if (!railgunAddress) {
+        throw new Error('Railgun wallet not initialized. Please ensure your wallet is connected and try again.');
       }
 
       // Parse amount to base units
