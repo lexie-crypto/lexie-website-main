@@ -1643,7 +1643,7 @@ export const monitorTransactionInGraph = async ({
  */
 const convertTokenAmountToUSD = async (amount, tokenAddress, chainId) => {
   try {
-    if (!amount || !tokenAddress) return 0;
+    if (!amount) return 0;
 
     // Handle native tokens (ETH, MATIC, etc.)
     const nativeTokens = {
@@ -1653,7 +1653,9 @@ const convertTokenAmountToUSD = async (amount, tokenAddress, chainId) => {
       56: '0x0000000000000000000000000000000000000000' // BNB
     };
 
-    const isNative = nativeTokens[chainId] === tokenAddress.toLowerCase();
+    // Check if this is a native token (either by address or by null address for native)
+    const isNative = tokenAddress === null ||
+                     (tokenAddress && nativeTokens[chainId] === tokenAddress.toLowerCase());
 
     // Get real-time prices from CoinGecko
     const { fetchTokenPrices } = await import('../pricing/coinGecko.js');
