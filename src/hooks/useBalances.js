@@ -909,24 +909,19 @@ export function useBalances() {
       });
   }, [chainId]);
 
-  // Load private balances from Redis when Railgun wallet is ready
+  // Load private balances using SDK refresh when Railgun wallet is ready (same as refresh button)
   useEffect(() => {
     if (railgunWalletId && address && isRailgunInitialized) {
-      console.log('[useBalances] 🛡️ Railgun wallet ready - loading private balances from Redis...');
+      console.log('[useBalances] 🛡️ Railgun wallet ready - triggering SDK balance refresh (like refresh button)...');
       setIsPrivateBalancesLoading(true);
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
-      loadPrivateBalancesFromMetadata(address, railgunWalletId).then((loaded) => {
-        if (loaded) {
-          console.log('[useBalances] ✅ Private balances loaded from Redis');
-        } else {
-          console.log('[useBalances] ℹ️ No private balances found in Redis');
-        }
-      }).finally(() => {
+      // Use the same SDK refresh logic as the refresh button for accurate balances
+      refreshAllBalances().finally(() => {
         setIsPrivateBalancesLoading(false);
         try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
       });
     }
-  }, [railgunWalletId, address, isRailgunInitialized, chainId, loadPrivateBalancesFromMetadata]);
+  }, [railgunWalletId, address, isRailgunInitialized, chainId, refreshAllBalances]);
 
   // Listen for Railgun SDK balance updates (real-time balance updates from SDK callbacks)
   useEffect(() => {
