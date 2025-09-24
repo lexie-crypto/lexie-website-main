@@ -354,7 +354,9 @@ export function useBalances() {
               if (typeof storedBalance === 'string' && (balanceStr.includes('.') || balanceStr.includes('e'))) {
                 // Stored as decimal string (possibly scientific notation)
                 numeric = Number(storedBalance);
-                weiBalanceStr = ethers.parseUnits(storedBalance, decimals).toString();
+                // Convert scientific notation to decimal string for parseUnits
+                const decimalStr = numeric.toFixed(20).replace(/\.?0+$/, ''); // Remove trailing zeros
+                weiBalanceStr = ethers.parseUnits(decimalStr, decimals).toString();
               } else if (typeof storedBalance === 'number') {
                 // Stored as decimal number
                 numeric = storedBalance;
@@ -447,7 +449,9 @@ export function useBalances() {
         if (typeof storedBalance === 'string' && (balanceStr.includes('.') || balanceStr.includes('e'))) {
           // Stored as decimal string (possibly scientific notation)
           numeric = Number(storedBalance);
-          weiBalanceStr = ethers.parseUnits(storedBalance, decimals).toString();
+          // Convert scientific notation to decimal string for parseUnits
+          const decimalStr = numeric.toFixed(20).replace(/\.?0+$/, ''); // Remove trailing zeros
+          weiBalanceStr = ethers.parseUnits(decimalStr, decimals).toString();
         } else if (typeof storedBalance === 'number') {
           // Stored as decimal number
           numeric = storedBalance;
@@ -550,11 +554,13 @@ export function useBalances() {
                 const backendBalance = token.numericBalance || 0;
                 let numeric, weiBalanceStr;
 
-                if (typeof backendBalance === 'string' && backendBalance.includes('.')) {
-                  // Backend returned decimal string
+                if (typeof backendBalance === 'string' && (backendBalance.includes('.') || backendBalance.includes('e'))) {
+                  // Backend returned decimal string (possibly scientific notation)
                   numeric = Number(backendBalance);
                   const decimals = token.decimals ?? 18;
-                  weiBalanceStr = ethers.parseUnits(backendBalance, decimals).toString();
+                  // Convert scientific notation to decimal string for parseUnits
+                  const decimalStr = numeric.toFixed(20).replace(/\.?0+$/, ''); // Remove trailing zeros
+                  weiBalanceStr = ethers.parseUnits(decimalStr, decimals).toString();
                 } else if (typeof backendBalance === 'number') {
                   // Backend returned decimal number
                   numeric = backendBalance;
@@ -1123,11 +1129,13 @@ export function useBalances() {
                       const backendBalance = token.numericBalance || 0;
                       let numeric, weiBalanceStr;
 
-                      if (typeof backendBalance === 'string' && backendBalance.includes('.')) {
-                        // Backend returned decimal string - convert to numeric then to wei
+                      if (typeof backendBalance === 'string' && (backendBalance.includes('.') || backendBalance.includes('e'))) {
+                        // Backend returned decimal string (possibly scientific notation) - convert to numeric then to wei
                         numeric = Number(backendBalance);
                         const decimals = token.decimals ?? 18;
-                        weiBalanceStr = ethers.parseUnits(backendBalance, decimals).toString();
+                        // Convert scientific notation to decimal string for parseUnits
+                        const decimalStr = numeric.toFixed(20).replace(/\.?0+$/, ''); // Remove trailing zeros
+                        weiBalanceStr = ethers.parseUnits(decimalStr, decimals).toString();
                       } else if (typeof backendBalance === 'number') {
                         // Backend returned decimal number - convert to wei
                         numeric = backendBalance;
@@ -1197,11 +1205,13 @@ export function useBalances() {
                         const backendBalance = b.numericBalance || 0;
                         let numeric, weiBalanceStr;
 
-                        if (typeof backendBalance === 'string' && backendBalance.includes('.')) {
-                          // Backend returned decimal string
+                        if (typeof backendBalance === 'string' && (backendBalance.includes('.') || backendBalance.includes('e'))) {
+                          // Backend returned decimal string (possibly scientific notation)
                           numeric = Number(backendBalance);
                           const decimals = b.decimals ?? 18;
-                          weiBalanceStr = ethers.parseUnits(backendBalance, decimals).toString();
+                          // Convert scientific notation to decimal string for parseUnits
+                          const decimalStr = numeric.toFixed(20).replace(/\.?0+$/, ''); // Remove trailing zeros
+                          weiBalanceStr = ethers.parseUnits(decimalStr, decimals).toString();
                         } else if (typeof backendBalance === 'number') {
                           // Backend returned decimal number
                           numeric = backendBalance;
