@@ -24,6 +24,7 @@ import { isTokenSupportedByRailgun } from '../utils/railgun/actions';
 import { TXIDVersion, EVMGasType, NetworkName, getEVMGasTypeForTransaction } from '@railgun-community/shared-models';
 import { gasEstimateForShield, populateShield } from '@railgun-community/wallet';
 import { Contract, parseUnits } from 'ethers';
+import { fetchTokenPrices } from '../utils/pricing/coinGecko';
 
 // Terminal-themed toast helper (matches tx-unshield.js and PrivacyActions.jsx)
 const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
@@ -55,6 +56,35 @@ const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
   ), { duration: type === 'error' ? 4000 : 2500, ...opts });
 };
 
+// Calculate USD value for a balance (similar to useBalances hook)
+const calculateUSDValue = (numericBalance, symbol, prices) => {
+  // Resolve common wrapper/alias symbols to their base asset prices if needed
+  const aliasMap = {
+    WETH: 'ETH',
+    WMATIC: 'MATIC',
+    WBNB: 'BNB',
+    'USDC.e': 'USDC',
+  };
+  const resolvedSymbol = prices[symbol] != null ? symbol : (aliasMap[symbol] || symbol);
+  const price = prices[resolvedSymbol];
+  if (price && typeof price === 'number' && numericBalance > 0) {
+    return (numericBalance * price).toFixed(2);
+  }
+  return undefined;
+};
+
+// Format balance similar to useBalances hook
+const formatBalance = (balance, decimals = 2) => {
+  if (typeof balance !== 'number') return '0.00';
+  if (balance === 0) return '0.00';
+  if (balance < 0.001) return '<0.001';
+  if (balance < 1) return balance.toFixed(Math.min(decimals + 2, 6));
+  return balance.toLocaleString(undefined, {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+};
+
 const PaymentPage = () => {
   const [searchParams] = useSearchParams();
   const toParam = searchParams.get('to');
@@ -78,6 +108,7 @@ const PaymentPage = () => {
   const [publicBalances, setPublicBalances] = useState([]);
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
   const [isTokenMenuOpen, setIsTokenMenuOpen] = useState(false);
+  const [tokenPrices, setTokenPrices] = useState({});
   const tokenMenuRef = useRef(null);
 
   // Parse target chain ID
@@ -117,11 +148,20 @@ const PaymentPage = () => {
         // Ensure light Railgun engine is up (no wallet init)
         await ensureEngineForShield().catch(() => {});
 
+        // Fetch token prices first
+        const symbols = ['ETH', 'USDC', 'USDT', 'DAI', 'MATIC', 'BNB', 'WETH', 'WMATIC', 'WBNB', 'USDC.e'];
+        try {
+          const prices = await fetchTokenPrices(symbols);
+          setTokenPrices(prices);
+        } catch (priceError) {
+          console.warn('[PaymentPage] Failed to fetch token prices:', priceError);
+        }
+
         // Use ethers to get balances directly
         const provider = await walletProvider();
         const providerInstance = provider.provider;
         const ethersLib = await import('ethers');
-        
+
         // Common tokens per chain
         const commonTokens = {
           1: [ // Ethereum
@@ -172,10 +212,12 @@ const PaymentPage = () => {
                 balance = erc20Bal.toString();
               }
               const numericBalance = Number(ethersLib.formatUnits(balance, token.decimals));
+              const balanceUSD = calculateUSDValue(numericBalance, token.symbol, tokenPrices);
               return {
                 ...token,
                 numericBalance: Number(numericBalance.toFixed(6)),
                 hasBalance: Number(numericBalance) > 0,
+                balanceUSD,
               };
             } catch (error) {
               console.warn(`Failed to get balance for ${token.symbol}:`, error);
@@ -183,6 +225,7 @@ const PaymentPage = () => {
                 ...token,
                 numericBalance: 0,
                 hasBalance: false,
+                balanceUSD: undefined,
               };
             }
           })
@@ -202,13 +245,15 @@ const PaymentPage = () => {
       } catch (error) {
         console.error('Failed to fetch balances:', error);
         // Fallback to basic token structure
+        const fallbackSymbol = networks[chainId]?.symbol || 'ETH';
         setPublicBalances([
-          { 
-            symbol: networks[chainId]?.symbol || 'ETH', 
-            address: null, 
+          {
+            symbol: fallbackSymbol,
+            address: null,
             name: networks[chainId]?.name || 'Ethereum',
             numericBalance: 0,
             decimals: 18,
+            balanceUSD: undefined,
           }
         ]);
       } finally {
@@ -621,7 +666,7 @@ const PaymentPage = () => {
                     >
                       <span>
                         {selectedToken
-                          ? `${selectedToken.symbol} - ${selectedToken.numericBalance} available`
+                          ? `${selectedToken.symbol} - ${formatBalance(selectedToken.numericBalance)} available${selectedToken.balanceUSD !== undefined ? ` ($${typeof selectedToken.balanceUSD === 'string' && selectedToken.balanceUSD.startsWith('$') ? selectedToken.balanceUSD.substring(1) : selectedToken.balanceUSD})` : ''}`
                           : isLoadingBalances
                             ? 'Loading tokens...'
                             : 'Select token'}
@@ -637,7 +682,12 @@ const PaymentPage = () => {
                             onClick={() => { setSelectedToken(token); setIsTokenMenuOpen(false); }}
                             className="w-full text-left px-3 py-2 hover:bg-emerald-900/30 focus:bg-emerald-900/30 focus:outline-none"
                           >
-                            {token.symbol} - {token.numericBalance} available
+                            {token.symbol} - {formatBalance(token.numericBalance)} available
+                            {token.balanceUSD !== undefined && (
+                              <span className="text-green-400/70">
+                                {' '}(${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD})
+                              </span>
+                            )}
                           </button>
                         ))}
                       </div>
@@ -674,7 +724,12 @@ const PaymentPage = () => {
                   </div>
                   {selectedToken && (
                     <p className="mt-1 text-sm text-green-400/70">
-                      Available: {selectedToken.numericBalance} {selectedToken.symbol}
+                      Available: {formatBalance(selectedToken.numericBalance)} {selectedToken.symbol}
+                      {selectedToken.balanceUSD !== undefined && (
+                        <span className="ml-2">
+                          (${typeof selectedToken.balanceUSD === 'string' && selectedToken.balanceUSD.startsWith('$') ? selectedToken.balanceUSD.substring(1) : selectedToken.balanceUSD})
+                        </span>
+                      )}
                     </p>
                   )}
                 </div>
