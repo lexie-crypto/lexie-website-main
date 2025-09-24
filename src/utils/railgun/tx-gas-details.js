@@ -457,7 +457,28 @@ export const buildGasAndEstimate = async ({
       ...gasDetails,
     });
 
-    return { gasDetails, paddedGasEstimate, overallBatchMinGasPrice, accurateGasEstimate: gasEstimate };
+    // Compute gasCostWei once using padded estimate and guarded gas price (single source of truth)
+    const gasCostWei = paddedGasEstimate * (evmGasType === EVMGasType.Type2 ?
+      (originalFeeParams.maxFeePerGas > originalFeeParams.maxPriorityFeePerGas ?
+        originalFeeParams.maxFeePerGas : originalFeeParams.maxPriorityFeePerGas) :
+      originalFeeParams.gasPrice);
+
+    console.log('[GasDetails] Single gas cost source computed:', {
+      paddedGasEstimate: paddedGasEstimate.toString(),
+      gasPrice: evmGasType === EVMGasType.Type2 ?
+        `maxFee:${originalFeeParams.maxFeePerGas?.toString()} pri:${originalFeeParams.maxPriorityFeePerGas?.toString()}` :
+        originalFeeParams.gasPrice?.toString(),
+      gasCostWei: gasCostWei.toString(),
+      note: 'This gasCostWei is used for both preview fees and proof baking'
+    });
+
+    return {
+      gasDetails,
+      paddedGasEstimate,
+      overallBatchMinGasPrice,
+      accurateGasEstimate: gasEstimate,
+      gasCostWei // Single source for gas reclamation calculations
+    };
 
   } catch (error) {
     console.error('[GasDetails] Failed to build gas and estimate:', error);

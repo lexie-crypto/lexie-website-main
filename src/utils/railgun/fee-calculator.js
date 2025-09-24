@@ -19,33 +19,24 @@ const MIN_GAS_FLOORS = {
 
 /**
  * Calculate gas reclamation fee for ERC-20 tokens
- * @param {bigint} gasCostWei - Gas cost in wei
+ * @param {bigint} gasCostWei - Gas cost in wei (padded estimate)
  * @param {string} feeTokenAddress - Address of token used for fees
  * @param {number} chainId - Chain ID
- * @param {Function} fetchTokenPrices - Function to fetch token prices
- * @returns {bigint} Gas fee in fee token units
+ * @param {object} tokenPrices - Pre-fetched token prices {symbol: price}
+ * @returns {bigint} Gas fee in fee token units (ceiled to never under-collect)
  */
 export const calculateGasReclamationERC20 = async (
   gasCostWei,
   feeTokenAddress,
   chainId,
-  fetchTokenPrices
+  tokenPrices
 ) => {
   // BigInt-safe price scaling (1e8 scale for precision)
   const PRICE_SCALE = 100_000_000n;
 
-  // Get native token symbol and price from CoinGecko (no hardcoded fallbacks)
+  // Get native token symbol and price from pre-fetched prices
   const nativeGasToken = getNativeGasToken(chainId);
-  let nativeTokenPriceUsd = 0;
-  try {
-    const prices = await fetchTokenPrices([nativeGasToken]);
-    nativeTokenPriceUsd = prices[nativeGasToken] || 0;
-    if (nativeTokenPriceUsd === 0) {
-      console.warn(`⚠️ [FEE_CALC] No price available for native token ${nativeGasToken}`);
-    }
-  } catch (priceError) {
-    console.warn(`⚠️ [FEE_CALC] Failed to fetch native token price for ${nativeGasToken}:`, priceError.message);
-  }
+  const nativeTokenPriceUsd = tokenPrices[nativeGasToken] || 0;
 
   if (nativeTokenPriceUsd === 0) {
     throw new Error(`Cannot calculate gas reclamation: no price available for native token ${nativeGasToken}`);
@@ -59,17 +50,8 @@ export const calculateGasReclamationERC20 = async (
   const feeTokenSymbol = tokenInfo?.symbol || feeTokenAddress; // Fallback to address if no symbol
   let feeTokenDecimals = tokenInfo?.decimals || 18; // Default to 18 decimals
 
-  // Get fee token price using symbol from CoinGecko (no hardcoded fallbacks)
-  let feeTokenPriceUsd = 0;
-  try {
-    const prices = await fetchTokenPrices([feeTokenSymbol]);
-    feeTokenPriceUsd = prices[feeTokenSymbol] || 0;
-    if (feeTokenPriceUsd === 0) {
-      console.warn(`⚠️ [FEE_CALC] No price available for fee token ${feeTokenSymbol}`);
-    }
-  } catch (priceError) {
-    console.warn(`⚠️ [FEE_CALC] Failed to fetch fee token price for ${feeTokenSymbol}:`, priceError.message);
-  }
+  // Get fee token price from pre-fetched prices
+  const feeTokenPriceUsd = tokenPrices[feeTokenSymbol] || 0;
 
   if (feeTokenPriceUsd === 0) {
     throw new Error(`Cannot calculate gas reclamation: no price available for fee token ${feeTokenSymbol}`);
@@ -81,9 +63,11 @@ export const calculateGasReclamationERC20 = async (
   const gasUsdScaled = (gasCostWei * nativeUsd) / 1_000_000_000_000_000_000n;
 
   // tokenUnits = (gasUsdScaled * 10^decimals) / feeUsd
-  const tokenUnits = (gasUsdScaled * (10n ** BigInt(feeTokenDecimals))) / feeUsd;
+  // Use ceil division to never under-collect fees
+  const tokenUnitsRaw = (gasUsdScaled * (10n ** BigInt(feeTokenDecimals)));
+  const tokenUnits = (tokenUnitsRaw + feeUsd - 1n) / feeUsd; // Ceiling division
 
-  console.log('💰 [FEE_CALC] ERC-20 gas reclamation (bigint-safe):', {
+  console.log('💰 [FEE_CALC] ERC-20 gas reclamation (single source, ceiled):', {
     gasCostWei: gasCostWei.toString(),
     nativeTokenPriceUsd: nativeTokenPriceUsd.toFixed(4),
     feeTokenAddress: feeTokenAddress?.substring(0, 10) + '...',
@@ -91,7 +75,9 @@ export const calculateGasReclamationERC20 = async (
     feeTokenPriceUsd: feeTokenPriceUsd.toFixed(4),
     feeTokenDecimals,
     gasUsdScaled: gasUsdScaled.toString(),
-    tokenUnits: tokenUnits.toString()
+    tokenUnitsRaw: tokenUnitsRaw.toString(),
+    tokenUnitsCeiled: tokenUnits.toString(),
+    usedCeilRounding: tokenUnits > (tokenUnitsRaw / feeUsd)
   });
 
   return tokenUnits;

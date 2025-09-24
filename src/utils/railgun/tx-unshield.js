@@ -874,10 +874,11 @@ export const unshieldTokens = async ({
       // Calculate relayer fee from the user's amount, then unshield NET of that fee
       relayerFeeBn = calculateRelayerFee(userAmountGross);
 
-      // ESTIMATE GAS COST BEFORE PROOF GENERATION (dummy txn approach)
-      console.log('🤑 [UNSHIELD] Estimating gas cost for reclamation (dummy txn)...');
+      // STEP 5: Build gas details first to get single source gasCostWei
+      console.log('📝 [UNSHIELD] Step 5: Building gas details first for single fee source...');
+      const networkName = getRailgunNetworkName(chain.id);
 
-      // Get network gas prices for estimation
+      // Get network gas prices for buildGasAndEstimate
       let networkGasPrices = null;
       try {
         const signer = await walletProvider();
@@ -889,24 +890,49 @@ export const unshieldTokens = async ({
           }
         }
       } catch (gasPriceError) {
-        console.warn('⚠️ [UNSHIELD] Failed to get network gas prices for estimation:', gasPriceError.message);
+        console.warn('⚠️ [UNSHIELD] Failed to get network gas prices:', gasPriceError.message);
       }
 
-      // Use conservative estimate for dummy txn (similar to old implementation)
-      const estimatedGas = BigInt('1000000'); // Conservative 1M gas estimate
+      // Build gas details first to get the single gasCostWei source
+      const gasEstimateParams = {
+        mode: 'relayadapt',
+        chainId: chain.id,
+        networkName,
+        railgunWalletID,
+        encryptionKey,
+        relayAdaptUnshieldERC20Amounts: [{ tokenAddress, amount: userAmountGross }], // Dummy for estimation
+        crossContractCalls: [], // Empty for estimation
+        erc20AmountRecipients: [], // Empty for estimation
+        feeTokenDetails: { tokenAddress: selectedRelayer.feeToken, feePerUnitGas: BigInt('1000000000') },
+        sendWithPublicWallet: false,
+        walletProvider,
+      };
 
-      // Get gas price with safety guard
-      const rawGasPrice = networkGasPrices?.gasPrice || networkGasPrices?.maxFeePerGas || BigInt('20000000000'); // 20 gwei fallback
-      const gasPrice = applyGasPriceGuard(chain.id, rawGasPrice, networkGasPrices);
+      const { gasCostWei } = await buildGasAndEstimate(gasEstimateParams);
 
-      const gasCostWei = estimatedGas * gasPrice;
+      // Snapshot token prices once for both preview and proof (single source)
+      const nativeGasToken = getNativeGasToken(chain.id);
+      const feeTokenInfo = getKnownTokenDecimals(selectedRelayer.feeToken, chain.id);
+      const feeTokenSymbol = feeTokenInfo?.symbol || selectedRelayer.feeToken;
+      const tokenSymbols = [nativeGasToken, feeTokenSymbol];
+      const tokenPrices = await fetchTokenPrices(tokenSymbols);
 
-      // Calculate gas reclamation fee using proper unit conversion
+      console.log('💰 [UNSHIELD] Single gas cost and token prices for fee calculation:', {
+        gasCostWei: gasCostWei.toString(),
+        nativeGasToken,
+        feeTokenSymbol,
+        prices: Object.fromEntries(
+          Object.entries(tokenPrices).map(([k, v]) => [k, v?.toFixed(4)])
+        ),
+        note: 'This gasCostWei and prices are used for both preview and proof'
+      });
+
+      // Calculate gas reclamation fee using single gas source and pre-fetched prices
       gasFeeDeducted = await calculateGasReclamationERC20(
         gasCostWei,
         selectedRelayer.feeToken,
         chain.id,
-        fetchTokenPrices
+        tokenPrices
       );
 
       // COMBINE FEES FOR BROADCASTER: relayer fee + estimated gas reclamation
@@ -1079,12 +1105,12 @@ export const unshieldTokens = async ({
       });
     }
 
-    // STEP 5: Build gas details using SDK estimation + live fee data
-    console.log('📝 [UNSHIELD] Step 5: Building gas details with SDK estimation...');
+    // STEP 6: Build final gas details using SDK estimation + live fee data (with correct params)
+    console.log('📝 [UNSHIELD] Step 6: Building final gas details with correct proof parameters...');
 
     const networkName = getRailgunNetworkName(chain.id);
 
-    // Use buildGasAndEstimate for populate/submit gas details
+    // Use buildGasAndEstimate for populate/submit gas details (reuse gasCostWei from preview)
     // Gas reclamation is already estimated above and baked into the proof
     const { gasDetails: transactionGasDetails, paddedGasEstimate, overallBatchMinGasPrice, accurateGasEstimate } = await buildGasAndEstimate({
       mode: useRelayer ? 'relayadapt' : 'self',
