@@ -344,7 +344,22 @@ export function useBalances() {
           if (Array.isArray(balancesForCurrentChain) && balancesForCurrentChain.length > 0) {
             const privateBalancesFromRedis = balancesForCurrentChain.map(balance => {
               const tokenInfo = getTokenInfo(balance.tokenAddress, chainId);
-              const numeric = Number(balance.numericBalance) || 0;
+              // Handle balance as string to preserve precision for large amounts
+              const balanceStr = String(balance.numericBalance || '0');
+              let numeric;
+              if (balanceStr.includes('.')) {
+                // Already a decimal number
+                numeric = Number(balanceStr) || 0;
+              } else {
+                // Wei amount as string - convert to decimal
+                const decimals = balance.decimals ?? 18;
+                try {
+                  numeric = parseFloat(ethers.formatUnits(balanceStr, decimals));
+                } catch (e) {
+                  console.warn('[useBalances] Failed to parse balance, falling back to 0:', balanceStr);
+                  numeric = 0;
+                }
+              }
               return {
                 symbol: balance.symbol,
                 address: balance.tokenAddress,
@@ -352,7 +367,7 @@ export function useBalances() {
                 name: tokenInfo?.name || `${balance.symbol} Token`,
                 numericBalance: numeric,
                 formattedBalance: numeric.toFixed(6),
-                balance: String(balance.numericBalance ?? '0'),
+                balance: balanceStr, // Preserve original string for precision
                 decimals: balance.decimals ?? 18,
                 hasBalance: numeric > 0,
                 isPrivate: true,
@@ -405,7 +420,22 @@ export function useBalances() {
       }
       const privateBalancesFromRedis = balancesForCurrentChain.map(balance => {
         const tokenInfo = getTokenInfo(balance.tokenAddress, chainId);
-        const numeric = Number(balance.numericBalance) || 0;
+        // Handle balance as string to preserve precision for large amounts
+        const balanceStr = String(balance.numericBalance || '0');
+        let numeric;
+        if (balanceStr.includes('.')) {
+          // Already a decimal number
+          numeric = Number(balanceStr) || 0;
+        } else {
+          // Wei amount as string - convert to decimal
+          const decimals = balance.decimals ?? 18;
+          try {
+            numeric = parseFloat(ethers.formatUnits(balanceStr, decimals));
+          } catch (e) {
+            console.warn('[useBalances] Failed to parse balance (fallback), using 0:', balanceStr);
+            numeric = 0;
+          }
+        }
         return {
           symbol: balance.symbol,
           address: balance.tokenAddress,
@@ -413,7 +443,7 @@ export function useBalances() {
           name: tokenInfo?.name || `${balance.symbol} Token`,
           numericBalance: numeric,
           formattedBalance: numeric.toFixed(6),
-          balance: String(numeric),
+          balance: balanceStr, // Preserve original string for precision
           decimals: balance.decimals,
           hasBalance: numeric > 0,
           isPrivate: true,
@@ -481,7 +511,20 @@ export function useBalances() {
             const listForChain = list.filter(t => Number(t.chainId) === Number(chainId));
             if (Array.isArray(listForChain) && listForChain.length > 0) {
               const privateWithUSD = listForChain.map(token => {
-                const numeric = Number(token.numericBalance || 0);
+                // Handle balance as string to preserve precision
+                const balanceStr = String(token.numericBalance || '0');
+                let numeric;
+                if (balanceStr.includes('.')) {
+                  numeric = Number(balanceStr) || 0;
+                } else {
+                  const decimals = token.decimals ?? 18;
+                  try {
+                    numeric = parseFloat(ethers.formatUnits(balanceStr, decimals));
+                  } catch (e) {
+                    console.warn('[useBalances] Failed to parse refresh balance, using 0:', balanceStr);
+                    numeric = 0;
+                  }
+                }
                 const tokenInfo = getTokenInfo(token.tokenAddress, chainId);
                 return {
                   ...token,
@@ -492,7 +535,7 @@ export function useBalances() {
                   hasBalance: numeric > 0,
                   decimals: token.decimals ?? 18,
                   formattedBalance: Number(numeric).toFixed(6),
-                  balance: String(numeric),
+                  balance: balanceStr, // Preserve string for precision
                   balanceUSD: calculateUSDValue(numeric, token.symbol)
                 };
               });
@@ -554,13 +597,13 @@ export function useBalances() {
         console.warn('[useBalances] Could not retrieve existing metadata:', error);
       }
       
-      // Prepare balances for storage
+      // Prepare balances for storage (use balance string to preserve precision for large amounts)
       const balancesToStore = privateBalances
         .filter(token => token.hasBalance && token.numericBalance > 0)
         .map(token => ({
           symbol: token.symbol,
           tokenAddress: token.address || token.tokenAddress,
-          numericBalance: token.numericBalance,
+          numericBalance: token.balance || token.numericBalance.toString(), // Store as string to preserve precision
           decimals: token.decimals,
           chainId: chainId,
           isPrivate: true,
@@ -857,22 +900,32 @@ export function useBalances() {
             // Handle the case where getTokenInfo might fail - use fallback token data
             const symbol = tokenInfo?.symbol || `TOKEN_${token.tokenAddress?.slice(-6)}` || 'UNKNOWN';
             const decimals = tokenInfo?.decimals || 18;
-            const numericBalance = parseFloat(ethers.formatUnits(token.amount || '0', decimals));
-            
+            const balanceStr = token.amount?.toString() || '0';
+
+            // Convert wei amount to decimal without precision loss
+            let numericBalance;
+            try {
+              numericBalance = parseFloat(ethers.formatUnits(balanceStr, decimals));
+            } catch (e) {
+              console.warn('[useBalances] Failed to parse SDK balance, using 0:', balanceStr);
+              numericBalance = 0;
+            }
+
             console.log('[useBalances] 🔍 Processing token from SDK:', {
               tokenAddress: token.tokenAddress,
               amount: token.amount,
+              balanceStr,
               tokenInfo: tokenInfo,
               symbol,
               decimals,
               numericBalance,
               hasBalance: numericBalance > 0
             });
-            
+
             return {
               symbol,
               address: token.tokenAddress,
-              balance: token.amount?.toString() || '0',
+              balance: balanceStr, // Store precise wei amount as string
               numericBalance,
               decimals,
               hasBalance: numericBalance > 0,
@@ -1012,25 +1065,64 @@ export function useBalances() {
                 
                 const backendList = result.balances.balances || [];
                 const backendMap = new Map(backendList.map(t => [String((t.tokenAddress || '').toLowerCase()), t]));
-                
+
                 // Merge with current UI state, biasing toward the most conservative (lower) spendable to avoid overstatement
                 setPrivateBalances(current => {
                   if (!current || current.length === 0) {
-                    const fromBackend = backendList.map(token => ({
-                      ...token,
-                      balanceUSD: calculateUSDValue(token.numericBalance, token.symbol)
-                    }));
+                    const fromBackend = backendList.map(token => {
+                      // Handle backend balance as string to preserve precision
+                      const balanceStr = String(token.numericBalance || '0');
+                      let numeric;
+                      if (balanceStr.includes('.')) {
+                        numeric = Number(balanceStr) || 0;
+                      } else {
+                        const decimals = token.decimals ?? 18;
+                        try {
+                          numeric = parseFloat(ethers.formatUnits(balanceStr, decimals));
+                        } catch (e) {
+                          console.warn('[useBalances] Failed to parse backend balance, using 0:', balanceStr);
+                          numeric = 0;
+                        }
+                      }
+                      return {
+                        ...token,
+                        address: token.tokenAddress,
+                        tokenAddress: token.tokenAddress,
+                        numericBalance: numeric,
+                        hasBalance: numeric > 0,
+                        decimals: token.decimals ?? 18,
+                        formattedBalance: Number(numeric).toFixed(6),
+                        balance: balanceStr, // Preserve string for precision
+                        balanceUSD: calculateUSDValue(numeric, token.symbol)
+                      };
+                    });
                     return recentSpendable ? current : fromBackend;
                   }
                   const merged = current.map(tok => {
                     const key = String((tok.address || tok.tokenAddress || '').toLowerCase());
                     const b = backendMap.get(key);
                    if (!b) return tok; // keep current when backend missing
-                    const numeric = Math.min(Number(tok.numericBalance || 0), Number(b.numericBalance || 0));
+                    // Compare balances as BigInts for precision
+                    const currentBalance = BigInt(tok.balance || '0');
+                    const backendBalanceStr = String(b.numericBalance || '0');
+                    let backendBalance;
+                    if (backendBalanceStr.includes('.')) {
+                      // Decimal - convert to wei for comparison
+                      const decimals = tok.decimals ?? 18;
+                      backendBalance = BigInt(Math.floor(Number(backendBalanceStr) * 10**decimals));
+                    } else {
+                      backendBalance = BigInt(backendBalanceStr);
+                    }
+                    const minBalance = currentBalance < backendBalance ? currentBalance : backendBalance;
+
+                    // Convert back to decimal for UI
+                    const decimals = tok.decimals ?? 18;
+                    const numeric = parseFloat(ethers.formatUnits(minBalance.toString(), decimals));
+
                     return {
                       ...tok,
-                      numericBalance: Number(numeric),
-                      balance: String(numeric),
+                      numericBalance: numeric,
+                      balance: minBalance.toString(),
                       formattedBalance: Number.isFinite(numeric) ? Number(numeric).toFixed(6) : tok.formattedBalance,
                       balanceUSD: calculateUSDValue(numeric, tok.symbol)
                     };
@@ -1040,16 +1132,30 @@ export function useBalances() {
                    backendList.forEach(b => {
                     const key = String((b.tokenAddress || '').toLowerCase());
                     if (!currentKeys.has(key)) {
-                       const numeric = Number(b.numericBalance || 0);
+                      // Handle new backend balance as string
+                      const balanceStr = String(b.numericBalance || '0');
+                      let numeric;
+                      if (balanceStr.includes('.')) {
+                        numeric = Number(balanceStr) || 0;
+                      } else {
+                        const decimals = b.decimals ?? 18;
+                        try {
+                          numeric = parseFloat(ethers.formatUnits(balanceStr, decimals));
+                        } catch (e) {
+                          console.warn('[useBalances] Failed to parse new backend balance, using 0:', balanceStr);
+                          numeric = 0;
+                        }
+                      }
                       merged.push({
                         ...b,
                         address: b.tokenAddress,
                         tokenAddress: b.tokenAddress,
-                         numericBalance: numeric,
-                         hasBalance: numeric > 0,
-                         formattedBalance: Number(numeric).toFixed(6),
-                         balance: String(numeric),
-                         balanceUSD: calculateUSDValue(numeric, b.symbol)
+                        numericBalance: numeric,
+                        hasBalance: numeric > 0,
+                        decimals: b.decimals ?? 18,
+                        formattedBalance: Number(numeric).toFixed(6),
+                        balance: balanceStr, // Preserve string for precision
+                        balanceUSD: calculateUSDValue(numeric, b.symbol)
                       });
                     }
                   });
