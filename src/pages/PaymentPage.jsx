@@ -166,8 +166,9 @@ const PaymentPage = () => {
 
         // Fetch token prices first
         const symbols = ['ETH', 'USDC', 'USDT', 'DAI', 'MATIC', 'BNB', 'WETH', 'WMATIC', 'WBNB'];
+        let prices = {};
         try {
-          const prices = await fetchTokenPrices(symbols);
+          prices = await fetchTokenPrices(symbols);
           setTokenPrices(prices);
         } catch (priceError) {
           console.warn('[PaymentPage] Failed to fetch token prices:', priceError);
@@ -225,7 +226,7 @@ const PaymentPage = () => {
                 balance = erc20Bal.toString();
               }
               const numericBalance = Number(ethersLib.formatUnits(balance, token.decimals));
-              const balanceUSD = calculateUSDValue(numericBalance, token.symbol, tokenPrices);
+              const balanceUSD = calculateUSDValue(numericBalance, token.symbol, prices);
               return {
                 ...token,
                 numericBalance: Number(numericBalance.toFixed(6)),
