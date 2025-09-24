@@ -344,16 +344,38 @@ export function useBalances() {
           if (Array.isArray(balancesForCurrentChain) && balancesForCurrentChain.length > 0) {
             const privateBalancesFromRedis = balancesForCurrentChain.map(balance => {
               const tokenInfo = getTokenInfo(balance.tokenAddress, chainId);
-              // Handle Redis balance - stored as wei string, convert to decimal
-              const weiBalanceStr = String(balance.numericBalance || '0');
-              let numeric;
+              // Handle Redis balance - could be wei string, decimal string, or scientific notation
+              const storedBalance = balance.numericBalance || 0;
+              const balanceStr = String(storedBalance);
+              let numeric, weiBalanceStr;
 
               const decimals = balance.decimals ?? 18;
-              try {
-                numeric = parseFloat(ethers.formatUnits(weiBalanceStr, decimals));
-              } catch (e) {
-                console.warn('[useBalances] Failed to parse Redis balance, falling back to 0:', weiBalanceStr);
-                numeric = 0;
+
+              if (typeof storedBalance === 'string' && (balanceStr.includes('.') || balanceStr.includes('e'))) {
+                // Stored as decimal string (possibly scientific notation)
+                numeric = Number(storedBalance);
+                weiBalanceStr = ethers.parseUnits(storedBalance, decimals).toString();
+              } else if (typeof storedBalance === 'number') {
+                // Stored as decimal number
+                numeric = storedBalance;
+                weiBalanceStr = ethers.parseUnits(storedBalance.toString(), decimals).toString();
+              } else {
+                // Assume stored as wei string
+                weiBalanceStr = balanceStr;
+                try {
+                  numeric = parseFloat(ethers.formatUnits(weiBalanceStr, decimals));
+                } catch (e) {
+                  console.warn('[useBalances] Failed to parse Redis wei balance, trying as decimal:', weiBalanceStr);
+                  // Try parsing as decimal instead
+                  try {
+                    numeric = Number(weiBalanceStr);
+                    weiBalanceStr = ethers.parseUnits(weiBalanceStr, decimals).toString();
+                  } catch (e2) {
+                    console.warn('[useBalances] Failed to parse Redis balance, falling back to 0:', weiBalanceStr);
+                    numeric = 0;
+                    weiBalanceStr = '0';
+                  }
+                }
               }
               return {
                 symbol: balance.symbol,
@@ -415,16 +437,38 @@ export function useBalances() {
       }
       const privateBalancesFromRedis = balancesForCurrentChain.map(balance => {
         const tokenInfo = getTokenInfo(balance.tokenAddress, chainId);
-        // Handle Redis balance - stored as wei string, convert to decimal
-        const weiBalanceStr = String(balance.numericBalance || '0');
-        let numeric;
+        // Handle Redis balance - could be wei string, decimal string, or scientific notation
+        const storedBalance = balance.numericBalance || 0;
+        const balanceStr = String(storedBalance);
+        let numeric, weiBalanceStr;
 
         const decimals = balance.decimals ?? 18;
-        try {
-          numeric = parseFloat(ethers.formatUnits(weiBalanceStr, decimals));
-        } catch (e) {
-          console.warn('[useBalances] Failed to parse Redis balance (fallback), using 0:', weiBalanceStr);
-          numeric = 0;
+
+        if (typeof storedBalance === 'string' && (balanceStr.includes('.') || balanceStr.includes('e'))) {
+          // Stored as decimal string (possibly scientific notation)
+          numeric = Number(storedBalance);
+          weiBalanceStr = ethers.parseUnits(storedBalance, decimals).toString();
+        } else if (typeof storedBalance === 'number') {
+          // Stored as decimal number
+          numeric = storedBalance;
+          weiBalanceStr = ethers.parseUnits(storedBalance.toString(), decimals).toString();
+        } else {
+          // Assume stored as wei string
+          weiBalanceStr = balanceStr;
+          try {
+            numeric = parseFloat(ethers.formatUnits(weiBalanceStr, decimals));
+          } catch (e) {
+            console.warn('[useBalances] Failed to parse Redis wei balance (fallback), trying as decimal:', weiBalanceStr);
+            // Try parsing as decimal instead
+            try {
+              numeric = Number(weiBalanceStr);
+              weiBalanceStr = ethers.parseUnits(weiBalanceStr, decimals).toString();
+            } catch (e2) {
+              console.warn('[useBalances] Failed to parse Redis balance (fallback), using 0:', weiBalanceStr);
+              numeric = 0;
+              weiBalanceStr = '0';
+            }
+          }
         }
 
         return {
