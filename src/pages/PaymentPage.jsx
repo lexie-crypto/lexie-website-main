@@ -163,7 +163,7 @@ const PaymentPage = () => {
         // PaymentPage doesn't need Railgun engine for balance fetching - only for payment transactions
 
         // Fetch token prices first
-        const symbols = ['ETH', 'USDC', 'USDT', 'DAI', 'MATIC', 'BNB', 'WETH', 'WMATIC', 'WBNB'];
+        const symbols = ['ETH', 'USDC', 'USDT', 'DAI', 'MATIC', 'BNB', 'WETH', 'WMATIC', 'WBNB', 'USDC.e'];
         let prices = {};
         try {
           prices = await fetchTokenPrices(symbols);
@@ -184,22 +184,31 @@ const PaymentPage = () => {
             { symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', name: 'USD Coin', decimals: 6 },
             { symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', name: 'Tether USD', decimals: 6 },
             { symbol: 'DAI', address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', name: 'Dai Stablecoin', decimals: 18 },
+            { symbol: 'WETH', address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', name: 'Wrapped Ether', decimals: 18 },
           ],
           137: [ // Polygon
             { symbol: 'MATIC', address: null, name: 'Polygon', decimals: 18 },
-            { symbol: 'USDC', address: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', name: 'USD Coin', decimals: 6 },
-            { symbol: 'USDT', address: '0xc2132D05D31c914a87C6611c10748AEb04B58e8F', name: 'Tether USD', decimals: 6 },
+            { symbol: 'WETH', address: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619', name: 'Wrapped Ether', decimals: 18 },
+            { symbol: 'WMATIC', address: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', name: 'Wrapped MATIC', decimals: 18 },
+            { symbol: 'USDC', address: '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359', name: 'USD Coin', decimals: 6 },
+            { symbol: 'USDC.e', address: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', name: 'USD Coin (PoS)', decimals: 6 },
+            { symbol: 'USDT', address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', name: 'Tether USD (PoS)', decimals: 6 },
+            { symbol: 'DAI', address: '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063', name: 'Dai Stablecoin (PoS)', decimals: 18 },
           ],
           42161: [ // Arbitrum
             { symbol: 'ETH', address: null, name: 'Ethereum', decimals: 18 },
-            // Native USDC
-            { symbol: 'USDC', address: '0xaf88d065e77c8cc2239327c5edb3a432268e5831', name: 'USD Coin', decimals: 6 },
+            { symbol: 'WETH', address: '0x82af49447D8a07e3bd95BD0d56f35241523fBab1', name: 'Wrapped Ether', decimals: 18 },
+            { symbol: 'USDC', address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', name: 'USD Coin', decimals: 6 },
             { symbol: 'USDT', address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', name: 'Tether USD', decimals: 6 },
+            { symbol: 'DAI', address: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1', name: 'Dai Stablecoin', decimals: 18 },
           ],
           56: [ // BNB Chain
             { symbol: 'BNB', address: null, name: 'BNB', decimals: 18 },
-            { symbol: 'USDT', address: '0x55d398326f99059fF775485246999027B3197955', name: 'Tether USD', decimals: 18 },
+            { symbol: 'WETH', address: '0x2170Ed0880ac9A755fd29B2688956BD959F933F8', name: 'Wrapped Ether', decimals: 18 },
+            { symbol: 'WBNB', address: '0xBB4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', name: 'Wrapped BNB', decimals: 18 },
             { symbol: 'USDC', address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', name: 'USD Coin', decimals: 18 },
+            { symbol: 'USDT', address: '0x55d398326f99059fF775485246999027B3197955', name: 'Tether USD', decimals: 18 },
+            { symbol: 'DAI', address: '0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3', name: 'Dai Token', decimals: 18 },
           ],
         };
 
