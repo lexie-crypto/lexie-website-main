@@ -114,36 +114,18 @@ const InjectedProviderButtons = ({ disabled }) => {
     }
   };
 
-  const [showWalletConnectWarning, setShowWalletConnectWarning] = useState(false);
-
   const onWalletConnect = async () => {
     try {
       setBusyKey('walletconnect');
 
-      // Show pre-connection warning modal
-      setShowWalletConnectWarning(true);
-
-      // Wait for user to acknowledge the warning
-      await new Promise((resolve, reject) => {
-        const checkAcknowledged = () => {
-          if (!showWalletConnectWarning) {
-            resolve();
-          } else {
-            setTimeout(checkAcknowledged, 100);
-          }
-        };
-        checkAcknowledged();
-      });
-
-      // For WalletConnect, we need to be more aggressive about network validation
-      // since the chain is determined by the mobile wallet after QR scan
+      // For WalletConnect, network validation happens automatically after connection
       console.log('[WalletConnect] Starting WalletConnect connection...');
 
       await connectWallet('walletconnect');
 
       // After connection, immediately check if we can determine the chain
-      // WalletConnect might not have chainId immediately, so we'll rely on post-connection validation
-      console.log('[WalletConnect] Connection established, network validation will happen in WalletContext');
+      // WalletConnect validation will happen in WalletContext automatically
+      console.log('[WalletConnect] Connection established, network validation will happen automatically');
 
     } catch (e) {
       console.error('[WalletConnect] Connection failed:', e);
@@ -161,7 +143,6 @@ const InjectedProviderButtons = ({ disabled }) => {
       throw e; // Re-throw other errors
     } finally {
       setBusyKey(null);
-      setShowWalletConnectWarning(false);
     }
   };
 
@@ -171,72 +152,6 @@ const InjectedProviderButtons = ({ disabled }) => {
 
   return (
     <div className="mt-6">
-      {/* WalletConnect Pre-Connection Warning Modal */}
-      {showWalletConnectWarning && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 font-mono">
-          <div className="bg-gray-900 border border-yellow-500/30 rounded-lg shadow-2xl max-w-md w-full overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
-              <div className="flex items-center gap-3">
-                <div className="h-5 w-5 rounded-full bg-yellow-400 flex-shrink-0" />
-                <div className="text-lg font-semibold text-white">Network Check Required</div>
-              </div>
-            </div>
-
-            <div className="p-6 text-green-300 space-y-4">
-              <div className="text-center">
-                <h3 className="text-lg font-bold text-yellow-300 mb-3">⚠️ Important Network Check</h3>
-                <p className="text-green-400/80 text-sm mb-4">
-                  Before connecting with WalletConnect, please ensure your mobile wallet is connected to one of these supported networks:
-                </p>
-
-                <div className="bg-black/40 border border-green-500/20 rounded p-4 mb-6">
-                  <div className="grid grid-cols-2 gap-2 text-xs text-green-200">
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-blue-400"></div>
-                      <span>Ethereum (Mainnet)</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-blue-400"></div>
-                      <span>Arbitrum</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-purple-400"></div>
-                      <span>Polygon</span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="h-2 w-2 rounded-full bg-yellow-400"></div>
-                      <span>BNB Chain</span>
-                    </div>
-                  </div>
-                </div>
-
-                <p className="text-yellow-300/80 text-sm mb-6">
-                  If you're on an unsupported network (like Optimism, Base, etc.), the connection will be automatically rejected.
-                </p>
-
-                <div className="flex gap-3">
-                  <button
-                    onClick={() => setShowWalletConnectWarning(false)}
-                    className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded font-medium transition-colors"
-                  >
-                    I Understand - Continue
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowWalletConnectWarning(false);
-                      setBusyKey(null);
-                    }}
-                    className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded font-medium transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {providersSorted.length === 0 ? (
         // Center WalletConnect button when no other providers detected
         <div className="flex justify-center">
