@@ -1849,6 +1849,7 @@ const WalletContextProvider = ({ children }) => {
   }, [chainId, isRailgunInitialized]); // FIXED: Removed connector?.id dependency to reduce triggers
 
   // Monitor WalletConnect connections and validate chains immediately when chainId becomes available
+  const walletConnectToastShownRef = useRef(false);
   useEffect(() => {
     if (isConnected && connector?.id === 'walletConnect' && chainId && !isNaN(chainId)) {
       console.log(`[WalletConnect Monitor] Chain ID detected: ${chainId}, validating immediately...`);
@@ -1856,8 +1857,9 @@ const WalletContextProvider = ({ children }) => {
       // Supported networks: Ethereum (1), Polygon (137), Arbitrum (42161), BNB Chain (56)
       const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
 
-      if (!supportedNetworks[chainId]) {
+      if (!supportedNetworks[chainId] && !walletConnectToastShownRef.current) {
         console.log(`🚫 [WalletConnect Monitor] IMMEDIATE DISCONNECT: Unsupported network ${chainId} detected`);
+        walletConnectToastShownRef.current = true; // Prevent duplicate toasts
 
         // Show error toast immediately
         if (typeof window !== 'undefined') {
@@ -1897,15 +1899,21 @@ const WalletContextProvider = ({ children }) => {
           try {
             await disconnect();
             console.log('[WalletConnect Monitor] Disconnected from unsupported network');
+            // Reset the flag when disconnected so it can show again for future connections
+            setTimeout(() => {
+              walletConnectToastShownRef.current = false;
+            }, 1000);
           } catch (error) {
             console.error('[WalletConnect Monitor] Disconnect failed:', error);
+            walletConnectToastShownRef.current = false; // Reset on failure
           }
         }, 100); // Small delay to ensure disconnect works
 
         // Also show error in console
         console.error(`🚫 WalletConnect: Unsupported network (Chain ID: ${chainId}). Please use Ethereum, Arbitrum, Polygon, or BNB Chain.`);
-      } else {
+      } else if (supportedNetworks[chainId]) {
         console.log(`✅ [WalletConnect Monitor] Network ${chainId} validated - allowing connection`);
+        walletConnectToastShownRef.current = false; // Reset for successful connections
       }
     }
   }, [chainId, isConnected, connector?.id]); // Run whenever chainId changes
