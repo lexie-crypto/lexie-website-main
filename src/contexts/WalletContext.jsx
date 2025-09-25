@@ -159,6 +159,7 @@ const wagmiConfig = createConfig({
     walletConnect({
       projectId: WALLETCONNECT_CONFIG.projectId,
       metadata: WALLETCONNECT_CONFIG.metadata,
+      chains: [mainnet, polygon, arbitrum, bsc],
     }),
   ],
   transports: {

@@ -84,10 +84,14 @@ const InjectedProviderButtons = ({ disabled }) => {
     try {
       setBusyKey('walletconnect');
       await connectWallet('walletconnect');
-      // Note: Network validation for WalletConnect happens after connection in WalletContext
+      // Note: Network validation for WalletConnect happens at connector level and as fallback in WalletContext
     } catch (e) {
-      console.error(e);
-      throw e; // Re-throw to match injected provider behavior
+      console.error('[WalletConnect] Connection failed:', e);
+      // Provide user-friendly error messages
+      if (e.message?.includes('Unsupported network') || e.message?.includes('switch to')) {
+        throw new Error('Please ensure your mobile wallet is connected to Ethereum, Arbitrum, Polygon, or BNB Chain.');
+      }
+      throw e; // Re-throw other errors
     } finally {
       setBusyKey(null);
     }
