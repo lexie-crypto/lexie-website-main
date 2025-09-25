@@ -25,7 +25,7 @@ import { TXIDVersion, EVMGasType, NetworkName, getEVMGasTypeForTransaction } fro
 import { populateShield, populateShieldBaseToken } from '@railgun-community/wallet';
 import { Contract, parseUnits } from 'ethers';
 import { fetchTokenPrices } from '../utils/pricing/coinGecko';
-import { fetchGasPricesFromRPC } from '../utils/railgun/tx-gas-details';
+import { fetchGasPricesFromRPC, estimateGasForTransaction } from '../utils/railgun/tx-gas-details';
 
 // Terminal-themed toast helper (matches tx-unshield.js and PrivacyActions.jsx)
 const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
@@ -381,41 +381,20 @@ const PaymentPage = () => {
       };
       const shieldPrivateKey = getRandomHex32();
 
-      // Fetch current gas prices from RPC (same as shieldTransactions.js)
-      console.log('[PaymentPage] Fetching current gas prices from RPC...');
-      let gasPrices = await fetchGasPricesFromRPC(chainId);
-      console.log(`[PaymentPage] RPC gas prices for chain ${chainId}:`, {
-        gasPrice: gasPrices.gasPrice?.toString(),
-        maxFeePerGas: gasPrices.maxFeePerGas?.toString(),
-        maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas?.toString()
+      // Use same gas estimation approach as working shieldTransactions.js
+      console.log('[PaymentPage] Running gas estimation (same as shieldTransactions.js)...');
+      const gasCostEstimate = await estimateGasForTransaction({
+        transactionType: 'shield',
+        chainId,
+        networkName: railgunNetwork,
+        tokenAddress: selectedToken.address, // Use the actual token address
+        amount: weiAmount,
+        walletProvider: await walletProvider(),
       });
 
-      // Enforce minimum gas prices for networks that need them
-      if (chainId === 56) {
-        // BNB Chain requires higher gas prices than RPC often returns
-        const minGasPrice = BigInt('1000000000'); // 1 gwei minimum for BNB
-        if (gasPrices.gasPrice < minGasPrice) {
-          console.log(`[PaymentPage] BNB gas price too low (${gasPrices.gasPrice}), enforcing minimum: ${minGasPrice}`);
-          gasPrices = {
-            ...gasPrices,
-            gasPrice: minGasPrice,
-            maxFeePerGas: minGasPrice,
-            maxPriorityFeePerGas: minGasPrice / 10n
-          };
-        }
-      } else if (chainId === 137) {
-        // Polygon minimum gas price
-        const minGasPrice = BigInt('30000000000'); // 30 gwei minimum for Polygon
-        if (gasPrices.gasPrice < minGasPrice) {
-          console.log(`[PaymentPage] Polygon gas price too low (${gasPrices.gasPrice}), enforcing minimum: ${minGasPrice}`);
-          gasPrices = {
-            ...gasPrices,
-            gasPrice: minGasPrice,
-            maxFeePerGas: minGasPrice,
-            maxPriorityFeePerGas: minGasPrice / 10n
-          };
-        }
-      }
+      // Get gas prices from RPC (exact same as shieldTransactions.js)
+      console.log('[PaymentPage] Fetching gas prices from RPC...');
+      const gasPrices = await fetchGasPricesFromRPC(chainId);
 
       // Determine gas type and preliminary gas details (to discover spender address)
       const evmGasType = getEVMGasTypeForTransaction(railgunNetwork, true);
