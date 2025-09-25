@@ -83,14 +83,30 @@ const InjectedProviderButtons = ({ disabled }) => {
   const onWalletConnect = async () => {
     try {
       setBusyKey('walletconnect');
+
+      // For WalletConnect, we need to be more aggressive about network validation
+      // since the chain is determined by the mobile wallet after QR scan
+      console.log('[WalletConnect] Starting WalletConnect connection...');
+
       await connectWallet('walletconnect');
-      // Note: Network validation for WalletConnect happens at connector level and as fallback in WalletContext
+
+      // After connection, immediately check if we can determine the chain
+      // WalletConnect might not have chainId immediately, so we'll rely on post-connection validation
+      console.log('[WalletConnect] Connection established, network validation will happen in WalletContext');
+
     } catch (e) {
       console.error('[WalletConnect] Connection failed:', e);
+
       // Provide user-friendly error messages
-      if (e.message?.includes('Unsupported network') || e.message?.includes('switch to')) {
-        throw new Error('Please ensure your mobile wallet is connected to Ethereum, Arbitrum, Polygon, or BNB Chain.');
+      if (e.message?.includes('Unsupported network') || e.message?.includes('switch to') || e.message?.includes('Ethereum, Arbitrum, Polygon')) {
+        throw new Error('Please ensure your mobile wallet is connected to Ethereum, Arbitrum, Polygon, or BNB Chain before connecting.');
       }
+
+      // Handle other WalletConnect-specific errors
+      if (e.message?.includes('User rejected') || e.message?.includes('rejected')) {
+        throw new Error('Connection cancelled by user.');
+      }
+
       throw e; // Re-throw other errors
     } finally {
       setBusyKey(null);

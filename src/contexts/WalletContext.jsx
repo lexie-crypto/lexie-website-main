@@ -159,7 +159,8 @@ const wagmiConfig = createConfig({
     walletConnect({
       projectId: WALLETCONNECT_CONFIG.projectId,
       metadata: WALLETCONNECT_CONFIG.metadata,
-      chains: [mainnet, polygon, arbitrum, bsc],
+      requiredChains: [mainnet, polygon, arbitrum, bsc],
+      optionalChains: [],
     }),
   ],
   transports: {
@@ -620,26 +621,68 @@ const WalletContextProvider = ({ children }) => {
 
         // Validate network after connection for non-injected connectors (like WalletConnect)
         if (connectorType !== 'injected') {
-          // Give wagmi a moment to update chainId
-          await new Promise(resolve => setTimeout(resolve, 100));
+          console.log('[WalletConnect] Validating network after connection...');
+
+          // Try multiple times to get chainId (WalletConnect can be slow)
+          let currentChainId = chainId;
+          let attempts = 0;
+          const maxAttempts = 10;
+
+          while ((!currentChainId || currentChainId === 'NaN' || isNaN(currentChainId)) && attempts < maxAttempts) {
+            console.log(`[WalletConnect] Waiting for chainId... attempt ${attempts + 1}/${maxAttempts}, current: ${currentChainId}`);
+            await new Promise(resolve => setTimeout(resolve, 200));
+            currentChainId = chainId; // Re-check from wagmi
+            attempts++;
+          }
+
+          // If still no valid chainId, try to get it from connector
+          if (!currentChainId || currentChainId === 'NaN' || isNaN(currentChainId)) {
+            try {
+              console.log('[WalletConnect] Trying to get chainId from connector client...');
+              const connectorClient = await getConnectorClient({ connector: connectors.find(c => c.id === 'walletConnect') });
+              currentChainId = connectorClient.chain?.id || connectorClient.chainId;
+              console.log(`[WalletConnect] Got chainId from connector: ${currentChainId}`);
+            } catch (connectorError) {
+              console.warn('[WalletConnect] Could not get chainId from connector:', connectorError);
+            }
+          }
+
+          // Last resort: try to get chainId directly from the provider
+          if (!currentChainId || currentChainId === 'NaN' || isNaN(currentChainId)) {
+            try {
+              console.log('[WalletConnect] Last resort: trying to get chainId from provider...');
+              const walletConnectConnector = connectors.find(c => c.id === 'walletConnect');
+              if (walletConnectConnector && walletConnectConnector.getProvider) {
+                const provider = await walletConnectConnector.getProvider();
+                if (provider && provider.request) {
+                  currentChainId = parseInt(await provider.request({ method: 'eth_chainId' }), 16);
+                  console.log(`[WalletConnect] Got chainId from provider: ${currentChainId}`);
+                }
+              }
+            } catch (providerError) {
+              console.warn('[WalletConnect] Could not get chainId from provider:', providerError);
+            }
+          }
+
+          console.log(`[WalletConnect] Final chainId determination: ${currentChainId}`);
 
           // Supported networks: Ethereum (1), Polygon (137), Arbitrum (42161), BNB Chain (56)
           const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
 
-          if (!chainId) {
-            console.log('⚠️ Chain ID not available yet for network validation');
-          } else if (!supportedNetworks[chainId]) {
-            console.log(`🚫 Connected to unsupported network (chainId: ${chainId}), disconnecting...`);
+          if (!currentChainId || currentChainId === 'NaN' || isNaN(currentChainId)) {
+            console.log('⚠️ [WalletConnect] Chain ID still not available, allowing connection but will validate later');
+          } else if (!supportedNetworks[currentChainId]) {
+            console.log(`🚫 [WalletConnect] Connected to unsupported network (chainId: ${currentChainId}), disconnecting...`);
             try {
               // Disconnect immediately if on unsupported network
               await disconnect();
               throw new Error(`Please switch to Ethereum, Arbitrum, Polygon, or BNB Chain to use LexieVault features.`);
             } catch (disconnectError) {
-              console.error('❌ Failed to disconnect from unsupported network:', disconnectError);
+              console.error('❌ [WalletConnect] Failed to disconnect from unsupported network:', disconnectError);
               throw new Error(`Unsupported network. Please switch to Ethereum, Arbitrum, Polygon, or BNB Chain.`);
             }
           } else {
-            console.log(`✅ Connected on supported network: ${chainId}`);
+            console.log(`✅ [WalletConnect] Connected on supported network: ${currentChainId}`);
           }
         }
 
@@ -1745,6 +1788,18 @@ const WalletContextProvider = ({ children }) => {
     }
 
     if (isConnected && address && !isInitializing) {
+      // Final safety check: ensure we have a valid supported chainId before initializing Railgun
+      if (!chainId || chainId === 'NaN' || isNaN(chainId)) {
+        console.log('⏳ [Railgun Init] Chain ID not yet available, deferring initialization...');
+        return;
+      }
+
+      const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
+      if (!supportedNetworks[chainId]) {
+        console.log(`🚫 [Railgun Init] Refusing to initialize on unsupported network (chainId: ${chainId})`);
+        return;
+      }
+
       console.log('🚀 Auto-initializing Railgun for connected wallet:', address);
       lastInitializedAddressRef.current = address;
       initializeRailgun();
@@ -1859,6 +1914,73 @@ const WalletContextProvider = ({ children }) => {
     updateRailgunProviders();
     return undefined;
   }, [chainId, isRailgunInitialized]); // FIXED: Removed connector?.id dependency to reduce triggers
+
+  // Monitor WalletConnect connections and validate chains immediately
+  useEffect(() => {
+    if (isConnected && connector?.id === 'walletConnect' && address) {
+      console.log('[WalletConnect Monitor] New WalletConnect connection detected, validating chain...');
+
+      const validateWalletConnectChain = async () => {
+        try {
+          // Give the connection a moment to stabilize
+          await new Promise(resolve => setTimeout(resolve, 500));
+
+          let detectedChainId = chainId;
+
+          // If wagmi still doesn't have chainId, try to get it from the provider
+          if (!detectedChainId || detectedChainId === 'NaN' || isNaN(detectedChainId)) {
+            try {
+              const provider = await connector.getProvider();
+              if (provider && provider.request) {
+                const chainIdHex = await provider.request({ method: 'eth_chainId' });
+                detectedChainId = parseInt(chainIdHex, 16);
+                console.log(`[WalletConnect Monitor] Got chainId from provider: ${detectedChainId}`);
+              }
+            } catch (e) {
+              console.warn('[WalletConnect Monitor] Could not get chainId from provider:', e);
+            }
+          }
+
+          console.log(`[WalletConnect Monitor] Detected chainId: ${detectedChainId}`);
+
+          // Supported networks: Ethereum (1), Polygon (137), Arbitrum (42161), BNB Chain (56)
+          const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
+
+          if (detectedChainId && !supportedNetworks[detectedChainId]) {
+            console.log(`🚫 [WalletConnect Monitor] Unsupported network detected (${detectedChainId}), disconnecting...`);
+
+            // Disconnect immediately
+            try {
+              await disconnect();
+              console.log('[WalletConnect Monitor] Successfully disconnected from unsupported network');
+            } catch (disconnectError) {
+              console.error('[WalletConnect Monitor] Failed to disconnect:', disconnectError);
+            }
+
+            // Show user-friendly error (this will be caught by the UI)
+            throw new Error(`Please switch to Ethereum, Arbitrum, Polygon, or BNB Chain to use LexieVault features.`);
+          } else if (detectedChainId && supportedNetworks[detectedChainId]) {
+            console.log(`✅ [WalletConnect Monitor] Connection validated for supported network: ${detectedChainId}`);
+          } else {
+            console.log(`⚠️ [WalletConnect Monitor] Could not determine chainId, allowing connection but will validate later`);
+          }
+        } catch (error) {
+          console.error('[WalletConnect Monitor] Validation failed:', error);
+          throw error;
+        }
+      };
+
+      validateWalletConnectChain().catch(error => {
+        console.error('[WalletConnect Monitor] Chain validation error:', error);
+        // Emit a custom event that the UI can listen for
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('walletconnect-validation-error', {
+            detail: { error: error.message }
+          }));
+        }
+      });
+    }
+  }, [isConnected, connector?.id, address, chainId]); // Include chainId to re-run if it changes
 
   // 🛠️ Debug utilities for encrypted data management
   useEffect(() => {
