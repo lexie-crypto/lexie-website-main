@@ -142,12 +142,14 @@ export default async function handler(req, res) {
   const origin = req.headers.origin;
   const allowedOrigins = [
     'https://app.lexiecrypto.com',
-    'https://lexiecrypto.com', 
-    'http://localhost:3000', 
+    'https://lexiecrypto.com',
+    'http://localhost:3000',
     'http://localhost:3001',
     'http://localhost:5173',
     'https://staging.lexiecrypto.com',
     'https://staging.chatroom.lexiecrypto.com',
+    'https://staging.pay.lexiecrypto.com',
+    'https://pay.lexiecrypto.com',
   ];
   const isOriginAllowed = origin && (allowedOrigins.includes(origin) || 
     (origin && origin.endsWith('.lexiecrypto.com')));

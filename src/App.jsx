@@ -6,7 +6,6 @@ import { Analytics } from "@vercel/analytics/react";
 import { WalletProvider } from './contexts/WalletContext';
 import LandingPage from './pages/LandingPage';
 import WalletPage from './pages/WalletPage';
-import PaymentPage from './pages/PaymentPage';
 import AdminHistoryPage from './pages/AdminHistoryPage';
 
 function App() {
@@ -47,7 +46,6 @@ function App() {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/LexieVault" element={<WalletPage />} />
-            <Route path="/pay" element={<PaymentPage />} />
             <Route path="/admin-history" element={<AdminHistoryPage />} />
           </Routes>
           

@@ -325,7 +325,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   // Generate payment link when receive tab parameters change (uses active network)
   useEffect(() => {
     if (activeTab === 'receive' && railgunAddress && chainId) {
-      const baseUrl = window.location.origin;
+      const baseUrl = 'https://staging.pay.lexiecrypto.com';
       // Prefer Lexie ID if available; fallback to Railgun address
       const toValue = myLexieId || railgunAddress;
       const params = new URLSearchParams({
