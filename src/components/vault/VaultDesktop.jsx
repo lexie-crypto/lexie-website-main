@@ -111,6 +111,31 @@ const VaultDesktopInner = () => {
     { id: 56, name: 'BNB Chain', symbol: 'BNB' },
   ];
 
+  // Check if current network is supported
+  const isNetworkSupported = chainId && supportedNetworks.some(net => net.id === chainId);
+
+  // Track if we were just disconnected due to unsupported network
+  const [wasDisconnectedForUnsupportedNetwork, setWasDisconnectedForUnsupportedNetwork] = useState(false);
+
+  // Reset the unsupported network flag when we reconnect
+  useEffect(() => {
+    if (isConnected) {
+      setWasDisconnectedForUnsupportedNetwork(false);
+    }
+  }, [isConnected]);
+
+  // Listen for WalletConnect disconnect events due to unsupported network
+  useEffect(() => {
+    const handleUnsupportedNetworkDisconnect = () => {
+      setWasDisconnectedForUnsupportedNetwork(true);
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('walletconnect-unsupported-network', handleUnsupportedNetworkDisconnect);
+      return () => window.removeEventListener('walletconnect-unsupported-network', handleUnsupportedNetworkDisconnect);
+    }
+  }, []);
+
 
   // Simple Redis check for scanned chains (exact EOA address, no normalization)
   const checkRedisScannedChains = useCallback(async (targetChainId = null) => {
@@ -984,7 +1009,7 @@ const VaultDesktopInner = () => {
     };
   }, [isChainMenuOpen, isMobileChainMenuOpen]);
 
-  if (!isConnected) {
+  if (!isConnected || (isConnected && !isNetworkSupported)) {
     return (
       <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
         {/* Navigation */}
@@ -1021,8 +1046,8 @@ const VaultDesktopInner = () => {
         <div className="relative z-10 max-w-3xl mx-auto px-6 sm:px-8 lg:px-12 py-12">
           <TerminalWindow
             title="LexieVault-connect"
-            statusLabel={isConnecting ? 'WAITING' : 'READY'}
-            statusTone={isConnecting ? 'waiting' : 'online'}
+            statusLabel={wasDisconnectedForUnsupportedNetwork ? 'NETWORK ERROR' : (isConnecting ? 'WAITING' : 'READY')}
+            statusTone={wasDisconnectedForUnsupportedNetwork ? 'error' : (isConnecting ? 'waiting' : 'online')}
             footerLeft={<span>Process: wallet-connect</span>}
             variant="connect"
             className="overflow-hidden"
@@ -1031,7 +1056,10 @@ const VaultDesktopInner = () => {
               <WalletIcon className="h-16 w-16 text-emerald-300 mx-auto mb-6" />
               <h2 className="text-2xl font-semibold text-emerald-300 tracking-tight">Connect Wallet</h2>
               <p className="mt-2 text-emerald-300/80 text-center text-sm leading-6">
-                Connect your wallet to gain access to the LexieVault features.
+                {wasDisconnectedForUnsupportedNetwork
+                  ? "Your wallet was disconnected because it's connected to an unsupported network. Please switch to Ethereum, Arbitrum, Polygon, or BNB Chain and try again."
+                  : "Connect your wallet to gain access to the LexieVault features."
+                }
               </p>
 
               <div className="space-y-4">

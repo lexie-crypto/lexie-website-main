@@ -1921,8 +1921,15 @@ const WalletContextProvider = ({ children }) => {
           }
         }, 200); // Slightly longer delay
 
-        // Also show error in console
-        console.error(`🚫 WalletConnect: Unsupported network (Chain ID: ${chainId}). Please use Ethereum, Arbitrum, Polygon, or BNB Chain.`);
+            // Dispatch custom event for UI handling
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('walletconnect-unsupported-network', {
+                detail: { chainId, supportedNetworks: [1, 137, 42161, 56] }
+              }));
+            }
+
+            // Also show error in console
+            console.error(`🚫 WalletConnect: Unsupported network (Chain ID: ${chainId}). Please use Ethereum, Arbitrum, Polygon, or BNB Chain.`);
       } else if (supportedNetworks[chainId]) {
         console.log(`✅ [WalletConnect Monitor] Network ${chainId} validated - allowing connection`);
         // Reset flags for successful connections
