@@ -385,19 +385,34 @@ const PaymentPage = () => {
 
       let prelimGasDetails;
       if (evmGasType === EVMGasType.Type2) {
-        // EIP-1559 networks (Arbitrum) - use same limits as shieldTransactions.js
+        // EIP-1559 networks (Arbitrum) - higher gas for L2
         prelimGasDetails = {
           evmGasType,
-          gasEstimate: BigInt(1200000), // 1.2M gas (same as base token shield in shieldTransactions.js)
+          gasEstimate: BigInt(1200000), // 1.2M gas for Arbitrum L2
           maxFeePerGas: BigInt('200000000'), // 200 gwei (higher for L2)
           maxPriorityFeePerGas: BigInt('1000000'), // 1 gwei priority
         };
       } else {
-        // Legacy networks (Ethereum, Polygon, BNB Chain)
+        // Legacy networks - network-specific gas limits and prices
+        let gasEstimate, gasPrice;
+        if (chainId === 1) {
+          // Ethereum - high gas limit, standard price
+          gasEstimate = BigInt(1000000); // 1M gas
+          gasPrice = BigInt('20000000000'); // 20 gwei
+        } else if (chainId === 137) {
+          // Polygon - medium gas limit, lower price
+          gasEstimate = BigInt(800000); // 800k gas
+          gasPrice = BigInt('50000000000'); // 50 gwei (higher on Polygon)
+        } else if (chainId === 56) {
+          // BNB Chain - lower gas limit, lower price
+          gasEstimate = BigInt(300000); // 300k gas (BNB uses lower limits)
+          gasPrice = BigInt('5000000000'); // 5 gwei (BNB is cheaper)
+        }
+
         prelimGasDetails = {
           evmGasType: EVMGasType.Type0,
-          gasEstimate: BigInt(1000000), // 1M gas (same as ERC-20 shield in shieldTransactions.js)
-          gasPrice: BigInt('20000000000'), // 20 gwei
+          gasEstimate,
+          gasPrice,
         };
       }
 
@@ -455,23 +470,39 @@ const PaymentPage = () => {
         }
       }
 
-      // Final gas estimate for shield - use same logic as shieldTransactions.js
+      // Final gas estimate for shield - network-specific
       let gasEstimate;
       if (!selectedToken.address) {
-        // For native tokens, use same base estimate as shieldTransactions.js base token shields
-        gasEstimate = BigInt(1200000); // 1.2M gas (same as shieldTransactions.js)
+        // For native tokens - network-specific base estimates
+        if (chainId === 1) {
+          gasEstimate = BigInt(1200000); // 1.2M for Ethereum
+        } else if (chainId === 137) {
+          gasEstimate = BigInt(1000000); // 1M for Polygon
+        } else if (chainId === 56) {
+          gasEstimate = BigInt(500000); // 500k for BNB (lower)
+        } else if (chainId === 42161) {
+          gasEstimate = BigInt(1200000); // 1.2M for Arbitrum L2
+        }
       } else {
-        // For ERC-20 tokens, use same base estimate as shieldTransactions.js ERC-20 shields
-        gasEstimate = BigInt(1000000); // 1M gas (same as shieldTransactions.js)
+        // For ERC-20 tokens - network-specific base estimates
+        if (chainId === 1) {
+          gasEstimate = BigInt(1000000); // 1M for Ethereum
+        } else if (chainId === 137) {
+          gasEstimate = BigInt(800000); // 800k for Polygon
+        } else if (chainId === 56) {
+          gasEstimate = BigInt(300000); // 300k for BNB (lower)
+        } else if (chainId === 42161) {
+          gasEstimate = BigInt(1000000); // 1M for Arbitrum L2
+        }
       }
 
-      // Apply 20% padding for safety (same as shieldTransactions.js)
+      // Apply 20% padding for safety
       const paddedGasEstimate = (gasEstimate * 120n) / 100n;
 
-      // Final gas details - use same structure as shieldTransactions.js
+      // Final gas details - network-specific
       let gasDetails;
       if (evmGasType === EVMGasType.Type2) {
-        // EIP-1559 networks (Arbitrum)
+        // EIP-1559 networks (Arbitrum) - higher gas for L2
         gasDetails = {
           evmGasType,
           gasEstimate: paddedGasEstimate,
@@ -479,11 +510,20 @@ const PaymentPage = () => {
           maxPriorityFeePerGas: BigInt('1000000'), // 1 gwei priority
         };
       } else {
-        // Legacy networks (Ethereum, Polygon, BNB Chain)
+        // Legacy networks - network-specific gas prices
+        let gasPrice;
+        if (chainId === 1) {
+          gasPrice = BigInt('20000000000'); // 20 gwei for Ethereum
+        } else if (chainId === 137) {
+          gasPrice = BigInt('50000000000'); // 50 gwei for Polygon
+        } else if (chainId === 56) {
+          gasPrice = BigInt('5000000000'); // 5 gwei for BNB (much cheaper)
+        }
+
         gasDetails = {
           evmGasType: EVMGasType.Type0,
           gasEstimate: paddedGasEstimate,
-          gasPrice: BigInt('20000000000'), // 20 gwei
+          gasPrice,
         };
       }
 
