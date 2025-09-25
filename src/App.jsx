@@ -10,14 +10,12 @@ import AdminHistoryPage from './pages/AdminHistoryPage';
 
 // PaymentPage moved to subdomain - redirect component
 const PaymentRedirect = () => {
-  React.useEffect(() => {
-    // Get current URL parameters
-    const urlParams = new URLSearchParams(window.location.search);
-    const subdomainUrl = `https://staging.pay.lexiecrypto.com/pay?${urlParams.toString()}`;
+  // Get current URL parameters and redirect immediately
+  const urlParams = new URLSearchParams(window.location.search);
+  const subdomainUrl = `https://staging.pay.lexiecrypto.com/pay?${urlParams.toString()}`;
 
-    // Redirect to subdomain
-    window.location.href = subdomainUrl;
-  }, []);
+  // Use replace to avoid back button issues
+  window.location.replace(subdomainUrl);
 
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center">
