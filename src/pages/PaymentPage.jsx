@@ -14,6 +14,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 import TerminalWindow from '../components/ui/TerminalWindow';
+import { Navbar } from '../components/Navbar';
 
 import { useWallet } from '../contexts/WalletContext';
 import useInjectedProviders from '../hooks/useInjectedProviders';
@@ -692,6 +693,9 @@ const PaymentPage = () => {
 
   return (
     <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
+      {/* Navigation */}
+      <Navbar />
+
       {/* Background overlays (match other pages) */}
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>

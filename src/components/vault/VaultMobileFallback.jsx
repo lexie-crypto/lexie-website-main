@@ -1,9 +1,13 @@
 import React from 'react';
 import TerminalWindow from '../ui/TerminalWindow.jsx';
+import { Navbar } from '../Navbar';
 
 const VaultMobileFallback = () => {
   return (
     <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
+      {/* Navigation (match other pages) */}
+      <Navbar />
+
       {/* Background overlays (match other pages) */}
       <div className="fixed inset-0 z-0">
         {/* Base gradient layers */}
