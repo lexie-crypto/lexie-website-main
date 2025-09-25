@@ -529,6 +529,14 @@ const PaymentPage = () => {
 
       showTerminalToast('success', 'Payment sent', `Deposited ${amount} ${selectedToken.symbol} to recipient's vault. TX: ${sent.hash.slice(0, 10)}...${sent.hash.slice(-8)}`, { duration: 6000 });
 
+      // Refresh public balances to show updated available balance
+      try {
+        window.dispatchEvent(new CustomEvent('railgun-public-refresh'));
+        console.log('[PaymentPage] ✅ Public balances refresh triggered');
+      } catch (e) {
+        console.warn('[PaymentPage] ⚠️ Public balance refresh failed:', e?.message);
+      }
+
       // Reset form amount
       setAmount('');
       
