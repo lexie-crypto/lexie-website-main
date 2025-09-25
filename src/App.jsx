@@ -8,6 +8,27 @@ import LandingPage from './pages/LandingPage';
 import WalletPage from './pages/WalletPage';
 import AdminHistoryPage from './pages/AdminHistoryPage';
 
+// PaymentPage moved to subdomain - redirect component
+const PaymentRedirect = () => {
+  React.useEffect(() => {
+    // Get current URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const subdomainUrl = `https://staging.pay.lexiecrypto.com/pay?${urlParams.toString()}`;
+
+    // Redirect to subdomain
+    window.location.href = subdomainUrl;
+  }, []);
+
+  return (
+    <div className="min-h-screen bg-black text-white flex items-center justify-center">
+      <div className="text-center">
+        <div className="text-green-300 text-lg mb-2">Redirecting to payment page...</div>
+        <div className="text-green-400/70 text-sm">Payment processing has moved to a dedicated subdomain</div>
+      </div>
+    </div>
+  );
+};
+
 function App() {
   const [showMobileDebug, setShowMobileDebug] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -46,6 +67,7 @@ function App() {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/LexieVault" element={<WalletPage />} />
+            <Route path="/pay" element={<PaymentRedirect />} />
             <Route path="/admin-history" element={<AdminHistoryPage />} />
           </Routes>
           
