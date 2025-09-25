@@ -1714,13 +1714,6 @@ const WalletContextProvider = ({ children }) => {
       return;
     }
 
-    // CRITICAL: Prevent auto-initialization for WalletConnect connections
-    // WalletConnect should only initialize through explicit auth/login flow, not auto-signing
-    if (connector?.id === 'walletconnect') {
-      console.log('[Railgun Init] ⏭️ Skipping auto-init for WalletConnect - initialization must be explicit through auth flow');
-      return;
-    }
-
     // Prevent same-address re-init immediately after disconnect; require explicit reconnect
     if (lastInitializedAddressRef.current && lastInitializedAddressRef.current === address) {
       console.log('[Railgun Init] ⏭️ Skipping auto-init for same address until explicit reconnect');
@@ -1744,7 +1737,7 @@ const WalletContextProvider = ({ children }) => {
       lastInitializedAddressRef.current = address;
       initializeRailgun();
     }
-  }, [isConnected, address, isRailgunInitialized, isInitializing, chainId, status, connector?.id]);
+  }, [isConnected, address, isRailgunInitialized, isInitializing, chainId, status]);
 
   // Update Railgun providers when chain or wallet changes - FIXED: Prevent infinite loops
   useEffect(() => {
@@ -1857,11 +1850,9 @@ const WalletContextProvider = ({ children }) => {
 
   // Monitor WalletConnect connections and validate chains immediately when chainId becomes available
   const walletConnectValidationRef = useRef({ toastShown: false, lastChainId: null, disconnecting: false });
-  const [walletConnectValidating, setWalletConnectValidating] = useState(false);
   useEffect(() => {
     if (isConnected && connector?.id === 'walletConnect' && chainId && !isNaN(chainId) && !walletConnectValidationRef.current.disconnecting) {
       console.log(`[WalletConnect Monitor] Chain ID detected: ${chainId}, validating immediately... (toastShown: ${walletConnectValidationRef.current.toastShown})`);
-      setWalletConnectValidating(true);
 
       // Supported networks: Ethereum (1), Polygon (137), Arbitrum (42161), BNB Chain (56)
       const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
@@ -1870,7 +1861,6 @@ const WalletContextProvider = ({ children }) => {
         // Check if we already handled this exact chainId
         if (walletConnectValidationRef.current.toastShown && walletConnectValidationRef.current.lastChainId === chainId) {
           console.log(`[WalletConnect Monitor] Skipping duplicate validation for chain ${chainId}`);
-          setWalletConnectValidating(false);
           return;
         }
 
@@ -1922,14 +1912,12 @@ const WalletContextProvider = ({ children }) => {
               walletConnectValidationRef.current.toastShown = false;
               walletConnectValidationRef.current.lastChainId = null;
               walletConnectValidationRef.current.disconnecting = false;
-              setWalletConnectValidating(false);
             }, 2000); // Longer delay to ensure clean state
           } catch (error) {
             console.error('[WalletConnect Monitor] Disconnect failed:', error);
             // Reset on failure
             walletConnectValidationRef.current.toastShown = false;
             walletConnectValidationRef.current.disconnecting = false;
-            setWalletConnectValidating(false);
           }
         }, 200); // Slightly longer delay
 
@@ -1948,7 +1936,6 @@ const WalletContextProvider = ({ children }) => {
         walletConnectValidationRef.current.toastShown = false;
         walletConnectValidationRef.current.lastChainId = null;
         walletConnectValidationRef.current.disconnecting = false;
-        setWalletConnectValidating(false);
       }
     }
   }, [chainId, isConnected, connector?.id]); // Run whenever chainId changes
@@ -2051,7 +2038,6 @@ const WalletContextProvider = ({ children }) => {
     railgunWalletID,
     isInitializing,
     isInitializingRailgun: isInitializing,
-    walletConnectValidating,
     railgunError,
     canUseRailgun: isRailgunInitialized,
     railgunWalletId: railgunWalletID,
