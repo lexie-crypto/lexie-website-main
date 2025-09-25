@@ -11,6 +11,7 @@ import {
   ShieldCheckIcon,
   ExclamationTriangleIcon,
   ArrowDownIcon,
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 
 import TerminalWindow from '../components/ui/TerminalWindow';
@@ -778,6 +779,28 @@ const PaymentPage = () => {
                       </div>
                     )}
                   </div>
+                </div>
+
+                {/* Balance Refresh Button */}
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      console.log('[PaymentPage] Manual balance refresh triggered');
+                      setBalanceRefreshTrigger(prev => prev + 1);
+                      showTerminalToast('info', 'Refreshing balances...', 'Updating your token balances', { duration: 2000 });
+                    }}
+                    disabled={!isConnected || isLoadingBalances}
+                    className={`flex items-center gap-2 px-3 py-1 text-xs rounded border transition-colors ${
+                      !isConnected || isLoadingBalances
+                        ? 'border-green-500/20 text-green-400/50 cursor-not-allowed'
+                        : 'border-green-500/40 text-green-400 hover:bg-green-900/20 hover:border-green-500/60'
+                    }`}
+                    title="Refresh token balances"
+                  >
+                    <ArrowPathIcon className={`h-3 w-3 ${isLoadingBalances ? 'animate-spin' : ''}`} />
+                    {isLoadingBalances ? 'Refreshing...' : 'Refresh Balances'}
+                  </button>
                 </div>
 
                 {/* Amount Input */}
