@@ -362,19 +362,12 @@ export const buildBaseTokenShieldGasAndEstimate = async ({
     // For SDK population, use a conservative gas estimate (not the hardcoded 1M from simple estimation)
     const sdkGasEstimate = 1200000n; // Conservative base token shield gas estimate
 
-    // Final gasDetails to pass into populate() - include gas prices for MetaMask
-    const gasDetails = evmGasType === EVMGasType.Type2
-      ? {
-          evmGasType,
-          gasEstimate: sdkGasEstimate,
-          maxFeePerGas: gasPrices.maxFeePerGas,
-          maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas,
-        }
-      : {
-          evmGasType,
-          gasEstimate: sdkGasEstimate,
-          gasPrice: gasPrices.gasPrice,
-        };
+    // Final gasDetails to pass into populate() - omit gas prices to let wallet use market rates
+    const gasDetails = {
+      evmGasType,
+      gasEstimate: sdkGasEstimate,
+      // Omit gasPrice/maxFeePerGas/maxPriorityFeePerGas to let MetaMask use market rates
+    };
 
     // Pad estimate for headroom (applied to transaction.gasLimit, not gasDetails)
     const paddedGasEstimate = (sdkGasEstimate * 120n) / 100n;
@@ -431,19 +424,12 @@ export const buildShieldGasAndEstimate = async ({
     // For SDK population, use a conservative gas estimate (not the hardcoded 1M from simple estimation)
     const sdkGasEstimate = 1000000n; // Conservative ERC20 shield gas estimate
 
-    // Final gasDetails to pass into populate() - include gas prices for MetaMask
-    const gasDetails = evmGasType === EVMGasType.Type2
-      ? {
-          evmGasType,
-          gasEstimate: sdkGasEstimate,
-          maxFeePerGas: gasPrices.maxFeePerGas,
-          maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas,
-        }
-      : {
-          evmGasType,
-          gasEstimate: sdkGasEstimate,
-          gasPrice: gasPrices.gasPrice,
-        };
+    // Final gasDetails to pass into populate() - omit gas prices to let wallet use market rates
+    const gasDetails = {
+      evmGasType,
+      gasEstimate: sdkGasEstimate,
+      // Omit gasPrice/maxFeePerGas/maxPriorityFeePerGas to let MetaMask use market rates
+    };
 
     // Pad estimate for headroom (applied to transaction.gasLimit, not gasDetails)
     const paddedGasEstimate = (sdkGasEstimate * 120n) / 100n;
