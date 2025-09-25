@@ -48,47 +48,6 @@ const InjectedProviderButtons = ({ disabled }) => {
     }
   }, [isConnected]);
 
-  // Listen for WalletConnect validation errors and show them to user
-  useEffect(() => {
-    const handleWalletConnectError = (event) => {
-      console.error('[InjectedProviderButtons] WalletConnect validation error:', event.detail.error);
-
-      // Show a toast notification for the error
-      toast.custom((t) => (
-        <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-          <div className="rounded-lg border border-red-500/30 bg-black/90 text-red-200 shadow-2xl max-w-md">
-            <div className="px-4 py-3 flex items-start gap-3">
-              <div className="h-5 w-5 rounded-full bg-red-400 flex-shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium">Connection Failed</div>
-                <div className="text-xs text-red-300/80 mt-1">
-                  {event.detail.error}
-                </div>
-              </div>
-              <button
-                type="button"
-                aria-label="Dismiss"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toast.dismiss(t.id);
-                }}
-                className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-red-900/30 text-red-300/80 flex-shrink-0"
-              >
-                ×
-              </button>
-            </div>
-          </div>
-        </div>
-      ), { duration: 6000 }); // Show for 6 seconds
-    };
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('walletconnect-validation-error', handleWalletConnectError);
-      return () => {
-        window.removeEventListener('walletconnect-validation-error', handleWalletConnectError);
-      };
-    }
-  }, []);
 
   const handleClick = async (provider, meta) => {
     const key = meta?.id || meta?.name;

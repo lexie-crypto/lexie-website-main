@@ -1859,18 +1859,44 @@ const WalletContextProvider = ({ children }) => {
       if (!supportedNetworks[chainId]) {
         console.log(`🚫 [WalletConnect Monitor] IMMEDIATE DISCONNECT: Unsupported network ${chainId} detected`);
 
-        // Force disconnect synchronously if possible
+        // Show error toast immediately
+        if (typeof window !== 'undefined') {
+          // Import toast dynamically to avoid circular dependencies
+          import('react-hot-toast').then(({ toast }) => {
+            toast.custom((t) => (
+              <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+                <div className="rounded-lg border border-red-500/30 bg-black/90 text-red-200 shadow-2xl max-w-md">
+                  <div className="px-4 py-3 flex items-start gap-3">
+                    <div className="h-5 w-5 rounded-full bg-red-400 flex-shrink-0 mt-0.5" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium">Unsupported Network</div>
+                      <div className="text-xs text-red-300/80 mt-1">
+                        Your mobile wallet is connected to an unsupported network (Chain ID: {chainId}). Please switch to Ethereum, Arbitrum, Polygon, or BNB Chain to use LexieVault features.
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label="Dismiss"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toast.dismiss(t.id);
+                      }}
+                      className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-red-900/30 text-red-300/80 flex-shrink-0"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ), { duration: 8000 });
+          });
+        }
+
+        // Force disconnect after showing the toast
         setTimeout(async () => {
           try {
             await disconnect();
             console.log('[WalletConnect Monitor] Disconnected from unsupported network');
-
-            // Show error through custom event
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('walletconnect-validation-error', {
-                detail: { error: `Unsupported network (Chain ID: ${chainId}). Please switch to Ethereum, Arbitrum, Polygon, or BNB Chain.` }
-              }));
-            }
           } catch (error) {
             console.error('[WalletConnect Monitor] Disconnect failed:', error);
           }
