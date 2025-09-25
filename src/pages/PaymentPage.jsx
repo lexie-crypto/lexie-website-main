@@ -404,24 +404,15 @@ const PaymentPage = () => {
         // EIP-1559 networks (Arbitrum) - use RPC gas prices
         prelimGasDetails = {
           evmGasType,
-          gasEstimate: BigInt(1200000), // 1.2M gas for Arbitrum L2
+          gasEstimate: BigInt(1200000), // 1.2M gas for all networks (same as shieldTransactions.js)
           maxFeePerGas: gasPrices.maxFeePerGas,
           maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas,
         };
       } else {
-        // Legacy networks - network-specific gas limits with RPC prices
-        let gasEstimate;
-        if (chainId === 1) {
-          gasEstimate = BigInt(1000000); // 1M gas for Ethereum
-        } else if (chainId === 137) {
-          gasEstimate = BigInt(800000); // 800k gas for Polygon
-        } else if (chainId === 56) {
-          gasEstimate = BigInt(300000); // 300k gas for BNB (lower limits)
-        }
-
+        // Legacy networks - use 1.2M gas for all (same as shieldTransactions.js)
         prelimGasDetails = {
           evmGasType: EVMGasType.Type0,
-          gasEstimate,
+          gasEstimate: BigInt(1200000), // 1.2M gas for all networks (same as shieldTransactions.js)
           gasPrice: gasPrices.gasPrice,
         };
       }
@@ -480,30 +471,14 @@ const PaymentPage = () => {
         }
       }
 
-      // Final gas estimate for shield - network-specific
+      // Final gas estimate for shield - use 1.2M for all networks (same as shieldTransactions.js)
       let gasEstimate;
       if (!selectedToken.address) {
-        // For native tokens - network-specific base estimates
-        if (chainId === 1) {
-          gasEstimate = BigInt(1200000); // 1.2M for Ethereum
-        } else if (chainId === 137) {
-          gasEstimate = BigInt(1000000); // 1M for Polygon
-        } else if (chainId === 56) {
-          gasEstimate = BigInt(500000); // 500k for BNB (lower)
-        } else if (chainId === 42161) {
-          gasEstimate = BigInt(1200000); // 1.2M for Arbitrum L2
-        }
+        // For native tokens - use 1.2M for all networks
+        gasEstimate = BigInt(1200000); // 1.2M for all native token shields
       } else {
-        // For ERC-20 tokens - network-specific base estimates
-        if (chainId === 1) {
-          gasEstimate = BigInt(1000000); // 1M for Ethereum
-        } else if (chainId === 137) {
-          gasEstimate = BigInt(800000); // 800k for Polygon
-        } else if (chainId === 56) {
-          gasEstimate = BigInt(300000); // 300k for BNB (lower)
-        } else if (chainId === 42161) {
-          gasEstimate = BigInt(1000000); // 1M for Arbitrum L2
-        }
+        // For ERC-20 tokens - use 1M for all networks (same as shieldTransactions.js ERC20)
+        gasEstimate = BigInt(1200000); // 1M for all ERC20 shields
       }
 
       // Apply 20% padding for safety
