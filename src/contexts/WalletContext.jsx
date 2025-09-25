@@ -1869,7 +1869,7 @@ const WalletContextProvider = ({ children }) => {
                   <div className="px-4 py-3 flex items-start gap-3">
                     <div className="h-5 w-5 rounded-full bg-yellow-400 flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium">Network Switched</div>
+                      <div className="text-sm font-medium">Unsupported Network</div>
                       <div className="text-xs text-yellow-300/80 mt-1">
                         Your mobile wallet was connected to an unsupported network (Chain ID: {chainId}). Please switch to Ethereum, Arbitrum, Polygon, or BNB Chain to use LexieVault features.
                       </div>

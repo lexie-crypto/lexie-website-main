@@ -103,92 +103,13 @@ const VaultDesktopInner = () => {
 
   const network = getCurrentNetwork();
 
-  // Supported networks array (moved up for pre-connection validation)
+  // Supported networks array
   const supportedNetworks = [
     { id: 1, name: 'Ethereum', symbol: 'ETH' },
     { id: 137, name: 'Polygon', symbol: 'MATIC' },
     { id: 42161, name: 'Arbitrum', symbol: 'ETH' },
     { id: 56, name: 'BNB Chain', symbol: 'BNB' },
   ];
-
-  // Pre-connection network validation with reactive network checking
-  const hasInjectedProviders = providers.length > 0;
-  const [currentProviderChainId, setCurrentProviderChainId] = useState(null);
-  const [isCheckingProviderNetwork, setIsCheckingProviderNetwork] = useState(false);
-
-  // Check provider network status when we have injected providers but no wagmi chainId
-  useEffect(() => {
-    if (hasInjectedProviders && !chainId && !isCheckingProviderNetwork) {
-      setIsCheckingProviderNetwork(true);
-
-      const checkProviderNetworks = async () => {
-        let foundSupportedNetwork = false;
-
-        for (const provider of providers) {
-          try {
-            if (provider.provider && provider.provider.request) {
-              const chainIdHex = await provider.provider.request({ method: 'eth_chainId' });
-              const providerChainId = parseInt(chainIdHex, 16);
-
-              // Update state with current provider chain
-              setCurrentProviderChainId(providerChainId);
-
-              // Check if this is a supported network
-              if (supportedNetworks.some(net => net.id === providerChainId)) {
-                foundSupportedNetwork = true;
-                console.log(`[Network Check] Found supported network: ${providerChainId}`);
-                break;
-              }
-            }
-          } catch (e) {
-            // Ignore errors, provider might not be available
-            console.warn('[Network Check] Error checking provider network:', e.message);
-          }
-        }
-
-        // If no supported network found, keep checking periodically
-        if (!foundSupportedNetwork) {
-          const interval = setInterval(async () => {
-            for (const provider of providers) {
-              try {
-                if (provider.provider && provider.provider.request) {
-                  const chainIdHex = await provider.provider.request({ method: 'eth_chainId' });
-                  const providerChainId = parseInt(chainIdHex, 16);
-                  setCurrentProviderChainId(providerChainId);
-
-                  if (supportedNetworks.some(net => net.id === providerChainId)) {
-                    console.log(`[Network Check] Network switched to supported: ${providerChainId}`);
-                    clearInterval(interval);
-                    break;
-                  }
-                }
-              } catch (e) {
-                // Continue checking
-              }
-            }
-          }, 2000); // Check every 2 seconds
-
-          // Clean up interval when component unmounts or conditions change
-          return () => clearInterval(interval);
-        }
-      };
-
-      checkProviderNetworks().catch(console.error);
-    } else if (!hasInjectedProviders || chainId) {
-      setCurrentProviderChainId(null);
-      setIsCheckingProviderNetwork(false);
-    }
-  }, [hasInjectedProviders, chainId, providers, supportedNetworks]);
-
-  // Determine network status
-  const providerOnSupportedNetwork = currentProviderChainId && supportedNetworks.some(net => net.id === currentProviderChainId);
-  const wagmiOnSupportedNetwork = chainId && supportedNetworks.some(net => net.id === chainId);
-  const wagmiOnUnsupportedNetwork = chainId && !supportedNetworks.some(net => net.id === chainId);
-  const providerOnUnsupportedNetwork = currentProviderChainId && !supportedNetworks.some(net => net.id === currentProviderChainId);
-
-  const isNetworkSupported = wagmiOnSupportedNetwork || providerOnSupportedNetwork;
-  const isOnUnsupportedNetwork = wagmiOnUnsupportedNetwork || providerOnUnsupportedNetwork;
-  const shouldShowNetworkWarning = hasInjectedProviders && !isNetworkSupported;
 
 
   // Simple Redis check for scanned chains (exact EOA address, no normalization)
@@ -1109,19 +1030,12 @@ const VaultDesktopInner = () => {
             <div className="font-mono text-green-300 text-center">
               <WalletIcon className="h-16 w-16 text-emerald-300 mx-auto mb-6" />
               <h2 className="text-2xl font-semibold text-emerald-300 tracking-tight">Connect Wallet</h2>
-              <p className={`mt-2 text-center text-sm leading-6 ${
-                shouldShowNetworkWarning ? 'text-orange-300/80' : 'text-emerald-300/80'
-              }`}>
-                {shouldShowNetworkWarning
-                  ? isOnUnsupportedNetwork
-                    ? 'Please change the network in your wallet to Ethereum, Arbitrum, Polygon, or BNB Chain to use LexieVault features.'
-                    : 'Please ensure your wallet is connected to Ethereum, Arbitrum, Polygon, or BNB Chain before connecting.'
-                  : 'Connect your wallet to gain access to the LexieVault features.'
-                }
+              <p className="mt-2 text-emerald-300/80 text-center text-sm leading-6">
+                Connect your wallet to gain access to the LexieVault features.
               </p>
 
               <div className="space-y-4">
-                <InjectedProviderButtons disabled={isConnecting || shouldShowNetworkWarning} />
+                <InjectedProviderButtons disabled={isConnecting} />
               </div>
 
               <div className="mt-6 text-sm text-green-400/70 text-center">
