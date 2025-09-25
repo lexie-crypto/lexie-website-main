@@ -1235,6 +1235,14 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       console.error('[PrivacyActions] Unshield operation failed:', error);
       toast.dismiss(toastId);
 
+      // Check for specific SnarkJS proof generation failure
+      if (error.message && error.message.includes('SnarkJS failed to fullProveRailgun')) {
+        toast.error('Max amount exceeds available vault balance. Please try again with a slightly lower amount.');
+      } else {
+        // Show generic error for other failures
+        toast.error(`Unshield failed: ${error.message || 'Unknown error'}`);
+      }
+
       // Dispatch transaction completion event to unlock UI globally
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
