@@ -1852,22 +1852,30 @@ const WalletContextProvider = ({ children }) => {
   const walletConnectValidationRef = useRef({ toastShown: false, lastChainId: null, disconnecting: false });
   const [walletConnectValidating, setWalletConnectValidating] = useState(false);
   useEffect(() => {
-    if (isConnected && connector?.id === 'walletConnect' && chainId && !isNaN(chainId) && !walletConnectValidationRef.current.disconnecting) {
+    if (isConnected && connector?.id === 'walletConnect' && !walletConnectValidationRef.current.disconnecting) {
       console.log(`[WalletConnect Monitor] Chain ID detected: ${chainId}, validating immediately... (toastShown: ${walletConnectValidationRef.current.toastShown})`);
       setWalletConnectValidating(true);
 
       // Supported networks: Ethereum (1), Polygon (137), Arbitrum (42161), BNB Chain (56)
       const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
 
-      if (!supportedNetworks[chainId]) {
-        // Check if we already handled this exact chainId
+      // Check if chainId is valid and supported
+      const isValidChainId = chainId && !isNaN(chainId) && typeof chainId === 'number';
+      const isSupportedNetwork = isValidChainId && supportedNetworks[chainId];
+
+      if (!isSupportedNetwork) {
+        const reason = !isValidChainId
+          ? `Invalid/undefined chainId: ${chainId}`
+          : `Unsupported network: ${chainId}`;
+
+        // Check if we already handled this exact scenario
         if (walletConnectValidationRef.current.toastShown && walletConnectValidationRef.current.lastChainId === chainId) {
-          console.log(`[WalletConnect Monitor] Skipping duplicate validation for chain ${chainId}`);
+          console.log(`[WalletConnect Monitor] Skipping duplicate validation for ${reason}`);
           setWalletConnectValidating(false);
           return;
         }
 
-        console.log(`🚫 [WalletConnect Monitor] IMMEDIATE DISCONNECT: Unsupported network ${chainId} detected`);
+        console.log(`🚫 [WalletConnect Monitor] IMMEDIATE DISCONNECT: ${reason}`);
         walletConnectValidationRef.current.toastShown = true;
         walletConnectValidationRef.current.lastChainId = chainId;
         walletConnectValidationRef.current.disconnecting = true;
@@ -1884,7 +1892,10 @@ const WalletContextProvider = ({ children }) => {
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium">Unsupported Network</div>
                       <div className="text-xs text-yellow-300/80 mt-1">
-                        Your mobile wallet was connected to an unsupported network (Chain ID: {chainId}). Please switch to Ethereum, Arbitrum, Polygon, or BNB Chain to use LexieVault features.
+                        {isValidChainId
+                          ? `Your mobile wallet was connected to an unsupported network (Chain ID: ${chainId}). Please switch to Ethereum, Arbitrum, Polygon, or BNB Chain to use LexieVault features.`
+                          : `Unable to determine your mobile wallet's network. Please ensure you're connected to Ethereum, Arbitrum, Polygon, or BNB Chain and try again.`
+                        }
                       </div>
                     </div>
                     <button
