@@ -25,6 +25,7 @@ import { TXIDVersion, EVMGasType, NetworkName, getEVMGasTypeForTransaction } fro
 import { populateShield, populateShieldBaseToken } from '@railgun-community/wallet';
 import { Contract, parseUnits } from 'ethers';
 import { fetchTokenPrices } from '../utils/pricing/coinGecko';
+import { fetchGasPricesFromRPC } from '../utils/railgun/tx-gas-details';
 
 // Terminal-themed toast helper (matches tx-unshield.js and PrivacyActions.jsx)
 const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
@@ -380,39 +381,37 @@ const PaymentPage = () => {
       };
       const shieldPrivateKey = getRandomHex32();
 
+      // Fetch current gas prices from RPC (same as shieldTransactions.js)
+      console.log('[PaymentPage] Fetching current gas prices from RPC...');
+      const gasPrices = await fetchGasPricesFromRPC(chainId);
+
       // Determine gas type and preliminary gas details (to discover spender address)
       const evmGasType = getEVMGasTypeForTransaction(railgunNetwork, true);
 
       let prelimGasDetails;
       if (evmGasType === EVMGasType.Type2) {
-        // EIP-1559 networks (Arbitrum) - higher gas for L2
+        // EIP-1559 networks (Arbitrum) - use RPC gas prices
         prelimGasDetails = {
           evmGasType,
           gasEstimate: BigInt(1200000), // 1.2M gas for Arbitrum L2
-          maxFeePerGas: BigInt('200000000'), // 200 gwei (higher for L2)
-          maxPriorityFeePerGas: BigInt('1000000'), // 1 gwei priority
+          maxFeePerGas: gasPrices.maxFeePerGas,
+          maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas,
         };
       } else {
-        // Legacy networks - network-specific gas limits and prices
-        let gasEstimate, gasPrice;
+        // Legacy networks - network-specific gas limits with RPC prices
+        let gasEstimate;
         if (chainId === 1) {
-          // Ethereum - high gas limit, standard price
-          gasEstimate = BigInt(1000000); // 1M gas
-          gasPrice = BigInt('20000000000'); // 20 gwei
+          gasEstimate = BigInt(1000000); // 1M gas for Ethereum
         } else if (chainId === 137) {
-          // Polygon - medium gas limit, lower price
-          gasEstimate = BigInt(800000); // 800k gas
-          gasPrice = BigInt('50000000000'); // 50 gwei (higher on Polygon)
+          gasEstimate = BigInt(800000); // 800k gas for Polygon
         } else if (chainId === 56) {
-          // BNB Chain - lower gas limit, lower price
-          gasEstimate = BigInt(300000); // 300k gas (BNB uses lower limits)
-          gasPrice = BigInt('5000000000'); // 5 gwei (BNB is cheaper)
+          gasEstimate = BigInt(300000); // 300k gas for BNB (lower limits)
         }
 
         prelimGasDetails = {
           evmGasType: EVMGasType.Type0,
           gasEstimate,
-          gasPrice,
+          gasPrice: gasPrices.gasPrice,
         };
       }
 
@@ -499,31 +498,22 @@ const PaymentPage = () => {
       // Apply 20% padding for safety
       const paddedGasEstimate = (gasEstimate * 120n) / 100n;
 
-      // Final gas details - network-specific
+      // Final gas details - use RPC gas prices (same as shieldTransactions.js)
       let gasDetails;
       if (evmGasType === EVMGasType.Type2) {
-        // EIP-1559 networks (Arbitrum) - higher gas for L2
+        // EIP-1559 networks (Arbitrum) - use RPC gas prices
         gasDetails = {
           evmGasType,
           gasEstimate: paddedGasEstimate,
-          maxFeePerGas: BigInt('200000000'), // 200 gwei (higher for L2)
-          maxPriorityFeePerGas: BigInt('1000000'), // 1 gwei priority
+          maxFeePerGas: gasPrices.maxFeePerGas,
+          maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas,
         };
       } else {
-        // Legacy networks - network-specific gas prices
-        let gasPrice;
-        if (chainId === 1) {
-          gasPrice = BigInt('20000000000'); // 20 gwei for Ethereum
-        } else if (chainId === 137) {
-          gasPrice = BigInt('50000000000'); // 50 gwei for Polygon
-        } else if (chainId === 56) {
-          gasPrice = BigInt('5000000000'); // 5 gwei for BNB (much cheaper)
-        }
-
+        // Legacy networks - use RPC gas prices
         gasDetails = {
           evmGasType: EVMGasType.Type0,
           gasEstimate: paddedGasEstimate,
-          gasPrice,
+          gasPrice: gasPrices.gasPrice,
         };
       }
 
