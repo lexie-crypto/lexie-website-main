@@ -537,8 +537,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   const recipientType = useMemo(() => {
     if (!recipientAddress) return 'none';
     const addr = recipientAddress.trim();
-    
-    if (addr.startsWith('0x') && addr.length === 42) return 'eoa';
+
+    // Validate Ethereum wallet address with proper regex
+    if (/^0x[a-fA-F0-9]{40}$/.test(addr)) return 'eoa';
     if (addr.startsWith('0zk') && addr.length > 50) return 'railgun';
     if (/^[a-zA-Z0-9_]{3,20}$/.test(addr)) return 'lexie';
     return 'invalid';
@@ -1991,7 +1992,27 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <input
                   type="text"
                   value={recipientAddress}
-                  onChange={(e) => setRecipientAddress(e.target.value)}
+                  onChange={(e) => {
+                    const rawInput = e.target.value;
+                    const trimmedInput = rawInput.trim();
+
+                    // Check if raw input differs from trimmed version (has leading/trailing spaces)
+                    if (rawInput !== trimmedInput) {
+                      // Show warning toast about spaces being removed
+                      toast('Extra spaces removed from wallet address.', {
+                        icon: '✂️',
+                        style: {
+                          background: '#1f2937',
+                          color: '#10b981',
+                          border: '1px solid #10b981',
+                        },
+                        duration: 3000,
+                      });
+                    }
+
+                    // Always set the trimmed value
+                    setRecipientAddress(trimmedInput);
+                  }}
                   placeholder="0x...or Lexie ID"
                   className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
                 />
