@@ -1714,6 +1714,13 @@ const WalletContextProvider = ({ children }) => {
       return;
     }
 
+    // CRITICAL: Prevent auto-initialization for WalletConnect connections
+    // WalletConnect should only initialize through explicit auth/login flow, not auto-signing
+    if (connector?.id === 'walletconnect') {
+      console.log('[Railgun Init] ⏭️ Skipping auto-init for WalletConnect - initialization must be explicit through auth flow');
+      return;
+    }
+
     // Prevent same-address re-init immediately after disconnect; require explicit reconnect
     if (lastInitializedAddressRef.current && lastInitializedAddressRef.current === address) {
       console.log('[Railgun Init] ⏭️ Skipping auto-init for same address until explicit reconnect');
@@ -1737,7 +1744,7 @@ const WalletContextProvider = ({ children }) => {
       lastInitializedAddressRef.current = address;
       initializeRailgun();
     }
-  }, [isConnected, address, isRailgunInitialized, isInitializing, chainId, status]);
+  }, [isConnected, address, isRailgunInitialized, isInitializing, chainId, status, connector?.id]);
 
   // Update Railgun providers when chain or wallet changes - FIXED: Prevent infinite loops
   useEffect(() => {
