@@ -1856,34 +1856,85 @@ const WalletContextProvider = ({ children }) => {
       console.log(`[WalletConnect Monitor] Chain ID detected: ${chainId}, validating immediately... (toastShown: ${walletConnectValidationRef.current.toastShown})`);
       setWalletConnectValidating(true);
 
-      // Supported networks: Ethereum (1), Polygon (137), Arbitrum (42161), BNB Chain (56)
-      const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
+      // If chainId is NaN, try to get it from the provider directly
+      if (chainId === 'NaN' || (typeof chainId === 'number' && isNaN(chainId))) {
+        console.log('[WalletConnect Monitor] chainId is NaN, attempting to fetch from provider...');
 
-      // Check if chainId is valid and supported
-      const isValidChainId = chainId && !isNaN(chainId) && typeof chainId === 'number';
-      const isSupportedNetwork = isValidChainId && supportedNetworks[chainId];
+        // Try to get chainId from provider
+        const getChainIdFromProvider = async () => {
+          try {
+            const walletConnectConnector = connectors.find(c => c.id === 'walletConnect');
+            if (!walletConnectConnector) {
+              console.log('[WalletConnect Monitor] No WalletConnect connector found');
+              return null;
+            }
 
-      if (!isSupportedNetwork) {
-        const reason = !isValidChainId
-          ? `Invalid/undefined chainId: ${chainId}`
-          : `Unsupported network: ${chainId}`;
+            const provider = await walletConnectConnector.getProvider();
+            if (!provider) {
+              console.log('[WalletConnect Monitor] No WalletConnect provider found');
+              return null;
+            }
 
-        // Check if we already handled this exact scenario
-        if (walletConnectValidationRef.current.toastShown && walletConnectValidationRef.current.lastChainId === chainId) {
-          console.log(`[WalletConnect Monitor] Skipping duplicate validation for ${reason}`);
-          setWalletConnectValidating(false);
-          return;
-        }
+            const chainIdHex = await provider.request({ method: 'eth_chainId' });
+            const providerChainId = parseInt(chainIdHex, 16);
 
-        console.log(`🚫 [WalletConnect Monitor] IMMEDIATE DISCONNECT: ${reason}`);
-        walletConnectValidationRef.current.toastShown = true;
-        walletConnectValidationRef.current.lastChainId = chainId;
-        walletConnectValidationRef.current.disconnecting = true;
+            console.log(`[WalletConnect Monitor] Got chainId from provider: ${providerChainId}`);
+            return providerChainId;
+          } catch (error) {
+            console.warn('[WalletConnect Monitor] Failed to get chainId from provider:', error);
+            return null;
+          }
+        };
 
-        // Show error toast immediately
-        if (typeof window !== 'undefined') {
-          // Import toast dynamically to avoid circular dependencies
-          import('react-hot-toast').then(({ toast }) => {
+        getChainIdFromProvider().then((providerChainId) => {
+          if (providerChainId) {
+            // Re-run validation with the provider's chainId
+            validateChainId(providerChainId);
+          } else {
+            // If we can't get chainId from provider, wait a bit and try again
+            setTimeout(() => {
+              if (isConnected && connector?.id === 'walletConnect') {
+                console.log('[WalletConnect Monitor] Retrying chainId validation...');
+                // This will trigger the useEffect again
+              }
+            }, 1000);
+          }
+        });
+
+        setWalletConnectValidating(false);
+        return;
+      }
+
+      // Helper function to validate chainId
+      const validateChainId = (chainIdToValidate) => {
+        // Supported networks: Ethereum (1), Polygon (137), Arbitrum (42161), BNB Chain (56)
+        const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
+
+        // Check if chainId is valid and supported
+        const isValidChainIdLocal = chainIdToValidate && !isNaN(chainIdToValidate) && typeof chainIdToValidate === 'number';
+        const isSupportedNetwork = isValidChainIdLocal && supportedNetworks[chainIdToValidate];
+
+        if (!isSupportedNetwork) {
+          const reason = !isValidChainIdLocal
+            ? `Invalid/undefined chainId: ${chainIdToValidate}`
+            : `Unsupported network: ${chainIdToValidate}`;
+
+          // Check if we already handled this exact scenario
+          if (walletConnectValidationRef.current.toastShown && walletConnectValidationRef.current.lastChainId === chainIdToValidate) {
+            console.log(`[WalletConnect Monitor] Skipping duplicate validation for ${reason}`);
+            setWalletConnectValidating(false);
+            return;
+          }
+
+          console.log(`🚫 [WalletConnect Monitor] IMMEDIATE DISCONNECT: ${reason}`);
+          walletConnectValidationRef.current.toastShown = true;
+          walletConnectValidationRef.current.lastChainId = chainIdToValidate;
+          walletConnectValidationRef.current.disconnecting = true;
+
+          // Show error toast immediately
+          if (typeof window !== 'undefined') {
+            // Import toast dynamically to avoid circular dependencies
+            import('react-hot-toast').then(({ toast }) => {
             toast.custom((t) => (
               <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
                 <div className="rounded-lg border border-yellow-500/30 bg-black/90 text-yellow-200 shadow-2xl max-w-md">
@@ -1892,8 +1943,8 @@ const WalletContextProvider = ({ children }) => {
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium">Unsupported Network</div>
                       <div className="text-xs text-yellow-300/80 mt-1">
-                        {isValidChainId
-                          ? `Your mobile wallet was connected to an unsupported network (Chain ID: ${chainId}). Please switch to Ethereum, Arbitrum, Polygon, or BNB Chain to use LexieVault features.`
+                        {isValidChainIdLocal
+                          ? `Your mobile wallet was connected to an unsupported network (Chain ID: ${chainIdToValidate}). Please switch to Ethereum, Arbitrum, Polygon, or BNB Chain to use LexieVault features.`
                           : `Unable to determine your mobile wallet's network. Please ensure you're connected to Ethereum, Arbitrum, Polygon, or BNB Chain and try again.`
                         }
                       </div>
@@ -1940,20 +1991,24 @@ const WalletContextProvider = ({ children }) => {
             // Dispatch custom event for UI handling
             if (typeof window !== 'undefined') {
               window.dispatchEvent(new CustomEvent('walletconnect-unsupported-network', {
-                detail: { chainId, supportedNetworks: [1, 137, 42161, 56] }
+                detail: { chainId: chainIdToValidate, supportedNetworks: [1, 137, 42161, 56] }
               }));
             }
 
             // Also show error in console
-            console.error(`🚫 WalletConnect: Unsupported network (Chain ID: ${chainId}). Please use Ethereum, Arbitrum, Polygon, or BNB Chain.`);
-      } else if (supportedNetworks[chainId]) {
-        console.log(`✅ [WalletConnect Monitor] Network ${chainId} validated - allowing connection`);
-        // Reset flags for successful connections
-        walletConnectValidationRef.current.toastShown = false;
-        walletConnectValidationRef.current.lastChainId = null;
-        walletConnectValidationRef.current.disconnecting = false;
-        setWalletConnectValidating(false);
-      }
+            console.error(`🚫 WalletConnect: Unsupported network (Chain ID: ${chainIdToValidate}). Please use Ethereum, Arbitrum, Polygon, or BNB Chain.`);
+        } else {
+          console.log(`✅ [WalletConnect Monitor] Network ${chainIdToValidate} validated - allowing connection`);
+          // Reset flags for successful connections
+          walletConnectValidationRef.current.toastShown = false;
+          walletConnectValidationRef.current.lastChainId = null;
+          walletConnectValidationRef.current.disconnecting = false;
+          setWalletConnectValidating(false);
+        }
+      };
+
+      // If chainId is valid (not NaN), validate it directly
+      validateChainId(chainId);
     }
   }, [chainId, isConnected, connector?.id]); // Run whenever chainId changes
 
