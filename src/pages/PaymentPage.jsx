@@ -491,8 +491,12 @@ const PaymentPage = () => {
         gasEstimate = BigInt(1200000); // 1M for all ERC20 shields
       }
 
-      // Apply 20% padding for safety
-      const paddedGasEstimate = (gasEstimate * 120n) / 100n;
+      // Apply padding for safety (50% for Polygon, 20% for others)
+      let paddingFactor = 120n; // 20% default
+      if (chainId === 137) {
+        paddingFactor = 150n; // 50% for Polygon
+      }
+      const paddedGasEstimate = (gasEstimate * paddingFactor) / 100n;
 
       // Final gas details - use RPC gas prices (same as shieldTransactions.js)
       let gasDetails;
@@ -568,6 +572,8 @@ const PaymentPage = () => {
       
       if (error.message.includes('sanctions') || error.message.includes('sanctioned')) {
         showTerminalToast('error', 'Transaction blocked', 'Address appears on sanctions list');
+      } else if (error.code === 'TRANSACTION_REPLACED' || (error.code === 'TRANSACTION_REPLACED' && error.reason === 'cancelled')) {
+        showTerminalToast('error', 'Transaction cancelled by user');
       } else if (error.code === 4001 || /rejected/i.test(error?.message || '')) {
         showTerminalToast('error', 'Transaction cancelled by user');
       } else {
