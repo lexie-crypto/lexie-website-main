@@ -1687,6 +1687,7 @@ const WalletContextProvider = ({ children }) => {
   }, [chainId]);
 
   // Auto-initialize Railgun when wallet connects (only if not already initialized)
+  // NOTE: WalletConnect connections are handled separately - no auto-init to prevent premature signing
   useEffect(() => {
     // 🛡️ Prevent force reinitialization if already initialized
     if (isRailgunInitialized) {
@@ -1714,6 +1715,13 @@ const WalletContextProvider = ({ children }) => {
       return;
     }
 
+    // CRITICAL: Prevent auto-initialization for WalletConnect connections
+    // WalletConnect should only initialize through explicit auth/login flow, not auto-signing
+    if (connector?.id === 'walletconnect') {
+      console.log('[Railgun Init] ⏭️ Skipping auto-init for WalletConnect - initialization must be explicit through auth flow');
+      return;
+    }
+
     // Prevent same-address re-init immediately after disconnect; require explicit reconnect
     if (lastInitializedAddressRef.current && lastInitializedAddressRef.current === address) {
       console.log('[Railgun Init] ⏭️ Skipping auto-init for same address until explicit reconnect');
@@ -1737,7 +1745,7 @@ const WalletContextProvider = ({ children }) => {
       lastInitializedAddressRef.current = address;
       initializeRailgun();
     }
-  }, [isConnected, address, isRailgunInitialized, isInitializing, chainId, status]);
+  }, [isConnected, address, isRailgunInitialized, isInitializing, chainId, status, connector?.id]);
 
   // Update Railgun providers when chain or wallet changes - FIXED: Prevent infinite loops
   useEffect(() => {
@@ -1848,90 +1856,114 @@ const WalletContextProvider = ({ children }) => {
     return undefined;
   }, [chainId, isRailgunInitialized]); // FIXED: Removed connector?.id dependency to reduce triggers
 
-  // Monitor WalletConnect connections and validate chains immediately when chainId becomes available
+  // Monitor WalletConnect connections and validate chains immediately upon session approval
   const walletConnectValidationRef = useRef({ toastShown: false, lastChainId: null, disconnecting: false });
   useEffect(() => {
-    if (isConnected && connector?.id === 'walletConnect' && chainId && !isNaN(chainId) && !walletConnectValidationRef.current.disconnecting) {
-      console.log(`[WalletConnect Monitor] Chain ID detected: ${chainId}, validating immediately... (toastShown: ${walletConnectValidationRef.current.toastShown})`);
+    if (connector?.id === 'walletConnect' && isConnected) {
+      // For WalletConnect, check chainId immediately when session is established
+      // This happens before wagmi reports the chainId, so we use the provider directly
+      const checkWalletConnectChain = async () => {
+        try {
+          // Get the WalletConnect provider from wagmi
+          const walletConnectConnector = connectors.find(c => c.id === 'walletConnect');
+          if (!walletConnectConnector) return;
 
-      // Supported networks: Ethereum (1), Polygon (137), Arbitrum (42161), BNB Chain (56)
-      const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
+          // Get the provider from the connector
+          const provider = await walletConnectConnector.getProvider();
+          if (!provider) return;
 
-      if (!supportedNetworks[chainId]) {
-        // Check if we already handled this exact chainId
-        if (walletConnectValidationRef.current.toastShown && walletConnectValidationRef.current.lastChainId === chainId) {
-          console.log(`[WalletConnect Monitor] Skipping duplicate validation for chain ${chainId}`);
-          return;
-        }
+          // Check chainId directly from the provider
+          const chainIdHex = await provider.request({ method: 'eth_chainId' });
+          const chainId = parseInt(chainIdHex, 16);
 
-        console.log(`🚫 [WalletConnect Monitor] IMMEDIATE DISCONNECT: Unsupported network ${chainId} detected`);
-        walletConnectValidationRef.current.toastShown = true;
-        walletConnectValidationRef.current.lastChainId = chainId;
-        walletConnectValidationRef.current.disconnecting = true;
+          console.log(`[WalletConnect Monitor] Session approved - chain ID: ${chainId}, validating immediately...`);
 
-        // Show error toast immediately
-        if (typeof window !== 'undefined') {
-          // Import toast dynamically to avoid circular dependencies
-          import('react-hot-toast').then(({ toast }) => {
-            toast.custom((t) => (
-              <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-                <div className="rounded-lg border border-yellow-500/30 bg-black/90 text-yellow-200 shadow-2xl max-w-md">
-                  <div className="px-4 py-3 flex items-start gap-3">
-                    <div className="h-5 w-5 rounded-full bg-yellow-400 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium">Unsupported Network</div>
-                      <div className="text-xs text-yellow-300/80 mt-1">
-                        Your mobile wallet was connected to an unsupported network (Chain ID: {chainId}). Please switch to Ethereum, Arbitrum, Polygon, or BNB Chain to use LexieVault features.
+          // Supported networks: Ethereum (1), Polygon (137), Arbitrum (42161), BNB Chain (56)
+          const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
+
+          if (!supportedNetworks[chainId]) {
+            // Check if we already handled this exact chainId
+            if (walletConnectValidationRef.current.toastShown && walletConnectValidationRef.current.lastChainId === chainId) {
+              console.log(`[WalletConnect Monitor] Skipping duplicate validation for chain ${chainId}`);
+              return;
+            }
+
+            console.log(`🚫 [WalletConnect Monitor] IMMEDIATE DISCONNECT: Unsupported network ${chainId} detected during session approval`);
+            walletConnectValidationRef.current.toastShown = true;
+            walletConnectValidationRef.current.lastChainId = chainId;
+            walletConnectValidationRef.current.disconnecting = true;
+
+            // Show error toast immediately - no auto-signing, just disconnect
+            if (typeof window !== 'undefined') {
+              // Import toast dynamically to avoid circular dependencies
+              import('react-hot-toast').then(({ toast }) => {
+                toast.custom((t) => (
+                  <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+                    <div className="rounded-lg border border-yellow-500/30 bg-black/90 text-yellow-200 shadow-2xl max-w-md">
+                      <div className="px-4 py-3 flex items-start gap-3">
+                        <div className="h-5 w-5 rounded-full bg-yellow-400 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium">Unsupported Network</div>
+                          <div className="text-xs text-yellow-300/80 mt-1">
+                            Your mobile wallet was connected to an unsupported network (Chain ID: {chainId}). Please switch to Ethereum, Arbitrum, Polygon, or BNB Chain to use LexieVault features.
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          aria-label="Dismiss"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toast.dismiss(t.id);
+                          }}
+                          className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-yellow-900/30 text-yellow-300/80 flex-shrink-0"
+                        >
+                          ×
+                        </button>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      aria-label="Dismiss"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toast.dismiss(t.id);
-                      }}
-                      className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-yellow-900/30 text-yellow-300/80 flex-shrink-0"
-                    >
-                      ×
-                    </button>
                   </div>
-                </div>
-              </div>
-            ), { duration: 8000 });
-          });
-        }
+                ), { duration: 8000 });
+              });
+            }
 
-        // Force disconnect after showing the toast
-        setTimeout(async () => {
-          try {
-            await disconnect();
-            console.log('[WalletConnect Monitor] Disconnected from unsupported network');
-            // Reset flags when disconnected so it can show again for future connections
-            setTimeout(() => {
-              walletConnectValidationRef.current.toastShown = false;
-              walletConnectValidationRef.current.lastChainId = null;
-              walletConnectValidationRef.current.disconnecting = false;
-            }, 2000); // Longer delay to ensure clean state
-          } catch (error) {
-            console.error('[WalletConnect Monitor] Disconnect failed:', error);
-            // Reset on failure
+            // Force disconnect immediately after showing the toast - no signature request
+            setTimeout(async () => {
+              try {
+                await disconnect();
+                console.log('[WalletConnect Monitor] Disconnected from unsupported network during session approval');
+                // Reset flags when disconnected so it can show again for future connections
+                setTimeout(() => {
+                  walletConnectValidationRef.current.toastShown = false;
+                  walletConnectValidationRef.current.lastChainId = null;
+                  walletConnectValidationRef.current.disconnecting = false;
+                }, 2000); // Longer delay to ensure clean state
+              } catch (error) {
+                console.error('[WalletConnect Monitor] Disconnect failed:', error);
+                // Reset on failure
+                walletConnectValidationRef.current.toastShown = false;
+                walletConnectValidationRef.current.disconnecting = false;
+              }
+            }, 200); // Slightly longer delay
+
+            // Also show error in console
+            console.error(`🚫 WalletConnect: Unsupported network (Chain ID: ${chainId}). Please use Ethereum, Arbitrum, Polygon, or BNB Chain.`);
+
+          } else {
+            console.log(`✅ [WalletConnect Monitor] Session approved on supported network ${chainId} - allowing connection`);
+            // Reset flags for successful connections
             walletConnectValidationRef.current.toastShown = false;
+            walletConnectValidationRef.current.lastChainId = null;
             walletConnectValidationRef.current.disconnecting = false;
           }
-        }, 200); // Slightly longer delay
+        } catch (error) {
+          console.warn('[WalletConnect Monitor] Failed to check chainId from provider:', error);
+          // If we can't check the provider, fall back to wagmi's chainId when it becomes available
+        }
+      };
 
-        // Also show error in console
-        console.error(`🚫 WalletConnect: Unsupported network (Chain ID: ${chainId}). Please use Ethereum, Arbitrum, Polygon, or BNB Chain.`);
-      } else if (supportedNetworks[chainId]) {
-        console.log(`✅ [WalletConnect Monitor] Network ${chainId} validated - allowing connection`);
-        // Reset flags for successful connections
-        walletConnectValidationRef.current.toastShown = false;
-        walletConnectValidationRef.current.lastChainId = null;
-        walletConnectValidationRef.current.disconnecting = false;
-      }
+      checkWalletConnectChain();
     }
-  }, [chainId, isConnected, connector?.id]); // Run whenever chainId changes
+  }, [isConnected, connector?.id, connectors]); // Run when WalletConnect connection is established
 
   // 🛠️ Debug utilities for encrypted data management
   useEffect(() => {
