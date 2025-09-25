@@ -396,7 +396,7 @@ export const buildBaseTokenShieldGasAndEstimate = async ({
       paddedGasEstimate,
       overallBatchMinGasPrice: '0',
       accurateGasEstimate: sdkGasEstimate,
-      uiGasEstimate: gasCostEstimate // For UI display
+      uiGasEstimate: gasPrices // Use market rate gas prices for UI display
     };
 
   } catch (error) {
@@ -465,7 +465,7 @@ export const buildShieldGasAndEstimate = async ({
       paddedGasEstimate,
       overallBatchMinGasPrice: '0',
       accurateGasEstimate: sdkGasEstimate,
-      uiGasEstimate: gasCostEstimate // For UI display
+      uiGasEstimate: gasPrices // Use market rate gas prices for UI display
     };
 
   } catch (error) {
