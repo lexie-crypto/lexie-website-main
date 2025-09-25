@@ -4,7 +4,6 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import {
   WalletIcon,
@@ -88,10 +87,11 @@ const formatBalance = (balance, decimals = 2) => {
 
 
 const PaymentPage = () => {
-  const [searchParams] = useSearchParams();
-  const toParam = searchParams.get('to');
-  const chainIdParam = searchParams.get('chainId');
-  const preferredToken = searchParams.get('token');
+  // Parse URL parameters directly (works with or without React Router)
+  const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  const toParam = urlParams.get('to');
+  const chainIdParam = urlParams.get('chainId');
+  const preferredToken = urlParams.get('token');
 
   const {
     isConnected,

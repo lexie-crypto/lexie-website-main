@@ -6,6 +6,7 @@ import { Analytics } from "@vercel/analytics/react";
 import { WalletProvider } from './contexts/WalletContext';
 import LandingPage from './pages/LandingPage';
 import WalletPage from './pages/WalletPage';
+import PaymentPage from './pages/PaymentPage';
 import AdminHistoryPage from './pages/AdminHistoryPage';
 
 // PaymentPage moved to subdomain - redirect component
@@ -97,6 +98,10 @@ function App() {
   const [showMobileDebug, setShowMobileDebug] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
+  // Check if we're on the payment subdomain
+  const isPaymentSubdomain = typeof window !== 'undefined' &&
+    window.location.hostname === 'staging.pay.lexiecrypto.com';
+
   // Detect mobile and initialize Eruda
   useEffect(() => {
     const checkMobile = () => {
@@ -124,6 +129,38 @@ function App() {
     }
   };
 
+  // If on payment subdomain, serve PaymentPage directly
+  if (isPaymentSubdomain) {
+    return (
+      <WalletProvider>
+        <PaymentPage />
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: '#1f2937',
+              color: '#f3f4f6',
+              border: '1px solid #6366f1',
+            },
+            success: {
+              iconTheme: {
+                primary: '#10b981',
+                secondary: '#f3f4f6',
+              },
+            },
+            error: {
+              iconTheme: {
+                primary: '#ef4444',
+                secondary: '#f3f4f6',
+              },
+            },
+          }}
+        />
+      </WalletProvider>
+    );
+  }
+
   return (
     <WalletProvider>
       <Router>
@@ -134,7 +171,7 @@ function App() {
             <Route path="/pay" element={<PaymentRedirect />} />
             <Route path="/admin-history" element={<AdminHistoryPage />} />
           </Routes>
-          
+
           {/* Mobile Debug Gear Icon */}
           {isMobile && (
             <button
@@ -145,7 +182,7 @@ function App() {
               ⚙️
             </button>
           )}
-          
+
           {/* Toast notifications */}
           <Toaster
             position="top-right"
@@ -160,18 +197,18 @@ function App() {
                 iconTheme: {
                   primary: '#10b981',
                   secondary: '#f3f4f6',
-                },
               },
-              error: {
-                iconTheme: {
-                  primary: '#ef4444',
-                  secondary: '#f3f4f6',
-                },
+            },
+            error: {
+              iconTheme: {
+                primary: '#ef4444',
+                secondary: '#f3f4f6',
               },
-            }}
-          />
-          
-          <Analytics />
+            },
+          }}
+        />
+
+        <Analytics />
         </div>
       </Router>
     </WalletProvider>
