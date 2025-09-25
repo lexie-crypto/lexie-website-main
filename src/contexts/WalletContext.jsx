@@ -760,8 +760,8 @@ const WalletContextProvider = ({ children }) => {
 
     // Suppression flag for pages that only need public EOA + light engine (e.g., PaymentPage)
     try {
-      if (typeof window !== 'undefined' && window.__LEXIE_SUPPRESS_RAILGUN_INIT) {
-        console.log('[Railgun Init] ⏭️ Suppressed by page flag (__LEXIE_SUPPRESS_RAILGUN_INIT)');
+      if (typeof window !== 'undefined' && (window.__LEXIE_SUPPRESS_RAILGUN_INIT || window.__LEXIE_PAYMENT_PAGE)) {
+        console.log('[Railgun Init] ⏭️ Suppressed by page flag (__LEXIE_SUPPRESS_RAILGUN_INIT or __LEXIE_PAYMENT_PAGE)');
         return;
       }
     } catch {}
@@ -1694,9 +1694,9 @@ const WalletContextProvider = ({ children }) => {
       return;
     }
     
-    // Respect suppression flag (PaymentPage)
-    if (typeof window !== 'undefined' && window.__LEXIE_SUPPRESS_RAILGUN_INIT) {
-      console.log('[Railgun Init] ⏭️ Suppressed auto-init due to page flag');
+    // Respect suppression flag (PaymentPage and other pages that don't need wallet creation)
+    if (typeof window !== 'undefined' && (window.__LEXIE_SUPPRESS_RAILGUN_INIT || window.__LEXIE_PAYMENT_PAGE)) {
+      console.log('[Railgun Init] ⏭️ Suppressed auto-init due to page flag (__LEXIE_SUPPRESS_RAILGUN_INIT or __LEXIE_PAYMENT_PAGE)');
       return;
     }
 

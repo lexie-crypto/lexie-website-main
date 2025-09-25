@@ -129,10 +129,22 @@ const PaymentPage = () => {
   // Check if user is on correct network
   const isCorrectNetwork = chainId === targetChainId;
 
-  // Suppress vault init on PaymentPage and prepare light engine
+  // Suppress vault/wallet creation on PaymentPage - this is only for paying into other vaults
   useEffect(() => {
-    try { if (typeof window !== 'undefined') window.__LEXIE_SUPPRESS_RAILGUN_INIT = true; } catch {}
-    return () => { try { if (typeof window !== 'undefined') delete window.__LEXIE_SUPPRESS_RAILGUN_INIT; } catch {} };
+    try {
+      if (typeof window !== 'undefined') {
+        window.__LEXIE_SUPPRESS_RAILGUN_INIT = true;
+        window.__LEXIE_PAYMENT_PAGE = true; // Additional flag to prevent wallet creation
+      }
+    } catch {}
+    return () => {
+      try {
+        if (typeof window !== 'undefined') {
+          delete window.__LEXIE_SUPPRESS_RAILGUN_INIT;
+          delete window.__LEXIE_PAYMENT_PAGE;
+        }
+      } catch {}
+    };
   }, []);
 
   // Fetch public balances when connected and on correct network
@@ -145,8 +157,7 @@ const PaymentPage = () => {
     const fetchBalances = async () => {
       setIsLoadingBalances(true);
       try {
-        // Ensure light Railgun engine is up (no wallet init)
-        await ensureEngineForShield().catch(() => {});
+        // PaymentPage doesn't need Railgun engine for balance fetching - only for payment transactions
 
         // Fetch token prices first
         const symbols = ['ETH', 'USDC', 'USDT', 'DAI', 'MATIC', 'BNB', 'WETH', 'WMATIC', 'WBNB'];
@@ -316,6 +327,12 @@ const PaymentPage = () => {
     showTerminalToast('info', 'Starting Deposit', 'Preparing your private vault deposit...', { duration: 2000 });
 
     try {
+      // Initialize Railgun engine only when making payment (not during wallet connection)
+      console.log('[PaymentPage] Initializing Railgun engine for payment...');
+      await ensureEngineForShield().catch((err) => {
+        console.warn('[PaymentPage] Engine initialization failed, but continuing:', err);
+      });
+
       // Sanctions screening for the payer (current user)
       console.log('[PaymentPage] Screening payer wallet:', address);
       await assertNotSanctioned(chainId, address);
