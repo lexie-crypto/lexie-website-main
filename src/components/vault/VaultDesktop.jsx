@@ -54,6 +54,7 @@ const VaultDesktopInner = () => {
     isWalletAvailable,
     walletProvider,
     checkChainReady,
+    walletConnectValidating,
   } = useWallet();
 
   const { providers } = useInjectedProviders();
@@ -1009,7 +1010,7 @@ const VaultDesktopInner = () => {
     };
   }, [isChainMenuOpen, isMobileChainMenuOpen]);
 
-  if (!isConnected || (isConnected && !isNetworkSupported)) {
+  if (!isConnected || (isConnected && !isNetworkSupported) || walletConnectValidating) {
     return (
       <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
         {/* Navigation */}
