@@ -54,6 +54,20 @@ const InjectedProviderButtons = ({ disabled }) => {
     setBusyKey(key);
 
     try {
+      // Check network BEFORE requesting accounts
+      const chainIdHex = await provider.request({ method: 'eth_chainId' });
+      const chainId = parseInt(chainIdHex, 16);
+
+      console.log('[InjectedProviderButtons] Current chainId:', chainId);
+
+      // Supported networks: Ethereum (1), Polygon (137), Arbitrum (42161), BNB Chain (56)
+      const supportedNetworks = [1, 137, 42161, 56];
+      if (!supportedNetworks.includes(chainId)) {
+        console.log(`[InjectedProviderButtons] 🚫 Blocking connection on unsupported network (chainId: ${chainId})`);
+        throw new Error(`Please switch to Ethereum, Arbitrum, Polygon, or BNB Chain to use LexieVault features.`);
+      }
+
+      console.log(`[InjectedProviderButtons] ✅ Network supported (chainId: ${chainId}), proceeding with connection`);
       await provider.request({ method: 'eth_requestAccounts' });
       // Use generic injected connector and pass through provider metadata
       await connectWallet('injected', { provider, name: meta?.name, id: meta?.id });
@@ -70,8 +84,10 @@ const InjectedProviderButtons = ({ disabled }) => {
     try {
       setBusyKey('walletconnect');
       await connectWallet('walletconnect');
+      // Note: Network validation for WalletConnect happens after connection in WalletContext
     } catch (e) {
       console.error(e);
+      throw e; // Re-throw to match injected provider behavior
     } finally {
       setBusyKey(null);
     }

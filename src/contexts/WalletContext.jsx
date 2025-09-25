@@ -616,6 +616,32 @@ const WalletContextProvider = ({ children }) => {
         } catch {}
         await connect({ connector: targetConnector });
         console.log('✅ Connected via wagmi:', targetConnector.id, options?.name || '');
+
+        // Validate network after connection for non-injected connectors (like WalletConnect)
+        if (connectorType !== 'injected') {
+          // Give wagmi a moment to update chainId
+          await new Promise(resolve => setTimeout(resolve, 100));
+
+          // Supported networks: Ethereum (1), Polygon (137), Arbitrum (42161), BNB Chain (56)
+          const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
+
+          if (!chainId) {
+            console.log('⚠️ Chain ID not available yet for network validation');
+          } else if (!supportedNetworks[chainId]) {
+            console.log(`🚫 Connected to unsupported network (chainId: ${chainId}), disconnecting...`);
+            try {
+              // Disconnect immediately if on unsupported network
+              await disconnect();
+              throw new Error(`Please switch to Ethereum, Arbitrum, Polygon, or BNB Chain to use LexieVault features.`);
+            } catch (disconnectError) {
+              console.error('❌ Failed to disconnect from unsupported network:', disconnectError);
+              throw new Error(`Unsupported network. Please switch to Ethereum, Arbitrum, Polygon, or BNB Chain.`);
+            }
+          } else {
+            console.log(`✅ Connected on supported network: ${chainId}`);
+          }
+        }
+
         // Belt-and-suspenders: ensure any stale Railgun SDK wallets are unloaded before hydration
         try {
           const { clearAllWallets } = await import('../utils/railgun/wallet');
