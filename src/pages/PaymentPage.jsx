@@ -393,7 +393,7 @@ const PaymentPage = () => {
       // Enforce minimum gas prices for networks that need them
       if (chainId === 56) {
         // BNB Chain requires higher gas prices than RPC often returns
-        const minGasPrice = BigInt('3000000000'); // 3 gwei minimum for BNB
+        const minGasPrice = BigInt('1000000000'); // 1 gwei minimum for BNB
         if (gasPrices.gasPrice < minGasPrice) {
           console.log(`[PaymentPage] BNB gas price too low (${gasPrices.gasPrice}), enforcing minimum: ${minGasPrice}`);
           gasPrices = {
