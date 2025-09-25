@@ -26,7 +26,7 @@ import { TXIDVersion, EVMGasType, NetworkName, getEVMGasTypeForTransaction } fro
 import { populateShield, populateShieldBaseToken } from '@railgun-community/wallet';
 import { Contract, parseUnits } from 'ethers';
 import { fetchTokenPrices } from '../utils/pricing/coinGecko';
-import { fetchGasPricesFromRPC, estimateGasForTransaction } from '../utils/railgun/tx-gas-details';
+import { estimateGasForTransaction } from '../utils/railgun/tx-gas-details';
 
 // Terminal-themed toast helper (matches tx-unshield.js and PrivacyActions.jsx)
 const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
@@ -191,7 +191,6 @@ const PaymentPage = () => {
             { symbol: 'WETH', address: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619', name: 'Wrapped Ether', decimals: 18 },
             { symbol: 'WMATIC', address: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', name: 'Wrapped MATIC', decimals: 18 },
             { symbol: 'USDC', address: '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359', name: 'USD Coin', decimals: 6 },
-            { symbol: 'USDC.e', address: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', name: 'USD Coin (PoS)', decimals: 6 },
             { symbol: 'USDT', address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', name: 'Tether USD (PoS)', decimals: 6 },
             { symbol: 'DAI', address: '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063', name: 'Dai Stablecoin (PoS)', decimals: 18 },
           ],
@@ -391,39 +390,37 @@ const PaymentPage = () => {
       };
       const shieldPrivateKey = getRandomHex32();
 
-      // Use same gas estimation approach as working shieldTransactions.js
-      console.log('[PaymentPage] Running gas estimation (same as shieldTransactions.js)...');
+      // Use gas estimation for network awareness but let wallet handle pricing
+      console.log('[PaymentPage] Running gas estimation for network compatibility...');
       const gasCostEstimate = await estimateGasForTransaction({
         transactionType: 'shield',
         chainId,
         networkName: railgunNetwork,
-        tokenAddress: selectedToken.address, // Use the actual token address
+        tokenAddress: selectedToken.address,
         amount: weiAmount,
         walletProvider: await walletProvider(),
       });
 
-      // Get gas prices from RPC (exact same as shieldTransactions.js)
-      console.log('[PaymentPage] Fetching gas prices from RPC...');
-      const gasPrices = await fetchGasPricesFromRPC(chainId);
+      // Don't fetch custom gas prices - let wallet use its market rates
+      console.log('[PaymentPage] Using wallet market gas rates instead of custom pricing');
 
       // Determine gas type and preliminary gas details (to discover spender address)
       const evmGasType = getEVMGasTypeForTransaction(railgunNetwork, true);
 
       let prelimGasDetails;
       if (evmGasType === EVMGasType.Type2) {
-        // EIP-1559 networks (Arbitrum) - use RPC gas prices
+        // EIP-1559 networks (Arbitrum) - let wallet estimate fees
         prelimGasDetails = {
           evmGasType,
-          gasEstimate: BigInt(1200000), // 1.2M gas for all networks (same as shieldTransactions.js)
-          maxFeePerGas: gasPrices.maxFeePerGas,
-          maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas,
+          gasEstimate: BigInt(1200000), // 1.2M gas for all networks
+          // Don't set maxFeePerGas/maxPriorityFeePerGas - let wallet estimate
         };
       } else {
-        // Legacy networks - use 1.2M gas for all (same as shieldTransactions.js)
+        // Legacy networks - let wallet estimate gas prices
         prelimGasDetails = {
           evmGasType: EVMGasType.Type0,
-          gasEstimate: BigInt(1200000), // 1.2M gas for all networks (same as shieldTransactions.js)
-          gasPrice: gasPrices.gasPrice,
+          gasEstimate: BigInt(1200000), // 1.2M gas for all networks
+          // Don't set gasPrice - let wallet estimate
         };
       }
 
@@ -502,22 +499,21 @@ const PaymentPage = () => {
         paddedGasEstimate = (gasEstimate * 120n) / 100n; // 20% padding for other networks
       }
 
-      // Final gas details - use RPC gas prices (same as shieldTransactions.js)
+      // Final gas details - let wallet determine gas prices for better market rates
       let gasDetails;
       if (evmGasType === EVMGasType.Type2) {
-        // EIP-1559 networks (Arbitrum) - use RPC gas prices
+        // EIP-1559 networks (Arbitrum) - let wallet estimate fees
         gasDetails = {
           evmGasType,
           gasEstimate: paddedGasEstimate,
-          maxFeePerGas: gasPrices.maxFeePerGas,
-          maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas,
+          // Don't set maxFeePerGas/maxPriorityFeePerGas - let wallet use market rates
         };
       } else {
-        // Legacy networks - use RPC gas prices
+        // Legacy networks - let wallet estimate gas price
         gasDetails = {
           evmGasType: EVMGasType.Type0,
           gasEstimate: paddedGasEstimate,
-          gasPrice: gasPrices.gasPrice,
+          // Don't set gasPrice - let wallet use market rate
         };
       }
 
