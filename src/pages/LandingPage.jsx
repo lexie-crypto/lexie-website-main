@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Navbar } from '../components/Navbar';
 
 export default function LandingPage() {
   const [bgLoaded, setBgLoaded] = useState(false);
@@ -302,11 +301,7 @@ export default function LandingPage() {
   }, [isTyping, currentLineIndex, currentCharIndex, productTerminalLines]);
   
   return (
-    <>
-      {/* Navigation */}
-      <Navbar />
-
-      <main className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
+    <main className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
         {/* Loading overlay */}
         <div className={`fixed inset-0 z-50 bg-black flex items-center justify-center transition-opacity duration-500 ${bgLoaded ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
           <div className="text-purple-300 text-2xl font-mono">
@@ -1141,6 +1136,5 @@ export default function LandingPage() {
           /* No custom animations needed - using only Tailwind defaults */
         `}</style>
       </main>
-    </>
   );
 }
