@@ -3,7 +3,6 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { Navbar } from '../components/Navbar';
 
 const WalletPage = () => {
   const [isMobile, setIsMobile] = useState(false);
@@ -31,7 +30,6 @@ const WalletPage = () => {
     const VaultMobileFallback = React.lazy(() => import('../components/vault/VaultMobileFallback.jsx'));
     return (
       <React.Suspense fallback={null}>
-        <Navbar />
         <VaultMobileFallback />
       </React.Suspense>
     );
@@ -40,7 +38,6 @@ const WalletPage = () => {
   const VaultDesktop = React.lazy(() => import('../components/vault/VaultDesktop.jsx'));
   return (
     <React.Suspense fallback={null}>
-      <Navbar />
       <VaultDesktop />
     </React.Suspense>
   );

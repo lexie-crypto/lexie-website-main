@@ -31,6 +31,7 @@ import {
   isTokenSupportedByRailgun,
 } from '../../utils/railgun/actions';
 import { deriveEncryptionKey, clearAllWallets } from '../../utils/railgun/wallet';
+import { Navbar } from '../Navbar';
 
 const VaultDesktopInner = () => {
   const {
@@ -982,18 +983,7 @@ const VaultDesktopInner = () => {
     return (
       <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
         {/* Navigation */}
-        <nav className="sticky top-0 z-40 w-full p-6 bg-black">
-          <div className="max-w-7xl mx-auto flex justify-between items-center">
-            <div className="text-4xl font-bold text-purple-300">
-              LEXIEAI
-            </div>
-            <div className="hidden md:flex space-x-6">
-              <a href="/#features" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Features</a>
-              <a href="/#security" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Security</a>
-              <a href="/#beta" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Beta</a>
-            </div>
-          </div>
-        </nav>
+        <Navbar />
 
         {/* Background overlays */}
         <div className="fixed inset-0 z-0">
@@ -1057,18 +1047,7 @@ const VaultDesktopInner = () => {
   return (
     <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
       {/* Navigation */}
-      <nav className="sticky top-0 z-40 w-full p-6 bg-black">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
-          <div className="text-4xl font-bold text-purple-300">
-            LEXIEAI
-          </div>
-          <div className="hidden md:flex space-x-6">
-            <a href="/#features" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Features</a>
-            <a href="/#security" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Security</a>
-            <a href="/#beta" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Beta</a>
-          </div>
-        </div>
-      </nav>
+      <Navbar />
 
       {/* Background overlays */}
       <div className="fixed inset-0 z-0">
