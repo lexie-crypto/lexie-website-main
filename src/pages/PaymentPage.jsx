@@ -38,9 +38,9 @@ const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
       <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl max-w-sm">
         <div className="px-4 py-3 flex items-center gap-3">
           <div className={`h-3 w-3 rounded-full ${color}`} />
-          <div>
+          <div className="flex-1 min-w-0">
             <div className="text-sm">{title}</div>
-            {subtitle ? <div className="text-xs text-green-400/80">{subtitle}</div> : null}
+            {subtitle ? <div className="text-xs text-green-400/80 break-words">{subtitle}</div> : null}
           </div>
           <button
             type="button"
@@ -510,7 +510,7 @@ const PaymentPage = () => {
       showTerminalToast('info', 'Transaction Submitted', 'Waiting for blockchain confirmation...', { duration: 3000 });
       const receipt = await sent.wait();
 
-      showTerminalToast('success', 'Payment sent', `Deposited ${amount} ${selectedToken.symbol} to recipient's vault. TX: ${sent.hash}`, { duration: 6000 });
+      showTerminalToast('success', 'Payment sent', `Deposited ${amount} ${selectedToken.symbol} to recipient's vault. TX: ${sent.hash.slice(0, 10)}...${sent.hash.slice(-8)}`, { duration: 6000 });
 
       // Reset form amount
       setAmount('');
