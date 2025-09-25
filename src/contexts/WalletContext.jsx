@@ -10,7 +10,6 @@ import { mainnet, polygon, arbitrum, bsc } from 'wagmi/chains';
 import { metaMask, walletConnect, injected } from 'wagmi/connectors';
 import { WagmiProvider, useAccount, useConnect, useDisconnect, useSwitchChain, useConnectorClient, useSignMessage } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { toast } from 'react-hot-toast';
 import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/environment';
 import { NetworkName } from '@railgun-community/shared-models';
 
@@ -563,52 +562,6 @@ const WalletContextProvider = ({ children }) => {
     return signer;
   };
 
-  // Validate and show notification for supported network after wallet connection
-  const validateAndShowNetworkNotification = async () => {
-    // Wait a bit for chainId to be available
-    await new Promise(resolve => setTimeout(resolve, 100));
-
-    // Supported networks: Ethereum (1), Polygon (137), Arbitrum (42161), BNB Chain (56)
-    const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
-
-    if (!chainId) {
-      console.log('⚠️ Chain ID not available yet, skipping network validation');
-      return;
-    }
-
-    if (!supportedNetworks[chainId]) {
-      console.log(`⚠️ Current network (chainId: ${chainId}) is not supported. Showing notification...`);
-      toast.custom((t) => (
-        <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-          <div className="rounded-lg border border-orange-500/30 bg-black/90 text-orange-200 shadow-2xl max-w-md">
-            <div className="px-4 py-3 flex items-start gap-3">
-              <div className="h-5 w-5 rounded-full bg-orange-400 flex-shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium">Unsupported Network</div>
-                <div className="text-xs text-orange-300/80 mt-1">
-                  Please change the network in your wallet to Ethereum, Arbitrum, Polygon, or BNB Chain to use LexieVault features.
-                </div>
-              </div>
-              <button
-                type="button"
-                aria-label="Dismiss"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toast.dismiss(t.id);
-                }}
-                className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-orange-900/30 text-orange-300/80 flex-shrink-0"
-              >
-                ×
-              </button>
-            </div>
-          </div>
-        </div>
-      ), { duration: 8000 }); // Show for 8 seconds
-    } else {
-      console.log(`✅ Connected on supported network: ${chainId}`);
-    }
-  };
-
   // Simple wallet connection - UI layer only
   const connectWallet = async (connectorType = 'metamask', options = {}) => {
     try {
@@ -644,10 +597,6 @@ const WalletContextProvider = ({ children }) => {
           } catch {}
           await connect({ connector });
           console.log('✅ Connected via clicked injected provider:', options?.name || 'Injected');
-
-          // Check if on supported network and show notification if needed
-          await validateAndShowNetworkNotification();
-
           // Belt-and-suspenders: ensure any stale Railgun SDK wallets are unloaded before hydration
           try {
             const { clearAllWallets } = await import('../utils/railgun/wallet');
@@ -658,7 +607,7 @@ const WalletContextProvider = ({ children }) => {
         // No provider supplied: fallback to generic injected connector
         targetConnector = connectors.find(c => c.id === 'injected');
       }
-
+      
       if (targetConnector) {
         // Pre-connect unload to guarantee clean slate even if connect fails mid-way
         try {
@@ -667,10 +616,6 @@ const WalletContextProvider = ({ children }) => {
         } catch {}
         await connect({ connector: targetConnector });
         console.log('✅ Connected via wagmi:', targetConnector.id, options?.name || '');
-
-        // Check if on supported network and show notification if needed
-        await validateAndShowNetworkNotification();
-
         // Belt-and-suspenders: ensure any stale Railgun SDK wallets are unloaded before hydration
         try {
           const { clearAllWallets } = await import('../utils/railgun/wallet');
@@ -1773,14 +1718,6 @@ const WalletContextProvider = ({ children }) => {
     }
 
     if (isConnected && address && !isInitializing) {
-      // Supported networks: Ethereum (1), Polygon (137), Arbitrum (42161), BNB Chain (56)
-      const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
-
-      if (!supportedNetworks[chainId]) {
-        console.log('🚫 Skipping Railgun initialization: unsupported network (chainId:', chainId, ')');
-        return;
-      }
-
       console.log('🚀 Auto-initializing Railgun for connected wallet:', address);
       lastInitializedAddressRef.current = address;
       initializeRailgun();
