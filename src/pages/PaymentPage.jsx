@@ -112,6 +112,25 @@ const PaymentPage = () => {
   const resetTransactionState = () => {
     setTransactionCompleted(false);
     setCompletedTransactionHash(null);
+    setCopyStatus(null);
+  };
+
+  // Copy transaction hash to clipboard
+  const copyTransactionHash = async () => {
+    if (!completedTransactionHash) return;
+
+    try {
+      await navigator.clipboard.writeText(completedTransactionHash);
+      setCopyStatus('copied');
+      showTerminalToast('success', 'Copied!', 'Transaction hash copied to clipboard', { duration: 2000 });
+
+      // Reset copy status after 2 seconds
+      setTimeout(() => setCopyStatus(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy transaction hash:', error);
+      setCopyStatus('error');
+      showTerminalToast('error', 'Copy failed', 'Could not copy to clipboard', { duration: 2000 });
+    }
   };
   const [publicBalances, setPublicBalances] = useState([]);
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
@@ -120,6 +139,7 @@ const PaymentPage = () => {
   const [balanceRefreshTrigger, setBalanceRefreshTrigger] = useState(0);
   const [transactionCompleted, setTransactionCompleted] = useState(false);
   const [completedTransactionHash, setCompletedTransactionHash] = useState(null);
+  const [copyStatus, setCopyStatus] = useState(null);
   const tokenMenuRef = useRef(null);
 
   // Parse target chain ID
@@ -706,7 +726,22 @@ const PaymentPage = () => {
                     ✅ Transaction complete!
                   </div>
                   <div className="text-green-300 text-sm mb-4">
-                    Txn hash: <span className="font-mono break-all">{completedTransactionHash}</span>
+                    <span className="mr-2">Txn hash:</span>
+                    <button
+                      onClick={copyTransactionHash}
+                      className={`font-mono break-all px-2 py-1 rounded text-left transition-colors ${
+                        copyStatus === 'copied'
+                          ? 'bg-green-600/20 text-green-200 border border-green-400/50'
+                          : copyStatus === 'error'
+                          ? 'bg-red-600/20 text-red-200 border border-red-400/50'
+                          : 'bg-green-900/30 hover:bg-green-800/40 text-green-200 border border-green-500/30 hover:border-green-400/50'
+                      }`}
+                      title="Click to copy transaction hash"
+                    >
+                      {completedTransactionHash}
+                      {copyStatus === 'copied' && <span className="ml-2 text-green-300">✓</span>}
+                      {copyStatus === 'error' && <span className="ml-2 text-red-300">✗</span>}
+                    </button>
                   </div>
                   <div className="grid grid-cols-2 items-center px-3 text-center">
                     <div className="text-green-400/80 text-xs">Recipient:</div>
