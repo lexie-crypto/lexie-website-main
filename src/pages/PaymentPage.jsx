@@ -383,7 +383,34 @@ const PaymentPage = () => {
 
       // Fetch current gas prices from RPC (same as shieldTransactions.js)
       console.log('[PaymentPage] Fetching current gas prices from RPC...');
-      const gasPrices = await fetchGasPricesFromRPC(chainId);
+      let gasPrices = await fetchGasPricesFromRPC(chainId);
+
+      // Enforce minimum gas prices for networks that need them
+      if (chainId === 56) {
+        // BNB Chain often returns very low gas prices from RPC
+        const minGasPrice = BigInt('100000000'); // 0.1 gwei minimum for BNB
+        if (gasPrices.gasPrice < minGasPrice) {
+          console.log(`[PaymentPage] BNB gas price too low (${gasPrices.gasPrice}), enforcing minimum: ${minGasPrice}`);
+          gasPrices = {
+            ...gasPrices,
+            gasPrice: minGasPrice,
+            maxFeePerGas: minGasPrice,
+            maxPriorityFeePerGas: minGasPrice / 10n
+          };
+        }
+      } else if (chainId === 137) {
+        // Polygon minimum gas price
+        const minGasPrice = BigInt('30000000000'); // 30 gwei minimum for Polygon
+        if (gasPrices.gasPrice < minGasPrice) {
+          console.log(`[PaymentPage] Polygon gas price too low (${gasPrices.gasPrice}), enforcing minimum: ${minGasPrice}`);
+          gasPrices = {
+            ...gasPrices,
+            gasPrice: minGasPrice,
+            maxFeePerGas: minGasPrice,
+            maxPriorityFeePerGas: minGasPrice / 10n
+          };
+        }
+      }
 
       // Determine gas type and preliminary gas details (to discover spender address)
       const evmGasType = getEVMGasTypeForTransaction(railgunNetwork, true);
