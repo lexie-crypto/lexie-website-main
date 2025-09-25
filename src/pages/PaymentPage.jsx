@@ -481,22 +481,26 @@ const PaymentPage = () => {
         }
       }
 
-      // Final gas estimate for shield - use 1.2M for all networks (same as shieldTransactions.js)
+      // Final gas estimate for shield - network-specific
       let gasEstimate;
-      if (!selectedToken.address) {
-        // For native tokens - use 1.2M for all networks
+      if (chainId === 137) {
+        // Polygon needs much higher gas limits
+        gasEstimate = BigInt(2000000); // 2M for Polygon
+      } else if (!selectedToken.address) {
+        // For native tokens - use 1.2M for all other networks
         gasEstimate = BigInt(1200000); // 1.2M for all native token shields
       } else {
-        // For ERC-20 tokens - use 1M for all networks (same as shieldTransactions.js ERC20)
+        // For ERC-20 tokens - use 1M for all other networks (same as shieldTransactions.js ERC20)
         gasEstimate = BigInt(1200000); // 1M for all ERC20 shields
       }
 
-      // Apply padding for safety (50% for Polygon, 20% for others)
-      let paddingFactor = 120n; // 20% default
+      // Apply padding for safety (no padding for Polygon since it's already set to 2M, 20% for others)
+      let paddedGasEstimate;
       if (chainId === 137) {
-        paddingFactor = 150n; // 50% for Polygon
+        paddedGasEstimate = gasEstimate; // Use the 2M directly for Polygon
+      } else {
+        paddedGasEstimate = (gasEstimate * 120n) / 100n; // 20% padding for other networks
       }
-      const paddedGasEstimate = (gasEstimate * paddingFactor) / 100n;
 
       // Final gas details - use RPC gas prices (same as shieldTransactions.js)
       let gasDetails;
