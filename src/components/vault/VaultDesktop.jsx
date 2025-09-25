@@ -111,11 +111,85 @@ const VaultDesktopInner = () => {
     { id: 56, name: 'BNB Chain', symbol: 'BNB' },
   ];
 
-  // Pre-connection network validation
+  // Pre-connection network validation with reactive network checking
   const hasInjectedProviders = providers.length > 0;
-  const isNetworkSupported = !chainId || supportedNetworks.some(net => net.id === chainId); // Allow undefined chainId (no wallet)
-  const isOnUnsupportedNetwork = chainId && !supportedNetworks.some(net => net.id === chainId);
-  const shouldShowNetworkWarning = hasInjectedProviders && (!chainId || isOnUnsupportedNetwork);
+  const [currentProviderChainId, setCurrentProviderChainId] = useState(null);
+  const [isCheckingProviderNetwork, setIsCheckingProviderNetwork] = useState(false);
+
+  // Check provider network status when we have injected providers but no wagmi chainId
+  useEffect(() => {
+    if (hasInjectedProviders && !chainId && !isCheckingProviderNetwork) {
+      setIsCheckingProviderNetwork(true);
+
+      const checkProviderNetworks = async () => {
+        let foundSupportedNetwork = false;
+
+        for (const provider of providers) {
+          try {
+            if (provider.provider && provider.provider.request) {
+              const chainIdHex = await provider.provider.request({ method: 'eth_chainId' });
+              const providerChainId = parseInt(chainIdHex, 16);
+
+              // Update state with current provider chain
+              setCurrentProviderChainId(providerChainId);
+
+              // Check if this is a supported network
+              if (supportedNetworks.some(net => net.id === providerChainId)) {
+                foundSupportedNetwork = true;
+                console.log(`[Network Check] Found supported network: ${providerChainId}`);
+                break;
+              }
+            }
+          } catch (e) {
+            // Ignore errors, provider might not be available
+            console.warn('[Network Check] Error checking provider network:', e.message);
+          }
+        }
+
+        // If no supported network found, keep checking periodically
+        if (!foundSupportedNetwork) {
+          const interval = setInterval(async () => {
+            for (const provider of providers) {
+              try {
+                if (provider.provider && provider.provider.request) {
+                  const chainIdHex = await provider.provider.request({ method: 'eth_chainId' });
+                  const providerChainId = parseInt(chainIdHex, 16);
+                  setCurrentProviderChainId(providerChainId);
+
+                  if (supportedNetworks.some(net => net.id === providerChainId)) {
+                    console.log(`[Network Check] Network switched to supported: ${providerChainId}`);
+                    clearInterval(interval);
+                    break;
+                  }
+                }
+              } catch (e) {
+                // Continue checking
+              }
+            }
+          }, 2000); // Check every 2 seconds
+
+          // Clean up interval when component unmounts or conditions change
+          return () => clearInterval(interval);
+        }
+      };
+
+      checkProviderNetworks().catch(console.error);
+    } else if (!hasInjectedProviders || chainId) {
+      setCurrentProviderChainId(null);
+      setIsCheckingProviderNetwork(false);
+    }
+  }, [hasInjectedProviders, chainId, providers, supportedNetworks]);
+
+  // Determine network status
+  const providerOnSupportedNetwork = currentProviderChainId && supportedNetworks.some(net => net.id === currentProviderChainId);
+  const wagmiOnSupportedNetwork = chainId && supportedNetworks.some(net => net.id === chainId);
+  const wagmiOnUnsupportedNetwork = chainId && !supportedNetworks.some(net => net.id === chainId);
+  const providerOnUnsupportedNetwork = currentProviderChainId && !supportedNetworks.some(net => net.id === currentProviderChainId);
+
+  const isNetworkSupported = wagmiOnSupportedNetwork || providerOnSupportedNetwork;
+  const isOnUnsupportedNetwork = wagmiOnUnsupportedNetwork || providerOnUnsupportedNetwork;
+  const shouldShowNetworkWarning = hasInjectedProviders && !isNetworkSupported;
+
 
   // Simple Redis check for scanned chains (exact EOA address, no normalization)
   const checkRedisScannedChains = useCallback(async (targetChainId = null) => {
