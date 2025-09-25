@@ -107,11 +107,19 @@ const PaymentPage = () => {
   const [selectedToken, setSelectedToken] = useState(null);
   const [amount, setAmount] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Reset completion state when user starts new transaction
+  const resetTransactionState = () => {
+    setTransactionCompleted(false);
+    setCompletedTransactionHash(null);
+  };
   const [publicBalances, setPublicBalances] = useState([]);
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
   const [isTokenMenuOpen, setIsTokenMenuOpen] = useState(false);
   const [tokenPrices, setTokenPrices] = useState({});
   const [balanceRefreshTrigger, setBalanceRefreshTrigger] = useState(0);
+  const [transactionCompleted, setTransactionCompleted] = useState(false);
+  const [completedTransactionHash, setCompletedTransactionHash] = useState(null);
   const tokenMenuRef = useRef(null);
 
   // Parse target chain ID
@@ -558,13 +566,15 @@ const PaymentPage = () => {
       showTerminalToast('info', 'Transaction Submitted', 'Waiting for blockchain confirmation...', { duration: 3000 });
       const receipt = await sent.wait();
 
-      showTerminalToast('success', 'Payment sent', `Deposited ${amount} ${selectedToken.symbol} to recipient's vault. TX: ${sent.hash.slice(0, 10)}...${sent.hash.slice(-8)}`, { duration: 6000 });
+      // Set completion state instead of showing toast
+      setTransactionCompleted(true);
+      setCompletedTransactionHash(sent.hash);
 
       // Refresh public balances to show updated available balance
       console.log('[PaymentPage] ✅ Triggering public balances refresh...');
       setBalanceRefreshTrigger(prev => prev + 1);
 
-      // Reset form amount
+      // Reset form amount for next transaction
       setAmount('');
       
     } catch (error) {
@@ -687,32 +697,65 @@ const PaymentPage = () => {
               </p>
             </div>
 
-            {/* Recipient Info / Validation */}
+            {/* Recipient Info / Transaction Status */}
             <div className="bg-black/40 border border-green-500/20 rounded p-3 mb-6">
-              {/* Labels row */}
-              <div className="grid grid-cols-2 items-center px-3 text-center">
-                <div className="text-green-400/80 text-xs">Recipient:</div>
-                <div className="text-green-400/80 text-xs">Network:</div>
-              </div>
-              {/* Values row */}
-              <div className="mt-1 grid grid-cols-2 items-center px-3 text-center">
-                <div className="text-green-200 text-sm font-mono break-all">
-                  {recipientLexieId ? `@${recipientLexieId}` : (
-                    <>
-                      They didn't claim a Lexie ID yet — might as well be yeeting
-                      <br />
-                      crypto via paper airplane.
-                    </>
+              {transactionCompleted ? (
+                /* Transaction Completed Message */
+                <div className="text-center">
+                  <div className="text-green-200 text-lg font-bold mb-2">
+                    ✅ Transaction complete!
+                  </div>
+                  <div className="text-green-300 text-sm mb-4">
+                    Txn hash: <span className="font-mono break-all">{completedTransactionHash}</span>
+                  </div>
+                  <div className="grid grid-cols-2 items-center px-3 text-center">
+                    <div className="text-green-400/80 text-xs">Recipient:</div>
+                    <div className="text-green-400/80 text-xs">Network:</div>
+                  </div>
+                  <div className="mt-1 grid grid-cols-2 items-center px-3 text-center">
+                    <div className="text-green-200 text-sm font-mono break-all">
+                      {recipientLexieId ? `@${recipientLexieId}` : (
+                        <>
+                          They didn't claim a Lexie ID yet — might as well be yeeting
+                          <br />
+                          crypto via paper airplane.
+                        </>
+                      )}
+                    </div>
+                    <div className="text-green-200 text-sm font-mono">
+                      {networks[targetChainId]?.name || `Chain ${targetChainId}`}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Normal Recipient Info */
+                <>
+                  {/* Labels row */}
+                  <div className="grid grid-cols-2 items-center px-3 text-center">
+                    <div className="text-green-400/80 text-xs">Recipient:</div>
+                    <div className="text-green-400/80 text-xs">Network:</div>
+                  </div>
+                  {/* Values row */}
+                  <div className="mt-1 grid grid-cols-2 items-center px-3 text-center">
+                    <div className="text-green-200 text-sm font-mono break-all">
+                      {recipientLexieId ? `@${recipientLexieId}` : (
+                        <>
+                          They didn't claim a Lexie ID yet — might as well be yeeting
+                          <br />
+                          crypto via paper airplane.
+                        </>
+                      )}
+                    </div>
+                    <div className="text-green-200 text-sm font-mono">
+                      {networks[targetChainId]?.name || `Chain ${targetChainId}`}
+                    </div>
+                  </div>
+                  {recipientResolveError && (
+                    <div className="text-red-300 text-xs mt-2">
+                      {recipientResolveError}
+                    </div>
                   )}
-                </div>
-                <div className="text-green-200 text-sm font-mono">
-                  {networks[targetChainId]?.name || `Chain ${targetChainId}`}
-                </div>
-              </div>
-              {recipientResolveError && (
-                <div className="text-red-300 text-xs mt-2">
-                  {recipientResolveError}
-                </div>
+                </>
               )}
             </div>
 
@@ -800,7 +843,7 @@ const PaymentPage = () => {
                           <button
                             key={token.address || 'native'}
                             type="button"
-                            onClick={() => { setSelectedToken(token); setIsTokenMenuOpen(false); }}
+                            onClick={() => { setSelectedToken(token); setIsTokenMenuOpen(false); resetTransactionState(); }}
                             className="w-full text-left px-3 py-2 hover:bg-emerald-900/30 focus:bg-emerald-900/30 focus:outline-none"
                           >
                             {token.symbol} - {formatBalance(token.numericBalance)} available
@@ -825,7 +868,7 @@ const PaymentPage = () => {
                     <input
                       type="number"
                       value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
+                      onChange={(e) => { setAmount(e.target.value); resetTransactionState(); }}
                       placeholder="0.0"
                       step="any"
                       min="0"
@@ -836,7 +879,7 @@ const PaymentPage = () => {
                     {selectedToken && (
                       <button
                         type="button"
-                        onClick={() => setAmount(selectedToken.numericBalance.toString())}
+                        onClick={() => { setAmount(selectedToken.numericBalance.toString()); resetTransactionState(); }}
                         className="absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded hover:bg-green-900/20"
                       >
                         Max
