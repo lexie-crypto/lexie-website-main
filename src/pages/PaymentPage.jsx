@@ -665,7 +665,13 @@ const PaymentPage = () => {
               {/* Values row */}
               <div className="mt-1 grid grid-cols-2 items-center px-3 text-center">
                 <div className="text-green-200 text-sm font-mono break-all">
-                  {recipientLexieId ? `@${recipientLexieId}` : 'They didn\'t claim a Lexie ID yet — might as well be yeeting crypto via paper airplane.'}
+                  {recipientLexieId ? `@${recipientLexieId}` : (
+                    <>
+                      They didn't claim a Lexie ID yet — might as well be yeeting
+                      <br />
+                      crypto via paper airplane.
+                    </>
+                  )}
                 </div>
                 <div className="text-green-200 text-sm font-mono">
                   {networks[targetChainId]?.name || `Chain ${targetChainId}`}
