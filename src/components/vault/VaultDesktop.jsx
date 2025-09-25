@@ -100,6 +100,18 @@ const VaultDesktopInner = () => {
 
   const network = getCurrentNetwork();
 
+  // Supported networks array (moved up for pre-connection validation)
+  const supportedNetworks = [
+    { id: 1, name: 'Ethereum', symbol: 'ETH' },
+    { id: 137, name: 'Polygon', symbol: 'MATIC' },
+    { id: 42161, name: 'Arbitrum', symbol: 'ETH' },
+    { id: 56, name: 'BNB Chain', symbol: 'BNB' },
+  ];
+
+  // Pre-connection network validation
+  const isNetworkSupported = !chainId || supportedNetworks.some(net => net.id === chainId); // Allow undefined chainId (no wallet)
+  const isOnUnsupportedNetwork = chainId && !supportedNetworks.some(net => net.id === chainId);
+
   // Simple Redis check for scanned chains (exact EOA address, no normalization)
   const checkRedisScannedChains = useCallback(async (targetChainId = null) => {
     if (!address || !railgunWalletId) return null;
@@ -942,13 +954,6 @@ const VaultDesktopInner = () => {
     }
   };
 
-  const supportedNetworks = [
-    { id: 1, name: 'Ethereum', symbol: 'ETH' },
-    { id: 137, name: 'Polygon', symbol: 'MATIC' },
-    { id: 42161, name: 'Arbitrum', symbol: 'ETH' },
-    { id: 56, name: 'BNB Chain', symbol: 'BNB' },
-  ];
-
   const [isChainMenuOpen, setIsChainMenuOpen] = useState(false);
   const [isMobileChainMenuOpen, setIsMobileChainMenuOpen] = useState(false);
   const chainMenuRef = useRef(null);
@@ -1025,12 +1030,17 @@ const VaultDesktopInner = () => {
             <div className="font-mono text-green-300 text-center">
               <WalletIcon className="h-16 w-16 text-emerald-300 mx-auto mb-6" />
               <h2 className="text-2xl font-semibold text-emerald-300 tracking-tight">Connect Wallet</h2>
-              <p className="mt-2 text-emerald-300/80 text-center text-sm leading-6">
-                Connect your wallet to gain access to the LexieVault features.
+              <p className={`mt-2 text-center text-sm leading-6 ${
+                isOnUnsupportedNetwork ? 'text-orange-300/80' : 'text-emerald-300/80'
+              }`}>
+                {isOnUnsupportedNetwork
+                  ? 'Please change the network in your wallet to Ethereum, Arbitrum, Polygon, or BNB Chain to use LexieVault features.'
+                  : 'Connect your wallet to gain access to the LexieVault features.'
+                }
               </p>
-            
+
               <div className="space-y-4">
-                <InjectedProviderButtons disabled={isConnecting} />
+                <InjectedProviderButtons disabled={isConnecting || isOnUnsupportedNetwork} />
               </div>
 
               <div className="mt-6 text-sm text-green-400/70 text-center">
