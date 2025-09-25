@@ -24,7 +24,7 @@ import {
   populateShieldBaseToken,
 } from '@railgun-community/wallet';
 import { calculateGasPrice } from '@railgun-community/shared-models';
-import { createShieldGasDetails, getTxFeeParams, estimateGasForTransaction } from './tx-gas-details.js';
+import { createShieldGasDetails, getTxFeeParams } from './tx-gas-details.js';
 import { fetchGasPricesFromRPC } from './tx-gas-details.js';
 import { estimateGasWithBroadcasterFee } from './tx-gas-broadcaster-fee-estimator.js';
 import { assertNotSanctioned } from '../sanctions/chainalysis-oracle.js';
@@ -354,18 +354,8 @@ export const buildBaseTokenShieldGasAndEstimate = async ({
   try {
     const signer = walletProvider; // walletProvider is a Signer object, not a function
 
-    // Use simple gas estimation for reasonable gas prices
-    console.log('[ShieldTransactions] Using simple gas estimation for base token shield...');
-    const gasCostEstimate = await estimateGasForTransaction({
-      transactionType: 'shield',
-      chainId,
-      networkName,
-      tokenAddress,
-      amount: BigInt(amount),
-      walletProvider: signer,
-    });
-
-    // Get gas prices from the simple estimation
+    // Get real-time gas prices directly from RPC for market rate
+    console.log('[ShieldTransactions] Using market rate gas prices for base token shield...');
     const gasPrices = await fetchGasPricesFromRPC(chainId);
     const evmGasType = getEVMGasTypeForTransaction(networkName, true); // Use correct gas type for self-signing
 
@@ -393,7 +383,6 @@ export const buildBaseTokenShieldGasAndEstimate = async ({
       chainId,
       gasEstimate: sdkGasEstimate.toString(),
       paddedGasEstimate: paddedGasEstimate.toString(),
-      uiEstimate: gasCostEstimate.gasCostUSD,
       gasPrices: {
         maxFeePerGas: gasPrices.maxFeePerGas?.toString(),
         maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas?.toString(),
@@ -434,20 +423,8 @@ export const buildShieldGasAndEstimate = async ({
   try {
     const signer = walletProvider; // walletProvider is a Signer object, not a function
 
-    // Use simple gas estimation for reasonable gas prices
-    // Use the first ERC20 recipient for estimation
-    const firstRecipient = erc20AmountRecipients?.[0];
-    console.log('[ShieldTransactions] Using simple gas estimation for shield...');
-    const gasCostEstimate = await estimateGasForTransaction({
-      transactionType: 'shield',
-      chainId,
-      networkName,
-      tokenAddress: firstRecipient?.tokenAddress,
-      amount: firstRecipient?.amount || 0n,
-      walletProvider: signer,
-    });
-
-    // Get gas prices from the simple estimation
+    // Get real-time gas prices directly from RPC for market rate
+    console.log('[ShieldTransactions] Using market rate gas prices for shield...');
     const gasPrices = await fetchGasPricesFromRPC(chainId);
     const evmGasType = getEVMGasTypeForTransaction(networkName, true); // Use correct gas type for self-signing
 
@@ -475,7 +452,6 @@ export const buildShieldGasAndEstimate = async ({
       chainId,
       gasEstimate: sdkGasEstimate.toString(),
       paddedGasEstimate: paddedGasEstimate.toString(),
-      uiEstimate: gasCostEstimate.gasCostUSD,
       gasPrices: {
         maxFeePerGas: gasPrices.maxFeePerGas?.toString(),
         maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas?.toString(),
