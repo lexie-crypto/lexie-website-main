@@ -10,18 +10,84 @@ import AdminHistoryPage from './pages/AdminHistoryPage';
 
 // PaymentPage moved to subdomain - redirect component
 const PaymentRedirect = () => {
-  // Get current URL parameters and redirect immediately
+  const [redirectAttempted, setRedirectAttempted] = React.useState(false);
+  const [manualRedirect, setManualRedirect] = React.useState(false);
+
+  React.useEffect(() => {
+    // Get current URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const subdomainUrl = `https://staging.pay.lexiecrypto.com/pay?${urlParams.toString()}`;
+
+    console.log('[PaymentRedirect] Attempting redirect to:', subdomainUrl);
+
+    // If we've already tried redirecting, show manual option
+    if (redirectAttempted) {
+      setManualRedirect(true);
+      return;
+    }
+
+    // Mark that we're attempting redirect
+    setRedirectAttempted(true);
+
+    // Small delay to ensure component renders, then redirect
+    const redirectTimer = setTimeout(() => {
+      try {
+        console.log('[PaymentRedirect] Executing redirect...');
+        window.location.replace(subdomainUrl);
+      } catch (error) {
+        console.error('[PaymentRedirect] Redirect failed:', error);
+        // Fallback: try href instead of replace
+        try {
+          window.location.href = subdomainUrl;
+        } catch (fallbackError) {
+          console.error('[PaymentRedirect] Fallback redirect also failed:', fallbackError);
+          setManualRedirect(true);
+        }
+      }
+    }, 1000); // Increased delay to 1 second
+
+    // If redirect doesn't happen within 5 seconds, show manual option
+    const manualTimer = setTimeout(() => {
+      console.log('[PaymentRedirect] Redirect may have failed, showing manual option');
+      setManualRedirect(true);
+    }, 5000);
+
+    return () => {
+      clearTimeout(redirectTimer);
+      clearTimeout(manualTimer);
+    };
+  }, [redirectAttempted]);
+
   const urlParams = new URLSearchParams(window.location.search);
   const subdomainUrl = `https://staging.pay.lexiecrypto.com/pay?${urlParams.toString()}`;
 
-  // Use replace to avoid back button issues
-  window.location.replace(subdomainUrl);
-
   return (
     <div className="min-h-screen bg-black text-white flex items-center justify-center">
-      <div className="text-center">
-        <div className="text-green-300 text-lg mb-2">Redirecting to payment page...</div>
-        <div className="text-green-400/70 text-sm">Payment processing has moved to a dedicated subdomain</div>
+      <div className="text-center max-w-md mx-auto px-4">
+        <div className="text-green-300 text-lg mb-4">Redirecting to payment page...</div>
+        <div className="text-green-400/70 text-sm mb-6">
+          Payment processing has moved to a dedicated subdomain
+        </div>
+
+        {manualRedirect && (
+          <div className="bg-red-900/20 border border-red-500/40 rounded p-4 mb-4">
+            <div className="text-red-300 text-sm mb-3">
+              ⚠️ Automatic redirect failed. Please click below to continue:
+            </div>
+            <a
+              href={subdomainUrl}
+              className="inline-block bg-blue-600/30 hover:bg-blue-600/50 text-blue-200 px-4 py-2 rounded border border-blue-400/40 transition-colors"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              Open Payment Page
+            </a>
+          </div>
+        )}
+
+        <div className="text-green-400/50 text-xs">
+          URL: {subdomainUrl}
+        </div>
       </div>
     </div>
   );
