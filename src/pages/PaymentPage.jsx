@@ -384,11 +384,16 @@ const PaymentPage = () => {
       // Fetch current gas prices from RPC (same as shieldTransactions.js)
       console.log('[PaymentPage] Fetching current gas prices from RPC...');
       let gasPrices = await fetchGasPricesFromRPC(chainId);
+      console.log(`[PaymentPage] RPC gas prices for chain ${chainId}:`, {
+        gasPrice: gasPrices.gasPrice?.toString(),
+        maxFeePerGas: gasPrices.maxFeePerGas?.toString(),
+        maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas?.toString()
+      });
 
       // Enforce minimum gas prices for networks that need them
       if (chainId === 56) {
-        // BNB Chain often returns very low gas prices from RPC
-        const minGasPrice = BigInt('100000000'); // 0.1 gwei minimum for BNB
+        // BNB Chain requires higher gas prices than RPC often returns
+        const minGasPrice = BigInt('3000000000'); // 3 gwei minimum for BNB
         if (gasPrices.gasPrice < minGasPrice) {
           console.log(`[PaymentPage] BNB gas price too low (${gasPrices.gasPrice}), enforcing minimum: ${minGasPrice}`);
           gasPrices = {
