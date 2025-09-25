@@ -562,6 +562,34 @@ const WalletContextProvider = ({ children }) => {
     return signer;
   };
 
+  // Validate and switch to supported network after wallet connection
+  const validateAndSwitchToSupportedNetwork = async () => {
+    // Wait a bit for chainId to be available
+    await new Promise(resolve => setTimeout(resolve, 100));
+
+    // Supported networks: Ethereum (1), Polygon (137), Arbitrum (42161), BNB Chain (56)
+    const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
+
+    if (!chainId) {
+      console.log('⚠️ Chain ID not available yet, skipping network validation');
+      return;
+    }
+
+    if (!supportedNetworks[chainId]) {
+      console.log(`🔄 Current network (chainId: ${chainId}) is not supported. Switching to Ethereum...`);
+      try {
+        await switchChain({ chainId: 1 }); // Switch to Ethereum
+        console.log('✅ Successfully switched to Ethereum network');
+      } catch (error) {
+        console.error('❌ Failed to switch to Ethereum network:', error);
+        // Don't throw here - connection succeeded, just log the error
+        // User can manually switch networks in the UI
+      }
+    } else {
+      console.log(`✅ Connected on supported network: ${chainId}`);
+    }
+  };
+
   // Simple wallet connection - UI layer only
   const connectWallet = async (connectorType = 'metamask', options = {}) => {
     try {
@@ -597,6 +625,10 @@ const WalletContextProvider = ({ children }) => {
           } catch {}
           await connect({ connector });
           console.log('✅ Connected via clicked injected provider:', options?.name || 'Injected');
+
+          // Check if on supported network and switch if needed
+          await validateAndSwitchToSupportedNetwork();
+
           // Belt-and-suspenders: ensure any stale Railgun SDK wallets are unloaded before hydration
           try {
             const { clearAllWallets } = await import('../utils/railgun/wallet');
@@ -607,7 +639,7 @@ const WalletContextProvider = ({ children }) => {
         // No provider supplied: fallback to generic injected connector
         targetConnector = connectors.find(c => c.id === 'injected');
       }
-      
+
       if (targetConnector) {
         // Pre-connect unload to guarantee clean slate even if connect fails mid-way
         try {
@@ -616,6 +648,10 @@ const WalletContextProvider = ({ children }) => {
         } catch {}
         await connect({ connector: targetConnector });
         console.log('✅ Connected via wagmi:', targetConnector.id, options?.name || '');
+
+        // Check if on supported network and switch if needed
+        await validateAndSwitchToSupportedNetwork();
+
         // Belt-and-suspenders: ensure any stale Railgun SDK wallets are unloaded before hydration
         try {
           const { clearAllWallets } = await import('../utils/railgun/wallet');
