@@ -7,6 +7,7 @@ import { TXIDVersion, EVMGasType, getEVMGasTypeForTransaction } from '@railgun-c
 import { waitForRailgunReady } from '../engine.js';
 import { getRailgunNetworkName, refreshWalletBalances, createERC20AmountRecipient } from '../transaction/transaction-prep.js';
 import { getSelectedRelayer } from '../relayer-client.js';
+import { getKnownTokenDecimals } from '../balances.js';
 import {
   gasEstimateForUnprovenCrossContractCalls,
   generateCrossContractCallsProof,
