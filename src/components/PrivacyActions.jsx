@@ -144,7 +144,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       id: 'transfer',
       name: 'Send',
       icon: ArrowRightIcon,
-      description: 'Send to any address (EOA or Lexie ID)'
+      description: 'Send to any address (EOA or LexieID)'
     },
     {
       id: 'receive',
@@ -1300,7 +1300,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       const input = (recipientAddress || '').trim().toLowerCase();
       const isLikelyLexieID = /^[a-z0-9_]{3,20}$/.test(input);
       if (!isLikelyLexieID) {
-        toast.error('Please enter a valid EVM address or a Lexie ID');
+        toast.error('Please enter a valid EVM address or a LexieID');
         return;
       }
       // Fast pre-check: Verify Lexie ID exists before starting heavy processing
@@ -1942,7 +1942,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                         <div className="flex items-center gap-2 mb-1">
                           <span className="font-medium text-green-200">{contact.id}</span>
                           <span className="text-xs text-green-400/70 bg-green-900/30 px-2 py-0.5 rounded">
-                            {contact.type === 'lexieId' ? 'Lexie ID' : 'EOA'}
+                            {contact.type === 'lexieId' ? 'LexieID' : 'WALLET'}
                           </span>
                         </div>
                         <div className="text-xs text-green-400/60 font-mono break-all">
@@ -2137,15 +2137,15 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                       setShowSuggestions(false);
                     }
                   }}
-                  placeholder="0x...or Lexie ID"
+                  placeholder="0x...or LexieID"
                   className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
                 />
                 <div className="mt-1 text-xs text-green-400/70">
                   {recipientType === 'eoa' && 'Will send to public address'}
                   {recipientType === 'railgun' && 'Will send to zk-shielded address (0zk...)'}
-                  {recipientType === 'lexie' && 'Will send to Lexie ID'}
+                  {recipientType === 'lexie' && 'Will send to LexieID'}
                   {recipientType === 'invalid' && recipientAddress && '❌ Invalid address format'}
-                  {recipientType === 'none' && 'Enter recipient address or Lexie ID'}
+                  {recipientType === 'none' && 'Enter recipient address or LexieID'}
                 </div>
 
                 {/* Contact Suggestions Dropdown */}
@@ -2165,7 +2165,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                         <div className="flex justify-between items-center">
                           <span className="font-medium">{contact.id}</span>
                           <span className="text-xs text-green-400/70 ml-2">
-                            ({contact.type === 'lexieId' ? 'Lexie ID' : 'EOA'})
+                            ({contact.type === 'lexieId' ? 'LexieID' : 'WALLET'})
                           </span>
                         </div>
                         <div className="text-xs text-green-400/60 truncate">
