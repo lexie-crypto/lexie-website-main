@@ -104,6 +104,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   const [editingContact, setEditingContact] = useState(null);
   const [contactSuggestions, setContactSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showContactSelectionModal, setShowContactSelectionModal] = useState(false);
 
   // Resolve current user's Lexie ID from their Railgun address
   useEffect(() => {
@@ -2116,9 +2117,20 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           {activeTab === 'transfer' && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-green-300 mb-2">
-                  Send To
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-green-300">
+                    Send To
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowContactSelectionModal(true)}
+                    className="text-xs text-green-400 hover:text-green-300 px-2 py-1 border border-green-500/40 rounded hover:bg-green-900/20 transition-colors flex items-center gap-1"
+                    title="Select from contacts"
+                  >
+                    <UsersIcon className="h-3 w-3" />
+                    Contacts
+                  </button>
+                </div>
                 <input
                   type="text"
                   value={recipientAddress}
@@ -2294,6 +2306,91 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           }}
           prefillAddress={editingContact ? undefined : recipientAddress}
         />
+      )}
+
+      {/* Contact Selection Modal */}
+      {showContactSelectionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 font-mono">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-red-500" />
+                  <span className="w-3 h-3 rounded-full bg-yellow-500" />
+                  <span className="w-3 h-3 rounded-full bg-green-500" />
+                </div>
+                <span className="text-sm tracking-wide text-gray-400">select-contact</span>
+              </div>
+              <button
+                onClick={() => setShowContactSelectionModal(false)}
+                className="text-green-400/70 hover:text-green-300 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 text-green-300 space-y-4 max-h-96 overflow-y-auto">
+              <div>
+                <h3 className="text-lg font-bold text-emerald-300 mb-2">Select Contact</h3>
+                <p className="text-green-400/80 text-sm mb-4">
+                  Choose a contact to send to
+                </p>
+              </div>
+
+              {contacts.length === 0 ? (
+                <div className="text-center py-8 text-green-400/70">
+                  <UsersIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No contacts yet</p>
+                  <p className="text-xs mt-2">Add contacts in the Contacts tab</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {contacts.map((contact) => (
+                    <button
+                      key={contact.id}
+                      onClick={() => {
+                        // Prefill recipient address with contact's address or LexieID
+                        const recipientValue = contact.lexieId || contact.address;
+                        setRecipientAddress(recipientValue);
+                        setShowContactSelectionModal(false);
+
+                        // Clear any existing suggestions
+                        setContactSuggestions([]);
+                        setShowSuggestions(false);
+                      }}
+                      className="w-full text-left p-3 bg-black/40 border border-green-500/20 rounded hover:bg-green-900/20 hover:border-green-500/40 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-green-200 font-medium truncate">
+                            {contact.name || contact.id}
+                          </div>
+                          <div className="text-green-400/70 text-xs truncate">
+                            {contact.lexieId ? `@${contact.lexieId}` : contact.address}
+                          </div>
+                        </div>
+                        <div className="text-green-400/70 text-xs ml-2">
+                          {contact.lexieId ? 'LexieID' : 'Address'}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-700">
+                <button
+                  onClick={() => setShowContactSelectionModal(false)}
+                  className="px-4 py-2 text-sm border border-gray-600 text-gray-300 rounded hover:bg-gray-800 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
