@@ -1945,7 +1945,26 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                             {contact.type === 'lexieId' ? 'LexieID' : 'WALLET'}
                           </span>
                         </div>
-                        <div className="text-xs text-green-400/60 font-mono break-all">
+                        <div
+                          className="text-sm text-green-300 font-mono break-all cursor-pointer hover:text-green-200 transition-colors select-all"
+                          onClick={() => {
+                            const address = contact.type === 'eoa' ? contact.address : contact.lexieId;
+                            navigator.clipboard.writeText(address);
+                            toast.custom((t) => (
+                              <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+                                <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+                                  <div className="px-4 py-3 flex items-center gap-3">
+                                    <div className="h-3 w-3 rounded-full bg-green-400" />
+                                    <div>
+                                      <div className="text-sm">Address copied to clipboard</div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ), { duration: 2000 });
+                          }}
+                          title="Click to copy"
+                        >
                           {contact.type === 'eoa' ? contact.address : contact.lexieId}
                         </div>
                       </div>
