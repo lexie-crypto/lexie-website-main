@@ -34,7 +34,7 @@ import {
 import { deriveEncryptionKey, clearAllWallets } from '../../utils/railgun/wallet';
 import { Navbar } from '../Navbar';
 
-export const VaultDesktopInner = () => {
+const VaultDesktopInner = () => {
   const {
     isConnected,
     isConnecting,
