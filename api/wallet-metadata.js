@@ -180,17 +180,18 @@ export default async function handler(req, res) {
     return res.status(204).end();
   }
 
-  // Check for contacts requests using req.query (Next.js parses query params automatically)
-  console.log(`🔍 [CONTACTS-CHECK-${requestId}] Checking for contacts:`, {
-    reqQuery: req.query,
-    action: req.query.action,
-    isContacts: req.query.action === 'contacts'
-  });
-  const isContactsRequest = req.query.action === 'contacts';
+  try {
+    // Check for contacts requests using req.query (Next.js parses query params automatically)
+    console.log(`🔍 [CONTACTS-CHECK-${requestId}] Checking for contacts:`, {
+      reqQuery: req.query,
+      action: req.query.action,
+      isContacts: req.query.action === 'contacts'
+    });
+    const isContactsRequest = req.query.action === 'contacts';
 
-  console.log(`🎯 [CONTACTS-CHECK-${requestId}] isContactsRequest: ${isContactsRequest}`);
+    console.log(`🎯 [CONTACTS-CHECK-${requestId}] isContactsRequest: ${isContactsRequest}`);
 
-  if (isContactsRequest) {
+    if (isContactsRequest) {
     console.log(`📞 [CONTACTS-PROXY-${requestId}] Contacts request detected: ${req.method} ${req.url}`);
 
     // Extract wallet address and wallet ID from req.query
@@ -280,6 +281,35 @@ export default async function handler(req, res) {
     }
 
     return; // Exit after handling contacts request
+  }
+
+  } catch (error) {
+    console.error(`❌ [CONTACTS-ERROR-${requestId}] Error in contacts handling:`, error);
+    return res.status(500).json({
+      success: false,
+      error: 'Contacts proxy error',
+      debug: {
+        action: req.query.action,
+        isContactsRequest: req.query.action === 'contacts',
+        query: req.query
+      }
+    });
+  }
+
+  // If we get here, contacts detection failed
+  if (req.query.action === 'contacts') {
+    console.error(`🚨 [CONTACTS-MISS-${requestId}] Contacts request not detected properly!`, {
+      action: req.query.action,
+      query: req.query
+    });
+    return res.status(400).json({
+      success: false,
+      error: 'Contacts request not handled',
+      debug: {
+        action: req.query.action,
+        query: req.query
+      }
+    });
   }
 
   // Only allow GET, POST, and PUT methods for non-contacts requests
