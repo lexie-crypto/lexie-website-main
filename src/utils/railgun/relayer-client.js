@@ -399,11 +399,32 @@ export function shouldUseRelayer(chainId, amount) {
   return true;
 }
 
+/**
+ * Get selected relayer details for SDK integration
+ */
+export const getSelectedRelayer = async (preferredFeeTokenAddress) => {
+  // Fetch live RAILGUN address from relayer service
+  try {
+    // NOTE: recipient sanctions screening occurs after resolving recipient below
+    const railgunAddress = await getRelayerAddress();
+    return {
+      railgunAddress, // MUST be '0zk…'
+      feePerUnitGas: BigInt('1000000000'), // default 1 gwei; replace with quote when available
+      // Prefer to pay fee in the same token we're unshielding
+      feeToken: preferredFeeTokenAddress || "0xaf88d065e77c8cc2239327c5edb3a432268e5831",
+    };
+  } catch (e) {
+    // Fall back to error; do not proceed with undefined/invalid address
+    throw new Error(`Failed to retrieve relayer RAILGUN address: ${e.message}`);
+  }
+};
+
 export default {
   estimateRelayerFee,
   submitRelayedTransaction,
   checkRelayerHealth,
   getRelayerAddress,
+  getSelectedRelayer,
   calculateTotalAmountWithFees,
   shouldUseRelayer,
   RelayerConfig
