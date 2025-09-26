@@ -179,17 +179,15 @@ export default async function handler(req, res) {
     return res.status(204).end();
   }
 
-  // Parse URL to detect contacts requests
-  // Check for action=contacts in query parameters
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const isContactsRequest = url.searchParams.get('action') === 'contacts';
+  // Check for contacts requests using req.query (Next.js parses query params automatically)
+  const isContactsRequest = req.query.action === 'contacts';
 
   if (isContactsRequest) {
     console.log(`📞 [CONTACTS-PROXY-${requestId}] Contacts request detected: ${req.method} ${req.url}`);
 
-    // Extract wallet address and wallet ID from query parameters
-    const walletAddress = url.searchParams.get('walletAddress');
-    const walletId = url.searchParams.get('walletId');
+    // Extract wallet address and wallet ID from req.query
+    const walletAddress = req.query.walletAddress;
+    const walletId = req.query.walletId;
 
     if (!walletAddress || !walletId) {
       console.log(`❌ [CONTACTS-PROXY-${requestId}] Missing walletAddress or walletId in query`);
