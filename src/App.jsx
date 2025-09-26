@@ -95,14 +95,15 @@ const PaymentRedirect = () => {
 };
 
 function App() {
-  const [showMobileDebug, setShowMobileDebug] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  // const [showMobileDebug, setShowMobileDebug] = useState(false);
+  // const [isMobile, setIsMobile] = useState(false);
 
   // Check if we're on the payment subdomain
   const isPaymentSubdomain = typeof window !== 'undefined' &&
     window.location.hostname === 'staging.pay.lexiecrypto.com';
 
-  // Detect mobile and initialize Eruda
+  // Detect mobile and initialize Eruda - Commented out
+  /*
   useEffect(() => {
     const checkMobile = () => {
       const mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -111,10 +112,12 @@ function App() {
 
     checkMobile();
   }, []);
+  */
 
+  /*
   const toggleMobileDebug = async () => {
     if (!isMobile) return;
-    
+
     try {
       const eruda = await import('eruda');
       if (showMobileDebug) {
@@ -128,6 +131,7 @@ function App() {
       console.error('Failed to toggle Eruda:', error);
     }
   };
+  */
 
   // If on payment subdomain, serve PaymentPage directly
   if (isPaymentSubdomain) {
@@ -172,7 +176,8 @@ function App() {
             <Route path="/admin-history" element={<AdminHistoryPage />} />
           </Routes>
 
-          {/* Mobile Debug Gear Icon */}
+          {/* Mobile Debug Gear Icon - Commented out */}
+          {/*
           {isMobile && (
             <button
               onClick={toggleMobileDebug}
@@ -182,6 +187,7 @@ function App() {
               ⚙️
             </button>
           )}
+          */}
 
           {/* Toast notifications */}
           <Toaster
