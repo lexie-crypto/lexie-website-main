@@ -180,30 +180,33 @@ export default async function handler(req, res) {
   }
 
   // Parse URL to detect contacts requests
-  // In Next.js API routes, req.url contains the path after /api
-  const isContactsRequest = req.url.startsWith('/wallet-metadata/contacts/');
+  // Check for action=contacts in query parameters
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const isContactsRequest = url.searchParams.get('action') === 'contacts';
 
   if (isContactsRequest) {
     console.log(`📞 [CONTACTS-PROXY-${requestId}] Contacts request detected: ${req.method} ${req.url}`);
 
-    // Extract wallet address and wallet ID from URL
-    // req.url format: /wallet-metadata/contacts/{walletAddress}/{walletId}
-    const pathParts = req.url.split('/').filter(p => p);
-    const walletAddress = pathParts[2]; // wallet-metadata/contacts/{walletAddress}/{walletId}
-    const walletId = pathParts[3];
+    // Extract wallet address and wallet ID from query parameters
+    const walletAddress = url.searchParams.get('walletAddress');
+    const walletId = url.searchParams.get('walletId');
 
     if (!walletAddress || !walletId) {
-      console.log(`❌ [CONTACTS-PROXY-${requestId}] Missing walletAddress or walletId in path`);
+      console.log(`❌ [CONTACTS-PROXY-${requestId}] Missing walletAddress or walletId in query`);
       return res.status(400).json({
         success: false,
-        error: 'Missing walletAddress or walletId in path'
+        error: 'Missing walletAddress or walletId parameters'
       });
     }
 
     console.log(`🔍 [CONTACTS-PROXY-${requestId}] Parsed wallet context: ${walletAddress.slice(0, 8)}... / ${walletId.slice(0, 8)}...`);
 
     // Forward to backend contacts endpoint
-    const backendPath = `/api/wallet-metadata/contacts/${walletAddress}/${walletId}`;
+    // For GET: /api/get-wallet-metadata/{walletAddress}?action=contacts&...
+    // For PUT: /api/store-wallet-metadata?action=contacts&...
+    const backendPath = req.method === 'GET'
+      ? `/api/get-wallet-metadata/${walletAddress}?action=contacts&walletAddress=${walletAddress}&walletId=${walletId}`
+      : `/api/store-wallet-metadata?action=contacts&walletAddress=${walletAddress}&walletId=${walletId}`;
     const backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
 
     const timestamp = Date.now().toString();

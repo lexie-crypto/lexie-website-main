@@ -39,9 +39,15 @@ export class RedisContactAdapter implements ContactStorageAdapter {
   }
 
   private async apiCall(endpoint: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET', body?: any): Promise<any> {
-    // Build URL with wallet context in path: /api/wallet-metadata/contacts/{walletAddress}/{walletId}
-    const walletPath = this.walletAddress && this.walletId ? `${this.walletAddress}/${this.walletId}` : '';
-    const url = `/api/wallet-metadata/contacts/${walletPath}${endpoint ? `/${endpoint}` : ''}`;
+    // Build URL with action parameter: /api/wallet-metadata?action=contacts&walletAddress=...&walletId=...
+    const params = new URLSearchParams({
+      action: 'contacts',
+      ...(this.walletAddress && { walletAddress: this.walletAddress }),
+      ...(this.walletId && { walletId: this.walletId }),
+      ...(endpoint && { subaction: endpoint }),
+    });
+
+    const url = `/api/wallet-metadata?${params.toString()}`;
 
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
