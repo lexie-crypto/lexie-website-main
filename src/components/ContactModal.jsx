@@ -91,7 +91,7 @@ const ContactModal = ({ contact, onSave, onCancel, prefillAddress }) => {
                     onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value }))}
                     className="mr-2"
                   />
-                  <span className="text-sm text-green-200">EOA Address</span>
+                  <span className="text-sm text-green-200">Wallet Address</span>
                 </label>
                 <label className="flex items-center">
                   <input
