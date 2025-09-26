@@ -180,40 +180,25 @@ export default async function handler(req, res) {
     return res.status(204).end();
   }
 
-  try {
-    // Check for contacts requests using req.query (Next.js parses query params automatically)
-    console.log(`🔍 [CONTACTS-CHECK-${requestId}] Checking for contacts:`, {
-      reqQuery: req.query,
-      action: req.query.action,
-      isContacts: req.query.action === 'contacts'
-    });
-    const isContactsRequest = req.query.action === 'contacts';
+  // Check for contacts requests using req.query (Next.js parses query params automatically)
+  const isContactsRequest = req.query.action === 'contacts';
 
-    console.log(`🎯 [CONTACTS-CHECK-${requestId}] isContactsRequest: ${isContactsRequest}`);
-
-    if (isContactsRequest) {
-    console.log(`📞 [CONTACTS-PROXY-${requestId}] Contacts request detected: ${req.method} ${req.url}`);
-
+  if (isContactsRequest) {
     // Extract wallet address and wallet ID from req.query
     const walletAddress = req.query.walletAddress;
     const walletId = req.query.walletId;
 
     if (!walletAddress || !walletId) {
-      console.log(`❌ [CONTACTS-PROXY-${requestId}] Missing walletAddress or walletId in query`);
       return res.status(400).json({
         success: false,
         error: 'Missing walletAddress or walletId parameters'
       });
     }
 
-    console.log(`🔍 [CONTACTS-PROXY-${requestId}] Parsed wallet context: ${walletAddress.slice(0, 8)}... / ${walletId.slice(0, 8)}...`);
-
-    // Forward to backend contacts endpoint
-    // For GET: /api/get-wallet-metadata/{walletAddress}?action=contacts&...
-    // For PUT: /api/store-wallet-metadata?action=contacts&...
-    const backendPath = req.method === 'GET'
-      ? `/api/get-wallet-metadata/${walletAddress}?action=contacts&walletAddress=${walletAddress}&walletId=${walletId}`
-      : `/api/store-wallet-metadata?action=contacts&walletAddress=${walletAddress}&walletId=${walletId}`;
+    // Forward to dedicated backend contacts endpoints
+    // GET: /api/wallet-metadata/contacts/{walletAddress}/{walletId}
+    // PUT: /api/wallet-metadata/contacts/{walletAddress}/{walletId}
+    const backendPath = `/api/wallet-metadata/contacts/${walletAddress}/${walletId}`;
     const backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
 
     const timestamp = Date.now().toString();
@@ -229,15 +214,6 @@ export default async function handler(req, res) {
       'User-Agent': 'Lexie-Contacts-Proxy/1.0',
     };
 
-    console.log(`🔐 [CONTACTS-PROXY-${requestId}] Generated HMAC headers`, {
-      method: req.method,
-      timestamp,
-      signature: signature.substring(0, 20) + '...',
-      path: backendPath
-    });
-
-    console.log(`📡 [CONTACTS-PROXY-${requestId}] Forwarding to backend: ${backendUrl}`);
-
     try {
       const fetchOptions = {
         method: req.method,
@@ -252,8 +228,6 @@ export default async function handler(req, res) {
       const backendResponse = await fetch(backendUrl, fetchOptions);
       const responseBody = await backendResponse.text();
 
-      console.log(`✅ [CONTACTS-PROXY-${requestId}] Backend responded with status ${backendResponse.status}`);
-
       try {
         const jsonResult = JSON.parse(responseBody);
         res.status(backendResponse.status).json(jsonResult);
@@ -263,13 +237,6 @@ export default async function handler(req, res) {
       }
 
     } catch (error) {
-      console.error(`❌ [CONTACTS-PROXY-${requestId}] Error:`, {
-        method: req.method,
-        error: error.message,
-        stack: error.stack,
-        path: req.url
-      });
-
       if (!res.headersSent) {
         res.status(500).json({
           success: false,
@@ -281,35 +248,6 @@ export default async function handler(req, res) {
     }
 
     return; // Exit after handling contacts request
-  }
-
-  } catch (error) {
-    console.error(`❌ [CONTACTS-ERROR-${requestId}] Error in contacts handling:`, error);
-    return res.status(500).json({
-      success: false,
-      error: 'Contacts proxy error',
-      debug: {
-        action: req.query.action,
-        isContactsRequest: req.query.action === 'contacts',
-        query: req.query
-      }
-    });
-  }
-
-  // If we get here, contacts detection failed
-  if (req.query.action === 'contacts') {
-    console.error(`🚨 [CONTACTS-MISS-${requestId}] Contacts request not detected properly!`, {
-      action: req.query.action,
-      query: req.query
-    });
-    return res.status(400).json({
-      success: false,
-      error: 'Contacts request not handled',
-      debug: {
-        action: req.query.action,
-        query: req.query
-      }
-    });
   }
 
   // Only allow GET, POST, and PUT methods for non-contacts requests
