@@ -129,7 +129,17 @@ export const config = {
 
 export default async function handler(req, res) {
   const requestId = Math.random().toString(36).substring(7);
-  
+
+  // HMAC secret is required for all authenticated requests
+  const hmacSecret = process.env.LEXIE_HMAC_SECRET;
+  if (!hmacSecret) {
+    console.error(`❌ [WALLET-METADATA-PROXY-${requestId}] LEXIE_HMAC_SECRET environment variable is not set`);
+    return res.status(500).json({
+      success: false,
+      error: 'Server authentication configuration error'
+    });
+  }
+
   console.log(`🔄 [WALLET-METADATA-PROXY-${requestId}] ${req.method} request`, {
     method: req.method,
     query: req.query,
@@ -203,8 +213,8 @@ export default async function handler(req, res) {
     const headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'x-lexie-timestamp': timestamp,
-      'x-lexie-signature': signature,
+      'X-Lexie-Timestamp': timestamp,
+      'X-Lexie-Signature': signature,
       'Origin': 'https://staging.lexiecrypto.com',
       'User-Agent': 'Lexie-Contacts-Proxy/1.0',
     };
