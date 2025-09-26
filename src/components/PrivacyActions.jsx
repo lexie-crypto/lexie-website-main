@@ -2235,9 +2235,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={!isValidAmount || exceedsAvailableBalance || isProcessing || isTransactionLocked || !selectedToken || (activeTab === 'transfer' && (!recipientAddress || recipientType === 'invalid'))}
+            disabled={!isValidAmount || exceedsAvailableBalance || isProcessing || isTransactionLocked || !selectedToken || !gasFeeData || (activeTab === 'transfer' && (!recipientAddress || recipientType === 'invalid'))}
             className={`w-full py-3 px-4 rounded font-medium transition-colors ${
-              isValidAmount && !exceedsAvailableBalance && !isProcessing && !isTransactionLocked && selectedToken && (activeTab !== 'transfer' || (recipientAddress && recipientType !== 'invalid'))
+              isValidAmount && !exceedsAvailableBalance && !isProcessing && !isTransactionLocked && selectedToken && gasFeeData && (activeTab !== 'transfer' || (recipientAddress && recipientType !== 'invalid'))
                 ? 'bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 border border-emerald-400/40'
                 : 'bg-black/40 text-green-400/50 border border-green-500/20 cursor-not-allowed'
             }`}
