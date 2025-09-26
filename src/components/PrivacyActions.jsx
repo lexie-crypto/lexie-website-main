@@ -45,7 +45,7 @@ import {
 } from '../utils/railgun/wallet';
 import { getTokenAddress, areTokensEqual } from '../utils/tokens';
 import { estimateGasForTransaction } from '../utils/railgun/tx-gas-details';
-import { getRailgunNetworkName } from '../utils/railgun/transaction/transaction-prep';
+import { getRailgunNetworkName } from '../utils/railgun/tx-unshield';
 
 const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false }) => {
   const {

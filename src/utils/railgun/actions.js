@@ -11,8 +11,7 @@
 
 import { NetworkName, TXIDVersion } from '@railgun-community/shared-models';
 // Import our custom unshield implementation
-import { unshieldTokens } from './tx-unshield.js';
-import { privateTransferWithRelayer } from './private-transfer.js';
+import { unshieldTokens, privateTransferWithRelayer } from './tx-unshield.js';
 
 // Import our new modular utilities
 import { shieldTokens } from './shieldTransactions.js';
