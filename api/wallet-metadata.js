@@ -142,6 +142,7 @@ export default async function handler(req, res) {
 
   console.log(`🔄 [WALLET-METADATA-PROXY-${requestId}] ${req.method} request`, {
     method: req.method,
+    url: req.url,
     query: req.query,
     origin: req.headers.origin,
     hasBody: !!req.body,
@@ -180,7 +181,14 @@ export default async function handler(req, res) {
   }
 
   // Check for contacts requests using req.query (Next.js parses query params automatically)
+  console.log(`🔍 [CONTACTS-CHECK-${requestId}] Checking for contacts:`, {
+    reqQuery: req.query,
+    action: req.query.action,
+    isContacts: req.query.action === 'contacts'
+  });
   const isContactsRequest = req.query.action === 'contacts';
+
+  console.log(`🎯 [CONTACTS-CHECK-${requestId}] isContactsRequest: ${isContactsRequest}`);
 
   if (isContactsRequest) {
     console.log(`📞 [CONTACTS-PROXY-${requestId}] Contacts request detected: ${req.method} ${req.url}`);
