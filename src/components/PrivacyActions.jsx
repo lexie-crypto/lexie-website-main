@@ -2255,6 +2255,27 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           </div>
         </div>
       </div>
+
+      {/* Contact Modal */}
+      {showAddContactModal && (
+        <ContactModal
+          contact={editingContact}
+          onSave={async (contact) => {
+            if (editingContact) {
+              await updateContact(editingContact.id, contact);
+            } else {
+              await addContact(contact);
+            }
+            setShowAddContactModal(false);
+            setEditingContact(null);
+          }}
+          onCancel={() => {
+            setShowAddContactModal(false);
+            setEditingContact(null);
+          }}
+          prefillAddress={editingContact ? undefined : recipientAddress}
+        />
+      )}
     </div>
   );
 };
