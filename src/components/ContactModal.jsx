@@ -14,12 +14,26 @@ const ContactModal = ({ contact, onSave, onCancel, prefillAddress }) => {
   const validateForm = () => {
     const newErrors = {};
 
+    // Validate contact name (spaces allowed, will be converted to underscores)
     if (!formData.id.trim()) {
       newErrors.id = 'Contact name is required';
     } else if (formData.id.length < 2 || formData.id.length > 20) {
       newErrors.id = 'Contact name must be 2-20 characters';
-    } else if (!/^[a-zA-Z0-9_]+$/.test(formData.id)) {
-      newErrors.id = 'Only letters, numbers, and underscores allowed';
+    } else {
+      // Check if the sanitized version would be valid
+      const sanitized = formData.id
+        .normalize('NFKC')
+        .replace(/[\u200B-\u200D\u2060\u00A0\uFEFF]/g, '')
+        .replace(/\s+/g, '_')
+        .replace(/_{2,}/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .toLowerCase();
+
+      if (!sanitized || sanitized.length < 2 || sanitized.length > 20) {
+        newErrors.id = 'Contact name must be 2-20 characters after sanitization';
+      } else if (!/^[a-zA-Z0-9_]+$/.test(sanitized)) {
+        newErrors.id = 'Contact name contains invalid characters';
+      }
     }
 
     if (!formData.address.trim()) {
@@ -72,7 +86,7 @@ const ContactModal = ({ contact, onSave, onCancel, prefillAddress }) => {
                 type="text"
                 value={formData.id}
                 onChange={(e) => setFormData(prev => ({ ...prev, id: e.target.value }))}
-                placeholder="e.g., vitalik, my_wallet"
+                placeholder="e.g., vitalik, my_wallet, Hello Kitty"
                 className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
               />
               {errors.id && <p className="text-red-400 text-xs mt-1">{errors.id}</p>}

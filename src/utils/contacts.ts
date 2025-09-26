@@ -106,6 +106,20 @@ export function sanitizeAddress(input: string): string {
 }
 
 /**
+ * Sanitize contact ID - converts spaces to underscores, removes other whitespace
+ */
+export function sanitizeContactId(input: string): string {
+  if (!input) return '';
+  return input
+    .normalize('NFKC')
+    .replace(/[\u200B-\u200D\u2060\u00A0\uFEFF]/g, '') // ZW* + NBSP + BOM
+    .replace(/\s+/g, '_')                               // convert spaces to underscores
+    .replace(/_{2,}/g, '_')                             // collapse multiple underscores
+    .replace(/^_+|_+$/g, '')                            // remove leading/trailing underscores
+    .toLowerCase();
+}
+
+/**
  * Validate Ethereum address format
  */
 export function isValidEOA(address: string): boolean {
@@ -137,16 +151,16 @@ export function validateAndSanitizeContact(input: {
 }): ContactValidationResult {
   const errors: string[] = [];
   const sanitized: Partial<Contact> = {
-    id: sanitizeAddress(input.id).toLowerCase(),
+    id: sanitizeContactId(input.id),
     type: input.type,
   };
 
   // Validate alias/ID
-  if (!sanitized.id) {
+  if (!input.id.trim()) {
     errors.push('Contact name is required');
-  } else if (sanitized.id.length < 2 || sanitized.id.length > 20) {
+  } else if (!sanitized.id || sanitized.id.length < 2 || sanitized.id.length > 20) {
     errors.push('Contact name must be 2-20 characters');
-  } else if (!/^[a-zA-Z0-9_]+$/.test(sanitized.id)) {
+  } else if (!/^[a-zA-Z0-9_]+$/.test(sanitized.id!)) {
     errors.push('Contact name can only contain letters, numbers, and underscores');
   }
 
