@@ -769,24 +769,27 @@ const PaymentPage = () => {
               ) : (
                 /* Normal Recipient Info */
                 <>
-                  {/* Labels row */}
-                  <div className="grid grid-cols-2 items-center px-3 text-center">
-                    <div className="text-green-400/80 text-xs">Recipient:</div>
-                    <div className="text-green-400/80 text-xs">Network:</div>
-                  </div>
-                  {/* Values row */}
-                  <div className="mt-1 grid grid-cols-2 items-center px-3 text-center">
-                    <div className="text-green-200 text-sm font-mono break-all">
-                      {recipientLexieId ? `@${recipientLexieId}` : (
-                        <>
-                          They didn't claim a Lexie ID yet — might as well be yeeting
-                          <br />
-                          crypto via paper airplane.
-                        </>
-                      )}
+                  {/* Mobile: stacked layout, Desktop: grid layout */}
+                  <div className="flex flex-col sm:grid sm:grid-cols-2 gap-2 sm:gap-0 px-4 sm:px-3">
+                    {/* Recipient */}
+                    <div className="sm:text-center">
+                      <div className="text-green-400/80 text-xs mb-1">Recipient:</div>
+                      <div className="text-green-200 text-sm font-mono break-all">
+                        {recipientLexieId ? `@${recipientLexieId}` : (
+                          <>
+                            They didn't claim a Lexie ID yet — might as well be yeeting
+                            <br />
+                            crypto via paper airplane.
+                          </>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-green-200 text-sm font-mono">
-                      {networks[targetChainId]?.name || `Chain ${targetChainId}`}
+                    {/* Network */}
+                    <div className="sm:text-center mt-2 sm:mt-0">
+                      <div className="text-green-400/80 text-xs mb-1 sm:mb-1">Network:</div>
+                      <div className="text-green-200 text-sm font-mono">
+                        {networks[targetChainId]?.name || `Chain ${targetChainId}`}
+                      </div>
                     </div>
                   </div>
                   {recipientResolveError && (
