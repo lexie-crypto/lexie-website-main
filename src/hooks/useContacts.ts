@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Contact, ContactsManager, searchContacts as searchContactsUtil } from '../utils/contacts';
 import { useWallet } from '../contexts/WalletContext';
 
@@ -12,12 +12,10 @@ export function useContacts() {
 
   const { address: walletAddress, railgunWalletID } = useWallet();
 
-  const contactsManager = new ContactsManager(walletAddress || undefined, railgunWalletID || undefined);
-
-  // Load contacts on mount
-  useEffect(() => {
-    loadContacts();
-  }, []);
+  // Create contacts manager with current wallet context
+  const contactsManager = useMemo(() => {
+    return new ContactsManager(walletAddress || undefined, railgunWalletID || undefined);
+  }, [walletAddress, railgunWalletID]);
 
   const loadContacts = useCallback(async () => {
     setIsLoading(true);
@@ -33,7 +31,14 @@ export function useContacts() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [contactsManager]);
+
+  // Load contacts when wallet context is available
+  useEffect(() => {
+    if (walletAddress && railgunWalletID) {
+      loadContacts();
+    }
+  }, [walletAddress, railgunWalletID, loadContacts]);
 
   const addContact = useCallback(async (contactData: Omit<Contact, 'createdAt' | 'updatedAt'>) => {
     setError(null);
@@ -47,7 +52,7 @@ export function useContacts() {
       setError(errorMessage);
       throw err;
     }
-  }, []);
+  }, [contactsManager]);
 
   const updateContact = useCallback(async (contactId: string, updates: Partial<Omit<Contact, 'id' | 'createdAt'>>) => {
     setError(null);
@@ -63,7 +68,7 @@ export function useContacts() {
       setError(errorMessage);
       throw err;
     }
-  }, []);
+  }, [contactsManager]);
 
   const removeContact = useCallback(async (contactId: string) => {
     setError(null);
@@ -76,7 +81,7 @@ export function useContacts() {
       setError(errorMessage);
       throw err;
     }
-  }, []);
+  }, [contactsManager]);
 
   const clearContacts = useCallback(async () => {
     setError(null);
@@ -89,11 +94,11 @@ export function useContacts() {
       setError(errorMessage);
       throw err;
     }
-  }, []);
+  }, [contactsManager]);
 
   const findContactByAddress = useCallback(async (searchTerm: string): Promise<Contact | null> => {
     return await contactsManager.findContact(searchTerm);
-  }, []);
+  }, [contactsManager]);
 
   const searchContacts = useCallback((query: string, limit?: number): Contact[] => {
     return searchContactsUtil(contacts, query, limit);
