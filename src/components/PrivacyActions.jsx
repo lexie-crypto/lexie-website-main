@@ -16,10 +16,13 @@ import {
   ExclamationTriangleIcon,
   ArrowRightIcon,
   ClipboardDocumentIcon,
+  UsersIcon,
 } from '@heroicons/react/24/outline';
 
 import { useWallet } from '../contexts/WalletContext';
 import useBalances from '../hooks/useBalances';
+import { useContacts } from '../hooks/useContacts';
+import ContactModal from './ContactModal';
 import {
   shieldTokens,
   unshieldTokens,
@@ -68,6 +71,17 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     isPrivateBalancesLoading, // Add
   } = useBalances();
 
+  const {
+    contacts,
+    searchContacts,
+    findContactByAddress,
+    addContact,
+    updateContact,
+    removeContact,
+    clearContacts,
+    isLoading: isLoadingContacts,
+  } = useContacts();
+
   // isRefreshingBalances is now passed as a prop from WalletPage
 
   // Component state - controlled by parent
@@ -85,6 +99,11 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   const [paymentLink, setPaymentLink] = useState('');
   // Current user's Lexie ID (if linked)
   const [myLexieId, setMyLexieId] = useState(null);
+  // Contacts state
+  const [showAddContactModal, setShowAddContactModal] = useState(false);
+  const [editingContact, setEditingContact] = useState(null);
+  const [contactSuggestions, setContactSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   // Resolve current user's Lexie ID from their Railgun address
   useEffect(() => {
@@ -132,6 +151,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       name: 'Receive',
       icon: CurrencyDollarIcon,
       description: 'Use the link below for others to send funds to your vault'
+    },
+    {
+      id: 'contacts',
+      name: 'Contacts',
+      icon: UsersIcon,
+      description: 'Manage your saved contacts for easy sending'
     },
   ];
 
@@ -1266,6 +1291,10 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       return;
     }
 
+    // Check if recipient is a saved contact for enhanced UI feedback
+    const savedContact = findContactByAddress(recipientAddress);
+    const contactDisplayName = savedContact ? savedContact.id : null;
+
     // Allow Railgun address (0zk...) OR Lexie ID (3-20 alphanumeric/_)
     if (!isValidRailgunAddress(recipientAddress)) {
       const input = (recipientAddress || '').trim().toLowerCase();
@@ -1347,7 +1376,14 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             <div className="px-4 py-3 flex items-center gap-3">
               <div className="h-3 w-3 rounded-full bg-emerald-400" />
               <div>
-                <div className="text-sm">Preparing transaction…</div>
+                <div className="text-sm">
+                  Preparing transaction…
+                  {contactDisplayName && (
+                    <span className="ml-2 text-xs bg-green-900/30 text-green-300 px-1.5 py-0.5 rounded">
+                      to {contactDisplayName}
+                    </span>
+                  )}
+                </div>
                 <div className="text-xs text-green-400/80">Encrypting and preparing proofs</div>
               </div>
               <button 
@@ -1406,7 +1442,14 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             <div className="px-4 py-3 flex items-center gap-3">
               <div className="h-3 w-3 rounded-full bg-emerald-400" />
               <div>
-                <div className="text-sm">Transaction sent</div>
+                <div className="text-sm">
+                  Transaction sent
+                  {contactDisplayName && (
+                    <span className="ml-2 text-xs bg-green-900/30 text-green-300 px-1.5 py-0.5 rounded">
+                      to {contactDisplayName}
+                    </span>
+                  )}
+                </div>
                 <div className="text-xs text-green-400/80">TX: {tx.txHash}</div>
               </div>
               <button 
@@ -1861,6 +1904,74 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               </ul>
             </div>
           </div>
+        ) : activeTab === 'contacts' ? (
+          // Contacts Manager
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="text-center">
+              <UsersIcon className="h-12 w-12 text-green-300 mx-auto mb-3" />
+              <h3 className="text-lg font-bold text-green-300 mb-1">Contacts Manager</h3>
+              <p className="text-sm text-green-400/70">Save frequently used addresses for easy sending</p>
+            </div>
+
+            {/* Add Contact Button */}
+            <button
+              onClick={() => {
+                setShowAddContactModal(true);
+                setEditingContact(null);
+              }}
+              className="w-full bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 py-3 px-4 rounded font-medium transition-colors border border-emerald-400/40 flex items-center justify-center gap-2"
+            >
+              <UsersIcon className="h-4 w-4" />
+              Add New Contact
+            </button>
+
+            {/* Contacts List */}
+            {contacts.length === 0 ? (
+              <div className="text-center py-8">
+                <UsersIcon className="h-16 w-16 text-green-400/30 mx-auto mb-4" />
+                <p className="text-green-400/70">No contacts saved yet</p>
+                <p className="text-sm text-green-400/50 mt-1">Add your first contact to get started</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {contacts.map((contact) => (
+                  <div key={contact.id} className="bg-black/40 border border-green-500/20 rounded p-3">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium text-green-200">{contact.id}</span>
+                          <span className="text-xs text-green-400/70 bg-green-900/30 px-2 py-0.5 rounded">
+                            {contact.type === 'lexieId' ? 'Lexie ID' : 'EOA'}
+                          </span>
+                        </div>
+                        <div className="text-xs text-green-400/60 font-mono break-all">
+                          {contact.type === 'eoa' ? contact.address : contact.lexieId}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 ml-3">
+                        <button
+                          onClick={() => {
+                            setEditingContact(contact);
+                            setShowAddContactModal(true);
+                          }}
+                          className="text-green-400 hover:text-green-300 text-xs px-2 py-1 border border-green-500/40 rounded hover:bg-green-900/20"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => removeContact(contact.id)}
+                          className="text-red-400 hover:text-red-300 text-xs px-2 py-1 border border-red-500/40 rounded hover:bg-red-900/20"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         ) : (
           // Original form content for other tabs
           <form onSubmit={handleSubmit} className="space-y-6">
@@ -2015,6 +2126,16 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
                     // Always set the trimmed value
                     setRecipientAddress(trimmedInput);
+
+                    // Update contact suggestions for autocomplete
+                    if (trimmedInput.trim()) {
+                      const matches = searchContacts(trimmedInput, 5);
+                      setContactSuggestions(matches);
+                      setShowSuggestions(matches.length > 0);
+                    } else {
+                      setContactSuggestions([]);
+                      setShowSuggestions(false);
+                    }
                   }}
                   placeholder="0x...or Lexie ID"
                   className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
@@ -2026,6 +2147,51 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                   {recipientType === 'invalid' && recipientAddress && '❌ Invalid address format'}
                   {recipientType === 'none' && 'Enter recipient address or Lexie ID'}
                 </div>
+
+                {/* Contact Suggestions Dropdown */}
+                {showSuggestions && contactSuggestions.length > 0 && (
+                  <div className="absolute z-20 mt-1 w-full bg-black border border-green-500/40 rounded shadow-xl max-h-40 overflow-auto">
+                    {contactSuggestions.map((contact) => (
+                        <button
+                          key={contact.id}
+                          type="button"
+                          onClick={() => {
+                            setRecipientAddress(contact.type === 'eoa' ? contact.address || '' : contact.lexieId || '');
+                            setShowSuggestions(false);
+                            setContactSuggestions([]);
+                          }}
+                        className="w-full text-left px-3 py-2 hover:bg-emerald-900/30 focus:bg-emerald-900/30 focus:outline-none text-green-200"
+                      >
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium">{contact.id}</span>
+                          <span className="text-xs text-green-400/70 ml-2">
+                            ({contact.type === 'lexieId' ? 'Lexie ID' : 'EOA'})
+                          </span>
+                        </div>
+                        <div className="text-xs text-green-400/60 truncate">
+                          {contact.type === 'eoa' ? contact.address : contact.lexieId}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add Contact Prompt */}
+                {recipientAddress && !showSuggestions && !contacts.some(c => c.address === recipientAddress || c.id === recipientAddress || c.lexieId === recipientAddress) && (
+                  <div className="mt-2 text-xs text-green-400/70">
+                    Not in contacts.{' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddContactModal(true);
+                        setEditingContact(null);
+                      }}
+                      className="text-green-300 hover:text-green-200 underline"
+                    >
+                      [Add?]
+                    </button>
+                  </div>
+                )}
               </div>
               
               {/* Memo - only for private transfers */}
@@ -2092,5 +2258,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     </div>
   );
 };
+
 
 export default PrivacyActions; 

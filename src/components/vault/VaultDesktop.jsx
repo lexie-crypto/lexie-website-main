@@ -1340,6 +1340,16 @@ const VaultDesktopInner = () => {
                 >
                   history
                 </button>
+                <button
+                  onClick={() => {
+                    setActiveAction('contacts');
+                    setSelectedView('privacy');
+                  }}
+                  disabled={isTransactionLocked}
+                  className="px-2 py-1 rounded border border-pink-400/40 bg-pink-900/20 hover:bg-pink-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
+                >
+                  contacts
+                </button>
               </div>
             </div>
 
