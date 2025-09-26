@@ -160,7 +160,7 @@ export default async function handler(req, res) {
   }
   
   res.setHeader('Access-Control-Allow-Headers', 'Origin, Content-Type, Accept, X-Signature, X-Timestamp, x-lexie-signature, x-lexie-timestamp');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
   res.setHeader('Vary', 'Origin');
 
   // Handle OPTIONS preflight
@@ -169,8 +169,102 @@ export default async function handler(req, res) {
     return res.status(204).end();
   }
 
-  // Only allow GET, POST, and OPTIONS methods
-  if (!['GET', 'POST', 'OPTIONS'].includes(req.method)) {
+  // Parse URL to detect contacts requests
+  // In Next.js API routes, req.url contains the path after /api
+  const isContactsRequest = req.url.startsWith('/wallet-metadata/contacts/');
+
+  if (isContactsRequest) {
+    console.log(`📞 [CONTACTS-PROXY-${requestId}] Contacts request detected: ${req.method} ${req.url}`);
+
+    // Extract wallet address and wallet ID from URL
+    // req.url format: /wallet-metadata/contacts/{walletAddress}/{walletId}
+    const pathParts = req.url.split('/').filter(p => p);
+    const walletAddress = pathParts[2]; // wallet-metadata/contacts/{walletAddress}/{walletId}
+    const walletId = pathParts[3];
+
+    if (!walletAddress || !walletId) {
+      console.log(`❌ [CONTACTS-PROXY-${requestId}] Missing walletAddress or walletId in path`);
+      return res.status(400).json({
+        success: false,
+        error: 'Missing walletAddress or walletId in path'
+      });
+    }
+
+    console.log(`🔍 [CONTACTS-PROXY-${requestId}] Parsed wallet context: ${walletAddress.slice(0, 8)}... / ${walletId.slice(0, 8)}...`);
+
+    // Forward to backend contacts endpoint
+    const backendPath = `/api/wallet-metadata/contacts/${walletAddress}/${walletId}`;
+    const backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+
+    const timestamp = Date.now().toString();
+    const bodyString = req.method === 'POST' || req.method === 'PUT' ? JSON.stringify(req.body) : '';
+    const signature = generateHmacSignature(req.method, backendPath, timestamp, hmacSecret);
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'x-lexie-timestamp': timestamp,
+      'x-lexie-signature': signature,
+      'Origin': 'https://staging.lexiecrypto.com',
+      'User-Agent': 'Lexie-Contacts-Proxy/1.0',
+    };
+
+    console.log(`🔐 [CONTACTS-PROXY-${requestId}] Generated HMAC headers`, {
+      method: req.method,
+      timestamp,
+      signature: signature.substring(0, 20) + '...',
+      path: backendPath
+    });
+
+    console.log(`📡 [CONTACTS-PROXY-${requestId}] Forwarding to backend: ${backendUrl}`);
+
+    try {
+      const fetchOptions = {
+        method: req.method,
+        headers,
+        signal: AbortSignal.timeout(30000),
+      };
+
+      if (bodyString) {
+        fetchOptions.body = bodyString;
+      }
+
+      const backendResponse = await fetch(backendUrl, fetchOptions);
+      const responseBody = await backendResponse.text();
+
+      console.log(`✅ [CONTACTS-PROXY-${requestId}] Backend responded with status ${backendResponse.status}`);
+
+      try {
+        const jsonResult = JSON.parse(responseBody);
+        res.status(backendResponse.status).json(jsonResult);
+      } catch (jsonError) {
+        console.error(`❌ [CONTACTS-PROXY-${requestId}] Failed to parse response as JSON:`, jsonError.message);
+        res.status(backendResponse.status).send(responseBody);
+      }
+
+    } catch (error) {
+      console.error(`❌ [CONTACTS-PROXY-${requestId}] Error:`, {
+        method: req.method,
+        error: error.message,
+        stack: error.stack,
+        path: req.url
+      });
+
+      if (!res.headersSent) {
+        res.status(500).json({
+          success: false,
+          error: error.message.includes('timeout') ? 'Backend timeout - please try again' :
+                 error.message.includes('502') ? 'Backend service unavailable' :
+                 'Internal proxy error'
+        });
+      }
+    }
+
+    return; // Exit after handling contacts request
+  }
+
+  // Only allow GET, POST, and PUT methods for non-contacts requests
+  if (!['GET', 'POST', 'PUT'].includes(req.method)) {
     console.log(`❌ [WALLET-METADATA-PROXY-${requestId}] Method ${req.method} not allowed`);
     return res.status(405).json({
       success: false,
