@@ -3,14 +3,14 @@
  * Handles private transfers via gas relayer with comprehensive validation
  */
 
-import { TXIDVersion, NetworkName } from '@railgun-community/shared-models';
+import { TXIDVersion, NetworkName, calculateGasPrice } from '@railgun-community/shared-models';
 import { waitForRailgunReady } from './engine.js';
 import { getRailgunAddress } from '@railgun-community/wallet';
 import { refreshWalletBalances, getRailgunNetworkName } from './transaction/transaction-prep.js';
 import { estimateRelayerFee, submitRelayedTransaction } from './relayer-client.js';
 import { createERC20AmountRecipient } from './transaction/transaction-prep.js';
 import { calculateRelayerFee } from './fee-calculator.js';
-import { generateTransferProof, populateProvedTransfer, gasEstimateForUnprovenTransfer, calculateGasPrice } from '@railgun-community/wallet';
+import { generateTransferProof, populateProvedTransfer, gasEstimateForUnprovenTransfer } from '@railgun-community/wallet';
 import { validatePrivateTransfer } from './validation/private-transfer-validation.js';
 
 // --- Private Transfer via Relayer (docs flow, our relayer submission) ---
