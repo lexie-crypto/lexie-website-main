@@ -1784,8 +1784,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         </div>
       </div>
 
-      {/* Vault Balances - hide on Receive tab */}
-      {activeTab !== 'receive' && (
+      {/* Vault Balances - hide on Receive and Contacts tabs */}
+      {activeTab !== 'receive' && activeTab !== 'contacts' && (
         <div className="px-6 py-4 border-b border-green-500/20">
           <div className="flex items-center justify-between">
             <h3 className="text-emerald-300 font-semibold">{getCurrentNetwork()?.name || 'Network'} Vault Balances</h3>
@@ -1914,61 +1914,62 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               <p className="text-sm text-green-400/70">Save frequently used addresses for easy sending</p>
             </div>
 
-            {contacts.length === 0 ? (
-              // Simple view when no contacts yet
-              null
-            ) : (
-              <>
-                {/* Add Contact Button */}
-                <button
-                  onClick={() => {
-                    setShowAddContactModal(true);
-                    setEditingContact(null);
-                  }}
-                  className="w-full bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 py-3 px-4 rounded font-medium transition-colors border border-emerald-400/40 flex items-center justify-center gap-2"
-                >
-                  <UsersIcon className="h-4 w-4" />
-                  Add New Contact
-                </button>
+            {/* Add Contact Button */}
+            <button
+              onClick={() => {
+                setShowAddContactModal(true);
+                setEditingContact(null);
+              }}
+              className="w-full bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 py-3 px-4 rounded font-medium transition-colors border border-emerald-400/40 flex items-center justify-center gap-2"
+            >
+              <UsersIcon className="h-4 w-4" />
+              Add New Contact
+            </button>
 
-                {/* Contacts List */}
-                <div className="space-y-3">
-                  {contacts.map((contact) => (
-                    <div key={contact.id} className="bg-black/40 border border-green-500/20 rounded p-3">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            <span className="font-medium text-green-200">{contact.id}</span>
-                            <span className="text-xs text-green-400/70 bg-green-900/30 px-2 py-0.5 rounded">
-                              {contact.type === 'lexieId' ? 'Lexie ID' : 'EOA'}
-                            </span>
-                          </div>
-                          <div className="text-xs text-green-400/60 font-mono break-all">
-                            {contact.type === 'eoa' ? contact.address : contact.lexieId}
-                          </div>
+            {/* Contacts List */}
+            {contacts.length === 0 ? (
+              <div className="text-center py-8">
+                <UsersIcon className="h-16 w-16 text-green-400/30 mx-auto mb-4" />
+                <p className="text-green-400/70">No contacts saved yet</p>
+                <p className="text-sm text-green-400/50 mt-1">Add your first contact to get started</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {contacts.map((contact) => (
+                  <div key={contact.id} className="bg-black/40 border border-green-500/20 rounded p-3">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium text-green-200">{contact.id}</span>
+                          <span className="text-xs text-green-400/70 bg-green-900/30 px-2 py-0.5 rounded">
+                            {contact.type === 'lexieId' ? 'Lexie ID' : 'EOA'}
+                          </span>
                         </div>
-                        <div className="flex gap-2 ml-3">
-                          <button
-                            onClick={() => {
-                              setEditingContact(contact);
-                              setShowAddContactModal(true);
-                            }}
-                            className="text-green-400 hover:text-green-300 text-xs px-2 py-1 border border-green-500/40 rounded hover:bg-green-900/20"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => removeContact(contact.id)}
-                            className="text-red-400 hover:text-red-300 text-xs px-2 py-1 border border-red-500/40 rounded hover:bg-red-900/20"
-                          >
-                            Remove
-                          </button>
+                        <div className="text-xs text-green-400/60 font-mono break-all">
+                          {contact.type === 'eoa' ? contact.address : contact.lexieId}
                         </div>
                       </div>
+                      <div className="flex gap-2 ml-3">
+                        <button
+                          onClick={() => {
+                            setEditingContact(contact);
+                            setShowAddContactModal(true);
+                          }}
+                          className="text-green-400 hover:text-green-300 text-xs px-2 py-1 border border-green-500/40 rounded hover:bg-green-900/20"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => removeContact(contact.id)}
+                          className="text-red-400 hover:text-red-300 text-xs px-2 py-1 border border-red-500/40 rounded hover:bg-red-900/20"
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </div>
-                  ))}
-                </div>
-              </>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         ) : (
