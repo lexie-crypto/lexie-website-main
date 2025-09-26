@@ -1999,15 +1999,18 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                     // Check if raw input differs from trimmed version (has leading/trailing spaces)
                     if (rawInput !== trimmedInput) {
                       // Show warning toast about spaces being removed
-                      toast('Extra spaces removed from wallet address.', {
-                        icon: '✂️',
-                        style: {
-                          background: '#1f2937',
-                          color: '#10b981',
-                          border: '1px solid #10b981',
-                        },
-                        duration: 3000,
-                      });
+                      toast.custom((t) => (
+                        <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+                          <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+                            <div className="px-4 py-3 flex items-center gap-3">
+                              <div className="h-3 w-3 rounded-full bg-yellow-400" />
+                              <div>
+                                <div className="text-sm">Extra spaces removed from wallet address</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ), { duration: 3000 });
                     }
 
                     // Always set the trimmed value
