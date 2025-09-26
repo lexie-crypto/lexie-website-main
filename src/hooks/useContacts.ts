@@ -18,16 +18,19 @@ export function useContacts() {
   }, [walletAddress, railgunWalletID]);
 
   const loadContacts = useCallback(async () => {
+    console.log('🔄 [useContacts] loadContacts called');
     setIsLoading(true);
     setError(null);
 
     try {
+      console.log('📡 [useContacts] Calling contactsManager.getContacts()');
       const loadedContacts = await contactsManager.getContacts();
+      console.log('✅ [useContacts] Loaded contacts:', loadedContacts.length, 'contacts');
       setContacts(loadedContacts);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to load contacts';
       setError(errorMessage);
-      console.error('Failed to load contacts:', err);
+      console.error('❌ [useContacts] Failed to load contacts:', err);
     } finally {
       setIsLoading(false);
     }
@@ -35,8 +38,12 @@ export function useContacts() {
 
   // Load contacts when wallet context is available
   useEffect(() => {
+    console.log('🔄 [useContacts] Wallet context check:', { walletAddress, railgunWalletID });
     if (walletAddress && railgunWalletID) {
+      console.log('📞 [useContacts] Loading contacts for wallet:', walletAddress.slice(0, 8) + '...');
       loadContacts();
+    } else {
+      console.log('⏳ [useContacts] Waiting for wallet context...');
     }
   }, [walletAddress, railgunWalletID, loadContacts]);
 

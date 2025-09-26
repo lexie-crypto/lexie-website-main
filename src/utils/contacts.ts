@@ -48,6 +48,7 @@ export class RedisContactAdapter implements ContactStorageAdapter {
     });
 
     const url = `/api/wallet-metadata?${params.toString()}`;
+    console.log(`🌐 [contacts] API call: ${method} ${url}`);
 
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
@@ -64,13 +65,17 @@ export class RedisContactAdapter implements ContactStorageAdapter {
     }
 
     const response = await fetch(url, config);
+    console.log(`📡 [contacts] Response status: ${response.status}`);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      console.error(`❌ [contacts] API error:`, errorData);
       throw new Error(errorData.error || `API call failed: ${response.status}`);
     }
 
-    return await response.json();
+    const result = await response.json();
+    console.log(`✅ [contacts] API success:`, result);
+    return result;
   }
 
   async getContacts(): Promise<Contact[]> {
