@@ -109,13 +109,14 @@ async function getWalletMetadata(walletAddress) {
   }
 }
 
-async function storeWalletMetadata(walletAddress, walletId, railgunAddress, signature = null, encryptedMnemonic = null) {
+async function storeWalletMetadata(walletAddress, walletId, railgunAddress, signature = null, encryptedMnemonic = null, creationBlockNumbers = null) {
   console.log('💾 [STORE-WALLET-METADATA] Starting API call - COMPLETE REDIS STORAGE', {
     walletAddress: walletAddress?.slice(0, 8) + '...',
     walletId: walletId?.slice(0, 8) + '...',
     railgunAddress: railgunAddress?.slice(0, 8) + '...',
     hasSignature: !!signature,
     hasEncryptedMnemonic: !!encryptedMnemonic,
+    hasCreationBlockNumbers: !!creationBlockNumbers,
     signaturePreview: signature?.slice(0, 10) + '...' || 'none',
     storageType: 'Redis-only (no localStorage)'
   });
@@ -132,7 +133,8 @@ async function storeWalletMetadata(walletAddress, walletId, railgunAddress, sign
         walletId,
         railgunAddress,
         signature,
-        encryptedMnemonic // Store encrypted mnemonic in Redis for cross-device access
+        encryptedMnemonic, // Store encrypted mnemonic in Redis for cross-device access
+        creationBlockNumbers // Store creation block numbers for faster future wallet loads
       }),
     });
     
@@ -145,6 +147,72 @@ async function storeWalletMetadata(walletAddress, walletId, railgunAddress, sign
     console.error('Failed to store wallet metadata:', error);
     return false;
   }
+}
+
+/**
+ * Fetch current block numbers for all supported networks to speed up Railgun wallet creation
+ * This prevents Railgun from scanning from block 0, dramatically improving initialization speed
+ */
+async function fetchCurrentBlockNumbers() {
+  console.log('🏗️ [BLOCK-FETCH] Fetching current block numbers for all networks...');
+
+  const networkConfigs = [
+    { name: NetworkName.Ethereum, rpcUrl: RPC_URLS.ethereum, chainId: 1 },
+    { name: NetworkName.Polygon, rpcUrl: RPC_URLS.polygon, chainId: 137 },
+    { name: NetworkName.Arbitrum, rpcUrl: RPC_URLS.arbitrum, chainId: 42161 },
+    { name: NetworkName.BNBChain, rpcUrl: RPC_URLS.bsc, chainId: 56 },
+  ];
+
+  const blockNumbers = {};
+
+  // Fetch block numbers in parallel for better performance
+  const fetchPromises = networkConfigs.map(async (network) => {
+    try {
+      console.log(`🏗️ [BLOCK-FETCH] Fetching block number for ${network.name}...`);
+
+      // Use the proxied RPC endpoint that handles API keys and fallbacks
+      const proxyUrl = typeof window !== 'undefined'
+        ? `${window.location.origin}/api/rpc?chainId=${network.chainId}&provider=auto`
+        : network.rpcUrl; // Fallback for server-side
+
+      const response = await fetch(proxyUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'eth_blockNumber',
+          params: []
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      if (result.error) {
+        throw new Error(`RPC Error: ${result.error.message}`);
+      }
+
+      // Convert hex string to number
+      const blockNumber = parseInt(result.result, 16);
+      blockNumbers[network.name] = blockNumber;
+
+      console.log(`✅ [BLOCK-FETCH] ${network.name}: block ${blockNumber}`);
+
+    } catch (error) {
+      console.warn(`⚠️ [BLOCK-FETCH] Failed to fetch block number for ${network.name}:`, error.message);
+      // Don't set to undefined - let Railgun handle the fallback gracefully
+      // The SDK will still work, just slower for this network
+    }
+  });
+
+  await Promise.all(fetchPromises);
+
+  console.log('✅ [BLOCK-FETCH] Block number fetching complete:', blockNumbers);
+  return blockNumbers;
 }
 
 // Create a client for React Query
@@ -1503,13 +1571,17 @@ const WalletContextProvider = ({ children }) => {
           console.log('✅ Generated new secure mnemonic (will be stored in Redis only)');
         }
         
-        // 🏗️ Create wallet with official SDK
-        const creationBlockNumberMap = {
-          [NetworkName.Ethereum]: undefined,
-          [NetworkName.Polygon]: undefined,
-          [NetworkName.Arbitrum]: undefined,
-          [NetworkName.BNBChain]: undefined,
-        };
+        // 🏗️ Create wallet with official SDK - Fetch current block numbers for faster initialization
+        console.log('🏗️ Fetching current block numbers for wallet creation optimization...');
+
+        const creationBlockNumberMap = await fetchCurrentBlockNumbers();
+
+        console.log('✅ Block numbers fetched for wallet creation:', {
+          ethereum: creationBlockNumberMap[NetworkName.Ethereum],
+          polygon: creationBlockNumberMap[NetworkName.Polygon],
+          arbitrum: creationBlockNumberMap[NetworkName.Arbitrum],
+          bnb: creationBlockNumberMap[NetworkName.BNBChain]
+        });
         
         try {
           railgunWalletInfo = await createRailgunWallet(
@@ -1524,11 +1596,12 @@ const WalletContextProvider = ({ children }) => {
             const encryptedMnemonic = CryptoJS.AES.encrypt(mnemonic, encryptionKey).toString();
             
             const storeSuccess = await storeWalletMetadata(
-              address, 
-              railgunWalletInfo.id, 
-              railgunWalletInfo.railgunAddress, 
+              address,
+              railgunWalletInfo.id,
+              railgunWalletInfo.railgunAddress,
               signature,
-              encryptedMnemonic // Store encrypted mnemonic in Redis
+              encryptedMnemonic, // Store encrypted mnemonic in Redis
+              creationBlockNumberMap // Store creation block numbers for faster future loads
             );
             
             if (storeSuccess) {
