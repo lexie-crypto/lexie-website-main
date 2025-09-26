@@ -1,32 +1,36 @@
 import React from 'react';
-import TerminalWindow from '../ui/TerminalWindow.jsx';
-import { Navbar } from '../Navbar';
+import { VaultDesktopInner } from './VaultDesktop.jsx';
+// import TerminalWindow from '../ui/TerminalWindow.jsx';
+// import { Navbar } from '../Navbar';
 
 const VaultMobileFallback = () => {
+  return <VaultDesktopInner />;
+
+  /*
   return (
     <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
-      {/* Navigation (match other pages) */}
+      {/* Navigation (match other pages) *\/}
       <Navbar />
 
-      {/* Background overlays (match other pages) */}
+      {/* Background overlays (match other pages) *\/}
       <div className="fixed inset-0 z-0">
-        {/* Base gradient layers */}
+        {/* Base gradient layers *\/}
         <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
-        {/* Futuristic cityscape silhouette */}
+        {/* Futuristic cityscape silhouette *\/}
         <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60"></div>
         <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-purple-900/40 via-purple-800/20 to-transparent"></div>
-        {/* Dynamic grid system */}
+        {/* Dynamic grid system *\/}
         <div className="absolute inset-0 opacity-30">
           <div className="absolute inset-0 bg-[linear-gradient(rgba(147,51,234,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(147,51,234,0.2)_1px,transparent_1px)] bg-[size:40px_40px] animate-pulse"></div>
           <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.1)_1px,transparent_1px)] bg-[size:80px_80px] animate-pulse" style={{animationDelay: '1s'}}></div>
         </div>
-        {/* Subtle ambient orbs */}
+        {/* Subtle ambient orbs *\/}
         <div className="absolute inset-0 overflow-hidden">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div 
-              key={i} 
+            <div
+              key={i}
               className="absolute rounded-full animate-pulse"
-              style={{ 
+              style={{
                 left: `${20 + i * 30}%`,
                 top: `${20 + i * 20}%`,
                 width: `${200 + i * 100}px`,
@@ -80,6 +84,7 @@ const VaultMobileFallback = () => {
       </div>
     </div>
   );
+  */
 };
 
 export default VaultMobileFallback;
