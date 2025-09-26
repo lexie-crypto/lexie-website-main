@@ -9,6 +9,7 @@ import { showTerminalToast } from '../ui/terminal-toast.js';
 import { resolveRecipient } from '../transaction/recipient-resolver.js';
 import { refreshWalletBalances } from '../transaction/transaction-prep.js';
 import { executeBaseTokenUnshield } from '../flows/unshield-base-token.js';
+import { executeERC20Unshield } from '../flows/unshield-erc20.js';
 
 /**
  * Execute complete unshield transaction flow
@@ -101,8 +102,18 @@ export const executeUnshieldTransaction = async ({
         userAmountGross
       });
     } else {
-      // TODO: Handle ERC-20 unshielding via separate flow
-      throw new Error('ERC-20 unshielding not yet implemented in refactored coordinator');
+      // Handle ERC-20 token unshielding with relay adapt mode
+      return await executeERC20Unshield({
+        railgunWalletID,
+        encryptionKey,
+        tokenAddress,
+        amount,
+        chain,
+        recipientAddress: recipientEVM,
+        walletProvider,
+        walletAddress,
+        decimals
+      });
     }
 
   } catch (error) {
