@@ -770,7 +770,7 @@ const PaymentPage = () => {
                 /* Normal Recipient Info */
                 <>
                   {/* Mobile: stacked layout, Desktop: grid layout */}
-                  <div className="flex flex-col sm:grid sm:grid-cols-2 gap-2 sm:gap-0 px-4 sm:px-3">
+                  <div className="flex flex-col sm:grid sm:grid-cols-2 gap-2 sm:gap-0 px-6 sm:px-3">
                     {/* Recipient */}
                     <div className="sm:text-center">
                       <div className="text-green-400/80 text-xs mb-1">Recipient:</div>
