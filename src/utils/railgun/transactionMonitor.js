@@ -1091,6 +1091,7 @@ export const monitorTransactionInGraph = async ({
                   // Get wallet info from transactionDetails or current context
                   const walletAddress = transactionDetails?.walletAddress;
                   const walletId = transactionDetails?.walletId;
+                  const railgunAddress = transactionDetails?.railgunAddress;
                   const tokenSymbol = transactionDetails?.tokenSymbol || 'UNKNOWN';
                   
                   // Get proper decimals from token data or transaction details
@@ -1111,11 +1112,12 @@ export const monitorTransactionInGraph = async ({
                     }
                   }
 
-                  if (walletAddress && walletId) {
+                  if (walletAddress && walletId && railgunAddress) {
                     // Make request to Vercel proxy - NO client-side HMAC needed
                     const requestBody = {
                       walletAddress,
                       walletId,
+                      railgunAddress,
                       chainId,
                       tokenSymbol,
                       decimals: resolvedDecimals,
