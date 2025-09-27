@@ -9,6 +9,9 @@ const POI_JSON_RPC_METHOD = {
   VALIDATED_TXID: 'validated_txid',
 };
 
+// Standard POI method name from shared-models
+const POI_METHOD_VALIDATED_TXID = 'validated_txid';
+
 export class POINodeRequest {
   constructor(poiNodeURLs) {
     this.poiNodeURLs = poiNodeURLs || [];
@@ -55,17 +58,23 @@ export class POINodeRequest {
   }
 
   async getLatestValidatedRailgunTxid(txidVersion, chain) {
-    const method = POI_JSON_RPC_METHOD.VALIDATED_TXID;
-    const result = await this.attemptRequestWithFallbacks(method, {
-      chainType: chain.type.toString(),
-      chainID: chain.id.toString(),
-      txidVersion,
-    });
+    // Try the standard JSON-RPC method that the wallet codebase expects
+    try {
+      const result = await this.attemptRequestWithFallbacks(POI_METHOD_VALIDATED_TXID, {
+        chainType: chain.type.toString(),
+        chainID: chain.id.toString(),
+        txidVersion,
+      });
 
-    return {
-      validatedTxidIndex: result.validatedTxidIndex,
-      validatedMerkleroot: result.validatedMerkleroot,
-    };
+      return {
+        validatedTxidIndex: result.validatedTxidIndex,
+        validatedMerkleroot: result.validatedMerkleroot,
+      };
+    } catch (error) {
+      console.warn(`[POI] Standard POI API call failed for ${chain.id}:`, error.message);
+      console.log(`[POI] POI node may not support validated_txid method or may be offline`);
+      throw error; // Let the QuickSync optimization handle the fallback
+    }
   }
 }
 

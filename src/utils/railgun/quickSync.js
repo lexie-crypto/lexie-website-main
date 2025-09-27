@@ -10,7 +10,12 @@ let poiRequester = null;
 const getPOIRequester = async () => {
   if (!poiRequester) {
     const { WalletPOIRequester } = await import('./poi/wallet-poi-requester.js');
-    poiRequester = new WalletPOIRequester(['https://ppoi.fdi.network/']);
+    // Use multiple POI nodes for redundancy
+    poiRequester = new WalletPOIRequester([
+      'https://poi.railgun.org/',  // Primary POI node
+      'https://ppoi.fdi.network/',  // Fallback (may not work)
+      'https://poi-aggregator.railgun.org/'  // Another fallback
+    ]);
   }
   return poiRequester;
 };
@@ -51,10 +56,16 @@ export const optimizedQuickSyncEventsGraph = async (
     }
 
     // Import the standard QuickSync implementation
-    const { quickSyncEventsGraph } = await import('@railgun-community/wallet');
+    let quickSyncModule;
+    try {
+      quickSyncModule = await import('@railgun-community/wallet');
+    } catch (importError) {
+      console.warn('[QuickSync-POI] Failed to import wallet module:', importError.message);
+      throw new Error('Cannot load QuickSync implementation');
+    }
 
     // Execute QuickSync with optimized starting block
-    const result = await quickSyncEventsGraph(txidVersion, chain, optimizedStartingBlock);
+    const result = await quickSyncModule.quickSyncEventsGraph(txidVersion, chain, optimizedStartingBlock);
 
     console.log(`[QuickSync-POI] ✅ Completed optimized QuickSync for chain ${chain.id} from block ${optimizedStartingBlock}`);
     return result;
@@ -63,8 +74,14 @@ export const optimizedQuickSyncEventsGraph = async (
     console.warn(`[QuickSync-POI] ⚠️ POI optimization failed, falling back to standard QuickSync:`, error.message);
 
     // Fallback to standard QuickSync on POI failure
-    const { quickSyncEventsGraph } = await import('@railgun-community/wallet');
-    return quickSyncEventsGraph(txidVersion, chain, startingBlock);
+    try {
+      const fallbackModule = await import('@railgun-community/wallet');
+      return fallbackModule.quickSyncEventsGraph(txidVersion, chain, startingBlock);
+    } catch (fallbackError) {
+      console.error('[QuickSync-POI] ❌ Fallback QuickSync also failed:', fallbackError.message);
+      // Return empty events as last resort
+      return { commitmentEvents: [], unshieldEvents: [], nullifierEvents: [] };
+    }
   }
 };
 

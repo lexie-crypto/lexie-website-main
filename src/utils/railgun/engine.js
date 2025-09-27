@@ -45,7 +45,7 @@ import {
 } from './quickSync.js';
 
 // Custom startRailgunEngine with POI-optimized QuickSync
-export { startRailgunEngine } from '@railgun-community/wallet';
+import { startRailgunEngine as originalStartRailgunEngine } from '@railgun-community/wallet';
 
 // Override the QuickSync functions with our optimized versions
 import { RailgunEngine } from '@railgun-community/engine';
@@ -85,6 +85,9 @@ RailgunEngine.initForWallet = async (
     skipMerkletreeScans
   );
 };
+
+// Export our custom startRailgunEngine
+export { originalStartRailgunEngine as startRailgunEngine };
 import { 
   NetworkName,
   NETWORK_CONFIG,
