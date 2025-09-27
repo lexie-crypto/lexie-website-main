@@ -198,6 +198,15 @@ export function useBalances() {
     return '0.00';
   }, []); // No dependencies - access prices via stableRefs
 
+  // Filter balances by USD value >= $0.01
+  const filterBalancesByUSDValue = useCallback((balances) => {
+    if (!Array.isArray(balances)) return [];
+    return balances.filter(token => {
+      const usdValue = parseFloat(token.balanceUSD || '0');
+      return usdValue >= 0.01;
+    });
+  }, []);
+
   // Format balance for display
   const formatBalance = useCallback((balance, decimals = 2) => {
     if (typeof balance !== 'number') return '0.00';
@@ -409,7 +418,7 @@ export function useBalances() {
               tokens: privateBalancesFromRedis.map(b => `${b.symbol}: ${b.numericBalance}`)
             });
 
-            setPrivateBalances(privateBalancesFromRedis);
+            setPrivateBalances(filterBalancesByUSDValue(privateBalancesFromRedis));
             return true;
           }
         } else {
@@ -504,7 +513,7 @@ export function useBalances() {
         totalInRedis: metadata.privateBalances.length,
         tokens: privateBalancesFromRedis.map(b => `${b.symbol}: ${b.numericBalance}`)
       });
-      setPrivateBalances(privateBalancesFromRedis);
+      setPrivateBalances(filterBalancesByUSDValue(privateBalancesFromRedis));
       return true;
       
     } catch (error) {
@@ -600,7 +609,7 @@ export function useBalances() {
                   balanceUSD: calculateUSDValue(numeric, token.symbol)
                 };
               });
-              setPrivateBalances(privateWithUSD);
+              setPrivateBalances(filterBalancesByUSDValue(privateWithUSD));
             } else {
               // No balances for this chain from backend; clear to avoid cross-chain carryover
               setPrivateBalances([]);
@@ -840,7 +849,7 @@ export function useBalances() {
     
     // Update UI immediately
     setPublicBalances(updatedPublic);
-    setPrivateBalances(updatedPrivate);
+    setPrivateBalances(filterBalancesByUSDValue(updatedPrivate));
     setLastUpdated(new Date().toISOString());
     
     console.log('[useBalances] ⚡ Optimistic update applied to UI:', {
@@ -1013,7 +1022,7 @@ export function useBalances() {
           
           // Only update state for Spendable bucket (most important for UI)
           if (balanceEvent.balanceBucket === 'Spendable') {
-            setPrivateBalances(updatedPrivateBalances);
+            setPrivateBalances(filterBalancesByUSDValue(updatedPrivateBalances));
             lastSpendableUpdateRef.current = Date.now();
 
             // IMPORTANT: Do not write SDK callback balances to Redis.
@@ -1065,7 +1074,7 @@ export function useBalances() {
               balanceUSD: calculateUSDValue(nextNumeric, tok.symbol)
             };
           });
-          return updated;
+          return filterBalancesByUSDValue(updated);
         });
       } catch (e) {
         console.warn('[useBalances] ⚠️ Optimistic unshield update failed:', e?.message || e);
@@ -1266,7 +1275,7 @@ export function useBalances() {
                     balancesToPersist = updatedBalances;
                   }
 
-                  return updatedBalances;
+                  return filterBalancesByUSDValue(updatedBalances);
                 });
 
                 // Persist the updated balances to Redis (with wei strings for precision)
@@ -1353,7 +1362,7 @@ export function useBalances() {
     hasPublicBalances: publicBalances.length > 0,
     hasPrivateBalances: privateBalances.length > 0,
     totalPublicTokens: publicBalances.filter(token => token.hasBalance).length,
-    totalPrivateTokens: privateBalances.filter(token => token.hasBalance).length,
+    totalPrivateTokens: privateBalances.length,
     isPrivateBalancesLoading,
   };
 }

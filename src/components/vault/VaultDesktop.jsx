@@ -1448,10 +1448,7 @@ const VaultDesktopInner = () => {
                   </div>
                 
                   <div className="space-y-2">
-                    {publicBalances.filter(token => {
-                      const usdValue = parseFloat(token.balanceUSD || '0');
-                      return usdValue >= 0.01;
-                    }).map((token) => {
+                    {publicBalances.map((token) => {
                       const isSupported = isTokenSupportedByRailgun(token.address, chainId);
                       const isShieldingThis = shieldingTokens.has(token.symbol);
 

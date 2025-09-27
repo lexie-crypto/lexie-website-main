@@ -1829,15 +1829,10 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div className="h-4 w-4 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
                 Getting your vault balances...
               </div>
-            ) : (() => {
-              const tokensWithBalance = (privateBalances || []).filter(token => {
-                const usdValue = parseFloat(token.balanceUSD || '0');
-                return usdValue >= 0.01;
-              });
-              return tokensWithBalance.length > 0 ? (
+            ) : privateBalances && privateBalances.length > 0 ? (
                 <div className="space-y-2">
-                  <div className="text-sm text-green-400/70">{tokensWithBalance.length} Vault Token{tokensWithBalance.length !== 1 ? 's' : ''}</div>
-                  {tokensWithBalance.map((token) => (
+                  <div className="text-sm text-green-400/70">{privateBalances.length} Vault Token{privateBalances.length !== 1 ? 's' : ''}</div>
+                  {privateBalances.map((token) => (
                     <div key={getTokenAddress(token) || token.symbol} className="p-2 bg-black/60 rounded text-sm border border-green-500/10">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2 min-w-0">
@@ -1852,10 +1847,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                     </div>
                   ))}
                 </div>
-              ) : (
-                <div className="text-sm text-green-400/70">No vault tokens yet<br />Add some tokens to start using secure vault</div>
-              );
-            })()}
+            ) : (
+              <div className="text-sm text-green-400/70">No vault tokens yet<br />Add some tokens to start using secure vault</div>
+            )}
           </div>
         </div>
       )}
