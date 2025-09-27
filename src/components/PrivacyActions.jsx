@@ -189,11 +189,20 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     return [];
   }, [activeTab, publicBalances, privateBalances, isConnected, chainId]);
 
+  // Track previous activeAction to only clear form on actual action changes
+  const prevActiveActionRef = useRef(activeAction);
+
   // Reset form when switching actions, but preserve a valid selected token
   useEffect(() => {
-    setAmount('');
-    setRecipientAddress('');
-    setMemoText('');
+    const actionChanged = prevActiveActionRef.current !== activeAction;
+
+    // Only clear form fields when action actually changes, not on balance refreshes
+    if (actionChanged) {
+      setAmount('');
+      setRecipientAddress('');
+      setMemoText('');
+    }
+
     setSelectedToken(prev => {
       if (!Array.isArray(availableTokens) || availableTokens.length === 0) return null;
 
@@ -201,6 +210,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       const mapped = prev ? availableTokens.find(t => areTokensEqual(t, prev)) : null;
       return mapped || availableTokens[0] || null;
     });
+
+    // Update the ref after processing
+    prevActiveActionRef.current = activeAction;
   }, [activeAction, availableTokens]);
 
   // Complete state reset function for after transactions
