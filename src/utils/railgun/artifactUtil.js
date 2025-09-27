@@ -4,7 +4,7 @@
  */
 
 import { ArtifactName } from '@railgun-community/shared-models';
-import { BrotliDecompress } from 'brotli-wasm';
+import brotliWasmPromise from 'brotli-wasm';
 
 // IPFS Configuration
 const IPFS_GATEWAY = 'https://ipfs-lb.com';
@@ -64,7 +64,8 @@ const getBrotliDecompress = async () => {
     brotliDecompress = nodeBrotli;
   } else {
     // Browser: use brotli-wasm
-    brotliDecompress = BrotliDecompress;
+    const brotliWasm = await brotliWasmPromise;
+    brotliDecompress = brotliWasm.decompress;
   }
   return brotliDecompress;
 };
