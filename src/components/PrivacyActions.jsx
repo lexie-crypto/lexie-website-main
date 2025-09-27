@@ -252,7 +252,15 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   useEffect(() => {
     setAmount('');
     setSelectedToken(prev => {
-      if (!Array.isArray(availableTokens) || availableTokens.length === 0) return prev;
+      if (!Array.isArray(availableTokens) || availableTokens.length === 0) return null;
+
+      // Preserve the user's selected token if it's still available
+      if (prev) {
+        const stillAvailable = availableTokens.find(t => areTokensEqual(t, prev));
+        if (stillAvailable) return stillAvailable;
+      }
+
+      // Otherwise select the first available token
       return availableTokens[0];
     });
   }, [chainId, availableTokens]);
