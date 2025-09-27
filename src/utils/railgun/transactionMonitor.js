@@ -485,7 +485,7 @@ const getKnownTokenDecimalsInMonitor = (tokenAddress, chainId) => {
       '0x55d398326f99059ff775485246999027b3197955': { decimals: 18, symbol: 'USDT' }, // BSC USDT uses 18 decimals!
       '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': { decimals: 18, symbol: 'USDC' }, // BSC USDC uses 18 decimals!
       '0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3': { decimals: 18, symbol: 'DAI' }, // DAI
-      '0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c': { decimals: 18, symbol: 'BTCB' }, // BTCB
+      '0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c': { decimals: 8, symbol: 'WBTC' }, // WBTC
       '0xCC42724C6683B7E57334c4E856f4c9965ED682bD': { decimals: 18, symbol: 'MATIC' }, // MATIC
       '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': { decimals: 18, symbol: 'WBNB' }, // WBNB
     }
