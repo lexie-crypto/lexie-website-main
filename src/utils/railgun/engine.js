@@ -28,8 +28,7 @@ if (typeof window !== 'undefined') {
   console.log('[RailgunEngine] 🔍 ENABLED OFFICIAL RAILGUN DEBUG LOGGING (Node)');
 }
 
-import { 
-  startRailgunEngine,
+import {
   setLoggers,
   loadProvider,
   getProver,
@@ -37,6 +36,55 @@ import {
   setOnTXIDMerkletreeScanCallback,
   refreshRailgunBalances,
 } from '@railgun-community/wallet';
+
+// Import our optimized QuickSync
+import {
+  optimizedQuickSyncEventsGraph,
+  optimizedQuickSyncEventsGraphV2,
+  optimizedQuickSyncEventsGraphV3
+} from './quickSync.js';
+
+// Custom startRailgunEngine with POI-optimized QuickSync
+export { startRailgunEngine } from '@railgun-community/wallet';
+
+// Override the QuickSync functions with our optimized versions
+import { RailgunEngine } from '@railgun-community/engine';
+
+// Store original methods
+const originalInitForWallet = RailgunEngine.initForWallet;
+
+// Override initForWallet to use our optimized QuickSync
+RailgunEngine.initForWallet = async (
+  walletSource,
+  db,
+  artifactGetterDownloadJustInTime,
+  quickSyncEventsGraphOriginal,
+  quickSyncRailgunTransactionsV2,
+  poiMerklerootsValidator,
+  getLatestValidatedRailgunTxid,
+  shouldDebug,
+  skipMerkletreeScans
+) => {
+  console.log('[RailgunEngine] 🚀 Using POI-optimized QuickSync for faster wallet sync');
+
+  // Replace the QuickSync function with our optimized version
+  const optimizedQuickSync = async (txidVersion, chain, startingBlock) => {
+    return optimizedQuickSyncEventsGraph(txidVersion, chain, startingBlock);
+  };
+
+  // Call original init with our optimized QuickSync
+  return originalInitForWallet(
+    walletSource,
+    db,
+    artifactGetterDownloadJustInTime,
+    optimizedQuickSync, // Use our optimized version
+    quickSyncRailgunTransactionsV2,
+    poiMerklerootsValidator,
+    getLatestValidatedRailgunTxid,
+    shouldDebug,
+    skipMerkletreeScans
+  );
+};
 import { 
   NetworkName,
   NETWORK_CONFIG,
