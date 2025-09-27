@@ -72,6 +72,9 @@ export class ArtifactDownloader {
       const { data } = await axios.get(url, {
         method: 'GET',
         responseType: ArtifactDownloader.artifactResponseType(artifactName),
+        headers: {
+          'Accept-Encoding': 'br,gzip,deflate',
+        },
       });
 
       // NodeJS downloads as Buffer.
@@ -90,7 +93,7 @@ export class ArtifactDownloader {
         throw new Error('Unexpected response data type');
       }
 
-      const decompressedData = ArtifactDownloader.getArtifactData(
+      const decompressedData = await ArtifactDownloader.getArtifactData(
         dataFormatted,
         artifactName,
       );
@@ -118,14 +121,14 @@ export class ArtifactDownloader {
     }
   };
 
-  static getArtifactData = (data, artifactName) => {
+  static getArtifactData = async (data, artifactName) => {
     switch (artifactName) {
       case ArtifactName.VKEY:
         return data;
       case ArtifactName.ZKEY:
       case ArtifactName.DAT:
       case ArtifactName.WASM:
-        return decompressArtifact(data);
+        return await decompressArtifact(data);
     }
   };
 
