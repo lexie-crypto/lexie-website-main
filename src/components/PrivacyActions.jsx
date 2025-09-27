@@ -1830,7 +1830,10 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 Getting your vault balances...
               </div>
             ) : (() => {
-              const tokensWithBalance = (privateBalances || []).filter(token => token.numericBalance > 0);
+              const tokensWithBalance = (privateBalances || []).filter(token => {
+                const usdValue = parseFloat(token.balanceUSD || '0');
+                return usdValue >= 0.01;
+              });
               return tokensWithBalance.length > 0 ? (
                 <div className="space-y-2">
                   <div className="text-sm text-green-400/70">{tokensWithBalance.length} Vault Token{tokensWithBalance.length !== 1 ? 's' : ''}</div>
