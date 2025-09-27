@@ -1446,31 +1446,41 @@ const VaultDesktopInner = () => {
                       {isLoading ? 'Refreshing...' : 'Refresh'}
                     </button>
                   </div>
-                
-                  <div className="space-y-2">
-                    {publicBalances.map((token) => {
-                      const isSupported = isTokenSupportedByRailgun(token.address, chainId);
-                      const isShieldingThis = shieldingTokens.has(token.symbol);
 
+                  <div className="space-y-2">
+                    {(() => {
+                      const filteredBalances = publicBalances.filter(token => {
+                        const usdValue = parseFloat(token.balanceUSD || '0');
+                        return usdValue >= 0.01;
+                      });
                       return (
-                        <div key={token.symbol} className="p-2 bg-black/60 rounded text-xs">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2 min-w-0">
-                              <div className="text-green-200 font-medium">{token.symbol}</div>
-                              <div className="text-green-400/70 truncate">• {token.name || `${token.symbol} Token`}</div>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <div className="text-green-200">{Number(token.numericBalance).toFixed(6).replace(/\.?0+$/, '')}</div>
-                            </div>
-                          </div>
-                          <div className="text-right text-green-400/70 mt-1">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
-                        </div>
+                        <>
+                          {filteredBalances.map((token) => {
+                            const isSupported = isTokenSupportedByRailgun(token.address, chainId);
+                            const isShieldingThis = shieldingTokens.has(token.symbol);
+
+                            return (
+                              <div key={token.symbol} className="p-2 bg-black/60 rounded text-xs">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center space-x-2 min-w-0">
+                                    <div className="text-green-200 font-medium">{token.symbol}</div>
+                                    <div className="text-green-400/70 truncate">• {token.name || `${token.symbol} Token`}</div>
+                                  </div>
+                                  <div className="flex items-center space-x-2">
+                                    <div className="text-green-200">{Number(token.numericBalance).toFixed(6).replace(/\.?0+$/, '')}</div>
+                                  </div>
+                                </div>
+                                <div className="text-right text-green-400/70 mt-1">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
+                              </div>
+                            );
+                          })}
+
+                          {filteredBalances.length === 0 && !isLoading && (
+                            <div className="text-center py-4 text-green-400/70 text-xs">No tokens found</div>
+                          )}
+                        </>
                       );
-                    })}
-                    
-                    {publicBalances.length === 0 && !isLoading && (
-                      <div className="text-center py-4 text-green-400/70 text-xs">No tokens found</div>
-                    )}
+                    })()}
                   </div>
                 </div>
               </>
