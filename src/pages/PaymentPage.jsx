@@ -218,6 +218,8 @@ const PaymentPage = () => {
           ],
           137: [ // Polygon
             { symbol: 'MATIC', address: null, name: 'Polygon', decimals: 18 },
+            { symbol: 'POL', address: '0x4557328F4C0E5F986bC92c6a6f25b7E9C6E25B9e', name: 'Polygon Ecosystem Token', decimals: 18 },
+            { symbol: 'WPOL', address: '0x6d1fdBB266fCc09A16a22016369210a15bb95761', name: 'Wrapped POL', decimals: 18 },
             { symbol: 'WETH', address: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619', name: 'Wrapped Ether', decimals: 18 },
             { symbol: 'WMATIC', address: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', name: 'Wrapped MATIC', decimals: 18 },
             { symbol: 'USDC', address: '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359', name: 'USD Coin', decimals: 6 },
@@ -240,7 +242,7 @@ const PaymentPage = () => {
             { symbol: 'USDC', address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', name: 'USD Coin', decimals: 18 },
             { symbol: 'USDT', address: '0x55d398326f99059fF775485246999027B3197955', name: 'Tether USD', decimals: 18 },
             { symbol: 'DAI', address: '0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3', name: 'Dai Token', decimals: 18 },
-            { symbol: 'WBTC', address: '0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c', name: 'Wrapped Bitcoin', decimals: 8 },
+            { symbol: 'WBTC', address: '0x0555E30da8f98308EdB960aa94C0Db47230d2B9c', name: 'Wrapped Bitcoin', decimals: 8 },
           ],
         };
 

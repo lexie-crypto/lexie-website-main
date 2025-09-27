@@ -37,6 +37,8 @@ const TOKEN_LISTS = {
   137: [ // Polygon
     { address: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619', symbol: 'WETH', name: 'Wrapped Ether', decimals: 18, chainId: 137 },
     { address: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', symbol: 'WMATIC', name: 'Wrapped MATIC', decimals: 18, chainId: 137 },
+    { address: '0x4557328F4C0E5F986bC92c6a6f25b7E9C6E25B9e', symbol: 'POL', name: 'Polygon Ecosystem Token', decimals: 18, chainId: 137 },
+    { address: '0x6d1fdBB266fCc09A16a22016369210a15bb95761', symbol: 'WPOL', name: 'Wrapped POL', decimals: 18, chainId: 137 },
     { address: '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359', symbol: 'USDC', name: 'USD Coin', decimals: 6, chainId: 137 },
     { address: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', symbol: 'USDC.e', name: 'USD Coin (PoS)', decimals: 6, chainId: 137 },
     { address: '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063', symbol: 'DAI', name: 'Dai Stablecoin (PoS)', decimals: 18, chainId: 137 },
@@ -48,7 +50,7 @@ const TOKEN_LISTS = {
     { address: '0xBB4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', symbol: 'WBNB', name: 'Wrapped BNB', decimals: 18, chainId: 56 },
     { address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', symbol: 'USDC', name: 'USD Coin', decimals: 18, chainId: 56 },
     { address: '0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3', symbol: 'DAI', name: 'Dai Token', decimals: 18, chainId: 56 },
-    { address: '0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c', symbol: 'WBTC', name: 'Wrapped Bitcoin', decimals: 8, chainId: 56 },
+    { address: '0x0555E30da8f98308EdB960aa94C0Db47230d2B9c', symbol: 'WBTC', name: 'Wrapped Bitcoin', decimals: 8, chainId: 56 },
     { address: '0x55d398326f99059fF775485246999027B3197955', symbol: 'USDT', name: 'Tether USD', decimals: 18, chainId: 56 }, // BSC USDT uses 18 decimals
   ],
 };

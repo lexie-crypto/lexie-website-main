@@ -64,6 +64,8 @@ export const getKnownTokenDecimals = (tokenAddress, chainId) => {
     // Polygon
     137: {
       '0x7ceb23fd6bc0add59e62ac25578270cff1b9f619': { decimals: 18, symbol: 'WETH' },
+      '0x4557328f4c0e5f986bc92c6a6f25b7e9c6e25b9e': { decimals: 18, symbol: 'POL' },
+      '0x6d1fdbb266fcc09a16a22016369210a15bb95761': { decimals: 18, symbol: 'WPOL' },
       '0xc2132d05d31c914a87c6611c10748aeb04b58e8f': { decimals: 6, symbol: 'USDT' },
       '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359': { decimals: 6, symbol: 'USDC' },
       '0x8f3cf7ad23cd3cadbd9735aff958023239c6a063': { decimals: 18, symbol: 'DAI' },
@@ -78,7 +80,7 @@ export const getKnownTokenDecimals = (tokenAddress, chainId) => {
       '0x55d398326f99059ff775485246999027b3197955': { decimals: 18, symbol: 'USDT' },
       '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': { decimals: 18, symbol: 'USDC' },
       '0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3': { decimals: 18, symbol: 'DAI' },
-      '0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c': { decimals: 8, symbol: 'WBTC' },
+      '0x0555e30da8f98308edb960aa94c0db47230d2b9c': { decimals: 8, symbol: 'WBTC' },
       '0xCC42724C6683B7E57334c4E856f4c9965ED682bD': { decimals: 18, symbol: 'MATIC' },
     },
     // Arbitrum
