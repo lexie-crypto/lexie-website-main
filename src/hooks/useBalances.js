@@ -166,7 +166,7 @@ export function useBalances() {
       // Include wrapped base-token symbols to ensure pricing coverage
       const priceSymbols = [
         ...symbols,
-        'WETH', 'WMATIC', 'WBNB', // wrapped base tokens
+        'WETH', 'WMATIC', 'WBNB', 'WBTC', // wrapped base tokens
       ];
       const uniqueSymbols = [...new Set(priceSymbols)];
       const prices = await fetchTokenPrices(uniqueSymbols);
@@ -186,6 +186,7 @@ export function useBalances() {
       WETH: 'ETH',
       WMATIC: 'MATIC',
       WBNB: 'BNB',
+      WBTC: 'BTC',
       'USDC.e': 'USDC',
     };
     const resolvedSymbol = prices[symbol] != null ? symbol : (aliasMap[symbol] || symbol);
@@ -527,7 +528,7 @@ export function useBalances() {
       const allSymbols = [
         ...new Set([
           ...(TOKEN_LISTS[chainId] || []).map(t => t.symbol),
-          'ETH', 'MATIC', 'BNB', // Native tokens
+          'ETH', 'MATIC', 'BNB', 'BTC', // Native tokens + BTC for WBTC pricing
         ])
       ];
       const freshPrices = await fetchAndCachePrices(allSymbols);
