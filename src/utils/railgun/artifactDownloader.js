@@ -72,8 +72,9 @@ export class ArtifactDownloader {
       const { data } = await axios.get(url, {
         method: 'GET',
         responseType: ArtifactDownloader.artifactResponseType(artifactName),
-        // Note: Accept-Encoding header cannot be set in browser JavaScript for security reasons
-        // Servers should be configured to serve compressed content when available
+        headers: {
+          'Accept-Encoding': 'br,gzip,deflate',
+        },
       });
 
       // NodeJS downloads as Buffer.

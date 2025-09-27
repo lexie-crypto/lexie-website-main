@@ -950,9 +950,11 @@ const WalletContextProvider = ({ children }) => {
         // Import required modules for fast path
         const CryptoJS = await import('crypto-js');
         const railgunWallet = await import('@railgun-community/wallet');
-        const { loadWalletByID, setLoggers } = railgunWallet;
-        // Import our custom startRailgunEngine with POI optimization
-        const { startRailgunEngine } = await import('../utils/railgun/engine.js');
+        const { 
+          startRailgunEngine, 
+          loadWalletByID, 
+          setLoggers
+        } = railgunWallet;
         
         // Validate that loadWalletByID is actually a function
         if (typeof loadWalletByID !== 'function') {
@@ -1264,14 +1266,12 @@ const WalletContextProvider = ({ children }) => {
     try {
       // Import the official Railgun SDK
       const {
+        startRailgunEngine,
         loadProvider,
         createRailgunWallet,
         loadWalletByID,
         setLoggers
       } = await import('@railgun-community/wallet');
-
-      // Import our custom startRailgunEngine with POI optimization
-      const { startRailgunEngine } = await import('../utils/railgun/engine.js');
       
       console.log('✅ Official Railgun SDK imported');
 

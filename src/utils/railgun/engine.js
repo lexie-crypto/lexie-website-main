@@ -28,7 +28,8 @@ if (typeof window !== 'undefined') {
   console.log('[RailgunEngine] 🔍 ENABLED OFFICIAL RAILGUN DEBUG LOGGING (Node)');
 }
 
-import {
+import { 
+  startRailgunEngine,
   setLoggers,
   loadProvider,
   getProver,
@@ -36,58 +37,6 @@ import {
   setOnTXIDMerkletreeScanCallback,
   refreshRailgunBalances,
 } from '@railgun-community/wallet';
-
-// Import our optimized QuickSync
-import {
-  optimizedQuickSyncEventsGraph,
-  optimizedQuickSyncEventsGraphV2,
-  optimizedQuickSyncEventsGraphV3
-} from './quickSync.js';
-
-// Custom startRailgunEngine with POI-optimized QuickSync
-import { startRailgunEngine as originalStartRailgunEngine } from '@railgun-community/wallet';
-
-// Override the QuickSync functions with our optimized versions
-import { RailgunEngine } from '@railgun-community/engine';
-
-// Store original methods
-const originalInitForWallet = RailgunEngine.initForWallet;
-
-// Override initForWallet to use our optimized QuickSync
-RailgunEngine.initForWallet = async (
-  walletSource,
-  db,
-  artifactGetterDownloadJustInTime,
-  quickSyncEventsGraphOriginal,
-  quickSyncRailgunTransactionsV2,
-  poiMerklerootsValidator,
-  getLatestValidatedRailgunTxid,
-  shouldDebug,
-  skipMerkletreeScans
-) => {
-  console.log('[RailgunEngine] 🚀 Using POI-optimized QuickSync for faster wallet sync');
-
-  // Replace the QuickSync function with our optimized version
-  const optimizedQuickSync = async (txidVersion, chain, startingBlock) => {
-    return optimizedQuickSyncEventsGraph(txidVersion, chain, startingBlock);
-  };
-
-  // Call original init with our optimized QuickSync
-  return originalInitForWallet(
-    walletSource,
-    db,
-    artifactGetterDownloadJustInTime,
-    optimizedQuickSync, // Use our optimized version
-    quickSyncRailgunTransactionsV2,
-    poiMerklerootsValidator,
-    getLatestValidatedRailgunTxid,
-    shouldDebug,
-    skipMerkletreeScans
-  );
-};
-
-// Export our custom startRailgunEngine
-export { originalStartRailgunEngine as startRailgunEngine };
 import { 
   NetworkName,
   NETWORK_CONFIG,
@@ -97,6 +46,50 @@ import {
 import { groth16 } from 'snarkjs';
 import LevelJS from 'level-js';
 import { createEnhancedArtifactStore } from './artifactStore.js';
+import { createQuickSyncState } from './quickSyncState.js';
+
+// POI Requester for fallback sync
+class POIRequester {
+  constructor(poiNodeURLs = []) {
+    this.poiNodeURLs = poiNodeURLs;
+  }
+
+  async getLatestValidatedRailgunTxid(txidVersion, chain) {
+    // Simplified POI request - would need full implementation
+    console.log(`[POIRequester] Getting latest validated TXID for ${txidVersion} on chain ${chain.id}`);
+    return { txidIndex: null, merkleroot: null };
+  }
+}
+
+// State-based QuickSync manager
+let quickSyncStateManager = null;
+
+// Initialize state-based QuickSync system
+const initializeStateBasedQuickSync = async (poiNodeURLs = []) => {
+  if (quickSyncStateManager) {
+    return quickSyncStateManager;
+  }
+
+  try {
+    // Create POI requester
+    const poiRequester = new POIRequester(poiNodeURLs);
+
+    // Create state-based QuickSync manager (GraphQL clients created per chain)
+    quickSyncStateManager = createQuickSyncState(poiRequester);
+
+    console.log('[QuickSyncState] ✅ Initialized multi-network state-based QuickSync system');
+    console.log('[QuickSyncState] Supported networks: Ethereum, BSC, Polygon, Arbitrum');
+    return quickSyncStateManager;
+  } catch (error) {
+    console.warn('[QuickSyncState] Failed to initialize state-based QuickSync:', error.message);
+    return null;
+  }
+};
+
+// Get the current QuickSync state manager
+export const getQuickSyncStateManager = () => {
+  return quickSyncStateManager;
+};
 
 // 🚀 ZERO-DELAY POI: Import contract address configuration
 import { 
@@ -338,6 +331,9 @@ const startEngine = async () => {
 
     isEngineStarted = true;
     console.log('[RAILGUN] ✅ Engine started successfully');
+
+    // Initialize state-based QuickSync system
+    await initializeStateBasedQuickSync(poiNodeURLs);
 
     // Continue with rest of initialization...
     await loadSnarkJSGroth16();
