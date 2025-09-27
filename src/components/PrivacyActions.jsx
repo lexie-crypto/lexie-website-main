@@ -248,9 +248,18 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     }
   }, [activeTab]);
 
-  // Also handle selection on chain changes without forcing null
+  // Track previous chainId to only clear amount on actual chain changes
+  const prevChainIdRef = useRef(chainId);
+
+  // Handle token selection on chain changes or available tokens changes
   useEffect(() => {
-    setAmount('');
+    const chainChanged = prevChainIdRef.current !== chainId;
+
+    // Only clear amount when chain actually changes, not on balance refreshes
+    if (chainChanged) {
+      setAmount('');
+    }
+
     setSelectedToken(prev => {
       if (!Array.isArray(availableTokens) || availableTokens.length === 0) return null;
 
@@ -263,6 +272,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       // Otherwise select the first available token
       return availableTokens[0];
     });
+
+    // Update the ref after processing
+    prevChainIdRef.current = chainId;
   }, [chainId, availableTokens]);
 
   // Close token menu on outside click or ESC
