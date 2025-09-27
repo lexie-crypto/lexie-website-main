@@ -1448,10 +1448,10 @@ const VaultDesktopInner = () => {
                   </div>
                 
                   <div className="space-y-2">
-                    {publicBalances.map((token) => {
+                    {publicBalances.filter(token => token.numericBalance > 0).map((token) => {
                       const isSupported = isTokenSupportedByRailgun(token.address, chainId);
                       const isShieldingThis = shieldingTokens.has(token.symbol);
-                      
+
                       return (
                         <div key={token.symbol} className="p-2 bg-black/60 rounded text-xs">
                           <div className="flex items-center justify-between">
