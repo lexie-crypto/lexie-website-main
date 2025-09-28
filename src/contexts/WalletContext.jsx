@@ -984,8 +984,14 @@ const WalletContextProvider = ({ children }) => {
                 // Ensure engine is started (minimal setup for fast path)
         if (!engineExists) {
           console.log('🔧 Starting minimal Railgun engine for fast path...');
-          const LevelJS = (await import('level-js')).default;
-          const db = new LevelJS('railgun-engine-db');
+
+          // 🚀 HYBRID APPROACH: Local artifacts, Redis Merkletrees
+          console.log('🔄 Using hybrid LevelDB adapter - artifacts local, Merkletrees in Redis...');
+          const { initializeHybridRailgunEngine } = await import('../utils/railgun/hybrid-leveldb-adapter.js');
+          const db = await initializeHybridRailgunEngine('railgun-engine-hybrid');
+
+          // Store globally for post-transaction sync
+          window.hybridRailgunAdapter = db;
           
           const { createEnhancedArtifactStore } = await import('../utils/railgun/artifactStore.js');
           const artifactManager = await createEnhancedArtifactStore(false);
@@ -1276,8 +1282,14 @@ const WalletContextProvider = ({ children }) => {
       console.log('✅ Official Railgun SDK imported');
 
       // Step 1: Initialize Railgun Engine with official SDK
-      const LevelJS = (await import('level-js')).default;
-      const db = new LevelJS('railgun-engine-db');
+
+      // 🚀 HYBRID APPROACH: Local artifacts, Redis Merkletrees
+      console.log('🔄 Using hybrid LevelDB adapter - artifacts local, Merkletrees in Redis (full init)...');
+      const { initializeHybridRailgunEngine } = await import('../utils/railgun/hybrid-leveldb-adapter.js');
+      const db = await initializeHybridRailgunEngine('railgun-engine-hybrid-full');
+
+      // Store globally for post-transaction sync
+      window.hybridRailgunAdapter = db;
       
       // Use existing artifact store
       const { createEnhancedArtifactStore } = await import('../utils/railgun/artifactStore.js');

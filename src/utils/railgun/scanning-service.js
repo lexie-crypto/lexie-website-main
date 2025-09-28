@@ -20,6 +20,8 @@ import {
   setOnTXIDMerkletreeScanCallback,
 } from '@railgun-community/wallet';
 import { waitForRailgunReady } from './engine.js';
+import { isRedisMerkletreeAvailable, createRedisMerkletree } from './redis-merkletree-adapter.js';
+import { executePostTransactionSync } from './hybrid-leveldb-adapter.js';
 // Balance update callbacks are handled centrally in sdk-callbacks.js
 
 /**
@@ -28,6 +30,12 @@ import { waitForRailgunReady } from './engine.js';
 let scanStatus = new Map(); // networkName -> status
 let scanProgress = new Map(); // networkName -> { utxo: number, txid: number }
 let lastScanTime = new Map(); // networkName -> timestamp
+
+/**
+ * Centralized Merkletree configuration
+ */
+let useRedisMerkletrees = false; // Feature flag for Redis Merkletrees
+let redisMerkletreeCache = new Map(); // chainId -> { utxo: adapter, txid: adapter }
 
 /**
  * Network mapping for chain ID to Railgun network names
@@ -178,7 +186,18 @@ export const performFullRescan = async (railgunWalletIDs = []) => {
         lastScanTime.set(networkName, Date.now());
         
         console.log(`[ScanningService] ✅ ${networkName} scan completed`);
-        
+
+        // 🚀 HYBRID SYNC: Execute post-transaction sync to ensure Merkletree updates are in Redis
+        try {
+          // Get the hybrid adapter from the global context (it should be available after initialization)
+          const hybridAdapter = window.hybridRailgunAdapter;
+          if (hybridAdapter) {
+            await executePostTransactionSync(chainId, `scan-${networkName}-${Date.now()}`, hybridAdapter);
+          }
+        } catch (syncError) {
+          console.warn(`[ScanningService] ⚠️ Post-transaction sync failed for ${networkName}:`, syncError);
+        }
+
       } catch (networkError) {
         console.error(`[ScanningService] Failed to scan ${networkName}:`, networkError);
         scanStatus.set(networkName, ScanStatus.ERROR);
@@ -249,12 +268,29 @@ export const performNetworkRescan = async (networkName, railgunWalletIDs = []) =
     
     // ✅ Use refreshBalances with proper chain context (following official SDK pattern)
     await refreshBalances(railgunChain, railgunWalletIDs);
-    
+
+    // 🚀 REDIS-ONLY: Verify Merkletree data was stored in Redis after successful scan
+    if (useRedisMerkletrees && railgunWalletIDs.length > 0) {
+      try {
+        const chainId = railgunChain.id;
+        // Check that Merkletree data exists in Redis (stored directly by LevelDB adapter)
+        const hasData = await checkMerkletreeInRedis(chainId, railgunWalletIDs[0]);
+        if (hasData) {
+          console.log(`[ScanningService] ✅ Merkletree data confirmed in Redis for ${networkName}`);
+        } else {
+          console.warn(`[ScanningService] ⚠️ Merkletree data not found in Redis for ${networkName}`);
+        }
+      } catch (merkleError) {
+        console.warn(`[ScanningService] Merkletree check in Redis failed for ${networkName}:`, merkleError.message);
+        // Don't fail the scan if Merkletree check fails
+      }
+    }
+
     // Update status
     scanStatus.set(networkName, ScanStatus.COMPLETE);
     scanProgress.set(networkName, { utxo: 100, txid: 100 });
     lastScanTime.set(networkName, Date.now());
-    
+
     console.log(`[ScanningService] Network rescan completed for ${networkName}`);
     
     // Dispatch completion event
@@ -438,8 +474,107 @@ export const resetAllScanStatus = () => {
   scanStatus.clear();
   scanProgress.clear();
   lastScanTime.clear();
-  
+
   console.log('[ScanningService] Reset all scan status');
+};
+
+/**
+ * Enable/disable centralized Redis Merkletrees
+ * @param {boolean} enabled - Whether to use Redis Merkletrees
+ */
+export const setRedisMerkletreesEnabled = (enabled) => {
+  useRedisMerkletrees = enabled;
+  console.log(`[ScanningService] ${enabled ? 'Enabled' : 'Disabled'} Redis Merkletrees for proof generation`);
+
+  if (!enabled) {
+    // Clear Redis cache when disabled
+    redisMerkletreeCache.clear();
+  }
+};
+
+/**
+ * Check if Redis Merkletrees are enabled
+ * @returns {boolean} Whether Redis Merkletrees are enabled
+ */
+export const areRedisMerkletreesEnabled = () => {
+  return useRedisMerkletrees;
+};
+
+/**
+ * Get Redis Merkletree adapter for a chain and tree type
+ * @param {number} chainId - Chain ID
+ * @param {string} treeType - 'utxo' or 'txid'
+ * @returns {Object|null} Redis Merkletree adapter or null if disabled/unavailable
+ */
+export const getRedisMerkletreeAdapter = async (chainId, treeType) => {
+  if (!useRedisMerkletrees) {
+    return null;
+  }
+
+  // Check cache first
+  const chainCache = redisMerkletreeCache.get(chainId);
+  if (chainCache && chainCache[treeType]) {
+    return chainCache[treeType];
+  }
+
+  // Check if Redis Merkletree is available and synced
+  const availability = await isRedisMerkletreeAvailable(chainId, treeType);
+  if (!availability.available) {
+    console.warn(`[ScanningService] Redis Merkletree not available for chain ${chainId} ${treeType}:`, availability);
+    return null;
+  }
+
+  // Create and cache adapter
+  const adapter = createRedisMerkletree(chainId, treeType);
+
+  if (!chainCache) {
+    redisMerkletreeCache.set(chainId, {});
+  }
+
+  redisMerkletreeCache.get(chainId)[treeType] = adapter;
+
+  console.log(`[ScanningService] ✅ Created Redis Merkletree adapter for chain ${chainId} ${treeType}`);
+  return adapter;
+};
+
+/**
+ * Sync scanned Merkletree data to Redis (called after successful balance scan)
+ * @param {number} chainId - Chain ID
+ * @param {string} walletId - Wallet that triggered the scan
+ * @returns {Promise<boolean>} Success status
+ */
+export const checkMerkletreeInRedis = async (chainId, walletId) => {
+  if (!useRedisMerkletrees) {
+    return false;
+  }
+
+  try {
+    console.log(`[ScanningService] 🔍 Checking Merkletree in Redis for chain ${chainId}...`);
+
+    // Since Redis is now primary storage, the balance scan already wrote directly to Redis
+    // We just need to verify the data exists
+    const redisAdapter = await getRedisMerkletreeAdapter(chainId, 'utxo');
+    if (!redisAdapter) {
+      console.warn(`[ScanningService] Redis adapter not available for chain ${chainId}`);
+      return false;
+    }
+
+    // Check if tree has height > 0 (indicating it was populated)
+    const height = await redisAdapter.getTreeLength();
+    const hasData = height > 0;
+
+    if (hasData) {
+      console.log(`[ScanningService] ✅ Merkletree data found in Redis for chain ${chainId} (height: ${height})`);
+    } else {
+      console.log(`[ScanningService] 📝 Merkletree data not yet available in Redis for chain ${chainId}`);
+    }
+
+    return hasData;
+
+  } catch (error) {
+    console.error(`[ScanningService] ❌ Failed to check Merkletree in Redis for chain ${chainId}:`, error);
+    return false;
+  }
 };
 
 export default {
@@ -457,4 +592,9 @@ export default {
   setupScanningCallbacks,
   resetScanStatus,
   resetAllScanStatus,
+  // Centralized Merkletree functions
+  setRedisMerkletreesEnabled,
+  areRedisMerkletreesEnabled,
+  getRedisMerkletreeAdapter,
+  checkMerkletreeInRedis,
 }; 

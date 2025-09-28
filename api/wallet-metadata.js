@@ -275,6 +275,61 @@ export default async function handler(req, res) {
 
       // Gas relayer now has its own separate endpoint /api/gas-relayer
 
+  // Check if this is a merkletree request (new routing for centralized storage)
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const isMerkletreeRequest = url.pathname.startsWith('/api/wallet-metadata/merkletree');
+
+  if (isMerkletreeRequest) {
+    console.log(`✅ [MERKLETREE-PROXY-${requestId}] Merkletree request detected: ${req.method} ${url.pathname}`);
+
+    // Extract merkletree path
+    const merkletreePath = url.pathname.replace('/api/wallet-metadata/merkletree', '');
+    const backendPath = `/api/wallet-metadata/merkletree${merkletreePath}`;
+    const backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+
+    const signature = generateHmacSignature(req.method, backendPath, timestamp, hmacSecret);
+
+    headers = {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      'X-Lexie-Timestamp': timestamp,
+      'X-Lexie-Signature': signature,
+      'Origin': 'https://staging.lexiecrypto.com',
+      'User-Agent': 'Lexie-Merkletree-Proxy/1.0',
+    };
+
+    console.log(`🔐 [MERKLETREE-PROXY-${requestId}] Generated HMAC headers`, {
+      method: req.method,
+      timestamp,
+      signature: headers['X-Lexie-Signature'].substring(0, 20) + '...',
+      path: backendPath
+    });
+
+    console.log(`📡 [MERKLETREE-PROXY-${requestId}] Forwarding to backend: ${backendUrl}`);
+
+    // Make the backend request
+    const fetchOptions = {
+      method: req.method,
+      headers,
+      signal: AbortSignal.timeout(30000),
+    };
+
+    // Add body for POST/PUT requests
+    if (req.method === 'POST' || req.method === 'PUT') {
+      fetchOptions.body = JSON.stringify(req.body);
+    }
+
+    const backendResponse = await fetch(backendUrl, fetchOptions);
+    const result = await backendResponse.json();
+
+    console.log(`✅ [MERKLETREE-PROXY-${requestId}] Backend responded with status ${backendResponse.status}`);
+
+    // Forward the backend response
+    res.status(backendResponse.status).json(result);
+
+    return; // Exit after handling merkletree request
+  }
+
   // Detect request type based on query parameters
   const {
     walletAddress,

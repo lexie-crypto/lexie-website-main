@@ -139,11 +139,16 @@ export const syncBalancesAfterTransaction = async ({
 
     // STEP 6: Persist to Redis - try store endpoint first, fallback to overwrite
     let persistSuccess = false;
-    
+
     // Try store-wallet-metadata endpoint (requires railgunAddress)
     if (railgunAddress) {
       try {
         console.log('[syncBalances] Persisting via store-wallet-metadata endpoint...');
+
+        // 🚀 HYBRID APPROACH: Merkletree data is automatically stored in Redis via hybrid LevelDB adapter
+        // Artifacts stay local, Merkletrees sync to Redis during balance scans
+        console.log('[syncBalances] 📝 Merkletree data automatically stored in Redis via hybrid LevelDB adapter');
+
         const storeResponse = await fetch('/api/wallet-metadata', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -155,7 +160,7 @@ export const syncBalancesAfterTransaction = async ({
             lastBalanceUpdate: new Date().toISOString(),
           }),
         });
-        
+
         if (storeResponse.ok) {
           const storeResult = await storeResponse.json();
           if (storeResult.success) {
@@ -182,6 +187,149 @@ export const syncBalancesAfterTransaction = async ({
     // Don't throw - log error but don't break calling code
     return false;
   }
+};
+
+/**
+ * Extract Merkletree updates from LevelDB after a successful scan
+ * @param {number} chainId - Chain ID
+ * @param {string} walletId - Wallet ID that triggered the scan
+ * @returns {Promise<Object|null>} Merkletree update data or null
+ */
+const extractMerkleTreeUpdates = async (chainId, walletId) => {
+  try {
+    console.log('[MerkleTree] 🔍 Extracting Merkletree updates for sync to Redis...', {
+      chainId,
+      walletId: walletId?.slice(0, 8) + '...'
+    });
+
+    // Get current Merkletree state from LevelDB
+    const { getUTXOMerkletreeForNetwork, getTXIDMerkletreeForNetwork } = await import('./merkletree-utils.js');
+    const { TXIDVersion, NetworkName } = await import('@railgun-community/shared-models');
+
+    // Map chainId to network name
+    const networkNameMap = {
+      1: NetworkName.Ethereum,
+      137: NetworkName.Polygon,
+      42161: NetworkName.Arbitrum,
+      56: NetworkName.BSC
+    };
+
+    const networkName = networkNameMap[chainId];
+    if (!networkName) {
+      console.warn('[MerkleTree] Unknown chainId for network mapping:', chainId);
+      return null;
+    }
+
+    // Get current tree heights and latest leaves
+    const utxoTree = getUTXOMerkletreeForNetwork(TXIDVersion.V2_PoseidonMerkle, networkName);
+    const txidTree = getTXIDMerkletreeForNetwork(TXIDVersion.V2_PoseidonMerkle, networkName);
+
+    const merkleData = {
+      chainId,
+      networkName,
+      walletId,
+      timestamp: Date.now(),
+      utxoTree: {
+        height: utxoTree.getTreeLength(),
+        root: utxoTree.getRootHash(),
+        // Get latest leaves (last 100 for incremental updates)
+        latestLeaves: await getLatestLeaves(utxoTree, 100)
+      },
+      txidTree: {
+        height: txidTree.getTreeLength(),
+        root: txidTree.getRootHash(),
+        latestLeaves: await getLatestLeaves(txidTree, 50)
+      }
+    };
+
+    console.log('[MerkleTree] 📊 Extracted Merkletree data:', {
+      chainId,
+      utxoHeight: merkleData.utxoTree.height,
+      txidHeight: merkleData.txidTree.height,
+      latestUTXOLeaves: merkleData.utxoTree.latestLeaves.length,
+      latestTXIDLeaves: merkleData.txidTree.latestLeaves.length
+    });
+
+    return merkleData;
+
+  } catch (error) {
+    console.error('[MerkleTree] ❌ Failed to extract Merkletree updates:', error);
+    return null;
+  }
+};
+
+/**
+ * Sync Merkletree data to Redis central store
+ * @param {number} chainId - Chain ID
+ * @param {Object} merkleData - Merkletree data to sync
+ * @returns {Promise<boolean>} Success status
+ */
+const syncMerkleTreeToRedis = async (chainId, merkleData) => {
+  try {
+    console.log('[MerkleTree] ☁️ Syncing Merkletree to Redis...', {
+      chainId,
+      utxoHeight: merkleData.utxoTree.height,
+      txidHeight: merkleData.txidTree.height
+    });
+
+    const response = await fetch('/api/merkletree-sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chainId,
+        merkleData,
+        syncSource: 'wallet-scan'
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    if (result.success) {
+      console.log('[MerkleTree] ✅ Successfully synced Merkletree to Redis');
+      return true;
+    } else {
+      console.warn('[MerkleTree] ⚠️ Redis sync reported non-success:', result);
+      return false;
+    }
+
+  } catch (error) {
+    console.error('[MerkleTree] ❌ Failed to sync Merkletree to Redis:', error);
+    return false;
+  }
+};
+
+/**
+ * Get latest leaves from a Merkletree for incremental updates
+ * @param {Object} tree - Merkletree instance
+ * @param {number} count - Number of latest leaves to get
+ * @returns {Promise<Array>} Array of leaf data
+ */
+const getLatestLeaves = async (tree, count) => {
+  const leaves = [];
+  const treeLength = tree.getTreeLength();
+
+  // Get the most recent leaves
+  const startIndex = Math.max(0, treeLength - count);
+
+  for (let i = startIndex; i < treeLength; i++) {
+    try {
+      // Note: This is a simplified version - actual implementation
+      // would need to access the tree's internal leaf storage
+      const leaf = await tree.getLeaf(i);
+      leaves.push({
+        index: i,
+        hash: leaf.toString(),
+        timestamp: Date.now()
+      });
+    } catch (error) {
+      console.warn(`[MerkleTree] Failed to get leaf at index ${i}:`, error.message);
+    }
+  }
+
+  return leaves;
 };
 
 export default { syncBalancesAfterTransaction };
