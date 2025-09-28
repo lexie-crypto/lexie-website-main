@@ -1,3 +1,5 @@
+import crypto from 'crypto';
+
 export const config = {
   api: {
     bodyParser: true,
@@ -109,10 +111,23 @@ export default async function handler(req, res) {
 
     console.log(`🎯 [ARTIFACTS-PROXY-${requestId}] Target`, { backendUrl });
 
+    const hmacSecret = process.env.LEXIE_HMAC_SECRET;
+    if (!hmacSecret) {
+      console.error('LEXIE_HMAC_SECRET not configured');
+      return res.status(500).json({ error: 'Server configuration error', requestId });
+    }
+
+    const timestamp = Date.now().toString();
+    // Match wallet-metadata format: method:path:timestamp (no body)
+    const payload = `${req.method}:${targetPath}:${timestamp}`;
+    const signature = 'sha256=' + crypto.createHmac('sha256', hmacSecret).update(payload).digest('hex');
+
     const headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json, application/octet-stream',
       'X-Request-ID': requestId,
+      'X-Lexie-Signature': signature,
+      'X-Lexie-Timestamp': timestamp,
       'X-Forwarded-For':
         req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.connection.remoteAddress,
       'User-Agent': 'Lexie-Artifacts-Proxy/1.0',
