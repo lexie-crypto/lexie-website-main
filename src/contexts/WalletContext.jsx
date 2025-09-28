@@ -1627,7 +1627,25 @@ const WalletContextProvider = ({ children }) => {
       const sdkValidatedBlocks = await querySDKValidatedCommitmentBlocks(['https://ppoi.fdi.network/']);
       console.log('✅ SDK validated blocks queried (currently using fallback values):', sdkValidatedBlocks);
 
-      // 🎯 Step 3.6: Calculate effective start blocks (birthday clamped to SDK validated)
+      // 🎂 Step 3.6: Calculate wallet birthdays for fresh wallets
+      let walletBirthdayMap = null;
+      if (isFreshWallet) {
+        console.log('🎂 Calculating wallet birthdays for fresh wallet optimization...');
+
+        walletBirthdayMap = calculateWalletBirthdays(creationBlockNumberMap);
+
+        console.log('🎂 Wallet birthdays calculated:', {
+          ethereum: walletBirthdayMap[NetworkName.Ethereum],
+          polygon: walletBirthdayMap[NetworkName.Polygon],
+          arbitrum: walletBirthdayMap[NetworkName.Arbitrum],
+          bnb: walletBirthdayMap[NetworkName.BNBChain],
+          reasoning: 'currentBlock - safetyBackoff (accounts for reorgs/indexer lag)'
+        });
+      } else {
+        console.log('⚠️ Skipping birthday optimization - wallet is imported or has existing state');
+      }
+
+      // 🎯 Step 3.7: Calculate effective start blocks (birthday clamped to SDK validated)
       let effectiveStartBlocks = null;
       if (isFreshWallet && walletBirthdayMap) {
         effectiveStartBlocks = calculateEffectiveStartBlocks(walletBirthdayMap, sdkValidatedBlocks);
@@ -1773,25 +1791,7 @@ const WalletContextProvider = ({ children }) => {
           bnb: creationBlockNumberMap[NetworkName.BNBChain]
         });
 
-        // 🎂 WALLET BIRTHDAY SYSTEM: Calculate optimized scan start blocks for fresh wallets
-        // Only apply to wallets we just generated (not imported or existing)
-        let walletBirthdayMap = null;
-
-        if (isFreshWallet) {
-          console.log('🎂 Calculating wallet birthdays for fresh wallet optimization...');
-
-          walletBirthdayMap = calculateWalletBirthdays(creationBlockNumberMap);
-
-          console.log('🎂 Wallet birthdays calculated:', {
-            ethereum: walletBirthdayMap[NetworkName.Ethereum],
-            polygon: walletBirthdayMap[NetworkName.Polygon],
-            arbitrum: walletBirthdayMap[NetworkName.Arbitrum],
-            bnb: walletBirthdayMap[NetworkName.BNBChain],
-            reasoning: 'currentBlock - safetyBackoff (accounts for reorgs/indexer lag)'
-          });
-        } else {
-          console.log('⚠️ Skipping birthday optimization - wallet is imported or has existing state');
-        }
+        // 🎂 WALLET BIRTHDAY SYSTEM: Wallet birthdays already calculated above
         
         try {
         // 🎯 EFFECTIVE START BLOCK CALCULATION: Use effective start blocks for fresh wallets
