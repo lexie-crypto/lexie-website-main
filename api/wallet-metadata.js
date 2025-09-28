@@ -180,8 +180,85 @@ export default async function handler(req, res) {
     return res.status(204).end();
   }
 
-  // Check for contacts requests using req.query (Next.js parses query params automatically)
+  // Check for contacts or artifacts requests using req.query (Next.js parses query params automatically)
   const isContactsRequest = req.query.action === 'contacts';
+  const isArtifactsRequest = req.query.action === 'artifacts';
+
+  if (isArtifactsRequest) {
+    // Artifacts are public data - no HMAC required
+    const { subaction, key } = req.query;
+
+    let backendPath, backendUrl;
+
+    if (subaction === 'get' && key) {
+      // GET /api/wallet-metadata?action=artifacts&subaction=get&key={key}
+      backendPath = `/api/wallet-metadata/artifacts/get/${encodeURIComponent(key)}`;
+      backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+    } else if (subaction === 'exists' && key) {
+      // GET /api/wallet-metadata?action=artifacts&subaction=exists&key={key}
+      backendPath = `/api/wallet-metadata/artifacts/exists/${encodeURIComponent(key)}`;
+      backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+    } else if (subaction === 'health') {
+      // GET /api/wallet-metadata?action=artifacts&subaction=health
+      backendPath = `/api/wallet-metadata/artifacts/health`;
+      backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+    } else {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid artifacts subaction or missing parameters'
+      });
+    }
+
+    const timestamp = Date.now().toString();
+    const signature = generateHmacSignature(req.method, backendPath, timestamp, hmacSecret);
+
+    const headers = {
+      'Content-Type': 'application/json',
+      'Accept': subaction === 'get' ? 'application/octet-stream, application/json' : 'application/json',
+      'X-Lexie-Timestamp': timestamp,
+      'X-Lexie-Signature': signature,
+      'Origin': 'https://staging.lexiecrypto.com',
+      'User-Agent': 'Lexie-Artifacts-Proxy/1.0',
+    };
+
+    console.log(`✅ [ARTIFACTS-PROXY-${requestId}] ${req.method} ${subaction} for key: ${key || 'N/A'}`);
+
+    try {
+      const fetchOptions = {
+        method: req.method,
+        headers,
+        signal: AbortSignal.timeout(60000), // 60 second timeout for large artifacts
+      };
+
+      const backendResponse = await fetch(backendUrl, fetchOptions);
+
+      // Handle binary responses (artifacts)
+      if (subaction === 'get') {
+        const contentType = backendResponse.headers.get('content-type');
+        if (contentType && contentType.includes('application/octet-stream')) {
+          const arrayBuffer = await backendResponse.arrayBuffer();
+          console.log(`✅ [ARTIFACTS-PROXY-${requestId}] Binary artifact response: ${arrayBuffer.byteLength} bytes`);
+
+          res.setHeader('Content-Type', 'application/octet-stream');
+          res.setHeader('Content-Length', arrayBuffer.byteLength);
+          res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+          return res.status(backendResponse.status).send(Buffer.from(arrayBuffer));
+        }
+      }
+
+      // Handle JSON responses
+      const result = await backendResponse.json();
+      console.log(`✅ [ARTIFACTS-PROXY-${requestId}] Backend responded with status ${backendResponse.status}`);
+      return res.status(backendResponse.status).json(result);
+
+    } catch (error) {
+      console.error(`❌ [ARTIFACTS-PROXY-${requestId}] Error:`, error);
+      return res.status(500).json({
+        success: false,
+        error: error.message
+      });
+    }
+  }
 
   if (isContactsRequest) {
     // Extract wallet address and wallet ID from req.query

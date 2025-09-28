@@ -30,11 +30,34 @@ export const createRedisArtifactStore = (options = {}) => {
    * Make authenticated request to proxy
    */
   const makeProxyRequest = async (method, path, body = null) => {
-    const url = `${baseUrl}/api/wallet-metadata/artifacts${path}`;
+    // Convert path-based routing to action-based routing
+    let actionParams = {};
+
+    if (path.startsWith('/get/')) {
+      const key = path.replace('/get/', '');
+      actionParams = { action: 'artifacts', subaction: 'get', key: decodeURIComponent(key) };
+    } else if (path === '/exists/') {
+      // This shouldn't happen, but handle it
+      actionParams = { action: 'artifacts', subaction: 'exists' };
+    } else if (path.startsWith('/exists/')) {
+      const key = path.replace('/exists/', '');
+      actionParams = { action: 'artifacts', subaction: 'exists', key: decodeURIComponent(key) };
+    } else if (path === '/health') {
+      actionParams = { action: 'artifacts', subaction: 'health' };
+    } else {
+      // Fallback
+      actionParams = { action: 'artifacts', path };
+    }
+
+    // Build URL with query parameters
+    const url = new URL(`${baseUrl}/api/wallet-metadata`);
+    Object.entries(actionParams).forEach(([key, value]) => {
+      url.searchParams.append(key, value);
+    });
 
     const headers = {
       'Content-Type': 'application/json',
-      'Accept': method === 'GET' && path.startsWith('/get/')
+      'Accept': method === 'GET' && actionParams.subaction === 'get'
         ? 'application/octet-stream, application/json'
         : 'application/json',
     };
