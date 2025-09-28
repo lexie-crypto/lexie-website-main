@@ -305,6 +305,14 @@ export const handleBalanceUpdateCallback = async (balancesEvent) => {
       console.error('[SDK Callbacks] ❌ Error updating balance cache:', error);
     }
 
+    // Trigger merkletree extraction and Redis storage after successful scan
+    try {
+      const { onBalancesUpdate } = await import('./balance-update.js');
+      await onBalancesUpdate(balancesEvent.txidVersion, balancesEvent.railgunWalletID, balancesEvent.chain);
+    } catch (error) {
+      console.error('[SDK Callbacks] ❌ Error in merkletree extraction:', error);
+    }
+
     // Process spendable balance updates (most important for proof generation)
     if (bucket === 'Spendable' && balancesEvent.erc20Amounts?.length > 0) {
       
