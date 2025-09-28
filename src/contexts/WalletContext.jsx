@@ -30,7 +30,9 @@ function calculateWalletBirthdays(currentBlockMap) {
   };
 
   // Calculate birthday for each supported network
-  Object.keys(currentBlockMap).forEach(networkName => {
+  const networkNames = Object.keys(currentBlockMap);
+  for (let i = 0; i < networkNames.length; i++) {
+    const networkName = networkNames[i];
     const currentBlock = currentBlockMap[networkName];
     const backoff = SAFETY_BACKOFFS[networkName] || 2000; // Default 2000 blocks
 
@@ -40,7 +42,7 @@ function calculateWalletBirthdays(currentBlockMap) {
       console.warn(`⚠️ Invalid current block for ${networkName}:`, currentBlock);
       birthdays[networkName] = 0; // Fallback
     }
-  });
+  }
 
   return birthdays;
 }
@@ -140,7 +142,9 @@ async function querySDKValidatedCommitmentBlocks(poiNodeURLs) {
 function calculateEffectiveStartBlocks(walletBirthdays, sdkValidatedBlocks) {
   const effectiveStarts = {};
 
-  Object.keys(walletBirthdays).forEach(networkName => {
+  const networkNames = Object.keys(walletBirthdays);
+  for (let i = 0; i < networkNames.length; i++) {
+    const networkName = networkNames[i];
     const birthday = walletBirthdays[networkName] || 0;
     const sdkValidated = sdkValidatedBlocks[networkName] || 0;
 
@@ -166,7 +170,7 @@ function calculateEffectiveStartBlocks(walletBirthdays, sdkValidatedBlocks) {
       effectiveStart: effectiveStart,
       reasoning: reasoning
     });
-  });
+  }
 
   return effectiveStarts;
 }
