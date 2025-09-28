@@ -98,14 +98,13 @@ export const createRedisArtifactStore = (options = {}) => {
     }
 
     try {
-      console.log(`[RedisArtifactStore] Fetching from backend: ${path}`);
-      // Call backend directly since artifacts are now public endpoints
-      const response = await fetch(`https://staging.api.lexiecrypto.com/api/wallet-metadata/artifacts/get/${encodeURIComponent(path)}`, {
+      console.log(`[RedisArtifactStore] Fetching from proxy: ${path}`);
+      // Call artifacts proxy instead of backend directly
+      const response = await fetch(`${baseUrl}/api/artifacts?action=get&key=${encodeURIComponent(path)}`, {
         method: 'GET',
         headers: {
           'Accept': 'application/octet-stream, application/json',
-          'Origin': 'https://staging.lexiecrypto.com',
-          'User-Agent': 'Lexie-Artifacts/1.0',
+          'Content-Type': 'application/json',
         },
       });
 
@@ -192,14 +191,12 @@ export const createRedisArtifactStore = (options = {}) => {
    */
   const artifactExists = async (path) => {
     try {
-      // Call backend directly since artifacts are now public endpoints
-      const response = await fetch(`https://staging.api.lexiecrypto.com/api/wallet-metadata/artifacts/exists/${encodeURIComponent(path)}`, {
+      // Call artifacts proxy instead of backend directly
+      const response = await fetch(`${baseUrl}/api/artifacts?action=exists&key=${encodeURIComponent(path)}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'Origin': 'https://staging.lexiecrypto.com',
-          'User-Agent': 'Lexie-Artifacts/1.0',
         },
       });
       const result = await response.json();
@@ -218,14 +215,12 @@ export const createRedisArtifactStore = (options = {}) => {
   const checkHealth = async () => {
     try {
       console.log(`[RedisArtifactStore] Checking health...`);
-      // Call backend directly since artifacts are now public endpoints
-      const response = await fetch(`https://staging.api.lexiecrypto.com/api/wallet-metadata/artifacts/health`, {
+      // Call artifacts proxy instead of backend directly
+      const response = await fetch(`${baseUrl}/api/artifacts?action=health`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
-          'Origin': 'https://staging.lexiecrypto.com',
-          'User-Agent': 'Lexie-Artifacts/1.0',
         },
       });
       const result = await response.json();
@@ -270,14 +265,12 @@ export const createEnhancedRedisArtifactStore = (options = {}) => {
     async checkArtifactsHealth() {
       try {
         console.log(`[EnhancedRedisArtifactStore] Checking artifact health...`);
-        // Call backend directly since artifacts are now public endpoints
-        const response = await fetch(`https://staging.api.lexiecrypto.com/api/wallet-metadata/artifacts/health`, {
+        // Call artifacts proxy instead of backend directly
+        const response = await fetch(`${options.baseUrl || window.location.origin}/api/artifacts?action=health`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
-            'Origin': 'https://staging.lexiecrypto.com',
-            'User-Agent': 'Lexie-Artifacts/1.0',
           },
         });
         const result = await response.json();
@@ -338,7 +331,7 @@ export const createEnhancedRedisArtifactStore = (options = {}) => {
     // Health check
     async checkHealth() {
       try {
-        const response = await fetch(`${options.baseUrl || window.location.origin}/api/wallet-metadata/artifacts/health`);
+        const response = await fetch(`${options.baseUrl || window.location.origin}/api/artifacts?action=health`);
         const result = await response.json();
         return result.success ? result.data : { status: 'error' };
       } catch (error) {
