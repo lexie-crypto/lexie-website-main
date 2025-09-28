@@ -64,27 +64,34 @@ let enginePromise = null;
 /**
  * RPC Configuration via proxied endpoints
  * All RPC traffic goes through /api/rpc to avoid exposing API keys in the browser.
+ * TEMPORARY: Use production RPC URLs for staging until staging API keys are configured.
  */
+const getRpcUrl = (chainId, provider = 'auto') => {
+  const isStaging = typeof window !== 'undefined' && window.location?.origin?.includes('staging');
+  const baseUrl = isStaging ? 'https://www.lexiecrypto.com' : (typeof window !== 'undefined' ? window.location.origin : '');
+  return `${baseUrl}/api/rpc?chainId=${chainId}&provider=${provider}`;
+};
+
 const RPC_PROVIDERS = {
   [NetworkName.Ethereum]: {
     chainId: 1,
-    rpcUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=1&provider=auto',
-    ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=1&provider=ankr',
+    rpcUrl: getRpcUrl(1, 'auto'),
+    ankrUrl: getRpcUrl(1, 'ankr'),
   },
   [NetworkName.Arbitrum]: {
-    chainId: 42161, 
-    rpcUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=42161&provider=auto',
-    ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=42161&provider=ankr',
+    chainId: 42161,
+    rpcUrl: getRpcUrl(42161, 'auto'),
+    ankrUrl: getRpcUrl(42161, 'ankr'),
   },
   [NetworkName.Polygon]: {
     chainId: 137,
-    rpcUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=137&provider=auto',
-    ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=137&provider=ankr',
+    rpcUrl: getRpcUrl(137, 'auto'),
+    ankrUrl: getRpcUrl(137, 'ankr'),
   },
   [NetworkName.BNBChain]: {
     chainId: 56,
-    rpcUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=56&provider=auto',
-    ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=56&provider=ankr',
+    rpcUrl: getRpcUrl(56, 'auto'),
+    ankrUrl: getRpcUrl(56, 'ankr'),
   },
 };
 
