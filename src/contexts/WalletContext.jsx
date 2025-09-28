@@ -12,6 +12,7 @@ import { WagmiProvider, useAccount, useConnect, useDisconnect, useSwitchChain, u
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/environment';
 import { NetworkName } from '@railgun-community/shared-models';
+import { prepareWalletForScan } from '../utils/railgun/walletRefresh.js';
 
 // Inline wallet metadata API functions
 async function getWalletMetadata(walletAddress) {
@@ -1134,7 +1135,28 @@ const WalletContextProvider = ({ children }) => {
         if (railgunWalletInfo.id !== existingWalletID) {
           throw new Error(`Wallet ID mismatch: expected ${existingWalletID.slice(0, 8)}, got ${railgunWalletInfo.id?.slice(0, 8)}`);
         }
-        
+
+        // 🚀 REFRESH SCAN STARTING POINTS to prevent stale block numbers
+        console.log('🔄 [WALLET-REFRESH] Refreshing scan points for reloaded wallet...');
+        try {
+          // Get all supported chains for scan optimization
+          const chains = [
+            { type: 1, id: 1 },      // Ethereum
+            { type: 2, id: 137 },    // Polygon
+            { type: 2, id: 42161 },  // Arbitrum
+            { type: 2, id: 56 }      // BSC
+          ];
+
+          const refreshResult = await prepareWalletForScan(existingWalletID, chains);
+          if (refreshResult) {
+            console.log('✅ [WALLET-REFRESH] Scan points refreshed successfully');
+          } else {
+            console.log('⚠️ [WALLET-REFRESH] Scan point refresh not available');
+          }
+        } catch (refreshError) {
+          console.warn('⚠️ [WALLET-REFRESH] Scan point refresh failed, continuing with defaults:', refreshError.message);
+        }
+
         // ✅ Hydrate React state - this is the key part that prevents recreation
         setRailgunAddress(railgunWalletInfo.railgunAddress);
         setRailgunWalletID(railgunWalletInfo.id);
