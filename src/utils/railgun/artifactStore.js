@@ -50,10 +50,10 @@ export const createArtifactStore = async () => {
     const { createRedisArtifactStore } = await import('./artifactStoreRedis.js');
     const redisStore = createRedisArtifactStore();
 
-    // Test if Redis store is working by checking health
+    // Test if Redis store is working (don't fail if artifacts are just empty)
     const isHealthy = await redisStore.checkHealth();
     if (isHealthy) {
-      console.log('[ArtifactStore] Redis artifact store is healthy, using it for better performance');
+      console.log('[ArtifactStore] Redis artifact store is available, using it for better performance');
       return redisStore;
     } else {
       console.warn('[ArtifactStore] Redis store health check failed, falling back to localforage');
@@ -72,13 +72,17 @@ export const createEnhancedArtifactStore = async (useNativeArtifacts = false) =>
     const { createEnhancedRedisArtifactStore } = await import('./artifactStoreRedis.js');
     const redisStore = createEnhancedRedisArtifactStore({ useNativeArtifacts });
 
-    // Test if Redis store is working by checking health
-    const health = await redisStore.checkArtifactsHealth();
-    if (health.healthy) {
-      console.log('[EnhancedArtifactStore] Redis-enhanced artifact store is healthy, using it');
+    // Test if Redis store is working (don't fail if artifacts are just empty)
+    try {
+      const health = await redisStore.checkArtifactsHealth();
+      console.log(`[EnhancedArtifactStore] Redis store status: ${health.availableCount}/${health.totalCount} artifacts available`);
+
+      // Use Redis store regardless of artifact availability - artifacts can be downloaded later
+      console.log('[EnhancedArtifactStore] Using Redis artifact store (artifacts will be downloaded as needed)');
       return redisStore;
-    } else {
-      console.warn('[EnhancedArtifactStore] Redis store health check failed, using legacy localforage');
+    } catch (healthError) {
+      console.warn('[EnhancedArtifactStore] Redis store health check failed:', healthError.message);
+      console.warn('[EnhancedArtifactStore] Falling back to legacy localforage');
     }
   } catch (error) {
     console.warn('[EnhancedArtifactStore] Redis store not available, using legacy localforage:', error.message);

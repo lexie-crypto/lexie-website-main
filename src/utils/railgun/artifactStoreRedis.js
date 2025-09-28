@@ -224,7 +224,16 @@ export const createRedisArtifactStore = (options = {}) => {
         },
       });
       const result = await response.json();
-      return result.success && result.data && result.data.status === 'healthy';
+
+      // Consider store healthy if we can connect (even if artifacts are empty)
+      const canConnect = result.success && result.data;
+      if (canConnect) {
+        const { status, availableArtifacts, totalArtifacts } = result.data;
+        console.log(`[RedisArtifactStore] Health check: ${status} (${availableArtifacts}/${totalArtifacts} artifacts available)`);
+        return true; // Store is usable even if empty
+      }
+
+      return false;
     } catch (error) {
       console.warn(`[RedisArtifactStore] Health check failed:`, error.message);
       return false;
