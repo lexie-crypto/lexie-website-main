@@ -13,168 +13,6 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/environment';
 import { NetworkName } from '@railgun-community/shared-models';
 
-// 🎂 WALLET BIRTHDAY SYSTEM: Calculate safe scan start blocks for fresh wallets
-function calculateWalletBirthdays(currentBlockMap) {
-  const birthdays = {};
-
-  // Chain-specific safety backoffs (blocks to go back from current to account for reorgs/indexer lag)
-  const SAFETY_BACKOFFS = {
-    [NetworkName.Ethereum]: 8000,    // ~2-3 hours on mainnet (12-15s blocks)
-    [NetworkName.Polygon]: 2000,     // ~10 minutes on Polygon (2-3s blocks)
-    [NetworkName.Arbitrum]: 5000,    // ~25 minutes on Arbitrum (3-5s blocks)
-    [NetworkName.BNBChain]: 3000,    // ~5 minutes on BSC (3s blocks)
-    [NetworkName.PolygonAmoy]: 2000, // Testnet - smaller backoff
-    [NetworkName.ArbitrumGoerli_DEPRECATED]: 1000, // Testnet
-    [NetworkName.EthereumGoerli_DEPRECATED]: 1000, // Testnet
-    [NetworkName.EthereumSepolia]: 1000, // Testnet
-  };
-
-  // Calculate birthday for each supported network
-  const networkNames = Object.keys(currentBlockMap);
-  for (let i = 0; i < networkNames.length; i++) {
-    const networkName = networkNames[i];
-    const currentBlock = currentBlockMap[networkName];
-    const backoff = SAFETY_BACKOFFS[networkName] || 2000; // Default 2000 blocks
-
-    if (currentBlock && typeof currentBlock === 'number') {
-      birthdays[networkName] = Math.max(0, currentBlock - backoff);
-    } else {
-      console.warn(`⚠️ Invalid current block for ${networkName}:`, currentBlock);
-      birthdays[networkName] = 0; // Fallback
-    }
-  }
-
-  return birthdays;
-}
-
-// 🔍 SDK VALIDATED COMMITMENT QUERY: Get latest validated TXID blocks per chain
-async function querySDKValidatedCommitmentBlocks(poiNodeURLs) {
-  const validatedBlocks = {};
-
-  // Initialize fallback values
-  validatedBlocks[NetworkName.Ethereum] = 0;
-  validatedBlocks[NetworkName.Polygon] = 0;
-  validatedBlocks[NetworkName.Arbitrum] = 0;
-  validatedBlocks[NetworkName.BNBChain] = 0;
-
-  // For now, skip POI querying as it's causing dynamic import issues
-  // In production, this would query actual POI nodes for validated state
-  console.log('🔍 [SDK-VALIDATED] POI querying temporarily disabled - using fallback values (0)');
-
-  // TODO: Re-enable POI querying once dynamic import issues are resolved
-  /*
-  try {
-    // Inline POI requester functionality to avoid dynamic imports
-    class POINodeRequest {
-      constructor(poiNodeURLs) {
-        this.poiNodeURLs = poiNodeURLs || [];
-      }
-
-      async getLatestValidatedRailgunTxid(txidVersion, chain) {
-        // Mock implementation - would query actual POI nodes in production
-        return {
-          validatedTxidIndex: null,
-          validatedMerkleroot: null
-        };
-      }
-    }
-
-    class WalletPOIRequester {
-      constructor(poiNodeURLs) {
-        this.poiNodeRequest = poiNodeURLs ? new POINodeRequest(poiNodeURLs) : null;
-      }
-
-      async getLatestValidatedRailgunTxid(txidVersion, chain) {
-        if (!this.poiNodeRequest) {
-          return { txidIndex: null, merkleroot: null };
-        }
-
-        try {
-          const result = await this.poiNodeRequest.getLatestValidatedRailgunTxid(txidVersion, chain);
-          return {
-            txidIndex: result.validatedTxidIndex,
-            merkleroot: result.validatedMerkleroot,
-          };
-        } catch (error) {
-          console.warn(`⚠️ [POI-REQUEST] Failed to query validated TXID for chain ${chain.type}:${chain.id}:`, error.message);
-          return { txidIndex: null, merkleroot: null };
-        }
-      }
-    }
-
-    const poiRequester = new WalletPOIRequester(poiNodeURLs);
-
-    // Query each supported network
-    const networks = [
-      { name: NetworkName.Ethereum, chain: { type: 1, id: 1 } },
-      { name: NetworkName.Polygon, chain: { type: 2, id: 137 } },
-      { name: NetworkName.Arbitrum, chain: { type: 2, id: 42161 } },
-      { name: NetworkName.BNBChain, chain: { type: 4, id: 56 } }
-    ];
-
-    for (const network of networks) {
-      try {
-        const result = await poiRequester.getLatestValidatedRailgunTxid(
-          TXIDVersion.V2_PoseidonMerkle,
-          network.chain
-        );
-
-        if (result.txidIndex) {
-          validatedBlocks[network.name] = result.txidIndex;
-          console.log(`🔍 [SDK-VALIDATED] ${network.name}: validated up to TXID index ${result.txidIndex}`);
-        } else {
-          console.log(`🔍 [SDK-VALIDATED] ${network.name}: no validated TXID available`);
-        }
-      } catch (error) {
-        console.warn(`⚠️ [SDK-VALIDATED] Failed to query ${network.name}:`, error.message);
-      }
-    }
-
-  } catch (error) {
-    console.warn('⚠️ [SDK-VALIDATED] Failed to query POI nodes:', error.message);
-  }
-  */
-
-  return validatedBlocks;
-}
-
-// 🎯 EFFECTIVE START BLOCK CALCULATION: Clamp birthdays to SDK validated blocks
-function calculateEffectiveStartBlocks(walletBirthdays, sdkValidatedBlocks) {
-  const effectiveStarts = {};
-
-  const networkNames = Object.keys(walletBirthdays);
-  for (let i = 0; i < networkNames.length; i++) {
-    const networkName = networkNames[i];
-    const birthday = walletBirthdays[networkName] || 0;
-    const sdkValidated = sdkValidatedBlocks[networkName] || 0;
-
-    // Use the more restrictive (higher) block number
-    // This ensures we don't scan blocks that the SDK already knows are validated
-    // If SDK has no validation (0), fall back to birthday
-    const effectiveStart = Math.max(birthday, sdkValidated);
-
-    effectiveStarts[networkName] = effectiveStart;
-
-    let reasoning;
-    if (sdkValidated === 0) {
-      reasoning = 'SDK has no validated blocks - using wallet birthday';
-    } else if (sdkValidated > birthday) {
-      reasoning = 'Using SDK validated block (higher than birthday)';
-    } else {
-      reasoning = 'Using wallet birthday (higher than or equal to SDK validated)';
-    }
-
-    console.log(`🎯 [EFFECTIVE-START] ${networkName}:`, {
-      birthday: birthday,
-      sdkValidated: sdkValidated,
-      effectiveStart: effectiveStart,
-      reasoning: reasoning
-    });
-  }
-
-  return effectiveStarts;
-}
-
 // Inline wallet metadata API functions
 async function getWalletMetadata(walletAddress) {
   console.log('🔍 [GET-WALLET-METADATA] Starting API call', {
@@ -232,8 +70,7 @@ async function getWalletMetadata(walletAddress) {
           allKeys: result.keys,
           privateBalances: metaKey.privateBalances || [],
           lastBalanceUpdate: metaKey.lastBalanceUpdate,
-          scannedChains: metaKey.scannedChains || [],
-          walletBirthdays: metaKey.walletBirthdays // 🎂 Include wallet birthdays for scan optimization
+          scannedChains: metaKey.scannedChains || []
         };
       }
       
@@ -260,8 +97,7 @@ async function getWalletMetadata(walletAddress) {
           allKeys: result.keys,
           privateBalances: firstKey.privateBalances || [],
           lastBalanceUpdate: firstKey.lastBalanceUpdate,
-          scannedChains: firstKey.scannedChains || [],
-          walletBirthdays: firstKey.walletBirthdays // 🎂 Include wallet birthdays for legacy format too
+          scannedChains: firstKey.scannedChains || []
         };
       }
     }
@@ -273,7 +109,7 @@ async function getWalletMetadata(walletAddress) {
   }
 }
 
-async function storeWalletMetadata(walletAddress, walletId, railgunAddress, signature = null, encryptedMnemonic = null, creationBlockNumbers = null, walletBirthdays = null) {
+async function storeWalletMetadata(walletAddress, walletId, railgunAddress, signature = null, encryptedMnemonic = null, creationBlockNumbers = null) {
   console.log('💾 [STORE-WALLET-METADATA] Starting API call - COMPLETE REDIS STORAGE', {
     walletAddress: walletAddress?.slice(0, 8) + '...',
     walletId: walletId?.slice(0, 8) + '...',
@@ -281,7 +117,6 @@ async function storeWalletMetadata(walletAddress, walletId, railgunAddress, sign
     hasSignature: !!signature,
     hasEncryptedMnemonic: !!encryptedMnemonic,
     hasCreationBlockNumbers: !!creationBlockNumbers,
-    hasWalletBirthdays: !!walletBirthdays,
     signaturePreview: signature?.slice(0, 10) + '...' || 'none',
     storageType: 'Redis-only (no localStorage)'
   });
@@ -299,8 +134,7 @@ async function storeWalletMetadata(walletAddress, walletId, railgunAddress, sign
         railgunAddress,
         signature,
         encryptedMnemonic, // Store encrypted mnemonic in Redis for cross-device access
-        creationBlockNumbers, // Store creation block numbers for faster future wallet loads
-        walletBirthdays // 🎂 Store wallet birthdays for scan optimization
+        creationBlockNumbers // Store creation block numbers for faster future wallet loads
       }),
     });
     
@@ -1029,19 +863,6 @@ const WalletContextProvider = ({ children }) => {
           totalKeys: redisWalletData.totalKeys,
           source: 'Redis'
         });
-
-        // 🎂 BIRTHDAY CHECK: Log if wallet has birthday optimization data
-        if (redisWalletData.walletBirthdays) {
-          console.log('🎂 Found wallet birthdays in Redis - birthday optimization available:', {
-            walletId: redisWalletData.walletId?.slice(0, 8) + '...',
-            hasEthereumBirthday: !!redisWalletData.walletBirthdays[NetworkName.Ethereum],
-            hasPolygonBirthday: !!redisWalletData.walletBirthdays[NetworkName.Polygon],
-            hasArbitrumBirthday: !!redisWalletData.walletBirthdays[NetworkName.Arbitrum],
-            hasBNBChainBirthday: !!redisWalletData.walletBirthdays[NetworkName.BNBChain],
-            birthdaySource: 'Redis-stored'
-          });
-        }
-
         existingWalletID = redisWalletData.walletId;
         existingRailgunAddress = redisWalletData.railgunAddress;
         
@@ -1626,32 +1447,6 @@ const WalletContextProvider = ({ children }) => {
       pauseAllPollingProviders(); // Stop polling until user actually needs it
       console.log('✅ RAILGUN providers paused after full init - will resume when needed');
 
-      // 🔍 TEMPORARILY DISABLED: SDK validated query causing issues
-      console.log('🔍 SDK validated query temporarily disabled');
-      const sdkValidatedBlocks = {
-        [NetworkName.Ethereum]: 0,
-        [NetworkName.Polygon]: 0,
-        [NetworkName.Arbitrum]: 0,
-        [NetworkName.BNBChain]: 0
-      };
-
-      // 🏗️ Step 3.6: Fetch current block numbers for wallet creation optimization
-      console.log('🏗️ Fetching current block numbers for wallet creation optimization...');
-
-      const creationBlockNumberMap = await fetchCurrentBlockNumbers();
-
-      console.log('✅ Block numbers fetched for wallet creation:', {
-        ethereum: creationBlockNumberMap[NetworkName.Ethereum],
-        polygon: creationBlockNumberMap[NetworkName.Polygon],
-        arbitrum: creationBlockNumberMap[NetworkName.Arbitrum],
-        bnb: creationBlockNumberMap[NetworkName.BNBChain]
-      });
-
-      // 🎂 TEMPORARILY DISABLED: Wallet birthday system causing temporal dead zone errors
-      console.log('🎂 Wallet birthday system temporarily disabled due to variable scoping issues');
-
-      let effectiveStartBlocks = null;
-
       // Step 4: Wallet creation/loading with official SDK
       const bip39 = await import('bip39');
       const { Mnemonic, randomBytes } = await import('ethers');
@@ -1682,10 +1477,7 @@ const WalletContextProvider = ({ children }) => {
 
       // User-specific storage (Redis-only approach)
       const savedWalletID = existingWalletID; // From Redis only
-      const savedEncryptedMnemonic = existingMnemonic; // From Redis
       let railgunWalletInfo;
-
-      // 🎂 WALLET BIRTHDAY SYSTEM: Temporarily disabled
 
       if (savedWalletID && existingRailgunAddress) {
         // Load existing wallet using Redis data
@@ -1739,6 +1531,7 @@ const WalletContextProvider = ({ children }) => {
         
         // 🔄 Check for existing encrypted mnemonic from Redis
         let mnemonic = null;
+        const savedEncryptedMnemonic = existingMnemonic; // From Redis only
         
         if (savedEncryptedMnemonic) {
           try {
@@ -1778,23 +1571,23 @@ const WalletContextProvider = ({ children }) => {
           console.log('✅ Generated new secure mnemonic (will be stored in Redis only)');
         }
         
-        // 🏗️ Create wallet with official SDK - Block numbers already fetched above
+        // 🏗️ Create wallet with official SDK - Fetch current block numbers for faster initialization
+        console.log('🏗️ Fetching current block numbers for wallet creation optimization...');
 
-        // 🎂 WALLET BIRTHDAY SYSTEM: Wallet birthdays already calculated above
+        const creationBlockNumberMap = await fetchCurrentBlockNumbers();
+
+        console.log('✅ Block numbers fetched for wallet creation:', {
+          ethereum: creationBlockNumberMap[NetworkName.Ethereum],
+          polygon: creationBlockNumberMap[NetworkName.Polygon],
+          arbitrum: creationBlockNumberMap[NetworkName.Arbitrum],
+          bnb: creationBlockNumberMap[NetworkName.BNBChain]
+        });
         
         try {
-        // 🎯 TEMPORARILY DISABLED: Using standard creation block numbers
-        const scanStartBlocks = creationBlockNumberMap;
-
-        console.log('🎯 Using scan start blocks:', {
-          scanStartBlocks,
-          reasoning: 'Using standard creation block numbers (birthday system disabled)'
-        });
-
           railgunWalletInfo = await createRailgunWallet(
             encryptionKey,
             mnemonic,
-            scanStartBlocks // Use birthdays for fresh wallets, current blocks for others
+            creationBlockNumberMap
           );
           
           // 🚀 REDIS-ONLY: Store COMPLETE wallet data for true cross-device persistence
@@ -1808,8 +1601,7 @@ const WalletContextProvider = ({ children }) => {
               railgunWalletInfo.railgunAddress,
               signature,
               encryptedMnemonic, // Store encrypted mnemonic in Redis
-              creationBlockNumberMap, // Store creation block numbers for faster future loads
-              walletBirthdayMap // 🎂 Store wallet birthdays for scan optimization
+              creationBlockNumberMap // Store creation block numbers for faster future loads
             );
             
             if (storeSuccess) {
