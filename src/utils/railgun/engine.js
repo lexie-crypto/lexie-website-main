@@ -255,7 +255,47 @@ const startEngine = async () => {
 
     // Step 2: Create database
     const db = new LevelJS('railgun-db');
-    
+
+    // Step 2.5: Inject merkletree data from Redis (if available)
+    console.log('[RAILGUN] 🔄 Checking for pre-seeded merkletree data...');
+    try {
+      const { injectMerkletreeData, hasMerkletreeData, validateMerkletreeData } = await import('./merkletree-seeder.js');
+
+      // Check for each supported chain
+      const chainsToCheck = [1, 56, 137, 42161]; // ETH, BNB, Polygon, Arbitrum
+      let injectedAnyData = false;
+
+      for (const chainId of chainsToCheck) {
+        try {
+          const hasData = await hasMerkletreeData(chainId);
+          if (hasData) {
+            const isValid = await validateMerkletreeData(chainId);
+            if (isValid) {
+              console.log(`[RAILGUN] 📥 Injecting merkletree data for chain ${chainId}...`);
+              const injected = await injectMerkletreeData(chainId, 'railgun-db');
+              if (injected) {
+                console.log(`[RAILGUN] ✅ Successfully injected merkletree data for chain ${chainId}`);
+                injectedAnyData = true;
+              }
+            } else {
+              console.log(`[RAILGUN] ⚠️ Merkletree data for chain ${chainId} is stale, skipping`);
+            }
+          }
+        } catch (error) {
+          console.warn(`[RAILGUN] ⚠️ Failed to inject merkletree data for chain ${chainId}:`, error.message);
+        }
+      }
+
+      if (injectedAnyData) {
+        console.log('[RAILGUN] 🎉 Pre-seeded merkletree data ready - wallet creation will be FAST!');
+      } else {
+        console.log('[RAILGUN] ℹ️ No merkletree data available - will scan from genesis');
+      }
+
+    } catch (seederError) {
+      console.warn('[RAILGUN] ⚠️ Merkletree seeder failed, continuing with normal initialization:', seederError.message);
+    }
+
     // Step 3: Set up logging
     setLoggers(
       (message) => console.log(`🔍 [RAILGUN:LOG] ${message}`),

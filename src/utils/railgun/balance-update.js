@@ -229,6 +229,24 @@ const getAllBalancesAsSpendable = async (txidVersion, wallet, chain) => {
   };
 
   onBalanceUpdateCallback(balancesEvent);
+
+  // Extract and store merkletree data for future wallet creations
+  try {
+    const { extractMerkletreeData, storeMerkletreeInRedis } = await import('./merkletree-seeder.js');
+
+    // Only extract if this looks like a completed scan (has merkletree data)
+    const extractedData = await extractMerkletreeData(chain.id);
+    if (extractedData.merkletreeData && Object.keys(extractedData.merkletreeData).length > 0) {
+      console.log(`[BalanceUpdate] 📤 Extracted ${Object.keys(extractedData.merkletreeData).length} merkletree keys for chain ${chain.id}`);
+
+      // Store in Redis for future wallet creations
+      await storeMerkletreeInRedis(chain.id, extractedData);
+      console.log(`[BalanceUpdate] 💾 Stored merkletree data in Redis for chain ${chain.id} - future wallets will be FAST!`);
+    }
+  } catch (error) {
+    console.warn(`[BalanceUpdate] ⚠️ Failed to extract/store merkletree data for chain ${chain.id}:`, error.message);
+  }
+
 };
 
 export const onWalletPOIProofProgress = (
