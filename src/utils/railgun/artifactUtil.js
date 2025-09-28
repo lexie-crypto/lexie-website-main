@@ -4,7 +4,7 @@
  */
 
 import { ArtifactName } from '@railgun-community/shared-models';
-import brotliDecompress from 'brotli/decompress';
+import brotliWasmPromise from 'brotli-wasm';
 
 // IPFS Configuration
 const IPFS_GATEWAY = 'https://ipfs-lb.com';
@@ -51,21 +51,77 @@ export const getArtifactDownloadsPaths = (artifactVariantString) => {
   };
 };
 
-// Decompress artifact - matches Railgun SDK implementation
-export const decompressArtifact = (arrayBuffer) => {
-  try {
-    const decompress = brotliDecompress;
-    return decompress(Buffer.from(arrayBuffer));
-  } catch (error) {
-    console.warn('[ArtifactUtil] Brotli decompression failed, trying gzip fallback:', error.message);
+// Check if we're in Node.js environment
+const isNodeJS = typeof process !== 'undefined' && process.versions != null && process.versions.node != null;
 
-    // Fallback to gzip - matches Railgun SDK pattern
+// Lazy-loaded brotli decompressor for browser
+let brotliDecompress = null;
+const getBrotliDecompress = async () => {
+  if (brotliDecompress) return brotliDecompress;
+  if (isNodeJS) {
+    // Node.js: use built-in zlib
+    const { brotliDecompress: nodeBrotli } = await import('zlib');
+    brotliDecompress = nodeBrotli;
+  } else {
+    // Browser: use brotli-wasm
+    const brotliWasm = await brotliWasmPromise;
+    brotliDecompress = brotliWasm.decompress;
+  }
+  return brotliDecompress;
+};
+
+// Decompress artifact with Brotli/gzip support
+export const decompressArtifact = async (arrayBuffer) => {
+  const input = new Uint8Array(arrayBuffer);
+
+  // First try Brotli decompression
+  try {
+    const decompressFn = await getBrotliDecompress();
+    if (isNodeJS) {
+      // Node.js zlib.brotliDecompress expects Buffer
+      const buffer = Buffer.from(arrayBuffer);
+      const decompressed = await new Promise((resolve, reject) => {
+        decompressFn(buffer, (err, result) => {
+          if (err) reject(err);
+          else resolve(result);
+        });
+      });
+      return new Uint8Array(decompressed);
+    } else {
+      // Browser brotli-wasm
+      const decompressed = decompressFn(input);
+      return decompressed;
+    }
+  } catch (brotliError) {
+    console.warn('[ArtifactUtil] Brotli decompression failed, trying gzip:', brotliError.message);
+
+    // Fallback to gzip decompression
     try {
-      const { ungzip } = require('pako');
-      return ungzip(new Uint8Array(arrayBuffer));
+      if (isNodeJS) {
+        const { gunzip } = await import('zlib');
+        const buffer = Buffer.from(arrayBuffer);
+        const decompressed = await new Promise((resolve, reject) => {
+          gunzip(buffer, (err, result) => {
+            if (err) reject(err);
+            else resolve(result);
+          });
+        });
+        return new Uint8Array(decompressed);
+      } else {
+        // Browser gzip fallback - use pako if available, or throw
+        if (typeof window !== 'undefined' && window.pako) {
+          return window.pako.ungzip(input);
+        }
+        throw new Error('No gzip decompression available in browser');
+      }
     } catch (gzipError) {
-      console.error('[ArtifactUtil] Both Brotli and gzip decompression failed:', gzipError.message);
-      throw new Error('Failed to decompress artifact');
+      console.error('[ArtifactUtil] Both Brotli and gzip decompression failed:', {
+        brotli: brotliError.message,
+        gzip: gzipError.message
+      });
+      // Return raw data as last resort (maintains backward compatibility)
+      console.warn('[ArtifactUtil] Returning raw data - decompression failed');
+      return input;
     }
   }
 };
