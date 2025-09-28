@@ -1661,6 +1661,25 @@ const WalletContextProvider = ({ children }) => {
           const alreadyScanned = typeof window !== 'undefined' && (window.__RAILGUN_INITIAL_SCAN_DONE?.[railgunChain.id] || localStorage.getItem(scanKey) === '1');
           if (!alreadyScanned) {
             console.log('[Railgun Init] 🔄 Performing initial balance refresh for chain', railgunChain.id);
+
+            // 🚀 OPTIMIZE: Set scan start point to creation block before scanning
+            try {
+              const { optimizeInitialScanStartPoint } = await import('../utils/railgun/scan-optimizer.js');
+              const networkName = Object.keys(creationBlockNumberMap).find(key =>
+                NETWORK_CONFIG[key]?.chain.id === chainId
+              );
+              const creationBlock = networkName ? creationBlockNumberMap[networkName] : 0;
+
+              if (creationBlock > 0) {
+                console.log(`[Railgun Init] 🎯 Optimizing scan to start from creation block ${creationBlock} instead of ancient blocks`);
+                await optimizeInitialScanStartPoint(db, chainId, railgunWalletInfo.id, creationBlock);
+              } else {
+                console.log(`[Railgun Init] ⚠️ No creation block found for chain ${chainId}, scan will use default start point`);
+              }
+            } catch (optimizeError) {
+              console.warn(`[Railgun Init] ⚠️ Scan optimization failed, proceeding with default scan:`, optimizeError.message);
+            }
+
             // Start UI polling exactly when refresh begins
             try { window.dispatchEvent(new CustomEvent('vault-poll-start', { detail: { address, walletId: railgunWalletInfo.id, chainId: railgunChain.id } })); } catch {}
             await refreshBalances(railgunChain, [railgunWalletInfo.id]);
