@@ -1,25 +1,30 @@
 /**
  * Hybrid LevelDB Adapter for Railgun
- * Intelligently routes data storage based on type:
+ * CRITICAL: Intelligently routes data storage based on type and security requirements
  *
- * 📁 LOCAL LevelDB (Artifacts):
+ * 📁 LOCAL LevelDB (Artifacts - Device-bound for security):
  * - User-specific cryptographic data (private keys, viewing keys, signatures)
- * - Wallet artifacts and secrets
- * - Personal encryption keys
+ * - Wallet artifacts and secrets (zkey, wasm, circuits)
+ * - Personal encryption keys and secrets
+ * - Sensitive wallet metadata
  *
- * ☁️ REDIS (Merkletrees):
+ * ☁️ REDIS (Merkletrees - Cross-device shared state):
  * - Global commitment trees (UTXO/TXID Merkletrees)
- * - Shared proof data accessible by all users
- * - Chain-specific global state
+ * - Proof data and commitments (shared across all users)
+ * - Chain sync information and block data
+ * - Nullifiers and transaction proofs
  *
- * This provides security for user data while enabling shared global state.
+ * 🚨 SECURITY MODEL:
+ * - Sensitive cryptographic data NEVER leaves the user's device
+ * - Merkle tree data is shared globally for efficiency and cross-device access
+ * - Artifacts stay local to maintain security and reduce Redis storage costs
  */
 
 import { createRedisLevelDBAdapter } from './redis-leveldb-adapter.js';
 
-// Data type classification
+// Data type classification - CRITICAL for hybrid storage routing
 const DATA_TYPES = {
-  // 🔐 LOCAL STORAGE (sensitive user data)
+  // 🔐 LOCAL STORAGE (sensitive user data - stays on device)
   ARTIFACTS: [
     'wallet',
     'encryption',
@@ -28,10 +33,14 @@ const DATA_TYPES = {
     'private',
     'secret',
     'viewing',
-    'spending'
+    'spending',
+    'artifact',
+    'zkey',
+    'wasm',
+    'circuit'
   ],
 
-  // 🌐 REDIS STORAGE (global shared data)
+  // 🌐 REDIS STORAGE (global shared data - cross-device accessible)
   MERKLETREES: [
     'merkletree',
     'commitment',
@@ -39,7 +48,14 @@ const DATA_TYPES = {
     'txid',
     'proof',
     'root',
-    'leaf'
+    'leaf',
+    'nullifier',
+    'chain_sync_info',
+    'last_synced_block',
+    'v2_poseidonmerkle',
+    'quick_sync',
+    'tree_length',
+    'tree_root'
   ]
 };
 
@@ -56,27 +72,43 @@ class HybridLevelDBAdapter {
   }
 
   /**
-   * Determine storage location based on key content
+   * Determine storage location based on key content - CRITICAL ROUTING LOGIC
+   * This ensures Merkle trees go to Redis while artifacts stay local
    */
   getStorageLocation(key) {
     const keyLower = key.toLowerCase();
 
-    // Check if it's Merkletree data (goes to Redis)
+    // 🚨 PRIORITY 1: Check if it's Merkletree data (goes to Redis for cross-device access)
     for (const merkletreeKeyword of DATA_TYPES.MERKLETREES) {
       if (keyLower.includes(merkletreeKeyword)) {
+        console.log(`[HybridDB] ☁️ ROUTED TO REDIS (MerkleTree): ${key} (matched: ${merkletreeKeyword})`);
         return 'redis';
       }
     }
 
-    // Check if it's artifact data (stays local)
+    // 🔐 PRIORITY 2: Check if it's artifact/cryptographic data (stays local for security)
     for (const artifactKeyword of DATA_TYPES.ARTIFACTS) {
       if (keyLower.includes(artifactKeyword)) {
+        console.log(`[HybridDB] 💾 ROUTED TO LOCAL (Artifact): ${key} (matched: ${artifactKeyword})`);
         return 'local';
       }
     }
 
-    // Default: sensitive data stays local for security
-    console.warn(`[HybridDB] ⚠️ Unknown key type, defaulting to local storage: ${key}`);
+    // 🚨 PRIORITY 3: Check for Railgun namespace patterns that indicate Merkle tree data
+    if (keyLower.includes('merkletree') ||
+        keyLower.includes('commitment') ||
+        keyLower.includes('utxo') ||
+        keyLower.includes('proof') ||
+        keyLower.includes('nullifier') ||
+        keyLower.startsWith('00000000000000000000000000000000') || // Railgun hex namespace prefix
+        keyLower.includes('chain_sync_info') ||
+        keyLower.includes('last_synced_block')) {
+      console.log(`[HybridDB] ☁️ ROUTED TO REDIS (Namespace): ${key}`);
+      return 'redis';
+    }
+
+    // 🔐 DEFAULT: Sensitive data stays local for security
+    console.log(`[HybridDB] 💾 ROUTED TO LOCAL (Default): ${key}`);
     return 'local';
   }
 
@@ -125,10 +157,8 @@ class HybridLevelDBAdapter {
     const location = this.getStorageLocation(key);
 
     if (location === 'redis') {
-      console.log(`[HybridDB] ☁️ Storing in Redis: ${key}`);
       return await this.redisAdapter.put(key, value);
     } else {
-      console.log(`[HybridDB] 💾 Storing locally: ${key}`);
       const local = await this.getLocalAdapter();
       return await local.put(key, value);
     }
@@ -142,10 +172,8 @@ class HybridLevelDBAdapter {
     const location = this.getStorageLocation(key);
 
     if (location === 'redis') {
-      console.log(`[HybridDB] ☁️ Reading from Redis: ${key}`);
       return await this.redisAdapter.get(key);
     } else {
-      console.log(`[HybridDB] 💾 Reading from local: ${key}`);
       const local = await this.getLocalAdapter();
       return await local.get(key);
     }
@@ -191,12 +219,10 @@ class HybridLevelDBAdapter {
     const promises = [];
 
     if (redisOps.length > 0) {
-      console.log(`[HybridDB] ☁️ Executing ${redisOps.length} Redis operations`);
       promises.push(this.redisAdapter.batch(redisOps));
     }
 
     if (localOps.length > 0) {
-      console.log(`[HybridDB] 💾 Executing ${localOps.length} local operations`);
       const local = await this.getLocalAdapter();
       promises.push(local.batch(localOps));
     }
@@ -324,10 +350,11 @@ export const initializeHybridRailgunEngine = async (dbName = 'railgun-engine-hyb
   const hybridAdapter = createHybridLevelDBAdapter(dbName);
   await hybridAdapter.connect();
 
-  // Log storage routing strategy
-  console.log('[HybridDB] 📋 Storage routing strategy:');
-  console.log('  🔐 LOCAL: Artifacts, keys, signatures, encryption data');
-  console.log('  ☁️ REDIS: Merkletrees, commitments, proofs, global state');
+  // Log storage routing strategy - CRITICAL for debugging
+  console.log('[HybridDB] 📋 Hybrid storage routing strategy:');
+  console.log('  🔐 LOCAL: Artifacts, keys, signatures, encryption data (device-bound)');
+  console.log('  ☁️ REDIS: Merkletrees, commitments, proofs, global state (cross-device)');
+  console.log('  🚨 SECURITY: Sensitive crypto data NEVER leaves device');
 
   return hybridAdapter;
 };
