@@ -91,6 +91,147 @@ export const getQuickSyncStateManager = () => {
   return quickSyncStateManager;
 };
 
+/**
+ * Manually trigger optimized state-based QuickSync scans for all networks
+ * This replaces the automatic SDK scanning with our optimized version
+ */
+export const triggerOptimizedMerkletreeScans = async () => {
+  if (!quickSyncStateManager) {
+    console.warn('[Engine] QuickSync state manager not initialized, skipping optimized scans');
+    return false;
+  }
+
+  console.log('[Engine] 🚀 Triggering optimized state-based merkletree scans...');
+
+  try {
+    const { getEngine } = await import('@railgun-community/wallet');
+    const engine = getEngine();
+
+    // Get all supported networks
+    const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
+
+    const networksToScan = [
+      { name: NetworkName.Ethereum, config: NETWORK_CONFIG[NetworkName.Ethereum] },
+      { name: NetworkName.BNBChain, config: NETWORK_CONFIG[NetworkName.BNBChain] },
+      { name: NetworkName.Polygon, config: NETWORK_CONFIG[NetworkName.Polygon] },
+      { name: NetworkName.Arbitrum, config: NETWORK_CONFIG[NetworkName.Arbitrum] },
+    ];
+
+    // Trigger optimized scans for each network
+    for (const network of networksToScan) {
+      try {
+        console.log(`[Engine] 🔄 Optimizing scan for ${network.name}...`);
+
+        // Get current block numbers for this network (as creation blocks)
+        const currentBlockNumbers = {
+          [network.name]: await getCurrentBlockForNetwork(network.name)
+        };
+
+        // Trigger our optimized scan
+        const scanSuccess = await quickSyncStateManager.sync(
+          'V2_PoseidonMerkle', // Use V2 for now
+          network.config.chain,
+          currentBlockNumbers[network.name], // Use current block as fallback
+          {
+            useStateQueries: true,
+            maxBatchSize: 5000,
+            poiFallback: true
+          }
+        );
+
+        if (scanSuccess && scanSuccess.commitmentEvents && scanSuccess.commitmentEvents.length > 0) {
+          console.log(`[Engine] ✅ Optimized scan completed for ${network.name}: ${scanSuccess.commitmentEvents.length} events`);
+        } else {
+          console.log(`[Engine] ⚠️ Optimized scan found no new events for ${network.name}, triggering manual engine scan`);
+          // Fallback to manual engine scan if our optimization didn't work
+          await engine.scanContractHistory(network.config.chain);
+        }
+
+      } catch (error) {
+        console.error(`[Engine] ❌ Failed optimized scan for ${network.name}:`, error);
+        // Fallback to manual engine scan
+        try {
+          await engine.scanContractHistory(network.config.chain);
+        } catch (fallbackError) {
+          console.error(`[Engine] ❌ Fallback scan also failed for ${network.name}:`, fallbackError);
+        }
+      }
+    }
+
+    console.log('[Engine] ✅ All optimized merkletree scans completed');
+    return true;
+
+  } catch (error) {
+    console.error('[Engine] ❌ Failed to trigger optimized merkletree scans:', error);
+    return false;
+  }
+};
+
+/**
+ * Get current block number for a specific network
+ */
+const getCurrentBlockForNetwork = async (networkName) => {
+  try {
+    const { RPC_URLS } = await import('../../config/environment');
+    const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
+
+    const networkConfig = NETWORK_CONFIG[networkName];
+    if (!networkConfig) {
+      throw new Error(`Network config not found for ${networkName}`);
+    }
+
+    // Get RPC URL for this network
+    const rpcUrls = {
+      [NetworkName.Ethereum]: RPC_URLS.ethereum,
+      [NetworkName.BNBChain]: RPC_URLS.bsc,
+      [NetworkName.Polygon]: RPC_URLS.polygon,
+      [NetworkName.Arbitrum]: RPC_URLS.arbitrum,
+    };
+
+    const rpcUrl = rpcUrls[networkName];
+    if (!rpcUrl) {
+      throw new Error(`RPC URL not configured for ${networkName}`);
+    }
+
+    // Fetch current block
+    const proxyUrl = typeof window !== 'undefined'
+      ? `${window.location.origin}/api/rpc?chainId=${networkConfig.chain.id}&provider=auto`
+      : rpcUrl;
+
+    const response = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'eth_blockNumber',
+        params: []
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    const blockNumber = parseInt(result.result, 16);
+
+    console.log(`[Engine] 📊 Current block for ${networkName}: ${blockNumber}`);
+    return blockNumber;
+
+  } catch (error) {
+    console.error(`[Engine] ❌ Failed to get current block for ${networkName}:`, error);
+    // Return conservative fallback
+    const fallbacks = {
+      [NetworkName.Ethereum]: 18500000,
+      [NetworkName.BNBChain]: 35000000,
+      [NetworkName.Polygon]: 55000000,
+      [NetworkName.Arbitrum]: 180000000,
+    };
+    return fallbacks[networkName] || 14000000;
+  }
+};
+
 // 🚀 ZERO-DELAY POI: Import contract address configuration
 import { 
   patchRailgunForZeroDelay, 
@@ -323,9 +464,9 @@ const startEngine = async () => {
       true,
       artifactManager.store,  // Pass the actual ArtifactStore instance
       false,
-      false,
-      poiNodeURLs,  // ✅ Official POI node URLs for enhanced validation
-      [],           // Custom POI lists (empty for now)
+      true,        // ✅ SKIP automatic merkletree scans - we'll do optimized scans manually
+      poiNodeURLs, // ✅ Official POI node URLs for enhanced validation
+      [],          // Custom POI lists (empty for now)
       true
     );
 

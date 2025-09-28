@@ -12,7 +12,6 @@ import { WagmiProvider, useAccount, useConnect, useDisconnect, useSwitchChain, u
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/environment';
 import { NetworkName } from '@railgun-community/shared-models';
-import { prepareWalletForScan } from '../utils/railgun/walletRefresh.js';
 
 // Inline wallet metadata API functions
 async function getWalletMetadata(walletAddress) {
@@ -1135,28 +1134,7 @@ const WalletContextProvider = ({ children }) => {
         if (railgunWalletInfo.id !== existingWalletID) {
           throw new Error(`Wallet ID mismatch: expected ${existingWalletID.slice(0, 8)}, got ${railgunWalletInfo.id?.slice(0, 8)}`);
         }
-
-        // 🚀 REFRESH SCAN STARTING POINTS to prevent stale block numbers
-        console.log('🔄 [WALLET-REFRESH] Refreshing scan points for reloaded wallet...');
-        try {
-          // Get all supported chains for scan optimization
-          const chains = [
-            { type: 1, id: 1 },      // Ethereum
-            { type: 2, id: 137 },    // Polygon
-            { type: 2, id: 42161 },  // Arbitrum
-            { type: 2, id: 56 }      // BSC
-          ];
-
-          const refreshResult = await prepareWalletForScan(existingWalletID, chains);
-          if (refreshResult) {
-            console.log('✅ [WALLET-REFRESH] Scan points refreshed successfully');
-          } else {
-            console.log('⚠️ [WALLET-REFRESH] Scan point refresh not available');
-          }
-        } catch (refreshError) {
-          console.warn('⚠️ [WALLET-REFRESH] Scan point refresh failed, continuing with defaults:', refreshError.message);
-        }
-
+        
         // ✅ Hydrate React state - this is the key part that prevents recreation
         setRailgunAddress(railgunWalletInfo.railgunAddress);
         setRailgunWalletID(railgunWalletInfo.id);
@@ -1593,25 +1571,23 @@ const WalletContextProvider = ({ children }) => {
           console.log('✅ Generated new secure mnemonic (will be stored in Redis only)');
         }
         
-        // 🏗️ Create wallet with official SDK - Use fresh block numbers to prevent staleness
-        console.log('🏗️ Creating wallet with fresh current block numbers (no stale creation blocks)...');
+        // 🏗️ Create wallet with official SDK - Fetch current block numbers for faster initialization
+        console.log('🏗️ Fetching current block numbers for wallet creation optimization...');
 
-        const freshBlockNumberMap = await fetchCurrentBlockNumbers();
+        const creationBlockNumberMap = await fetchCurrentBlockNumbers();
 
-        console.log('✅ Fresh block numbers for optimal scan start:', {
-          ethereum: freshBlockNumberMap[NetworkName.Ethereum],
-          polygon: freshBlockNumberMap[NetworkName.Polygon],
-          arbitrum: freshBlockNumberMap[NetworkName.Arbitrum],
-          bnb: freshBlockNumberMap[NetworkName.BNBChain]
+        console.log('✅ Block numbers fetched for wallet creation:', {
+          ethereum: creationBlockNumberMap[NetworkName.Ethereum],
+          polygon: creationBlockNumberMap[NetworkName.Polygon],
+          arbitrum: creationBlockNumberMap[NetworkName.Arbitrum],
+          bnb: creationBlockNumberMap[NetworkName.BNBChain]
         });
-
-        console.log('🎯 Using fresh blocks prevents "stale creation block numbers" problem!');
         
         try {
           railgunWalletInfo = await createRailgunWallet(
             encryptionKey,
             mnemonic,
-            freshBlockNumberMap // Use fresh blocks, not stored "creation blocks"
+            creationBlockNumberMap
           );
           
           // 🚀 REDIS-ONLY: Store COMPLETE wallet data for true cross-device persistence
@@ -1625,7 +1601,7 @@ const WalletContextProvider = ({ children }) => {
               railgunWalletInfo.railgunAddress,
               signature,
               encryptedMnemonic, // Store encrypted mnemonic in Redis
-              null // DON'T store creation block numbers - always use fresh ones!
+              creationBlockNumberMap // Store creation block numbers for faster future loads
             );
             
             if (storeSuccess) {
@@ -1634,10 +1610,9 @@ const WalletContextProvider = ({ children }) => {
                 railgunAddress: railgunWalletInfo.railgunAddress?.slice(0, 8) + '...',
                 hasSignature: !!signature,
                 hasEncryptedMnemonic: !!encryptedMnemonic,
-                creationBlocksStored: false, // Fresh blocks used instead
                 redisKey: `railgun:${address}:${railgunWalletInfo.id}`,
                 crossDeviceReady: true,
-                version: '2.1' // Updated to reflect fresh block strategy
+                version: '2.0'
               });
               
               console.log('🎉 Wallet is now accessible from ANY device/browser!');
@@ -1662,6 +1637,21 @@ const WalletContextProvider = ({ children }) => {
           console.error('❌ Failed to create Railgun wallet:', createError);
           throw new Error(`Railgun wallet creation failed: ${createError.message}`);
         }
+      }
+
+      // 🚀 CRITICAL: Trigger optimized state-based QuickSync scans
+      // This replaces the automatic SDK scans with our optimized version
+      console.log('🚀 Triggering optimized merkletree scans for instant wallet sync...');
+      try {
+        const scanSuccess = await triggerOptimizedMerkletreeScans();
+        if (scanSuccess) {
+          console.log('✅ Optimized QuickSync completed - wallet is ready with latest state!');
+        } else {
+          console.warn('⚠️ Optimized QuickSync failed, wallet may need manual refresh');
+        }
+      } catch (scanError) {
+        console.error('❌ Optimized QuickSync failed:', scanError);
+        console.warn('⚠️ Wallet created but may need manual refresh for full functionality');
       }
 
       // Set wallet state - Redis-only persistence
@@ -1773,7 +1763,7 @@ const WalletContextProvider = ({ children }) => {
       }
 
       console.log('[Railgun Engine] 🔧 Initializing via engine.js (patched config, no wallet init)...');
-      const { initializeRailgun } = await import('../utils/railgun/engine.js');
+      const { initializeRailgun, triggerOptimizedMerkletreeScans } = await import('../utils/railgun/engine.js');
       await initializeRailgun();
       if (typeof window !== 'undefined') window.__LEXIE_ENGINE_READY = true;
       console.log('[Railgun Engine] ✅ Engine ready (engine.js)');
