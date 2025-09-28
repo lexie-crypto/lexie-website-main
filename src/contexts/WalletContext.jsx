@@ -1593,23 +1593,25 @@ const WalletContextProvider = ({ children }) => {
           console.log('✅ Generated new secure mnemonic (will be stored in Redis only)');
         }
         
-        // 🏗️ Create wallet with official SDK - Fetch current block numbers for faster initialization
-        console.log('🏗️ Fetching current block numbers for wallet creation optimization...');
+        // 🏗️ Create wallet with official SDK - Use fresh block numbers to prevent staleness
+        console.log('🏗️ Creating wallet with fresh current block numbers (no stale creation blocks)...');
 
-        const creationBlockNumberMap = await fetchCurrentBlockNumbers();
+        const freshBlockNumberMap = await fetchCurrentBlockNumbers();
 
-        console.log('✅ Block numbers fetched for wallet creation:', {
-          ethereum: creationBlockNumberMap[NetworkName.Ethereum],
-          polygon: creationBlockNumberMap[NetworkName.Polygon],
-          arbitrum: creationBlockNumberMap[NetworkName.Arbitrum],
-          bnb: creationBlockNumberMap[NetworkName.BNBChain]
+        console.log('✅ Fresh block numbers for optimal scan start:', {
+          ethereum: freshBlockNumberMap[NetworkName.Ethereum],
+          polygon: freshBlockNumberMap[NetworkName.Polygon],
+          arbitrum: freshBlockNumberMap[NetworkName.Arbitrum],
+          bnb: freshBlockNumberMap[NetworkName.BNBChain]
         });
+
+        console.log('🎯 Using fresh blocks prevents "stale creation block numbers" problem!');
         
         try {
           railgunWalletInfo = await createRailgunWallet(
             encryptionKey,
             mnemonic,
-            creationBlockNumberMap
+            freshBlockNumberMap // Use fresh blocks, not stored "creation blocks"
           );
           
           // 🚀 REDIS-ONLY: Store COMPLETE wallet data for true cross-device persistence
@@ -1623,7 +1625,7 @@ const WalletContextProvider = ({ children }) => {
               railgunWalletInfo.railgunAddress,
               signature,
               encryptedMnemonic, // Store encrypted mnemonic in Redis
-              creationBlockNumberMap // Store creation block numbers for faster future loads
+              null // DON'T store creation block numbers - always use fresh ones!
             );
             
             if (storeSuccess) {
@@ -1632,9 +1634,10 @@ const WalletContextProvider = ({ children }) => {
                 railgunAddress: railgunWalletInfo.railgunAddress?.slice(0, 8) + '...',
                 hasSignature: !!signature,
                 hasEncryptedMnemonic: !!encryptedMnemonic,
+                creationBlocksStored: false, // Fresh blocks used instead
                 redisKey: `railgun:${address}:${railgunWalletInfo.id}`,
                 crossDeviceReady: true,
-                version: '2.0'
+                version: '2.1' // Updated to reflect fresh block strategy
               });
               
               console.log('🎉 Wallet is now accessible from ANY device/browser!');
