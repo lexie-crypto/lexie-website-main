@@ -1626,10 +1626,14 @@ const WalletContextProvider = ({ children }) => {
       pauseAllPollingProviders(); // Stop polling until user actually needs it
       console.log('✅ RAILGUN providers paused after full init - will resume when needed');
 
-      // 🔍 Step 3.5: Query SDK validated commitment blocks for optimization
-      console.log('🔍 Querying SDK validated commitment blocks for scan optimization...');
-      const sdkValidatedBlocks = await querySDKValidatedCommitmentBlocks(['https://ppoi.fdi.network/']);
-      console.log('✅ SDK validated blocks queried (currently using fallback values):', sdkValidatedBlocks);
+      // 🔍 TEMPORARILY DISABLED: SDK validated query causing issues
+      console.log('🔍 SDK validated query temporarily disabled');
+      const sdkValidatedBlocks = {
+        [NetworkName.Ethereum]: 0,
+        [NetworkName.Polygon]: 0,
+        [NetworkName.Arbitrum]: 0,
+        [NetworkName.BNBChain]: 0
+      };
 
       // 🏗️ Step 3.6: Fetch current block numbers for wallet creation optimization
       console.log('🏗️ Fetching current block numbers for wallet creation optimization...');
@@ -1643,30 +1647,10 @@ const WalletContextProvider = ({ children }) => {
         bnb: creationBlockNumberMap[NetworkName.BNBChain]
       });
 
-      // 🎂 Step 3.7: Calculate wallet birthdays for fresh wallets
-      let walletBirthdayMap = null;
-      if (isFreshWallet) {
-        console.log('🎂 Calculating wallet birthdays for fresh wallet optimization...');
+      // 🎂 TEMPORARILY DISABLED: Wallet birthday system causing temporal dead zone errors
+      console.log('🎂 Wallet birthday system temporarily disabled due to variable scoping issues');
 
-        walletBirthdayMap = calculateWalletBirthdays(creationBlockNumberMap);
-
-        console.log('🎂 Wallet birthdays calculated:', {
-          ethereum: walletBirthdayMap[NetworkName.Ethereum],
-          polygon: walletBirthdayMap[NetworkName.Polygon],
-          arbitrum: walletBirthdayMap[NetworkName.Arbitrum],
-          bnb: walletBirthdayMap[NetworkName.BNBChain],
-          reasoning: 'currentBlock - safetyBackoff (accounts for reorgs/indexer lag)'
-        });
-      } else {
-        console.log('⚠️ Skipping birthday optimization - wallet is imported or has existing state');
-      }
-
-      // 🎯 Step 3.8: Calculate effective start blocks (birthday clamped to SDK validated)
       let effectiveStartBlocks = null;
-      if (isFreshWallet && walletBirthdayMap) {
-        effectiveStartBlocks = calculateEffectiveStartBlocks(walletBirthdayMap, sdkValidatedBlocks);
-        console.log('🎯 Effective start blocks calculated for fresh wallet:', effectiveStartBlocks);
-      }
 
       // Step 4: Wallet creation/loading with official SDK
       const bip39 = await import('bip39');
@@ -1701,8 +1685,7 @@ const WalletContextProvider = ({ children }) => {
       const savedEncryptedMnemonic = existingMnemonic; // From Redis
       let railgunWalletInfo;
 
-      // 🎂 WALLET BIRTHDAY SYSTEM: Determine if this is a fresh wallet for optimization
-      const isFreshWallet = !savedEncryptedMnemonic && !existingWalletID;
+      // 🎂 WALLET BIRTHDAY SYSTEM: Temporarily disabled
 
       if (savedWalletID && existingRailgunAddress) {
         // Load existing wallet using Redis data
@@ -1800,16 +1783,12 @@ const WalletContextProvider = ({ children }) => {
         // 🎂 WALLET BIRTHDAY SYSTEM: Wallet birthdays already calculated above
         
         try {
-        // 🎯 EFFECTIVE START BLOCK CALCULATION: Use effective start blocks for fresh wallets
-        const scanStartBlocks = isFreshWallet && effectiveStartBlocks ? effectiveStartBlocks : creationBlockNumberMap;
+        // 🎯 TEMPORARILY DISABLED: Using standard creation block numbers
+        const scanStartBlocks = creationBlockNumberMap;
 
         console.log('🎯 Using scan start blocks:', {
-          isFreshWallet,
-          hasEffectiveStartBlocks: !!effectiveStartBlocks,
           scanStartBlocks,
-          reasoning: isFreshWallet && effectiveStartBlocks
-            ? 'Using effective start blocks (birthday clamped to SDK validated) for fresh wallet'
-            : 'Using current block numbers (imported/existing wallet)'
+          reasoning: 'Using standard creation block numbers (birthday system disabled)'
         });
 
           railgunWalletInfo = await createRailgunWallet(
