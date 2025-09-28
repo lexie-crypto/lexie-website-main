@@ -11,7 +11,7 @@ import { metaMask, walletConnect, injected } from 'wagmi/connectors';
 import { WagmiProvider, useAccount, useConnect, useDisconnect, useSwitchChain, useConnectorClient, getConnectorClient, useSignMessage } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/environment';
-import { NetworkName } from '@railgun-community/shared-models';
+import { NetworkName, MerkletreeScanUpdateEvent } from '@railgun-community/shared-models';
 
 // Inline wallet metadata API functions
 async function getWalletMetadata(walletAddress) {
@@ -313,6 +313,24 @@ const WalletContextProvider = ({ children }) => {
   const [railgunWalletID, setRailgunWalletID] = useState(null);
   const [isInitializing, setIsInitializing] = useState(false);
   const [railgunError, setRailgunError] = useState(null);
+
+  // Scan progress state for UI
+  const [scanProgress, setScanProgress] = useState({ percent: 0, message: '', current: 0, total: 0 });
+
+  // Railgun scan progress callbacks
+  const onUTXOMerkletreeScanCallback = useCallback((eventData) => {
+    const percent = Math.max(0, Math.min(100, Math.floor(eventData.progress * 100)));
+    const message = `Scanning UTXO Merkletree... (${percent}%)`;
+    setScanProgress({ percent, message, current: eventData.progress, total: 1 });
+    console.log('🔍 UTXO scan progress:', { percent, status: eventData.scanStatus, progress: eventData.progress });
+  }, []);
+
+  const onTXIDMerkletreeScanCallback = useCallback((eventData) => {
+    const percent = Math.max(0, Math.min(100, Math.floor(eventData.progress * 100)));
+    const message = `Scanning TXID Merkletree... (${percent}%)`;
+    setScanProgress({ percent, message, current: eventData.progress, total: 1 });
+    console.log('🔍 TXID scan progress:', { percent, status: eventData.scanStatus, progress: eventData.progress });
+  }, []);
 
   // Wagmi hooks - ONLY for UI wallet connection
   const { address, isConnected, chainId, connector, status } = useAccount();
@@ -1283,7 +1301,7 @@ const WalletContextProvider = ({ children }) => {
       const { createEnhancedArtifactStore } = await import('../utils/railgun/artifactStore.js');
       const artifactManager = await createEnhancedArtifactStore(false);
       
-      // Set up official SDK logging
+      // Set up official SDK logging and scan callbacks
       setLoggers(
         (message) => {
           try {
@@ -1300,6 +1318,12 @@ const WalletContextProvider = ({ children }) => {
         },
         (error) => console.error(`🚨 [RAILGUN-SDK] ${error}`)
       );
+
+      // Set up scan progress callbacks for real-time UI updates
+      const { setOnUTXOMerkletreeScanCallback, setOnTXIDMerkletreeScanCallback } = await import('@railgun-community/wallet');
+      setOnUTXOMerkletreeScanCallback(onUTXOMerkletreeScanCallback);
+      setOnTXIDMerkletreeScanCallback(onTXIDMerkletreeScanCallback);
+      console.log('✅ Railgun scan progress callbacks registered');
 
       // Start engine with official SDK
       // Signal init starting for UI
@@ -2187,6 +2211,7 @@ const WalletContextProvider = ({ children }) => {
     railgunError,
     canUseRailgun: isRailgunInitialized,
     railgunWalletId: railgunWalletID,
+    scanProgress,
     
     // Connection info
     connectedWalletType: connector?.id,
