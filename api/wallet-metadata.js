@@ -275,8 +275,78 @@ export default async function handler(req, res) {
 
       // Gas relayer now has its own separate endpoint /api/gas-relayer
 
-  // Check if this is a merkletree request (new routing for centralized storage)
+  // Check if this is an artifacts request (new routing for centralized storage)
   const url = new URL(req.url, `http://${req.headers.host}`);
+  const isArtifactsRequest = url.pathname.startsWith('/api/wallet-metadata/artifacts');
+
+  if (isArtifactsRequest) {
+    console.log(`✅ [ARTIFACTS-PROXY-${requestId}] Artifacts request detected: ${req.method} ${url.pathname}`);
+
+    // Extract artifacts path
+    const artifactsPath = url.pathname.replace('/api/wallet-metadata/artifacts', '');
+    const backendPath = `/api/wallet-metadata/artifacts${artifactsPath}`;
+    const backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+
+    const signature = generateHmacSignature(req.method, backendPath, timestamp, hmacSecret);
+
+    headers = {
+      'Content-Type': req.method === 'GET' ? 'application/json' : 'application/json',
+      'Accept': req.method === 'GET' ? 'application/octet-stream, application/json' : 'application/json',
+      'X-Lexie-Timestamp': timestamp,
+      'X-Lexie-Signature': signature,
+      'Origin': 'https://staging.lexiecrypto.com',
+      'User-Agent': 'Lexie-Artifacts-Proxy/1.0',
+    };
+
+    console.log(`🔐 [ARTIFACTS-PROXY-${requestId}] Generated HMAC headers`, {
+      method: req.method,
+      timestamp,
+      signature: headers['X-Lexie-Signature'].substring(0, 20) + '...',
+      path: backendPath
+    });
+
+    console.log(`📡 [ARTIFACTS-PROXY-${requestId}] Forwarding to backend: ${backendUrl}`);
+
+    // Make the backend request
+    const fetchOptions = {
+      method: req.method,
+      headers,
+      signal: AbortSignal.timeout(60000), // 60 second timeout for large artifacts
+    };
+
+    // Add body for POST/PUT requests
+    if (req.method === 'POST' || req.method === 'PUT') {
+      fetchOptions.body = JSON.stringify(req.body);
+    }
+
+    const backendResponse = await fetch(backendUrl, fetchOptions);
+
+    // Handle binary responses (artifacts)
+    if (backendPath.includes('/get/')) {
+      const contentType = backendResponse.headers.get('content-type');
+      if (contentType && contentType.includes('application/octet-stream')) {
+        const arrayBuffer = await backendResponse.arrayBuffer();
+        console.log(`✅ [ARTIFACTS-PROXY-${requestId}] Binary artifact response: ${arrayBuffer.byteLength} bytes`);
+
+        res.setHeader('Content-Type', 'application/octet-stream');
+        res.setHeader('Content-Length', arrayBuffer.byteLength);
+        res.setHeader('Cache-Control', 'public, max-age=31536000'); // Cache for 1 year
+        return res.status(backendResponse.status).send(Buffer.from(arrayBuffer));
+      }
+    }
+
+    // Handle JSON responses
+    const result = await backendResponse.json();
+
+    console.log(`✅ [ARTIFACTS-PROXY-${requestId}] Backend responded with status ${backendResponse.status}`);
+
+    // Forward the backend response
+    res.status(backendResponse.status).json(result);
+
+    return; // Exit after handling artifacts request
+  }
+
+  // Check if this is a merkletree request (new routing for centralized storage)
   const isMerkletreeRequest = url.pathname.startsWith('/api/wallet-metadata/merkletree');
 
   if (isMerkletreeRequest) {

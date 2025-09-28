@@ -21,7 +21,35 @@ import {
 } from '@railgun-community/wallet';
 import { waitForRailgunReady } from './engine.js';
 import { isRedisMerkletreeAvailable, createRedisMerkletree } from './redis-merkletree-adapter.js';
-import { executePostTransactionSync } from './hybrid-leveldb-adapter.js';
+// Post-transaction sync now handled directly with Redis
+const executePostTransactionSyncRedis = async (chainId, transactionId) => {
+  try {
+    console.log(`[RedisOnly] 🔄 Executing post-transaction sync for chain ${chainId}, tx ${transactionId}`);
+
+    // Check if merkletree data exists in Redis
+    const response = await fetch(`/api/wallet-metadata/merkletree/keys?prefix=merkletree`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+    });
+
+    if (response.ok) {
+      const result = await response.json();
+      const hasMerkletreeData = result.success && result.data.keys.length > 0;
+
+      if (hasMerkletreeData) {
+        console.log(`[RedisOnly] ✅ Post-transaction sync complete - ${result.data.keys.length} Merkletree entries in Redis`);
+        return true;
+      }
+    }
+
+    console.warn(`[RedisOnly] ⚠️ No Merkletree data found in Redis after transaction`);
+    return false;
+
+  } catch (error) {
+    console.error('[RedisOnly] ❌ Post-transaction sync failed:', error);
+    return false;
+  }
+};
 // Balance update callbacks are handled centrally in sdk-callbacks.js
 
 /**
@@ -187,13 +215,9 @@ export const performFullRescan = async (railgunWalletIDs = []) => {
         
         console.log(`[ScanningService] ✅ ${networkName} scan completed`);
 
-        // 🚀 HYBRID SYNC: Execute post-transaction sync to ensure Merkletree updates are in Redis
+        // 🚀 REDIS-ONLY SYNC: Execute post-transaction sync to ensure Merkletree updates are in Redis
         try {
-          // Get the hybrid adapter from the global context (it should be available after initialization)
-          const hybridAdapter = window.hybridRailgunAdapter;
-          if (hybridAdapter) {
-            await executePostTransactionSync(chainId, `scan-${networkName}-${Date.now()}`, hybridAdapter);
-          }
+          await executePostTransactionSyncRedis(chainId, `scan-${networkName}-${Date.now()}`);
         } catch (syncError) {
           console.warn(`[ScanningService] ⚠️ Post-transaction sync failed for ${networkName}:`, syncError);
         }

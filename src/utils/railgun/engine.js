@@ -44,7 +44,7 @@ import {
   ArtifactStore,
 } from '@railgun-community/shared-models';
 import { groth16 } from 'snarkjs';
-import LevelJS from 'level-js';
+// LevelJS removed - now using Redis-only adapter
 import { createEnhancedArtifactStore } from './artifactStore.js';
 
 // 🚀 ZERO-DELAY POI: Import contract address configuration
@@ -254,7 +254,8 @@ const startEngine = async () => {
     }
 
     // Step 2: Create database
-    const db = new LevelJS('railgun-db');
+    const { createRedisOnlyAdapter } = await import('./redis-only-adapter.js');
+    const db = await createRedisOnlyAdapter('railgun-engine-redis');
     
     // Step 3: Set up logging
     setLoggers(
