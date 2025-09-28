@@ -99,6 +99,7 @@ class HybridLevelDBAdapter {
 
   /**
    * Connect to both storage backends
+   * Alias for LevelDB compatibility (Railgun SDK expects .open())
    */
   async connect() {
     if (!this.isConnected) {
@@ -106,6 +107,14 @@ class HybridLevelDBAdapter {
       this.isConnected = true;
       console.log('[HybridDB] 🔗 Hybrid storage adapter connected');
     }
+  }
+
+  /**
+   * Open method for LevelDB compatibility
+   * Railgun SDK calls this instead of connect()
+   */
+  async open() {
+    return this.connect();
   }
 
   /**
