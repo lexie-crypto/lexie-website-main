@@ -197,11 +197,30 @@ export const createRedisArtifactStore = (options = {}) => {
   };
 
   // Return the official ArtifactStore instance
-  return new ArtifactStore(
+  // Add health check method to the store
+  const checkHealth = async () => {
+    try {
+      console.log(`[RedisArtifactStore] Checking health...`);
+      const response = await makeProxyRequest('GET', '/health');
+      const result = await response.json();
+      return result.success && result.data && result.data.status === 'healthy';
+    } catch (error) {
+      console.warn(`[RedisArtifactStore] Health check failed:`, error.message);
+      return false;
+    }
+  };
+
+  // Return the artifact store with additional health check method
+  const artifactStore = new ArtifactStore(
     getArtifact,     // get method
     storeArtifact,   // store method
     artifactExists   // exists method
   );
+
+  // Add health check method
+  artifactStore.checkHealth = checkHealth;
+
+  return artifactStore;
 };
 
 /**
@@ -209,7 +228,6 @@ export const createRedisArtifactStore = (options = {}) => {
  */
 export const createEnhancedRedisArtifactStore = (options = {}) => {
   const artifactStore = createRedisArtifactStore(options);
-  const { ArtifactDownloader } = require('./artifactDownloader.js');
 
   return {
     store: artifactStore,
@@ -222,9 +240,42 @@ export const createEnhancedRedisArtifactStore = (options = {}) => {
       return this;
     },
 
+    // Check if artifacts are available in Redis
+    async checkArtifactsHealth() {
+      try {
+        console.log(`[EnhancedRedisArtifactStore] Checking artifact health...`);
+        const response = await makeProxyRequest('GET', '/health');
+        const result = await response.json();
+
+        if (result.success && result.data) {
+          const { status, availableArtifacts, totalArtifacts } = result.data;
+          console.log(`[EnhancedRedisArtifactStore] Health check: ${status} (${availableArtifacts}/${totalArtifacts} artifacts available)`);
+          return {
+            healthy: status === 'healthy',
+            availableCount: availableArtifacts,
+            totalCount: totalArtifacts,
+            hasCommonArtifacts: availableArtifacts > 0
+          };
+        }
+
+        return { healthy: false, availableCount: 0, totalCount: 0, hasCommonArtifacts: false };
+      } catch (error) {
+        console.warn(`[EnhancedRedisArtifactStore] Health check failed:`, error.message);
+        return { healthy: false, availableCount: 0, totalCount: 0, hasCommonArtifacts: false };
+      }
+    },
+
     // Convenience methods
     async downloadArtifacts(artifactVariantString) {
       if (!this.downloader) await this.initialize();
+
+      // Check health first - if artifacts are already available, skip download
+      const health = await this.checkArtifactsHealth();
+      if (health.hasCommonArtifacts) {
+        console.log(`[EnhancedRedisArtifactStore] Artifacts already available (${health.availableCount}/${health.totalCount}), skipping download`);
+        return { success: true, skipped: true, reason: 'artifacts_already_available' };
+      }
+
       console.log(`[EnhancedRedisArtifactStore] Downloading artifacts for variant: ${artifactVariantString}`);
       return await this.downloader.downloadArtifacts(artifactVariantString);
     },

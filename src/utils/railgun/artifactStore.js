@@ -44,12 +44,21 @@ const createLocalforageArtifactStore = () => {
 };
 
 // Redis-based store (default)
-export const createArtifactStore = () => {
+export const createArtifactStore = async () => {
   try {
     // Try to use Redis store first
-    const { createRedisArtifactStore } = require('./artifactStoreRedis.js');
-    console.log('[ArtifactStore] Using Redis artifact store for better performance');
-    return createRedisArtifactStore();
+    const { createRedisArtifactStore } = await import('./artifactStoreRedis.js');
+    const redisStore = createRedisArtifactStore();
+
+    // Test if Redis store is working by checking health
+    const isHealthy = await redisStore.checkHealth();
+    if (isHealthy) {
+      console.log('[ArtifactStore] Redis artifact store is healthy, using it for better performance');
+      return redisStore;
+    } else {
+      console.warn('[ArtifactStore] Redis store health check failed, falling back to localforage');
+      return createLocalforageArtifactStore();
+    }
   } catch (error) {
     console.warn('[ArtifactStore] Redis store not available, falling back to localforage:', error.message);
     return createLocalforageArtifactStore();
@@ -57,17 +66,26 @@ export const createArtifactStore = () => {
 };
 
 // Enhanced artifact store with integrated downloader
-export const createEnhancedArtifactStore = (useNativeArtifacts = false) => {
+export const createEnhancedArtifactStore = async (useNativeArtifacts = false) => {
   try {
     // Try Redis-enhanced store first
-    const { createEnhancedRedisArtifactStore } = require('./artifactStoreRedis.js');
-    console.log('[EnhancedArtifactStore] Using Redis-enhanced artifact store');
-    return createEnhancedRedisArtifactStore({ useNativeArtifacts });
+    const { createEnhancedRedisArtifactStore } = await import('./artifactStoreRedis.js');
+    const redisStore = createEnhancedRedisArtifactStore({ useNativeArtifacts });
+
+    // Test if Redis store is working by checking health
+    const health = await redisStore.checkArtifactsHealth();
+    if (health.healthy) {
+      console.log('[EnhancedArtifactStore] Redis-enhanced artifact store is healthy, using it');
+      return redisStore;
+    } else {
+      console.warn('[EnhancedArtifactStore] Redis store health check failed, using legacy localforage');
+    }
   } catch (error) {
     console.warn('[EnhancedArtifactStore] Redis store not available, using legacy localforage:', error.message);
+  }
 
-    // Fallback to legacy localforage implementation
-    const artifactStore = createLocalforageArtifactStore();
+  // Fallback to legacy localforage implementation
+  const artifactStore = createLocalforageArtifactStore();
     const downloader = new ArtifactDownloader(artifactStore, useNativeArtifacts);
 
     return {
@@ -143,5 +161,4 @@ export const createEnhancedArtifactStore = (useNativeArtifacts = false) => {
         console.log('[EnhancedArtifactStore] POI artifacts setup complete');
       }
     };
-  }
-}; 
+} 
