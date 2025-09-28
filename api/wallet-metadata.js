@@ -192,15 +192,15 @@ export default async function handler(req, res) {
 
     if (subaction === 'get' && key) {
       // GET /api/wallet-metadata?action=artifacts&subaction=get&key={key}
-      backendPath = `/api/artifacts/get/${encodeURIComponent(key)}`;
+      backendPath = `/api/wallet-metadata/artifacts/get/${encodeURIComponent(key)}`;
       backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
     } else if (subaction === 'exists' && key) {
       // GET /api/wallet-metadata?action=artifacts&subaction=exists&key={key}
-      backendPath = `/api/artifacts/exists/${encodeURIComponent(key)}`;
+      backendPath = `/api/wallet-metadata/artifacts/exists/${encodeURIComponent(key)}`;
       backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
     } else if (subaction === 'health') {
       // GET /api/wallet-metadata?action=artifacts&subaction=health
-      backendPath = `/api/artifacts/health`;
+      backendPath = `/api/wallet-metadata/artifacts/health`;
       backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
     } else {
       return res.status(400).json({
