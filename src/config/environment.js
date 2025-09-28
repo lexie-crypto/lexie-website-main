@@ -4,11 +4,9 @@
  */
 
 // Prefer serverless proxy to avoid exposing keys. Use absolute URL so ethers providers accept it.
-// TEMPORARY: Use production RPC URLs for staging until staging API keys are configured.
+// TEMPORARY: Always use production URLs until staging API keys are configured.
 const buildProxyUrl = (chainId, provider = 'alchemy') => {
-  const isStaging = typeof window !== 'undefined' && window.location?.origin?.includes('staging');
-  const origin = isStaging ? 'https://www.lexiecrypto.com' : ((typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '');
-  return `${origin}/api/rpc?chainId=${chainId}&provider=${provider}`;
+  return `https://www.lexiecrypto.com/api/rpc?chainId=${chainId}&provider=${provider}`;
 };
 
 // Alchemy RPC URLs with proper API key integration

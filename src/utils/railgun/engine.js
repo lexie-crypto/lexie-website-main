@@ -67,8 +67,8 @@ let enginePromise = null;
  * TEMPORARY: Use production RPC URLs for staging until staging API keys are configured.
  */
 const getRpcUrl = (chainId, provider = 'auto') => {
-  const isStaging = typeof window !== 'undefined' && window.location?.origin?.includes('staging');
-  const baseUrl = isStaging ? 'https://www.lexiecrypto.com' : (typeof window !== 'undefined' ? window.location.origin : '');
+  // TEMPORARY: Always use production URLs until staging API keys are configured
+  const baseUrl = 'https://www.lexiecrypto.com';
   return `${baseUrl}/api/rpc?chainId=${chainId}&provider=${provider}`;
 };
 
