@@ -58,9 +58,22 @@ export async function extractMerkletreeData(chainId, dbName = 'railgun-engine-db
 
     // Iterate through all keys in LevelDB
     const iterator = db.iterator();
+    let totalKeys = 0;
+    let sampleKeys = [];
 
     for await (const [key, value] of iterator) {
       const keyStr = key.toString();
+      totalKeys++;
+
+      // Keep sample of first 10 keys for debugging
+      if (sampleKeys.length < 10) {
+        sampleKeys.push({
+          key: keyStr.substring(0, 100) + (keyStr.length > 100 ? '...' : ''),
+          length: keyStr.length,
+          startsWithMerkletree: keyStr.startsWith(MERKLETREE_PREFIX),
+          startsWithSync: keyStr.startsWith(SYNC_INFO_PREFIX)
+        });
+      }
 
       if (keyStr.startsWith(MERKLETREE_PREFIX)) {
         merkletreeData[keyStr] = value.toString();
@@ -70,6 +83,13 @@ export async function extractMerkletreeData(chainId, dbName = 'railgun-engine-db
     }
 
     await iterator.end();
+
+    console.log(`[MerkletreeSeeder] Database scan complete:`, {
+      totalKeys,
+      sampleKeys,
+      merkletreeMatches: Object.keys(merkletreeData).length,
+      syncInfoMatches: Object.keys(syncInfoData).length
+    });
 
     console.log(`[MerkletreeSeeder] Extracted ${Object.keys(merkletreeData).length} merkletree keys`);
     console.log(`[MerkletreeSeeder] Extracted ${Object.keys(syncInfoData).length} sync info keys`);

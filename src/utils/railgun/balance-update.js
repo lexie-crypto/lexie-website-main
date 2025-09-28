@@ -231,20 +231,39 @@ const getAllBalancesAsSpendable = async (txidVersion, wallet, chain) => {
   onBalanceUpdateCallback(balancesEvent);
 
   // Extract and store merkletree data for future wallet creations
+  console.log(`[BalanceUpdate] 🔍 Starting merkletree extraction check for chain:`, {
+    chainId: chain.id,
+    chainType: chain.type,
+    fullChain: chain
+  });
+
   try {
     const { extractMerkletreeData, storeMerkletreeInRedis } = await import('./merkletree-seeder.js');
 
-    // Only extract if this looks like a completed scan (has merkletree data)
+    console.log(`[BalanceUpdate] 📤 Calling extractMerkletreeData for chain ${chain.id}...`);
     const extractedData = await extractMerkletreeData(chain.id);
+
+    console.log(`[BalanceUpdate] 📊 Extraction result:`, {
+      hasMerkletreeData: !!extractedData.merkletreeData,
+      merkletreeKeysCount: extractedData.merkletreeData ? Object.keys(extractedData.merkletreeData).length : 0,
+      hasSyncInfoData: !!extractedData.syncInfoData,
+      syncInfoKeysCount: extractedData.syncInfoData ? Object.keys(extractedData.syncInfoData).length : 0,
+      extractedAt: extractedData.extractedAt
+    });
+
     if (extractedData.merkletreeData && Object.keys(extractedData.merkletreeData).length > 0) {
       console.log(`[BalanceUpdate] 📤 Extracted ${Object.keys(extractedData.merkletreeData).length} merkletree keys for chain ${chain.id}`);
 
       // Store in Redis for future wallet creations
+      console.log(`[BalanceUpdate] 💾 Storing merkletree data in Redis for chain ${chain.id}...`);
       await storeMerkletreeInRedis(chain.id, extractedData);
       console.log(`[BalanceUpdate] 💾 Stored merkletree data in Redis for chain ${chain.id} - future wallets will be FAST!`);
+    } else {
+      console.log(`[BalanceUpdate] ℹ️ No merkletree data found to extract for chain ${chain.id}`);
     }
   } catch (error) {
-    console.warn(`[BalanceUpdate] ⚠️ Failed to extract/store merkletree data for chain ${chain.id}:`, error.message);
+    console.error(`[BalanceUpdate] ❌ Failed to extract/store merkletree data for chain ${chain.id}:`, error);
+    console.error(`[BalanceUpdate] ❌ Error stack:`, error.stack);
   }
 
 };
