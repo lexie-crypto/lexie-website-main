@@ -11,7 +11,7 @@ import { metaMask, walletConnect, injected } from 'wagmi/connectors';
 import { WagmiProvider, useAccount, useConnect, useDisconnect, useSwitchChain, useConnectorClient, getConnectorClient, useSignMessage } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/environment';
-import { NetworkName, TXIDVersion } from '@railgun-community/shared-models';
+import { NetworkName } from '@railgun-community/shared-models';
 
 // 🎂 WALLET BIRTHDAY SYSTEM: Calculate safe scan start blocks for fresh wallets
 function calculateWalletBirthdays(currentBlockMap) {
@@ -49,9 +49,56 @@ function calculateWalletBirthdays(currentBlockMap) {
 async function querySDKValidatedCommitmentBlocks(poiNodeURLs) {
   const validatedBlocks = {};
 
+  // Initialize fallback values
+  validatedBlocks[NetworkName.Ethereum] = 0;
+  validatedBlocks[NetworkName.Polygon] = 0;
+  validatedBlocks[NetworkName.Arbitrum] = 0;
+  validatedBlocks[NetworkName.BNBChain] = 0;
+
+  // For now, skip POI querying as it's causing dynamic import issues
+  // In production, this would query actual POI nodes for validated state
+  console.log('🔍 [SDK-VALIDATED] POI querying temporarily disabled - using fallback values (0)');
+
+  // TODO: Re-enable POI querying once dynamic import issues are resolved
+  /*
   try {
-    // Import POI requester functionality
-    const { WalletPOIRequester } = await import('../utils/railgun/poi-requester.js');
+    // Inline POI requester functionality to avoid dynamic imports
+    class POINodeRequest {
+      constructor(poiNodeURLs) {
+        this.poiNodeURLs = poiNodeURLs || [];
+      }
+
+      async getLatestValidatedRailgunTxid(txidVersion, chain) {
+        // Mock implementation - would query actual POI nodes in production
+        return {
+          validatedTxidIndex: null,
+          validatedMerkleroot: null
+        };
+      }
+    }
+
+    class WalletPOIRequester {
+      constructor(poiNodeURLs) {
+        this.poiNodeRequest = poiNodeURLs ? new POINodeRequest(poiNodeURLs) : null;
+      }
+
+      async getLatestValidatedRailgunTxid(txidVersion, chain) {
+        if (!this.poiNodeRequest) {
+          return { txidIndex: null, merkleroot: null };
+        }
+
+        try {
+          const result = await this.poiNodeRequest.getLatestValidatedRailgunTxid(txidVersion, chain);
+          return {
+            txidIndex: result.validatedTxidIndex,
+            merkleroot: result.validatedMerkleroot,
+          };
+        } catch (error) {
+          console.warn(`⚠️ [POI-REQUEST] Failed to query validated TXID for chain ${chain.type}:${chain.id}:`, error.message);
+          return { txidIndex: null, merkleroot: null };
+        }
+      }
+    }
 
     const poiRequester = new WalletPOIRequester(poiNodeURLs);
 
@@ -66,34 +113,25 @@ async function querySDKValidatedCommitmentBlocks(poiNodeURLs) {
     for (const network of networks) {
       try {
         const result = await poiRequester.getLatestValidatedRailgunTxid(
-          TXIDVersion.V2_PoseidonMerkle, // Use V2 as it's the current standard
+          TXIDVersion.V2_PoseidonMerkle,
           network.chain
         );
 
         if (result.txidIndex) {
-          // Convert TXID index to approximate block number
-          // This is a heuristic - TXIDs are roughly sequential with blocks
-          // We'll use the TXID index as a proxy for validated block
           validatedBlocks[network.name] = result.txidIndex;
           console.log(`🔍 [SDK-VALIDATED] ${network.name}: validated up to TXID index ${result.txidIndex}`);
         } else {
           console.log(`🔍 [SDK-VALIDATED] ${network.name}: no validated TXID available`);
-          validatedBlocks[network.name] = 0; // No validation available
         }
       } catch (error) {
         console.warn(`⚠️ [SDK-VALIDATED] Failed to query ${network.name}:`, error.message);
-        validatedBlocks[network.name] = 0; // Fallback to no validation
       }
     }
 
   } catch (error) {
-    console.warn('⚠️ [SDK-VALIDATED] Failed to initialize POI requester:', error.message);
-    // Fallback: no validated blocks available
-    validatedBlocks[NetworkName.Ethereum] = 0;
-    validatedBlocks[NetworkName.Polygon] = 0;
-    validatedBlocks[NetworkName.Arbitrum] = 0;
-    validatedBlocks[NetworkName.BNBChain] = 0;
+    console.warn('⚠️ [SDK-VALIDATED] Failed to query POI nodes:', error.message);
   }
+  */
 
   return validatedBlocks;
 }
@@ -108,15 +146,25 @@ function calculateEffectiveStartBlocks(walletBirthdays, sdkValidatedBlocks) {
 
     // Use the more restrictive (higher) block number
     // This ensures we don't scan blocks that the SDK already knows are validated
+    // If SDK has no validation (0), fall back to birthday
     const effectiveStart = Math.max(birthday, sdkValidated);
 
     effectiveStarts[networkName] = effectiveStart;
+
+    let reasoning;
+    if (sdkValidated === 0) {
+      reasoning = 'SDK has no validated blocks - using wallet birthday';
+    } else if (sdkValidated > birthday) {
+      reasoning = 'Using SDK validated block (higher than birthday)';
+    } else {
+      reasoning = 'Using wallet birthday (higher than or equal to SDK validated)';
+    }
 
     console.log(`🎯 [EFFECTIVE-START] ${networkName}:`, {
       birthday: birthday,
       sdkValidated: sdkValidated,
       effectiveStart: effectiveStart,
-      reasoning: sdkValidated > birthday ? 'Using SDK validated block (higher)' : 'Using wallet birthday'
+      reasoning: reasoning
     });
   });
 
@@ -1577,7 +1625,7 @@ const WalletContextProvider = ({ children }) => {
       // 🔍 Step 3.5: Query SDK validated commitment blocks for optimization
       console.log('🔍 Querying SDK validated commitment blocks for scan optimization...');
       const sdkValidatedBlocks = await querySDKValidatedCommitmentBlocks(['https://ppoi.fdi.network/']);
-      console.log('✅ SDK validated blocks queried:', sdkValidatedBlocks);
+      console.log('✅ SDK validated blocks queried (currently using fallback values):', sdkValidatedBlocks);
 
       // 🎯 Step 3.6: Calculate effective start blocks (birthday clamped to SDK validated)
       let effectiveStartBlocks = null;
