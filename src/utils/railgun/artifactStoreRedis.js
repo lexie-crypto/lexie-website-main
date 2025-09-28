@@ -104,6 +104,8 @@ export const createRedisArtifactStore = (options = {}) => {
         method: 'GET',
         headers: {
           'Accept': 'application/octet-stream, application/json',
+          'Origin': 'https://staging.lexiecrypto.com',
+          'User-Agent': 'Lexie-Artifacts/1.0',
         },
       });
 
@@ -196,6 +198,8 @@ export const createRedisArtifactStore = (options = {}) => {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
+          'Origin': 'https://staging.lexiecrypto.com',
+          'User-Agent': 'Lexie-Artifacts/1.0',
         },
       });
       const result = await response.json();
@@ -220,6 +224,8 @@ export const createRedisArtifactStore = (options = {}) => {
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
+          'Origin': 'https://staging.lexiecrypto.com',
+          'User-Agent': 'Lexie-Artifacts/1.0',
         },
       });
       const result = await response.json();
@@ -270,6 +276,8 @@ export const createEnhancedRedisArtifactStore = (options = {}) => {
           headers: {
             'Content-Type': 'application/json',
             'Accept': 'application/json',
+            'Origin': 'https://staging.lexiecrypto.com',
+            'User-Agent': 'Lexie-Artifacts/1.0',
           },
         });
         const result = await response.json();
