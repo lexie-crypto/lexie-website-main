@@ -55,7 +55,6 @@ const VaultDesktopInner = () => {
     walletProvider,
     checkChainReady,
     walletConnectValidating,
-    scanProgress,
   } = useWallet();
 
   const { providers } = useInjectedProviders();
@@ -82,6 +81,7 @@ const VaultDesktopInner = () => {
   const [shieldingTokens, setShieldingTokens] = useState(new Set());
   const [shieldAmounts, setShieldAmounts] = useState({});
   const [showSignRequestPopup, setShowSignRequestPopup] = useState(false);
+  const [initProgress, setInitProgress] = useState({ percent: 0, message: '' });
   const [isInitInProgress, setIsInitInProgress] = useState(false);
   const [initFailedMessage, setInitFailedMessage] = useState('');
   
@@ -232,7 +232,10 @@ const VaultDesktopInner = () => {
           setIsInitInProgress(true);
           setScanComplete(false);
           const networkName = getNetworkName(chainId);
-          // Scan progress will be updated by Railgun SDK callbacks
+          setInitProgress({ 
+            percent: 0, 
+            message: `Setting up your LexieVault on ${networkName} Network...` 
+          });
         } else {
           console.log('[VaultDesktop] Chain already scanned on connect - no modal needed');
         }
@@ -259,6 +262,7 @@ const VaultDesktopInner = () => {
     setShowSignRequestPopup(false);
     setIsInitInProgress(false);
     setInitFailedMessage('');
+    setInitProgress({ percent: 0, message: '' });
   }, [address]);
 
   // Update chain readiness
@@ -319,6 +323,7 @@ const VaultDesktopInner = () => {
       setShowSignRequestPopup(false);
       setIsInitInProgress(false);
       setInitFailedMessage('');
+      setInitProgress({ percent: 0, message: '' });
 
       // Dispatch transaction completion event to unlock UI globally (similar to txn cancellation)
       if (typeof window !== 'undefined') {
@@ -636,6 +641,7 @@ const VaultDesktopInner = () => {
     const onSignRequest = () => {
       setShowSignRequestPopup(true);
       setIsInitInProgress(false);
+      setInitProgress({ percent: 0, message: '' });
       setInitFailedMessage('');
       console.log('[VaultDesktop] Signature requested - showing modal');
     };
@@ -650,12 +656,22 @@ const VaultDesktopInner = () => {
       setIsInitInProgress(true);
       setInitFailedMessage('');
       const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
+      setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
       console.log('[VaultDesktop] Initialization started');
+    };
+    
+    const onInitProgress = () => {
+      const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
+      setInitProgress((prev) => ({
+        percent: prev.percent,
+        message: prev.message || `Setting up your LexieVault on ${chainLabel}...`,
+      }));
     };
     
     const onInitCompleted = () => {
       // Do not set to 100% here; wait for checkChainReady to confirm
       console.log('[VaultDesktop] SDK reported completed; awaiting confirmation');
+      setInitProgress((prev) => ({ ...prev, message: prev.message || 'Finalizing...' }));
     };
     
     const onInitFailed = (e) => {
@@ -694,6 +710,7 @@ const VaultDesktopInner = () => {
     window.addEventListener('vault-poll-start', onPollStart);
     window.addEventListener('railgun-init-started', onInitStarted); // full init always shows
     window.addEventListener('railgun-scan-started', onScanStarted);
+    window.addEventListener('railgun-init-progress', onInitProgress);
     window.addEventListener('railgun-init-completed', onInitCompleted);
     window.addEventListener('railgun-init-failed', onInitFailed);
     
@@ -701,6 +718,7 @@ const VaultDesktopInner = () => {
       window.removeEventListener('railgun-signature-requested', onSignRequest);
       window.removeEventListener('railgun-init-started', onInitStarted);
       window.removeEventListener('vault-poll-start', onPollStart);
+      window.removeEventListener('railgun-init-progress', onInitProgress);
       window.removeEventListener('railgun-scan-started', onScanStarted);
       window.removeEventListener('railgun-init-completed', onInitCompleted);
       window.removeEventListener('railgun-init-failed', onInitFailed);
@@ -710,6 +728,7 @@ const VaultDesktopInner = () => {
   // Unlock modal using the same readiness flag as old WalletPage
   useEffect(() => {
     if (showSignRequestPopup && isInitInProgress && scanComplete && isChainReady) {
+      setInitProgress({ percent: 100, message: 'Initialization complete' });
       setIsInitInProgress(false);
     }
   }, [scanComplete, isChainReady, isInitInProgress, showSignRequestPopup]);
@@ -951,7 +970,7 @@ const VaultDesktopInner = () => {
         setShowSignRequestPopup(true);
         setIsInitInProgress(true);
         const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
-        // Scan progress will be updated by Railgun SDK callbacks
+        setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
       } else {
         console.log('[VaultDesktop] Target chain already scanned - no modal needed');
       }
@@ -1688,7 +1707,7 @@ const VaultDesktopInner = () => {
               ) : null}
             </div>
             <div className="p-6 text-green-300 space-y-4">
-              {!isInitInProgress && scanProgress.percent < 100 && !initFailedMessage ? (
+              {!isInitInProgress && initProgress.percent < 100 && !initFailedMessage ? (
                 <>
                   <h3 className="text-lg font-bold text-emerald-300">Sign to Create Your LexieVault</h3>
                   <p className="text-green-400/80 text-sm">
@@ -1708,24 +1727,10 @@ const VaultDesktopInner = () => {
                 <>
                   <h3 className="text-lg font-bold text-emerald-300">Initializing Your LexieVault on {network?.name || 'network'} Network</h3>
                   <p className="text-green-400/80 text-sm">You only need to do this once. This may take a few minutes. Do not close this window.</p>
-                  <div className="bg-black/40 border border-green-500/20 rounded p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className={`h-5 w-5 rounded-full border-2 ${isInitInProgress ? 'border-emerald-400 border-t-transparent animate-spin' : 'border-emerald-400'}`} />
-                      <div className="text-xs text-green-400/80 font-mono">
-                        {scanProgress.percent}%
-                      </div>
-                    </div>
-
-                    {/* Progress Bar */}
-                    <div className="w-full bg-gray-700 rounded-full h-2">
-                      <div
-                        className="bg-emerald-400 h-2 rounded-full transition-all duration-300 ease-out"
-                        style={{ width: `${scanProgress.percent}%` }}
-                      />
-                    </div>
-
-                    <div className="text-xs text-green-400/80 truncate" title={scanProgress.message}>
-                      {scanProgress.message || 'Initializing Railgun...'}
+                  <div className="bg-black/40 border border-green-500/20 rounded p-4 flex items-center gap-3">
+                    <div className={`h-5 w-5 rounded-full border-2 ${isInitInProgress ? 'border-emerald-400 border-t-transparent animate-spin' : 'border-emerald-400'}`} />
+                    <div className="text-xs text-green-400/80 truncate" title={initProgress.message}>
+                      {initProgress.message || 'Scanning...'}
                     </div>
                   </div>
                   <div className="mt-2 text-green-400/80 text-xs">
@@ -1734,7 +1739,7 @@ const VaultDesktopInner = () => {
                 </>
               )}
               <div className="flex items-center justify-end gap-2 pt-2">
-                {!isInitInProgress && scanProgress.percent >= 100 && !initFailedMessage ? (
+                {!isInitInProgress && initProgress.percent >= 100 && !initFailedMessage ? (
                   <button
                     onClick={() => setShowSignRequestPopup(false)}
                     className="px-3 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 text-xs"
