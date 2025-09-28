@@ -1627,7 +1627,19 @@ const WalletContextProvider = ({ children }) => {
       const sdkValidatedBlocks = await querySDKValidatedCommitmentBlocks(['https://ppoi.fdi.network/']);
       console.log('✅ SDK validated blocks queried (currently using fallback values):', sdkValidatedBlocks);
 
-      // 🎂 Step 3.6: Calculate wallet birthdays for fresh wallets
+      // 🏗️ Step 3.6: Fetch current block numbers for wallet creation optimization
+      console.log('🏗️ Fetching current block numbers for wallet creation optimization...');
+
+      const creationBlockNumberMap = await fetchCurrentBlockNumbers();
+
+      console.log('✅ Block numbers fetched for wallet creation:', {
+        ethereum: creationBlockNumberMap[NetworkName.Ethereum],
+        polygon: creationBlockNumberMap[NetworkName.Polygon],
+        arbitrum: creationBlockNumberMap[NetworkName.Arbitrum],
+        bnb: creationBlockNumberMap[NetworkName.BNBChain]
+      });
+
+      // 🎂 Step 3.7: Calculate wallet birthdays for fresh wallets
       let walletBirthdayMap = null;
       if (isFreshWallet) {
         console.log('🎂 Calculating wallet birthdays for fresh wallet optimization...');
@@ -1645,7 +1657,7 @@ const WalletContextProvider = ({ children }) => {
         console.log('⚠️ Skipping birthday optimization - wallet is imported or has existing state');
       }
 
-      // 🎯 Step 3.7: Calculate effective start blocks (birthday clamped to SDK validated)
+      // 🎯 Step 3.8: Calculate effective start blocks (birthday clamped to SDK validated)
       let effectiveStartBlocks = null;
       if (isFreshWallet && walletBirthdayMap) {
         effectiveStartBlocks = calculateEffectiveStartBlocks(walletBirthdayMap, sdkValidatedBlocks);
@@ -1779,17 +1791,7 @@ const WalletContextProvider = ({ children }) => {
           console.log('✅ Generated new secure mnemonic (will be stored in Redis only)');
         }
         
-        // 🏗️ Create wallet with official SDK - Fetch current block numbers for faster initialization
-        console.log('🏗️ Fetching current block numbers for wallet creation optimization...');
-
-        const creationBlockNumberMap = await fetchCurrentBlockNumbers();
-
-        console.log('✅ Block numbers fetched for wallet creation:', {
-          ethereum: creationBlockNumberMap[NetworkName.Ethereum],
-          polygon: creationBlockNumberMap[NetworkName.Polygon],
-          arbitrum: creationBlockNumberMap[NetworkName.Arbitrum],
-          bnb: creationBlockNumberMap[NetworkName.BNBChain]
-        });
+        // 🏗️ Create wallet with official SDK - Block numbers already fetched above
 
         // 🎂 WALLET BIRTHDAY SYSTEM: Wallet birthdays already calculated above
         
