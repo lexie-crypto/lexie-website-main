@@ -1664,7 +1664,11 @@ const WalletContextProvider = ({ children }) => {
 
       // User-specific storage (Redis-only approach)
       const savedWalletID = existingWalletID; // From Redis only
+      const savedEncryptedMnemonic = existingMnemonic; // From Redis
       let railgunWalletInfo;
+
+      // 🎂 WALLET BIRTHDAY SYSTEM: Determine if this is a fresh wallet for optimization
+      const isFreshWallet = !savedEncryptedMnemonic && !existingWalletID;
 
       if (savedWalletID && existingRailgunAddress) {
         // Load existing wallet using Redis data
@@ -1718,7 +1722,6 @@ const WalletContextProvider = ({ children }) => {
         
         // 🔄 Check for existing encrypted mnemonic from Redis
         let mnemonic = null;
-        const savedEncryptedMnemonic = existingMnemonic; // From Redis only
         
         if (savedEncryptedMnemonic) {
           try {
@@ -1772,7 +1775,6 @@ const WalletContextProvider = ({ children }) => {
 
         // 🎂 WALLET BIRTHDAY SYSTEM: Calculate optimized scan start blocks for fresh wallets
         // Only apply to wallets we just generated (not imported or existing)
-        const isFreshWallet = !savedEncryptedMnemonic && !existingWalletID;
         let walletBirthdayMap = null;
 
         if (isFreshWallet) {
