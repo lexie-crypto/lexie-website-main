@@ -111,6 +111,10 @@ export default async function handler(req, res) {
 
     console.log(`🎯 [ARTIFACTS-PROXY-${requestId}] Target`, { backendUrl });
 
+    // Extract targetPath from backendUrl for HMAC signature
+    const backendUrlObj = new URL(backendUrl);
+    const targetPath = backendUrlObj.pathname + backendUrlObj.search;
+
     const hmacSecret = process.env.LEXIE_HMAC_SECRET;
     if (!hmacSecret) {
       console.error('LEXIE_HMAC_SECRET not configured');
