@@ -5,10 +5,10 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'react-hot-toast';
-import { 
-  WalletIcon, 
-  ArrowRightIcon, 
-  EyeIcon, 
+import {
+  WalletIcon,
+  ArrowRightIcon,
+  EyeIcon,
   EyeSlashIcon,
   ChevronDownIcon,
   ExclamationTriangleIcon,
@@ -18,6 +18,81 @@ import {
   CurrencyDollarIcon,
   ClipboardDocumentIcon,
 } from '@heroicons/react/24/outline';
+
+// Custom hook for draggable modals
+const useDraggableModal = (initialPosition = { x: 0, y: 0 }) => {
+  const [position, setPosition] = useState(initialPosition);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const modalRef = useRef(null);
+
+  const handleMouseDown = useCallback((e) => {
+    if (e.target.closest('button') || e.target.closest('a') || e.target.closest('input')) {
+      return; // Don't start drag if clicking interactive elements
+    }
+
+    setIsDragging(true);
+    const rect = modalRef.current?.getBoundingClientRect();
+    if (rect) {
+      setDragOffset({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      });
+    }
+  }, []);
+
+  const handleMouseMove = useCallback((e) => {
+    if (!isDragging || !modalRef.current) return;
+
+    const modalRect = modalRef.current.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    let newX = e.clientX - dragOffset.x;
+    let newY = e.clientY - dragOffset.y;
+
+    // Constrain to viewport bounds
+    const maxX = viewportWidth - modalRect.width;
+    const maxY = viewportHeight - modalRect.height;
+
+    newX = Math.max(0, Math.min(newX, maxX));
+    newY = Math.max(0, Math.min(newY, maxY));
+
+    setPosition({ x: newX, y: newY });
+  }, [isDragging, dragOffset]);
+
+  const handleMouseUp = useCallback(() => {
+    setIsDragging(false);
+  }, []);
+
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove);
+      document.addEventListener('mouseup', handleMouseUp);
+      document.body.style.userSelect = 'none';
+      document.body.style.cursor = 'grabbing';
+    } else {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    }
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+      document.body.style.userSelect = '';
+      document.body.style.cursor = '';
+    };
+  }, [isDragging, handleMouseMove, handleMouseUp]);
+
+  return {
+    position,
+    isDragging,
+    modalRef,
+    handleMouseDown,
+  };
+};
 
 import { useWallet } from '../../contexts/WalletContext';
 import TerminalWindow from '../ui/TerminalWindow.jsx';
@@ -1010,6 +1085,9 @@ const VaultDesktopInner = () => {
     };
   }, [isChainMenuOpen, isMobileChainMenuOpen]);
 
+  // Draggable modal hook for connect modal
+  const connectModalDrag = useDraggableModal();
+
   if (!isConnected || (isConnected && !isNetworkSupported) || walletConnectValidating) {
     return (
       <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
@@ -1027,10 +1105,10 @@ const VaultDesktopInner = () => {
           </div>
           <div className="absolute inset-0 overflow-hidden">
             {Array.from({ length: 3 }).map((_, i) => (
-              <div 
-                key={i} 
+              <div
+                key={i}
                 className="absolute rounded-full animate-pulse"
-                style={{ 
+                style={{
                   left: `${20 + i * 30}%`,
                   top: `${20 + i * 20}%`,
                   width: `${200 + i * 100}px`,
@@ -1045,14 +1123,26 @@ const VaultDesktopInner = () => {
         </div>
 
         <div className="relative z-10 max-w-3xl mx-auto px-6 sm:px-8 lg:px-12 py-12">
-          <TerminalWindow
-            title="LexieVault-connect"
-            statusLabel={wasDisconnectedForUnsupportedNetwork ? 'NETWORK ERROR' : (isConnecting ? 'WAITING' : 'READY')}
-            statusTone={wasDisconnectedForUnsupportedNetwork ? 'error' : (isConnecting ? 'waiting' : 'online')}
-            footerLeft={<span>Process: wallet-connect</span>}
-            variant="connect"
-            className="overflow-hidden"
+          <div
+            ref={connectModalDrag.modalRef}
+            style={{
+              position: 'relative',
+              left: connectModalDrag.position.x,
+              top: connectModalDrag.position.y,
+              transition: connectModalDrag.isDragging ? 'none' : 'all 0.1s ease-out',
+              cursor: connectModalDrag.isDragging ? 'grabbing' : 'default',
+            }}
           >
+            <TerminalWindow
+              title="LexieVault-connect"
+              statusLabel={wasDisconnectedForUnsupportedNetwork ? 'NETWORK ERROR' : (isConnecting ? 'WAITING' : 'READY')}
+              statusTone={wasDisconnectedForUnsupportedNetwork ? 'error' : (isConnecting ? 'waiting' : 'online')}
+              footerLeft={<span>Process: wallet-connect</span>}
+              variant="connect"
+              className="overflow-hidden"
+              onMouseDown={connectModalDrag.handleMouseDown}
+              style={{ cursor: connectModalDrag.isDragging ? 'grabbing' : 'grab' }}
+            >
             <div className="font-mono text-green-300 text-center">
               <WalletIcon className="h-16 w-16 text-emerald-300 mx-auto mb-6" />
               <h2 className="text-2xl font-semibold text-emerald-300 tracking-tight">Connect Wallet</h2>
@@ -1073,6 +1163,7 @@ const VaultDesktopInner = () => {
               </div>
             </div>
           </TerminalWindow>
+          </div>
         </div>
       </div>
     );
@@ -1520,12 +1611,27 @@ const VaultDesktopInner = () => {
 
       </div>
 
+      {/* Draggable modal hook for Lexie ID modal */}
+      const lexieModalDrag = useDraggableModal();
+
       {/* Lexie ID Modal */}
       {showLexieModal && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 font-mono">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-4xl w-full overflow-hidden">
+          <div
+            ref={lexieModalDrag.modalRef}
+            style={{
+              position: 'relative',
+              left: lexieModalDrag.position.x,
+              top: lexieModalDrag.position.y,
+              transition: lexieModalDrag.isDragging ? 'none' : 'all 0.1s ease-out',
+            }}
+            className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-4xl w-full overflow-hidden"
+          >
             {/* Modal Terminal Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
+            <div
+              className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800 cursor-grab active:cursor-grabbing"
+              onMouseDown={lexieModalDrag.handleMouseDown}
+            >
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5">
                   <span className="w-3 h-3 rounded-full bg-red-500" />
@@ -1689,11 +1795,26 @@ const VaultDesktopInner = () => {
       )}
 
 
+      {/* Draggable modal hook for sign request modal */}
+      const signModalDrag = useDraggableModal();
+
       {/* Sign-in & Initialization Popup */}
       {showSignRequestPopup && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center z-50 p-4 font-mono">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
+          <div
+            ref={signModalDrag.modalRef}
+            style={{
+              position: 'relative',
+              left: signModalDrag.position.x,
+              top: signModalDrag.position.y,
+              transition: signModalDrag.isDragging ? 'none' : 'all 0.1s ease-out',
+            }}
+            className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden"
+          >
+            <div
+              className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800 cursor-grab active:cursor-grabbing"
+              onMouseDown={signModalDrag.handleMouseDown}
+            >
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-1.5">
                   <span className="w-3 h-3 rounded-full bg-red-500" />
