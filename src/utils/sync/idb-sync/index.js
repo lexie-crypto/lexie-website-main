@@ -3,9 +3,31 @@
  * Main entry point for the sync system
  */
 
-import { initializeIDBSync } from './events.js';
-import { getQueueStats, clearQueue } from './queue.js';
-import { getSyncStatus as getStateStatus, resetSyncState } from './state.js';
+// Dynamic imports to avoid circular dependencies
+let eventsModule = null;
+let queueModule = null;
+let stateModule = null;
+
+const getEventsModule = async () => {
+  if (!eventsModule) {
+    eventsModule = await import('./events.js');
+  }
+  return eventsModule;
+};
+
+const getQueueModule = async () => {
+  if (!queueModule) {
+    queueModule = await import('./queue.js');
+  }
+  return queueModule;
+};
+
+const getStateModule = async () => {
+  if (!stateModule) {
+    stateModule = await import('./state.js');
+  }
+  return stateModule;
+};
 
 // Main initialization
 export const initializeSyncSystem = async (walletId) => {
@@ -19,7 +41,8 @@ export const initializeSyncSystem = async (walletId) => {
     window.__LEXIE_IDB_SYNC_SCHEDULER__ = scheduleSync;
 
     // Set up event listeners
-    initializeIDBSync();
+    const eventsMod = await getEventsModule();
+    eventsMod.initializeIDBSync();
 
     // Store wallet ID globally for sync operations
     if (walletId) {
@@ -45,17 +68,29 @@ export const initializeSyncSystem = async (walletId) => {
 };
 
 // Public API (with dynamic imports to avoid circular dependencies)
-export {
-  // Queue management
-  getQueueStats,
-  clearQueue,
+export const getQueueStats = async () => {
+  const queueMod = await getQueueModule();
+  return queueMod.getQueueStats();
+};
 
-  // State management
-  getStateStatus,
-  resetSyncState,
+export const clearQueue = async () => {
+  const queueMod = await getQueueModule();
+  return queueMod.clearQueue();
+};
 
-  // Events
-  initializeIDBSync
+export const getStateStatus = async () => {
+  const stateMod = await getStateModule();
+  return stateMod.getSyncStatus();
+};
+
+export const resetSyncState = async () => {
+  const stateMod = await getStateModule();
+  return stateMod.resetSyncState();
+};
+
+export const initializeIDBSync = async () => {
+  const eventsMod = await getEventsModule();
+  return eventsMod.initializeIDBSync();
 };
 
 // Dynamic exports for scheduler functions
@@ -84,10 +119,10 @@ if (typeof window !== 'undefined') {
     },
 
     // Get sync status
-    getStatus: () => {
-      const syncStatus = getSyncStatus();
-      const queueStats = getQueueStats();
-      const stateStatus = getStateStatus();
+    getStatus: async () => {
+      const syncStatus = await getSyncStatus();
+      const queueStats = await getQueueStats();
+      const stateStatus = await getStateStatus();
 
       console.log('[IDB-Sync-Debug] Sync Status:', { syncStatus, queueStats, stateStatus });
       return { syncStatus, queueStats, stateStatus };
@@ -97,14 +132,15 @@ if (typeof window !== 'undefined') {
     reset: async () => {
       console.log('[IDB-Sync-Debug] Resetting sync system');
       await clearQueue();
-      resetSyncState();
+      await resetSyncState();
       console.log('[IDB-Sync-Debug] Sync system reset complete');
     },
 
     // Cancel current sync
-    cancel: () => {
+    cancel: async () => {
       console.log('[IDB-Sync-Debug] Cancelling current sync');
-      cancelSync();
+      const { cancelSync } = await import('./scheduler.js');
+      return cancelSync();
     }
   };
 

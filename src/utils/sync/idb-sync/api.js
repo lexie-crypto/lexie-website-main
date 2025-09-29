@@ -3,7 +3,15 @@
  * Makes requests to artifacts.js proxy which handles HMAC signing
  */
 
-import { enqueueChunk } from './queue.js';
+// Dynamic import to avoid circular dependencies
+let queueModule = null;
+
+const getQueueModule = async () => {
+  if (!queueModule) {
+    queueModule = await import('./queue.js');
+  }
+  return queueModule;
+};
 
 /**
  * Make sync request through artifacts proxy
@@ -47,7 +55,8 @@ export const makeSyncRequest = async (action, options = {}) => {
         const bodyData = JSON.parse(options.body);
         if (bodyData.walletId && bodyData.dbName) {
           console.log('[IDB-Sync-API] Enqueueing chunk for offline sync');
-          await enqueueChunk({
+          const queueMod = await getQueueModule();
+          await queueMod.enqueueChunk({
             walletId: bodyData.walletId,
             dbName: bodyData.dbName,
             timestamp: bodyData.timestamp,
