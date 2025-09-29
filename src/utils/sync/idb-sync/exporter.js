@@ -3,7 +3,15 @@
  * Reads from IndexedDB and exports data in syncable format
  */
 
-import { SYNC_STORES, getSyncCursor, setSyncCursor } from './state.js';
+// Dynamic import to avoid circular dependencies
+let stateModule = null;
+
+const getStateModule = async () => {
+  if (!stateModule) {
+    stateModule = await import('./state.js');
+  }
+  return stateModule;
+};
 
 /**
  * Open IndexedDB database
@@ -100,7 +108,8 @@ export const exportStore = async (dbName, storeName) => {
     console.log(`[IDB-Sync-Exporter] Exporting ${storeName} from ${dbName}`);
 
     const db = await openIDB(dbName);
-    const cursor = getSyncCursor(`${dbName}:${storeName}`);
+    const stateMod = await getStateModule();
+    const cursor = stateMod.getSyncCursor(`${dbName}:${storeName}`);
     const records = await getRecordsSinceCursor(db, storeName, cursor);
 
     if (records.length === 0) {

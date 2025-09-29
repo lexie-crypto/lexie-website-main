@@ -3,9 +3,31 @@
  * Coordinates the sync process and manages concurrent operations
  */
 
-import { SYNC_STORES, getDirtyFlags, clearDirtyFlag } from './state.js';
-import { prepareSyncData } from './exporter.js';
-import { uploadChunk, finalizeSync } from './api.js';
+// Dynamic imports to avoid circular dependencies
+let stateModule = null;
+let exporterModule = null;
+let apiModule = null;
+
+const getStateModule = async () => {
+  if (!stateModule) {
+    stateModule = await import('./state.js');
+  }
+  return stateModule;
+};
+
+const getExporterModule = async () => {
+  if (!exporterModule) {
+    exporterModule = await import('./exporter.js');
+  }
+  return exporterModule;
+};
+
+const getApiModule = async () => {
+  if (!apiModule) {
+    apiModule = await import('./api.js');
+  }
+  return apiModule;
+};
 
 // Prevent concurrent syncs
 let isSyncing = false;
@@ -18,7 +40,8 @@ const syncStore = async (walletId, dbName, storeName) => {
   try {
     console.log(`[IDB-Sync-Scheduler] Starting sync for ${storeName}`);
 
-    const syncData = await prepareSyncData(walletId, dbName, storeName);
+    const exporterMod = await getExporterModule();
+    const syncData = await exporterMod.prepareSyncData(walletId, dbName, storeName);
 
     if (!syncData) {
       console.log(`[IDB-Sync-Scheduler] No data to sync for ${storeName}`);
@@ -36,7 +59,8 @@ const syncStore = async (walletId, dbName, storeName) => {
       const chunk = chunks[i];
       const chunkHash = await calculateHash(chunk);
 
-      await uploadChunk(
+      const apiMod = await getApiModule();
+      await apiMod.uploadChunk(
         walletId,
         storeName, // Use storeName as dbName for simplicity
         syncData.timestamp,
@@ -50,12 +74,13 @@ const syncStore = async (walletId, dbName, storeName) => {
     }
 
     // Finalize sync
-    await finalizeSync(walletId, storeName, syncData.timestamp, manifest);
+    const apiMod = await getApiModule();
+    await apiMod.finalizeSync(walletId, storeName, syncData.timestamp, manifest);
 
     // Update cursor and clear dirty flag
-    const { setSyncCursor, setSyncHash } = await import('./state.js');
-    setSyncCursor(`${dbName}:${storeName}`, lastKey);
-    setSyncHash(storeName, manifest.hash);
+    const stateMod = await getStateModule();
+    stateMod.setSyncCursor(`${dbName}:${storeName}`, lastKey);
+    stateMod.setSyncHash(storeName, manifest.hash);
 
     console.log(`[IDB-Sync-Scheduler] Completed sync for ${storeName}`, {
       chunks: chunks.length,
@@ -106,8 +131,9 @@ export const scheduleSync = async (walletId = null) => {
   try {
     console.log('[IDB-Sync-Scheduler] Starting sync operation', { walletId });
 
-    const dirtyFlags = getDirtyFlags();
-    const storesToSync = SYNC_STORES.filter(store => dirtyFlags[store]);
+    const stateMod = await getStateModule();
+    const dirtyFlags = stateMod.getDirtyFlags();
+    const storesToSync = stateMod.SYNC_STORES.filter(store => dirtyFlags[store]);
 
     if (storesToSync.length === 0) {
       console.log('[IDB-Sync-Scheduler] No dirty stores to sync');
@@ -121,7 +147,7 @@ export const scheduleSync = async (walletId = null) => {
     for (const storeName of storesToSync) {
       try {
         await syncStore(walletId, 'railgun', storeName);
-        clearDirtyFlag(storeName);
+        stateMod.clearDirtyFlag(storeName);
         results.push({ store: storeName, success: true });
       } catch (error) {
         console.error(`[IDB-Sync-Scheduler] Store sync failed for ${storeName}:`, error);
