@@ -115,21 +115,20 @@ export const uploadChunk = async (walletId, dbName, timestamp, chunkIndex, total
       })
     });
   } catch (error) {
-    // Handle 413 Payload Too Large errors by splitting chunk into ~3MB pieces
-    if (error.message.includes('413') && retryCount < 3) {
-      console.warn(`[IDB-Sync-API] Chunk ${chunkIndex} too large (413), splitting into 3MB pieces...`);
+    // Handle 413 Payload Too Large errors by splitting chunk into smaller pieces
+    if (error.message.includes('413') && retryCount < 2) {
+      console.warn(`[IDB-Sync-API] Chunk ${chunkIndex} too large (413), splitting conservatively...`);
 
-      // Split into ~3MB pieces (accounting for base64 overhead)
-      const targetPieceSize = Math.floor(3 * 1024 * 1024 * 0.8); // ~2.4MB NDJSON target
-      const numPieces = Math.ceil(data.length / targetPieceSize);
-      const actualPieceSize = Math.ceil(data.length / numPieces);
+      // Split into ~2MB pieces (accounting for base64 overhead)
+      const pieceSize = Math.floor(2 * 1024 * 1024 * 0.8); // ~1.6MB
+      const numPieces = Math.ceil(data.length / pieceSize);
 
-      console.log(`[IDB-Sync-API] Splitting ${data.length} bytes into ${numPieces} pieces of ~${actualPieceSize} bytes each`);
+      console.log(`[IDB-Sync-API] Splitting ${data.length} bytes into ${numPieces} pieces of ~${pieceSize} bytes each`);
 
       // Upload each piece
       for (let i = 0; i < numPieces; i++) {
-        const start = i * actualPieceSize;
-        const end = Math.min(start + actualPieceSize, data.length);
+        const start = i * pieceSize;
+        const end = Math.min(start + pieceSize, data.length);
         const piece = data.substring(start, end);
         const pieceHash = await calculateHash(piece);
 
