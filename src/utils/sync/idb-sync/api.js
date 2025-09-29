@@ -98,20 +98,51 @@ export const makeSyncRequest = async (action, options = {}) => {
 
 /**
  * Upload chunk to backend via artifacts proxy
+ * Handles 413 auto-split as fallback for oversized chunks
  */
-export const uploadChunk = async (walletId, dbName, timestamp, chunkIndex, totalChunks, data, hash) => {
-  return await makeSyncRequest('sync-chunk', {
-    method: 'POST',
-    body: JSON.stringify({
-      walletId,
-      dbName,
-      timestamp,
-      chunkIndex,
-      totalChunks,
-      data,
-      hash
-    })
-  });
+export const uploadChunk = async (walletId, dbName, timestamp, chunkIndex, totalChunks, data, hash, retryCount = 0) => {
+  try {
+    return await makeSyncRequest('sync-chunk', {
+      method: 'POST',
+      body: JSON.stringify({
+        walletId,
+        dbName,
+        timestamp,
+        chunkIndex,
+        totalChunks,
+        data,
+        hash
+      })
+    });
+  } catch (error) {
+    // Handle 413 Payload Too Large errors by splitting chunk
+    if (error.message.includes('413') && retryCount < 2) {
+      console.warn(`[IDB-Sync-API] Chunk ${chunkIndex} too large (413), splitting and retrying...`);
+
+      // Split the chunk in half
+      const midPoint = Math.floor(data.length / 2);
+      const firstHalf = data.substring(0, midPoint);
+      const secondHalf = data.substring(midPoint);
+
+      // Calculate hashes for split chunks
+      const firstHash = await calculateHash(firstHalf);
+      const secondHash = await calculateHash(secondHalf);
+
+      console.log(`[IDB-Sync-API] Split chunk ${chunkIndex} into 2 parts: ${firstHalf.length} + ${secondHalf.length} bytes`);
+
+      // Upload first half (this will recursively handle if still too large)
+      await uploadChunk(walletId, dbName, timestamp, chunkIndex * 2, totalChunks * 2, firstHalf, firstHash, retryCount + 1);
+
+      // Upload second half
+      await uploadChunk(walletId, dbName, timestamp, chunkIndex * 2 + 1, totalChunks * 2, secondHalf, secondHash, retryCount + 1);
+
+      // Return success for the original chunk
+      return { success: true, split: true };
+    }
+
+    // Re-throw other errors
+    throw error;
+  }
 };
 
 /**

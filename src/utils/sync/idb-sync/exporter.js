@@ -13,6 +13,34 @@ const getStateModule = async () => {
   return stateModule;
 };
 
+// Target chunk size for final JSON/base64 payload (not raw NDJSON)
+const CHUNK_TARGET_BYTES = 2 * 1024 * 1024; // 2MB
+
+/**
+ * Estimate final JSON payload size for a chunk
+ * Accounts for JSON wrapper, base64 encoding, and metadata
+ */
+const estimatePayloadSize = (ndjsonChunk, walletId = 'placeholder') => {
+  // Base64 encoding increases size by ~4/3
+  const base64Size = Math.ceil(ndjsonChunk.length * 4 / 3);
+
+  // JSON payload structure overhead
+  const jsonOverhead = JSON.stringify({
+    walletId: walletId,
+    timestamp: Date.now(),
+    chunkIndex: 0,
+    totalChunks: 1,
+    data: '', // This will hold the base64 data
+    hash: 'sha256-placeholder-hash-here-64-chars-long-xxxxxxxxxxxx'
+  }).length;
+
+  // Subtract empty data field and add actual base64 data
+  const emptyDataField = '"data":""'.length;
+  const actualDataField = `"data":"${'x'.repeat(base64Size)}"`.length;
+
+  return jsonOverhead - emptyDataField + actualDataField;
+};
+
 /**
  * Open LevelJS-backed IndexedDB database
  */
@@ -102,35 +130,6 @@ const createManifest = (walletId, timestamp, totalRecords, totalBytes, chunkCoun
   };
 };
 
-/**
- * Chunk NDJSON data into manageable pieces (2-4 MB)
- */
-const chunkData = (ndjson, maxChunkSize = 2 * 1024 * 1024) => { // 2MB default
-  const chunks = [];
-  const lines = ndjson.split('\n');
-
-  let currentChunk = '';
-  for (const line of lines) {
-    if (line.trim() === '') continue; // Skip empty lines
-
-    const newChunk = currentChunk + line + '\n';
-
-    if (newChunk.length > maxChunkSize && currentChunk.length > 0) {
-      // Current chunk would exceed limit, save it and start new
-      chunks.push(currentChunk);
-      currentChunk = line + '\n';
-    } else {
-      currentChunk = newChunk;
-    }
-  }
-
-  // Add remaining chunk
-  if (currentChunk.trim()) {
-    chunks.push(currentChunk);
-  }
-
-  return chunks;
-};
 
 /**
  * Export full database snapshot
@@ -169,7 +168,6 @@ export const exportFullSnapshot = async (walletId, signal) => {
       let totalBytes = 0;
       const chunks = [];
       let currentChunk = '';
-      const maxChunkSize = 2 * 1024 * 1024; // 2MB
       const timestamp = Date.now();
 
       let request;
@@ -191,8 +189,11 @@ export const exportFullSnapshot = async (walletId, signal) => {
           const ndjsonLine = recordToNDJSON({ key: cursor.key, value: cursor.value }) + '\n';
           const lineBytes = ndjsonLine.length;
 
-          // Check if adding this line would exceed chunk size
-          if (currentChunk.length + lineBytes > maxChunkSize && currentChunk.length > 0) {
+          // Check if adding this line would exceed target payload size
+          const potentialChunk = currentChunk + ndjsonLine;
+          const estimatedPayloadSize = estimatePayloadSize(potentialChunk, walletId);
+
+          if (estimatedPayloadSize > CHUNK_TARGET_BYTES && currentChunk.length > 0) {
             // Save current chunk and start new one
             chunks.push(currentChunk);
             currentChunk = ndjsonLine;

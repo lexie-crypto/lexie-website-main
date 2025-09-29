@@ -70,7 +70,7 @@ const syncStore = async (walletId, dbName, storeName) => {
         chunkHash
       );
 
-      console.debug(`[IDB-Sync-Scheduler] Uploaded chunk ${i + 1}/${chunks.length} for ${storeName}`);
+      console.log(`[IDB-Sync-Scheduler] Uploaded chunk ${i + 1}/${chunks.length} (bytes=${chunk.length}) for ${storeName}`);
     }
 
     // Finalize sync
