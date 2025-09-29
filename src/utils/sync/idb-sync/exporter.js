@@ -93,7 +93,7 @@ const calculateHash = async (data) => {
 /**
  * Create manifest for snapshot
  */
-const createManifest = (walletId, timestamp, totalRecords, totalBytes, chunkCount, overallHash) => {
+const createManifest = (walletId, timestamp, totalRecords, totalBytes, chunkCount, overallHash, chunkHashes = []) => {
   return {
     walletId,
     timestamp,
@@ -101,6 +101,7 @@ const createManifest = (walletId, timestamp, totalRecords, totalBytes, chunkCoun
     totalBytes,
     chunkCount,
     overallHash,
+    chunkHashes, // Individual chunk hashes for verification
     version: '1.0',
     format: 'idb-snapshot'
   };
@@ -199,18 +200,26 @@ export const exportFullSnapshot = async (walletId, signal) => {
             chunks.push(currentChunk);
           }
 
+          // Calculate hashes for each chunk
+          const chunkHashes = [];
+          for (const chunk of chunks) {
+            const chunkHash = await calculateHash(chunk);
+            chunkHashes.push(chunkHash);
+          }
+
           // Calculate overall hash from all chunks
           const allData = chunks.join('');
           const overallHash = await calculateHash(allData);
 
-          // Create manifest
+          // Create manifest with chunk hashes
           const manifest = createManifest(
             walletId,
             timestamp,
             recordCount,
             totalBytes,
             chunks.length,
-            overallHash
+            overallHash,
+            chunkHashes
           );
 
           // Clear resume cursor

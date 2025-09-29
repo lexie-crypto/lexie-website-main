@@ -62,10 +62,10 @@ export const makeSyncRequest = async (action, options = {}) => {
       throw new Error(`HTTP ${response.status}: ${errorText}`);
     }
 
-    // For chunk data (NDJSON), return as text
-    if (action.startsWith('idb-sync-chunk')) {
+    // For NDJSON data (chunks and snapshots), return as text
+    if (action.startsWith('idb-sync-chunk') || action.startsWith('idb-sync-snapshot')) {
       const result = await response.text();
-      console.debug('[IDB-Sync-API] Chunk request successful');
+      console.debug('[IDB-Sync-API] NDJSON request successful');
       return result;
     }
 
@@ -270,7 +270,15 @@ export const getLatestManifest = async (walletId) => {
 };
 
 /**
- * Get a specific chunk for hydration
+ * Get compressed snapshot (preferred method)
+ */
+export const getSyncSnapshot = async (walletId, timestamp) => {
+  const action = `idb-sync-snapshot&ts=${timestamp}`;
+  return await makeSyncRequest(encodeURIComponent(action));
+};
+
+/**
+ * Get a specific chunk for hydration (fallback)
  */
 export const getSyncChunk = async (walletId, timestamp, chunkIndex) => {
   const action = `idb-sync-chunk&ts=${timestamp}&n=${chunkIndex}`;

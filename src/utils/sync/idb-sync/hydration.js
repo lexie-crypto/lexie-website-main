@@ -153,8 +153,17 @@ class HydrationManager {
         return;
       }
 
-      // Start chunk processing
-      await this.processChunks(walletId, manifest, resumeFromChunk, abortController.signal, onProgress);
+      // Try snapshot mode first (much faster), fall back to chunks
+      console.log('[IDB-Hydration] Attempting snapshot mode...');
+      try {
+        await this.processSnapshot(walletId, manifest, abortController.signal, onProgress);
+        console.log('[IDB-Hydration] Snapshot hydration completed successfully');
+      } catch (snapshotError) {
+        console.warn('[IDB-Hydration] Snapshot mode failed, falling back to chunks:', snapshotError.message);
+
+        // Fall back to chunk processing
+        await this.processChunks(walletId, manifest, resumeFromChunk, abortController.signal, onProgress);
+      }
 
       // Mark as completed
       this.updateHydrationState(walletId, {
@@ -216,7 +225,62 @@ class HydrationManager {
   }
 
   /**
-   * Process chunks sequentially
+   * Process compressed snapshot (preferred - much faster)
+   */
+  async processSnapshot(walletId, manifest, abortSignal, onProgress) {
+    const { getSyncSnapshot } = await import('./api.js');
+
+    if (abortSignal?.aborted) {
+      throw new Error('Snapshot processing aborted');
+    }
+
+    console.log('[IDB-Hydration] Fetching compressed snapshot...');
+
+    try {
+      // Fetch compressed snapshot
+      const snapshotData = await getSyncSnapshot('', manifest.ts);
+
+      if (typeof snapshotData !== 'string') {
+        throw new Error('Invalid snapshot response - expected NDJSON string');
+      }
+
+      // Verify snapshot hash if available
+      if (manifest.overallHash) {
+        console.log('[IDB-Hydration] Verifying snapshot integrity...');
+        const calculatedHash = await this.calculateHash(snapshotData);
+        if (calculatedHash !== manifest.overallHash) {
+          throw new Error(`Snapshot hash verification failed: expected ${manifest.overallHash}, got ${calculatedHash}`);
+        }
+        console.log('[IDB-Hydration] Snapshot integrity verified ✓');
+      }
+
+      // Update progress to 50% (download complete)
+      if (onProgress) {
+        onProgress(50, 0, 1);
+      }
+
+      // Write entire snapshot to IDB
+      console.log('[IDB-Hydration] Writing snapshot to IDB...');
+      await this.writeChunkToIDB(snapshotData, abortSignal);
+
+      // Update progress to 100%
+      if (onProgress) {
+        onProgress(100, 1, 1);
+      }
+
+      console.log('[IDB-Hydration] Snapshot processed successfully');
+
+    } catch (error) {
+      if (error.message.includes('404') || error.message.includes('not available')) {
+        console.log('[IDB-Hydration] Compressed snapshot not available');
+        throw new Error('SNAPSHOT_NOT_AVAILABLE');
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Process chunks with parallel downloading but sequential IDB writes
    */
   async processChunks(walletId, manifest, resumeFromChunk, abortSignal, onProgress) {
     const { chunkCount, chunkHashes } = manifest;
@@ -224,53 +288,76 @@ class HydrationManager {
 
     console.log(`[IDB-Hydration] Processing ${chunkCount} chunks, starting from ${processedChunks}`);
 
-    // Process chunks sequentially to avoid overwhelming IDB
-    for (let i = processedChunks; i < chunkCount; i++) {
+    const CONCURRENT_DOWNLOADS = 4; // Download 4 chunks in parallel
+
+    // Process chunks in batches for parallel downloading
+    for (let batchStart = processedChunks; batchStart < chunkCount; batchStart += CONCURRENT_DOWNLOADS) {
       if (abortSignal.aborted) {
         throw new Error('Hydration aborted');
       }
 
-      try {
-        console.log(`[IDB-Hydration] Processing chunk ${i}/${chunkCount}`);
+      const batchEnd = Math.min(batchStart + CONCURRENT_DOWNLOADS, chunkCount);
+      const batchPromises = [];
 
-        // Fetch chunk using global timestamp
-        const chunkData = await this.fetchChunk(manifest.ts, i, abortSignal);
+      // Start parallel downloads for this batch
+      for (let i = batchStart; i < batchEnd; i++) {
+        const downloadPromise = this.fetchChunk(manifest.ts, i, abortSignal)
+          .then(chunkData => ({ index: i, data: chunkData }))
+          .catch(error => ({ index: i, error }));
 
-        // Verify chunk hash if available
-        if (chunkHashes[i]) {
-          const calculatedHash = await this.calculateHash(chunkData);
-          if (calculatedHash !== chunkHashes[i]) {
-            throw new Error(`Chunk ${i} hash verification failed`);
-          }
-        }
-
-        // Write to IDB
-        await this.writeChunkToIDB(chunkData, abortSignal);
-
-        // Update progress
-        processedChunks = i + 1;
-        const progress = Math.round((processedChunks / chunkCount) * 100);
-
-        this.updateHydrationState(walletId, {
-          lastChunk: i,
-          progress,
-          status: 'running'
-        });
-
-        if (onProgress) {
-          onProgress(progress, i, chunkCount);
-        }
-
-        // Small delay to prevent overwhelming the browser
-        await new Promise(resolve => setTimeout(resolve, 10));
-
-      } catch (error) {
-        console.error(`[IDB-Hydration] Error processing chunk ${i}:`, error);
-
-        // For network errors, we could implement retry logic here
-        // For now, rethrow to fail the entire hydration
-        throw error;
+        batchPromises.push(downloadPromise);
       }
+
+      // Wait for all downloads in this batch to complete
+      const batchResults = await Promise.all(batchPromises);
+
+      // Process results sequentially (maintain IDB write order)
+      for (const result of batchResults) {
+        const { index, data, error } = result;
+
+        if (error) {
+          console.error(`[IDB-Hydration] Error downloading chunk ${index}:`, error);
+          throw error;
+        }
+
+        try {
+          console.log(`[IDB-Hydration] Processing chunk ${index}/${chunkCount}`);
+
+          // Verify chunk hash if available (now that server provides them)
+          if (chunkHashes && chunkHashes[index]) {
+            console.log(`[IDB-Hydration] Verifying chunk ${index} integrity...`);
+            const calculatedHash = await this.calculateHash(data);
+            if (calculatedHash !== chunkHashes[index]) {
+              throw new Error(`Chunk ${index} hash verification failed: expected ${chunkHashes[index]}, got ${calculatedHash}`);
+            }
+            console.log(`[IDB-Hydration] Chunk ${index} integrity verified ✓`);
+          }
+
+          // Write to IDB (sequential to avoid overwhelming)
+          await this.writeChunkToIDB(data, abortSignal);
+
+          // Update progress
+          processedChunks = index + 1;
+          const progress = Math.round((processedChunks / chunkCount) * 100);
+
+          this.updateHydrationState(walletId, {
+            lastChunk: index,
+            progress,
+            status: 'running'
+          });
+
+          if (onProgress) {
+            onProgress(progress, index, chunkCount);
+          }
+
+        } catch (error) {
+          console.error(`[IDB-Hydration] Error processing chunk ${index}:`, error);
+          throw error;
+        }
+      }
+
+      // Small delay between batches to prevent overwhelming the network
+      await new Promise(resolve => setTimeout(resolve, 50));
     }
   }
 

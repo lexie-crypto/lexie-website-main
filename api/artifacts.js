@@ -116,6 +116,12 @@ export default async function handler(req, res) {
           return res.status(400).json({ error: 'Missing required parameter: walletId', requestId });
         }
         backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/latest?walletId=${encodeURIComponent(walletId)}`;
+      } else if (parsedAction === 'idb-sync-snapshot') {
+        const ts = actionParams.ts;
+        if (!ts) {
+          return res.status(400).json({ error: 'Missing required parameter: ts', requestId });
+        }
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/snapshot?ts=${encodeURIComponent(ts)}`;
       } else if (parsedAction === 'idb-sync-chunk') {
         const ts = actionParams.ts;
         const n = actionParams.n;
