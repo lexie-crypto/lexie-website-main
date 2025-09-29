@@ -29,20 +29,24 @@ const getStateModule = async () => {
   return stateModule;
 };
 
-// Main initialization
+// Main initialization - defensive and optional
 export const initializeSyncSystem = async (walletId) => {
   try {
     console.log('[IDB-Sync] Initializing continuous IndexedDB → Redis sync system');
 
     // Dynamically import scheduler to avoid circular dependencies
-    const { scheduleSync, cancelSync, getSyncStatus } = await import('./scheduler.js');
+    const schedulerMod = await import('./scheduler.js').catch(err => {
+      throw new Error(`Failed to load scheduler module: ${err.message}`);
+    });
 
     // Set up global scheduler reference for events.js
-    window.__LEXIE_IDB_SYNC_SCHEDULER__ = scheduleSync;
+    window.__LEXIE_IDB_SYNC_SCHEDULER__ = schedulerMod.scheduleSync;
 
     // Set up event listeners
-    const eventsMod = await getEventsModule();
-    eventsMod.initializeIDBSync();
+    const eventsMod = await getEventsModule().catch(err => {
+      throw new Error(`Failed to load events module: ${err.message}`);
+    });
+    await eventsMod.initializeIDBSync();
 
     // Store wallet ID globally for sync operations
     if (walletId) {
@@ -53,17 +57,25 @@ export const initializeSyncSystem = async (walletId) => {
     // Process any queued items from previous sessions
     setTimeout(async () => {
       try {
-        const { processQueue } = await import('./queue.js');
-        await processQueue();
+        const queueMod = await import('./queue.js').catch(err => {
+          console.warn('[IDB-Sync] Queue module not available:', err.message);
+          return null;
+        });
+        if (queueMod && queueMod.processQueue) {
+          await queueMod.processQueue();
+        }
       } catch (error) {
-        console.error('[IDB-Sync] Failed to process queued items:', error);
+        console.warn('[IDB-Sync] Failed to process queued items:', error.message);
       }
     }, 5000); // Wait 5 seconds after init
 
     console.log('[IDB-Sync] Sync system initialized successfully');
 
   } catch (error) {
-    console.error('[IDB-Sync] Failed to initialize sync system:', error);
+    // Re-throw with more context but don't crash the app
+    const errorMsg = `[IDB-Sync] Failed to initialize sync system: ${error.message}`;
+    console.warn(errorMsg);
+    throw new Error(errorMsg);
   }
 };
 
