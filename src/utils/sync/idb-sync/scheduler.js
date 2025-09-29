@@ -50,27 +50,47 @@ const syncStore = async (walletId, dbName, storeName) => {
 
     const { chunks, manifest, lastKey } = syncData;
 
-    // Upload all chunks
-    for (let i = 0; i < chunks.length; i++) {
+    const CONCURRENT_UPLOADS = 6; // Upload 6 chunks in parallel
+
+    // Upload chunks in parallel batches
+    for (let batchStart = 0; batchStart < chunks.length; batchStart += CONCURRENT_UPLOADS) {
       if (activeController?.signal.aborted) {
         throw new Error('Sync aborted');
       }
 
-      const chunk = chunks[i];
-      const chunkHash = await calculateHash(chunk);
+      const batchEnd = Math.min(batchStart + CONCURRENT_UPLOADS, chunks.length);
+      const uploadPromises = [];
 
-      const apiMod = await getApiModule();
-      await apiMod.uploadChunk(
-        walletId,
-        storeName, // Use storeName as dbName for simplicity
-        syncData.timestamp,
-        i,
-        chunks.length,
-        chunk,
-        chunkHash
-      );
+      // Start parallel uploads for this batch
+      for (let i = batchStart; i < batchEnd; i++) {
+        const uploadPromise = (async () => {
+          const chunk = chunks[i];
+          const chunkHash = await calculateHash(chunk);
 
-      console.log(`[IDB-Sync-Scheduler] Uploaded chunk ${i + 1}/${chunks.length} (bytes=${chunk.length}) for ${storeName}`);
+          const apiMod = await getApiModule();
+          await apiMod.uploadChunk(
+            walletId,
+            storeName, // Use storeName as dbName for simplicity
+            syncData.timestamp,
+            i,
+            chunks.length,
+            chunk,
+            chunkHash
+          );
+
+          console.log(`[IDB-Sync-Scheduler] Uploaded chunk ${i + 1}/${chunks.length} (bytes=${chunk.length}) for ${storeName}`);
+        })();
+
+        uploadPromises.push(uploadPromise);
+      }
+
+      // Wait for all uploads in this batch to complete
+      await Promise.all(uploadPromises);
+
+      // Small delay between batches to prevent overwhelming the server
+      if (batchEnd < chunks.length) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+      }
     }
 
     // Finalize sync
