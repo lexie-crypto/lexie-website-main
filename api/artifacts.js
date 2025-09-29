@@ -86,11 +86,11 @@ export default async function handler(req, res) {
       } else if (action === 'preload') {
         backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/artifacts/preload`;
       } else if (action === 'sync-chunk') {
-        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/idb-sync/chunk`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/chunk`;
       } else if (action === 'sync-finalize') {
-        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/idb-sync/finalize`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/finalize`;
       } else if (action === 'sync-manifest') {
-        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/idb-sync/manifest`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/manifest`;
       } else {
         return res.status(400).json({ error: 'Unknown action', requestId });
       }
