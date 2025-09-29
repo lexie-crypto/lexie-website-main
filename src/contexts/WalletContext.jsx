@@ -1722,6 +1722,15 @@ const WalletContextProvider = ({ children }) => {
         crossDevice: true
       });
 
+      // Initialize IDB sync system
+      try {
+        const { initializeSyncSystem } = await import('../utils/sync/idb-sync/index.js');
+        initializeSyncSystem();
+        console.log('🔄 IDB sync system initialized');
+      } catch (syncError) {
+        console.warn('⚠️ Failed to initialize IDB sync system:', syncError);
+      }
+
       // Signal init completed for UI with 100%
       try { window.dispatchEvent(new CustomEvent('railgun-init-completed', { detail: { address } })); } catch {}
 
