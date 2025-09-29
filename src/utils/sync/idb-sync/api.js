@@ -219,3 +219,23 @@ export const finalizeSnapshotUpload = async (walletId, timestamp) => {
     body: JSON.stringify(payload)
   });
 };
+
+/**
+ * HYDRATION/SYNC API - Download from Redis to IDB
+ */
+
+/**
+ * Get latest snapshot manifest for hydration
+ */
+export const getLatestManifest = async (walletId) => {
+  const action = `idb-sync-latest&walletId=${walletId}`;
+  return await makeSyncRequest(action);
+};
+
+/**
+ * Get a specific chunk for hydration
+ */
+export const getSyncChunk = async (walletId, timestamp, chunkIndex) => {
+  const action = `idb-sync-chunk&walletId=${walletId}&ts=${timestamp}&n=${chunkIndex}`;
+  return await makeSyncRequest(action);
+};

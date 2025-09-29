@@ -134,6 +134,32 @@ export const exportFullSnapshot = async (walletId) => {
   return exportFullSnapshot(walletId);
 };
 
+// Hydration functions (Redis → IDB sync)
+export const startHydration = async (walletId, options = {}) => {
+  const { startHydration } = await import('./hydration.js');
+  return startHydration(walletId, options);
+};
+
+export const getHydrationStatus = async (walletId) => {
+  const { getHydrationStatus } = await import('./hydration.js');
+  return getHydrationStatus(walletId);
+};
+
+export const cancelHydration = async (walletId) => {
+  const { cancelHydration } = await import('./hydration.js');
+  return cancelHydration(walletId);
+};
+
+export const resetHydration = async (walletId) => {
+  const { resetHydration } = await import('./hydration.js');
+  return resetHydration(walletId);
+};
+
+export const checkHydrationNeeded = async (walletId) => {
+  const { checkHydrationNeeded } = await import('./hydration.js');
+  return checkHydrationNeeded(walletId);
+};
+
 // Debug utilities (available in console)
 if (typeof window !== 'undefined') {
   window.__LEXIE_IDB_SYNC__ = {
@@ -210,6 +236,50 @@ if (typeof window !== 'undefined') {
       const hasScheduler = !!window.__LEXIE_IDB_SYNC_SCHEDULER__;
       console.log('[IDB-Sync-Debug] System readiness:', { hasWalletId, hasScheduler });
       return { hasWalletId, hasScheduler };
+    },
+
+    // Hydration functions
+    startHydration: async (walletId, options = {}) => {
+      console.log('[IDB-Sync-Debug] Starting hydration for wallet:', walletId);
+      try {
+        const result = await startHydration(walletId, options);
+        console.log('[IDB-Sync-Debug] Hydration started:', result);
+        return result;
+      } catch (error) {
+        console.error('[IDB-Sync-Debug] Hydration start failed:', error);
+      }
+    },
+
+    getHydrationStatus: (walletId) => {
+      console.log('[IDB-Sync-Debug] Getting hydration status for wallet:', walletId);
+      try {
+        const status = getHydrationStatus(walletId);
+        console.log('[IDB-Sync-Debug] Hydration status:', status);
+        return status;
+      } catch (error) {
+        console.error('[IDB-Sync-Debug] Get hydration status failed:', error);
+      }
+    },
+
+    cancelHydration: (walletId) => {
+      console.log('[IDB-Sync-Debug] Cancelling hydration for wallet:', walletId);
+      try {
+        cancelHydration(walletId);
+        console.log('[IDB-Sync-Debug] Hydration cancelled');
+      } catch (error) {
+        console.error('[IDB-Sync-Debug] Cancel hydration failed:', error);
+      }
+    },
+
+    checkHydrationNeeded: async (walletId) => {
+      console.log('[IDB-Sync-Debug] Checking if hydration needed for wallet:', walletId);
+      try {
+        const needed = await checkHydrationNeeded(walletId);
+        console.log('[IDB-Sync-Debug] Hydration needed:', needed);
+        return needed;
+      } catch (error) {
+        console.error('[IDB-Sync-Debug] Check hydration needed failed:', error);
+      }
     }
   };
 
@@ -221,4 +291,8 @@ if (typeof window !== 'undefined') {
   console.log('   window.__LEXIE_IDB_SYNC__.isReady()      // Check if system is ready');
   console.log('   window.__LEXIE_IDB_SYNC__.reset()        // Reset sync system');
   console.log('   window.__LEXIE_IDB_SYNC__.cancel()       // Cancel current sync');
+  console.log('   window.__LEXIE_IDB_SYNC__.startHydration(walletId)  // Start hydration');
+  console.log('   window.__LEXIE_IDB_SYNC__.getHydrationStatus(walletId)  // Get hydration status');
+  console.log('   window.__LEXIE_IDB_SYNC__.cancelHydration(walletId)  // Cancel hydration');
+  console.log('   window.__LEXIE_IDB_SYNC__.checkHydrationNeeded(walletId)  // Check if hydration needed');
 }

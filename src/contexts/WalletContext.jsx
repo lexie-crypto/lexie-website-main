@@ -995,7 +995,50 @@ const WalletContextProvider = ({ children }) => {
             (message) => console.log(`🔍 [RAILGUN-SDK] ${message}`),
             (error) => console.error(`🚨 [RAILGUN-SDK] ${error}`)
           );
-          
+
+        // 🚰 HYDRATION: Check if we need to hydrate IDB with Redis data for this wallet
+        try {
+          console.log('🚰 Checking if IDB hydration needed for existing wallet...');
+          const { checkHydrationNeeded, startHydration } = await import('../utils/sync/idb-sync/index.js');
+
+          const needsHydration = await checkHydrationNeeded(railgunWalletInfo.id);
+          if (needsHydration) {
+            console.log('🚰 Starting IDB hydration for existing wallet...');
+
+            // Start hydration in background
+            startHydration(railgunWalletInfo.id, {
+              onProgress: (progress, chunk, total) => {
+                console.log(`🚰 Hydration progress: ${progress}% (${chunk}/${total})`);
+                try {
+                  window.dispatchEvent(new CustomEvent('idb-hydration-progress', {
+                    detail: { walletId: railgunWalletInfo.id, progress, chunk, total }
+                  }));
+                } catch {}
+              },
+              onComplete: () => {
+                console.log('🚰 IDB hydration completed successfully');
+                try {
+                  window.dispatchEvent(new CustomEvent('idb-hydration-complete', {
+                    detail: { walletId: railgunWalletInfo.id }
+                  }));
+                } catch {}
+              },
+              onError: (error) => {
+                console.error('🚰 IDB hydration failed:', error);
+                try {
+                  window.dispatchEvent(new CustomEvent('idb-hydration-error', {
+                    detail: { walletId: railgunWalletInfo.id, error: error.message }
+                  }));
+                } catch {}
+              }
+            });
+          } else {
+            console.log('🚰 IDB already hydrated for this wallet');
+          }
+        } catch (hydrationError) {
+          console.warn('🚰 IDB hydration check/init failed (continuing):', hydrationError.message);
+        }
+
           await startRailgunEngine(
             'lexiewebsite',
             db,
@@ -1149,7 +1192,7 @@ const WalletContextProvider = ({ children }) => {
           walletID: railgunWalletInfo.id?.slice(0, 8) + '...',
           storage: 'Redis-only'
         });
-        
+
         // 🔄 Run initial Merkle-tree scan and balance refresh for CURRENT chain only (prevent infinite polling)
         try {
           const { refreshBalances } = await import('@railgun-community/wallet');
@@ -1636,7 +1679,50 @@ const WalletContextProvider = ({ children }) => {
           storage: 'Redis-only',
           crossDevice: true
         });
-          
+
+          // 🚰 HYDRATION: Check if newly created wallet needs hydration (edge case)
+          try {
+            console.log('🚰 Checking if hydration needed for newly created wallet...');
+            const { checkHydrationNeeded, startHydration } = await import('../utils/sync/idb-sync/index.js');
+
+            const needsHydration = await checkHydrationNeeded(railgunWalletInfo.id);
+            if (needsHydration) {
+              console.log('🚰 Starting IDB hydration for newly created wallet...');
+
+              // Start hydration in background
+              startHydration(railgunWalletInfo.id, {
+                onProgress: (progress, chunk, total) => {
+                  console.log(`🚰 Hydration progress: ${progress}% (${chunk}/${total})`);
+                  try {
+                    window.dispatchEvent(new CustomEvent('idb-hydration-progress', {
+                      detail: { walletId: railgunWalletInfo.id, progress, chunk, total }
+                    }));
+                  } catch {}
+                },
+                onComplete: () => {
+                  console.log('🚰 IDB hydration completed successfully for new wallet');
+                  try {
+                    window.dispatchEvent(new CustomEvent('idb-hydration-complete', {
+                      detail: { walletId: railgunWalletInfo.id }
+                    }));
+                  } catch {}
+                },
+                onError: (error) => {
+                  console.error('🚰 IDB hydration failed for new wallet:', error);
+                  try {
+                    window.dispatchEvent(new CustomEvent('idb-hydration-error', {
+                      detail: { walletId: railgunWalletInfo.id, error: error.message }
+                    }));
+                  } catch {}
+                }
+              });
+            } else {
+              console.log('🚰 No hydration needed for newly created wallet');
+            }
+          } catch (hydrationError) {
+            console.warn('🚰 IDB hydration check/init failed for new wallet (continuing):', hydrationError.message);
+          }
+
         } catch (createError) {
           console.error('❌ Failed to create Railgun wallet:', createError);
           throw new Error(`Railgun wallet creation failed: ${createError.message}`);
@@ -1836,7 +1922,35 @@ const WalletContextProvider = ({ children }) => {
 
       console.log('🚀 Auto-initializing Railgun for connected wallet:', address);
       lastInitializedAddressRef.current = address;
-      initializeRailgun();
+      initializeRailgun().then(() => {
+        // 🚰 HYDRATION: After Railgun init, check if we need to hydrate IDB
+        setTimeout(async () => {
+          try {
+            if (railgunWalletID) {
+              console.log('🚰 Checking hydration after auto-init...');
+              const { checkHydrationNeeded, startHydration } = await import('../utils/sync/idb-sync/index.js');
+
+              const needsHydration = await checkHydrationNeeded(railgunWalletID);
+              if (needsHydration) {
+                console.log('🚰 Starting hydration after auto-init...');
+                startHydration(railgunWalletID, {
+                  onProgress: (progress, chunk, total) => {
+                    console.log(`🚰 Auto-hydration progress: ${progress}% (${chunk}/${total})`);
+                  },
+                  onComplete: () => {
+                    console.log('🚰 Auto-hydration completed');
+                  },
+                  onError: (error) => {
+                    console.error('🚰 Auto-hydration failed:', error);
+                  }
+                });
+              }
+            }
+          } catch (hydrationError) {
+            console.warn('🚰 Auto-hydration check failed:', hydrationError.message);
+          }
+        }, 2000); // Wait a bit for wallet to fully initialize
+      });
     }
   }, [isConnected, address, isRailgunInitialized, isInitializing, chainId, status]);
 

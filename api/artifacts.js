@@ -91,6 +91,8 @@ export default async function handler(req, res) {
         backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/finalize`;
       } else if (action === 'sync-manifest') {
         backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/manifest`;
+      } else if (action === 'idb-sync-latest') {
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/latest`;
       } else {
         return res.status(400).json({ error: 'Unknown action', requestId });
       }
