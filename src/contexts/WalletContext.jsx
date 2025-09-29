@@ -12,6 +12,7 @@ import { WagmiProvider, useAccount, useConnect, useDisconnect, useSwitchChain, u
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/environment';
 import { NetworkName } from '@railgun-community/shared-models';
+import { initializeSyncSystem } from '../utils/sync/idb-sync/index.js';
 
 // Inline wallet metadata API functions
 async function getWalletMetadata(walletAddress) {
@@ -1321,7 +1322,6 @@ const WalletContextProvider = ({ children }) => {
       // 🎯 CRITICAL: Initialize IDB sync BEFORE scanning starts
       // This ensures we capture all data written during the initial scan
       try {
-        const { initializeSyncSystem } = await import('../utils/sync/idb-sync/index.js');
         initializeSyncSystem(existingWalletID || railgunWalletInfo?.id);
         console.log('🔄 IDB sync system initialized (before scan)');
       } catch (syncError) {
