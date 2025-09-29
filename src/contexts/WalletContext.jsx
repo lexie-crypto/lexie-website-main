@@ -1318,6 +1318,16 @@ const WalletContextProvider = ({ children }) => {
       );
       console.log('✅ Railgun engine started with official SDK');
 
+      // 🎯 CRITICAL: Initialize IDB sync BEFORE scanning starts
+      // This ensures we capture all data written during the initial scan
+      try {
+        const { initializeSyncSystem } = await import('../utils/sync/idb-sync/index.js');
+        initializeSyncSystem();
+        console.log('🔄 IDB sync system initialized (before scan)');
+      } catch (syncError) {
+        console.warn('⚠️ Failed to initialize IDB sync system:', syncError);
+      }
+
       // Step 2: Load providers using connected wallet's provider when possible
               const networkConfigs = [
           { 
@@ -1722,14 +1732,7 @@ const WalletContextProvider = ({ children }) => {
         crossDevice: true
       });
 
-      // Initialize IDB sync system
-      try {
-        const { initializeSyncSystem } = await import('../utils/sync/idb-sync/index.js');
-        initializeSyncSystem();
-        console.log('🔄 IDB sync system initialized');
-      } catch (syncError) {
-        console.warn('⚠️ Failed to initialize IDB sync system:', syncError);
-      }
+      // 🎯 IDB sync now initialized BEFORE scanning (moved to line ~1321)
 
       // Signal init completed for UI with 100%
       try { window.dispatchEvent(new CustomEvent('railgun-init-completed', { detail: { address } })); } catch {}
