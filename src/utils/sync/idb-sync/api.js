@@ -229,7 +229,7 @@ export const finalizeSnapshotUpload = async (walletId, timestamp) => {
  */
 export const getLatestManifest = async (walletId) => {
   const action = `idb-sync-latest&walletId=${walletId}`;
-  return await makeSyncRequest(action);
+  return await makeSyncRequest(encodeURIComponent(action));
 };
 
 /**
@@ -237,5 +237,5 @@ export const getLatestManifest = async (walletId) => {
  */
 export const getSyncChunk = async (walletId, timestamp, chunkIndex) => {
   const action = `idb-sync-chunk&walletId=${walletId}&ts=${timestamp}&n=${chunkIndex}`;
-  return await makeSyncRequest(action);
+  return await makeSyncRequest(encodeURIComponent(action));
 };

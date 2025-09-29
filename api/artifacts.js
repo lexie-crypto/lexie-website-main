@@ -62,16 +62,20 @@ export default async function handler(req, res) {
     }
 
     // Parse action and parameters from action string (format: "action&param1=value1&param2=value2")
-    let parsedAction = action;
+    // Action is URL encoded, so decode it first
+    const decodedAction = decodeURIComponent(action);
+    let parsedAction = decodedAction;
     let actionParams = {};
 
-    if (action && action.includes('&')) {
-      const parts = action.split('&');
+
+    if (decodedAction && decodedAction.includes('&')) {
+      const parts = decodedAction.split('&');
       parsedAction = parts[0];
+
       for (let i = 1; i < parts.length; i++) {
         const [key, value] = parts[i].split('=');
         if (key && value) {
-          actionParams[decodeURIComponent(key)] = decodeURIComponent(value);
+          actionParams[key] = value;
         }
       }
     }
