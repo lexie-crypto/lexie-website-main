@@ -117,13 +117,12 @@ export default async function handler(req, res) {
         }
         backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/latest?walletId=${encodeURIComponent(walletId)}`;
       } else if (parsedAction === 'idb-sync-chunk') {
-        const walletId = actionParams.walletId;
         const ts = actionParams.ts;
         const n = actionParams.n;
-        if (!walletId || !ts || n === undefined) {
-          return res.status(400).json({ error: 'Missing required parameters: walletId, ts, n', requestId });
+        if (!ts || n === undefined) {
+          return res.status(400).json({ error: 'Missing required parameters: ts, n', requestId });
         }
-        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/chunk?walletId=${encodeURIComponent(walletId)}&ts=${encodeURIComponent(ts)}&n=${encodeURIComponent(n)}`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/chunk?ts=${encodeURIComponent(ts)}&n=${encodeURIComponent(n)}`;
       } else {
         return res.status(400).json({ error: 'Unknown action', requestId });
       }

@@ -1005,8 +1005,8 @@ const WalletContextProvider = ({ children }) => {
           if (needsHydration) {
             console.log('🚰 Starting IDB hydration for existing wallet...');
 
-            // Start hydration in background
-            startHydration(railgunWalletInfo.id, {
+            // Wait for hydration to complete before continuing
+            await startHydration(railgunWalletInfo.id, {
               onProgress: (progress, chunk, total) => {
                 console.log(`🚰 Hydration progress: ${progress}% (${chunk}/${total})`);
                 try {
@@ -1689,8 +1689,8 @@ const WalletContextProvider = ({ children }) => {
             if (needsHydration) {
               console.log('🚰 Starting IDB hydration for newly created wallet...');
 
-              // Start hydration in background
-              startHydration(railgunWalletInfo.id, {
+              // Wait for hydration to complete before continuing with wallet setup
+              await startHydration(railgunWalletInfo.id, {
                 onProgress: (progress, chunk, total) => {
                   console.log(`🚰 Hydration progress: ${progress}% (${chunk}/${total})`);
                   try {

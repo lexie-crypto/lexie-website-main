@@ -181,21 +181,26 @@ class HydrationManager {
    */
   async fetchManifest(walletId, abortSignal) {
     try {
+      console.log('[IDB-Hydration] Fetching manifest for wallet:', walletId);
       const response = await getLatestManifest(walletId);
+      console.log('[IDB-Hydration] Manifest response:', response);
 
       if (!response || typeof response.ts !== 'number') {
         throw new Error('Invalid manifest response');
       }
 
-      return {
+      const manifest = {
         ts: response.ts,
         recordCount: response.recordCount || 0,
         totalBytes: response.totalBytes || 0,
         chunkCount: response.chunkCount || 0,
-        chunkHashes: response.chunkHashes || [],
-        sourceWalletId: response.sourceWalletId // Which wallet this data actually came from
+        chunkHashes: response.chunkHashes || []
       };
+
+      console.log('[IDB-Hydration] Parsed manifest:', manifest);
+      return manifest;
     } catch (error) {
+      console.log('[IDB-Hydration] Manifest fetch error:', error);
       if (error.message.includes('404') || error.message.includes('No sync data found')) {
         throw new Error('No sync data available');
       }
@@ -207,7 +212,7 @@ class HydrationManager {
    * Process chunks sequentially
    */
   async processChunks(walletId, manifest, resumeFromChunk, abortSignal, onProgress) {
-    const { chunkCount, chunkHashes, sourceWalletId } = manifest;
+    const { chunkCount, chunkHashes } = manifest;
     let processedChunks = resumeFromChunk + 1;
 
     console.log(`[IDB-Hydration] Processing ${chunkCount} chunks, starting from ${processedChunks}`);
@@ -219,10 +224,10 @@ class HydrationManager {
       }
 
       try {
-        console.log(`[IDB-Hydration] Processing chunk ${i}/${chunkCount} from wallet ${sourceWalletId}`);
+        console.log(`[IDB-Hydration] Processing chunk ${i}/${chunkCount}`);
 
-        // Fetch chunk from the source wallet that has the data
-        const chunkData = await this.fetchChunk(sourceWalletId, manifest.ts, i, abortSignal);
+        // Fetch chunk using global timestamp
+        const chunkData = await this.fetchChunk(manifest.ts, i, abortSignal);
 
         // Verify chunk hash if available
         if (chunkHashes[i]) {
@@ -265,8 +270,9 @@ class HydrationManager {
   /**
    * Fetch a chunk
    */
-  async fetchChunk(walletId, timestamp, chunkIndex, abortSignal) {
-    const response = await getSyncChunk(walletId, timestamp, chunkIndex);
+  async fetchChunk(timestamp, chunkIndex, abortSignal) {
+    // Use null/empty string for walletId since we're using global chunks
+    const response = await getSyncChunk('', timestamp, chunkIndex);
 
     if (typeof response !== 'string') {
       throw new Error('Invalid chunk response - expected NDJSON string');
