@@ -4,14 +4,19 @@
  */
 
 import { initializeIDBSync } from './events.js';
-import { scheduleSync, cancelSync, getSyncStatus } from './scheduler.js';
 import { getQueueStats, clearQueue } from './queue.js';
 import { getSyncStatus as getStateStatus, resetSyncState } from './state.js';
 
 // Main initialization
-export const initializeSyncSystem = (walletId) => {
+export const initializeSyncSystem = async (walletId) => {
   try {
     console.log('[IDB-Sync] Initializing continuous IndexedDB → Redis sync system');
+
+    // Dynamically import scheduler to avoid circular dependencies
+    const { scheduleSync, cancelSync, getSyncStatus } = await import('./scheduler.js');
+
+    // Set up global scheduler reference for events.js
+    window.__LEXIE_IDB_SYNC_SCHEDULER__ = scheduleSync;
 
     // Set up event listeners
     initializeIDBSync();
@@ -39,13 +44,8 @@ export const initializeSyncSystem = (walletId) => {
   }
 };
 
-// Public API
+// Public API (with dynamic imports to avoid circular dependencies)
 export {
-  // Main functions
-  scheduleSync,
-  cancelSync,
-  getSyncStatus,
-
   // Queue management
   getQueueStats,
   clearQueue,
@@ -56,6 +56,22 @@ export {
 
   // Events
   initializeIDBSync
+};
+
+// Dynamic exports for scheduler functions
+export const scheduleSync = async () => {
+  const { scheduleSync } = await import('./scheduler.js');
+  return scheduleSync();
+};
+
+export const cancelSync = async () => {
+  const { cancelSync } = await import('./scheduler.js');
+  return cancelSync();
+};
+
+export const getSyncStatus = async () => {
+  const { getSyncStatus } = await import('./scheduler.js');
+  return getSyncStatus();
 };
 
 // Debug utilities (available in console)

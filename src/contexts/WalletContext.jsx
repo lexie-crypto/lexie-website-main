@@ -1322,7 +1322,7 @@ const WalletContextProvider = ({ children }) => {
       // 🎯 CRITICAL: Initialize IDB sync BEFORE scanning starts
       // This ensures we capture all data written during the initial scan
       try {
-        initializeSyncSystem(existingWalletID || railgunWalletInfo?.id);
+        await initializeSyncSystem(existingWalletID || railgunWalletInfo?.id);
         console.log('🔄 IDB sync system initialized (before scan)');
       } catch (syncError) {
         console.warn('⚠️ Failed to initialize IDB sync system:', syncError);

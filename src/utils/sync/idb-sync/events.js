@@ -4,7 +4,6 @@
  */
 
 import { setDirtyFlag, hasDirtyFlags } from './state.js';
-import { scheduleSync } from './scheduler.js';
 
 // Debounce settings
 const DEBOUNCE_MS = 2000; // 2 seconds
@@ -35,7 +34,12 @@ const scheduleDebouncedSync = () => {
     if (hasDirtyFlags()) {
       lastSyncTime = Date.now();
       try {
-        await scheduleSync();
+        // Use global scheduler reference to avoid circular imports
+        if (window.__LEXIE_IDB_SYNC_SCHEDULER__) {
+          await window.__LEXIE_IDB_SYNC_SCHEDULER__();
+        } else {
+          console.warn('[IDB-Sync-Events] Scheduler not available yet');
+        }
       } catch (error) {
         console.error('[IDB-Sync-Events] Sync failed:', error);
       }
