@@ -61,38 +61,65 @@ export default async function handler(req, res) {
       });
     }
 
+    // Parse action and parameters from action string (format: "action&param1=value1&param2=value2")
+    let parsedAction = action;
+    let actionParams = {};
+
+    if (action && action.includes('&')) {
+      const parts = action.split('&');
+      parsedAction = parts[0];
+      for (let i = 1; i < parts.length; i++) {
+        const [key, value] = parts[i].split('=');
+        if (key && value) {
+          actionParams[decodeURIComponent(key)] = decodeURIComponent(value);
+        }
+      }
+    }
+
     // Build backend URL based on action or path
     let backendUrl;
-    if (action) {
+    if (parsedAction) {
       // Action-based routing (query parameter)
-      if (action === 'health') {
+      if (parsedAction === 'health') {
         backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/artifacts/health`;
-      } else if (action === 'get') {
-        const key = url.searchParams.get('key');
+      } else if (parsedAction === 'get') {
+        const key = actionParams.key || url.searchParams.get('key');
         if (!key) {
           return res.status(400).json({ error: 'Missing key parameter for get action', requestId });
         }
         backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/artifacts/get/${encodeURIComponent(key)}`;
-      } else if (action === 'exists') {
-        const key = url.searchParams.get('key');
+      } else if (parsedAction === 'exists') {
+        const key = actionParams.key || url.searchParams.get('key');
         if (!key) {
           return res.status(400).json({ error: 'Missing key parameter for exists action', requestId });
         }
         backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/artifacts/exists/${encodeURIComponent(key)}`;
-      } else if (action === 'store') {
+      } else if (parsedAction === 'store') {
         backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/artifacts/store`;
-      } else if (action === 'batch') {
+      } else if (parsedAction === 'batch') {
         backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/artifacts/batch`;
-      } else if (action === 'preload') {
+      } else if (parsedAction === 'preload') {
         backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/artifacts/preload`;
-      } else if (action === 'sync-chunk') {
+      } else if (parsedAction === 'sync-chunk') {
         backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/chunk`;
-      } else if (action === 'sync-finalize') {
+      } else if (parsedAction === 'sync-finalize') {
         backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/finalize`;
-      } else if (action === 'sync-manifest') {
+      } else if (parsedAction === 'sync-manifest') {
         backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/manifest`;
-      } else if (action === 'idb-sync-latest') {
-        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/latest`;
+      } else if (parsedAction === 'idb-sync-latest') {
+        const walletId = actionParams.walletId;
+        if (!walletId) {
+          return res.status(400).json({ error: 'Missing required parameter: walletId', requestId });
+        }
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/latest?walletId=${encodeURIComponent(walletId)}`;
+      } else if (parsedAction === 'idb-sync-chunk') {
+        const walletId = actionParams.walletId;
+        const ts = actionParams.ts;
+        const n = actionParams.n;
+        if (!walletId || !ts || n === undefined) {
+          return res.status(400).json({ error: 'Missing required parameters: walletId, ts, n', requestId });
+        }
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/chunk?walletId=${encodeURIComponent(walletId)}&ts=${encodeURIComponent(ts)}&n=${encodeURIComponent(n)}`;
       } else {
         return res.status(400).json({ error: 'Unknown action', requestId });
       }
