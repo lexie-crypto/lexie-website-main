@@ -88,19 +88,26 @@ class HydrationManager {
     const abortController = new AbortController();
     this.abortControllers.set(walletId, abortController);
 
-    // Start hydration in background
-    this.runHydration(walletId, {
-      force,
-      abortController,
-      onProgress,
-      onComplete,
-      onError
-    }).catch(error => {
+    try {
+      // Wait for hydration to complete
+      await this.runHydration(walletId, {
+        force,
+        abortController,
+        onProgress,
+        onComplete,
+        onError
+      });
+
+      // Return final state
+      return this.getHydrationState(walletId);
+    } catch (error) {
       console.error('[IDB-Hydration] Hydration failed:', error);
       if (onError) onError(error);
-    });
-
-    return this.getHydrationState(walletId);
+      throw error; // Re-throw so caller knows it failed
+    } finally {
+      // Clean up abort controller
+      this.abortControllers.delete(walletId);
+    }
   }
 
   /**
