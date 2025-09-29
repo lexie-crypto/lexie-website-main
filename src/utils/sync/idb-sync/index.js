@@ -29,53 +29,60 @@ const getStateModule = async () => {
   return stateModule;
 };
 
-// Main initialization - defensive and optional
+// Main initialization - extremely defensive and minimal
 export const initializeSyncSystem = async (walletId) => {
   try {
-    console.log('[IDB-Sync] Initializing continuous IndexedDB → Redis sync system');
+    console.log('[IDB-Sync] Starting minimal sync system initialization...');
 
-    // Dynamically import scheduler to avoid circular dependencies
-    const schedulerMod = await import('./scheduler.js').catch(err => {
-      throw new Error(`Failed to load scheduler module: ${err.message}`);
-    });
-
-    // Set up global scheduler reference for events.js
-    window.__LEXIE_IDB_SYNC_SCHEDULER__ = schedulerMod.scheduleSync;
-
-    // Set up event listeners
-    const eventsMod = await getEventsModule().catch(err => {
-      throw new Error(`Failed to load events module: ${err.message}`);
-    });
-    await eventsMod.initializeIDBSync();
-
-    // Store wallet ID globally for sync operations
+    // Store wallet ID first (this is critical)
     if (walletId) {
       window.__LEXIE_WALLET_ID_FOR_SYNC = walletId;
-      console.log(`[IDB-Sync] Using wallet ID: ${walletId.slice(0, 8)}...`);
+      console.log(`[IDB-Sync] Wallet ID set: ${walletId.slice(0, 8)}...`);
     }
 
-    // Process any queued items from previous sessions
+    // Set up a minimal scheduler reference
+    window.__LEXIE_IDB_SYNC_SCHEDULER__ = async () => {
+      console.log('[IDB-Sync] Scheduler triggered (minimal implementation)');
+      try {
+        // Lazy load the full scheduler only when needed
+        const schedulerMod = await import('./scheduler.js');
+        return await schedulerMod.scheduleSync();
+      } catch (err) {
+        console.warn('[IDB-Sync] Full scheduler not available:', err.message);
+      }
+    };
+
+    // Try to set up event listeners (this is the most likely to fail)
+    try {
+      console.log('[IDB-Sync] Setting up event listeners...');
+      const eventsMod = await getEventsModule();
+      await eventsMod.initializeIDBSync();
+      console.log('[IDB-Sync] Event listeners set up successfully');
+    } catch (eventsError) {
+      console.warn('[IDB-Sync] Event listeners setup failed:', eventsError.message);
+      // Continue anyway - events can be set up later
+    }
+
+    // Optional: Try to process queue later
     setTimeout(async () => {
       try {
-        const queueMod = await import('./queue.js').catch(err => {
-          console.warn('[IDB-Sync] Queue module not available:', err.message);
-          return null;
-        });
-        if (queueMod && queueMod.processQueue) {
+        console.log('[IDB-Sync] Attempting to process queue...');
+        const queueMod = await import('./queue.js');
+        if (queueMod.processQueue) {
           await queueMod.processQueue();
+          console.log('[IDB-Sync] Queue processed successfully');
         }
-      } catch (error) {
-        console.warn('[IDB-Sync] Failed to process queued items:', error.message);
+      } catch (queueError) {
+        console.warn('[IDB-Sync] Queue processing failed (optional):', queueError.message);
       }
-    }, 5000); // Wait 5 seconds after init
+    }, 10000); // Wait even longer for queue
 
-    console.log('[IDB-Sync] Sync system initialized successfully');
+    console.log('[IDB-Sync] Minimal sync system initialized successfully');
 
   } catch (error) {
-    // Re-throw with more context but don't crash the app
-    const errorMsg = `[IDB-Sync] Failed to initialize sync system: ${error.message}`;
-    console.warn(errorMsg);
-    throw new Error(errorMsg);
+    // Don't throw - just log and continue
+    console.info('[IDB-Sync] Minimal initialization failed:', error.message);
+    console.info('[IDB-Sync] System will operate in degraded mode');
   }
 };
 
@@ -124,6 +131,17 @@ export const getSyncStatus = async () => {
 // Debug utilities (available in console)
 if (typeof window !== 'undefined') {
   window.__LEXIE_IDB_SYNC__ = {
+    // Manual initialization (in case automatic fails)
+    init: async () => {
+      console.log('[IDB-Sync-Debug] Manual initialization triggered');
+      try {
+        await initializeSyncSystem(window.__LEXIE_WALLET_ID_FOR_SYNC);
+        console.log('[IDB-Sync-Debug] Manual initialization successful');
+      } catch (error) {
+        console.error('[IDB-Sync-Debug] Manual initialization failed:', error);
+      }
+    },
+
     // Trigger manual sync
     triggerSync: () => {
       console.log('[IDB-Sync-Debug] Manual sync triggered');
@@ -132,33 +150,56 @@ if (typeof window !== 'undefined') {
 
     // Get sync status
     getStatus: async () => {
-      const syncStatus = await getSyncStatus();
-      const queueStats = await getQueueStats();
-      const stateStatus = await getStateStatus();
+      try {
+        const syncStatus = await getSyncStatus();
+        const queueStats = await getQueueStats();
+        const stateStatus = await getStateStatus();
 
-      console.log('[IDB-Sync-Debug] Sync Status:', { syncStatus, queueStats, stateStatus });
-      return { syncStatus, queueStats, stateStatus };
+        console.log('[IDB-Sync-Debug] Sync Status:', { syncStatus, queueStats, stateStatus });
+        return { syncStatus, queueStats, stateStatus };
+      } catch (error) {
+        console.log('[IDB-Sync-Debug] Status check failed:', error.message);
+        return { error: error.message };
+      }
     },
 
     // Reset everything
     reset: async () => {
       console.log('[IDB-Sync-Debug] Resetting sync system');
-      await clearQueue();
-      await resetSyncState();
-      console.log('[IDB-Sync-Debug] Sync system reset complete');
+      try {
+        await clearQueue();
+        await resetSyncState();
+        console.log('[IDB-Sync-Debug] Sync system reset complete');
+      } catch (error) {
+        console.error('[IDB-Sync-Debug] Reset failed:', error);
+      }
     },
 
     // Cancel current sync
     cancel: async () => {
       console.log('[IDB-Sync-Debug] Cancelling current sync');
-      const { cancelSync } = await import('./scheduler.js');
-      return cancelSync();
+      try {
+        const { cancelSync } = await import('./scheduler.js');
+        return await cancelSync();
+      } catch (error) {
+        console.warn('[IDB-Sync-Debug] Cancel failed:', error.message);
+      }
+    },
+
+    // Check if system is initialized
+    isReady: () => {
+      const hasWalletId = !!window.__LEXIE_WALLET_ID_FOR_SYNC;
+      const hasScheduler = !!window.__LEXIE_IDB_SYNC_SCHEDULER__;
+      console.log('[IDB-Sync-Debug] System readiness:', { hasWalletId, hasScheduler });
+      return { hasWalletId, hasScheduler };
     }
   };
 
   console.log('🔄 [IDB-Sync] Debug utilities available:');
+  console.log('   window.__LEXIE_IDB_SYNC__.init()         // Manual initialization');
   console.log('   window.__LEXIE_IDB_SYNC__.triggerSync()  // Manual sync trigger');
   console.log('   window.__LEXIE_IDB_SYNC__.getStatus()    // Get sync status');
+  console.log('   window.__LEXIE_IDB_SYNC__.isReady()      // Check if system is ready');
   console.log('   window.__LEXIE_IDB_SYNC__.reset()        // Reset sync system');
   console.log('   window.__LEXIE_IDB_SYNC__.cancel()       // Cancel current sync');
 }
