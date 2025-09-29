@@ -111,7 +111,7 @@ export const scheduleSync = async (walletId = null) => {
   // Prevent concurrent syncs
   if (isSyncing) {
     console.debug('[IDB-Sync-Scheduler] Sync already in progress, skipping');
-    return;
+    return { success: false, reason: 'already_syncing' };
   }
 
   // Get wallet ID if not provided
@@ -120,7 +120,7 @@ export const scheduleSync = async (walletId = null) => {
 
     if (!walletId) {
       console.debug('[IDB-Sync-Scheduler] No wallet ID available, skipping sync');
-      return;
+      return { success: false, reason: 'no_wallet_id' };
     }
   }
 
@@ -129,52 +129,68 @@ export const scheduleSync = async (walletId = null) => {
   const startTime = Date.now();
 
   try {
-    console.log('[IDB-Sync-Scheduler] Starting sync operation', { walletId });
+    console.log('[IDB-Sync-Scheduler] Starting full snapshot sync operation', { walletId });
 
-    const stateMod = await getStateModule();
-    const dirtyFlags = stateMod.getDirtyFlags();
-    const storesToSync = stateMod.SYNC_STORES.filter(store => dirtyFlags[store]);
+    const exporterMod = await getExporterModule();
 
-    if (storesToSync.length === 0) {
-      console.log('[IDB-Sync-Scheduler] No dirty stores to sync');
-      return;
+    // Export full snapshot
+    const snapshotData = await exporterMod.exportFullSnapshot(walletId, activeController.signal);
+
+    if (!snapshotData) {
+      console.log('[IDB-Sync-Scheduler] No data to export');
+      return { success: true, exported: 0 };
     }
 
-    console.log(`[IDB-Sync-Scheduler] Syncing ${storesToSync.length} stores:`, storesToSync);
+    const { manifest, chunks, timestamp, recordCount, totalBytes } = snapshotData;
 
-    // Sync each dirty store
-    const results = [];
-    for (const storeName of storesToSync) {
-      try {
-        await syncStore(walletId, 'railgun', storeName);
-        stateMod.clearDirtyFlag(storeName);
-        results.push({ store: storeName, success: true });
-      } catch (error) {
-        console.error(`[IDB-Sync-Scheduler] Store sync failed for ${storeName}:`, error);
-        results.push({ store: storeName, success: false, error: error.message });
+    console.log(`[IDB-Sync-Scheduler] Exported ${recordCount} records, ${chunks.length} chunks`);
+
+    // Upload to Redis
+    const apiMod = await getApiModule();
+
+    // Upload manifest first
+    await apiMod.uploadSnapshotManifest(walletId, timestamp, manifest);
+    console.log('[IDB-Sync-Scheduler] Manifest uploaded');
+
+    // Upload chunks
+    for (let i = 0; i < chunks.length; i++) {
+      if (activeController.signal.aborted) {
+        throw new Error('Sync aborted during chunk upload');
       }
+
+      await apiMod.uploadSnapshotChunk(walletId, timestamp, i, chunks[i], chunks.length);
+      console.log(`[IDB-Sync-Scheduler] Uploaded chunk ${i + 1}/${chunks.length}`);
     }
 
-    const successCount = results.filter(r => r.success).length;
+    // Finalize upload
+    await apiMod.finalizeSnapshotUpload(walletId, timestamp);
+    console.log('[IDB-Sync-Scheduler] Upload finalized');
+
     const duration = Date.now() - startTime;
 
-    console.log('[IDB-Sync-Scheduler] Sync operation completed', {
-      totalStores: storesToSync.length,
-      successful: successCount,
-      failed: storesToSync.length - successCount,
+    console.log('[IDB-Sync-Scheduler] Full snapshot sync completed', {
+      recordCount,
+      totalBytes,
+      chunkCount: chunks.length,
       duration: `${duration}ms`
     });
 
-    // Process any queued chunks that may have failed during sync
-    try {
-      const { processQueue } = await import('./queue.js');
-      await processQueue();
-    } catch (error) {
-      console.error('[IDB-Sync-Scheduler] Queue processing failed:', error);
-    }
+    // Clear all dirty flags since we did a full snapshot
+    const stateMod = await getStateModule();
+    stateMod.SYNC_STORES.forEach(store => stateMod.clearDirtyFlag(store));
+
+    return {
+      success: true,
+      recordCount,
+      totalBytes,
+      chunkCount: chunks.length,
+      duration,
+      timestamp
+    };
 
   } catch (error) {
     console.error('[IDB-Sync-Scheduler] Sync operation failed:', error);
+    return { success: false, error: error.message };
   } finally {
     isSyncing = false;
     activeController = null;

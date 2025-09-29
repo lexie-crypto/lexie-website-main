@@ -137,7 +137,10 @@ export const processQueue = async () => {
 const syncQueuedChunk = async (chunk) => {
   const { makeSyncRequest } = await import('./api.js');
 
-  await makeSyncRequest('/api/artifacts?action=sync-chunk', {
+  // Use appropriate action based on chunk type
+  const action = chunk.type === 'snapshot' ? 'snapshot-chunk' : 'sync-chunk';
+
+  await makeSyncRequest(`/api/artifacts?action=${action}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -147,7 +150,8 @@ const syncQueuedChunk = async (chunk) => {
       chunkIndex: chunk.chunkIndex,
       totalChunks: chunk.totalChunks,
       data: chunk.data,
-      hash: chunk.hash
+      hash: chunk.hash,
+      chunkData: chunk.data // For snapshot compatibility
     })
   });
 };

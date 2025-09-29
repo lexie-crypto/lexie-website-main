@@ -10,6 +10,7 @@ const STORAGE_PREFIX = 'lexie:idb-sync:';
 const DIRTY_FLAGS_KEY = STORAGE_PREFIX + 'dirty-flags';
 const SYNC_CURSORS_KEY = STORAGE_PREFIX + 'cursors';
 const SYNC_HASHES_KEY = STORAGE_PREFIX + 'hashes';
+const SNAPSHOT_CURSORS_KEY = STORAGE_PREFIX + 'snapshot-cursors';
 
 /**
  * IDB stores to sync (matching Railgun's IndexedDB structure)
@@ -159,4 +160,43 @@ export const getSyncStatus = () => {
     hashes: getSyncHashes(),
     hasDirtyFlags: hasDirtyFlags()
   };
+};
+
+/**
+ * Get snapshot cursor for resumable exports
+ */
+export const getSnapshotCursor = (walletId) => {
+  try {
+    const cursors = JSON.parse(localStorage.getItem(SNAPSHOT_CURSORS_KEY) || '{}');
+    return cursors[walletId] || null;
+  } catch (e) {
+    console.warn('[IDB-State] Failed to get snapshot cursor:', e);
+    return null;
+  }
+};
+
+/**
+ * Set snapshot cursor for resumable exports
+ */
+export const setSnapshotCursor = (walletId, cursorB64) => {
+  try {
+    const cursors = JSON.parse(localStorage.getItem(SNAPSHOT_CURSORS_KEY) || '{}');
+    cursors[walletId] = cursorB64;
+    localStorage.setItem(SNAPSHOT_CURSORS_KEY, JSON.stringify(cursors));
+  } catch (e) {
+    console.warn('[IDB-State] Failed to set snapshot cursor:', e);
+  }
+};
+
+/**
+ * Clear snapshot cursor after successful export
+ */
+export const clearSnapshotCursor = (walletId) => {
+  try {
+    const cursors = JSON.parse(localStorage.getItem(SNAPSHOT_CURSORS_KEY) || '{}');
+    delete cursors[walletId];
+    localStorage.setItem(SNAPSHOT_CURSORS_KEY, JSON.stringify(cursors));
+  } catch (e) {
+    console.warn('[IDB-State] Failed to clear snapshot cursor:', e);
+  }
 };

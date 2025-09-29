@@ -128,6 +128,12 @@ export const getSyncStatus = async () => {
   return getSyncStatus();
 };
 
+// Manual full snapshot export (for debugging/testing)
+export const exportFullSnapshot = async (walletId) => {
+  const { exportFullSnapshot } = await import('./exporter.js');
+  return exportFullSnapshot(walletId);
+};
+
 // Debug utilities (available in console)
 if (typeof window !== 'undefined') {
   window.__LEXIE_IDB_SYNC__ = {
@@ -186,6 +192,18 @@ if (typeof window !== 'undefined') {
       }
     },
 
+    // Manual full snapshot export
+    exportSnapshot: async () => {
+      console.log('[IDB-Sync-Debug] Manual snapshot export triggered');
+      try {
+        const result = await exportFullSnapshot(window.__LEXIE_WALLET_ID_FOR_SYNC);
+        console.log('[IDB-Sync-Debug] Snapshot export result:', result);
+        return result;
+      } catch (error) {
+        console.error('[IDB-Sync-Debug] Snapshot export failed:', error);
+      }
+    },
+
     // Check if system is initialized
     isReady: () => {
       const hasWalletId = !!window.__LEXIE_WALLET_ID_FOR_SYNC;
@@ -198,6 +216,7 @@ if (typeof window !== 'undefined') {
   console.log('🔄 [IDB-Sync] Debug utilities available:');
   console.log('   window.__LEXIE_IDB_SYNC__.init()         // Manual initialization');
   console.log('   window.__LEXIE_IDB_SYNC__.triggerSync()  // Manual sync trigger');
+  console.log('   window.__LEXIE_IDB_SYNC__.exportSnapshot() // Manual full snapshot export');
   console.log('   window.__LEXIE_IDB_SYNC__.getStatus()    // Get sync status');
   console.log('   window.__LEXIE_IDB_SYNC__.isReady()      // Check if system is ready');
   console.log('   window.__LEXIE_IDB_SYNC__.reset()        // Reset sync system');

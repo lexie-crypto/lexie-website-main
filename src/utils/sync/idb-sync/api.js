@@ -14,6 +14,27 @@ const getQueueModule = async () => {
 };
 
 /**
+ * Check if error is network-related
+ */
+const isNetworkError = (error) => {
+  return error.name === 'TypeError' ||
+         error.message.includes('fetch') ||
+         error.message.includes('network') ||
+         error.message.includes('Failed to fetch');
+};
+
+/**
+ * Calculate SHA-256 hash of data
+ */
+const calculateHash = async (data) => {
+  const encoder = new TextEncoder();
+  const dataBuffer = encoder.encode(data);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', dataBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+};
+
+/**
  * Make sync request through artifacts proxy
  * The proxy handles HMAC signing server-side
  */
@@ -113,4 +134,84 @@ export const finalizeSync = async (walletId, dbName, timestamp, manifest) => {
  */
 export const getSyncManifest = async (walletId, dbName) => {
   return await makeSyncRequest(`sync-manifest&walletId=${walletId}&dbName=${dbName}`);
+};
+
+/**
+ * Upload snapshot manifest to Redis
+ */
+export const uploadSnapshotManifest = async (walletId, timestamp, manifest) => {
+  const action = 'snapshot-manifest';
+  const payload = {
+    walletId,
+    timestamp,
+    manifest
+  };
+
+  return await makeSyncRequest(action, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+};
+
+/**
+ * Upload snapshot chunk to Redis
+ */
+export const uploadSnapshotChunk = async (walletId, timestamp, chunkIndex, chunkData, totalChunks) => {
+  const action = 'snapshot-chunk';
+  const payload = {
+    walletId,
+    timestamp,
+    chunkIndex,
+    chunkData,
+    // Add fields needed for queuing
+    dbName: 'railgun-snapshot', // Placeholder for queuing
+    totalChunks,
+    data: chunkData,
+    hash: await calculateHash(chunkData)
+  };
+
+  try {
+    return await makeSyncRequest(action, {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  } catch (error) {
+    // If upload fails, try to enqueue for later retry
+    if (isNetworkError(error)) {
+      console.log(`[IDB-Sync-API] Network error, enqueuing snapshot chunk ${chunkIndex}`);
+      try {
+        const queueMod = await getQueueModule();
+        await queueMod.enqueueChunk({
+          walletId,
+          dbName: 'railgun-snapshot',
+          timestamp,
+          chunkIndex,
+          totalChunks,
+          data: chunkData,
+          hash: payload.hash,
+          type: 'snapshot' // Mark as snapshot chunk
+        });
+        console.log(`[IDB-Sync-API] Snapshot chunk ${chunkIndex} enqueued for retry`);
+      } catch (enqueueError) {
+        console.error('[IDB-Sync-API] Failed to enqueue snapshot chunk:', enqueueError);
+      }
+    }
+    throw error;
+  }
+};
+
+/**
+ * Finalize snapshot upload
+ */
+export const finalizeSnapshotUpload = async (walletId, timestamp) => {
+  const action = 'snapshot-finalize';
+  const payload = {
+    walletId,
+    timestamp
+  };
+
+  return await makeSyncRequest(action, {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
 };
