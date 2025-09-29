@@ -91,15 +91,6 @@ export default async function handler(req, res) {
         backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/idb-sync/finalize`;
       } else if (action === 'sync-manifest') {
         backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/idb-sync/manifest`;
-      } else if (action === 'snapshot-manifest') {
-        // Full snapshot manifest upload
-        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/idb-snapshot/manifest`;
-      } else if (action === 'snapshot-chunk') {
-        // Full snapshot chunk upload
-        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/idb-snapshot/chunk`;
-      } else if (action === 'snapshot-finalize') {
-        // Full snapshot finalize
-        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/idb-snapshot/finalize`;
       } else {
         return res.status(400).json({ error: 'Unknown action', requestId });
       }

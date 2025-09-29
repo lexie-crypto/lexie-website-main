@@ -137,14 +137,15 @@ export const getSyncManifest = async (walletId, dbName) => {
 };
 
 /**
- * Upload snapshot manifest to Redis
+ * Upload snapshot manifest to Redis (reuse existing sync endpoints with snapshot flag)
  */
 export const uploadSnapshotManifest = async (walletId, timestamp, manifest) => {
-  const action = 'snapshot-manifest';
+  const action = 'sync-manifest';
   const payload = {
     walletId,
     timestamp,
-    manifest
+    manifest,
+    isSnapshot: true // Flag to indicate this is a full snapshot
   };
 
   return await makeSyncRequest(action, {
@@ -154,10 +155,10 @@ export const uploadSnapshotManifest = async (walletId, timestamp, manifest) => {
 };
 
 /**
- * Upload snapshot chunk to Redis
+ * Upload snapshot chunk to Redis (reuse existing sync endpoints with snapshot flag)
  */
 export const uploadSnapshotChunk = async (walletId, timestamp, chunkIndex, chunkData, totalChunks) => {
-  const action = 'snapshot-chunk';
+  const action = 'sync-chunk';
   const payload = {
     walletId,
     timestamp,
@@ -167,7 +168,8 @@ export const uploadSnapshotChunk = async (walletId, timestamp, chunkIndex, chunk
     dbName: 'railgun-snapshot', // Placeholder for queuing
     totalChunks,
     data: chunkData,
-    hash: await calculateHash(chunkData)
+    hash: await calculateHash(chunkData),
+    isSnapshot: true // Flag to indicate this is a full snapshot chunk
   };
 
   try {
@@ -189,7 +191,8 @@ export const uploadSnapshotChunk = async (walletId, timestamp, chunkIndex, chunk
           totalChunks,
           data: chunkData,
           hash: payload.hash,
-          type: 'snapshot' // Mark as snapshot chunk
+          type: 'snapshot', // Mark as snapshot chunk
+          isSnapshot: true
         });
         console.log(`[IDB-Sync-API] Snapshot chunk ${chunkIndex} enqueued for retry`);
       } catch (enqueueError) {
@@ -201,13 +204,14 @@ export const uploadSnapshotChunk = async (walletId, timestamp, chunkIndex, chunk
 };
 
 /**
- * Finalize snapshot upload
+ * Finalize snapshot upload (reuse existing sync endpoints with snapshot flag)
  */
 export const finalizeSnapshotUpload = async (walletId, timestamp) => {
-  const action = 'snapshot-finalize';
+  const action = 'sync-finalize';
   const payload = {
     walletId,
-    timestamp
+    timestamp,
+    isSnapshot: true // Flag to indicate this is a full snapshot finalization
   };
 
   return await makeSyncRequest(action, {
