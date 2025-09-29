@@ -192,11 +192,12 @@ class HydrationManager {
         recordCount: response.recordCount || 0,
         totalBytes: response.totalBytes || 0,
         chunkCount: response.chunkCount || 0,
-        chunkHashes: response.chunkHashes || []
+        chunkHashes: response.chunkHashes || [],
+        sourceWalletId: response.sourceWalletId // Which wallet this data actually came from
       };
     } catch (error) {
       if (error.message.includes('404') || error.message.includes('No sync data found')) {
-        throw new Error('No sync data available for this wallet');
+        throw new Error('No sync data available');
       }
       throw error;
     }
@@ -206,7 +207,7 @@ class HydrationManager {
    * Process chunks sequentially
    */
   async processChunks(walletId, manifest, resumeFromChunk, abortSignal, onProgress) {
-    const { chunkCount, chunkHashes } = manifest;
+    const { chunkCount, chunkHashes, sourceWalletId } = manifest;
     let processedChunks = resumeFromChunk + 1;
 
     console.log(`[IDB-Hydration] Processing ${chunkCount} chunks, starting from ${processedChunks}`);
@@ -218,10 +219,10 @@ class HydrationManager {
       }
 
       try {
-        console.log(`[IDB-Hydration] Processing chunk ${i}/${chunkCount}`);
+        console.log(`[IDB-Hydration] Processing chunk ${i}/${chunkCount} from wallet ${sourceWalletId}`);
 
-        // Fetch chunk
-        const chunkData = await this.fetchChunk(walletId, manifest.ts, i, abortSignal);
+        // Fetch chunk from the source wallet that has the data
+        const chunkData = await this.fetchChunk(sourceWalletId, manifest.ts, i, abortSignal);
 
         // Verify chunk hash if available
         if (chunkHashes[i]) {
