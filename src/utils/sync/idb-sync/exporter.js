@@ -13,33 +13,10 @@ const getStateModule = async () => {
   return stateModule;
 };
 
-// Target chunk size for final JSON/base64 payload (not raw NDJSON)
-const CHUNK_TARGET_BYTES = 2 * 1024 * 1024; // 2MB
-
-/**
- * Estimate final JSON payload size for a chunk
- * Accounts for JSON wrapper, base64 encoding, and metadata
- */
-const estimatePayloadSize = (ndjsonChunk, walletId = 'placeholder') => {
-  // Base64 encoding increases size by ~4/3
-  const base64Size = Math.ceil(ndjsonChunk.length * 4 / 3);
-
-  // JSON payload structure overhead
-  const jsonOverhead = JSON.stringify({
-    walletId: walletId,
-    timestamp: Date.now(),
-    chunkIndex: 0,
-    totalChunks: 1,
-    data: '', // This will hold the base64 data
-    hash: 'sha256-placeholder-hash-here-64-chars-long-xxxxxxxxxxxx'
-  }).length;
-
-  // Subtract empty data field and add actual base64 data
-  const emptyDataField = '"data":""'.length;
-  const actualDataField = `"data":"${'x'.repeat(base64Size)}"`.length;
-
-  return jsonOverhead - emptyDataField + actualDataField;
-};
+// Target chunk size for NDJSON (accounting for base64 + JSON overhead)
+// Since base64 adds ~33% and JSON adds ~200 bytes, we target ~1.3MB NDJSON
+// to stay under 2MB final payload limit
+const CHUNK_TARGET_BYTES = Math.floor(2 * 1024 * 1024 * 0.65); // ~1.3MB
 
 /**
  * Open LevelJS-backed IndexedDB database
@@ -189,11 +166,8 @@ export const exportFullSnapshot = async (walletId, signal) => {
           const ndjsonLine = recordToNDJSON({ key: cursor.key, value: cursor.value }) + '\n';
           const lineBytes = ndjsonLine.length;
 
-          // Check if adding this line would exceed target payload size
-          const potentialChunk = currentChunk + ndjsonLine;
-          const estimatedPayloadSize = estimatePayloadSize(potentialChunk, walletId);
-
-          if (estimatedPayloadSize > CHUNK_TARGET_BYTES && currentChunk.length > 0) {
+          // Check if adding this line would exceed target chunk size
+          if (currentChunk.length + lineBytes > CHUNK_TARGET_BYTES && currentChunk.length > 0) {
             // Save current chunk and start new one
             chunks.push(currentChunk);
             currentChunk = ndjsonLine;
