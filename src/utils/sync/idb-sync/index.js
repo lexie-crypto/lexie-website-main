@@ -9,12 +9,18 @@ import { getQueueStats, clearQueue } from './queue.js';
 import { getSyncStatus as getStateStatus, resetSyncState } from './state.js';
 
 // Main initialization
-export const initializeSyncSystem = () => {
+export const initializeSyncSystem = (walletId) => {
   try {
     console.log('[IDB-Sync] Initializing continuous IndexedDB → Redis sync system');
 
     // Set up event listeners
     initializeIDBSync();
+
+    // Store wallet ID globally for sync operations
+    if (walletId) {
+      window.__LEXIE_WALLET_ID_FOR_SYNC = walletId;
+      console.log(`[IDB-Sync] Using wallet ID: ${walletId.slice(0, 8)}...`);
+    }
 
     // Process any queued items from previous sessions
     setTimeout(async () => {

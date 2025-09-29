@@ -91,9 +91,7 @@ export const scheduleSync = async (walletId = null) => {
 
   // Get wallet ID if not provided
   if (!walletId) {
-    const { useWallet } = await import('../../../contexts/WalletContext.jsx');
-    const walletContext = useWallet();
-    walletId = walletContext.railgunWalletID;
+    walletId = window.__LEXIE_WALLET_ID_FOR_SYNC;
 
     if (!walletId) {
       console.debug('[IDB-Sync-Scheduler] No wallet ID available, skipping sync');
