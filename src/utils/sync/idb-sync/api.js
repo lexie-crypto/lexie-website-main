@@ -115,29 +115,29 @@ export const uploadChunk = async (walletId, dbName, timestamp, chunkIndex, total
       })
     });
   } catch (error) {
-    // Handle 413 Payload Too Large errors by splitting chunk
-    if (error.message.includes('413') && retryCount < 2) {
-      console.warn(`[IDB-Sync-API] Chunk ${chunkIndex} too large (413), splitting and retrying...`);
+    // Handle 413 Payload Too Large errors by splitting chunk into ~3MB pieces
+    if (error.message.includes('413') && retryCount < 3) {
+      console.warn(`[IDB-Sync-API] Chunk ${chunkIndex} too large (413), splitting into 3MB pieces...`);
 
-      // Split the chunk in half
-      const midPoint = Math.floor(data.length / 2);
-      const firstHalf = data.substring(0, midPoint);
-      const secondHalf = data.substring(midPoint);
+      // Split into ~3MB pieces (accounting for base64 overhead)
+      const targetPieceSize = Math.floor(3 * 1024 * 1024 * 0.8); // ~2.4MB NDJSON target
+      const numPieces = Math.ceil(data.length / targetPieceSize);
+      const actualPieceSize = Math.ceil(data.length / numPieces);
 
-      // Calculate hashes for split chunks
-      const firstHash = await calculateHash(firstHalf);
-      const secondHash = await calculateHash(secondHalf);
+      console.log(`[IDB-Sync-API] Splitting ${data.length} bytes into ${numPieces} pieces of ~${actualPieceSize} bytes each`);
 
-      console.log(`[IDB-Sync-API] Split chunk ${chunkIndex} into 2 parts: ${firstHalf.length} + ${secondHalf.length} bytes`);
+      // Upload each piece
+      for (let i = 0; i < numPieces; i++) {
+        const start = i * actualPieceSize;
+        const end = Math.min(start + actualPieceSize, data.length);
+        const piece = data.substring(start, end);
+        const pieceHash = await calculateHash(piece);
 
-      // Upload first half (this will recursively handle if still too large)
-      await uploadChunk(walletId, dbName, timestamp, chunkIndex * 2, totalChunks * 2, firstHalf, firstHash, retryCount + 1);
-
-      // Upload second half
-      await uploadChunk(walletId, dbName, timestamp, chunkIndex * 2 + 1, totalChunks * 2, secondHalf, secondHash, retryCount + 1);
+        await uploadChunk(walletId, dbName, timestamp, chunkIndex * numPieces + i, totalChunks * numPieces, piece, pieceHash, retryCount + 1);
+      }
 
       // Return success for the original chunk
-      return { success: true, split: true };
+      return { success: true, split: true, pieces: numPieces };
     }
 
     // Re-throw other errors
