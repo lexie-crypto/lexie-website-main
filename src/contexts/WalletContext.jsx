@@ -1652,6 +1652,30 @@ const WalletContextProvider = ({ children }) => {
       // Notify UI that metadata is persisted; polling may begin
       try { window.dispatchEvent(new CustomEvent('railgun-wallet-metadata-ready', { detail: { address, walletId: railgunWalletInfo.id } })); } catch {}
 
+      // 🎯 Initialize IDB sync system BEFORE scanning starts so it can capture all events
+      setTimeout(async () => {
+        try {
+          console.log('🔄 Initializing IDB sync system before scanning begins...');
+
+          // Import the sync module
+          const { initializeSyncSystem } = await import('../utils/sync/idb-sync/index.js');
+
+          // Use the actual wallet ID that was just created
+          const walletId = railgunWalletInfo.id;
+
+          if (walletId) {
+            await initializeSyncSystem(walletId);
+            console.log('✅ IDB sync system initialized and ready to capture scan events');
+          } else {
+            console.warn('⚠️ No wallet ID available for sync system');
+          }
+
+        } catch (syncError) {
+          console.info('ℹ️ IDB sync system initialization failed (optional feature):', syncError.message);
+          console.info('ℹ️ Railgun wallet functionality remains fully operational');
+        }
+      }, 1000); // Short delay to ensure everything is stable
+
       // 🔄 Run initial Merkle-tree scan and balance refresh for CURRENT chain only (prevent infinite polling)
       try {
         const { refreshBalances } = await import('@railgun-community/wallet');
@@ -1725,30 +1749,6 @@ const WalletContextProvider = ({ children }) => {
         storage: 'Redis-only',
         crossDevice: true
       });
-
-      // 🎯 Initialize IDB sync system NOW that wallet actually exists
-      setTimeout(async () => {
-        try {
-          console.log('🔄 Initializing IDB sync system (wallet exists)...');
-
-          // Import the sync module
-          const { initializeSyncSystem } = await import('../utils/sync/idb-sync/index.js');
-
-          // Use the actual wallet ID that was just created
-          const walletId = railgunWalletInfo.id;
-
-          if (walletId) {
-            await initializeSyncSystem(walletId);
-            console.log('✅ IDB sync system initialized and ready to capture scan events');
-          } else {
-            console.warn('⚠️ No wallet ID available for sync system');
-          }
-
-        } catch (syncError) {
-          console.info('ℹ️ IDB sync system initialization failed (optional feature):', syncError.message);
-          console.info('ℹ️ Railgun wallet functionality remains fully operational');
-        }
-      }, 2000); // Short delay to ensure everything is stable
 
       // Signal init completed for UI with 100%
       try { window.dispatchEvent(new CustomEvent('railgun-init-completed', { detail: { address } })); } catch {}
