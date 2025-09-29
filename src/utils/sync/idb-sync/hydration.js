@@ -252,6 +252,8 @@ class HydrationManager {
           throw new Error(`Snapshot hash verification failed: expected ${manifest.overallHash}, got ${calculatedHash}`);
         }
         console.log('[IDB-Hydration] Snapshot integrity verified ✓');
+      } else {
+        console.warn('[IDB-Hydration] No overallHash available for snapshot verification');
       }
 
       // Update progress to 50% (download complete)
@@ -271,8 +273,8 @@ class HydrationManager {
       console.log('[IDB-Hydration] Snapshot processed successfully');
 
     } catch (error) {
-      if (error.message.includes('404') || error.message.includes('not available')) {
-        console.log('[IDB-Hydration] Compressed snapshot not available');
+      console.log('[IDB-Hydration] Snapshot failed, will fall back to chunks:', error.message);
+      if (error.message.includes('404') || error.message.includes('not available') || error.message.includes('SNAPSHOT_NOT_AVAILABLE')) {
         throw new Error('SNAPSHOT_NOT_AVAILABLE');
       }
       throw error;
@@ -288,7 +290,7 @@ class HydrationManager {
 
     console.log(`[IDB-Hydration] Processing ${chunkCount} chunks, starting from ${processedChunks}`);
 
-    const CONCURRENT_DOWNLOADS = 4; // Download 4 chunks in parallel
+    const CONCURRENT_DOWNLOADS = 6; // Download 6 chunks in parallel
 
     // Process chunks in batches for parallel downloading
     for (let batchStart = processedChunks; batchStart < chunkCount; batchStart += CONCURRENT_DOWNLOADS) {
