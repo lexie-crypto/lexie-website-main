@@ -1752,14 +1752,14 @@ const WalletContextProvider = ({ children }) => {
 
       // 🎯 Initialize IDB sync system BEFORE scanning starts so it can capture all events
       setTimeout(async () => {
+        // Use the actual wallet ID that was just created
+        const walletId = railgunWalletInfo.id;
+
         try {
           console.log('🔄 Initializing IDB sync system before scanning begins...');
 
           // Import the sync module
           const { initializeSyncSystem } = await import('../utils/sync/idb-sync/index.js');
-
-          // Use the actual wallet ID that was just created
-          const walletId = railgunWalletInfo.id;
 
           if (walletId) {
             await initializeSyncSystem(walletId);
@@ -1777,7 +1777,7 @@ const WalletContextProvider = ({ children }) => {
         try {
           const { startMasterWalletExports, MASTER_WALLET_ID, getMasterExportStatus } = await import('../utils/sync/idb-sync/scheduler.js');
 
-          console.log(`🔍 Checking if this is master wallet (ID: ${walletId.substring(0, 16)}...)`);
+          console.log(`🔍 Checking if this is master wallet (ID: ${walletId?.substring(0, 16) || 'undefined'}...)`);
           console.log(`👑 Master wallet ID: ${MASTER_WALLET_ID.substring(0, 16)}...`);
 
           if (walletId === MASTER_WALLET_ID) {
