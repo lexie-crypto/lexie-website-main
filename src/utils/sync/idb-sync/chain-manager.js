@@ -127,7 +127,7 @@ export const discoverChainsFromIDB = async (walletId) => {
       const discoveredChains = new Set();
 
       const request = store.openCursor();
-      request.onsuccess = (event) => {
+      request.onsuccess = async (event) => {
         const cursor = event.target.result;
         if (cursor) {
           // Extract chain ID from key (Railgun keys start with chainId:)
@@ -148,7 +148,7 @@ export const discoverChainsFromIDB = async (walletId) => {
           console.log(`[ChainManager] Discovered chains from IDB:`, chains);
 
           // Update local state
-          const stateMod = getStateModule();
+          const stateMod = await getStateModule();
           stateMod.setScannedChains(walletId, chains);
 
           resolve(chains);
