@@ -211,7 +211,7 @@ export default async function handler(req, res) {
       'Accept': 'application/json',
       'X-Lexie-Timestamp': timestamp,
       'X-Lexie-Signature': signature,
-      'Origin': 'https://app.staging.lexiecrypto.com',
+      'Origin': 'https://staging.app.lexiecrypto.com',
       'User-Agent': 'Lexie-Contacts-Proxy/1.0',
     };
 
@@ -352,7 +352,7 @@ export default async function handler(req, res) {
         'Accept': 'application/json',
         'X-Lexie-Timestamp': timestamp,
         'X-Lexie-Signature': signature,
-        'Origin': 'https://app.staging.lexiecrypto.com',
+        'Origin': 'https://staging.app.lexiecrypto.com',
         'User-Agent': 'Lexie-Wallet-Proxy/1.0',
       };
 
@@ -378,7 +378,7 @@ export default async function handler(req, res) {
         'Accept': 'application/json',
         'X-Lexie-Timestamp': timestamp,
         'X-Lexie-Signature': signature,
-        'Origin': 'https://app.staging.lexiecrypto.com',
+        'Origin': 'https://staging.app.lexiecrypto.com',
         'User-Agent': 'Lexie-Wallet-Proxy/1.0',
       };
     }
@@ -451,7 +451,7 @@ export default async function handler(req, res) {
         'Accept': 'application/json',
         'X-Lexie-Timestamp': timestamp,
         'X-Lexie-Signature': signature,
-        'Origin': 'https://app.staging.lexiecrypto.com',
+        'Origin': 'https://staging.app.lexiecrypto.com',
         'User-Agent': 'Lexie-Wallet-Proxy/1.0',
       };
 
@@ -498,7 +498,7 @@ export default async function handler(req, res) {
       'Accept': 'application/json',
       'X-Lexie-Timestamp': timestamp,
       'X-Lexie-Signature': signature,
-      'Origin': 'https://app.staging.lexiecrypto.com',
+      'Origin': 'https://staging.app.lexiecrypto.com',
       'User-Agent': 'Lexie-Analytics-Proxy/1.0',
     };
 
@@ -631,7 +631,7 @@ export default async function handler(req, res) {
         'Accept': 'application/json',
         'X-Lexie-Timestamp': timestamp,
         'X-Lexie-Signature': signature,
-        'Origin': 'https://app.staging.lexiecrypto.com',
+        'Origin': 'https://staging.app.lexiecrypto.com',
         'User-Agent': 'Lexie-Wallet-Proxy/1.0',
       };
 
@@ -650,7 +650,7 @@ export default async function handler(req, res) {
           'Accept': 'application/json',
           'x-lexie-timestamp': timestamp,
           'x-lexie-signature': signature,
-          'Origin': 'https://app.staging.lexiecrypto.com',
+          'Origin': 'https://staging.app.lexiecrypto.com',
           'User-Agent': 'Lexie-Wallet-Proxy/1.0',
         };
 
@@ -715,7 +715,7 @@ export default async function handler(req, res) {
         'Accept': 'application/json',
         'X-Lexie-Timestamp': timestamp,
         'X-Lexie-Signature': signature,
-        'Origin': 'https://app.staging.lexiecrypto.com',
+        'Origin': 'https://staging.app.lexiecrypto.com',
         'User-Agent': 'Lexie-Wallet-Proxy/1.0',
       };
     }
