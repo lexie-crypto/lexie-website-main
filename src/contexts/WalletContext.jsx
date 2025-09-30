@@ -406,6 +406,19 @@ const WalletContextProvider = ({ children }) => {
             // Update local chain state
             const { markChainAsScanned } = await import('../utils/sync/idb-sync/chain-manager.js');
             await markChainAsScanned(railgunWalletID, railgunChain.id);
+
+            // MASTER WALLET: Immediately export chain snapshot after scanning
+            const { MASTER_WALLET_ID } = await import('../utils/sync/idb-sync/scheduler.js');
+            if (railgunWalletID === MASTER_WALLET_ID) {
+              console.log(`👑 [MasterExport] Master wallet scanned chain ${railgunChain.id}, triggering immediate chain export...`);
+              try {
+                const { exportMasterWalletChain } = await import('../utils/sync/idb-sync/scheduler.js');
+                await exportMasterWalletChain(railgunChain.id);
+                console.log(`👑 [MasterExport] Master wallet chain ${railgunChain.id} exported successfully`);
+              } catch (exportError) {
+                console.error(`👑 [MasterExport] Failed to export master wallet chain ${railgunChain.id}:`, exportError.message);
+              }
+            }
           }
         } else {
           console.log(`[Railgun Init] ℹ️ No chain bootstrap available for ${railgunChain.id}, will perform full scan`);
@@ -445,6 +458,19 @@ const WalletContextProvider = ({ children }) => {
       // Update local chain state tracking
       const { markChainAsScanned } = await import('../utils/sync/idb-sync/chain-manager.js');
       await markChainAsScanned(railgunWalletID, railgunChain.id);
+
+      // MASTER WALLET: Immediately export chain snapshot after scanning
+      const { MASTER_WALLET_ID } = await import('../utils/sync/idb-sync/scheduler.js');
+      if (railgunWalletID === MASTER_WALLET_ID) {
+        console.log(`👑 [MasterExport] Master wallet scanned chain ${railgunChain.id}, triggering immediate chain export...`);
+        try {
+          const { exportMasterWalletChain } = await import('../utils/sync/idb-sync/scheduler.js');
+          await exportMasterWalletChain(railgunChain.id);
+          console.log(`👑 [MasterExport] Master wallet chain ${railgunChain.id} exported successfully`);
+        } catch (exportError) {
+          console.error(`👑 [MasterExport] Failed to export master wallet chain ${railgunChain.id}:`, exportError.message);
+        }
+      }
 
       try {
         // Persist scanned chain to Redis by updating wallet metadata

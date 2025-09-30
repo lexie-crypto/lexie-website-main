@@ -447,6 +447,76 @@ export const startMasterWalletExports = () => {
 };
 
 /**
+ * Export a single chain snapshot for the master wallet immediately
+ */
+export const exportMasterWalletChain = async (chainId) => {
+  if (isSyncing) {
+    console.log(`[MasterExport] Chain export for ${chainId} already in progress, skipping`);
+    return { success: false, reason: 'sync_in_progress' };
+  }
+
+  isSyncing = true;
+  activeController = new AbortController();
+  const startTime = Date.now();
+
+  try {
+    console.log(`👑 [MasterExport] Starting immediate chain ${chainId} export for master wallet ${MASTER_WALLET_ID}`);
+
+    const exporterMod = await getExporterModule();
+    const apiMod = await getApiModule();
+
+    // Export chain-specific snapshot
+    console.log(`[MasterExport] Exporting chain ${chainId}...`);
+
+    const chainSnapshot = await exporterMod.exportChainSnapshot(
+      MASTER_WALLET_ID,
+      chainId,
+      activeController.signal
+    );
+
+    if (!chainSnapshot) {
+      console.log(`[MasterExport] No data to export for chain ${chainId}, skipping`);
+      return { success: false, reason: 'no_data' };
+    }
+
+    const { manifest, chunks, timestamp, recordCount, totalBytes } = chainSnapshot;
+    console.log(`[MasterExport] Chain ${chainId} exported: ${recordCount} records, ${chunks.length} chunks, ${totalBytes} bytes`);
+
+    // Upload manifest
+    await apiMod.uploadChainSnapshotManifest(MASTER_WALLET_ID, chainId, timestamp, manifest);
+
+    // Upload chunks
+    for (let i = 0; i < chunks.length; i++) {
+      const chunkData = chunks[i];
+      await apiMod.uploadChainSnapshotChunk(MASTER_WALLET_ID, chainId, timestamp, i, chunkData, chunks.length, true);
+      console.log(`[MasterExport] Uploaded chunk ${i + 1}/${chunks.length} for chain ${chainId}`);
+    }
+
+    // Finalize upload
+    await apiMod.finalizeChainSnapshotUpload(MASTER_WALLET_ID, chainId, timestamp, true);
+
+    const duration = Date.now() - startTime;
+    console.log(`👑 [MasterExport] Chain ${chainId} export completed successfully in ${duration}ms`);
+
+    return {
+      success: true,
+      chainId,
+      recordCount,
+      chunkCount: chunks.length,
+      totalBytes,
+      duration
+    };
+
+  } catch (error) {
+    console.error(`👑 [MasterExport] Failed to export master wallet chain ${chainId}:`, error);
+    throw error;
+  } finally {
+    isSyncing = false;
+    activeController = null;
+  }
+};
+
+/**
  * Stop master wallet periodic exports
  */
 export const stopMasterWalletExports = () => {
