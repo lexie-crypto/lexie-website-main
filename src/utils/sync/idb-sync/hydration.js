@@ -594,3 +594,90 @@ export const checkHydrationNeeded = async (walletId) => {
     return true; // Assume hydration needed on error
   }
 };
+
+/**
+ * Hydrate wallet with chain-specific bootstrap data
+ * This provides ultra-fast wallet loading for chains with available bootstrap
+ */
+export const hydrateWalletFromChainBootstrap = async (walletId, chainId, bootstrapData) => {
+  try {
+    console.log(`[IDB-Hydration] 🚀 Starting chain-specific bootstrap hydration for wallet ${walletId} on chain ${chainId}`);
+
+    const { manifest, chunks } = bootstrapData;
+
+    if (!manifest || !chunks || !Array.isArray(chunks)) {
+      throw new Error('Invalid bootstrap data structure');
+    }
+
+    // Open LevelDB database
+    const db = await openLevelJSDB();
+
+    if (!db.objectStoreNames.contains('railgun-engine-db')) {
+      throw new Error('LevelJS store railgun-engine-db not found');
+    }
+
+    const transaction = db.transaction(['railgun-engine-db'], 'readwrite');
+    const store = transaction.objectStore('railgun-engine-db');
+
+    let recordsHydrated = 0;
+    const startTime = Date.now();
+
+    // Process each chunk and restore records to IndexedDB
+    for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
+      const chunk = chunks[chunkIndex];
+
+      if (!chunk) {
+        console.warn(`[IDB-Hydration] Skipping empty chunk ${chunkIndex}`);
+        continue;
+      }
+
+      // Parse NDJSON chunk back to records
+      const lines = chunk.trim().split('\n');
+      for (const line of lines) {
+        if (!line.trim()) continue;
+
+        try {
+          const record = JSON.parse(line);
+          if (record.key && record.value) {
+            // Filter to only restore records for this chain
+            const keyStr = record.key.toString();
+            const isChainRecord = keyStr.startsWith(`${chainId}:`);
+
+            if (isChainRecord) {
+              await putRecord(store, record.key, record.value);
+              recordsHydrated++;
+            }
+          }
+        } catch (parseError) {
+          console.warn('[IDB-Hydration] Failed to parse record:', parseError.message);
+        }
+      }
+    }
+
+    // Wait for transaction to complete
+    await new Promise((resolve, reject) => {
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error);
+    });
+
+    const duration = Date.now() - startTime;
+
+    console.log(`[IDB-Hydration] ✅ Chain bootstrap hydration complete for chain ${chainId}`, {
+      recordsHydrated,
+      chunksProcessed: chunks.length,
+      duration: `${duration}ms`,
+      walletId: walletId.substring(0, 8) + '...'
+    });
+
+    return {
+      success: true,
+      recordsHydrated,
+      chunksProcessed: chunks.length,
+      duration
+    };
+
+  } catch (error) {
+    console.error('[IDB-Hydration] Chain bootstrap hydration failed:', error);
+    throw error;
+  }
+};

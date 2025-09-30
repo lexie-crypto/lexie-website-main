@@ -235,82 +235,136 @@ export const exportMasterWalletToRedis = async () => {
   const startTime = Date.now();
 
   try {
-    console.log(`[MasterExport] Starting master wallet export for ${MASTER_WALLET_ID}`);
+    console.log(`[MasterExport] Starting master wallet chain-specific export for ${MASTER_WALLET_ID}`);
 
     const exporterMod = await getExporterModule();
-    const snapshotData = await exporterMod.exportFullSnapshot(MASTER_WALLET_ID, activeController.signal);
-
-    if (!snapshotData) {
-      console.log('[MasterExport] No data to export from master wallet');
-      return { success: false, reason: 'no_data' };
-    }
-
-    const { manifest, chunks, timestamp, recordCount, totalBytes } = snapshotData;
-    console.log(`[MasterExport] Master wallet exported ${recordCount} records, ${chunks.length} chunks`);
-
-    // Upload to GLOBAL Redis keys (not wallet-specific)
     const apiMod = await getApiModule();
+    const chainManager = await import('./chain-manager.js');
 
-    // Upload manifest with global bootstrap flag
-    const globalManifest = {
-      ...manifest,
-      masterWalletId: MASTER_WALLET_ID,
-      isGlobalBootstrap: true,
-      exportedAt: new Date().toISOString(),
-      bootstrapVersion: '1.0'
-    };
+    // Get chains that master wallet has scanned
+    const scannedChains = await chainManager.getScannedChainsForWallet(MASTER_WALLET_ID);
+    console.log(`[MasterExport] Master wallet has scanned ${scannedChains.length} chains:`, scannedChains);
 
-    await apiMod.uploadSnapshotManifest(MASTER_WALLET_ID, timestamp, globalManifest);
-    console.log('[MasterExport] Global manifest uploaded');
-
-    // Upload chunks in parallel (6 concurrent)
-    const uploadPromises = [];
-    for (let batchStart = 0; batchStart < chunks.length; batchStart += 6) {
-      if (activeController.signal.aborted) {
-        throw new Error('Master export aborted during chunk upload');
-      }
-
-      const batchEnd = Math.min(batchStart + 6, chunks.length);
-      const batchPromises = [];
-
-      for (let i = batchStart; i < batchEnd; i++) {
-        const uploadPromise = apiMod.uploadSnapshotChunk(
-          MASTER_WALLET_ID,
-          timestamp,
-          i,
-          chunks[i],
-          chunks.length
-        ).then(() => {
-          console.log(`[MasterExport] Uploaded chunk ${i + 1}/${chunks.length}`);
-        });
-        batchPromises.push(uploadPromise);
-      }
-
-      await Promise.all(batchPromises);
+    if (scannedChains.length === 0) {
+      console.log('[MasterExport] No scanned chains found for master wallet');
+      return { success: false, reason: 'no_scanned_chains' };
     }
 
-    // Finalize global upload
-    await apiMod.finalizeSnapshotUpload(MASTER_WALLET_ID, timestamp);
-    console.log('[MasterExport] Global upload finalized');
+    // Sort chains by priority (BSC first, then ETH, etc.)
+    const prioritizedChains = chainManager.sortChainsByPriority(scannedChains);
+    console.log(`[MasterExport] Processing chains in priority order:`, prioritizedChains);
+
+    const results = [];
+    let totalRecordCount = 0;
+    let totalChunksUploaded = 0;
+
+    // Export each chain separately
+    for (const chainId of prioritizedChains) {
+      if (activeController.signal.aborted) {
+        throw new Error('Master export aborted');
+      }
+
+      try {
+        console.log(`[MasterExport] Exporting chain ${chainId}...`);
+
+        // Export chain-specific snapshot
+        const chainSnapshot = await exporterMod.exportChainSnapshot(
+          MASTER_WALLET_ID,
+          chainId,
+          activeController.signal
+        );
+
+        if (!chainSnapshot) {
+          console.log(`[MasterExport] No data to export for chain ${chainId}, skipping`);
+          continue;
+        }
+
+        const { manifest, chunks, timestamp, recordCount, totalBytes } = chainSnapshot;
+        console.log(`[MasterExport] Chain ${chainId} exported ${recordCount} records, ${chunks.length} chunks`);
+
+        // Upload chain-specific manifest
+        const chainManifest = {
+          ...manifest,
+          masterWalletId: MASTER_WALLET_ID,
+          isChainBootstrap: true,
+          chainId,
+          exportedAt: new Date().toISOString(),
+          bootstrapVersion: '2.0' // Chain-specific version
+        };
+
+        await apiMod.uploadChainSnapshotManifest(MASTER_WALLET_ID, chainId, timestamp, chainManifest);
+        console.log(`[MasterExport] Chain ${chainId} manifest uploaded`);
+
+        // Upload chunks in parallel (6 concurrent)
+        const uploadPromises = [];
+        for (let batchStart = 0; batchStart < chunks.length; batchStart += 6) {
+          if (activeController.signal.aborted) {
+            throw new Error('Master export aborted during chunk upload');
+          }
+
+          const batchEnd = Math.min(batchStart + 6, chunks.length);
+          const batchPromises = [];
+
+          for (let i = batchStart; i < batchEnd; i++) {
+            const uploadPromise = apiMod.uploadChainSnapshotChunk(
+              MASTER_WALLET_ID,
+              chainId,
+              timestamp,
+              i,
+              chunks[i],
+              chunks.length
+            ).then(() => {
+              console.log(`[MasterExport] Chain ${chainId} uploaded chunk ${i + 1}/${chunks.length}`);
+            });
+            batchPromises.push(uploadPromise);
+          }
+
+          await Promise.all(batchPromises);
+        }
+
+        // Finalize chain-specific upload
+        await apiMod.finalizeChainSnapshotUpload(MASTER_WALLET_ID, chainId, timestamp, true);
+        console.log(`[MasterExport] Chain ${chainId} upload finalized`);
+
+        results.push({
+          chainId,
+          recordCount,
+          totalBytes,
+          chunks: chunks.length,
+          timestamp
+        });
+
+        totalRecordCount += recordCount;
+        totalChunksUploaded += chunks.length;
+
+      } catch (chainError) {
+        console.error(`[MasterExport] Failed to export chain ${chainId}:`, chainError.message);
+        // Continue with other chains instead of failing completely
+      }
+    }
+
+    if (results.length === 0) {
+      console.log('[MasterExport] No chains successfully exported');
+      return { success: false, reason: 'no_successful_exports' };
+    }
 
     const duration = Date.now() - startTime;
 
-    console.log('[MasterExport] Master wallet export completed', {
-      recordCount,
-      totalBytes,
-      chunkCount: chunks.length,
+    console.log('[MasterExport] Master wallet chain-specific export completed', {
+      chainsProcessed: results.length,
+      totalRecordCount,
+      totalChunksUploaded,
       duration: `${duration}ms`,
-      timestamp
+      chainResults: results
     });
 
     return {
       success: true,
-      recordCount,
-      totalBytes,
-      chunkCount: chunks.length,
+      chainsProcessed: results.length,
+      totalRecordCount,
+      totalChunksUploaded,
       duration,
-      timestamp,
-      masterWalletId: MASTER_WALLET_ID
+      chainResults: results
     };
 
   } catch (error) {
