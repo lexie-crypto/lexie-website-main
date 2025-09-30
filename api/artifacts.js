@@ -129,40 +129,6 @@ export default async function handler(req, res) {
           return res.status(400).json({ error: 'Missing required parameters: ts, n', requestId });
         }
         backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/chunk?ts=${encodeURIComponent(ts)}&n=${encodeURIComponent(n)}`;
-      } else if (parsedAction.startsWith('idb-sync/chain/')) {
-        // Handle chain-specific actions: idb-sync/chain/{chainId}/{endpoint}
-        const chainMatch = parsedAction.match(/^idb-sync\/chain\/(\d+)\/([^?]+)(\?.*)?$/);
-        if (chainMatch) {
-          const chainId = chainMatch[1];
-          const endpoint = chainMatch[2];
-          const queryString = chainMatch[3] || '';
-
-          if (endpoint === 'latest') {
-            backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/chain/${chainId}/latest`;
-          } else if (endpoint.startsWith('snapshot/')) {
-            const timestamp = endpoint.split('/')[1];
-            backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/chain/${chainId}/snapshot/${timestamp}`;
-          } else if (endpoint === 'chunk') {
-            // Extract ts and n from query string in parsedAction or actionParams
-            let ts, n;
-            if (queryString) {
-              const urlParams = new URLSearchParams(queryString);
-              ts = urlParams.get('ts');
-              n = urlParams.get('n');
-            } else {
-              ts = actionParams.ts;
-              n = actionParams.n;
-            }
-            if (!ts || n === undefined) {
-              return res.status(400).json({ error: 'Missing required parameters: ts, n for chunk request', requestId });
-            }
-            backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/chain/${chainId}/chunk?ts=${encodeURIComponent(ts)}&n=${encodeURIComponent(n)}`;
-          } else {
-            return res.status(400).json({ error: 'Unknown chain endpoint', requestId });
-          }
-        } else {
-          return res.status(400).json({ error: 'Invalid chain action format', requestId });
-        }
       } else {
         return res.status(400).json({ error: 'Unknown action', requestId });
       }

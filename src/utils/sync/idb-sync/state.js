@@ -11,7 +11,6 @@ const DIRTY_FLAGS_KEY = STORAGE_PREFIX + 'dirty-flags';
 const SYNC_CURSORS_KEY = STORAGE_PREFIX + 'cursors';
 const SYNC_HASHES_KEY = STORAGE_PREFIX + 'hashes';
 const SNAPSHOT_CURSORS_KEY = STORAGE_PREFIX + 'snapshot-cursors';
-const SCANNED_CHAINS_KEY = STORAGE_PREFIX + 'scanned-chains';
 
 /**
  * IDB stores to sync (matching Railgun's IndexedDB structure)
@@ -199,62 +198,5 @@ export const clearSnapshotCursor = (walletId) => {
     localStorage.setItem(SNAPSHOT_CURSORS_KEY, JSON.stringify(cursors));
   } catch (e) {
     console.warn('[IDB-State] Failed to clear snapshot cursor:', e);
-  }
-};
-
-/**
- * Get scanned chains for a wallet
- */
-export const getScannedChains = (walletId) => {
-  try {
-    const stored = localStorage.getItem(SCANNED_CHAINS_KEY);
-    const allChains = stored ? JSON.parse(stored) : {};
-    return allChains[walletId] || [];
-  } catch (error) {
-    console.error('[IDB-Sync-State] Failed to load scanned chains:', error);
-    return [];
-  }
-};
-
-/**
- * Set scanned chains for a wallet
- */
-export const setScannedChains = (walletId, chainIds) => {
-  try {
-    const stored = localStorage.getItem(SCANNED_CHAINS_KEY);
-    const allChains = stored ? JSON.parse(stored) : {};
-    allChains[walletId] = chainIds;
-    localStorage.setItem(SCANNED_CHAINS_KEY, JSON.stringify(allChains));
-    console.debug(`[IDB-Sync-State] Set scanned chains for ${walletId.substring(0, 8)}...:`, chainIds);
-  } catch (error) {
-    console.error('[IDB-Sync-State] Failed to set scanned chains:', error);
-  }
-};
-
-/**
- * Add a chain to the scanned list for a wallet
- */
-export const addScannedChain = (walletId, chainId) => {
-  try {
-    const currentChains = getScannedChains(walletId);
-    if (!currentChains.includes(chainId)) {
-      currentChains.push(chainId);
-      setScannedChains(walletId, currentChains);
-    }
-  } catch (error) {
-    console.error('[IDB-Sync-State] Failed to add scanned chain:', error);
-  }
-};
-
-/**
- * Check if a specific chain has been scanned for a wallet
- */
-export const isChainScanned = (walletId, chainId) => {
-  try {
-    const scannedChains = getScannedChains(walletId);
-    return scannedChains.includes(chainId);
-  } catch (error) {
-    console.error('[IDB-Sync-State] Failed to check chain scan status:', error);
-    return false;
   }
 };
