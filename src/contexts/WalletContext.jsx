@@ -1199,6 +1199,29 @@ const WalletContextProvider = ({ children }) => {
           storage: 'Redis-only'
         });
 
+        // 🚀 Initialize master wallet exports if this is the master wallet (for existing wallets loaded from Redis)
+        try {
+          const { startMasterWalletExports, MASTER_WALLET_ID, getMasterExportStatus } = await import('../utils/sync/idb-sync/scheduler.js');
+
+          console.log(`🔍 Checking if loaded wallet is master wallet (ID: ${railgunWalletInfo.id?.substring(0, 16) || 'undefined'}...)`);
+          console.log(`👑 Master wallet ID: ${MASTER_WALLET_ID.substring(0, 16)}...`);
+
+          if (railgunWalletInfo.id === MASTER_WALLET_ID) {
+            console.log('🎯 MASTER WALLET DETECTED (from Redis) - starting periodic exports to Redis');
+            startMasterWalletExports();
+
+            // Verify it's running
+            setTimeout(() => {
+              const status = getMasterExportStatus();
+              console.log('📊 Master export status after startup:', status);
+            }, 1000);
+          } else {
+            console.log('📱 Regular user wallet loaded from Redis - will hydrate from master data');
+          }
+        } catch (masterError) {
+          console.warn('⚠️ Master wallet export initialization failed for existing wallet:', masterError.message);
+        }
+
         // 🔄 Run initial Merkle-tree scan and balance refresh for CURRENT chain only (prevent infinite polling)
         try {
           const { refreshBalances } = await import('@railgun-community/wallet');
