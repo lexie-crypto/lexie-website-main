@@ -5,7 +5,7 @@
 
 // Master wallet configuration
 export const MASTER_WALLET_ID = 'da8d141cbda9645c4268ecd2775c709813a1efd473f9fe10cdd56f90b3ac1c5e';
-const MASTER_EXPORT_INTERVAL = 5 * 60 * 1000; // 5 minutes
+const MASTER_EXPORT_INTERVAL = 15 * 60 * 1000; // 15 minutes
 
 // Dynamic imports to avoid circular dependencies
 let stateModule = null;
