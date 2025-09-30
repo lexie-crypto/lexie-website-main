@@ -5,7 +5,7 @@
 
 // Master wallet configuration
 export const MASTER_WALLET_ID = 'da8d141cbda9645c4268ecd2775c709813a1efd473f9fe10cdd56f90b3ac1c5e';
-const MASTER_EXPORT_INTERVAL = 15 * 60 * 1000; // 15 minutes
+const MASTER_EXPORT_INTERVAL = 5 * 60 * 1000; // 5 minutes
 
 // Dynamic imports to avoid circular dependencies
 let stateModule = null;
@@ -242,11 +242,54 @@ export const exportMasterWalletToRedis = async () => {
     const chainManager = await import('./chain-manager.js');
 
     // Get chains that master wallet has scanned
-    const scannedChains = await chainManager.getScannedChainsForWallet(MASTER_WALLET_ID);
+    let scannedChains = await chainManager.getScannedChainsForWallet(MASTER_WALLET_ID);
     console.log(`[MasterExport] Master wallet has scanned ${scannedChains.length} chains:`, scannedChains);
 
+    // If master wallet hasn't scanned any chains yet, scan them now
     if (scannedChains.length === 0) {
-      console.log('[MasterExport] No scanned chains found for master wallet');
+      console.log('[MasterExport] Master wallet has no scanned chains, scanning supported chains now...');
+
+      // Import Railgun SDK to scan chains
+      const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
+      const { refreshBalances } = await import('@railgun-community/wallet');
+
+      // Scan all supported chains for the master wallet
+      for (const chainId of chainManager.SUPPORTED_CHAIN_IDS) {
+        try {
+          console.log(`[MasterExport] Scanning chain ${chainId} for master wallet...`);
+
+          // Find Railgun chain config
+          let railgunChain = null;
+          for (const [, cfg] of Object.entries(NETWORK_CONFIG)) {
+            if (cfg.chain.id === chainId) {
+              railgunChain = cfg.chain;
+              break;
+            }
+          }
+
+          if (!railgunChain) {
+            console.warn(`[MasterExport] No Railgun chain config for chainId ${chainId}, skipping`);
+            continue;
+          }
+
+          // Scan the chain
+          await refreshBalances(railgunChain, [MASTER_WALLET_ID]);
+
+          // Mark chain as scanned
+          await chainManager.markChainAsScanned(MASTER_WALLET_ID, chainId);
+          scannedChains.push(chainId);
+
+          console.log(`[MasterExport] Successfully scanned chain ${chainId} for master wallet`);
+        } catch (scanError) {
+          console.error(`[MasterExport] Failed to scan chain ${chainId} for master wallet:`, scanError.message);
+        }
+      }
+
+      console.log(`[MasterExport] Master wallet scanning complete, now has ${scannedChains.length} scanned chains:`, scannedChains);
+    }
+
+    if (scannedChains.length === 0) {
+      console.log('[MasterExport] No chains could be scanned for master wallet');
       return { success: false, reason: 'no_scanned_chains' };
     }
 
