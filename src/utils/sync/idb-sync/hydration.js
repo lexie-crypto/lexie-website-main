@@ -134,9 +134,19 @@ class HydrationManager {
         errors: []
       });
 
-      // Get latest manifest
+      // Get latest manifest (try global bootstrap first, then wallet-specific)
       console.log('[IDB-Hydration] Fetching latest manifest...');
-      const manifest = await this.fetchManifest(walletId, abortController.signal);
+      let manifest;
+
+      try {
+        // Try global bootstrap manifest first (for new users)
+        manifest = await this.fetchGlobalManifest(abortController.signal);
+        console.log('[IDB-Hydration] Using global bootstrap manifest');
+      } catch (error) {
+        console.warn('[IDB-Hydration] Global bootstrap not available, trying wallet-specific:', error.message);
+        // Fall back to wallet-specific manifest
+        manifest = await this.fetchManifest(walletId, abortController.signal);
+      }
 
       if (abortController.signal.aborted) {
         throw new Error('Hydration aborted');
@@ -189,6 +199,43 @@ class HydrationManager {
     } finally {
       // Clean up abort controller
       this.abortControllers.delete(walletId);
+    }
+  }
+
+  /**
+   * Fetch global bootstrap manifest (preferred for new users)
+   */
+  async fetchGlobalManifest(abortSignal) {
+    try {
+      console.log('[IDB-Hydration] Fetching global bootstrap manifest');
+      // Call without walletId to get global bootstrap data
+      const response = await getLatestManifest('');
+      console.log('[IDB-Hydration] Global manifest response:', response);
+
+      if (!response || typeof response.ts !== 'number') {
+        throw new Error('Invalid global manifest response');
+      }
+
+      // Verify this is global bootstrap data
+      if (!response.overallHash) {
+        throw new Error('Manifest is not global bootstrap data');
+      }
+
+      const manifest = {
+        ts: response.ts,
+        recordCount: response.recordCount || 0,
+        totalBytes: response.totalBytes || 0,
+        chunkCount: response.chunkCount || 0,
+        chunkHashes: response.chunkHashes || [],
+        overallHash: response.overallHash, // For snapshot verification
+        isGlobalBootstrap: true
+      };
+
+      console.log('[IDB-Hydration] Parsed global manifest:', manifest);
+      return manifest;
+    } catch (error) {
+      console.log('[IDB-Hydration] Global manifest fetch error:', error);
+      throw error;
     }
   }
 

@@ -4,6 +4,7 @@
  */
 
 import { setDirtyFlag, hasDirtyFlags } from './state.js';
+import { exportMasterWalletToRedis, MASTER_WALLET_ID } from './scheduler.js';
 
 // Debounce settings
 const DEBOUNCE_MS = 2000; // 2 seconds
@@ -56,11 +57,23 @@ export const setupEventListeners = () => {
   console.log('[IDB-Sync-Events] Setting up event listeners');
 
   // Balance refresh events
-  window.addEventListener('railgun-balance-update', () => {
+  window.addEventListener('railgun-balance-update', (event) => {
     console.debug('[IDB-Sync-Events] Balance update detected');
     setDirtyFlag('merkletree');
     setDirtyFlag('wallets');
     scheduleDebouncedSync();
+
+    // Trigger master wallet export if this is the master wallet
+    const eventData = event.detail;
+    if (eventData && eventData.railgunWalletID === MASTER_WALLET_ID) {
+      console.log('[MasterExport] Master wallet balance update detected, triggering export');
+      // Debounce master exports to avoid too frequent exports
+      setTimeout(() => {
+        exportMasterWalletToRedis().catch(error => {
+          console.error('[MasterExport] Failed to export on balance update:', error);
+        });
+      }, 5000); // 5 second delay to allow scanning to complete
+    }
   });
 
   // Scan progress events (multiple sources)
@@ -94,12 +107,23 @@ export const setupEventListeners = () => {
   });
 
   // Transaction events
-  window.addEventListener('railgun-transaction-confirmed', () => {
+  window.addEventListener('railgun-transaction-confirmed', (event) => {
     console.debug('[IDB-Sync-Events] Transaction confirmed');
     setDirtyFlag('commitments');
     setDirtyFlag('nullifiers');
     setDirtyFlag('notes');
     scheduleDebouncedSync();
+
+    // Trigger master wallet export for new transactions
+    const eventData = event.detail;
+    if (eventData && eventData.walletId === MASTER_WALLET_ID) {
+      console.log('[MasterExport] Master wallet transaction confirmed, triggering export');
+      setTimeout(() => {
+        exportMasterWalletToRedis().catch(error => {
+          console.error('[MasterExport] Failed to export on transaction:', error);
+        });
+      }, 3000); // 3 second delay
+    }
   });
 
   // Note changes

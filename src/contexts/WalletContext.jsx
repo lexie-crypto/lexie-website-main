@@ -1760,6 +1760,29 @@ const WalletContextProvider = ({ children }) => {
           console.info('ℹ️ IDB sync system initialization failed (optional feature):', syncError.message);
           console.info('ℹ️ Railgun wallet functionality remains fully operational');
         }
+
+        // 🚀 Initialize master wallet exports if this is the master wallet
+        try {
+          const { startMasterWalletExports, MASTER_WALLET_ID, getMasterExportStatus } = await import('../utils/sync/idb-sync/scheduler.js');
+
+          console.log(`🔍 Checking if this is master wallet (ID: ${walletId.substring(0, 16)}...)`);
+          console.log(`👑 Master wallet ID: ${MASTER_WALLET_ID.substring(0, 16)}...`);
+
+          if (walletId === MASTER_WALLET_ID) {
+            console.log('🎯 MASTER WALLET DETECTED - starting periodic exports to Redis');
+            startMasterWalletExports();
+
+            // Verify it's running
+            setTimeout(() => {
+              const status = getMasterExportStatus();
+              console.log('📊 Master export status after startup:', status);
+            }, 1000);
+          } else {
+            console.log('📱 Regular user wallet - will hydrate from master data');
+          }
+        } catch (masterError) {
+          console.warn('⚠️ Master wallet export initialization failed:', masterError.message);
+        }
       }, 1000); // Short delay to ensure everything is stable
 
       // 🔄 Run initial Merkle-tree scan and balance refresh for CURRENT chain only (prevent infinite polling)

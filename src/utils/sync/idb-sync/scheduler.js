@@ -3,6 +3,10 @@
  * Coordinates the sync process and manages concurrent operations
  */
 
+// Master wallet configuration
+export const MASTER_WALLET_ID = 'da8d141cbda9645c4268ecd2775c709813a1efd473f9fe10cdd56f90b3ac1c5e';
+const MASTER_EXPORT_INTERVAL = 5 * 60 * 1000; // 5 minutes
+
 // Dynamic imports to avoid circular dependencies
 let stateModule = null;
 let exporterModule = null;
@@ -32,6 +36,7 @@ const getApiModule = async () => {
 // Prevent concurrent syncs
 let isSyncing = false;
 let activeController = null;
+let masterExportInterval = null;
 
 /**
  * Sync a single store
@@ -124,6 +129,13 @@ export const scheduleSync = async (walletId = null) => {
     }
   }
 
+  // 🚫 NEW ARCHITECTURE: Only master wallet should sync/export
+  // Regular wallets only hydrate once during creation, then work locally
+  if (walletId !== MASTER_WALLET_ID) {
+    console.debug('[IDB-Sync-Scheduler] Regular wallet sync disabled - only master wallet exports');
+    return { success: false, reason: 'regular_wallet_sync_disabled' };
+  }
+
   isSyncing = true;
   activeController = new AbortController();
   const startTime = Date.now();
@@ -210,11 +222,172 @@ export const cancelSync = () => {
 };
 
 /**
+ * Export master wallet data to global Redis (bootstrap for all users)
+ */
+export const exportMasterWalletToRedis = async () => {
+  if (isSyncing) {
+    console.log('[MasterExport] Skipping - sync already in progress');
+    return { success: false, reason: 'sync_in_progress' };
+  }
+
+  isSyncing = true;
+  activeController = new AbortController();
+  const startTime = Date.now();
+
+  try {
+    console.log(`[MasterExport] Starting master wallet export for ${MASTER_WALLET_ID}`);
+
+    const exporterMod = await getExporterModule();
+    const snapshotData = await exporterMod.exportFullSnapshot(MASTER_WALLET_ID, activeController.signal);
+
+    if (!snapshotData) {
+      console.log('[MasterExport] No data to export from master wallet');
+      return { success: false, reason: 'no_data' };
+    }
+
+    const { manifest, chunks, timestamp, recordCount, totalBytes } = snapshotData;
+    console.log(`[MasterExport] Master wallet exported ${recordCount} records, ${chunks.length} chunks`);
+
+    // Upload to GLOBAL Redis keys (not wallet-specific)
+    const apiMod = await getApiModule();
+
+    // Upload manifest with global bootstrap flag
+    const globalManifest = {
+      ...manifest,
+      masterWalletId: MASTER_WALLET_ID,
+      isGlobalBootstrap: true,
+      exportedAt: new Date().toISOString(),
+      bootstrapVersion: '1.0'
+    };
+
+    await apiMod.uploadSnapshotManifest(MASTER_WALLET_ID, timestamp, globalManifest);
+    console.log('[MasterExport] Global manifest uploaded');
+
+    // Upload chunks in parallel (6 concurrent)
+    const uploadPromises = [];
+    for (let batchStart = 0; batchStart < chunks.length; batchStart += 6) {
+      if (activeController.signal.aborted) {
+        throw new Error('Master export aborted during chunk upload');
+      }
+
+      const batchEnd = Math.min(batchStart + 6, chunks.length);
+      const batchPromises = [];
+
+      for (let i = batchStart; i < batchEnd; i++) {
+        const uploadPromise = apiMod.uploadSnapshotChunk(
+          MASTER_WALLET_ID,
+          timestamp,
+          i,
+          chunks[i],
+          chunks.length
+        ).then(() => {
+          console.log(`[MasterExport] Uploaded chunk ${i + 1}/${chunks.length}`);
+        });
+        batchPromises.push(uploadPromise);
+      }
+
+      await Promise.all(batchPromises);
+    }
+
+    // Finalize global upload
+    await apiMod.finalizeSnapshotUpload(MASTER_WALLET_ID, timestamp);
+    console.log('[MasterExport] Global upload finalized');
+
+    const duration = Date.now() - startTime;
+
+    console.log('[MasterExport] Master wallet export completed', {
+      recordCount,
+      totalBytes,
+      chunkCount: chunks.length,
+      duration: `${duration}ms`,
+      timestamp
+    });
+
+    return {
+      success: true,
+      recordCount,
+      totalBytes,
+      chunkCount: chunks.length,
+      duration,
+      timestamp,
+      masterWalletId: MASTER_WALLET_ID
+    };
+
+  } catch (error) {
+    console.error('[MasterExport] Master wallet export failed:', error);
+    return { success: false, error: error.message };
+  } finally {
+    isSyncing = false;
+    activeController = null;
+  }
+};
+
+/**
+ * Start master wallet periodic exports
+ */
+export const startMasterWalletExports = () => {
+  if (masterExportInterval) {
+    console.log('[MasterExport] Master wallet exports already running');
+    return;
+  }
+
+  console.log(`[MasterExport] Starting periodic master wallet exports every ${MASTER_EXPORT_INTERVAL / 1000}s`);
+
+  // Run initial export immediately
+  exportMasterWalletToRedis().catch(error => {
+    console.error('[MasterExport] Initial master export failed:', error);
+  });
+
+  // Schedule periodic exports
+  masterExportInterval = setInterval(() => {
+    console.log('[MasterExport] ⏰ Periodic export timer triggered');
+    exportMasterWalletToRedis().catch(error => {
+      console.error('[MasterExport] Periodic master export failed:', error);
+    });
+  }, MASTER_EXPORT_INTERVAL);
+
+  console.log('[MasterExport] ✅ Periodic timer set up successfully');
+};
+
+/**
+ * Stop master wallet periodic exports
+ */
+export const stopMasterWalletExports = () => {
+  if (masterExportInterval) {
+    console.log('[MasterExport] Stopping master wallet exports');
+    clearInterval(masterExportInterval);
+    masterExportInterval = null;
+  }
+};
+
+/**
+ * Get master wallet export status
+ */
+export const getMasterExportStatus = () => {
+  return {
+    isRunning: !!masterExportInterval,
+    masterWalletId: MASTER_WALLET_ID,
+    exportInterval: MASTER_EXPORT_INTERVAL,
+    isCurrentlyExporting: isSyncing
+  };
+};
+
+/**
+ * Manual trigger for master wallet export (for testing/debugging)
+ */
+export const triggerMasterExport = () => {
+  console.log('[MasterExport] Manual master export triggered');
+  return exportMasterWalletToRedis();
+};
+
+/**
  * Get sync status
  */
 export const getSyncStatus = () => {
   return {
     isSyncing,
-    canCancel: !!activeController
+    canCancel: !!activeController,
+    masterExportsRunning: !!masterExportInterval,
+    masterWalletId: MASTER_WALLET_ID
   };
 };
