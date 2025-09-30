@@ -50,7 +50,19 @@ export const getScannedChainsForWallet = async (walletId) => {
     }
 
     // Combine and deduplicate
-    const allChains = [...new Set([...localChains, ...redisChains])];
+    let allChains = [...new Set([...localChains, ...redisChains])];
+
+    // If no chains found in local state or Redis, try to discover from IDB
+    if (allChains.length === 0) {
+      console.log(`[ChainManager] No chains found in state/Redis, attempting IDB discovery...`);
+      try {
+        const discoveredChains = await discoverChainsFromIDB(walletId);
+        allChains = discoveredChains;
+        console.log(`[ChainManager] Discovered ${discoveredChains.length} chains from IDB:`, discoveredChains);
+      } catch (discoveryError) {
+        console.warn(`[ChainManager] IDB discovery failed:`, discoveryError.message);
+      }
+    }
 
     console.log(`[ChainManager] Wallet ${walletId.substring(0, 8)}... has scanned chains:`, allChains);
     return allChains;

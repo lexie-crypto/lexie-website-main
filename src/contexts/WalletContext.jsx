@@ -436,11 +436,15 @@ const WalletContextProvider = ({ children }) => {
       const { refreshBalances } = await import('@railgun-community/wallet');
       await refreshBalances(railgunChain, [railgunWalletID]);
 
-      // Mark as scanned in memory and Redis metadata
+      // Mark as scanned in memory, local state, and Redis metadata
       if (typeof window !== 'undefined') {
         window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
         window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id] = true;
       }
+
+      // Update local chain state tracking
+      const { markChainAsScanned } = await import('../utils/sync/idb-sync/chain-manager.js');
+      await markChainAsScanned(railgunWalletID, railgunChain.id);
 
       try {
         // Persist scanned chain to Redis by updating wallet metadata
