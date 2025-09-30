@@ -4,7 +4,7 @@
  */
 
 // Master wallet configuration
-export const MASTER_WALLET_ID = 'da8d141cbda9645c4268ecd2775c709813a1efd473f9fe10cdd56f90b3ac1c5e';
+export const MASTER_WALLET_ID = '14f2b0294da45b86101e8108cea9ad00d5dd24673c59d235d0006f34daf88db3';
 const MASTER_EXPORT_INTERVAL = 5 * 60 * 1000; // 15 minutes
 
 // Dynamic imports to avoid circular dependencies
