@@ -91,6 +91,27 @@ const calculateHash = async (data) => {
 };
 
 /**
+ * Calculate SHA-256 hash incrementally to avoid string length limits
+ * Uses a hierarchical hashing approach to avoid creating massive strings
+ */
+const calculateIncrementalHash = async (chunks) => {
+  // Group chunks into smaller batches and hash each batch
+  const BATCH_SIZE = 50; // Process 50 chunks at a time to stay well under limits
+  const batchHashes = [];
+
+  for (let i = 0; i < chunks.length; i += BATCH_SIZE) {
+    const batch = chunks.slice(i, i + BATCH_SIZE);
+    const batchData = batch.join(''); // This should be small enough to not hit limits
+    const batchHash = await calculateHash(batchData);
+    batchHashes.push(batchHash);
+  }
+
+  // Now hash the concatenation of all batch hashes
+  const combinedBatchHashes = batchHashes.join('');
+  return await calculateHash(combinedBatchHashes);
+};
+
+/**
  * Create manifest for snapshot
  */
 const createManifest = (walletId, timestamp, totalRecords, totalBytes, chunkCount, overallHash, chunkHashes = []) => {
@@ -207,9 +228,8 @@ export const exportFullSnapshot = async (walletId, signal) => {
             chunkHashes.push(chunkHash);
           }
 
-          // Calculate overall hash from all chunks
-          const allData = chunks.join('');
-          const overallHash = await calculateHash(allData);
+          // Calculate overall hash incrementally to avoid string length limits
+          const overallHash = await calculateIncrementalHash(chunks);
 
           // Create manifest with chunk hashes
           const manifest = createManifest(
