@@ -177,7 +177,7 @@ export const applyGasPriceGuard = (chainId, rawGasPrice, gasFeeData = null) => {
  */
 export const validateCombinedFee = (combinedRelayerFee, userAmountGross, tokenType = 'token') => {
   if (combinedRelayerFee >= userAmountGross) {
-    throw new Error(`${tokenType} combined relayer fee (${combinedRelayerFee.toString()}) exceeds user amount (${userAmountGross.toString()}). Gas price may be too high or amount too small.`);
+    throw new Error("Transaction failed: You don't have enough funds to cover the fees please try a larger transaction.");
   }
 
   console.log('✅ [FEE_CALC] Fee validation passed:', {

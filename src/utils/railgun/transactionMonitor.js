@@ -1033,7 +1033,7 @@ export const monitorTransactionInGraph = async ({
                     }
                   };
                   
-                  // Set up timeout (15 seconds - reduced from 60s for better UX)
+                  // Set up timeout (5 seconds - reduced from 60s for better UX)
                   timeoutId = setTimeout(() => {
                     console.warn('[QuickSync] ⏰ Balance update timeout - balance confirmation failed');
                     window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
@@ -1052,7 +1052,7 @@ export const monitorTransactionInGraph = async ({
                     }
 
                     resolve(true); // Proceed but with warning
-                  }, 15000);
+                  }, 5000);
                   
                   // Listen for balance updates
                   window.addEventListener('railgun-balance-update', handleBalanceUpdate);
