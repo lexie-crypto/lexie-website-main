@@ -390,7 +390,9 @@ class HydrationManager {
 
     try {
       // Fetch compressed snapshot with chain parameters
+      console.log(`[IDB-Hydration] 🗜️ Requesting brotli compressed snapshot for chain ${chainId}`);
       const snapshotData = await getSyncSnapshot('', manifest.ts, chainId);
+      console.log(`[IDB-Hydration] 📦 Received decompressed snapshot: ${snapshotData.length} bytes`);
 
       if (typeof snapshotData !== 'string') {
         throw new Error('Invalid chain snapshot response - expected NDJSON string');
@@ -533,12 +535,14 @@ class HydrationManager {
    * Fetch chain-specific chunk
    */
   async fetchChainChunk(chainId, timestamp, chunkIndex, abortSignal) {
+    console.log(`[IDB-Hydration] 🗜️ Requesting brotli compressed chunk ${chunkIndex} for chain ${chainId}`);
     const response = await getSyncChunk('', timestamp, chunkIndex, chainId);
 
     if (typeof response !== 'string') {
       throw new Error('Invalid chain chunk response - expected NDJSON string');
     }
 
+    console.log(`[IDB-Hydration] 📦 Received decompressed chunk ${chunkIndex}: ${response.length} bytes`);
     return response;
   }
 

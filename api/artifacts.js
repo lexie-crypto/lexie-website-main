@@ -194,7 +194,7 @@ export default async function handler(req, res) {
 
     const headers = {
       'Content-Type': 'application/json',
-      'Accept': 'application/json, application/octet-stream',
+      'Accept': 'application/json, application/octet-stream, text/plain',
       'X-Request-ID': requestId,
       'X-Lexie-Signature': signature,
       'X-Lexie-Timestamp': timestamp,
@@ -202,6 +202,12 @@ export default async function handler(req, res) {
         req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.connection.remoteAddress,
       'User-Agent': 'Lexie-Artifacts-Proxy/1.0',
     };
+
+    // Add compression headers for IDB sync routes (similar to artifact downloads)
+    if (backendUrl.includes('/idb-sync/')) {
+      headers['Accept-Encoding'] = 'br,gzip,deflate';
+      console.log(`[ARTIFACTS-PROXY-${requestId}] 🗜️ Requesting compressed response for IDB sync: ${backendUrl}`);
+    }
 
     // Add Origin header if it was allowed
     if (allowedOrigins.includes(origin)) {
@@ -215,11 +221,21 @@ export default async function handler(req, res) {
       signal: AbortSignal.timeout(120000), // 2 minutes for large artifact operations
     });
 
+    const contentEncoding = response.headers.get('content-encoding');
+    const contentLength = response.headers.get('content-length');
+
     console.log(`📤 [ARTIFACTS-PROXY-${requestId}] Backend response`, {
       status: response.status,
       statusText: response.statusText,
-      contentType: response.headers.get('content-type')
+      contentType: response.headers.get('content-type'),
+      contentEncoding: contentEncoding,
+      contentLength: contentLength,
+      isCompressed: !!contentEncoding
     });
+
+    if (backendUrl.includes('/idb-sync/') && contentEncoding) {
+      console.log(`[ARTIFACTS-PROXY-${requestId}] 📦 Received compressed chain data: ${contentEncoding} (${contentLength} bytes)`);
+    }
 
     const data = await response.text();
 
