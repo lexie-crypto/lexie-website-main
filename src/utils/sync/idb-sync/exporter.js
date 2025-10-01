@@ -14,8 +14,8 @@ const getStateModule = async () => {
 };
 
 // Target chunk size for NDJSON (accounting for base64 + JSON overhead)
-// Conservative sizing: ~5MB compressed → ~25MB uncompressed (safe for most networks/browsers)
-const CHUNK_TARGET_BYTES = Math.floor(25 * 1024 * 1024 * 0.8); // ~20MB uncompressed
+// HTTP payload limit: ~2-3MB compressed to avoid 413 errors
+const CHUNK_TARGET_BYTES = Math.floor(3 * 1024 * 1024 * 0.8); // ~2.6MB uncompressed
 
 /**
  * Open LevelJS-backed IndexedDB database
