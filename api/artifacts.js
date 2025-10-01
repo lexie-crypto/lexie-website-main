@@ -133,10 +133,11 @@ export default async function handler(req, res) {
         backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/manifest?chainId=${encodeURIComponent(chainId)}&timestamp=${encodeURIComponent(timestamp)}`;
       } else if (parsedAction === 'idb-sync-snapshot') {
         const ts = actionParams.ts;
-        if (!ts) {
-          return res.status(400).json({ error: 'Missing required parameter: ts', requestId });
+        const chainId = actionParams.chainId;
+        if (!ts || !chainId) {
+          return res.status(400).json({ error: 'Missing required parameters: ts, chainId', requestId });
         }
-        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/snapshot?ts=${encodeURIComponent(ts)}`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/snapshot?ts=${encodeURIComponent(ts)}&chainId=${encodeURIComponent(chainId)}`;
       } else if (parsedAction === 'idb-sync-chunk') {
         const ts = actionParams.ts;
         const n = actionParams.n;
