@@ -112,11 +112,25 @@ export default async function handler(req, res) {
       } else if (parsedAction === 'sync-manifest') {
         backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/manifest`;
       } else if (parsedAction === 'idb-sync-latest') {
-        const walletId = actionParams.walletId;
-        if (!walletId) {
-          return res.status(400).json({ error: 'Missing required parameter: walletId', requestId });
+        const chainId = actionParams.chainId;
+        if (chainId) {
+          // Chain-specific latest request
+          backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/latest?chainId=${encodeURIComponent(chainId)}`;
+        } else {
+          // Legacy wallet-specific request (shouldn't be used anymore)
+          const walletId = actionParams.walletId;
+          if (!walletId) {
+            return res.status(400).json({ error: 'Missing required parameter: chainId or walletId', requestId });
+          }
+          backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/latest?walletId=${encodeURIComponent(walletId)}`;
         }
-        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/latest?walletId=${encodeURIComponent(walletId)}`;
+      } else if (parsedAction === 'idb-sync-manifest') {
+        const chainId = actionParams.chainId;
+        const timestamp = actionParams.timestamp;
+        if (!chainId || !timestamp) {
+          return res.status(400).json({ error: 'Missing required parameters: chainId and timestamp', requestId });
+        }
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/manifest?chainId=${encodeURIComponent(chainId)}&timestamp=${encodeURIComponent(timestamp)}`;
       } else if (parsedAction === 'idb-sync-snapshot') {
         const ts = actionParams.ts;
         if (!ts) {
@@ -126,10 +140,11 @@ export default async function handler(req, res) {
       } else if (parsedAction === 'idb-sync-chunk') {
         const ts = actionParams.ts;
         const n = actionParams.n;
-        if (!ts || n === undefined) {
-          return res.status(400).json({ error: 'Missing required parameters: ts, n', requestId });
+        const chainId = actionParams.chainId;
+        if (!ts || n === undefined || !chainId) {
+          return res.status(400).json({ error: 'Missing required parameters: ts, n, chainId', requestId });
         }
-        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/chunk?ts=${encodeURIComponent(ts)}&n=${encodeURIComponent(n)}`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/chunk?ts=${encodeURIComponent(ts)}&n=${encodeURIComponent(n)}&chainId=${encodeURIComponent(chainId)}`;
       } else {
         return res.status(400).json({ error: 'Unknown action', requestId });
       }

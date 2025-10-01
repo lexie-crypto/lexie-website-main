@@ -1003,42 +1003,44 @@ const WalletContextProvider = ({ children }) => {
           if (isMasterWallet(railgunWalletInfo.id)) {
             console.log('👑 Master wallet detected - skipping hydration (master wallet is the data source)');
           } else {
-            console.log('🚰 Checking if IDB hydration needed for existing wallet...');
-            const { checkHydrationNeeded, startHydration } = await import('../utils/sync/idb-sync/index.js');
+            console.log('🚀 Checking for chain bootstrap data for existing wallet...');
 
-            const needsHydration = await checkHydrationNeeded(railgunWalletInfo.id);
-            if (needsHydration) {
-              console.log('🚰 Starting IDB hydration for existing wallet...');
+            // For existing wallets, try to load chain-specific bootstrap data
+            const { checkChainBootstrapAvailable, loadChainBootstrap } = await import('../utils/sync/idb-sync/hydration.js');
 
-              // Wait for hydration to complete before continuing
-              await startHydration(railgunWalletInfo.id, {
-                onProgress: (progress, chunk, total) => {
-                  console.log(`🚰 Hydration progress: ${progress}% (${chunk}/${total})`);
+            const hasBootstrap = await checkChainBootstrapAvailable(chainId);
+            if (hasBootstrap) {
+              console.log(`🚀 Loading chain ${chainId} bootstrap for existing wallet...`);
+
+              // Load chain bootstrap data (append mode for existing wallets)
+              await loadChainBootstrap(railgunWalletInfo.id, chainId, {
+                onProgress: (progress) => {
+                  console.log(`🚀 Chain ${chainId} bootstrap progress: ${progress}%`);
                   try {
-                    window.dispatchEvent(new CustomEvent('idb-hydration-progress', {
-                      detail: { walletId: railgunWalletInfo.id, progress, chunk, total }
+                    window.dispatchEvent(new CustomEvent('chain-bootstrap-progress', {
+                      detail: { walletId: railgunWalletInfo.id, chainId, progress }
                     }));
                   } catch {}
                 },
                 onComplete: () => {
-                  console.log('🚰 IDB hydration completed successfully');
+                  console.log(`🚀 Chain ${chainId} bootstrap completed successfully for existing wallet`);
                   try {
-                    window.dispatchEvent(new CustomEvent('idb-hydration-complete', {
-                      detail: { walletId: railgunWalletInfo.id }
+                    window.dispatchEvent(new CustomEvent('chain-bootstrap-complete', {
+                      detail: { walletId: railgunWalletInfo.id, chainId }
                     }));
                   } catch {}
                 },
                 onError: (error) => {
-                  console.error('🚰 IDB hydration failed:', error);
+                  console.error(`🚀 Chain ${chainId} bootstrap failed for existing wallet:`, error);
                   try {
-                    window.dispatchEvent(new CustomEvent('idb-hydration-error', {
-                      detail: { walletId: railgunWalletInfo.id, error: error.message }
+                    window.dispatchEvent(new CustomEvent('chain-bootstrap-error', {
+                      detail: { walletId: railgunWalletInfo.id, chainId, error: error.message }
                     }));
                   } catch {}
                 }
               });
             } else {
-              console.log('🚰 IDB already hydrated for this wallet');
+              console.log(`ℹ️ No chain ${chainId} bootstrap available for existing wallet`);
             }
           }
         } catch (hydrationError) {
