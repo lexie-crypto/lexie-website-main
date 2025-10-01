@@ -218,7 +218,7 @@ class HydrationManager {
       const response = await getChainManifest(chainId, timestamp);
       console.log(`[IDB-Hydration] Chain ${chainId} manifest response:`, response);
 
-      if (!response || typeof response.ts !== 'number') {
+      if (!response || typeof response.timestamp !== 'number') {
         throw new Error('Invalid chain manifest response');
       }
 
@@ -228,8 +228,8 @@ class HydrationManager {
       }
 
       const manifest = {
-        ts: response.ts,
-        recordCount: response.recordCount || 0,
+        ts: response.timestamp,
+        recordCount: response.totalRecords || 0,
         totalBytes: response.totalBytes || 0,
         chunkCount: response.chunkCount || 0,
         chunkHashes: response.chunkHashes || [],
