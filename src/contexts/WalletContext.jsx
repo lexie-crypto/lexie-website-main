@@ -1997,6 +1997,14 @@ const WalletContextProvider = ({ children }) => {
 
               // Only load bootstrap for regular wallets
               if (!isMasterWallet(railgunWalletID)) {
+                // Skip bootstrap if wallet is currently scanning/transacting to avoid conflicts
+                const isScanning = (typeof window !== 'undefined') &&
+                  (window.__RAILGUN_SCANNING_IN_PROGRESS || window.__RAILGUN_TRANSACTION_IN_PROGRESS);
+                if (isScanning) {
+                  console.log('🚀 Skipping chain bootstrap - wallet currently scanning/transacting');
+                  return;
+                }
+
                 const hasBootstrap = await checkChainBootstrapAvailable(chainId);
                 if (hasBootstrap) {
                   console.log(`🚀 Loading chain ${chainId} bootstrap after auto-init...`);
