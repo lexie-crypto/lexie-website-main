@@ -223,8 +223,13 @@ class HydrationManager {
       }
 
       // Verify this is chain-specific bootstrap data
-      if (!response.overallHash || response.chainId !== parseInt(chainId)) {
-        throw new Error(`Manifest is not valid chain ${chainId} bootstrap data`);
+      if (response.chainId !== parseInt(chainId)) {
+        throw new Error(`Manifest is not valid chain ${chainId} bootstrap data (wrong chain: ${response.chainId})`);
+      }
+
+      // For chain bootstrap, overallHash is optional - focus on chain validation
+      if (!response.totalRecords || !response.chunkCount) {
+        throw new Error(`Manifest missing required fields for chain ${chainId} bootstrap data`);
       }
 
       const manifest = {
@@ -233,7 +238,7 @@ class HydrationManager {
         totalBytes: response.totalBytes || 0,
         chunkCount: response.chunkCount || 0,
         chunkHashes: response.chunkHashes || [],
-        overallHash: response.overallHash,
+        overallHash: response.overallHash || null,
         chainId: response.chainId
       };
 
