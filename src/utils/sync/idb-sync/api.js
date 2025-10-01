@@ -38,7 +38,7 @@ const calculateHash = async (data) => {
  * Make sync request through artifacts proxy
  * The proxy handles HMAC signing server-side
  */
-export const makeSyncRequest = async (action, options = {}) => {
+export const makeSyncRequest = async (action, options = {}, queryParams = {}) => {
   const headers = {
     'Content-Type': 'application/json',
     'X-Request-ID': Math.random().toString(36).substring(7),
@@ -47,10 +47,21 @@ export const makeSyncRequest = async (action, options = {}) => {
 
   try {
     console.debug(`[IDB-Sync-API] Making request for action: ${action}`, {
-      method: options.method || 'GET'
+      method: options.method || 'GET',
+      queryParams
     });
 
-    const url = `/api/artifacts?action=${action}`;
+    // Build URL with query parameters
+    let url = `/api/artifacts?action=${action}`;
+    const queryString = Object.entries(queryParams)
+      .filter(([key, value]) => value !== undefined && value !== null)
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&');
+
+    if (queryString) {
+      url += `&${queryString}`;
+    }
+
     const response = await fetch(url, {
       method: options.method || 'GET',
       headers,
@@ -176,13 +187,14 @@ export const getSyncManifest = async (walletId, dbName) => {
 /**
  * Upload snapshot manifest to Redis (reuse existing sync endpoints with snapshot flag)
  */
-export const uploadSnapshotManifest = async (walletId, timestamp, manifest) => {
+export const uploadSnapshotManifest = async (walletId, timestamp, manifest, chainId = null) => {
   const action = 'sync-manifest';
   const payload = {
     walletId,
     timestamp,
     manifest,
-    isSnapshot: true // Flag to indicate this is a full snapshot
+    isSnapshot: true, // Flag to indicate this is a full snapshot
+    chainId // New: specify chain for chain-specific storage
   };
 
   return await makeSyncRequest(action, {
@@ -194,7 +206,7 @@ export const uploadSnapshotManifest = async (walletId, timestamp, manifest) => {
 /**
  * Upload snapshot chunk to Redis (reuse existing sync endpoints with snapshot flag)
  */
-export const uploadSnapshotChunk = async (walletId, timestamp, chunkIndex, chunkData, totalChunks) => {
+export const uploadSnapshotChunk = async (walletId, timestamp, chunkIndex, chunkData, totalChunks, chainId = null) => {
   const action = 'sync-chunk';
   const payload = {
     walletId,
@@ -206,6 +218,7 @@ export const uploadSnapshotChunk = async (walletId, timestamp, chunkIndex, chunk
     totalChunks,
     data: chunkData,
     hash: await calculateHash(chunkData),
+    chainId, // New: specify chain for chain-specific storage
     isSnapshot: true // Flag to indicate this is a full snapshot chunk
   };
 
@@ -243,18 +256,70 @@ export const uploadSnapshotChunk = async (walletId, timestamp, chunkIndex, chunk
 /**
  * Finalize snapshot upload (reuse existing sync endpoints with snapshot flag)
  */
-export const finalizeSnapshotUpload = async (walletId, timestamp) => {
+export const finalizeSnapshotUpload = async (walletId, timestamp, chainId = null) => {
   const action = 'sync-finalize';
   const payload = {
     walletId,
     timestamp,
-    isSnapshot: true // Flag to indicate this is a full snapshot finalization
+    isSnapshot: true, // Flag to indicate this is a full snapshot finalization
+    chainId // New: specify chain for chain-specific finalization
   };
 
   return await makeSyncRequest(action, {
     method: 'POST',
     body: JSON.stringify(payload)
   });
+};
+
+/**
+ * Get latest timestamp for chain-specific bootstrap
+ */
+export const getChainLatestTimestamp = async (chainId) => {
+  try {
+    const response = await makeSyncRequest('sync-latest', {
+      method: 'GET'
+    }, { chainId });
+
+    if (response && response.timestamp) {
+      return response.timestamp;
+    }
+  } catch (error) {
+    console.log(`No chain bootstrap available for chain ${chainId}`);
+  }
+  return null;
+};
+
+/**
+ * Get chain-specific manifest
+ */
+export const getChainManifest = async (chainId, timestamp) => {
+  const action = 'sync-manifest';
+  const payload = {
+    chainId,
+    timestamp,
+    isDownload: true // Flag for retrieval vs upload
+  };
+
+  return await makeSyncRequest(action, {
+    method: 'GET'
+  }, { chainId, timestamp });
+};
+
+/**
+ * Get chain-specific chunk
+ */
+export const getChainChunk = async (chainId, timestamp, chunkIndex) => {
+  const action = 'sync-chunk';
+  const payload = {
+    chainId,
+    timestamp,
+    chunkIndex,
+    isDownload: true
+  };
+
+  return await makeSyncRequest(action, {
+    method: 'GET'
+  }, { chainId, ts: timestamp, n: chunkIndex });
 };
 
 /**

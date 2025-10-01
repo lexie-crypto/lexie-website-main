@@ -3,8 +3,20 @@
  * Coordinates the sync process and manages concurrent operations
  */
 
-// Master wallet configuration
-export const MASTER_WALLET_ID = '14f2b0294da45b86101e8108cea9ad00d5dd24673c59d235d0006f34daf88db3';
+// Master wallet configuration - 4 separate masters, one per chain
+export const MASTER_WALLETS = {
+  1: '4f728d65390380258110868d41bc6e52586ce25335897b895117751ec166f87d', // Ethereum
+  42161: 'acb533b21926c92b0253d4c9c1bc0695d754a451801a41e3053c6ca5613c5b4a', // Arbitrum
+  137: '2a2c448d74c6b62fc2a445685a0e3bc27551ebe727117247df7d316c4870a94f', // Polygon
+  56: '14f2b0294da45b86101e8108cea9ad00d5dd24673c59d235d0006f34daf88db3' // BNB
+};
+
+// Helper functions
+export const isMasterWallet = (walletId) => Object.values(MASTER_WALLETS).includes(walletId);
+export const getChainForMasterWallet = (walletId) => {
+  return Object.entries(MASTER_WALLETS).find(([chainId, masterId]) => masterId === walletId)?.[0];
+};
+
 const MASTER_EXPORT_INTERVAL = 5 * 60 * 1000; // 15 minutes
 
 // Dynamic imports to avoid circular dependencies
@@ -129,10 +141,10 @@ export const scheduleSync = async (walletId = null) => {
     }
   }
 
-  // 🚫 NEW ARCHITECTURE: Only master wallet should sync/export
+  // 🚫 NEW ARCHITECTURE: Only master wallets should sync/export
   // Regular wallets only hydrate once during creation, then work locally
-  if (walletId !== MASTER_WALLET_ID) {
-    console.debug('[IDB-Sync-Scheduler] Regular wallet sync disabled - only master wallet exports');
+  if (!isMasterWallet(walletId)) {
+    console.debug('[IDB-Sync-Scheduler] Regular wallet sync disabled - only master wallets export');
     return { success: false, reason: 'regular_wallet_sync_disabled' };
   }
 
@@ -224,10 +236,20 @@ export const cancelSync = () => {
 /**
  * Export master wallet data to global Redis (bootstrap for all users)
  */
-export const exportMasterWalletToRedis = async () => {
+export const exportMasterWalletToRedis = async (walletId) => {
+  // Accept walletId parameter to support multiple masters
+  const masterWalletId = walletId || Object.values(MASTER_WALLETS)[0]; // Default to first if not specified
+
   if (isSyncing) {
     console.log('[MasterExport] Skipping - sync already in progress');
     return { success: false, reason: 'sync_in_progress' };
+  }
+
+  // Check if this is actually a master wallet
+  const chainId = getChainForMasterWallet(masterWalletId);
+  if (!chainId) {
+    console.log(`[MasterExport] Not a master wallet: ${masterWalletId}`);
+    return { success: false, reason: 'not_master_wallet' };
   }
 
   isSyncing = true;
@@ -235,10 +257,10 @@ export const exportMasterWalletToRedis = async () => {
   const startTime = Date.now();
 
   try {
-    console.log(`[MasterExport] Starting master wallet export for ${MASTER_WALLET_ID}`);
+    console.log(`[MasterExport] Starting chain-${chainId} master wallet export for ${masterWalletId}`);
 
     const exporterMod = await getExporterModule();
-    const snapshotData = await exporterMod.exportFullSnapshot(MASTER_WALLET_ID, activeController.signal);
+    const snapshotData = await exporterMod.exportFullSnapshot(masterWalletId, activeController.signal);
 
     if (!snapshotData) {
       console.log('[MasterExport] No data to export from master wallet');
@@ -246,22 +268,23 @@ export const exportMasterWalletToRedis = async () => {
     }
 
     const { manifest, chunks, timestamp, recordCount, totalBytes } = snapshotData;
-    console.log(`[MasterExport] Master wallet exported ${recordCount} records, ${chunks.length} chunks`);
+    console.log(`[MasterExport] Chain ${chainId} master exported ${recordCount} records, ${chunks.length} chunks`);
 
-    // Upload to GLOBAL Redis keys (not wallet-specific)
+    // Upload to CHAIN-SPECIFIC Redis keys
     const apiMod = await getApiModule();
 
-    // Upload manifest with global bootstrap flag
-    const globalManifest = {
+    // Upload manifest with chain-specific flag
+    const chainManifest = {
       ...manifest,
-      masterWalletId: MASTER_WALLET_ID,
-      isGlobalBootstrap: true,
+      masterWalletId,
+      chainId: parseInt(chainId),
+      isChainBootstrap: true,
       exportedAt: new Date().toISOString(),
-      bootstrapVersion: '1.0'
+      bootstrapVersion: '2.0'
     };
 
-    await apiMod.uploadSnapshotManifest(MASTER_WALLET_ID, timestamp, globalManifest);
-    console.log('[MasterExport] Global manifest uploaded');
+    await apiMod.uploadSnapshotManifest(masterWalletId, timestamp, chainManifest, chainId);
+    console.log(`[MasterExport] Chain ${chainId} manifest uploaded`);
 
     // Upload chunks in parallel (6 concurrent)
     const uploadPromises = [];
@@ -275,13 +298,14 @@ export const exportMasterWalletToRedis = async () => {
 
       for (let i = batchStart; i < batchEnd; i++) {
         const uploadPromise = apiMod.uploadSnapshotChunk(
-          MASTER_WALLET_ID,
+          masterWalletId,
           timestamp,
           i,
           chunks[i],
-          chunks.length
+          chunks.length,
+          chainId
         ).then(() => {
-          console.log(`[MasterExport] Uploaded chunk ${i + 1}/${chunks.length}`);
+          console.log(`[MasterExport] Chain ${chainId} - uploaded chunk ${i + 1}/${chunks.length}`);
         });
         batchPromises.push(uploadPromise);
       }
@@ -289,13 +313,13 @@ export const exportMasterWalletToRedis = async () => {
       await Promise.all(batchPromises);
     }
 
-    // Finalize global upload
-    await apiMod.finalizeSnapshotUpload(MASTER_WALLET_ID, timestamp);
-    console.log('[MasterExport] Global upload finalized');
+    // Finalize chain-specific upload
+    await apiMod.finalizeSnapshotUpload(masterWalletId, timestamp, chainId);
+    console.log(`[MasterExport] Chain ${chainId} upload finalized`);
 
     const duration = Date.now() - startTime;
 
-    console.log('[MasterExport] Master wallet export completed', {
+    console.log(`[MasterExport] Chain ${chainId} master export completed`, {
       recordCount,
       totalBytes,
       chunkCount: chunks.length,
@@ -305,12 +329,13 @@ export const exportMasterWalletToRedis = async () => {
 
     return {
       success: true,
+      chainId,
       recordCount,
       totalBytes,
       chunkCount: chunks.length,
       duration,
       timestamp,
-      masterWalletId: MASTER_WALLET_ID
+      masterWalletId
     };
 
   } catch (error) {
@@ -325,23 +350,32 @@ export const exportMasterWalletToRedis = async () => {
 /**
  * Start master wallet periodic exports
  */
-export const startMasterWalletExports = () => {
+export const startMasterWalletExports = (walletId = null) => {
+  // If walletId provided, validate it's a master wallet
+  if (walletId && !isMasterWallet(walletId)) {
+    console.warn(`[MasterExport] Wallet ${walletId} is not a master wallet, ignoring`);
+    return;
+  }
+
   if (masterExportInterval) {
     console.log('[MasterExport] Master wallet exports already running');
     return;
   }
 
-  console.log(`[MasterExport] Starting periodic master wallet exports every ${MASTER_EXPORT_INTERVAL / 1000}s`);
+  const targetWallet = walletId || Object.values(MASTER_WALLETS)[0];
+  const chainId = getChainForMasterWallet(targetWallet);
+
+  console.log(`[MasterExport] Starting periodic exports for chain ${chainId} master wallet every ${MASTER_EXPORT_INTERVAL / 1000}s`);
 
   // Run initial export immediately
-  exportMasterWalletToRedis().catch(error => {
+  exportMasterWalletToRedis(targetWallet).catch(error => {
     console.error('[MasterExport] Initial master export failed:', error);
   });
 
   // Schedule periodic exports
   masterExportInterval = setInterval(() => {
-    console.log('[MasterExport] ⏰ Periodic export timer triggered');
-    exportMasterWalletToRedis().catch(error => {
+    console.log('[MasterExport] ⏰ Periodic export timer triggered for chain', chainId);
+    exportMasterWalletToRedis(targetWallet).catch(error => {
       console.error('[MasterExport] Periodic master export failed:', error);
     });
   }, MASTER_EXPORT_INTERVAL);
@@ -366,7 +400,7 @@ export const stopMasterWalletExports = () => {
 export const getMasterExportStatus = () => {
   return {
     isRunning: !!masterExportInterval,
-    masterWalletId: MASTER_WALLET_ID,
+    masterWallets: MASTER_WALLETS,
     exportInterval: MASTER_EXPORT_INTERVAL,
     isCurrentlyExporting: isSyncing
   };
@@ -388,6 +422,6 @@ export const getSyncStatus = () => {
     isSyncing,
     canCancel: !!activeController,
     masterExportsRunning: !!masterExportInterval,
-    masterWalletId: MASTER_WALLET_ID
+    masterWallets: MASTER_WALLETS
   };
 };

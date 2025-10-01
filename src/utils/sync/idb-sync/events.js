@@ -4,7 +4,7 @@
  */
 
 import { setDirtyFlag, hasDirtyFlags } from './state.js';
-import { exportMasterWalletToRedis, MASTER_WALLET_ID } from './scheduler.js';
+import { exportMasterWalletToRedis, isMasterWallet } from './scheduler.js';
 
 // Debounce settings
 const DEBOUNCE_MS = 2000; // 2 seconds
@@ -63,13 +63,13 @@ export const setupEventListeners = () => {
     setDirtyFlag('wallets');
     scheduleDebouncedSync();
 
-    // Trigger master wallet export if this is the master wallet
+    // Trigger master wallet export if this is a master wallet
     const eventData = event.detail;
-    if (eventData && eventData.railgunWalletID === MASTER_WALLET_ID) {
+    if (eventData && isMasterWallet(eventData.railgunWalletID)) {
       console.log('[MasterExport] Master wallet balance update detected, triggering export');
       // Debounce master exports to avoid too frequent exports
       setTimeout(() => {
-        exportMasterWalletToRedis().catch(error => {
+        exportMasterWalletToRedis(eventData.railgunWalletID).catch(error => {
           console.error('[MasterExport] Failed to export on balance update:', error);
         });
       }, 5000); // 5 second delay to allow scanning to complete
@@ -116,10 +116,10 @@ export const setupEventListeners = () => {
 
     // Trigger master wallet export for new transactions
     const eventData = event.detail;
-    if (eventData && eventData.walletId === MASTER_WALLET_ID) {
+    if (eventData && isMasterWallet(eventData.walletId)) {
       console.log('[MasterExport] Master wallet transaction confirmed, triggering export');
       setTimeout(() => {
-        exportMasterWalletToRedis().catch(error => {
+        exportMasterWalletToRedis(eventData.walletId).catch(error => {
           console.error('[MasterExport] Failed to export on transaction:', error);
         });
       }, 3000); // 3 second delay

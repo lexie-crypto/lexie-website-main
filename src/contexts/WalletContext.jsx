@@ -999,8 +999,8 @@ const WalletContextProvider = ({ children }) => {
         // 🚰 HYDRATION: Check if we need to hydrate IDB with Redis data for this wallet
         try {
           // Skip hydration for master wallet - it's the data source, not consumer
-          const { MASTER_WALLET_ID } = await import('../utils/sync/idb-sync/scheduler.js');
-          if (railgunWalletInfo.id === MASTER_WALLET_ID) {
+          const { isMasterWallet } = await import('../utils/sync/idb-sync/scheduler.js');
+          if (isMasterWallet(railgunWalletInfo.id)) {
             console.log('👑 Master wallet detected - skipping hydration (master wallet is the data source)');
           } else {
             console.log('🚰 Checking if IDB hydration needed for existing wallet...');
@@ -1199,16 +1199,18 @@ const WalletContextProvider = ({ children }) => {
           storage: 'Redis-only'
         });
 
-        // 🚀 Initialize master wallet exports if this is the master wallet (for existing wallets loaded from Redis)
+        // 🚀 Initialize master wallet exports if this is a master wallet (for existing wallets loaded from Redis)
         try {
-          const { startMasterWalletExports, MASTER_WALLET_ID, getMasterExportStatus } = await import('../utils/sync/idb-sync/scheduler.js');
+          const { startMasterWalletExports, isMasterWallet, getChainForMasterWallet, getMasterExportStatus } = await import('../utils/sync/idb-sync/scheduler.js');
 
-          console.log(`🔍 Checking if loaded wallet is master wallet (ID: ${railgunWalletInfo.id?.substring(0, 16) || 'undefined'}...)`);
-          console.log(`👑 Master wallet ID: ${MASTER_WALLET_ID.substring(0, 16)}...`);
+          console.log(`🔍 Checking if loaded wallet is a master wallet (ID: ${railgunWalletInfo.id?.substring(0, 16) || 'undefined'}...)`);
 
-          if (railgunWalletInfo.id === MASTER_WALLET_ID) {
-            console.log('🎯 MASTER WALLET DETECTED (from Redis) - starting periodic exports to Redis');
-            startMasterWalletExports();
+          if (isMasterWallet(railgunWalletInfo.id)) {
+            const chainId = getChainForMasterWallet(railgunWalletInfo.id);
+            console.log(`🎯 MASTER WALLET DETECTED (Chain ${chainId}) - starting periodic exports to Redis`);
+
+            // Start master exports (will detect chain automatically)
+            startMasterWalletExports(railgunWalletInfo.id);
 
             // Verify it's running
             setTimeout(() => {
@@ -1712,8 +1714,8 @@ const WalletContextProvider = ({ children }) => {
           // 🚰 HYDRATION: Check if newly created wallet needs hydration (edge case)
           try {
             // Skip hydration for master wallet - it's the data source, not consumer
-            const { MASTER_WALLET_ID } = await import('../utils/sync/idb-sync/scheduler.js');
-            if (railgunWalletInfo.id === MASTER_WALLET_ID) {
+            const { isMasterWallet } = await import('../utils/sync/idb-sync/scheduler.js');
+            if (isMasterWallet(railgunWalletInfo.id)) {
               console.log('👑 Master wallet detected - skipping hydration for new wallet (master wallet is the data source)');
             } else {
               console.log('🚰 Checking if hydration needed for newly created wallet...');
@@ -1798,14 +1800,14 @@ const WalletContextProvider = ({ children }) => {
 
         // 🚀 Initialize master wallet exports if this is the master wallet
         try {
-          const { startMasterWalletExports, MASTER_WALLET_ID, getMasterExportStatus } = await import('../utils/sync/idb-sync/scheduler.js');
+          const { startMasterWalletExports, isMasterWallet, getChainForMasterWallet, getMasterExportStatus } = await import('../utils/sync/idb-sync/scheduler.js');
 
           console.log(`🔍 Checking if this is master wallet (ID: ${walletId?.substring(0, 16) || 'undefined'}...)`);
-          console.log(`👑 Master wallet ID: ${MASTER_WALLET_ID.substring(0, 16)}...`);
 
-          if (walletId === MASTER_WALLET_ID) {
-            console.log('🎯 MASTER WALLET DETECTED - starting periodic exports to Redis');
-            startMasterWalletExports();
+          if (isMasterWallet(walletId)) {
+            const chainId = getChainForMasterWallet(walletId);
+            console.log(`🎯 MASTER WALLET DETECTED (Chain ${chainId}) - starting periodic exports to Redis`);
+            startMasterWalletExports(walletId);
 
             // Verify it's running
             setTimeout(() => {
