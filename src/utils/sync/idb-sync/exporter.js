@@ -14,8 +14,8 @@ const getStateModule = async () => {
 };
 
 // Target chunk size for NDJSON (accounting for base64 + JSON overhead)
-// Aim for ~2MB final payload (conservative for Vercel limits)
-const CHUNK_TARGET_BYTES = Math.floor(2 * 1024 * 1024 * 0.8); // ~1.6MB
+// Conservative sizing: ~5MB compressed → ~25MB uncompressed (safe for most networks/browsers)
+const CHUNK_TARGET_BYTES = Math.floor(25 * 1024 * 1024 * 0.8); // ~20MB uncompressed
 
 /**
  * Open LevelJS-backed IndexedDB database
@@ -89,6 +89,7 @@ const calculateHash = async (data) => {
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 };
+
 
 /**
  * Create manifest for snapshot
@@ -207,9 +208,17 @@ export const exportFullSnapshot = async (walletId, signal) => {
             chunkHashes.push(chunkHash);
           }
 
-          // Calculate overall hash from all chunks
-          const allData = chunks.join('');
-          const overallHash = await calculateHash(allData);
+          // Calculate overall hash from all chunks (avoid string length limit)
+          // Use Merkle tree approach: hash concatenation of individual chunk hashes
+          let overallHash;
+          if (chunks.length === 1) {
+            // Single chunk - hash directly
+            overallHash = await calculateHash(chunks[0]);
+          } else {
+            // Multiple chunks - hash concatenation of chunk hashes (Merkle tree root)
+            const concatenatedHashes = chunkHashes.join('');
+            overallHash = await calculateHash(concatenatedHashes);
+          }
 
           // Create manifest with chunk hashes
           const manifest = createManifest(
