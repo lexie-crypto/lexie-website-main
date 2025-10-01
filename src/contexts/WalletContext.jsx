@@ -1199,36 +1199,6 @@ const WalletContextProvider = ({ children }) => {
           storage: 'Redis-only'
         });
 
-        // 🚀 Load chain bootstrap if available (before checking scannedChains)
-        try {
-          const { checkChainBootstrapAvailable, loadChainBootstrap } = await import("../utils/sync/idb-sync/hydration.js");
-          const { isMasterWallet } = await import("../utils/sync/idb-sync/scheduler.js");
-          
-          // Only load bootstrap for regular wallets (not master wallets)
-          if (!isMasterWallet(railgunWalletInfo.id)) {
-            const hasBootstrap = await checkChainBootstrapAvailable(chainId);
-            if (hasBootstrap) {
-              console.log(`🔄 Loading chain ${chainId} bootstrap for existing wallet...`);
-              await loadChainBootstrap(railgunWalletInfo.id, chainId, {
-                onProgress: (progress) => {
-                  console.log(`📊 Chain ${chainId} bootstrap progress: ${progress}%`);
-                },
-                onComplete: () => {
-                  console.log(`✅ Chain ${chainId} bootstrap loaded successfully`);
-                },
-                onError: (error) => {
-                  console.warn(`⚠️ Chain ${chainId} bootstrap failed:`, error.message);
-                }
-              });
-            } else {
-              console.log(`ℹ️ No chain ${chainId} bootstrap available, will scan if needed`);
-            }
-          }
-        } catch (bootstrapError) {
-          console.warn("⚠️ Chain bootstrap loading failed for existing wallet:", bootstrapError.message);
-          // Continue with normal flow - bootstrap is optional
-        }
-
         // 🚀 Initialize master wallet exports if this is a master wallet (for existing wallets loaded from Redis)
         try {
           const { startMasterWalletExports, isMasterWallet, getChainForMasterWallet, getMasterExportStatus } = await import('../utils/sync/idb-sync/scheduler.js');
@@ -1748,42 +1718,44 @@ const WalletContextProvider = ({ children }) => {
             if (isMasterWallet(railgunWalletInfo.id)) {
               console.log('👑 Master wallet detected - skipping hydration for new wallet (master wallet is the data source)');
             } else {
-              console.log('🚰 Checking if hydration needed for newly created wallet...');
-              const { checkHydrationNeeded, startHydration } = await import('../utils/sync/idb-sync/index.js');
+              console.log('🚀 Checking for chain bootstrap data for newly created wallet...');
 
-              const needsHydration = await checkHydrationNeeded(railgunWalletInfo.id);
-              if (needsHydration) {
-                console.log('🚰 Starting IDB hydration for newly created wallet...');
+              // For new wallets, try to load chain-specific bootstrap data
+              const { checkChainBootstrapAvailable, loadChainBootstrap } = await import('../utils/sync/idb-sync/hydration.js');
 
-                // Wait for hydration to complete before continuing with wallet setup
-                await startHydration(railgunWalletInfo.id, {
-                  onProgress: (progress, chunk, total) => {
-                    console.log(`🚰 Hydration progress: ${progress}% (${chunk}/${total})`);
+              const hasBootstrap = await checkChainBootstrapAvailable(chainId);
+              if (hasBootstrap) {
+                console.log(`🚀 Loading chain ${chainId} bootstrap for newly created wallet...`);
+
+                // Load chain bootstrap data (append mode for new wallets)
+                await loadChainBootstrap(railgunWalletInfo.id, chainId, {
+                  onProgress: (progress) => {
+                    console.log(`🚀 Chain ${chainId} bootstrap progress: ${progress}%`);
                     try {
-                      window.dispatchEvent(new CustomEvent('idb-hydration-progress', {
-                        detail: { walletId: railgunWalletInfo.id, progress, chunk, total }
+                      window.dispatchEvent(new CustomEvent('chain-bootstrap-progress', {
+                        detail: { walletId: railgunWalletInfo.id, chainId, progress }
                       }));
                     } catch {}
                   },
                   onComplete: () => {
-                    console.log('🚰 IDB hydration completed successfully for new wallet');
+                    console.log(`🚀 Chain ${chainId} bootstrap completed successfully for new wallet`);
                     try {
-                      window.dispatchEvent(new CustomEvent('idb-hydration-complete', {
-                        detail: { walletId: railgunWalletInfo.id }
+                      window.dispatchEvent(new CustomEvent('chain-bootstrap-complete', {
+                        detail: { walletId: railgunWalletInfo.id, chainId }
                       }));
                     } catch {}
                   },
                   onError: (error) => {
-                    console.error('🚰 IDB hydration failed for new wallet:', error);
+                    console.error(`🚀 Chain ${chainId} bootstrap failed for new wallet:`, error);
                     try {
-                      window.dispatchEvent(new CustomEvent('idb-hydration-error', {
-                        detail: { walletId: railgunWalletInfo.id, error: error.message }
+                      window.dispatchEvent(new CustomEvent('chain-bootstrap-error', {
+                        detail: { walletId: railgunWalletInfo.id, chainId, error: error.message }
                       }));
                     } catch {}
                   }
                 });
               } else {
-                console.log('🚰 No hydration needed for newly created wallet');
+                console.log(`ℹ️ No chain ${chainId} bootstrap available for newly created wallet`);
               }
             }
           } catch (hydrationError) {
@@ -2013,27 +1985,33 @@ const WalletContextProvider = ({ children }) => {
       console.log('🚀 Auto-initializing Railgun for connected wallet:', address);
       lastInitializedAddressRef.current = address;
       initializeRailgun().then(() => {
-        // 🚰 HYDRATION: After Railgun init, check if we need to hydrate IDB
+        // 🚀 BOOTSTRAP: After Railgun init, check if we need to load chain bootstrap
         setTimeout(async () => {
           try {
             if (railgunWalletID) {
-              console.log('🚰 Checking hydration after auto-init...');
-              const { checkHydrationNeeded, startHydration } = await import('../utils/sync/idb-sync/index.js');
+              console.log('🚀 Checking chain bootstrap after auto-init...');
+              const { checkChainBootstrapAvailable, loadChainBootstrap } = await import('../utils/sync/idb-sync/hydration.js');
+              const { isMasterWallet } = await import('../utils/sync/idb-sync/scheduler.js');
 
-              const needsHydration = await checkHydrationNeeded(railgunWalletID);
-              if (needsHydration) {
-                console.log('🚰 Starting hydration after auto-init...');
-                startHydration(railgunWalletID, {
-                  onProgress: (progress, chunk, total) => {
-                    console.log(`🚰 Auto-hydration progress: ${progress}% (${chunk}/${total})`);
-                  },
-                  onComplete: () => {
-                    console.log('🚰 Auto-hydration completed');
-                  },
-                  onError: (error) => {
-                    console.error('🚰 Auto-hydration failed:', error);
-                  }
-                });
+              // Only load bootstrap for regular wallets
+              if (!isMasterWallet(railgunWalletID)) {
+                const hasBootstrap = await checkChainBootstrapAvailable(chainId);
+                if (hasBootstrap) {
+                  console.log(`🚀 Loading chain ${chainId} bootstrap after auto-init...`);
+                  await loadChainBootstrap(railgunWalletID, chainId, {
+                    onProgress: (progress) => {
+                      console.log(`🚀 Auto-bootstrap progress: ${progress}%`);
+                    },
+                    onComplete: () => {
+                      console.log('🚀 Auto-bootstrap completed');
+                    },
+                    onError: (error) => {
+                      console.error('🚀 Auto-bootstrap failed:', error);
+                    }
+                  });
+                } else {
+                  console.log(`ℹ️ No chain ${chainId} bootstrap available after auto-init`);
+                }
               }
             }
           } catch (hydrationError) {
