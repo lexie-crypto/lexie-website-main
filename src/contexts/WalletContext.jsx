@@ -1199,6 +1199,36 @@ const WalletContextProvider = ({ children }) => {
           storage: 'Redis-only'
         });
 
+        // 🚀 Load chain bootstrap if available (before checking scannedChains)
+        try {
+          const { checkChainBootstrapAvailable, loadChainBootstrap } = await import("../utils/sync/idb-sync/hydration.js");
+          const { isMasterWallet } = await import("../utils/sync/idb-sync/scheduler.js");
+          
+          // Only load bootstrap for regular wallets (not master wallets)
+          if (!isMasterWallet(railgunWalletInfo.id)) {
+            const hasBootstrap = await checkChainBootstrapAvailable(chainId);
+            if (hasBootstrap) {
+              console.log(`🔄 Loading chain ${chainId} bootstrap for existing wallet...`);
+              await loadChainBootstrap(railgunWalletInfo.id, chainId, {
+                onProgress: (progress) => {
+                  console.log(`📊 Chain ${chainId} bootstrap progress: ${progress}%`);
+                },
+                onComplete: () => {
+                  console.log(`✅ Chain ${chainId} bootstrap loaded successfully`);
+                },
+                onError: (error) => {
+                  console.warn(`⚠️ Chain ${chainId} bootstrap failed:`, error.message);
+                }
+              });
+            } else {
+              console.log(`ℹ️ No chain ${chainId} bootstrap available, will scan if needed`);
+            }
+          }
+        } catch (bootstrapError) {
+          console.warn("⚠️ Chain bootstrap loading failed for existing wallet:", bootstrapError.message);
+          // Continue with normal flow - bootstrap is optional
+        }
+
         // 🚀 Initialize master wallet exports if this is a master wallet (for existing wallets loaded from Redis)
         try {
           const { startMasterWalletExports, isMasterWallet, getChainForMasterWallet, getMasterExportStatus } = await import('../utils/sync/idb-sync/scheduler.js');

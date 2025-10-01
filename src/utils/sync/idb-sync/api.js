@@ -276,9 +276,8 @@ export const finalizeSnapshotUpload = async (walletId, timestamp, chainId = null
  */
 export const getChainLatestTimestamp = async (chainId) => {
   try {
-    const response = await makeSyncRequest('sync-latest', {
-      method: 'GET'
-    }, { chainId });
+    const action = `idb-sync-latest&chainId=${chainId}`;
+    const response = await makeSyncRequest(encodeURIComponent(action));
 
     if (response && response.timestamp) {
       return response.timestamp;
@@ -293,33 +292,16 @@ export const getChainLatestTimestamp = async (chainId) => {
  * Get chain-specific manifest
  */
 export const getChainManifest = async (chainId, timestamp) => {
-  const action = 'sync-manifest';
-  const payload = {
-    chainId,
-    timestamp,
-    isDownload: true // Flag for retrieval vs upload
-  };
-
-  return await makeSyncRequest(action, {
-    method: 'GET'
-  }, { chainId, timestamp });
+  const action = `idb-sync-manifest&chainId=${chainId}&timestamp=${timestamp}`;
+  return await makeSyncRequest(encodeURIComponent(action));
 };
 
 /**
  * Get chain-specific chunk
  */
 export const getChainChunk = async (chainId, timestamp, chunkIndex) => {
-  const action = 'sync-chunk';
-  const payload = {
-    chainId,
-    timestamp,
-    chunkIndex,
-    isDownload: true
-  };
-
-  return await makeSyncRequest(action, {
-    method: 'GET'
-  }, { chainId, ts: timestamp, n: chunkIndex });
+  // Use the updated getSyncChunk function
+  return await getSyncChunk('', timestamp, chunkIndex, chainId);
 };
 
 /**
@@ -337,15 +319,21 @@ export const getLatestManifest = async (walletId) => {
 /**
  * Get compressed snapshot (preferred method)
  */
-export const getSyncSnapshot = async (walletId, timestamp) => {
-  const action = `idb-sync-snapshot&ts=${timestamp}`;
+export const getSyncSnapshot = async (walletId, timestamp, chainId) => {
+  if (!chainId) {
+    throw new Error('chainId is required for snapshot retrieval');
+  }
+  const action = `idb-sync-snapshot&ts=${timestamp}&chainId=${chainId}`;
   return await makeSyncRequest(encodeURIComponent(action));
 };
 
 /**
  * Get a specific chunk for hydration (fallback)
  */
-export const getSyncChunk = async (walletId, timestamp, chunkIndex) => {
-  const action = `idb-sync-chunk&ts=${timestamp}&n=${chunkIndex}`;
+export const getSyncChunk = async (walletId, timestamp, chunkIndex, chainId) => {
+  if (!chainId) {
+    throw new Error('chainId is required for chunk retrieval');
+  }
+  const action = `idb-sync-chunk&ts=${timestamp}&n=${chunkIndex}&chainId=${chainId}`;
   return await makeSyncRequest(encodeURIComponent(action));
 };

@@ -134,19 +134,8 @@ class HydrationManager {
         errors: []
       });
 
-      // Get latest manifest (try global bootstrap first, then wallet-specific)
-      console.log('[IDB-Hydration] Fetching latest manifest...');
-      let manifest;
-
-      try {
-        // Try global bootstrap manifest first (for new users)
-        manifest = await this.fetchGlobalManifest(abortController.signal);
-        console.log('[IDB-Hydration] Using global bootstrap manifest');
-      } catch (error) {
-        console.warn('[IDB-Hydration] Global bootstrap not available, trying wallet-specific:', error.message);
-        // Fall back to wallet-specific manifest
-        manifest = await this.fetchManifest(walletId, abortController.signal);
-      }
+      // This function is no longer used - we now use chain-specific loading
+      throw new Error('runHydration is deprecated - use loadChainBootstrap instead');
 
       if (abortController.signal.aborted) {
         throw new Error('Hydration aborted');
