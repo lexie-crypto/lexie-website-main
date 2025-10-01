@@ -223,7 +223,7 @@ class HydrationManager {
       }
 
       // Verify this is chain-specific bootstrap data
-      if (response.chainId !== parseInt(chainId)) {
+      if (parseInt(response.chainId) !== parseInt(chainId)) {
         throw new Error(`Manifest is not valid chain ${chainId} bootstrap data (wrong chain: ${response.chainId})`);
       }
 
