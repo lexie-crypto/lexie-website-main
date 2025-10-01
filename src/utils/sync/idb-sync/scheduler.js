@@ -259,6 +259,10 @@ export const exportMasterWalletToRedis = async (walletId) => {
   try {
     console.log(`[MasterExport] Starting chain-${chainId} master wallet export for ${masterWalletId}`);
 
+    // Clear any existing snapshot cursor for fresh export
+    const stateMod = await getStateModule();
+    stateMod.clearSnapshotCursor(masterWalletId);
+
     const exporterMod = await getExporterModule();
     const snapshotData = await exporterMod.exportFullSnapshot(masterWalletId, activeController.signal);
 
@@ -326,6 +330,9 @@ export const exportMasterWalletToRedis = async (walletId) => {
       duration: `${duration}ms`,
       timestamp
     });
+
+    // Clear cursor after successful export
+    stateMod.clearSnapshotCursor(masterWalletId);
 
     return {
       success: true,
