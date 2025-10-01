@@ -1022,8 +1022,37 @@ const WalletContextProvider = ({ children }) => {
                     }));
                   } catch {}
                 },
-                onComplete: () => {
+                onComplete: async () => {
                   console.log(`🚀 Chain ${chainId} bootstrap completed successfully for existing wallet`);
+
+                  // Mark chain as scanned in Redis metadata since we loaded bootstrap data
+                  try {
+                    const persistResp = await fetch('/api/wallet-metadata', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        'X-Lexie-Timestamp': Date.now().toString(),
+                        'X-Lexie-Signature': 'bootstrap-load-existing'
+                      },
+                      body: JSON.stringify({
+                        action: 'persist-metadata',
+                        walletId: railgunWalletInfo.id,
+                        metadata: {
+                          scannedChains: [chainId] // Mark this chain as scanned
+                        },
+                        merge: true // Merge with existing metadata
+                      })
+                    });
+
+                    if (persistResp.ok) {
+                      console.log(`✅ Marked chain ${chainId} as scanned after bootstrap loading`);
+                    } else {
+                      console.warn(`⚠️ Failed to mark chain ${chainId} as scanned:`, await persistResp.text());
+                    }
+                  } catch (persistError) {
+                    console.warn(`⚠️ Error marking chain ${chainId} as scanned:`, persistError);
+                  }
+
                   try {
                     window.dispatchEvent(new CustomEvent('chain-bootstrap-complete', {
                       detail: { walletId: railgunWalletInfo.id, chainId }
@@ -2012,8 +2041,36 @@ const WalletContextProvider = ({ children }) => {
                     onProgress: (progress) => {
                       console.log(`🚀 Auto-bootstrap progress: ${progress}%`);
                     },
-                    onComplete: () => {
+                    onComplete: async () => {
                       console.log('🚀 Auto-bootstrap completed');
+
+                      // Mark chain as scanned in Redis metadata since we loaded bootstrap data
+                      try {
+                        const persistResp = await fetch('/api/wallet-metadata', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'X-Lexie-Timestamp': Date.now().toString(),
+                            'X-Lexie-Signature': 'bootstrap-load'
+                          },
+                          body: JSON.stringify({
+                            action: 'persist-metadata',
+                            walletId: railgunWalletID,
+                            metadata: {
+                              scannedChains: [chainId] // Mark this chain as scanned
+                            },
+                            merge: true // Merge with existing metadata
+                          })
+                        });
+
+                        if (persistResp.ok) {
+                          console.log(`🚀 Marked chain ${chainId} as scanned after bootstrap loading`);
+                        } else {
+                          console.warn(`🚀 Failed to mark chain ${chainId} as scanned:`, await persistResp.text());
+                        }
+                      } catch (persistError) {
+                        console.warn(`🚀 Error marking chain ${chainId} as scanned:`, persistError);
+                      }
                     },
                     onError: (error) => {
                       console.error('🚀 Auto-bootstrap failed:', error);
