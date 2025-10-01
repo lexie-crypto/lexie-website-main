@@ -188,14 +188,16 @@ export const getSyncManifest = async (walletId, dbName) => {
  * Upload snapshot manifest to Redis (reuse existing sync endpoints with snapshot flag)
  */
 export const uploadSnapshotManifest = async (walletId, timestamp, manifest, chainId = null) => {
-  const action = 'sync-manifest';
+  const action = `sync-manifest&chainId=${chainId}`;
   const payload = {
     walletId,
     timestamp,
     manifest,
     isSnapshot: true, // Flag to indicate this is a full snapshot
-    chainId // New: specify chain for chain-specific storage
+    chainId // Also include in body as backup
   };
+
+  console.log(`[IDB-Sync-API] uploadSnapshotManifest payload:`, { walletId, timestamp, chainId, hasManifest: !!manifest });
 
   return await makeSyncRequest(action, {
     method: 'POST',

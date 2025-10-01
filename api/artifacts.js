@@ -110,7 +110,12 @@ export default async function handler(req, res) {
       } else if (parsedAction === 'sync-finalize') {
         backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/finalize`;
       } else if (parsedAction === 'sync-manifest') {
-        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/manifest`;
+        const chainId = actionParams.chainId;
+        let url = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/manifest`;
+        if (chainId) {
+          url += `?chainId=${encodeURIComponent(chainId)}`;
+        }
+        backendUrl = url;
       } else if (parsedAction === 'idb-sync-latest') {
         const chainId = actionParams.chainId;
         if (chainId) {
