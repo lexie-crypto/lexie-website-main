@@ -530,6 +530,80 @@ class HydrationManager {
   }
 
   /**
+   * Fetch chain-specific chunk
+   */
+  async fetchChainChunk(chainId, timestamp, chunkIndex, abortSignal) {
+    const response = await getSyncChunk('', timestamp, chunkIndex, chainId);
+
+    if (typeof response !== 'string') {
+      throw new Error('Invalid chain chunk response - expected NDJSON string');
+    }
+
+    return response;
+  }
+
+  /**
+   * Process chain chunks with parallel downloading but sequential IDB writes
+   */
+  async processChainChunks(walletId, chainId, manifest, abortSignal, onProgress) {
+    const { chunkCount, chunkHashes } = manifest;
+    let processedChunks = 0; // Start from beginning for chains
+
+    console.log(`[IDB-Hydration] Processing ${chunkCount} chunks for chain ${chainId}, starting from ${processedChunks}`);
+
+    const CONCURRENT_DOWNLOADS = 6; // Download 6 chunks in parallel
+
+    // Process chunks in batches for parallel downloading
+    for (let batchStart = processedChunks; batchStart < chunkCount; batchStart += CONCURRENT_DOWNLOADS) {
+      if (abortSignal.aborted) {
+        throw new Error('Chain hydration aborted');
+      }
+
+      const batchEnd = Math.min(batchStart + CONCURRENT_DOWNLOADS, chunkCount);
+      const batchPromises = [];
+
+      // Start parallel downloads for this batch
+      for (let i = batchStart; i < batchEnd; i++) {
+        const downloadPromise = this.fetchChainChunk(chainId, manifest.ts, i, abortSignal)
+          .then(chunkData => ({ index: i, data: chunkData }))
+          .catch(error => ({ index: i, error }));
+
+        batchPromises.push(downloadPromise);
+      }
+
+      // Wait for all downloads in this batch to complete
+      const batchResults = await Promise.all(batchPromises);
+
+      // Process results sequentially (maintain IDB write order)
+      for (const result of batchResults) {
+        const { index, data, error } = result;
+
+        if (error) {
+          console.error(`[IDB-Hydration] Error downloading chain ${chainId} chunk ${index}:`, error);
+          throw error;
+        }
+
+        try {
+          console.log(`[IDB-Hydration] Processing chain ${chainId} chunk ${index}/${chunkCount}`);
+          await this.writeChunkToIDB(data, abortSignal);
+
+          // Update progress
+          processedChunks++;
+          if (onProgress) {
+            const progress = (processedChunks / chunkCount) * 100;
+            onProgress(progress, processedChunks, chunkCount);
+          }
+        } catch (writeError) {
+          console.error(`[IDB-Hydration] Error writing chain ${chainId} chunk ${index}:`, writeError);
+          throw writeError;
+        }
+      }
+    }
+
+    console.log(`[IDB-Hydration] Chain ${chainId} chunk processing completed: ${processedChunks}/${chunkCount} chunks`);
+  }
+
+  /**
    * Write chain snapshot to IDB (append mode - skip existing keys)
    */
   async writeChainSnapshotToIDB(ndjsonData, abortSignal) {
@@ -828,9 +902,15 @@ export const loadChainBootstrap = async (walletId, chainId, options = {}) => {
       await hydrationManager.processChainSnapshot(walletId, chainId, manifest, abortController.signal, onProgress);
       console.log(`[IDB-Hydration] Chain ${chainId} snapshot bootstrap completed successfully`);
     } catch (snapshotError) {
-      console.warn(`[IDB-Hydration] Chain ${chainId} snapshot failed, falling back to chunks:`, snapshotError.message);
-      // Could add chunk processing for chains here if needed
-      throw snapshotError; // For now, just fail
+      if (snapshotError.message === 'CHAIN_SNAPSHOT_NOT_AVAILABLE') {
+        console.warn(`[IDB-Hydration] Chain ${chainId} snapshot not available, falling back to chunks`);
+        // Fall back to chunk processing for chains
+        await hydrationManager.processChainChunks(walletId, chainId, manifest, abortController.signal, onProgress);
+        console.log(`[IDB-Hydration] Chain ${chainId} chunk bootstrap completed successfully`);
+      } else {
+        console.warn(`[IDB-Hydration] Chain ${chainId} snapshot failed with error:`, snapshotError.message);
+        throw snapshotError; // Re-throw non-snapshot errors
+      }
     }
 
     if (onComplete) onComplete();
