@@ -1045,14 +1045,8 @@ export const loadChainBootstrap = async (walletId, chainId, options = {}) => {
           const data = await response.json();
           const walletKeys = Array.isArray(data.keys) ? data.keys : [];
 
-          // Find matching key
-          const matchingKey = walletKeys.find(key => {
-            const keyAddr = key?.eoa || key?.walletAddress || key?.address;
-            const keyWalletId = key?.walletId || key?.railgunWalletId;
-            const hasAuth = !!key?.railgunAddress && (!!key?.signature || !!key?.encryptedMnemonic);
-            const walletOk = walletId ? keyWalletId === walletId : true;
-            return keyAddr === address && hasAuth && walletOk;
-          });
+          // Use same logic as ensureChainScanned - find key by walletId only (EOA check via API)
+          const matchingKey = walletKeys.find(key => key.walletId === walletId) || null;
 
           if (matchingKey) {
             // Check hydratedChains array (prevents duplicate hydration)
@@ -1064,22 +1058,12 @@ export const loadChainBootstrap = async (walletId, chainId, options = {}) => {
               .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
               .filter(n => Number.isFinite(n));
 
-            // Also check scannedChains as fallback (legacy compatibility)
-            const scannedChains = Array.isArray(matchingKey?.scannedChains)
-              ? matchingKey.scannedChains
-              : (Array.isArray(matchingKey?.meta?.scannedChains) ? matchingKey.meta.scannedChains : []);
-
-            const normalizedScannedChains = scannedChains
-              .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
-              .filter(n => Number.isFinite(n));
-
             const isChainHydrated = normalizedHydratedChains.includes(Number(chainId));
-            const isChainScanned = normalizedScannedChains.includes(Number(chainId));
 
-            console.log(`[IDB-Hydration] Hydration guard: hydrated=${isChainHydrated}, scanned=${isChainScanned}, locked=${isChainHydrating(walletId, chainId)} -> ${isChainHydrated || isChainScanned ? 'skip' : 'proceed'}`);
+            console.log(`[IDB-Hydration] Hydration guard: hydrated=${isChainHydrated}, locked=${isChainHydrating(walletId, chainId)} -> ${isChainHydrated ? 'skip' : 'proceed'}`);
 
-            if (isChainHydrated || isChainScanned) {
-              console.log(`[IDB-Hydration] Chain ${chainId} already ${isChainHydrated ? 'hydrated' : 'scanned'} in Redis, skipping hydration`);
+            if (isChainHydrated) {
+              console.log(`[IDB-Hydration] Chain ${chainId} already hydrated in Redis, skipping hydration`);
               // Remove from hydrating set since we're not proceeding
               hydratingChains.delete(`${walletId}:${Number(chainId)}`);
               if (onComplete) {

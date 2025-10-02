@@ -168,14 +168,8 @@ const VaultDesktopInner = () => {
       const data = await response.json();
       const walletKeys = Array.isArray(data.keys) ? data.keys : [];
       
-      // Find matching key
-      const matchingKey = walletKeys.find(key => {
-        const keyAddr = key?.eoa || key?.walletAddress || key?.address;
-        const keyWalletId = key?.walletId || key?.railgunWalletId;
-        const hasAuth = !!key?.railgunAddress && (!!key?.signature || !!key?.encryptedMnemonic);
-        const walletOk = railgunWalletId ? keyWalletId === railgunWalletId : true;
-        return keyAddr === address && hasAuth && walletOk; // exact address match
-      });
+      // Use same logic as ensureChainScanned - find key by walletId only (EOA check via API)
+      const matchingKey = walletKeys.find(key => key.walletId === railgunWalletId) || null;
 
       if (!matchingKey) {
         console.log('[VaultDesktop] No matching wallet key found in Redis');
