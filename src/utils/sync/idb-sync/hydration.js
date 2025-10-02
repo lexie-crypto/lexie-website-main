@@ -500,7 +500,7 @@ class HydrationManager {
 
     console.log(`[IDB-Hydration] Processing ${chunkCount} chunks, starting from ${processedChunks}`);
 
-    const CONCURRENT_DOWNLOADS = 6; // Download 6 chunks in parallel
+    const CONCURRENT_DOWNLOADS = 10; // Download 10 chunks in parallel (safe for modern browsers)
 
     // Process chunks in batches for parallel downloading
     for (let batchStart = processedChunks; batchStart < chunkCount; batchStart += CONCURRENT_DOWNLOADS) {
@@ -661,7 +661,7 @@ class HydrationManager {
 
     console.log(`[IDB-Hydration] Processing ${chunkCount} chunks for chain ${chainId}, starting from ${processedChunks}`);
 
-    const CONCURRENT_DOWNLOADS = 6; // Download 6 chunks in parallel
+    const CONCURRENT_DOWNLOADS = 10; // Download 10 chunks in parallel (safe for modern browsers)
 
     // Process chunks in batches for parallel downloading
     for (let batchStart = processedChunks; batchStart < chunkCount; batchStart += CONCURRENT_DOWNLOADS) {
