@@ -1822,6 +1822,21 @@ const WalletContextProvider = ({ children }) => {
                   },
                   onComplete: () => {
                     console.log(`🚀 Chain ${chainId} bootstrap completed successfully for new wallet`);
+
+                    // Mark chain as scanned in Redis metadata since we loaded bootstrap data
+                    try {
+                      fetch('/api/wallet-metadata', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          action: 'persist-metadata',
+                          walletAddress: address,
+                          walletId: railgunWalletInfo.id,
+                          scannedChains: [chainId]
+                        })
+                      }).catch(err => console.warn('[Wallet Creation] Failed to update scanned chains:', err));
+                    } catch {}
+
                     try {
                       window.dispatchEvent(new CustomEvent('chain-bootstrap-complete', {
                         detail: { walletId: railgunWalletInfo.id, chainId }
