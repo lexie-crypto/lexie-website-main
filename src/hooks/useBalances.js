@@ -96,6 +96,7 @@ export function useBalances() {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [tokenPrices, setTokenPrices] = useState({});
   const [isPrivateBalancesLoading, setIsPrivateBalancesLoading] = useState(false);
+  const [bootstrappedChains, setBootstrappedChains] = useState(new Set());
 
   // Stable refs for event listeners
   const stableRefs = useRef({});
@@ -928,7 +929,7 @@ export function useBalances() {
 
   // Load private balances using SDK refresh when Railgun wallet is ready (same as refresh button)
   useEffect(() => {
-    if (railgunWalletId && address && isRailgunInitialized) {
+    if (railgunWalletId && address && isRailgunInitialized && bootstrappedChains.has(chainId)) {
       console.log('[useBalances] 🛡️ Railgun wallet ready - triggering SDK balance refresh (like refresh button)...');
       setIsPrivateBalancesLoading(true);
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
@@ -951,7 +952,28 @@ export function useBalances() {
         }
       })();
     }
-  }, [railgunWalletId, address, isRailgunInitialized, chainId]);
+  }, [railgunWalletId, address, isRailgunInitialized, chainId, bootstrappedChains]);
+
+  // Listen for chain bootstrap completion to sequence balance refresh
+  useEffect(() => {
+    const handleChainBootstrapComplete = (event) => {
+      const { chainId: bootstrappedChainId } = event.detail || {};
+      if (bootstrappedChainId) {
+        console.log('[useBalances] ✅ Chain bootstrap completed:', bootstrappedChainId);
+        setBootstrappedChains(prev => new Set([...prev, bootstrappedChainId]));
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('chain-bootstrap-complete', handleChainBootstrapComplete);
+    }
+
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('chain-bootstrap-complete', handleChainBootstrapComplete);
+      }
+    };
+  }, []);
 
   // Listen for Railgun SDK balance updates (real-time balance updates from SDK callbacks)
   useEffect(() => {

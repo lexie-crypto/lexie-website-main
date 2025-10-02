@@ -416,9 +416,9 @@ const WalletContextProvider = ({ children }) => {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
+                        action: 'persist-metadata',
                         walletAddress: address,
                         walletId: railgunWalletID,
-                        railgunAddress: railgunAddress,
                         hydratedChains: [railgunChain.id]
                       })
                     }).catch(err => console.warn('[Railgun Init] Failed to update hydrated chains:', err));
@@ -1089,9 +1089,9 @@ const WalletContextProvider = ({ children }) => {
                         'X-Lexie-Signature': 'bootstrap-load-existing'
                       },
                       body: JSON.stringify({
+                        action: 'persist-metadata',
                         walletAddress: address,
                         walletId: railgunWalletInfo.id,
-                        railgunAddress: existingRailgunAddress,
                         hydratedChains: [chainId] // Mark this chain as hydrated
                       })
                     });
@@ -1830,9 +1830,9 @@ const WalletContextProvider = ({ children }) => {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
+                          action: 'persist-metadata',
                           walletAddress: address,
                           walletId: railgunWalletInfo.id,
-                          railgunAddress: railgunWalletInfo.railgunAddress,
                           hydratedChains: [chainId]
                         })
                       }).catch(err => console.warn('[Wallet Creation] Failed to update scanned chains:', err));
@@ -2123,9 +2123,9 @@ const WalletContextProvider = ({ children }) => {
                             'X-Lexie-Signature': 'bootstrap-load'
                           },
                           body: JSON.stringify({
+                            action: 'persist-metadata',
                             walletAddress: address,
                             walletId: railgunWalletID,
-                            railgunAddress: railgunAddress,
                             hydratedChains: [chainId] // Mark this chain as hydrated
                           })
                         });
