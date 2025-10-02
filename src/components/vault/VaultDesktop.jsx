@@ -720,6 +720,14 @@ const VaultDesktopInner = () => {
     window.addEventListener('railgun-init-progress', onInitProgress);
     window.addEventListener('railgun-init-completed', onInitCompleted);
     window.addEventListener('railgun-init-failed', onInitFailed);
+
+    // Force unlock modal when initialization is complete
+    const onVaultInitComplete = () => {
+      console.log('[VaultDesktop] Force unlocking initialization modal');
+      setIsInitInProgress(false);
+      setInitProgress({ percent: 100, message: 'Initialization complete' });
+    };
+    window.addEventListener('vault-initialization-complete', onVaultInitComplete);
     
     return () => {
       window.removeEventListener('railgun-signature-requested', onSignRequest);
@@ -729,6 +737,7 @@ const VaultDesktopInner = () => {
       window.removeEventListener('railgun-scan-started', onScanStarted);
       window.removeEventListener('railgun-init-completed', onInitCompleted);
       window.removeEventListener('railgun-init-failed', onInitFailed);
+      window.removeEventListener('vault-initialization-complete', onVaultInitComplete);
     };
   }, [address, chainId, railgunWalletId, network, checkChainReady, showSignRequestPopup]);
 

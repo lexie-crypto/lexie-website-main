@@ -944,6 +944,18 @@ export function useBalances() {
             chainId,
           });
           console.log('[useBalances] ✅ SDK balance refresh completed on wallet connect');
+
+          // Unlock the initialization modal if it's still locked
+          try {
+            window.dispatchEvent(new CustomEvent('railgun-init-completed', { detail: { address, walletId: railgunWalletId } }));
+            window.dispatchEvent(new CustomEvent('railgun-scan-complete', { detail: { chainId } }));
+
+            // Also dispatch a direct modal unlock event
+            window.dispatchEvent(new CustomEvent('vault-initialization-complete', {
+              detail: { address, walletId: railgunWalletId, chainId }
+            }));
+          } catch {}
+
         } catch (error) {
           console.error('[useBalances] ❌ SDK balance refresh failed on wallet connect:', error.message);
         } finally {
