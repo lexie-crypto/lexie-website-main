@@ -996,13 +996,58 @@ export const loadChainBootstrap = async (walletId, chainId, options = {}) => {
     force = false,
     onProgress = null,
     onComplete = null,
-    onError = null
+    onError = null,
+    address = null // EOA address for Redis scannedChains check
   } = options;
 
   const abortController = new AbortController();
 
   try {
     console.log(`[IDB-Hydration] Starting chain ${chainId} bootstrap for wallet ${walletId}`);
+
+    // Check if chain has already been scanned in Redis before proceeding with hydration
+    if (!force && address) {
+      try {
+        console.log(`[IDB-Hydration] Checking if chain ${chainId} already scanned in Redis for address ${address}...`);
+        const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+
+        if (response.ok) {
+          const data = await response.json();
+          const walletKeys = Array.isArray(data.keys) ? data.keys : [];
+
+          // Find matching key
+          const matchingKey = walletKeys.find(key => {
+            const keyAddr = key?.eoa || key?.walletAddress || key?.address;
+            const keyWalletId = key?.walletId || key?.railgunWalletId;
+            const hasAuth = !!key?.railgunAddress && (!!key?.signature || !!key?.encryptedMnemonic);
+            const walletOk = walletId ? keyWalletId === walletId : true;
+            return keyAddr === address && hasAuth && walletOk;
+          });
+
+          if (matchingKey) {
+            // Check scannedChains array
+            const scannedChains = Array.isArray(matchingKey?.scannedChains)
+              ? matchingKey.scannedChains
+              : (Array.isArray(matchingKey?.meta?.scannedChains) ? matchingKey.meta.scannedChains : []);
+
+            const normalizedChains = scannedChains
+              .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
+              .filter(n => Number.isFinite(n));
+
+            const isChainScanned = normalizedChains.includes(Number(chainId));
+
+            if (isChainScanned) {
+              console.log(`[IDB-Hydration] Chain ${chainId} already scanned in Redis, skipping hydration`);
+              if (onComplete) onComplete();
+              return; // Skip hydration entirely
+            }
+          }
+        }
+      } catch (redisCheckError) {
+        console.warn(`[IDB-Hydration] Failed to check Redis scannedChains, proceeding with hydration:`, redisCheckError);
+        // Continue with hydration if Redis check fails
+      }
+    }
 
     // Get chain manifest
     const manifest = await hydrationManager.fetchChainManifest(chainId, abortController.signal);

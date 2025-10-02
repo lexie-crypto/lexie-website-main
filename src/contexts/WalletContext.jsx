@@ -403,6 +403,7 @@ const WalletContextProvider = ({ children }) => {
             if (hasBootstrap) {
               console.log(`[Railgun Init] 🚀 Loading chain ${railgunChain.id} bootstrap to seed LevelDB...`);
               await loadChainBootstrap(railgunWalletID, targetChainId, {
+                address, // Pass EOA address for Redis scannedChains check
                 onProgress: (progress) => {
                   console.log(`[Railgun Init] 🚀 Chain ${railgunChain.id} bootstrap progress: ${progress}%`);
                 },
@@ -1066,6 +1067,7 @@ const WalletContextProvider = ({ children }) => {
 
               // Load chain bootstrap data (append mode for existing wallets)
               await loadChainBootstrap(railgunWalletInfo.id, chainId, {
+                address, // Pass EOA address for Redis scannedChains check
                 onProgress: (progress) => {
                   console.log(`🚀 Chain ${chainId} bootstrap progress: ${progress}%`);
                   try {
@@ -1812,6 +1814,7 @@ const WalletContextProvider = ({ children }) => {
 
                 // Load chain bootstrap data (append mode for new wallets)
                 await loadChainBootstrap(railgunWalletInfo.id, chainId, {
+                  address, // Pass EOA address for Redis scannedChains check
                   onProgress: (progress) => {
                     console.log(`🚀 Chain ${chainId} bootstrap progress: ${progress}%`);
                     try {
@@ -2105,6 +2108,7 @@ const WalletContextProvider = ({ children }) => {
                 if (hasBootstrap) {
                   console.log(`🚀 Loading chain ${chainId} bootstrap after auto-init...`);
                   await loadChainBootstrap(railgunWalletID, chainId, {
+                    address, // Pass EOA address for Redis scannedChains check
                     onProgress: (progress) => {
                       console.log(`🚀 Auto-bootstrap progress: ${progress}%`);
                     },
