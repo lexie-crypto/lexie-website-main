@@ -423,7 +423,7 @@ const WalletContextProvider = ({ children }) => {
                 onComplete: async () => {
                   console.log(`[Railgun Init] 🚀 Chain ${railgunChain.id} bootstrap loaded successfully`);
 
-                  // Mark chain as hydrated in Redis metadata since we loaded bootstrap data
+                  // Mark chain as scanned and hydrated in Redis metadata since we loaded bootstrap data
                   try {
                     const resp = await fetch('/api/wallet-metadata?action=persist-metadata', {
                       method: 'POST',
@@ -432,16 +432,17 @@ const WalletContextProvider = ({ children }) => {
                         walletAddress: address,
                         walletId: railgunWalletID,
                         railgunAddress: railgunAddress,
-                        hydratedChains: [railgunChain.id]
+                        scannedChains: [railgunChain.id], // Mark this chain as scanned
+                        hydratedChains: [railgunChain.id] // Mark this chain as hydrated
                       })
                     });
                     if (resp.ok) {
-                      console.log(`[Railgun Init] ✅ Marked hydratedChains += ${railgunChain.id}`);
+                      console.log(`[Railgun Init] ✅ Marked scannedChains += ${railgunChain.id} and hydratedChains += ${railgunChain.id}`);
                     } else {
-                      console.error(`[Railgun Init] ❌ Failed to mark hydratedChains += ${railgunChain.id}:`, await resp.text());
+                      console.error(`[Railgun Init] ❌ Failed to mark scannedChains and hydratedChains += ${railgunChain.id}:`, await resp.text());
                     }
                   } catch (err) {
-                    console.warn('[Railgun Init] Failed to update hydrated chains:', err);
+                    console.warn('[Railgun Init] Failed to update scanned and hydrated chains:', err);
                   }
                 },
                 onError: (error) => {
@@ -1119,7 +1120,7 @@ const WalletContextProvider = ({ children }) => {
                   onComplete: async () => {
                     console.log(`🚀 Chain ${chainId} bootstrap completed successfully for existing wallet`);
 
-                    // Mark chain as hydrated in Redis metadata since we loaded bootstrap data
+                    // Mark chain as scanned and hydrated in Redis metadata since we loaded bootstrap data
                     try {
                       const persistResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
                         method: 'POST',
@@ -1128,12 +1129,13 @@ const WalletContextProvider = ({ children }) => {
                           walletAddress: address,
                           walletId: railgunWalletInfo.id,
                           railgunAddress: existingRailgunAddress,
+                          scannedChains: [chainId], // Mark this chain as scanned
                           hydratedChains: [chainId] // Mark this chain as hydrated
                         })
                       });
 
                       if (persistResp.ok) {
-                        console.log(`✅ Marked hydratedChains += ${chainId} after bootstrap loading`);
+                        console.log(`✅ Marked scannedChains += ${chainId} and hydratedChains += ${chainId} after bootstrap loading`);
 
                         // Only emit completion event after successful persistence
                         try {
@@ -1892,12 +1894,13 @@ const WalletContextProvider = ({ children }) => {
                               walletAddress: address,
                               walletId: railgunWalletInfo.id,
                               railgunAddress: railgunWalletInfo.railgunAddress,
-                              hydratedChains: [chainId]
+                              scannedChains: [chainId], // Mark this chain as scanned
+                              hydratedChains: [chainId] // Mark this chain as hydrated
                             })
                           });
 
                           if (persistResp.ok) {
-                            console.log(`✅ Marked hydratedChains += ${chainId} for new wallet`);
+                            console.log(`✅ Marked scannedChains += ${chainId} and hydratedChains += ${chainId} for new wallet`);
 
                             // Only emit completion event after successful persistence
                             try {

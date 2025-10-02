@@ -1039,14 +1039,27 @@ export const loadChainBootstrap = async (walletId, chainId, options = {}) => {
     if (!force && address) {
       try {
         console.log(`[IDB-Hydration] Checking if chain ${chainId} already scanned in Redis for address ${address}...`);
+        console.log(`[IDB-Hydration] Checking wallet ID: ${walletId}`);
         const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
 
         if (response.ok) {
           const data = await response.json();
           const walletKeys = Array.isArray(data.keys) ? data.keys : [];
+          console.log(`[IDB-Hydration] Found ${walletKeys.length} wallet keys for address ${address}`);
+          console.log(`[IDB-Hydration] Wallet key IDs:`, walletKeys.map(k => k.walletId?.slice(0, 8) + '...' || 'undefined'));
 
           // Use same logic as ensureChainScanned - find key by walletId only (EOA check via API)
           const matchingKey = walletKeys.find(key => key.walletId === walletId) || null;
+          console.log(`[IDB-Hydration] Matching key found: ${!!matchingKey}`);
+          if (matchingKey) {
+            console.log(`[IDB-Hydration] Matching key details:`, {
+              walletId: matchingKey.walletId?.slice(0, 8) + '...',
+              hasHydratedChains: !!matchingKey.hydratedChains,
+              hydratedChains: matchingKey.hydratedChains,
+              hasMeta: !!matchingKey.meta,
+              metaHydratedChains: matchingKey.meta?.hydratedChains
+            });
+          }
 
           if (matchingKey) {
             // Check hydratedChains array (prevents duplicate hydration)
@@ -1059,6 +1072,14 @@ export const loadChainBootstrap = async (walletId, chainId, options = {}) => {
               .filter(n => Number.isFinite(n));
 
             const isChainHydrated = normalizedHydratedChains.includes(Number(chainId));
+
+            console.log(`[IDB-Hydration] Hydrated chains check:`, {
+              rawHydratedChains: hydratedChains,
+              normalizedHydratedChains,
+              checkingForChain: Number(chainId),
+              isChainHydrated,
+              isLocked: isChainHydrating(walletId, chainId)
+            });
 
             console.log(`[IDB-Hydration] Hydration guard: hydrated=${isChainHydrated}, locked=${isChainHydrating(walletId, chainId)} -> ${isChainHydrated ? 'skip' : 'proceed'}`);
 
