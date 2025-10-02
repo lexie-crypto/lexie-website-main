@@ -1090,11 +1090,9 @@ const WalletContextProvider = ({ children }) => {
                       },
                       body: JSON.stringify({
                         action: 'persist-metadata',
+                        walletAddress: address,
                         walletId: railgunWalletInfo.id,
-                        metadata: {
-                          hydratedChains: [chainId] // Mark this chain as hydrated
-                        },
-                        merge: true // Merge with existing metadata
+                        hydratedChains: [chainId] // Mark this chain as hydrated
                       })
                     });
 
@@ -2126,11 +2124,9 @@ const WalletContextProvider = ({ children }) => {
                           },
                           body: JSON.stringify({
                             action: 'persist-metadata',
+                            walletAddress: address,
                             walletId: railgunWalletID,
-                            metadata: {
-                              hydratedChains: [chainId] // Mark this chain as hydrated
-                            },
-                            merge: true // Merge with existing metadata
+                            hydratedChains: [chainId] // Mark this chain as hydrated
                           })
                         });
 
