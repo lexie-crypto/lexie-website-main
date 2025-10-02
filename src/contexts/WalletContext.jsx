@@ -438,6 +438,10 @@ const WalletContextProvider = ({ children }) => {
                     });
                     if (resp.ok) {
                       console.log(`[Railgun Init] ✅ Marked scannedChains += ${railgunChain.id} and hydratedChains += ${railgunChain.id}`);
+                      // Emit scan-complete event to unlock the modal (hydration = scanning for modal purposes)
+                      try {
+                        window.dispatchEvent(new CustomEvent('railgun-scan-complete', { detail: { chainId: railgunChain.id } }));
+                      } catch {}
                     } else {
                       console.error(`[Railgun Init] ❌ Failed to mark scannedChains and hydratedChains += ${railgunChain.id}:`, await resp.text());
                     }
@@ -1142,6 +1146,8 @@ const WalletContextProvider = ({ children }) => {
                           window.dispatchEvent(new CustomEvent('chain-bootstrap-complete', {
                             detail: { walletId: railgunWalletInfo.id, chainId }
                           }));
+                          // Also emit scan-complete event to unlock the modal (hydration = scanning for modal purposes)
+                          window.dispatchEvent(new CustomEvent('railgun-scan-complete', { detail: { chainId } }));
                         } catch {}
                       } else {
                         console.error(`❌ Failed to mark hydratedChains += ${chainId}:`, await persistResp.text());
@@ -1907,6 +1913,8 @@ const WalletContextProvider = ({ children }) => {
                               window.dispatchEvent(new CustomEvent('chain-bootstrap-complete', {
                                 detail: { walletId: railgunWalletInfo.id, chainId }
                               }));
+                              // Also emit scan-complete event to unlock the modal (hydration = scanning for modal purposes)
+                              window.dispatchEvent(new CustomEvent('railgun-scan-complete', { detail: { chainId } }));
                             } catch {}
                           } else {
                             console.error(`❌ Failed to mark hydratedChains += ${chainId} for new wallet:`, await persistResp.text());
