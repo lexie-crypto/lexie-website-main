@@ -238,12 +238,12 @@ const VaultDesktopInner = () => {
           console.log('[VaultDesktop] Chain not scanned on connect - showing modal');
           setShowSignRequestPopup(true);
           setIsInitInProgress(true);
-          setBootstrapProgress({ percent: 0, active: false }); // Reset bootstrap progress
+          setBootstrapProgress({ percent: 0, active: true }); // Show progress bar immediately for initial connect
           setScanComplete(false);
           const networkName = getNetworkName(chainId);
-          setInitProgress({ 
-            percent: 0, 
-            message: `Setting up your LexieVault on ${networkName} Network...` 
+          setInitProgress({
+            percent: 0,
+            message: `Setting up your LexieVault on ${networkName} Network...`
           });
         } else {
           console.log('[VaultDesktop] Chain already scanned on connect - no modal needed');
@@ -663,7 +663,7 @@ const VaultDesktopInner = () => {
       setScanComplete(false);
       setIsChainReady(false);
       setIsInitInProgress(true);
-      setBootstrapProgress({ percent: 0, active: false }); // Reset bootstrap progress
+      setBootstrapProgress({ percent: 0, active: true }); // Show progress bar immediately for init start
       setInitFailedMessage('');
       const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
       setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
@@ -1009,7 +1009,7 @@ const VaultDesktopInner = () => {
         console.log('[VaultDesktop] Target chain not scanned - showing modal');
         setShowSignRequestPopup(true);
         setIsInitInProgress(true);
-        setBootstrapProgress({ percent: 0, active: false }); // Reset bootstrap progress
+        setBootstrapProgress({ percent: 0, active: true }); // Show progress bar immediately for chain switch
         const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
         setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
       } else {
