@@ -1082,7 +1082,13 @@ export const loadChainBootstrap = async (walletId, chainId, options = {}) => {
               console.log(`[IDB-Hydration] Chain ${chainId} already ${isChainHydrated ? 'hydrated' : 'scanned'} in Redis, skipping hydration`);
               // Remove from hydrating set since we're not proceeding
               hydratingChains.delete(`${walletId}:${Number(chainId)}`);
-              if (onComplete) onComplete();
+              if (onComplete) {
+                const result = onComplete();
+                // Await the onComplete callback if it returns a promise
+                if (result && typeof result.then === 'function') {
+                  await result;
+                }
+              }
               return; // Skip hydration entirely
             }
           }
@@ -1112,7 +1118,13 @@ export const loadChainBootstrap = async (walletId, chainId, options = {}) => {
       }
     }
 
-    if (onComplete) onComplete();
+    if (onComplete) {
+      const result = onComplete();
+      // Await the onComplete callback if it returns a promise
+      if (result && typeof result.then === 'function') {
+        await result;
+      }
+    }
 
   } catch (error) {
     console.error(`[IDB-Hydration] Chain ${chainId} bootstrap failed:`, error);

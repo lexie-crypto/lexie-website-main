@@ -410,12 +410,12 @@ const WalletContextProvider = ({ children }) => {
                 onProgress: (progress) => {
                   console.log(`[Railgun Init] 🚀 Chain ${railgunChain.id} bootstrap progress: ${progress}%`);
                 },
-                onComplete: () => {
+                onComplete: async () => {
                   console.log(`[Railgun Init] 🚀 Chain ${railgunChain.id} bootstrap loaded successfully`);
 
                   // Mark chain as hydrated in Redis metadata since we loaded bootstrap data
                   try {
-                    fetch('/api/wallet-metadata?action=persist-metadata', {
+                    const resp = await fetch('/api/wallet-metadata?action=persist-metadata', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({
@@ -424,14 +424,15 @@ const WalletContextProvider = ({ children }) => {
                         railgunAddress: railgunAddress,
                         hydratedChains: [railgunChain.id]
                       })
-                    }).then(async resp => {
-                      if (resp.ok) {
-                        console.log(`[Railgun Init] ✅ Marked hydratedChains += ${railgunChain.id}`);
-                      } else {
-                        console.error(`[Railgun Init] ❌ Failed to mark hydratedChains += ${railgunChain.id}:`, await resp.text());
-                      }
-                    }).catch(err => console.warn('[Railgun Init] Failed to update hydrated chains:', err));
-                  } catch {}
+                    });
+                    if (resp.ok) {
+                      console.log(`[Railgun Init] ✅ Marked hydratedChains += ${railgunChain.id}`);
+                    } else {
+                      console.error(`[Railgun Init] ❌ Failed to mark hydratedChains += ${railgunChain.id}:`, await resp.text());
+                    }
+                  } catch (err) {
+                    console.warn('[Railgun Init] Failed to update hydrated chains:', err);
+                  }
                 },
                 onError: (error) => {
                   console.warn(`[Railgun Init] 🚀 Chain ${railgunChain.id} bootstrap failed:`, error.message);

@@ -146,7 +146,7 @@ const VaultDesktopInner = () => {
     if (!checkChainId) return null;
 
     try {
-      console.log('[VaultDesktop] Checking Redis scannedChains for:', {
+      console.log('[VaultDesktop] Checking Redis hydratedChains/scannedChains for:', {
         address, // exact EOA address
         railgunWalletId,
         checkChainId: Number(checkChainId)
@@ -182,24 +182,37 @@ const VaultDesktopInner = () => {
         return false;
       }
 
-      // Check scannedChains array
+      // Check both hydratedChains and scannedChains arrays
+      const hydratedChains = Array.isArray(matchingKey?.hydratedChains)
+        ? matchingKey.hydratedChains
+        : (Array.isArray(matchingKey?.meta?.hydratedChains) ? matchingKey.meta.hydratedChains : []);
+
       const scannedChains = Array.isArray(matchingKey?.scannedChains)
         ? matchingKey.scannedChains
         : (Array.isArray(matchingKey?.meta?.scannedChains) ? matchingKey.meta.scannedChains : []);
 
-      const normalizedChains = scannedChains
+      const normalizedHydratedChains = hydratedChains
         .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
         .filter(n => Number.isFinite(n));
 
-      const isChainScanned = normalizedChains.includes(Number(checkChainId));
-      
+      const normalizedScannedChains = scannedChains
+        .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
+        .filter(n => Number.isFinite(n));
+
+      const isChainHydrated = normalizedHydratedChains.includes(Number(checkChainId));
+      const isChainScanned = normalizedScannedChains.includes(Number(checkChainId));
+      const isChainReady = isChainHydrated || isChainScanned;
+
       console.log('[VaultDesktop] Redis check result:', {
         chainId: Number(checkChainId),
-        scannedChains: normalizedChains,
-        isChainScanned
+        hydratedChains: normalizedHydratedChains,
+        scannedChains: normalizedScannedChains,
+        isChainHydrated,
+        isChainScanned,
+        isChainReady
       });
-      
-      return isChainScanned;
+
+      return isChainReady;
       
     } catch (error) {
       console.error('[VaultDesktop] Redis check error:', error);
