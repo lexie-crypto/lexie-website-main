@@ -926,14 +926,24 @@ class HydrationManager {
   }
 }
 
-// Per-chain session lock to prevent duplicate hydration
+// Per-wallet:chain session lock to prevent duplicate hydration
 const hydratingChains = new Set();
 
 /**
- * Check if a chain is currently being hydrated
+ * Check if a wallet:chain combination is currently being hydrated
  */
-export const isChainHydrating = (chainId) => {
-  return hydratingChains.has(Number(chainId));
+export const isChainHydrating = (walletId, chainId) => {
+  const key = `${walletId}:${Number(chainId)}`;
+  return hydratingChains.has(key);
+};
+
+/**
+ * Get hydration guard status for logging
+ */
+export const getHydrationGuardStatus = (walletId, chainId, hydratedChains) => {
+  const isHydrated = Array.isArray(hydratedChains) && hydratedChains.includes(Number(chainId));
+  const isLocked = isChainHydrating(walletId, chainId);
+  return { isHydrated, isLocked };
 };
 
 // Singleton instance
@@ -1015,14 +1025,15 @@ export const loadChainBootstrap = async (walletId, chainId, options = {}) => {
   try {
     console.log(`[IDB-Hydration] Starting chain ${chainId} bootstrap for wallet ${walletId}`);
 
-    // Per-chain session lock: bail if already hydrating this chain
-    if (isChainHydrating(chainId)) {
-      console.log(`[IDB-Hydration] Chain ${chainId} already being hydrated, skipping`);
+    // Per-wallet:chain session lock: bail if already hydrating this wallet:chain
+    if (isChainHydrating(walletId, chainId)) {
+      console.log(`[IDB-Hydration] Wallet ${walletId} chain ${chainId} already being hydrated, skipping`);
       return;
     }
 
-    // Mark chain as hydrating
-    hydratingChains.add(Number(chainId));
+    // Mark wallet:chain as hydrating
+    const lockKey = `${walletId}:${Number(chainId)}`;
+    hydratingChains.add(lockKey);
 
     // Check if chain has already been scanned in Redis before proceeding with hydration
     if (!force && address) {
@@ -1065,10 +1076,12 @@ export const loadChainBootstrap = async (walletId, chainId, options = {}) => {
             const isChainHydrated = normalizedHydratedChains.includes(Number(chainId));
             const isChainScanned = normalizedScannedChains.includes(Number(chainId));
 
+            console.log(`[IDB-Hydration] Hydration guard: hydrated=${isChainHydrated}, scanned=${isChainScanned}, locked=${isChainHydrating(walletId, chainId)} -> ${isChainHydrated || isChainScanned ? 'skip' : 'proceed'}`);
+
             if (isChainHydrated || isChainScanned) {
               console.log(`[IDB-Hydration] Chain ${chainId} already ${isChainHydrated ? 'hydrated' : 'scanned'} in Redis, skipping hydration`);
               // Remove from hydrating set since we're not proceeding
-              hydratingChains.delete(Number(chainId));
+              hydratingChains.delete(`${walletId}:${Number(chainId)}`);
               if (onComplete) onComplete();
               return; // Skip hydration entirely
             }
@@ -1107,6 +1120,6 @@ export const loadChainBootstrap = async (walletId, chainId, options = {}) => {
     throw error;
   } finally {
     // Always remove from hydrating set
-    hydratingChains.delete(Number(chainId));
+    hydratingChains.delete(`${walletId}:${Number(chainId)}`);
   }
 };
