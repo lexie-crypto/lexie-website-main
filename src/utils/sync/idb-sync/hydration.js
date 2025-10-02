@@ -1025,26 +1025,26 @@ export const loadChainBootstrap = async (walletId, chainId, options = {}) => {
           });
 
           if (matchingKey) {
-            // Check scannedChains array
-            const scannedChains = Array.isArray(matchingKey?.scannedChains)
-              ? matchingKey.scannedChains
-              : (Array.isArray(matchingKey?.meta?.scannedChains) ? matchingKey.meta.scannedChains : []);
+            // Check hydratedChains array (prevents duplicate hydration)
+            const hydratedChains = Array.isArray(matchingKey?.hydratedChains)
+              ? matchingKey.hydratedChains
+              : (Array.isArray(matchingKey?.meta?.hydratedChains) ? matchingKey.meta.hydratedChains : []);
 
-            const normalizedChains = scannedChains
+            const normalizedHydratedChains = hydratedChains
               .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
               .filter(n => Number.isFinite(n));
 
-            const isChainScanned = normalizedChains.includes(Number(chainId));
+            const isChainHydrated = normalizedHydratedChains.includes(Number(chainId));
 
-            if (isChainScanned) {
-              console.log(`[IDB-Hydration] Chain ${chainId} already scanned in Redis, skipping hydration`);
+            if (isChainHydrated) {
+              console.log(`[IDB-Hydration] Chain ${chainId} already hydrated in Redis, skipping hydration`);
               if (onComplete) onComplete();
               return; // Skip hydration entirely
             }
           }
         }
       } catch (redisCheckError) {
-        console.warn(`[IDB-Hydration] Failed to check Redis scannedChains, proceeding with hydration:`, redisCheckError);
+        console.warn(`[IDB-Hydration] Failed to check Redis hydratedChains, proceeding with hydration:`, redisCheckError);
         // Continue with hydration if Redis check fails
       }
     }

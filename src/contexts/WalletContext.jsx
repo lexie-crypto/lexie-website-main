@@ -410,7 +410,7 @@ const WalletContextProvider = ({ children }) => {
                 onComplete: () => {
                   console.log(`[Railgun Init] 🚀 Chain ${railgunChain.id} bootstrap loaded successfully`);
 
-                  // Mark chain as scanned in Redis metadata since we loaded bootstrap data
+                  // Mark chain as hydrated in Redis metadata since we loaded bootstrap data
                   try {
                     fetch('/api/wallet-metadata', {
                       method: 'POST',
@@ -419,9 +419,9 @@ const WalletContextProvider = ({ children }) => {
                         action: 'persist-metadata',
                         walletAddress: address,
                         walletId: railgunWalletID,
-                        scannedChains: [railgunChain.id]
+                        hydratedChains: [railgunChain.id]
                       })
-                    }).catch(err => console.warn('[Railgun Init] Failed to update scanned chains:', err));
+                    }).catch(err => console.warn('[Railgun Init] Failed to update hydrated chains:', err));
                   } catch {}
                 },
                 onError: (error) => {
@@ -1079,7 +1079,7 @@ const WalletContextProvider = ({ children }) => {
                 onComplete: async () => {
                   console.log(`🚀 Chain ${chainId} bootstrap completed successfully for existing wallet`);
 
-                  // Mark chain as scanned in Redis metadata since we loaded bootstrap data
+                  // Mark chain as hydrated in Redis metadata since we loaded bootstrap data
                   try {
                     const persistResp = await fetch('/api/wallet-metadata', {
                       method: 'POST',
@@ -1092,19 +1092,19 @@ const WalletContextProvider = ({ children }) => {
                         action: 'persist-metadata',
                         walletId: railgunWalletInfo.id,
                         metadata: {
-                          scannedChains: [chainId] // Mark this chain as scanned
+                          hydratedChains: [chainId] // Mark this chain as hydrated
                         },
                         merge: true // Merge with existing metadata
                       })
                     });
 
                     if (persistResp.ok) {
-                      console.log(`✅ Marked chain ${chainId} as scanned after bootstrap loading`);
+                      console.log(`✅ Marked chain ${chainId} as hydrated after bootstrap loading`);
                     } else {
-                      console.warn(`⚠️ Failed to mark chain ${chainId} as scanned:`, await persistResp.text());
+                      console.warn(`⚠️ Failed to mark chain ${chainId} as hydrated:`, await persistResp.text());
                     }
                   } catch (persistError) {
-                    console.warn(`⚠️ Error marking chain ${chainId} as scanned:`, persistError);
+                    console.warn(`⚠️ Error marking chain ${chainId} as hydrated:`, persistError);
                   }
 
                   try {
@@ -1826,7 +1826,7 @@ const WalletContextProvider = ({ children }) => {
                   onComplete: () => {
                     console.log(`🚀 Chain ${chainId} bootstrap completed successfully for new wallet`);
 
-                    // Mark chain as scanned in Redis metadata since we loaded bootstrap data
+                    // Mark chain as hydrated in Redis metadata since we loaded bootstrap data
                     try {
                       fetch('/api/wallet-metadata', {
                         method: 'POST',
@@ -1835,7 +1835,7 @@ const WalletContextProvider = ({ children }) => {
                           action: 'persist-metadata',
                           walletAddress: address,
                           walletId: railgunWalletInfo.id,
-                          scannedChains: [chainId]
+                          hydratedChains: [chainId]
                         })
                       }).catch(err => console.warn('[Wallet Creation] Failed to update scanned chains:', err));
                     } catch {}
@@ -2115,7 +2115,7 @@ const WalletContextProvider = ({ children }) => {
                     onComplete: async () => {
                       console.log('🚀 Auto-bootstrap completed');
 
-                      // Mark chain as scanned in Redis metadata since we loaded bootstrap data
+                      // Mark chain as hydrated in Redis metadata since we loaded bootstrap data
                       try {
                         const persistResp = await fetch('/api/wallet-metadata', {
                           method: 'POST',
@@ -2128,19 +2128,19 @@ const WalletContextProvider = ({ children }) => {
                             action: 'persist-metadata',
                             walletId: railgunWalletID,
                             metadata: {
-                              scannedChains: [chainId] // Mark this chain as scanned
+                              hydratedChains: [chainId] // Mark this chain as hydrated
                             },
                             merge: true // Merge with existing metadata
                           })
                         });
 
                         if (persistResp.ok) {
-                          console.log(`🚀 Marked chain ${chainId} as scanned after bootstrap loading`);
+                          console.log(`🚀 Marked chain ${chainId} as hydrated after bootstrap loading`);
                         } else {
-                          console.warn(`🚀 Failed to mark chain ${chainId} as scanned:`, await persistResp.text());
+                          console.warn(`🚀 Failed to mark chain ${chainId} as hydrated:`, await persistResp.text());
                         }
                       } catch (persistError) {
-                        console.warn(`🚀 Error marking chain ${chainId} as scanned:`, persistError);
+                        console.warn(`🚀 Error marking chain ${chainId} as hydrated:`, persistError);
                       }
                     },
                     onError: (error) => {
