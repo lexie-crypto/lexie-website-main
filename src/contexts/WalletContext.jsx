@@ -388,6 +388,58 @@ const WalletContextProvider = ({ children }) => {
       chainsScanningRef.current.add(railgunChain.id);
       console.log('[Railgun Init] 🔄 Performing initial full scan for chain', railgunChain.id);
 
+      // FIRST: Load chain bootstrap data from Redis to seed local LevelDB (if available)
+      try {
+        const { isMasterWallet } = await import('../utils/sync/idb-sync/scheduler.js');
+        if (!isMasterWallet(railgunWalletID)) {
+          // Only load bootstrap for regular wallets (not master wallets)
+          const isScanning = (typeof window !== 'undefined') &&
+            (window.__RAILGUN_SCANNING_IN_PROGRESS || window.__RAILGUN_TRANSACTION_IN_PROGRESS);
+          if (!isScanning) {
+            console.log(`[Railgun Init] 🚀 Checking for chain ${railgunChain.id} bootstrap data...`);
+            const { checkChainBootstrapAvailable, loadChainBootstrap } = await import('../utils/sync/idb-sync/hydration.js');
+
+            const hasBootstrap = await checkChainBootstrapAvailable(targetChainId);
+            if (hasBootstrap) {
+              console.log(`[Railgun Init] 🚀 Loading chain ${railgunChain.id} bootstrap to seed LevelDB...`);
+              await loadChainBootstrap(railgunWalletID, targetChainId, {
+                onProgress: (progress) => {
+                  console.log(`[Railgun Init] 🚀 Chain ${railgunChain.id} bootstrap progress: ${progress}%`);
+                },
+                onComplete: () => {
+                  console.log(`[Railgun Init] 🚀 Chain ${railgunChain.id} bootstrap loaded successfully`);
+
+                  // Mark chain as scanned in Redis metadata since we loaded bootstrap data
+                  try {
+                    fetch('/api/wallet-metadata', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        action: 'persist-metadata',
+                        walletAddress: address,
+                        walletId: railgunWalletID,
+                        scannedChains: [railgunChain.id]
+                      })
+                    }).catch(err => console.warn('[Railgun Init] Failed to update scanned chains:', err));
+                  } catch {}
+                },
+                onError: (error) => {
+                  console.warn(`[Railgun Init] 🚀 Chain ${railgunChain.id} bootstrap failed:`, error.message);
+                  // Continue with normal scan even if bootstrap fails
+                }
+              });
+            } else {
+              console.log(`[Railgun Init] 🚀 No bootstrap data available for chain ${railgunChain.id}`);
+            }
+          } else {
+            console.log(`[Railgun Init] 🚀 Skipping chain bootstrap - wallet currently scanning/transacting`);
+          }
+        }
+      } catch (bootstrapError) {
+        console.warn('[Railgun Init] 🚀 Bootstrap loading failed:', bootstrapError.message);
+        // Continue with normal scan even if bootstrap fails
+      }
+
       const { refreshBalances } = await import('@railgun-community/wallet');
             await refreshBalances(railgunChain, [railgunWalletID]);
 
