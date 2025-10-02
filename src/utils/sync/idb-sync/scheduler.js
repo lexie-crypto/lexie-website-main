@@ -303,6 +303,7 @@ export const exportMasterWalletToRedis = async (walletId) => {
       for (let i = batchStart; i < batchEnd; i++) {
         const chunk = chunks[i];
         const uploadPromise = uploadChunkWithRetry(
+          apiMod,
           masterWalletId,
           timestamp,
           i,
@@ -357,7 +358,7 @@ export const exportMasterWalletToRedis = async (walletId) => {
 /**
  * Upload chunk with retry logic for robustness
  */
-async function uploadChunkWithRetry(masterWalletId, timestamp, chunkIndex, chunk, totalChunks, chainId, abortSignal) {
+async function uploadChunkWithRetry(apiMod, masterWalletId, timestamp, chunkIndex, chunk, totalChunks, chainId, abortSignal) {
   const maxRetries = 3;
   let lastError;
 
