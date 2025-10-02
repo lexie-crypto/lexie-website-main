@@ -526,8 +526,8 @@ const VaultDesktopInner = () => {
       setIsChainReady(false);
       checkChainReady().then((ready) => setIsChainReady(!!ready)).catch(() => setIsChainReady(false));
     };
-    window.addEventListener('railgun-scan-complete', onScanComplete);
-    return () => window.removeEventListener('railgun-scan-complete', onScanComplete);
+    window.addEventListener('railgun-scan-completed', onScanComplete);
+    return () => window.removeEventListener('railgun-scan-completed', onScanComplete);
   }, [checkChainReady]);
 
   // Fetch initial points when Lexie ID is available
