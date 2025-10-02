@@ -173,18 +173,12 @@ export const waitForMerkleScansComplete = (walletId, timeoutMs = 30000) => {
         progress: `${Math.round(scanData.progress * 100)}%`,
         status: scanData.scanStatus
       });
-
+      
       // Check if both scans are complete
       if (areMerkleScansComplete(walletId)) {
         console.log('[SDK Callbacks] 🎉 All Merkle scans completed!');
         window.removeEventListener('railgun-utxo-scan', handleUTXOScan);
         window.removeEventListener('railgun-txid-scan', handleTXIDScan);
-
-        // Dispatch scan completion event to unlock modal
-        window.dispatchEvent(new CustomEvent('railgun-scan-completed', {
-          detail: { walletId, type: 'initial' }
-        }));
-
         resolve(true);
       }
     };
@@ -202,18 +196,12 @@ export const waitForMerkleScansComplete = (walletId, timeoutMs = 30000) => {
         progress: `${Math.round(scanData.progress * 100)}%`,
         status: scanData.scanStatus
       });
-
+      
       // Check if both scans are complete
       if (areMerkleScansComplete(walletId)) {
         console.log('[SDK Callbacks] 🎉 All Merkle scans completed!');
         window.removeEventListener('railgun-utxo-scan', handleUTXOScan);
         window.removeEventListener('railgun-txid-scan', handleTXIDScan);
-
-        // Dispatch scan completion event to unlock modal
-        window.dispatchEvent(new CustomEvent('railgun-scan-completed', {
-          detail: { walletId, type: 'initial' }
-        }));
-
         resolve(true);
       }
     };
