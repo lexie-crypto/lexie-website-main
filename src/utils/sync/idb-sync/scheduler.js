@@ -301,15 +301,25 @@ export const exportMasterWalletToRedis = async (walletId) => {
       const batchPromises = [];
 
       for (let i = batchStart; i < batchEnd; i++) {
+        const chunk = chunks[i];
         const uploadPromise = apiMod.uploadSnapshotChunk(
           masterWalletId,
           timestamp,
           i,
-          chunks[i],
+          chunk.data, // Extract the compressed data (Uint8Array)
           chunks.length,
-          chainId
+          chainId,
+          {
+            compressed: chunk.compressed,
+            format: chunk.format,
+            originalSize: chunk.originalSize,
+            compressedSize: chunk.compressedSize
+          }
         ).then(() => {
-          console.log(`[MasterExport] Chain ${chainId} - uploaded chunk ${i + 1}/${chunks.length}`);
+          const sizeInfo = chunk.compressed
+            ? `${chunk.compressedSize} bytes (${chunk.originalSize} original)`
+            : `${chunk.originalSize} bytes`;
+          console.log(`[MasterExport] Chain ${chainId} - uploaded chunk ${i + 1}/${chunks.length} (${sizeInfo})`);
         });
         batchPromises.push(uploadPromise);
       }

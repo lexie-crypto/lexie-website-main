@@ -208,20 +208,30 @@ export const uploadSnapshotManifest = async (walletId, timestamp, manifest, chai
 /**
  * Upload snapshot chunk to Redis (reuse existing sync endpoints with snapshot flag)
  */
-export const uploadSnapshotChunk = async (walletId, timestamp, chunkIndex, chunkData, totalChunks, chainId = null) => {
+export const uploadSnapshotChunk = async (walletId, timestamp, chunkIndex, chunkData, totalChunks, chainId = null, compressionInfo = null) => {
   const action = 'sync-chunk';
+
+  // Convert Uint8Array to base64 for JSON serialization
+  let chunkDataB64;
+  if (chunkData instanceof Uint8Array) {
+    chunkDataB64 = encodeBase64(chunkData);
+  } else {
+    chunkDataB64 = chunkData; // Already a string
+  }
+
   const payload = {
     walletId,
     timestamp,
     chunkIndex,
-    chunkData,
+    chunkData: chunkDataB64, // Send as base64 string
     // Add fields needed for queuing
     dbName: 'railgun-snapshot', // Placeholder for queuing
     totalChunks,
-    data: chunkData,
-    hash: await calculateHash(chunkData),
+    data: chunkDataB64,
+    hash: await calculateHash(typeof chunkData === 'string' ? chunkData : new TextDecoder().decode(chunkData)),
     chainId, // New: specify chain for chain-specific storage
-    isSnapshot: true // Flag to indicate this is a full snapshot chunk
+    isSnapshot: true, // Flag to indicate this is a full snapshot chunk
+    compression: compressionInfo // Compression metadata
   };
 
   try {
@@ -337,5 +347,68 @@ export const getSyncChunk = async (walletId, timestamp, chunkIndex, chainId) => 
     throw new Error('chainId is required for chunk retrieval');
   }
   const action = `idb-sync-chunk&ts=${timestamp}&n=${chunkIndex}&chainId=${chainId}`;
-  return await makeSyncRequest(encodeURIComponent(action));
+  return await makeSyncRequestWithHeaders(encodeURIComponent(action));
+};
+
+/**
+ * Make sync request and return both response data and headers
+ */
+const makeSyncRequestWithHeaders = async (action, options = {}, queryParams = {}) => {
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Request-ID': Math.random().toString(36).substring(7),
+    ...options.headers
+  };
+
+  try {
+    console.debug(`[IDB-Sync-API] Making request for action: ${action}`, {
+      method: options.method || 'GET',
+      queryParams
+    });
+
+    // Build URL with query parameters
+    let url = `/api/artifacts?action=${action}`;
+    const queryString = Object.entries(queryParams)
+      .filter(([key, value]) => value !== undefined && value !== null)
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&');
+
+    if (queryString) {
+      url += `&${queryString}`;
+    }
+
+    const response = await fetch(url, {
+      method: options.method || 'GET',
+      headers,
+      body: options.body
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => 'Unknown error');
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+
+    // For NDJSON data (chunks and snapshots), return object with data and headers
+    if (action.startsWith('idb-sync-chunk') || action.startsWith('idb-sync-snapshot')) {
+      const result = await response.text();
+      console.debug('[IDB-Sync-API] NDJSON request successful');
+
+      // Return object with both data and headers for decompression info
+      return {
+        data: result,
+        headers: {
+          get: (name) => response.headers.get(name)
+        }
+      };
+    }
+
+    // For JSON responses, parse and return
+    const result = await response.json();
+    console.debug('[IDB-Sync-API] JSON request successful');
+    return result;
+
+  } catch (error) {
+    console.error(`[IDB-Sync-API] Request failed for action ${action}:`, error);
+    throw error;
+  }
 };

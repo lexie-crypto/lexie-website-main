@@ -90,11 +90,85 @@ const calculateHash = async (data) => {
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 };
 
+/**
+ * Compress data using brotli (better compression than gzip), fallback to uncompressed
+ */
+const compressChunk = async (data) => {
+  try {
+    // Check if CompressionStream is available (modern browsers)
+    if (typeof CompressionStream !== 'undefined') {
+      // Try brotli first (better compression), fallback to gzip
+      let format = 'brotli';
+      let stream;
+
+      try {
+        stream = new CompressionStream('brotli');
+      } catch (brotliError) {
+        console.warn('[IDB-Snapshot] Brotli not supported, falling back to gzip');
+        format = 'gzip';
+        stream = new CompressionStream('gzip');
+      }
+
+      const writer = stream.writable.getWriter();
+      const reader = stream.readable.getReader();
+
+      // Convert string to Uint8Array
+      const encoder = new TextEncoder();
+      const dataBuffer = encoder.encode(data);
+
+      // Compress
+      const writePromise = writer.write(dataBuffer);
+      writer.close();
+
+      const chunks = [];
+      let done = false;
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        if (value) chunks.push(value);
+      }
+
+      const compressed = new Uint8Array(chunks.reduce((acc, chunk) => acc + chunk.length, 0));
+      let offset = 0;
+      for (const chunk of chunks) {
+        compressed.set(chunk, offset);
+        offset += chunk.length;
+      }
+
+      return {
+        data: compressed,
+        compressed: true,
+        format: format, // 'brotli' or 'gzip'
+        originalSize: dataBuffer.length,
+        compressedSize: compressed.length
+      };
+    } else {
+      // Fallback: return uncompressed data
+      const encoder = new TextEncoder();
+      return {
+        data: encoder.encode(data),
+        compressed: false,
+        originalSize: data.length,
+        compressedSize: data.length
+      };
+    }
+  } catch (error) {
+    console.warn('[IDB-Snapshot] Compression failed, using uncompressed:', error);
+    const encoder = new TextEncoder();
+    return {
+      data: encoder.encode(data),
+      compressed: false,
+      originalSize: data.length,
+      compressedSize: data.length
+    };
+  }
+};
+
 
 /**
  * Create manifest for snapshot
  */
-const createManifest = (walletId, timestamp, totalRecords, totalBytes, chunkCount, overallHash, chunkHashes = []) => {
+const createManifest = (walletId, timestamp, totalRecords, totalBytes, chunkCount, overallHash, chunkHashes = [], compressionInfo = null) => {
   return {
     walletId,
     timestamp,
@@ -103,7 +177,8 @@ const createManifest = (walletId, timestamp, totalRecords, totalBytes, chunkCoun
     chunkCount,
     overallHash,
     chunkHashes, // Individual chunk hashes for verification
-    version: '1.0',
+    compression: compressionInfo, // Compression statistics and metadata
+    version: '2.0', // Updated for compression support
     format: 'idb-snapshot'
   };
 };
@@ -169,8 +244,14 @@ export const exportFullSnapshot = async (walletId, signal) => {
 
           // Check if adding this line would exceed target chunk size
           if (currentChunk.length + lineBytes > CHUNK_TARGET_BYTES && currentChunk.length > 0) {
-            // Save current chunk and start new one
-            chunks.push(currentChunk);
+            // Compress and save current chunk, then start new one
+            const compressedChunk = await compressChunk(currentChunk);
+            chunks.push({
+              data: compressedChunk.data,
+              compressed: compressedChunk.compressed,
+              originalSize: compressedChunk.originalSize,
+              compressedSize: compressedChunk.compressedSize
+            });
             currentChunk = ndjsonLine;
           } else {
             currentChunk += ndjsonLine;
@@ -198,13 +279,21 @@ export const exportFullSnapshot = async (walletId, signal) => {
 
           // Add final chunk if it has content
           if (currentChunk.trim()) {
-            chunks.push(currentChunk);
+            const compressedChunk = await compressChunk(currentChunk);
+            chunks.push({
+              data: compressedChunk.data,
+              compressed: compressedChunk.compressed,
+              originalSize: compressedChunk.originalSize,
+              compressedSize: compressedChunk.compressedSize
+            });
           }
 
-          // Calculate hashes for each chunk
+          // Calculate hashes for each chunk (hash the compressed data)
           const chunkHashes = [];
           for (const chunk of chunks) {
-            const chunkHash = await calculateHash(chunk);
+            // Convert Uint8Array back to string for hashing (maintains compatibility)
+            const chunkString = new TextDecoder().decode(chunk.data);
+            const chunkHash = await calculateHash(chunkString);
             chunkHashes.push(chunkHash);
           }
 
@@ -212,15 +301,21 @@ export const exportFullSnapshot = async (walletId, signal) => {
           // Use Merkle tree approach: hash concatenation of individual chunk hashes
           let overallHash;
           if (chunks.length === 1) {
-            // Single chunk - hash directly
-            overallHash = await calculateHash(chunks[0]);
+            // Single chunk - hash the chunk string
+            const chunkString = new TextDecoder().decode(chunks[0].data);
+            overallHash = await calculateHash(chunkString);
           } else {
             // Multiple chunks - hash concatenation of chunk hashes (Merkle tree root)
             const concatenatedHashes = chunkHashes.join('');
             overallHash = await calculateHash(concatenatedHashes);
           }
 
-          // Create manifest with chunk hashes
+          // Calculate compression stats
+          const totalOriginalSize = chunks.reduce((sum, chunk) => sum + chunk.originalSize, 0);
+          const totalCompressedSize = chunks.reduce((sum, chunk) => sum + chunk.compressedSize, 0);
+          const compressionRatio = totalOriginalSize > 0 ? `${((totalOriginalSize - totalCompressedSize) / totalOriginalSize * 100).toFixed(1)}%` : '0%';
+
+          // Create manifest with chunk hashes and compression info
           const manifest = createManifest(
             walletId,
             timestamp,
@@ -228,13 +323,20 @@ export const exportFullSnapshot = async (walletId, signal) => {
             totalBytes,
             chunks.length,
             overallHash,
-            chunkHashes
+            chunkHashes,
+            {
+              compressed: true,
+              totalOriginalSize,
+              totalCompressedSize,
+              compressionRatio,
+              chunksCompressed: chunks.filter(c => c.compressed).length
+            }
           );
 
           // Clear resume cursor
           stateMod.clearSnapshotCursor(walletId);
 
-          console.log(`[IDB-Snapshot] Created ${chunks.length} chunks, ${totalBytes} bytes total`);
+          console.log(`[IDB-Snapshot] Created ${chunks.length} chunks, ${totalBytes} bytes NDJSON (${totalCompressedSize} bytes compressed, ${compressionRatio} ratio)`);
 
           resolve({
             manifest,

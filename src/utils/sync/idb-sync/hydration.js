@@ -6,6 +6,62 @@
 import { getLatestManifest, getSyncChunk, getChainLatestTimestamp, getChainManifest, getChainChunk } from './api.js';
 
 /**
+ * Decompress data using DecompressionStream (supports gzip and brotli)
+ */
+async function decompressData(compressedData, format = 'gzip') {
+  try {
+    // Check if DecompressionStream is available (modern browsers)
+    if (typeof DecompressionStream !== 'undefined') {
+      let stream;
+
+      // Try the specified format first, fallback to gzip
+      try {
+        stream = new DecompressionStream(format);
+      } catch (formatError) {
+        console.warn(`[IDB-Hydration] ${format} decompression not supported, trying gzip`);
+        stream = new DecompressionStream('gzip');
+      }
+
+      const writer = stream.writable.getWriter();
+      const reader = stream.readable.getReader();
+
+      // Write compressed data
+      writer.write(compressedData);
+      writer.close();
+
+      // Read decompressed data
+      const chunks = [];
+      let done = false;
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        if (value) chunks.push(value);
+      }
+
+      // Combine chunks into a single Uint8Array
+      const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+      const result = new Uint8Array(totalLength);
+      let offset = 0;
+      for (const chunk of chunks) {
+        result.set(chunk, offset);
+        offset += chunk.length;
+      }
+
+      // Convert to string
+      return new TextDecoder().decode(result);
+    } else {
+      // Fallback: assume data is already decompressed
+      console.warn('[IDB-Hydration] DecompressionStream not available, assuming uncompressed data');
+      return typeof compressedData === 'string' ? compressedData : new TextDecoder().decode(compressedData);
+    }
+  } catch (error) {
+    console.warn('[IDB-Hydration] Decompression failed:', error);
+    // Fallback to treating as uncompressed
+    return typeof compressedData === 'string' ? compressedData : new TextDecoder().decode(compressedData);
+  }
+}
+
+/**
  * Hydration state management
  */
 class HydrationManager {
@@ -535,15 +591,65 @@ class HydrationManager {
    * Fetch chain-specific chunk
    */
   async fetchChainChunk(chainId, timestamp, chunkIndex, abortSignal) {
-    console.log(`[IDB-Hydration] 🗜️ Requesting brotli compressed chunk ${chunkIndex} for chain ${chainId}`);
+    console.log(`[IDB-Hydration] 📦 Requesting chunk ${chunkIndex} for chain ${chainId}`);
     const response = await getSyncChunk('', timestamp, chunkIndex, chainId);
 
-    if (typeof response !== 'string') {
-      throw new Error('Invalid chain chunk response - expected NDJSON string');
+    // Handle new response format with data and headers
+    const responseData = response.data || response;
+    const responseHeaders = response.headers;
+
+    if (typeof responseData !== 'string') {
+      throw new Error('Invalid chain chunk response - expected string data');
     }
 
-    console.log(`[IDB-Hydration] 📦 Received decompressed chunk ${chunkIndex}: ${response.length} bytes`);
-    return response;
+    // Check if response is compressed (base64 encoded binary data)
+    let chunkData = responseData;
+
+    // Try to detect if this is compressed data (binary data will cause JSON.parse to fail)
+    try {
+      JSON.parse(responseData);
+      // If we can parse it as JSON, it's likely uncompressed NDJSON
+      console.log(`[IDB-Hydration] 📦 Received uncompressed chunk ${chunkIndex}: ${responseData.length} bytes`);
+    } catch (jsonError) {
+      // If JSON.parse fails, it's likely compressed binary data encoded as base64
+      try {
+        // Decode base64 and decompress using the format from response headers
+        const compressedBytes = Uint8Array.from(atob(responseData), c => c.charCodeAt(0));
+
+        // Check for compression format in response headers (if available)
+        let compressionFormat = 'brotli'; // Default to brotli (preferred)
+        if (responseHeaders && responseHeaders.get) {
+          const formatHeader = responseHeaders.get('X-Compression-Format');
+          if (formatHeader) {
+            compressionFormat = formatHeader;
+          }
+        }
+
+        // Decompress using the specified format with fallback
+        try {
+          chunkData = await decompressData(compressedBytes, compressionFormat);
+          console.log(`[IDB-Hydration] 📦 ${compressionFormat} decompressed chunk ${chunkIndex}: ${compressedBytes.length} → ${chunkData.length} bytes`);
+        } catch (formatError) {
+          console.warn(`[IDB-Hydration] ${compressionFormat} decompression failed, trying alternatives`);
+          // Try the other format
+          const altFormat = compressionFormat === 'brotli' ? 'gzip' : 'brotli';
+          try {
+            chunkData = await decompressData(compressedBytes, altFormat);
+            console.log(`[IDB-Hydration] 📦 ${altFormat} decompressed chunk ${chunkIndex}: ${compressedBytes.length} → ${chunkData.length} bytes`);
+          } catch (altError) {
+            console.warn(`[IDB-Hydration] All decompression attempts failed, assuming uncompressed:`, altError);
+            // Fall back to original response
+            chunkData = response;
+          }
+        }
+      } catch (decompressError) {
+        console.warn(`[IDB-Hydration] Failed to decompress chunk ${chunkIndex}, assuming uncompressed:`, decompressError);
+        // Fall back to original response
+        chunkData = response;
+      }
+    }
+
+    return chunkData;
   }
 
   /**
