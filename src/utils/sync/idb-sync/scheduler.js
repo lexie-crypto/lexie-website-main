@@ -302,7 +302,7 @@ export const exportMasterWalletToRedis = async (walletId) => {
 
       for (let i = batchStart; i < batchEnd; i++) {
         const chunk = chunks[i];
-        const uploadPromise = this.uploadChunkWithRetry(
+        const uploadPromise = uploadChunkWithRetry(
           masterWalletId,
           timestamp,
           i,
