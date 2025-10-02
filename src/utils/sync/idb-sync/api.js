@@ -206,6 +206,29 @@ export const uploadSnapshotManifest = async (walletId, timestamp, manifest, chai
 };
 
 /**
+ * Encode binary data to base64
+ */
+const encodeBase64 = (data) => {
+  if (data instanceof ArrayBuffer) {
+    const bytes = new Uint8Array(data);
+    let binary = '';
+    for (let i = 0; i < bytes.byteLength; i++) {
+      binary += String.fromCharCode(bytes[i]);
+    }
+    return btoa(binary);
+  } else if (data instanceof Uint8Array) {
+    let binary = '';
+    for (let i = 0; i < data.length; i++) {
+      binary += String.fromCharCode(data[i]);
+    }
+    return btoa(binary);
+  } else {
+    // For other types, try to convert to string first
+    return btoa(String(data));
+  }
+};
+
+/**
  * Upload snapshot chunk to Redis (reuse existing sync endpoints with snapshot flag)
  */
 export const uploadSnapshotChunk = async (walletId, timestamp, chunkIndex, chunkData, totalChunks, chainId = null, compressionInfo = null) => {
