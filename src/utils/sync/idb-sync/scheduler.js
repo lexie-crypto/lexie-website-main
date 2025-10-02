@@ -17,7 +17,7 @@ export const getChainForMasterWallet = (walletId) => {
   return Object.entries(MASTER_WALLETS).find(([chainId, masterId]) => masterId === walletId)?.[0];
 };
 
-const MASTER_EXPORT_INTERVAL = 5 * 60 * 1000; // 10 minutes
+const MASTER_EXPORT_INTERVAL = 10 * 60 * 1000; // 10 minutes
 
 // Dynamic imports to avoid circular dependencies
 let stateModule = null;
@@ -290,37 +290,27 @@ export const exportMasterWalletToRedis = async (walletId) => {
     await apiMod.uploadSnapshotManifest(masterWalletId, timestamp, chainManifest, chainId);
     console.log(`[MasterExport] Chain ${chainId} manifest uploaded`);
 
-    // Upload chunks in parallel (6 concurrent)
+    // Upload chunks in parallel (4 concurrent - safer for Vercel serverless)
     const uploadPromises = [];
-    for (let batchStart = 0; batchStart < chunks.length; batchStart += 6) {
+    for (let batchStart = 0; batchStart < chunks.length; batchStart += 4) {
       if (activeController.signal.aborted) {
         throw new Error('Master export aborted during chunk upload');
       }
 
-      const batchEnd = Math.min(batchStart + 6, chunks.length);
+      const batchEnd = Math.min(batchStart + 4, chunks.length);
       const batchPromises = [];
 
       for (let i = batchStart; i < batchEnd; i++) {
         const chunk = chunks[i];
-        const uploadPromise = apiMod.uploadSnapshotChunk(
+        const uploadPromise = uploadChunkWithRetry(
           masterWalletId,
           timestamp,
           i,
-          chunk.data, // Extract the compressed data (Uint8Array)
+          chunk,
           chunks.length,
           chainId,
-          {
-            compressed: chunk.compressed,
-            format: chunk.format,
-            originalSize: chunk.originalSize,
-            compressedSize: chunk.compressedSize
-          }
-        ).then(() => {
-          const sizeInfo = chunk.compressed
-            ? `${chunk.compressedSize} bytes (${chunk.originalSize} original)`
-            : `${chunk.originalSize} bytes`;
-          console.log(`[MasterExport] Chain ${chainId} - uploaded chunk ${i + 1}/${chunks.length} (${sizeInfo})`);
-        });
+          activeController.signal
+        );
         batchPromises.push(uploadPromise);
       }
 
@@ -363,6 +353,63 @@ export const exportMasterWalletToRedis = async (walletId) => {
     activeController = null;
   }
 };
+
+/**
+ * Upload chunk with retry logic for robustness
+ */
+async function uploadChunkWithRetry(masterWalletId, timestamp, chunkIndex, chunk, totalChunks, chainId, abortSignal) {
+  const maxRetries = 3;
+  let lastError;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      if (abortSignal?.aborted) {
+        throw new Error('Upload aborted');
+      }
+
+      await apiMod.uploadSnapshotChunk(
+        masterWalletId,
+        timestamp,
+        chunkIndex,
+        chunk.data, // Extract the compressed data (Uint8Array)
+        totalChunks,
+        chainId,
+        {
+          compressed: chunk.compressed,
+          format: chunk.format,
+          originalSize: chunk.originalSize,
+          compressedSize: chunk.compressedSize
+        }
+      );
+
+      const sizeInfo = chunk.compressed
+        ? `${chunk.compressedSize} bytes (${chunk.originalSize} original)`
+        : `${chunk.originalSize} bytes`;
+      console.log(`[MasterExport] Chain ${chainId} - uploaded chunk ${chunkIndex + 1}/${totalChunks} (${sizeInfo})`);
+
+      return; // Success
+    } catch (error) {
+      lastError = error;
+      console.warn(`[MasterExport] Chunk ${chunkIndex + 1} upload attempt ${attempt + 1} failed:`, error.message);
+
+      // Don't retry on abort or certain errors
+      if (error.message.includes('aborted') || error.message.includes('413') || error.message.includes('400')) {
+        throw error;
+      }
+
+      // Wait before retry (exponential backoff)
+      if (attempt < maxRetries - 1) {
+        const delay = Math.pow(2, attempt) * 1000; // 1s, 2s, 4s
+        console.log(`[MasterExport] Retrying chunk ${chunkIndex + 1} in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  // All retries failed
+  console.error(`[MasterExport] Chunk ${chunkIndex + 1} failed after ${maxRetries} attempts`);
+  throw lastError;
+}
 
 /**
  * Start master wallet periodic exports
