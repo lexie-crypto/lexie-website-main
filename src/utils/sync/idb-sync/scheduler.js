@@ -17,7 +17,7 @@ export const getChainForMasterWallet = (walletId) => {
   return Object.entries(MASTER_WALLETS).find(([chainId, masterId]) => masterId === walletId)?.[0];
 };
 
-const MASTER_EXPORT_INTERVAL = 5 * 60 * 1000; // 10 minutes
+const MASTER_EXPORT_INTERVAL = 15 * 60 * 1000; // 10 minutes
 
 // Dynamic imports to avoid circular dependencies
 let stateModule = null;
