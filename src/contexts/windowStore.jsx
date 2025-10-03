@@ -344,34 +344,89 @@ const clearPersistedState = () => {
 };
 
 const loadPersistedState = () => {
-  // For page refresh reset, always return empty state
-  // This ensures every page load starts fresh
-  return { windows: {}, dock: [] };
+  if (typeof window === 'undefined') return { windows: {}, dock: [] };
+
+  try {
+    const windows = {};
+    const dock = JSON.parse(localStorage.getItem(getDockStorageKey()) || '[]');
+
+    // Load all window states from localStorage
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('lexie:windows:')) {
+        const windowId = key.replace('lexie:windows:', '');
+        try {
+          const windowState = JSON.parse(localStorage.getItem(key));
+          windows[windowId] = windowState;
+        } catch (e) {
+          console.warn(`Failed to load window state for ${windowId}:`, e);
+        }
+      }
+    });
+
+    return { windows, dock };
+  } catch (e) {
+    console.warn('Failed to load persisted window state:', e);
+    return { windows: {}, dock: [] };
+  }
 };
 
 const saveWindowState = (windowId, windowState) => {
-  // For page refresh reset behavior, don't persist state
-  // This ensures every page load starts fresh
-  return;
+  if (typeof window === 'undefined') return;
+
+  try {
+    const persistableState = {
+      title: windowState.title,
+      icon: windowState.icon,
+      appType: windowState.appType,
+      isMinimized: windowState.isMinimized,
+      isMaximized: windowState.isMaximized,
+      isClosed: windowState.isClosed,
+      position: windowState.position,
+      size: windowState.size,
+      lastRestoredPosition: windowState.lastRestoredPosition,
+      lastRestoredSize: windowState.lastRestoredSize,
+      zIndex: windowState.zIndex
+    };
+
+    localStorage.setItem(getStorageKey(windowId), JSON.stringify(persistableState));
+  } catch (e) {
+    console.warn(`Failed to save window state for ${windowId}:`, e);
+  }
 };
 
 const saveDockState = (dockItems) => {
-  // For page refresh reset behavior, don't persist state
-  // This ensures every page load starts fresh
-  return;
+  if (typeof window === 'undefined') return;
+
+  try {
+    localStorage.setItem(getDockStorageKey(), JSON.stringify(dockItems));
+  } catch (e) {
+    console.warn('Failed to save dock state:', e);
+  }
 };
 
 // Provider component
 export const WindowProvider = ({ children }) => {
   const [state, dispatch] = useReducer(windowReducer, initialState);
 
-  // Initialize with fresh state on mount (no persistence for page refresh reset)
+  // Load persisted state on mount
   useEffect(() => {
+    const { windows, dock } = loadPersistedState();
     dispatch({
       type: WINDOW_ACTIONS.LOAD_PERSISTED_STATE,
-      payload: { persistedWindows: {}, persistedDock: [] }
+      payload: { persistedWindows: windows, persistedDock: dock }
     });
   }, []);
+
+  // Persist window state changes
+  useEffect(() => {
+    if (!state.isInitialized) return;
+
+    Object.entries(state.windows).forEach(([id, window]) => {
+      saveWindowState(id, window);
+    });
+
+    saveDockState(state.dockItems);
+  }, [state.windows, state.dockItems, state.isInitialized]);
 
   // Actions
   const actions = {
