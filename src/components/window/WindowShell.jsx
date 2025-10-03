@@ -65,6 +65,7 @@ const WindowShell = ({
     closeWindow,
     bringToFront,
     updatePosition,
+    updateSize,
     toggleMaximize,
     updateFocus
   } = useWindowStore();
@@ -117,7 +118,7 @@ const WindowShell = ({
     onResizeEnd: (newSize, newPosition) => {
       // Update both size and position after resize
       updatePosition(id, newPosition);
-      // Note: Size updates are handled through the window's current size
+      updateSize(id, newSize);
     },
     onSizeChange: (newSize, newPosition) => {
       // Update position during resize
