@@ -238,12 +238,12 @@ const VaultDesktopInner = () => {
           console.log('[VaultDesktop] Chain not scanned on connect - showing modal');
           setShowSignRequestPopup(true);
           setIsInitInProgress(true);
-          setBootstrapProgress({ percent: 0, active: true }); // Show progress bar immediately for initial connect
+          setBootstrapProgress({ percent: 0, active: false }); // Reset bootstrap progress
           setScanComplete(false);
           const networkName = getNetworkName(chainId);
-          setInitProgress({
-            percent: 0,
-            message: `Setting up your LexieVault on ${networkName} Network...`
+          setInitProgress({ 
+            percent: 0, 
+            message: `Setting up your LexieVault on ${networkName} Network...` 
           });
         } else {
           console.log('[VaultDesktop] Chain already scanned on connect - no modal needed');
@@ -663,7 +663,7 @@ const VaultDesktopInner = () => {
       setScanComplete(false);
       setIsChainReady(false);
       setIsInitInProgress(true);
-      setBootstrapProgress({ percent: 0, active: true }); // Show progress bar immediately for init start
+      setBootstrapProgress({ percent: 0, active: false }); // Reset bootstrap progress
       setInitFailedMessage('');
       const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
       setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
@@ -724,33 +724,20 @@ const VaultDesktopInner = () => {
     window.addEventListener('railgun-init-completed', onInitCompleted);
     window.addEventListener('railgun-init-failed', onInitFailed);
 
-    // Force unlock modal when initialization is complete (fallback)
+    // Force unlock modal when initialization is complete
     const onVaultInitComplete = () => {
-      console.log('[VaultDesktop] Force unlocking initialization modal (fallback)');
-      // Only force unlock if modal is still somehow locked after all other events
-      if (showSignRequestPopup) {
-        setIsInitInProgress(false);
-        setInitProgress({ percent: 100, message: 'Initialization complete' });
-        setBootstrapProgress({ percent: 0, active: false }); // Reset bootstrap progress
-      }
+      console.log('[VaultDesktop] Force unlocking initialization modal');
+      setIsInitInProgress(false);
+      setInitProgress({ percent: 100, message: 'Initialization complete' });
+      setBootstrapProgress({ percent: 0, active: false }); // Reset bootstrap progress
     };
     window.addEventListener('vault-initialization-complete', onVaultInitComplete);
 
     // Handle bootstrap progress updates
     const onBootstrapProgress = (e) => {
-      const { chainId: eventChainId, progress } = e.detail;
-      if (eventChainId === chainId) { // Only update for current chain
-        const percent = Math.round(progress * 100) / 100;
-        setBootstrapProgress({ percent, active: true });
-
-        // When bootstrap reaches 100%, change message to "Finalizing..."
-        if (percent >= 100) {
-          const networkName = network?.name || `Chain ${eventChainId}`;
-          setInitProgress(prev => ({
-            ...prev,
-            message: `Creating your LexieVault on ${networkName} Network...`
-          }));
-        }
+      const { chainId, progress } = e.detail;
+      if (chainId === chainId) { // Only update for current chain
+        setBootstrapProgress({ percent: Math.round(progress * 100) / 100, active: true });
       }
     };
     window.addEventListener('chain-bootstrap-progress', onBootstrapProgress);
@@ -773,7 +760,6 @@ const VaultDesktopInner = () => {
     if (showSignRequestPopup && isInitInProgress && scanComplete && isChainReady) {
       setInitProgress({ percent: 100, message: 'Initialization complete' });
       setIsInitInProgress(false);
-      setBootstrapProgress({ percent: 0, active: false }); // Reset bootstrap progress when modal unlocks
     }
   }, [scanComplete, isChainReady, isInitInProgress, showSignRequestPopup]);
 
@@ -1013,7 +999,7 @@ const VaultDesktopInner = () => {
         console.log('[VaultDesktop] Target chain not scanned - showing modal');
         setShowSignRequestPopup(true);
         setIsInitInProgress(true);
-        setBootstrapProgress({ percent: 0, active: true }); // Show progress bar immediately for chain switch
+        setBootstrapProgress({ percent: 0, active: false }); // Reset bootstrap progress
         const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
         setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
       } else {
