@@ -419,6 +419,11 @@ const WalletContextProvider = ({ children }) => {
                 address, // Pass EOA address for Redis scannedChains check
                 onProgress: (progress) => {
                   console.log(`[Railgun Init] 🚀 Chain ${railgunChain.id} bootstrap progress: ${progress}%`);
+                  try {
+                    window.dispatchEvent(new CustomEvent('chain-bootstrap-progress', {
+                      detail: { walletId: railgunWalletID, chainId: railgunChain.id, progress }
+                    }));
+                  } catch {}
                 },
                 onComplete: async () => {
                   console.log(`[Railgun Init] 🚀 Chain ${railgunChain.id} bootstrap loaded successfully`);
@@ -2198,6 +2203,11 @@ const WalletContextProvider = ({ children }) => {
                     address, // Pass EOA address for Redis scannedChains check
                     onProgress: (progress) => {
                       console.log(`🚀 Auto-bootstrap progress: ${progress}%`);
+                      try {
+                        window.dispatchEvent(new CustomEvent('chain-bootstrap-progress', {
+                          detail: { walletId: railgunWalletID, chainId, progress }
+                        }));
+                      } catch {}
                     },
                     onComplete: async () => {
                       console.log('🚀 Auto-bootstrap completed');
