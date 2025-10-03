@@ -288,7 +288,7 @@ const WindowShell = ({
           height: isMaximized ? 'calc(100vh - 52px)' : `calc(${currentSize.height}px - 52px)`
         }}
       >
-        <div className="px-8 pt-4 pb-6 h-full overflow-auto">
+        <div className="px-8 pt-4 pb-6 h-full overflow-auto scrollbar-terminal">
           {children}
         </div>
 
