@@ -15,7 +15,7 @@ const TransactionHistory = () => {
   // Debug wallet context values
   const { chainId, railgunWalletId, isRailgunInitialized, canUseRailgun } = useWallet();
   
-  React.useEffect(() => {
+  useEffect(() => {
     console.log('[TransactionHistory] Wallet context debug:', {
       chainId,
       hasRailgunWalletId: !!railgunWalletId,

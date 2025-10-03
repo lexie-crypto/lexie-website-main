@@ -280,7 +280,7 @@ const VaultDesktopInner = () => {
   }, [isConnected, address, railgunWalletId, chainId, checkRedisScannedChains, showSignRequestPopup]);
 
   // Track when initial connection hydration is complete
-  const initialConnectDoneRef = React.useRef(false);
+  const initialConnectDoneRef = useRef(false);
 
   // Mark initial connect as done once wallet metadata is ready or init completes
   useEffect(() => {
@@ -1881,10 +1881,10 @@ const VaultDesktopInner = () => {
 };
 
 const VaultDesktop = () => {
-  const [isMobile, setIsMobile] = React.useState(false);
-  const [isReady, setIsReady] = React.useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [isReady, setIsReady] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia === 'undefined') {
       setIsReady(true);
       return;
