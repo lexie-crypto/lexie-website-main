@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import TerminalWindow from '../ui/TerminalWindow.jsx';
 import { useDraggable } from '../../hooks/useDraggable.js';
 import { useSafeAreas } from '../../hooks/useSafeAreas.js';
+import { useResize, RESIZE_DIRECTIONS } from '../../hooks/useResize.js';
 import { useWindowStore } from '../../contexts/windowStore.jsx';
 
 const TrafficLight = ({ type, onClick }) => {
@@ -106,6 +107,28 @@ const WindowShell = ({
     }
   });
 
+  // Resize hook
+  const { size: resizeSize, position: resizePosition, isResizing: isWindowResizing, resizeDirection, resizeHandlers, setSize, setPosition: setResizePosition } = useResize({
+    initialSize: windowState?.size || stableInitialSize,
+    initialPosition: windowState?.position || stableInitialPosition,
+    onResizeStart: (direction) => {
+      bringToFront(id);
+    },
+    onResizeEnd: (newSize, newPosition) => {
+      // Update both size and position after resize
+      updatePosition(id, newPosition);
+      // Note: Size updates are handled through the window's current size
+    },
+    onSizeChange: (newSize, newPosition) => {
+      // Update position during resize
+      updatePosition(id, newPosition);
+      // Size is managed through the current window dimensions
+    }
+  });
+
+  // Use resize size/position when resizing, otherwise use drag values
+  const currentPosition = isWindowResizing ? resizePosition : position;
+
   // Register window on mount (only once)
   useEffect(() => {
     // Guard against duplicate registration
@@ -181,28 +204,29 @@ const WindowShell = ({
   };
 
   // Don't render if window is closed or minimized
-  if (windowState?.isClosed || windowState?.isMinimized) {
-    return null;
-  }
+          if (windowState?.isClosed || windowState?.isMinimized) {
+            return null;
+          }
 
-  const currentSize = getCurrentSize();
-  const isMaximized = windowState?.isMaximized || false;
-  const zIndex = windowState?.zIndex || 1000;
-  const isFocused = windowState?.isFocused || false;
+          const currentSize = isWindowResizing ? resizeSize : getCurrentSize();
+          const isMaximized = windowState?.isMaximized || false;
+          const zIndex = windowState?.zIndex || 1000;
+          const isFocused = windowState?.isFocused || false;
 
   return (
     <div
       ref={windowRef}
       className={`
         fixed transition-shadow duration-200
-        ${isDragging ? '' : 'transition-all duration-300 ease-out'}
+        ${isDragging || isWindowResizing ? '' : 'transition-all duration-300 ease-out'}
         ${isFocused ? 'shadow-2xl shadow-purple-500/20' : 'shadow-lg'}
         ${isDragging ? 'shadow-3xl shadow-blue-500/30' : ''}
+        ${isWindowResizing ? 'ring-2 ring-blue-400/50' : ''}
         ${className}
       `}
       style={{
-        left: isMaximized ? leftSafe : position.x,
-        top: isMaximized ? topSafe : position.y,
+        left: isMaximized ? leftSafe : currentPosition.x,
+        top: isMaximized ? topSafe : currentPosition.y,
         width: isMaximized ? `calc(100vw - ${leftSafe + rightSafe}px)` : currentSize.width,
         height: isMaximized ? `calc(100vh - ${topSafe + bottomSafe}px)` : currentSize.height,
         zIndex,
@@ -217,10 +241,10 @@ const WindowShell = ({
       {/* Custom Header with Traffic Lights */}
       <div
         className={`
-          flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800
-          ${isMaximized ? 'cursor-default' : isDragging ? 'cursor-grabbing' : 'cursor-grab'}
-          select-none
-        `}
+                  flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800
+                  ${isMaximized ? 'cursor-default' : isDragging ? 'cursor-grabbing' : isWindowResizing ? 'cursor-wait' : 'cursor-grab'}
+                  select-none
+                `}
         {...(isMaximized ? {} : dragHandlers)}
         role="banner"
         aria-grabbed={isDragging}
@@ -284,6 +308,47 @@ const WindowShell = ({
             {footerRight}
           </div>
         </div>
+      )}
+
+      {/* Resize handles - only show when not maximized */}
+      {!isMaximized && (
+        <>
+          {/* Edge handles */}
+          <div
+            className="absolute top-0 left-0 right-0 h-1 cursor-ns-resize"
+            {...resizeHandlers[RESIZE_DIRECTIONS.N]}
+          />
+          <div
+            className="absolute bottom-0 left-0 right-0 h-1 cursor-ns-resize"
+            {...resizeHandlers[RESIZE_DIRECTIONS.S]}
+          />
+          <div
+            className="absolute top-0 bottom-0 left-0 w-1 cursor-ew-resize"
+            {...resizeHandlers[RESIZE_DIRECTIONS.W]}
+          />
+          <div
+            className="absolute top-0 bottom-0 right-0 w-1 cursor-ew-resize"
+            {...resizeHandlers[RESIZE_DIRECTIONS.E]}
+          />
+
+          {/* Corner handles */}
+          <div
+            className="absolute top-0 left-0 w-3 h-3 cursor-nwse-resize"
+            {...resizeHandlers[RESIZE_DIRECTIONS.NW]}
+          />
+          <div
+            className="absolute top-0 right-0 w-3 h-3 cursor-nesw-resize"
+            {...resizeHandlers[RESIZE_DIRECTIONS.NE]}
+          />
+          <div
+            className="absolute bottom-0 left-0 w-3 h-3 cursor-nesw-resize"
+            {...resizeHandlers[RESIZE_DIRECTIONS.SW]}
+          />
+          <div
+            className="absolute bottom-0 right-0 w-3 h-3 cursor-nwse-resize"
+            {...resizeHandlers[RESIZE_DIRECTIONS.SE]}
+          />
+        </>
       )}
     </div>
   );
