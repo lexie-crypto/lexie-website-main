@@ -131,12 +131,6 @@ const WindowShell = ({
   const currentPosition = isWindowResizing ? resizePosition : position;
   const currentSize = isWindowResizing ? resizeSize : (windowState?.size || getCurrentSize());
 
-  // Sync resize hook with window state changes (e.g., after restore)
-  useEffect(() => {
-    if (windowState?.size && !isWindowResizing) {
-      setSize(windowState.size);
-    }
-  }, [windowState?.size, setSize, isWindowResizing]);
 
   // Register window on mount (only once)
   useEffect(() => {
