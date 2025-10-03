@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import TerminalWindow from '../ui/TerminalWindow.jsx';
 import { useDraggable } from '../../hooks/useDraggable.js';
 import { useSafeAreas } from '../../hooks/useSafeAreas.js';
