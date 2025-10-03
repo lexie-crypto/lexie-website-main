@@ -4,7 +4,7 @@ import { useDraggable } from '../../hooks/useDraggable.js';
 import { useSafeAreas } from '../../hooks/useSafeAreas.js';
 import { useWindowStore } from '../../contexts/windowStore.jsx';
 
-const TrafficLight = ({ type, onClick, disabled = false, isDragging = false }) => {
+const TrafficLight = ({ type, onClick }) => {
   const colors = {
     close: 'bg-red-500 hover:bg-red-400',
     minimize: 'bg-yellow-500 hover:bg-yellow-400',
@@ -13,18 +13,23 @@ const TrafficLight = ({ type, onClick, disabled = false, isDragging = false }) =
 
   const handleClick = (e) => {
     e.stopPropagation();
-    if (!disabled && onClick) onClick();
+    if (onClick) onClick();
+  };
+
+  const handlePointerDown = (e) => {
+    e.stopPropagation();
+    e.preventDefault();
   };
 
   return (
     <button
       type="button"
       onClick={handleClick}
-      disabled={disabled || isDragging}
+      onPointerDown={handlePointerDown}
       className={`
         w-3 h-3 rounded-full transition-colors duration-150
         ${colors[type]}
-        ${disabled || isDragging ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer hover:scale-110'}
+        cursor-pointer hover:scale-110
         focus:outline-none focus:ring-2 focus:ring-white focus:ring-opacity-50
       `}
       aria-label={`${type} window`}
@@ -221,21 +226,18 @@ const WindowShell = ({
         aria-grabbed={isDragging}
       >
         {/* Traffic Lights */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" data-nodrag>
           <TrafficLight
             type="close"
             onClick={handleClose}
-            isDragging={isDragging}
           />
           <TrafficLight
             type="minimize"
             onClick={handleMinimize}
-            isDragging={isDragging}
           />
           <TrafficLight
             type="maximize"
             onClick={handleMaximize}
-            isDragging={isDragging}
           />
           <span
             id={`window-title-${id}`}

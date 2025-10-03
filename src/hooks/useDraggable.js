@@ -84,6 +84,9 @@ export const useDraggable = ({
   const handlePointerDown = useCallback((e) => {
     if (disabled) return;
 
+    // Check if the target is within a data-nodrag element
+    if (e.target.closest('[data-nodrag]')) return;
+
     e.preventDefault();
     e.stopPropagation();
 
