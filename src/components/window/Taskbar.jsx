@@ -70,13 +70,13 @@ const Taskbar = () => {
       {/* Glass effect gradient overlay */}
       <div className="absolute inset-0 bg-gradient-to-t from-gray-900/20 via-transparent to-gray-800/10 pointer-events-none" />
 
-      {/* Scrollable dock container */}
-      <div className="relative h-full flex items-center">
+      {/* Centered dock container */}
+      <div className="relative h-full flex items-center justify-center">
         {/* Left scroll arrow */}
         {showLeftArrow && (
           <button
             onClick={scrollLeft}
-            className="absolute left-0 z-10 h-full px-2 bg-gradient-to-r from-black/90 to-transparent hover:from-black text-gray-400 hover:text-white transition-colors"
+            className="absolute left-2 z-10 h-full px-2 bg-gradient-to-r from-black/90 to-transparent hover:from-black text-gray-400 hover:text-white transition-colors"
             aria-label="Scroll dock left"
           >
             ‹
@@ -86,7 +86,7 @@ const Taskbar = () => {
         {/* Dock items container */}
         <div
           ref={scrollContainerRef}
-          className="flex items-center gap-1 px-4 overflow-x-auto scrollbar-hide"
+          className="flex items-center gap-1 px-4 overflow-x-auto scrollbar-hide max-w-full"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {dockItems.map((item, index) => (
@@ -106,7 +106,7 @@ const Taskbar = () => {
         {showRightArrow && (
           <button
             onClick={scrollRight}
-            className="absolute right-0 z-10 h-full px-2 bg-gradient-to-l from-black/90 to-transparent hover:from-black text-gray-400 hover:text-white transition-colors"
+            className="absolute right-2 z-10 h-full px-2 bg-gradient-to-l from-black/90 to-transparent hover:from-black text-gray-400 hover:text-white transition-colors"
             aria-label="Scroll dock right"
           >
             ›
