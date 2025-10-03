@@ -315,38 +315,38 @@ const WindowShell = ({
         <>
           {/* Edge handles */}
           <div
-            className="absolute top-0 left-0 right-0 h-3 cursor-ns-resize"
+            className="absolute top-[-3px] left-0 right-0 h-3 cursor-ns-resize"
             {...resizeHandlers[RESIZE_DIRECTIONS.N]}
           />
           <div
-            className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize"
+            className="absolute bottom-[-3px] left-0 right-0 h-3 cursor-ns-resize"
             {...resizeHandlers[RESIZE_DIRECTIONS.S]}
           />
           <div
-            className="absolute top-0 bottom-0 left-0 w-3 cursor-ew-resize"
+            className="absolute top-0 bottom-0 left-[-3px] w-3 cursor-ew-resize"
             {...resizeHandlers[RESIZE_DIRECTIONS.W]}
           />
           <div
-            className="absolute top-0 bottom-0 right-0 w-3 cursor-ew-resize"
+            className="absolute top-0 bottom-0 right-[-3px] w-3 cursor-ew-resize"
             {...resizeHandlers[RESIZE_DIRECTIONS.E]}
           />
 
           {/* Corner handles */}
           <div
-            className="absolute top-0 left-0 w-4 h-4 cursor-nwse-resize"
-            {...resizeHandlers[RESIZE_DIRECTIONS.SE]}
+            className="absolute top-[-3px] left-[-3px] w-3 h-3 cursor-nwse-resize"
+            {...resizeHandlers[RESIZE_DIRECTIONS.NW]}
           />
           <div
-            className="absolute top-0 right-0 w-4 h-4 cursor-nesw-resize"
+            className="absolute top-[-3px] right-[-3px] w-3 h-3 cursor-nesw-resize"
             {...resizeHandlers[RESIZE_DIRECTIONS.NE]}
           />
           <div
-            className="absolute bottom-0 left-0 w-4 h-4 cursor-nesw-resize"
+            className="absolute bottom-[-3px] left-[-3px] w-3 h-3 cursor-nesw-resize"
             {...resizeHandlers[RESIZE_DIRECTIONS.SW]}
           />
           <div
-            className="absolute bottom-0 right-0 w-4 h-4 cursor-nwse-resize"
-            {...resizeHandlers[RESIZE_DIRECTIONS.NW]}
+            className="absolute bottom-[-3px] right-[-3px] w-3 h-3 cursor-nwse-resize"
+            {...resizeHandlers[RESIZE_DIRECTIONS.SE]}
           />
         </>
       )}
