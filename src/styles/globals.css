@@ -63,8 +63,7 @@
   }
 
   .scrollbar-terminal::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 12px;
   }
 
   .scrollbar-terminal::-webkit-scrollbar-track {
