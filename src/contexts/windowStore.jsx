@@ -378,7 +378,7 @@ const saveDockState = (dockItems) => {
 };
 
 // Provider component
-export const WindowProvider = ({ children }) => {
+const WindowProviderInner = ({ children }) => {
   const [state, dispatch] = useReducer(windowReducer, initialState);
 
   // Load persisted state on mount
@@ -464,6 +464,9 @@ export const WindowProvider = ({ children }) => {
     </WindowContext.Provider>
   );
 };
+
+// Export provider with a stable reference to avoid re-renders
+export const WindowProvider = WindowProviderInner;
 
 // Hook to use the window store
 export const useWindowStore = () => {

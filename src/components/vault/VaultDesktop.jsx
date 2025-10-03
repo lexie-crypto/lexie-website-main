@@ -20,7 +20,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 import { useWallet } from '../../contexts/WalletContext';
-import { useWindowStore, WindowProvider } from '../../contexts/windowStore.jsx';
+import { useWindowStore } from '../../contexts/windowStore.jsx';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts.js';
 import TerminalWindow from '../ui/TerminalWindow.jsx';
 import WindowShell from '../window/WindowShell.jsx';
@@ -1920,11 +1920,7 @@ const VaultDesktop = () => {
     );
   }
 
-  return (
-    <WindowProvider>
-      <VaultDesktopInner />
-    </WindowProvider>
-  );
+  return <VaultDesktopInner />;
 };
 
 export default VaultDesktop;
