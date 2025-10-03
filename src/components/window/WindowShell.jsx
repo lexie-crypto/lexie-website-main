@@ -108,10 +108,10 @@ const WindowShell = ({
     }
   });
 
-  // Resize hook
-  const { size: resizeSize, position: resizePosition, isResizing: isWindowResizing, resizeDirection, resizeHandlers, setSize, setPosition: setResizePosition } = useResize({
-    initialSize: windowState?.size || stableInitialSize,
-    initialPosition: windowState?.position || stableInitialPosition,
+  // Resize hook - let it manage its own state completely
+  const { size: resizeSize, position: resizePosition, isResizing: isWindowResizing, resizeDirection, resizeHandlers } = useResize({
+    initialSize: stableInitialSize,
+    initialPosition: stableInitialPosition,
     onResizeStart: (direction) => {
       bringToFront(id);
     },
