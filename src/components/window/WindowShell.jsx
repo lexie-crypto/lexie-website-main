@@ -127,16 +127,9 @@ const WindowShell = ({
     }
   });
 
-  // Use resize size/position when resizing, otherwise use drag values
+  // Use resize size/position when resizing, otherwise use window state values
   const currentPosition = isWindowResizing ? resizePosition : position;
-  const currentSize = isWindowResizing ? resizeSize : (windowState?.size || getCurrentSize());
-
-  // Sync resize hook with window state size changes
-  useEffect(() => {
-    if (windowState?.size && !isWindowResizing) {
-      setSize(windowState.size);
-    }
-  }, [windowState?.size, setSize, isWindowResizing]);
+  const currentSize = isWindowResizing ? resizeSize : windowState?.size;
 
   // Register window on mount (only once)
   useEffect(() => {
