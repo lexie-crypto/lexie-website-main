@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 // Hook to measure safe areas for window positioning
 export const useSafeAreas = () => {
@@ -9,27 +9,50 @@ export const useSafeAreas = () => {
     right: 0
   });
 
+  // Use ref to store timeout ID for throttling
+  const timeoutRef = useRef(null);
+
   const measureSafeAreas = useCallback(() => {
     if (typeof window === 'undefined') return;
 
-    // Measure navbar height
-    const navbar = document.querySelector('nav, [role="navigation"]');
-    const topSafe = navbar ? navbar.offsetHeight : 0;
+    // Clear existing timeout
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
+    }
 
-    // Measure taskbar height (our custom taskbar)
-    const taskbar = document.querySelector('[role="toolbar"]');
-    const bottomSafe = taskbar ? taskbar.offsetHeight : 40; // fallback to 40px
+    // Throttle measurements to prevent excessive updates
+    timeoutRef.current = setTimeout(() => {
+      // Measure navbar height
+      const navbar = document.querySelector('nav, [role="navigation"]');
+      const topSafe = navbar ? navbar.offsetHeight : 0;
 
-    // For mobile, add safe areas for notches, etc.
-    const leftSafe = window.visualViewport?.offsetLeft || 0;
-    const rightSafe = (window.innerWidth - (window.visualViewport?.width || window.innerWidth) - leftSafe);
+      // Measure taskbar height (our custom taskbar)
+      const taskbar = document.querySelector('[role="toolbar"]');
+      const bottomSafe = taskbar ? taskbar.offsetHeight : 40; // fallback to 40px
 
-    setSafeAreas({
-      top: topSafe,
-      bottom: bottomSafe,
-      left: leftSafe,
-      right: rightSafe
-    });
+      // For mobile, add safe areas for notches, etc.
+      const leftSafe = window.visualViewport?.offsetLeft || 0;
+      const rightSafe = (window.innerWidth - (window.visualViewport?.width || window.innerWidth) - leftSafe);
+
+      // Only update if values actually changed to prevent unnecessary re-renders
+      setSafeAreas(prevSafeAreas => {
+        if (
+          prevSafeAreas.top === topSafe &&
+          prevSafeAreas.bottom === bottomSafe &&
+          prevSafeAreas.left === leftSafe &&
+          prevSafeAreas.right === rightSafe
+        ) {
+          return prevSafeAreas;
+        }
+
+        return {
+          top: topSafe,
+          bottom: bottomSafe,
+          left: leftSafe,
+          right: rightSafe
+        };
+      });
+    }, 100); // 100ms throttle
   }, []);
 
   // Measure on mount and when window resizes
@@ -37,8 +60,10 @@ export const useSafeAreas = () => {
     // Initial measurement
     measureSafeAreas();
 
-    // Use ResizeObserver for navbar/taskbar changes
-    const resizeObserver = new ResizeObserver(measureSafeAreas);
+    // Use ResizeObserver for navbar/taskbar changes (throttled)
+    const resizeObserver = new ResizeObserver(() => {
+      measureSafeAreas();
+    });
 
     // Observe navbar
     const navbar = document.querySelector('nav, [role="navigation"]');
@@ -59,6 +84,9 @@ export const useSafeAreas = () => {
     window.addEventListener('layout-change', measureSafeAreas);
 
     return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
       resizeObserver.disconnect();
       window.removeEventListener('resize', measureSafeAreas);
       window.removeEventListener('layout-change', measureSafeAreas);
