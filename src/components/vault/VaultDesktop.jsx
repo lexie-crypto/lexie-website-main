@@ -238,7 +238,6 @@ const VaultDesktopInner = () => {
           console.log('[VaultDesktop] Chain not scanned on connect - showing modal');
           setShowSignRequestPopup(true);
           setIsInitInProgress(true);
-          console.log('[VaultDesktop] setBootstrapProgress: initial vault creation -> { percent: 0, active: true }');
           setBootstrapProgress({ percent: 0, active: true }); // Show progress bar for initial vault creation
           setScanComplete(false);
           const networkName = getNetworkName(chainId);
@@ -267,13 +266,16 @@ const VaultDesktopInner = () => {
     };
   }, []);
 
-  // Reset modal state when address changes
+  // Reset modal state when address changes (but preserve progress during active initialization)
   useEffect(() => {
-    setShowSignRequestPopup(false);
-    setIsInitInProgress(false);
-    setInitFailedMessage('');
-    setInitProgress({ percent: 0, message: '' });
-  }, [address]);
+    // Don't reset modal if initialization is currently in progress
+    if (!isInitInProgress) {
+      setShowSignRequestPopup(false);
+      setIsInitInProgress(false);
+      setInitFailedMessage('');
+      setInitProgress({ percent: 0, message: '' });
+    }
+  }, [address, isInitInProgress]);
 
   // Update chain readiness
   useEffect(() => {
@@ -664,7 +666,6 @@ const VaultDesktopInner = () => {
       setScanComplete(false);
       setIsChainReady(false);
       setIsInitInProgress(true);
-      console.log('[VaultDesktop] setBootstrapProgress: init started -> { percent: 0, active: true }');
       setBootstrapProgress({ percent: 0, active: true }); // Show progress bar for initialization
       setInitFailedMessage('');
       const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
@@ -741,12 +742,8 @@ const VaultDesktopInner = () => {
         console.log('[VaultDesktop] Bootstrap progress event:', { eventChainId, progress, currentChainId: chainId, networkName: network?.name });
 
         // Always update progress bar during bootstrap (only one chain at a time)
-        const newPercent = Math.round(progress * 100) / 100;
-        console.log('[VaultDesktop] Updating progress bar for chain', eventChainId, 'progress:', progress, '->', newPercent + '%');
-        setBootstrapProgress(prev => {
-          console.log('[VaultDesktop] setBootstrapProgress: prev =', prev, 'new =', { percent: newPercent, active: true });
-          return { percent: newPercent, active: true };
-        });
+        console.log('[VaultDesktop] Updating progress bar for chain', eventChainId, 'progress:', progress);
+        setBootstrapProgress({ percent: Math.round(progress * 100) / 100, active: true });
 
         // When bootstrap reaches 100%, change message to "Creating..."
         if (Math.round(progress * 100) / 100 >= 100) {
@@ -784,7 +781,6 @@ const VaultDesktopInner = () => {
   // Reset bootstrap progress when modal closes
   useEffect(() => {
     if (!showSignRequestPopup) {
-      console.log('[VaultDesktop] setBootstrapProgress: modal closed -> { percent: 0, active: false }');
       setBootstrapProgress({ percent: 0, active: false });
     }
   }, [showSignRequestPopup]);
@@ -1025,7 +1021,6 @@ const VaultDesktopInner = () => {
         console.log('[VaultDesktop] Target chain not scanned - showing modal');
         setShowSignRequestPopup(true);
         setIsInitInProgress(true);
-        console.log('[VaultDesktop] setBootstrapProgress: chain switching -> { percent: 0, active: true }');
         setBootstrapProgress({ percent: 0, active: true }); // Show progress bar for chain switching
         const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
         setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
