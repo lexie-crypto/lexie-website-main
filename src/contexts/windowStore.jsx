@@ -23,28 +23,22 @@ const initialState = {
   isInitialized: false
 };
 
-// Window state shape - NEVER reads from localStorage, only uses provided initialData
-const createWindowState = (id, initialData = {}) => {
-  // CRITICAL: No localStorage access here - only use provided initialData for clean starts
-  const initialSize = initialData.size || { width: 800, height: 600 };
-  const initialPosition = initialData.position || { x: 100, y: 100 };
-
-  return {
-    id,
-    title: initialData.title || 'Window',
-    icon: initialData.icon || null,
-    appType: initialData.appType || 'default',
-    isMinimized: false,
-    isMaximized: false,
-    isClosed: false,
-    position: initialPosition,
-    size: initialSize,
-    lastRestoredPosition: initialPosition,
-    lastRestoredSize: initialSize,
-    zIndex: initialData.zIndex || 1000,
-    isFocused: false
-  };
-};
+// Window state shape
+const createWindowState = (id, initialData = {}) => ({
+  id,
+  title: initialData.title || 'Window',
+  icon: initialData.icon || null,
+  appType: initialData.appType || 'default',
+  isMinimized: false,
+  isMaximized: false,
+  isClosed: false,
+  position: initialData.position || { x: 100, y: 100 },
+  size: initialData.size || { width: 800, height: 600 },
+  lastRestoredPosition: initialData.position || { x: 100, y: 100 },
+  lastRestoredSize: initialData.size || { width: 800, height: 600 },
+  zIndex: initialData.zIndex || 1000,
+  isFocused: false
+});
 
 // Reducer
 function windowReducer(state, action) {
@@ -76,7 +70,27 @@ function windowReducer(state, action) {
       }
 
       // Create new window
-      const newWindow = createWindowState(id, windowData);
+      let newWindow = createWindowState(id, windowData);
+
+      // Check for saved window size in localStorage and use it
+      try {
+        const savedSizeData = localStorage.getItem(`lexie:window-size:${id}`);
+        if (savedSizeData) {
+          const parsedSize = JSON.parse(savedSizeData);
+          const savedSize = {
+            width: parsedSize.width || newWindow.size.width,
+            height: parsedSize.height || newWindow.size.height
+          };
+          newWindow = {
+            ...newWindow,
+            size: savedSize,
+            lastRestoredSize: savedSize
+          };
+        }
+      } catch (e) {
+        console.warn(`Failed to load saved window size for ${id}:`, e);
+      }
+
       return {
         ...state,
         windows: {

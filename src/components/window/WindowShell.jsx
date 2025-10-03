@@ -209,7 +209,7 @@ const WindowShell = ({
             return null;
           }
 
-          const currentSize = isWindowResizing ? resizeSize : (windowState?.size ?? stableInitialSize);
+          const currentSize = isWindowResizing ? resizeSize : getCurrentSize();
           const isMaximized = windowState?.isMaximized || false;
           const zIndex = windowState?.zIndex || 1000;
           const isFocused = windowState?.isFocused || false;
