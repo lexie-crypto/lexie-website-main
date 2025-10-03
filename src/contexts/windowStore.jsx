@@ -24,21 +24,43 @@ const initialState = {
 };
 
 // Window state shape
-const createWindowState = (id, initialData = {}) => ({
-  id,
-  title: initialData.title || 'Window',
-  icon: initialData.icon || null,
-  appType: initialData.appType || 'default',
-  isMinimized: false,
-  isMaximized: false,
-  isClosed: false,
-  position: initialData.position || { x: 100, y: 100 },
-  size: initialData.size || { width: 800, height: 600 },
-  lastRestoredPosition: initialData.position || { x: 100, y: 100 },
-  lastRestoredSize: initialData.size || { width: 800, height: 600 },
-  zIndex: initialData.zIndex || 1000,
-  isFocused: false
-});
+const createWindowState = (id, initialData = {}) => {
+  // Check for saved window size in localStorage (takes priority over initialData.size)
+  let savedSize = { width: 800, height: 600 }; // default fallback
+  try {
+    const savedSizeData = localStorage.getItem(`lexie:window-size:${id}`);
+    if (savedSizeData) {
+      const parsedSize = JSON.parse(savedSizeData);
+      savedSize = {
+        width: parsedSize.width || 800,
+        height: parsedSize.height || 600
+      };
+    } else {
+      // No saved size, use initialData.size if provided
+      savedSize = initialData.size || savedSize;
+    }
+  } catch (e) {
+    console.warn(`Failed to load saved window size for ${id}:`, e);
+    // Fall back to initialData.size or default
+    savedSize = initialData.size || savedSize;
+  }
+
+  return {
+    id,
+    title: initialData.title || 'Window',
+    icon: initialData.icon || null,
+    appType: initialData.appType || 'default',
+    isMinimized: false,
+    isMaximized: false,
+    isClosed: false,
+    position: initialData.position || { x: 100, y: 100 },
+    size: savedSize,
+    lastRestoredPosition: initialData.position || { x: 100, y: 100 },
+    lastRestoredSize: savedSize,
+    zIndex: initialData.zIndex || 1000,
+    isFocused: false
+  };
+};
 
 // Reducer
 function windowReducer(state, action) {
