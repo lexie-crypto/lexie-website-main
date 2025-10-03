@@ -40,7 +40,7 @@ export const useResize = ({
     constraints: { minX: 0, maxX: 800, minY: 0, maxY: 600 }
   });
 
-  const { getBounds } = useSafeAreas();
+  const { getBounds, left, top, right, bottom } = useSafeAreas();
 
   // RAF callback ref
   const rafRef = useRef(null);
@@ -102,18 +102,18 @@ export const useResize = ({
         break;
     }
 
-    // Apply constraints
-    const maxX = window.innerWidth - constraints.right - newWidth;
-    const maxY = window.innerHeight - constraints.bottom - newHeight;
+    // Apply constraints using safe areas directly
+    const maxX = window.innerWidth - right - newWidth;
+    const maxY = window.innerHeight - bottom - newHeight;
 
-    newX = Math.max(constraints.minX, Math.min(maxX, newX));
-    newY = Math.max(constraints.minY, Math.min(maxY, newY));
+    newX = Math.max(left, Math.min(maxX, newX));
+    newY = Math.max(top, Math.min(maxY, newY));
 
     return {
       size: { width: newWidth, height: newHeight },
       position: { x: newX, y: newY }
     };
-  }, [constraints]);
+  }, [left, top, right, bottom]);
 
   // Schedule resize update with RAF
   const scheduleResizeUpdate = useCallback(() => {
@@ -251,3 +251,6 @@ function getResizeCursor(direction) {
       return 'default';
   }
 }
+
+
+
