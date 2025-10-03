@@ -724,12 +724,15 @@ const VaultDesktopInner = () => {
     window.addEventListener('railgun-init-completed', onInitCompleted);
     window.addEventListener('railgun-init-failed', onInitFailed);
 
-    // Force unlock modal when initialization is complete
+    // Force unlock modal when initialization is complete (fallback)
     const onVaultInitComplete = () => {
-      console.log('[VaultDesktop] Force unlocking initialization modal');
-      setIsInitInProgress(false);
-      setInitProgress({ percent: 100, message: 'Initialization complete' });
-      setBootstrapProgress({ percent: 0, active: false }); // Reset bootstrap progress
+      console.log('[VaultDesktop] Force unlocking initialization modal (fallback)');
+      // Only force unlock if modal is still somehow locked after all other events
+      if (showSignRequestPopup) {
+        setIsInitInProgress(false);
+        setInitProgress({ percent: 100, message: 'Initialization complete' });
+        setBootstrapProgress({ percent: 0, active: false }); // Reset bootstrap progress
+      }
     };
     window.addEventListener('vault-initialization-complete', onVaultInitComplete);
 
@@ -770,6 +773,7 @@ const VaultDesktopInner = () => {
     if (showSignRequestPopup && isInitInProgress && scanComplete && isChainReady) {
       setInitProgress({ percent: 100, message: 'Initialization complete' });
       setIsInitInProgress(false);
+      setBootstrapProgress({ percent: 0, active: false }); // Reset bootstrap progress when modal unlocks
     }
   }, [scanComplete, isChainReady, isInitInProgress, showSignRequestPopup]);
 
