@@ -736,17 +736,19 @@ const VaultDesktopInner = () => {
       // Handle bootstrap progress updates
       const onBootstrapProgress = (e) => {
         const { chainId: eventChainId, progress } = e.detail;
-        if (eventChainId === chainId) { // Only update for current chain
-          setBootstrapProgress({ percent: Math.round(progress * 100) / 100, active: true });
+        console.log('[VaultDesktop] Bootstrap progress event:', { eventChainId, progress, currentChainId: chainId, networkName: network?.name });
 
-          // When bootstrap reaches 100%, change message to "Creating..."
-          if (Math.round(progress * 100) / 100 >= 100) {
-            const networkName = network?.name || `Chain ${eventChainId}`;
-            setInitProgress(prev => ({
-              ...prev,
-              message: `Creating your LexieVault on ${networkName} Network...`
-            }));
-          }
+        // Always update progress bar during bootstrap (only one chain at a time)
+        console.log('[VaultDesktop] Updating progress bar for chain', eventChainId, 'progress:', progress);
+        setBootstrapProgress({ percent: Math.round(progress * 100) / 100, active: true });
+
+        // When bootstrap reaches 100%, change message to "Creating..."
+        if (Math.round(progress * 100) / 100 >= 100) {
+          const networkName = network?.name || `Chain ${eventChainId}`;
+          setInitProgress(prev => ({
+            ...prev,
+            message: `Creating your LexieVault on ${networkName} Network...`
+          }));
         }
       };
     window.addEventListener('chain-bootstrap-progress', onBootstrapProgress);
