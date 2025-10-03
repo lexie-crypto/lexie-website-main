@@ -66,20 +66,28 @@ const WindowShell = ({
   // Safe areas for positioning
   const { getBounds, clampPosition, top: topSafe, bottom: bottomSafe, left: leftSafe, right: rightSafe } = useSafeAreas();
 
+  // Memoize default values to prevent re-registration
+  const defaultPosition = React.useMemo(() => ({ x: 200, y: 100 }), []);
+  const defaultSize = React.useMemo(() => ({ width: 900, height: 700 }), []);
+
+  // Use defaults if props are not provided
+  const stableInitialPosition = initialPosition ?? defaultPosition;
+  const stableInitialSize = initialSize ?? defaultSize;
+
   const windowState = getWindowState(id);
   const windowRef = useRef(null);
   const [isResizing, setIsResizing] = useState(false);
 
   // Get current window dimensions for drag constraints
   const getCurrentSize = () => {
-    if (!windowRef.current) return initialSize;
+    if (!windowRef.current) return stableInitialSize;
     const rect = windowRef.current.getBoundingClientRect();
     return { width: rect.width, height: rect.height };
   };
 
   // Draggable hook
   const { position, isDragging, dragHandlers, setPosition } = useDraggable({
-    initialPosition: windowState?.position || initialPosition,
+    initialPosition: windowState?.position || stableInitialPosition,
     windowSize: getCurrentSize(),
     onDragStart: () => {
       bringToFront(id);
@@ -93,17 +101,19 @@ const WindowShell = ({
     }
   });
 
-  // Register window on mount
+  // Register window on mount (only once)
   useEffect(() => {
-    console.log('WindowShell: Registering window', id, 'with data:', { title, appType });
-    registerWindow(id, {
-      title,
-      icon,
-      appType,
-      position: initialPosition,
-      size: initialSize
-    });
-  }, [id, title, icon, appType, initialPosition, initialSize, registerWindow]);
+    // Guard against duplicate registration
+    if (!getWindowState(id)) {
+      registerWindow(id, {
+        title,
+        icon,
+        appType,
+        position: stableInitialPosition,
+        size: stableInitialSize
+      });
+    }
+  }, [id, title, icon, appType, stableInitialPosition, stableInitialSize, registerWindow, getWindowState]);
 
   // Handle initial positioning
   useEffect(() => {
@@ -123,7 +133,7 @@ const WindowShell = ({
       setPosition(centeredPosition);
       updatePosition(id, centeredPosition);
     }
-  }, [windowState, setPosition, updatePosition, id, topSafe, bottomSafe, leftSafe, rightSafe]);
+  }, [windowState, setPosition, updatePosition, id, topSafe, bottomSafe, leftSafe, rightSafe, getCurrentSize]);
 
   // Handle viewport changes - clamp position if window becomes invalid
   useEffect(() => {
@@ -149,17 +159,14 @@ const WindowShell = ({
 
   // Traffic light handlers
   const handleClose = () => {
-    console.log('WindowShell: handleClose called for window', id);
     closeWindow(id);
   };
 
   const handleMinimize = () => {
-    console.log('WindowShell: handleMinimize called for window', id);
     minimizeWindow(id);
   };
 
   const handleMaximize = () => {
-    console.log('WindowShell: handleMaximize called for window', id);
     // Maximize should respect safe areas
     const maximizedSize = {
       width: window.innerWidth - leftSafe - rightSafe,

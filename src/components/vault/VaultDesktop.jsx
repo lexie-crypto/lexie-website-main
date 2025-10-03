@@ -3,7 +3,7 @@
  * Integrates external wallet connection and Railgun privacy functionality
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
 import {
   WalletIcon,
@@ -64,6 +64,15 @@ const VaultDesktopInner = () => {
   // Window management hooks
   const { getWindowState } = useWindowStore();
   useKeyboardShortcuts();
+
+  // Memoize footer content to prevent re-mounting
+  const footerContent = useMemo(() => <span>Process: lexie-vault</span>, []);
+
+  // Memoize status values to prevent re-mounting
+  const statusConfig = useMemo(() => ({
+    statusLabel: canUseRailgun ? 'ONLINE' : 'WAITING',
+    statusTone: canUseRailgun ? 'online' : 'waiting'
+  }), [canUseRailgun]);
 
   const { providers } = useInjectedProviders();
 
@@ -1203,12 +1212,10 @@ const VaultDesktopInner = () => {
           id="lexie-vault-terminal"
           title="lexie-ai"
           appType="vault"
-          statusLabel={canUseRailgun ? 'ONLINE' : 'WAITING'}
-          statusTone={canUseRailgun ? 'online' : 'waiting'}
-          footerLeft={<span>Process: lexie-vault</span>}
+          statusLabel={statusConfig.statusLabel}
+          statusTone={statusConfig.statusTone}
+          footerLeft={footerContent}
           variant="vault"
-          initialPosition={{ x: 200, y: 100 }}
-          initialSize={{ width: 900, height: 700 }}
         >
           <div className="font-mono text-green-300 space-y-4">
             {/* Header */}
