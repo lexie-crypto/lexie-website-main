@@ -66,7 +66,7 @@ export const useSafeAreas = () => {
   }, [measureSafeAreas]);
 
   // Get bounds for draggable windows
-  const getBounds = useCallback((margin = 20) => {
+  const getBounds = useCallback((margin = 5) => {
     if (typeof window === 'undefined') {
       return { minX: 0, maxX: 800, minY: 0, maxY: 600 };
     }
@@ -74,7 +74,7 @@ export const useSafeAreas = () => {
     return {
       minX: safeAreas.left + margin,
       maxX: window.innerWidth - safeAreas.right - margin,
-      minY: safeAreas.top + margin,
+      minY: safeAreas.top, // No extra margin - allow positioning right at navbar
       maxY: window.innerHeight - safeAreas.bottom - margin
     };
   }, [safeAreas]);

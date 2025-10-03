@@ -104,17 +104,13 @@ const WindowShell = ({
     });
   }, [id, title, icon, appType, initialPosition, initialSize, registerWindow]);
 
-  // Handle initial positioning and bounds clamping
+  // Handle initial positioning
   useEffect(() => {
     if (!windowState) return;
 
-    const currentSize = getCurrentSize();
-
-    // Clamp position to safe bounds on mount or when bounds change
-    const clampedPosition = clampPosition(windowState.position, currentSize);
-
     // For first-time open, center horizontally and place below header
     if (!windowState.lastRestoredPosition) {
+      const currentSize = getCurrentSize();
       const centerX = Math.max(leftSafe, (window.innerWidth - currentSize.width) / 2);
       const safeY = topSafe + 24; // 24px below header
 
@@ -126,12 +122,23 @@ const WindowShell = ({
       setPosition(centeredPosition);
       updatePosition(id, centeredPosition);
     }
-    // For restored windows, ensure they're within bounds
-    else if (clampedPosition.x !== windowState.position.x || clampedPosition.y !== windowState.position.y) {
+  }, [windowState, setPosition, updatePosition, id, topSafe, bottomSafe, leftSafe, rightSafe]);
+
+  // Handle viewport changes - clamp position if window becomes invalid
+  useEffect(() => {
+    if (!windowState || isDragging) return;
+
+    const currentSize = getCurrentSize();
+    const clampedPosition = clampPosition(windowState.position, currentSize);
+
+    // Only adjust if position is significantly out of bounds
+    const tolerance = 10; // Allow some tolerance for smooth UX
+    if (Math.abs(clampedPosition.x - windowState.position.x) > tolerance ||
+        Math.abs(clampedPosition.y - windowState.position.y) > tolerance) {
       setPosition(clampedPosition);
       updatePosition(id, clampedPosition);
     }
-  }, [windowState, clampPosition, setPosition, updatePosition, id, topSafe, bottomSafe, leftSafe, rightSafe]);
+  }, [windowState, isDragging, clampPosition, setPosition, updatePosition, id]);
 
   // Handle window focus
   const handleWindowClick = () => {
