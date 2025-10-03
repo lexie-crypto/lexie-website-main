@@ -729,7 +729,7 @@ const VaultDesktopInner = () => {
       console.log('[VaultDesktop] Force unlocking initialization modal');
       setIsInitInProgress(false);
       setInitProgress({ percent: 100, message: 'Initialization complete' });
-      setBootstrapProgress({ percent: 0, active: false }); // Reset bootstrap progress
+      // Don't reset bootstrap progress - let it stay at 100% until modal closes
     };
     window.addEventListener('vault-initialization-complete', onVaultInitComplete);
 
@@ -771,9 +771,16 @@ const VaultDesktopInner = () => {
     if (showSignRequestPopup && isInitInProgress && scanComplete && isChainReady) {
       setInitProgress({ percent: 100, message: 'Initialization complete' });
       setIsInitInProgress(false);
-      setBootstrapProgress({ percent: 0, active: false }); // Reset bootstrap progress when modal unlocks
+      // Keep progress bar at 100% until modal closes, will reset when modal opens again
     }
   }, [scanComplete, isChainReady, isInitInProgress, showSignRequestPopup]);
+
+  // Reset bootstrap progress when modal closes
+  useEffect(() => {
+    if (!showSignRequestPopup) {
+      setBootstrapProgress({ percent: 0, active: false });
+    }
+  }, [showSignRequestPopup]);
 
   // Check if this Railgun address already has a linked Lexie ID
   useEffect(() => {
