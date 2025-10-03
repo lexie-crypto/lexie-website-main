@@ -3,7 +3,7 @@
  * Integrates external wallet connection and Railgun privacy functionality
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'react-hot-toast';
 import {
   WalletIcon,
