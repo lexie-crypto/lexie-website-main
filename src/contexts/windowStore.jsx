@@ -89,6 +89,17 @@ function windowReducer(state, action) {
         return state;
       }
 
+      // Save window size to localStorage when minimizing
+      const windowSizeData = {
+        width: window.lastRestoredSize.width,
+        height: window.lastRestoredSize.height
+      };
+      try {
+        localStorage.setItem(`lexie:window-size:${id}`, JSON.stringify(windowSizeData));
+      } catch (e) {
+        console.warn(`Failed to save window size for ${id}:`, e);
+      }
+
       const dockItem = {
         id,
         title: window.title,
@@ -123,6 +134,21 @@ function windowReducer(state, action) {
       const window = state.windows[id];
       if (!window) return state;
 
+      // Load window size from localStorage
+      let restoredSize = window.lastRestoredSize;
+      try {
+        const savedSizeData = localStorage.getItem(`lexie:window-size:${id}`);
+        if (savedSizeData) {
+          const parsedSize = JSON.parse(savedSizeData);
+          restoredSize = {
+            width: parsedSize.width || window.lastRestoredSize.width,
+            height: parsedSize.height || window.lastRestoredSize.height
+          };
+        }
+      } catch (e) {
+        console.warn(`Failed to load window size for ${id}:`, e);
+      }
+
       // Remove from dock
       const filteredDock = state.dockItems.filter(item => item.id !== id);
 
@@ -136,7 +162,8 @@ function windowReducer(state, action) {
             isFocused: true,
             zIndex: state.nextZIndex,
             position: window.lastRestoredPosition,
-            size: window.lastRestoredSize
+            size: restoredSize,
+            lastRestoredSize: restoredSize
           }
         },
         dockItems: filteredDock,
@@ -347,25 +374,12 @@ const loadPersistedState = () => {
   if (typeof window === 'undefined') return { windows: {}, dock: [] };
 
   try {
-    const windows = {};
+    // Only load dock state (minimized windows) - windows reset on page refresh
     const dock = JSON.parse(localStorage.getItem(getDockStorageKey()) || '[]');
 
-    // Load all window states from localStorage
-    Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('lexie:windows:')) {
-        const windowId = key.replace('lexie:windows:', '');
-        try {
-          const windowState = JSON.parse(localStorage.getItem(key));
-          windows[windowId] = windowState;
-        } catch (e) {
-          console.warn(`Failed to load window state for ${windowId}:`, e);
-        }
-      }
-    });
-
-    return { windows, dock };
+    return { windows: {}, dock };
   } catch (e) {
-    console.warn('Failed to load persisted window state:', e);
+    console.warn('Failed to load persisted dock state:', e);
     return { windows: {}, dock: [] };
   }
 };
@@ -377,22 +391,33 @@ const saveWindowState = (windowId, windowState) => {
 };
 
 const saveDockState = (dockItems) => {
-  // For page refresh reset behavior, don't persist state
-  // This ensures every page load starts fresh
-  return;
+  if (typeof window === 'undefined') return;
+
+  try {
+    localStorage.setItem(getDockStorageKey(), JSON.stringify(dockItems));
+  } catch (e) {
+    console.warn('Failed to save dock state:', e);
+  }
 };
 
 // Provider component
 export const WindowProvider = ({ children }) => {
   const [state, dispatch] = useReducer(windowReducer, initialState);
 
-  // Initialize with fresh state on mount (reset on page refresh)
+  // Load persisted state on mount (dock state persists, windows reset)
   useEffect(() => {
+    const { windows, dock } = loadPersistedState();
     dispatch({
       type: WINDOW_ACTIONS.LOAD_PERSISTED_STATE,
-      payload: { persistedWindows: {}, persistedDock: [] }
+      payload: { persistedWindows: windows, persistedDock: dock }
     });
   }, []);
+
+  // Persist dock state changes (for minimize/restore across refreshes)
+  useEffect(() => {
+    if (!state.isInitialized) return;
+    saveDockState(state.dockItems);
+  }, [state.dockItems, state.isInitialized]);
 
   // Actions
   const actions = {
