@@ -328,90 +328,50 @@ const WindowContext = createContext();
 const getStorageKey = (windowId) => `lexie:windows:${windowId}`;
 const getDockStorageKey = () => 'lexie:dock';
 
-const loadPersistedState = () => {
-  if (typeof window === 'undefined') return { windows: {}, dock: [] };
+const clearPersistedState = () => {
+  if (typeof window === 'undefined') return;
 
   try {
-    const windows = {};
-    const dock = JSON.parse(localStorage.getItem(getDockStorageKey()) || '[]');
-
-    // Load all window states from localStorage
+    // Clear all window states from localStorage
     Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('lexie:windows:')) {
-        const windowId = key.replace('lexie:windows:', '');
-        try {
-          const windowState = JSON.parse(localStorage.getItem(key));
-          windows[windowId] = windowState;
-        } catch (e) {
-          console.warn(`Failed to load window state for ${windowId}:`, e);
-        }
+      if (key.startsWith('lexie:windows:') || key === 'lexie:dock') {
+        localStorage.removeItem(key);
       }
     });
-
-    return { windows, dock };
   } catch (e) {
-    console.warn('Failed to load persisted window state:', e);
-    return { windows: {}, dock: [] };
+    console.warn('Failed to clear persisted window state:', e);
   }
+};
+
+const loadPersistedState = () => {
+  // For page refresh reset, always return empty state
+  // This ensures every page load starts fresh
+  return { windows: {}, dock: [] };
 };
 
 const saveWindowState = (windowId, windowState) => {
-  if (typeof window === 'undefined') return;
-
-  try {
-    const persistableState = {
-      title: windowState.title,
-      icon: windowState.icon,
-      appType: windowState.appType,
-      isMinimized: windowState.isMinimized,
-      isMaximized: windowState.isMaximized,
-      isClosed: windowState.isClosed,
-      position: windowState.position,
-      size: windowState.size,
-      lastRestoredPosition: windowState.lastRestoredPosition,
-      lastRestoredSize: windowState.lastRestoredSize,
-      zIndex: windowState.zIndex
-    };
-
-    localStorage.setItem(getStorageKey(windowId), JSON.stringify(persistableState));
-  } catch (e) {
-    console.warn(`Failed to save window state for ${windowId}:`, e);
-  }
+  // For page refresh reset behavior, don't persist state
+  // This ensures every page load starts fresh
+  return;
 };
 
 const saveDockState = (dockItems) => {
-  if (typeof window === 'undefined') return;
-
-  try {
-    localStorage.setItem(getDockStorageKey(), JSON.stringify(dockItems));
-  } catch (e) {
-    console.warn('Failed to save dock state:', e);
-  }
+  // For page refresh reset behavior, don't persist state
+  // This ensures every page load starts fresh
+  return;
 };
 
 // Provider component
 export const WindowProvider = ({ children }) => {
   const [state, dispatch] = useReducer(windowReducer, initialState);
 
-  // Load persisted state on mount
+  // Initialize with fresh state on mount (no persistence for page refresh reset)
   useEffect(() => {
-    const { windows, dock } = loadPersistedState();
     dispatch({
       type: WINDOW_ACTIONS.LOAD_PERSISTED_STATE,
-      payload: { persistedWindows: windows, persistedDock: dock }
+      payload: { persistedWindows: {}, persistedDock: [] }
     });
   }, []);
-
-  // Persist window state changes
-  useEffect(() => {
-    if (!state.isInitialized) return;
-
-    Object.entries(state.windows).forEach(([id, window]) => {
-      saveWindowState(id, window);
-    });
-
-    saveDockState(state.dockItems);
-  }, [state.windows, state.dockItems, state.isInitialized]);
 
   // Actions
   const actions = {
