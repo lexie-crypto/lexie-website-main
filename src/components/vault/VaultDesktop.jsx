@@ -738,14 +738,14 @@ const VaultDesktopInner = () => {
 
     // Handle bootstrap progress updates
     const onBootstrapProgress = (e) => {
-      const { chainId, progress } = e.detail;
-      if (chainId === chainId) { // Only update for current chain
+      const { chainId: eventChainId, progress } = e.detail;
+      if (eventChainId === chainId) { // Only update for current chain
         const percent = Math.round(progress * 100) / 100;
         setBootstrapProgress({ percent, active: true });
 
         // When bootstrap reaches 100%, change message to "Finalizing..."
         if (percent >= 100) {
-          const networkName = network?.name || `Chain ${chainId}`;
+          const networkName = network?.name || `Chain ${eventChainId}`;
           setInitProgress(prev => ({
             ...prev,
             message: `Creating your LexieVault on ${networkName} Network...`
