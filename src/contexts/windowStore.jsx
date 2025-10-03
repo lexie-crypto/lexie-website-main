@@ -371,62 +371,28 @@ const loadPersistedState = () => {
 };
 
 const saveWindowState = (windowId, windowState) => {
-  if (typeof window === 'undefined') return;
-
-  try {
-    const persistableState = {
-      title: windowState.title,
-      icon: windowState.icon,
-      appType: windowState.appType,
-      isMinimized: windowState.isMinimized,
-      isMaximized: windowState.isMaximized,
-      isClosed: windowState.isClosed,
-      position: windowState.position,
-      size: windowState.size,
-      lastRestoredPosition: windowState.lastRestoredPosition,
-      lastRestoredSize: windowState.lastRestoredSize,
-      zIndex: windowState.zIndex
-    };
-
-    localStorage.setItem(getStorageKey(windowId), JSON.stringify(persistableState));
-  } catch (e) {
-    console.warn(`Failed to save window state for ${windowId}:`, e);
-  }
+  // For page refresh reset behavior, don't persist state
+  // This ensures every page load starts fresh
+  return;
 };
 
 const saveDockState = (dockItems) => {
-  if (typeof window === 'undefined') return;
-
-  try {
-    localStorage.setItem(getDockStorageKey(), JSON.stringify(dockItems));
-  } catch (e) {
-    console.warn('Failed to save dock state:', e);
-  }
+  // For page refresh reset behavior, don't persist state
+  // This ensures every page load starts fresh
+  return;
 };
 
 // Provider component
 export const WindowProvider = ({ children }) => {
   const [state, dispatch] = useReducer(windowReducer, initialState);
 
-  // Load persisted state on mount
+  // Initialize with fresh state on mount (reset on page refresh)
   useEffect(() => {
-    const { windows, dock } = loadPersistedState();
     dispatch({
       type: WINDOW_ACTIONS.LOAD_PERSISTED_STATE,
-      payload: { persistedWindows: windows, persistedDock: dock }
+      payload: { persistedWindows: {}, persistedDock: [] }
     });
   }, []);
-
-  // Persist window state changes
-  useEffect(() => {
-    if (!state.isInitialized) return;
-
-    Object.entries(state.windows).forEach(([id, window]) => {
-      saveWindowState(id, window);
-    });
-
-    saveDockState(state.dockItems);
-  }, [state.windows, state.dockItems, state.isInitialized]);
 
   // Actions
   const actions = {
