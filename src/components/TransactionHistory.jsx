@@ -3,7 +3,7 @@
  * Displays RAILGUN private transaction history with filtering and search
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import useTransactionHistory from '../hooks/useTransactionHistory';
 import { TransactionCategory } from '../utils/railgun/transactionHistory';
 import { useWallet } from '../contexts/WalletContext';

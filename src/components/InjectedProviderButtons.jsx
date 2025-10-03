@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'react-hot-toast';
 import useInjectedProviders from '../hooks/useInjectedProviders';
 import { useWallet } from '../contexts/WalletContext';

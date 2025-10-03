@@ -3,7 +3,7 @@
  * Generates QR codes for payment links using qrcode library
  */
 
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import QRCode from 'qrcode';
 
 const QRCodeGenerator = ({ value, size = 256, className = "" }) => {

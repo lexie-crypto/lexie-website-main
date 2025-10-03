@@ -4,7 +4,7 @@
  * Using the new clean Railgun implementation
  */
 
-import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { ethers } from 'ethers';
 import { toast } from 'react-hot-toast';
 import {
