@@ -58,7 +58,7 @@
 
   /* Cyberpunk terminal scrollbar */
   .scrollbar-terminal {
-    scrollbar-width: thin;
+    scrollbar-width: thick;
     scrollbar-color: rgba(75, 85, 99, 0.5) rgba(31, 41, 55, 0.3);
   }
 
