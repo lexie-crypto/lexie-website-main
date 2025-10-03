@@ -5,10 +5,10 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { toast } from 'react-hot-toast';
-import { 
-  WalletIcon, 
-  ArrowRightIcon, 
-  EyeIcon, 
+import {
+  WalletIcon,
+  ArrowRightIcon,
+  EyeIcon,
   EyeSlashIcon,
   ChevronDownIcon,
   ExclamationTriangleIcon,
@@ -20,7 +20,11 @@ import {
 } from '@heroicons/react/24/outline';
 
 import { useWallet } from '../../contexts/WalletContext';
+import { useWindowStore, WindowProvider } from '../../contexts/windowStore.js';
+import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts.js';
 import TerminalWindow from '../ui/TerminalWindow.jsx';
+import WindowShell from '../window/WindowShell.jsx';
+import Taskbar from '../window/Taskbar.jsx';
 import useBalances from '../../hooks/useBalances';
 import useInjectedProviders from '../../hooks/useInjectedProviders';
 import PrivacyActions from '../PrivacyActions';
@@ -56,6 +60,10 @@ const VaultDesktopInner = () => {
     checkChainReady,
     walletConnectValidating,
   } = useWallet();
+
+  // Window management hooks
+  const { getWindowState } = useWindowStore();
+  useKeyboardShortcuts();
 
   const { providers } = useInjectedProviders();
 
@@ -1190,14 +1198,17 @@ const VaultDesktopInner = () => {
         </div>
       </div>
 
-      <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <TerminalWindow
+      <div className="relative z-10 px-4 sm:px-6 lg:px-8 py-8">
+        <WindowShell
+          id="lexie-vault-terminal"
           title="lexie-ai"
+          appType="vault"
           statusLabel={canUseRailgun ? 'ONLINE' : 'WAITING'}
           statusTone={canUseRailgun ? 'online' : 'waiting'}
           footerLeft={<span>Process: lexie-vault</span>}
           variant="vault"
-          className="overflow-visible"
+          initialPosition={{ x: 200, y: 100 }}
+          initialSize={{ width: 900, height: 700 }}
         >
           <div className="font-mono text-green-300 space-y-4">
             {/* Header */}
@@ -1579,8 +1590,11 @@ const VaultDesktopInner = () => {
             )}
 
           </div>
-        </TerminalWindow>
-                
+        </WindowShell>
+
+        {/* Taskbar for minimized windows */}
+        <Taskbar />
+
         {/* Error Messages */}
         {balanceErrors && (
           <div className="mt-4 p-3 bg-red-900/20 border border-red-500/40 rounded-lg">
@@ -1906,7 +1920,11 @@ const VaultDesktop = () => {
     );
   }
 
-  return <VaultDesktopInner />;
+  return (
+    <WindowProvider>
+      <VaultDesktopInner />
+    </WindowProvider>
+  );
 };
 
 export default VaultDesktop;
