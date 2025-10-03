@@ -148,7 +148,7 @@ const WindowShell = ({
   useEffect(() => {
     if (!windowState) return;
 
-    // For first-time open, center horizontally and place below header
+    // For first-time open, center horizontally and place below headers
     if (!windowState.lastRestoredPosition) {
       const currentSize = getCurrentSize();
       const centerX = Math.max(leftSafe, (window.innerWidth - currentSize.width) / 2);
