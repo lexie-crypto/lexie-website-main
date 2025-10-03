@@ -1,18 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-
-// Utility to get viewport constraints with safe margins
-const getViewportConstraints = (margin = 20) => {
-  if (typeof window === 'undefined') {
-    return { minX: 0, maxX: 800, minY: 0, maxY: 600 };
-  }
-
-  return {
-    minX: margin,
-    maxX: window.innerWidth - margin,
-    minY: margin,
-    maxY: window.innerHeight - margin - 40 // Account for taskbar height
-  };
-};
+import { useSafeAreas } from './useSafeAreas.js';
 
 // Utility to clamp position within constraints
 const clampPosition = (position, constraints, windowSize = { width: 0, height: 0 }) => {
@@ -24,7 +11,7 @@ const clampPosition = (position, constraints, windowSize = { width: 0, height: 0
 
 export const useDraggable = ({
   initialPosition = { x: 100, y: 100 },
-  bounds, // Can be: object {top, right, bottom, left} or function () => bounds
+  constraints: customConstraints,
   windowSize = { width: 800, height: 600 },
   onDragStart,
   onDragEnd,
@@ -34,49 +21,34 @@ export const useDraggable = ({
   const [position, setPosition] = useState(initialPosition);
   const [isDragging, setIsDragging] = useState(false);
 
+  // Get safe areas for dynamic bounds
+  const { getBounds, clampPosition: safeClampPosition } = useSafeAreas();
+
   // Refs for drag state
   const dragStateRef = useRef({
     isDragging: false,
     startPosition: { x: 0, y: 0 },
     currentPosition: initialPosition,
-    dragOffset: { x: 0, y: 0 }
+    dragOffset: { x: 0, y: 0 },
+    constraints: getBounds()
   });
 
   // RAF callback ref
   const rafRef = useRef(null);
 
-  // Get current bounds (supports both static objects and functions)
-  const getCurrentBounds = useCallback(() => {
-    if (typeof bounds === 'function') {
-      return bounds();
-    }
-    if (bounds && typeof bounds === 'object') {
-      return bounds;
-    }
-    // Fallback to default viewport constraints
-    return getViewportConstraints();
-  }, [bounds]);
-
-  // Convert bounds to constraint format for backward compatibility
-  const getCurrentConstraints = useCallback(() => {
-    const currentBounds = getCurrentBounds();
-    return {
-      minX: currentBounds.left || 0,
-      maxX: currentBounds.right || window.innerWidth,
-      minY: currentBounds.top || 0,
-      maxY: currentBounds.bottom || window.innerHeight
-    };
-  }, [getCurrentBounds]);
-
-  // Re-clamp position when bounds change (but not during drag)
+  // Update constraints when safe areas change
   useEffect(() => {
-    if (!isDragging) {
-      const constraints = getCurrentConstraints();
+    const newConstraints = customConstraints || getBounds();
+    dragStateRef.current.constraints = newConstraints;
+
+    // Re-clamp current position if needed
+    if (!dragStateRef.current.isDragging) {
       setPosition(prevPos =>
-        clampPosition(prevPos, constraints, windowSize)
+        safeClampPosition(prevPos, windowSize)
       );
     }
-  }, [bounds, windowSize, isDragging, getCurrentConstraints]);
+  }, [customConstraints, getBounds, safeClampPosition, windowSize]);
+
 
   // Update position when initialPosition changes externally
   useEffect(() => {
@@ -180,7 +152,7 @@ export const useDraggable = ({
 
     const finalPosition = clampPosition(
       dragStateRef.current.currentPosition,
-      getCurrentConstraints(),
+      dragStateRef.current.constraints,
       windowSize
     );
 
@@ -220,8 +192,7 @@ export const useDraggable = ({
     isDragging,
     dragHandlers,
     setPosition: (newPosition) => {
-      const constraints = getCurrentConstraints();
-      const clampedPosition = clampPosition(newPosition, constraints, windowSize);
+      const clampedPosition = clampPosition(newPosition, dragStateRef.current.constraints, windowSize);
       setPosition(clampedPosition);
       dragStateRef.current.currentPosition = clampedPosition;
       onPositionChange?.(clampedPosition);

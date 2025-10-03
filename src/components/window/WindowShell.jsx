@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useMemo } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import TerminalWindow from '../ui/TerminalWindow.jsx';
 import { useDraggable } from '../../hooks/useDraggable.js';
 import { useSafeAreas } from '../../hooks/useSafeAreas.js';
@@ -64,7 +64,7 @@ const WindowShell = ({
   } = useWindowStore();
 
   // Safe areas for positioning
-  const { getBounds, clampPosition, topSafe, bottomSafe, leftSafe, rightSafe } = useSafeAreas();
+  const { getBounds, clampPosition, top: topSafe, bottom: bottomSafe, left: leftSafe, right: rightSafe } = useSafeAreas();
 
   const windowState = getWindowState(id);
   const windowRef = useRef(null);
@@ -77,10 +77,9 @@ const WindowShell = ({
     return { width: rect.width, height: rect.height };
   };
 
-  // Draggable hook with safe area bounds
+  // Draggable hook
   const { position, isDragging, dragHandlers, setPosition } = useDraggable({
     initialPosition: windowState?.position || initialPosition,
-    bounds: getBounds,
     windowSize: getCurrentSize(),
     onDragStart: () => {
       bringToFront(id);
@@ -109,6 +108,8 @@ const WindowShell = ({
   useEffect(() => {
     if (!windowState) return;
 
+    const currentSize = getCurrentSize();
+
     // Clamp position to safe bounds on mount or when bounds change
     const clampedPosition = clampPosition(windowState.position, currentSize);
 
@@ -130,7 +131,7 @@ const WindowShell = ({
       setPosition(clampedPosition);
       updatePosition(id, clampedPosition);
     }
-  }, [windowState, currentSize, clampPosition, setPosition, updatePosition, id, topSafe, bottomSafe, leftSafe, rightSafe]);
+  }, [windowState, clampPosition, setPosition, updatePosition, id, topSafe, bottomSafe, leftSafe, rightSafe]);
 
   // Handle window focus
   const handleWindowClick = () => {

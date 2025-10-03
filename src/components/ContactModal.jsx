@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 
 /**
  * Contact Modal Component for adding/editing contacts

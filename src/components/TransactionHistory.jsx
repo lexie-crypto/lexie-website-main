@@ -3,7 +3,7 @@
  * Displays RAILGUN private transaction history with filtering and search
  */
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import useTransactionHistory from '../hooks/useTransactionHistory';
 import { TransactionCategory } from '../utils/railgun/transactionHistory';
 import { useWallet } from '../contexts/WalletContext';
@@ -15,7 +15,7 @@ const TransactionHistory = () => {
   // Debug wallet context values
   const { chainId, railgunWalletId, isRailgunInitialized, canUseRailgun } = useWallet();
   
-  useEffect(() => {
+  React.useEffect(() => {
     console.log('[TransactionHistory] Wallet context debug:', {
       chainId,
       hasRailgunWalletId: !!railgunWalletId,

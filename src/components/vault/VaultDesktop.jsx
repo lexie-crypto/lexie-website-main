@@ -20,7 +20,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 import { useWallet } from '../../contexts/WalletContext';
-import { useWindowStore } from '../../contexts/windowStore.jsx';
+import { useWindowStore, WindowProvider } from '../../contexts/windowStore.jsx';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts.js';
 import TerminalWindow from '../ui/TerminalWindow.jsx';
 import WindowShell from '../window/WindowShell.jsx';
@@ -280,7 +280,7 @@ const VaultDesktopInner = () => {
   }, [isConnected, address, railgunWalletId, chainId, checkRedisScannedChains, showSignRequestPopup]);
 
   // Track when initial connection hydration is complete
-  const initialConnectDoneRef = useRef(false);
+  const initialConnectDoneRef = React.useRef(false);
 
   // Mark initial connect as done once wallet metadata is ready or init completes
   useEffect(() => {
@@ -1881,10 +1881,10 @@ const VaultDesktopInner = () => {
 };
 
 const VaultDesktop = () => {
-  const [isMobile, setIsMobile] = useState(false);
-  const [isReady, setIsReady] = useState(false);
+  const [isMobile, setIsMobile] = React.useState(false);
+  const [isReady, setIsReady] = React.useState(false);
 
-  useEffect(() => {
+  React.useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia === 'undefined') {
       setIsReady(true);
       return;
@@ -1920,7 +1920,11 @@ const VaultDesktop = () => {
     );
   }
 
-  return <VaultDesktopInner />;
+  return (
+    <WindowProvider>
+      <VaultDesktopInner />
+    </WindowProvider>
+  );
 };
 
 export default VaultDesktop;

@@ -3,7 +3,6 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { WindowProvider } from '../contexts/windowStore.jsx';
 
 const WalletPage = () => {
   const [isMobile, setIsMobile] = useState(false);
@@ -38,11 +37,9 @@ const WalletPage = () => {
 
   const VaultDesktop = React.lazy(() => import('../components/vault/VaultDesktop.jsx'));
   return (
-    <WindowProvider>
-      <React.Suspense fallback={null}>
-        <VaultDesktop />
-      </React.Suspense>
-    </WindowProvider>
+    <React.Suspense fallback={null}>
+      <VaultDesktop />
+    </React.Suspense>
   );
 };
 

@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
 
 // Action types
 const WINDOW_ACTIONS = {
@@ -378,7 +378,7 @@ const saveDockState = (dockItems) => {
 };
 
 // Provider component
-const WindowProviderInner = ({ children }) => {
+export const WindowProvider = ({ children }) => {
   const [state, dispatch] = useReducer(windowReducer, initialState);
 
   // Load persisted state on mount
@@ -464,9 +464,6 @@ const WindowProviderInner = ({ children }) => {
     </WindowContext.Provider>
   );
 };
-
-// Export provider with a stable reference to avoid re-renders
-export const WindowProvider = WindowProviderInner;
 
 // Hook to use the window store
 export const useWindowStore = () => {
