@@ -82,8 +82,12 @@ function windowReducer(state, action) {
 
     case WINDOW_ACTIONS.MINIMIZE_WINDOW: {
       const { id } = action.payload;
+      console.log('windowStore reducer: MINIMIZE_WINDOW for', id);
       const window = state.windows[id];
-      if (!window) return state;
+      if (!window) {
+        console.log('windowStore reducer: Window not found for minimize:', id);
+        return state;
+      }
 
       const dockItem = {
         id,
@@ -143,8 +147,12 @@ function windowReducer(state, action) {
 
     case WINDOW_ACTIONS.CLOSE_WINDOW: {
       const { id } = action.payload;
+      console.log('windowStore reducer: CLOSE_WINDOW for', id);
       const window = state.windows[id];
-      if (!window) return state;
+      if (!window) {
+        console.log('windowStore reducer: Window not found for close:', id);
+        return state;
+      }
 
       // Remove from dock
       const filteredDock = state.dockItems.filter(item => item.id !== id);
@@ -223,8 +231,12 @@ function windowReducer(state, action) {
 
     case WINDOW_ACTIONS.TOGGLE_MAXIMIZE: {
       const { id, viewportSize } = action.payload;
+      console.log('windowStore reducer: TOGGLE_MAXIMIZE for', id, 'viewportSize:', viewportSize);
       const window = state.windows[id];
-      if (!window) return state;
+      if (!window) {
+        console.log('windowStore reducer: Window not found for maximize:', id);
+        return state;
+      }
 
       const willBeMaximized = !window.isMaximized;
       const maxSize = viewportSize || { width: 800, height: 600 };
@@ -408,6 +420,7 @@ export const WindowProvider = ({ children }) => {
     }, []),
 
     minimizeWindow: useCallback((id) => {
+      console.log('windowStore: minimizeWindow called for', id);
       dispatch({ type: WINDOW_ACTIONS.MINIMIZE_WINDOW, payload: { id } });
     }, []),
 
@@ -416,6 +429,7 @@ export const WindowProvider = ({ children }) => {
     }, []),
 
     closeWindow: useCallback((id) => {
+      console.log('windowStore: closeWindow called for', id);
       dispatch({ type: WINDOW_ACTIONS.CLOSE_WINDOW, payload: { id } });
     }, []),
 
@@ -432,6 +446,7 @@ export const WindowProvider = ({ children }) => {
     }, []),
 
     toggleMaximize: useCallback((id, viewportSize) => {
+      console.log('windowStore: toggleMaximize called for', id, 'with viewportSize:', viewportSize);
       dispatch({ type: WINDOW_ACTIONS.TOGGLE_MAXIMIZE, payload: { id, viewportSize } });
     }, []),
 

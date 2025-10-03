@@ -95,6 +95,7 @@ const WindowShell = ({
 
   // Register window on mount
   useEffect(() => {
+    console.log('WindowShell: Registering window', id, 'with data:', { title, appType });
     registerWindow(id, {
       title,
       icon,
@@ -148,14 +149,17 @@ const WindowShell = ({
 
   // Traffic light handlers
   const handleClose = () => {
+    console.log('WindowShell: handleClose called for window', id);
     closeWindow(id);
   };
 
   const handleMinimize = () => {
+    console.log('WindowShell: handleMinimize called for window', id);
     minimizeWindow(id);
   };
 
   const handleMaximize = () => {
+    console.log('WindowShell: handleMaximize called for window', id);
     // Maximize should respect safe areas
     const maximizedSize = {
       width: window.innerWidth - leftSafe - rightSafe,
