@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import TerminalWindow from '../ui/TerminalWindow.jsx';
 import { useDraggable } from '../../hooks/useDraggable.js';
-import { useWindowStore } from '../../contexts/windowStore.js';
+import { useWindowStore } from '../../contexts/windowStore.jsx';
 
 const TrafficLight = ({ type, onClick, disabled = false, isDragging = false }) => {
   const colors = {

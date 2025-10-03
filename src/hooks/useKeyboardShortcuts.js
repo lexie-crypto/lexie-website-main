@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useWindowStore } from '../contexts/windowStore.js';
+import { useWindowStore } from '../contexts/windowStore.jsx';
 
 export const useKeyboardShortcuts = () => {
   const {

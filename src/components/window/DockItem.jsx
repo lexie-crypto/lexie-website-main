@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useWindowStore } from '../../contexts/windowStore.js';
+import { useWindowStore } from '../../contexts/windowStore.jsx';
 
 const DockItemPreview = ({ item, isVisible, position }) => {
   if (!isVisible || !position) return null;
