@@ -25,25 +25,8 @@ const initialState = {
 
 // Window state shape
 const createWindowState = (id, initialData = {}) => {
-  // Check for saved window size in localStorage (takes priority over initialData.size)
-  let savedSize = { width: 800, height: 600 }; // default fallback
-  try {
-    const savedSizeData = localStorage.getItem(`lexie:window-size:${id}`);
-    if (savedSizeData) {
-      const parsedSize = JSON.parse(savedSizeData);
-      savedSize = {
-        width: parsedSize.width || 800,
-        height: parsedSize.height || 600
-      };
-    } else {
-      // No saved size, use initialData.size if provided
-      savedSize = initialData.size || savedSize;
-    }
-  } catch (e) {
-    console.warn(`Failed to load saved window size for ${id}:`, e);
-    // Fall back to initialData.size or default
-    savedSize = initialData.size || savedSize;
-  }
+  // Use provided initial size (no localStorage reading on registration)
+  const initialSize = initialData.size || { width: 800, height: 600 };
 
   return {
     id,
@@ -54,9 +37,9 @@ const createWindowState = (id, initialData = {}) => {
     isMaximized: false,
     isClosed: false,
     position: initialData.position || { x: 100, y: 100 },
-    size: savedSize,
+    size: initialSize,
     lastRestoredPosition: initialData.position || { x: 100, y: 100 },
-    lastRestoredSize: savedSize,
+    lastRestoredSize: initialSize,
     zIndex: initialData.zIndex || 1000,
     isFocused: false
   };
