@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import TerminalWindow from '../ui/TerminalWindow.jsx';
 import { useDraggable } from '../../hooks/useDraggable.js';
+import { useSafeAreas } from '../../hooks/useSafeAreas.js';
 import { useWindowStore } from '../../contexts/windowStore.jsx';
 
 const TrafficLight = ({ type, onClick, disabled = false, isDragging = false }) => {
@@ -62,6 +63,9 @@ const WindowShell = ({
     updateFocus
   } = useWindowStore();
 
+  // Safe areas for positioning
+  const { getBounds, clampPosition, topSafe, bottomSafe, leftSafe, rightSafe } = useSafeAreas();
+
   const windowState = getWindowState(id);
   const windowRef = useRef(null);
   const [isResizing, setIsResizing] = useState(false);
@@ -73,9 +77,10 @@ const WindowShell = ({
     return { width: rect.width, height: rect.height };
   };
 
-  // Draggable hook
+  // Draggable hook with safe area bounds
   const { position, isDragging, dragHandlers, setPosition } = useDraggable({
     initialPosition: windowState?.position || initialPosition,
+    bounds: getBounds,
     windowSize: getCurrentSize(),
     onDragStart: () => {
       bringToFront(id);
@@ -100,6 +105,33 @@ const WindowShell = ({
     });
   }, [id, title, icon, appType, initialPosition, initialSize, registerWindow]);
 
+  // Handle initial positioning and bounds clamping
+  useEffect(() => {
+    if (!windowState) return;
+
+    // Clamp position to safe bounds on mount or when bounds change
+    const clampedPosition = clampPosition(windowState.position, currentSize);
+
+    // For first-time open, center horizontally and place below header
+    if (!windowState.lastRestoredPosition) {
+      const centerX = Math.max(leftSafe, (window.innerWidth - currentSize.width) / 2);
+      const safeY = topSafe + 24; // 24px below header
+
+      const centeredPosition = {
+        x: Math.min(centerX, window.innerWidth - rightSafe - currentSize.width),
+        y: Math.min(safeY, window.innerHeight - bottomSafe - currentSize.height)
+      };
+
+      setPosition(centeredPosition);
+      updatePosition(id, centeredPosition);
+    }
+    // For restored windows, ensure they're within bounds
+    else if (clampedPosition.x !== windowState.position.x || clampedPosition.y !== windowState.position.y) {
+      setPosition(clampedPosition);
+      updatePosition(id, clampedPosition);
+    }
+  }, [windowState, currentSize, clampPosition, setPosition, updatePosition, id, topSafe, bottomSafe, leftSafe, rightSafe]);
+
   // Handle window focus
   const handleWindowClick = () => {
     bringToFront(id);
@@ -116,11 +148,12 @@ const WindowShell = ({
   };
 
   const handleMaximize = () => {
-    const viewportSize = {
-      width: window.innerWidth,
-      height: window.innerHeight
+    // Maximize should respect safe areas
+    const maximizedSize = {
+      width: window.innerWidth - leftSafe - rightSafe,
+      height: window.innerHeight - topSafe - bottomSafe
     };
-    toggleMaximize(id, viewportSize);
+    toggleMaximize(id, maximizedSize);
   };
 
   // Don't render if window is closed or minimized
@@ -138,15 +171,16 @@ const WindowShell = ({
       ref={windowRef}
       className={`
         fixed transition-shadow duration-200
+        ${isDragging ? '' : 'transition-all duration-300 ease-out'}
         ${isFocused ? 'shadow-2xl shadow-purple-500/20' : 'shadow-lg'}
         ${isDragging ? 'shadow-3xl shadow-blue-500/30' : ''}
         ${className}
       `}
       style={{
-        left: isMaximized ? 0 : position.x,
-        top: isMaximized ? 0 : position.y,
-        width: isMaximized ? '100vw' : currentSize.width,
-        height: isMaximized ? '100vh' : currentSize.height,
+        left: isMaximized ? leftSafe : position.x,
+        top: isMaximized ? topSafe : position.y,
+        width: isMaximized ? `calc(100vw - ${leftSafe + rightSafe}px)` : currentSize.width,
+        height: isMaximized ? `calc(100vh - ${topSafe + bottomSafe}px)` : currentSize.height,
         zIndex,
         transform: 'translateZ(0)', // Force hardware acceleration
       }}
@@ -160,10 +194,10 @@ const WindowShell = ({
       <div
         className={`
           flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800
-          ${isDragging ? 'cursor-grabbing' : 'cursor-grab'}
+          ${isMaximized ? 'cursor-default' : isDragging ? 'cursor-grabbing' : 'cursor-grab'}
           select-none
         `}
-        {...dragHandlers}
+        {...(isMaximized ? {} : dragHandlers)}
         role="banner"
         aria-grabbed={isDragging}
       >
