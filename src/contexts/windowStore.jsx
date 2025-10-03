@@ -23,10 +23,11 @@ const initialState = {
   isInitialized: false
 };
 
-// Window state shape
+// Window state shape - NEVER reads from localStorage, only uses provided initialData
 const createWindowState = (id, initialData = {}) => {
-  // Use provided initial size (no localStorage reading on registration)
+  // CRITICAL: No localStorage access here - only use provided initialData for clean starts
   const initialSize = initialData.size || { width: 800, height: 600 };
+  const initialPosition = initialData.position || { x: 100, y: 100 };
 
   return {
     id,
@@ -36,9 +37,9 @@ const createWindowState = (id, initialData = {}) => {
     isMinimized: false,
     isMaximized: false,
     isClosed: false,
-    position: initialData.position || { x: 100, y: 100 },
+    position: initialPosition,
     size: initialSize,
-    lastRestoredPosition: initialData.position || { x: 100, y: 100 },
+    lastRestoredPosition: initialPosition,
     lastRestoredSize: initialSize,
     zIndex: initialData.zIndex || 1000,
     isFocused: false
