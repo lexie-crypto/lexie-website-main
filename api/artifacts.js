@@ -19,6 +19,7 @@ export default async function handler(req, res) {
     'http://localhost:3000',
     'http://localhost:5173',
     'https://staging.lexiecrypto.com',
+    'https://staging.app.lexiecrypto.com',
     'https://staging.chatroom.lexiecrypto.com',
     'https://staging.wallet.lexiecrypto.com',
     'https://staging.pay.lexiecrypto.com',
@@ -109,26 +110,47 @@ export default async function handler(req, res) {
       } else if (parsedAction === 'sync-finalize') {
         backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/finalize`;
       } else if (parsedAction === 'sync-manifest') {
-        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/manifest`;
-      } else if (parsedAction === 'idb-sync-latest') {
-        const walletId = actionParams.walletId;
-        if (!walletId) {
-          return res.status(400).json({ error: 'Missing required parameter: walletId', requestId });
+        const chainId = actionParams.chainId;
+        let url = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/manifest`;
+        if (chainId) {
+          url += `?chainId=${encodeURIComponent(chainId)}`;
         }
-        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/latest?walletId=${encodeURIComponent(walletId)}`;
+        backendUrl = url;
+      } else if (parsedAction === 'idb-sync-latest') {
+        const chainId = actionParams.chainId;
+        if (chainId) {
+          // Chain-specific latest request
+          backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/latest?chainId=${encodeURIComponent(chainId)}`;
+        } else {
+          // Legacy wallet-specific request (shouldn't be used anymore)
+          const walletId = actionParams.walletId;
+          if (!walletId) {
+            return res.status(400).json({ error: 'Missing required parameter: chainId or walletId', requestId });
+          }
+          backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/latest?walletId=${encodeURIComponent(walletId)}`;
+        }
+      } else if (parsedAction === 'idb-sync-manifest') {
+        const chainId = actionParams.chainId;
+        const timestamp = actionParams.timestamp;
+        if (!chainId || !timestamp) {
+          return res.status(400).json({ error: 'Missing required parameters: chainId and timestamp', requestId });
+        }
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/manifest?chainId=${encodeURIComponent(chainId)}&timestamp=${encodeURIComponent(timestamp)}`;
       } else if (parsedAction === 'idb-sync-snapshot') {
         const ts = actionParams.ts;
-        if (!ts) {
-          return res.status(400).json({ error: 'Missing required parameter: ts', requestId });
+        const chainId = actionParams.chainId;
+        if (!ts || !chainId) {
+          return res.status(400).json({ error: 'Missing required parameters: ts, chainId', requestId });
         }
-        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/snapshot?ts=${encodeURIComponent(ts)}`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/snapshot?ts=${encodeURIComponent(ts)}&chainId=${encodeURIComponent(chainId)}`;
       } else if (parsedAction === 'idb-sync-chunk') {
         const ts = actionParams.ts;
         const n = actionParams.n;
-        if (!ts || n === undefined) {
-          return res.status(400).json({ error: 'Missing required parameters: ts, n', requestId });
+        const chainId = actionParams.chainId;
+        if (!ts || n === undefined || !chainId) {
+          return res.status(400).json({ error: 'Missing required parameters: ts, n, chainId', requestId });
         }
-        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/chunk?ts=${encodeURIComponent(ts)}&n=${encodeURIComponent(n)}`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/chunk?ts=${encodeURIComponent(ts)}&n=${encodeURIComponent(n)}&chainId=${encodeURIComponent(chainId)}`;
       } else {
         return res.status(400).json({ error: 'Unknown action', requestId });
       }
@@ -172,7 +194,7 @@ export default async function handler(req, res) {
 
     const headers = {
       'Content-Type': 'application/json',
-      'Accept': 'application/json, application/octet-stream',
+      'Accept': 'application/json, application/octet-stream, text/plain',
       'X-Request-ID': requestId,
       'X-Lexie-Signature': signature,
       'X-Lexie-Timestamp': timestamp,
@@ -180,6 +202,12 @@ export default async function handler(req, res) {
         req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || req.connection.remoteAddress,
       'User-Agent': 'Lexie-Artifacts-Proxy/1.0',
     };
+
+    // Add compression headers for IDB sync routes (similar to artifact downloads)
+    if (backendUrl.includes('/idb-sync/')) {
+      headers['Accept-Encoding'] = 'br,gzip,deflate';
+      console.log(`[ARTIFACTS-PROXY-${requestId}] 🗜️ Requesting compressed response for IDB sync: ${backendUrl}`);
+    }
 
     // Add Origin header if it was allowed
     if (allowedOrigins.includes(origin)) {
@@ -193,11 +221,21 @@ export default async function handler(req, res) {
       signal: AbortSignal.timeout(120000), // 2 minutes for large artifact operations
     });
 
+    const contentEncoding = response.headers.get('content-encoding');
+    const contentLength = response.headers.get('content-length');
+
     console.log(`📤 [ARTIFACTS-PROXY-${requestId}] Backend response`, {
       status: response.status,
       statusText: response.statusText,
-      contentType: response.headers.get('content-type')
+      contentType: response.headers.get('content-type'),
+      contentEncoding: contentEncoding,
+      contentLength: contentLength,
+      isCompressed: !!contentEncoding
     });
+
+    if (backendUrl.includes('/idb-sync/') && contentEncoding) {
+      console.log(`[ARTIFACTS-PROXY-${requestId}] 📦 Received compressed chain data: ${contentEncoding} (${contentLength} bytes)`);
+    }
 
     const data = await response.text();
 

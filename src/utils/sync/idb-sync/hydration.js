@@ -3,7 +3,63 @@
  * Downloads latest Redis snapshot and recreates LevelJS DB in browser
  */
 
-import { getLatestManifest, getSyncChunk } from './api.js';
+import { getLatestManifest, getSyncChunk, getChainLatestTimestamp, getChainManifest, getChainChunk } from './api.js';
+
+/**
+ * Decompress data using DecompressionStream (supports gzip and brotli)
+ */
+async function decompressData(compressedData, format = 'gzip') {
+  try {
+    // Check if DecompressionStream is available (modern browsers)
+    if (typeof DecompressionStream !== 'undefined') {
+      let stream;
+
+      // Try the specified format first, fallback to gzip
+      try {
+        stream = new DecompressionStream(format);
+      } catch (formatError) {
+        console.warn(`[IDB-Hydration] ${format} decompression not supported, trying gzip`);
+        stream = new DecompressionStream('gzip');
+      }
+
+      const writer = stream.writable.getWriter();
+      const reader = stream.readable.getReader();
+
+      // Write compressed data
+      writer.write(compressedData);
+      writer.close();
+
+      // Read decompressed data
+      const chunks = [];
+      let done = false;
+      while (!done) {
+        const { value, done: readerDone } = await reader.read();
+        done = readerDone;
+        if (value) chunks.push(value);
+      }
+
+      // Combine chunks into a single Uint8Array
+      const totalLength = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
+      const result = new Uint8Array(totalLength);
+      let offset = 0;
+      for (const chunk of chunks) {
+        result.set(chunk, offset);
+        offset += chunk.length;
+      }
+
+      // Convert to string
+      return new TextDecoder().decode(result);
+    } else {
+      // Fallback: assume data is already decompressed
+      console.warn('[IDB-Hydration] DecompressionStream not available, assuming uncompressed data');
+      return typeof compressedData === 'string' ? compressedData : new TextDecoder().decode(compressedData);
+    }
+  } catch (error) {
+    console.warn('[IDB-Hydration] Decompression failed:', error);
+    // Fallback to treating as uncompressed
+    return typeof compressedData === 'string' ? compressedData : new TextDecoder().decode(compressedData);
+  }
+}
 
 /**
  * Hydration state management
@@ -134,9 +190,8 @@ class HydrationManager {
         errors: []
       });
 
-      // Get latest manifest
-      console.log('[IDB-Hydration] Fetching latest manifest...');
-      const manifest = await this.fetchManifest(walletId, abortController.signal);
+      // This function is no longer used - we now use chain-specific loading
+      throw new Error('runHydration is deprecated - use loadChainBootstrap instead');
 
       if (abortController.signal.aborted) {
         throw new Error('Hydration aborted');
@@ -189,6 +244,102 @@ class HydrationManager {
     } finally {
       // Clean up abort controller
       this.abortControllers.delete(walletId);
+    }
+  }
+
+  /**
+   * Check if chain bootstrap is available
+   */
+  async checkChainBootstrapAvailable(chainId) {
+    try {
+      const timestamp = await getChainLatestTimestamp(chainId);
+      return timestamp !== null;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Fetch chain-specific manifest
+   */
+  async fetchChainManifest(chainId, abortSignal) {
+    try {
+      console.log(`[IDB-Hydration] Fetching chain ${chainId} bootstrap manifest`);
+
+      const timestamp = await getChainLatestTimestamp(chainId);
+      if (!timestamp) {
+        throw new Error(`No bootstrap available for chain ${chainId}`);
+      }
+
+      const response = await getChainManifest(chainId, timestamp);
+      console.log(`[IDB-Hydration] Chain ${chainId} manifest response:`, response);
+
+      if (!response || typeof response.timestamp !== 'number') {
+        throw new Error('Invalid chain manifest response');
+      }
+
+      // Verify this is chain-specific bootstrap data
+      if (parseInt(response.chainId) !== parseInt(chainId)) {
+        throw new Error(`Manifest is not valid chain ${chainId} bootstrap data (wrong chain: ${response.chainId})`);
+      }
+
+      // For chain bootstrap, overallHash is optional - focus on chain validation
+      if (!response.totalRecords || !response.chunkCount) {
+        throw new Error(`Manifest missing required fields for chain ${chainId} bootstrap data`);
+      }
+
+      const manifest = {
+        ts: response.timestamp,
+        recordCount: response.totalRecords || 0,
+        totalBytes: response.totalBytes || 0,
+        chunkCount: response.chunkCount || 0,
+        chunkHashes: response.chunkHashes || [],
+        overallHash: response.overallHash || null,
+        chainId: response.chainId
+      };
+
+      return manifest;
+
+    } catch (error) {
+      console.warn(`[IDB-Hydration] Chain ${chainId} bootstrap not available:`, error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Fetch global bootstrap manifest (preferred for new users)
+   */
+  async fetchGlobalManifest(abortSignal) {
+    try {
+      console.log('[IDB-Hydration] Fetching global bootstrap manifest');
+      // Call without walletId to get global bootstrap data
+      const response = await getLatestManifest('');
+      console.log('[IDB-Hydration] Global manifest response:', response);
+
+      if (!response || typeof response.ts !== 'number') {
+        throw new Error('Invalid global manifest response');
+      }
+
+      // Verify this is global bootstrap data
+      if (!response.overallHash) {
+        throw new Error('Manifest is not global bootstrap data');
+      }
+
+      const manifest = {
+        ts: response.ts,
+        recordCount: response.recordCount || 0,
+        totalBytes: response.totalBytes || 0,
+        chunkCount: response.chunkCount || 0,
+        chunkHashes: response.chunkHashes || [],
+        overallHash: response.overallHash, // For snapshot verification
+        isGlobalBootstrap: true
+      };
+
+      console.log('[IDB-Hydration] Parsed global manifest:', manifest);
+      return manifest;
+    } catch (error) {
+      console.log('[IDB-Hydration] Global manifest fetch error:', error);
+      throw error;
     }
   }
 
@@ -282,6 +433,65 @@ class HydrationManager {
   }
 
   /**
+   * Process chain-specific snapshot (much faster than chunks)
+   */
+  async processChainSnapshot(walletId, chainId, manifest, abortSignal, onProgress) {
+    const { getSyncSnapshot } = await import('./api.js');
+
+    if (abortSignal?.aborted) {
+      throw new Error('Chain snapshot processing aborted');
+    }
+
+    console.log(`[IDB-Hydration] Fetching chain ${chainId} snapshot...`);
+
+    try {
+      // Fetch compressed snapshot with chain parameters
+      console.log(`[IDB-Hydration] 🗜️ Requesting brotli compressed snapshot for chain ${chainId}`);
+      const snapshotData = await getSyncSnapshot('', manifest.ts, chainId);
+      console.log(`[IDB-Hydration] 📦 Received decompressed snapshot: ${snapshotData.length} bytes`);
+
+      if (typeof snapshotData !== 'string') {
+        throw new Error('Invalid chain snapshot response - expected NDJSON string');
+      }
+
+      // Verify snapshot hash if available
+      if (manifest.overallHash) {
+        console.log(`[IDB-Hydration] Verifying chain ${chainId} snapshot integrity...`);
+        const calculatedHash = await this.calculateHash(snapshotData);
+        if (calculatedHash !== manifest.overallHash) {
+          throw new Error(`Chain ${chainId} snapshot hash verification failed: expected ${manifest.overallHash}, got ${calculatedHash}`);
+        }
+        console.log(`[IDB-Hydration] Chain ${chainId} snapshot integrity verified ✓`);
+      } else {
+        console.warn(`[IDB-Hydration] No overallHash available for chain ${chainId} snapshot verification`);
+      }
+
+      // Update progress to 50% (download complete)
+      if (onProgress) {
+        onProgress(50, 0, 1);
+      }
+
+      // Write entire snapshot to IDB (append mode for multi-chain)
+      console.log(`[IDB-Hydration] Writing chain ${chainId} snapshot to IDB...`);
+      await this.writeChainSnapshotToIDB(snapshotData, abortSignal);
+
+      // Update progress to 100%
+      if (onProgress) {
+        onProgress(100, 1, 1);
+      }
+
+      console.log(`[IDB-Hydration] Chain ${chainId} snapshot processed successfully`);
+
+    } catch (error) {
+      console.log(`[IDB-Hydration] Chain ${chainId} snapshot failed, will fall back to chunks:`, error.message);
+      if (error.message.includes('404') || error.message.includes('not available') || error.message.includes('SNAPSHOT_NOT_AVAILABLE')) {
+        throw new Error('CHAIN_SNAPSHOT_NOT_AVAILABLE');
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Process chunks with parallel downloading but sequential IDB writes
    */
   async processChunks(walletId, manifest, resumeFromChunk, abortSignal, onProgress) {
@@ -290,7 +500,7 @@ class HydrationManager {
 
     console.log(`[IDB-Hydration] Processing ${chunkCount} chunks, starting from ${processedChunks}`);
 
-    const CONCURRENT_DOWNLOADS = 6; // Download 6 chunks in parallel
+    const CONCURRENT_DOWNLOADS = 10; // Download 10 chunks in parallel (safe for modern browsers)
 
     // Process chunks in batches for parallel downloading
     for (let batchStart = processedChunks; batchStart < chunkCount; batchStart += CONCURRENT_DOWNLOADS) {
@@ -375,6 +585,229 @@ class HydrationManager {
     }
 
     return response;
+  }
+
+  /**
+   * Fetch chain-specific chunk
+   */
+  async fetchChainChunk(chainId, timestamp, chunkIndex, abortSignal) {
+    console.log(`[IDB-Hydration] 📦 Requesting chunk ${chunkIndex} for chain ${chainId}`);
+    const response = await getSyncChunk('', timestamp, chunkIndex, chainId);
+
+    // Handle new response format with data and headers
+    const responseData = response.data || response;
+    const responseHeaders = response.headers;
+
+    if (typeof responseData !== 'string') {
+      throw new Error('Invalid chain chunk response - expected string data');
+    }
+
+    // Check if response is compressed (base64 encoded binary data)
+    let chunkData = responseData;
+
+    // Try to detect if this is compressed data (binary data will cause JSON.parse to fail)
+    try {
+      JSON.parse(responseData);
+      // If we can parse it as JSON, it's likely uncompressed NDJSON
+      console.log(`[IDB-Hydration] 📦 Received uncompressed chunk ${chunkIndex}: ${responseData.length} bytes`);
+    } catch (jsonError) {
+      // If JSON.parse fails, it's likely compressed binary data encoded as base64
+      try {
+        // Decode base64 and decompress using the format from response headers
+        const compressedBytes = Uint8Array.from(atob(responseData), c => c.charCodeAt(0));
+
+        // Check for compression format in response headers (if available)
+        let compressionFormat = 'brotli'; // Default to brotli (preferred)
+        if (responseHeaders && responseHeaders.get) {
+          const formatHeader = responseHeaders.get('X-Compression-Format');
+          if (formatHeader) {
+            compressionFormat = formatHeader;
+          }
+        }
+
+        // Decompress using the specified format with fallback
+        try {
+          chunkData = await decompressData(compressedBytes, compressionFormat);
+          console.log(`[IDB-Hydration] 📦 ${compressionFormat} decompressed chunk ${chunkIndex}: ${compressedBytes.length} → ${chunkData.length} bytes`);
+        } catch (formatError) {
+          console.warn(`[IDB-Hydration] ${compressionFormat} decompression failed, trying alternatives`);
+          // Try the other format
+          const altFormat = compressionFormat === 'brotli' ? 'gzip' : 'brotli';
+          try {
+            chunkData = await decompressData(compressedBytes, altFormat);
+            console.log(`[IDB-Hydration] 📦 ${altFormat} decompressed chunk ${chunkIndex}: ${compressedBytes.length} → ${chunkData.length} bytes`);
+          } catch (altError) {
+            console.warn(`[IDB-Hydration] All decompression attempts failed, assuming uncompressed:`, altError);
+            // Fall back to original response
+            chunkData = response;
+          }
+        }
+      } catch (decompressError) {
+        console.warn(`[IDB-Hydration] Failed to decompress chunk ${chunkIndex}, assuming uncompressed:`, decompressError);
+        // Fall back to original response
+        chunkData = response;
+      }
+    }
+
+    return chunkData;
+  }
+
+  /**
+   * Process chain chunks with parallel downloading but sequential IDB writes
+   */
+  async processChainChunks(walletId, chainId, manifest, abortSignal, onProgress) {
+    const { chunkCount, chunkHashes } = manifest;
+    let processedChunks = 0; // Start from beginning for chains
+
+    console.log(`[IDB-Hydration] Processing ${chunkCount} chunks for chain ${chainId}, starting from ${processedChunks}`);
+
+    const CONCURRENT_DOWNLOADS = 10; // Download 10 chunks in parallel (safe for modern browsers)
+
+    // Process chunks in batches for parallel downloading
+    for (let batchStart = processedChunks; batchStart < chunkCount; batchStart += CONCURRENT_DOWNLOADS) {
+      if (abortSignal.aborted) {
+        throw new Error('Chain hydration aborted');
+      }
+
+      const batchEnd = Math.min(batchStart + CONCURRENT_DOWNLOADS, chunkCount);
+      const batchPromises = [];
+
+      // Start parallel downloads for this batch
+      for (let i = batchStart; i < batchEnd; i++) {
+        const downloadPromise = this.fetchChainChunk(chainId, manifest.ts, i, abortSignal)
+          .then(chunkData => ({ index: i, data: chunkData }))
+          .catch(error => ({ index: i, error }));
+
+        batchPromises.push(downloadPromise);
+      }
+
+      // Wait for all downloads in this batch to complete
+      const batchResults = await Promise.all(batchPromises);
+
+      // Process results sequentially (maintain IDB write order)
+      for (const result of batchResults) {
+        const { index, data, error } = result;
+
+        if (error) {
+          console.error(`[IDB-Hydration] Error downloading chain ${chainId} chunk ${index}:`, error);
+          throw error;
+        }
+
+        try {
+          console.log(`[IDB-Hydration] Processing chain ${chainId} chunk ${index}/${chunkCount}`);
+          await this.writeChunkToIDB(data, abortSignal);
+
+          // Update progress
+          processedChunks++;
+          if (onProgress) {
+            const progress = (processedChunks / chunkCount) * 100;
+            onProgress(progress, processedChunks, chunkCount);
+          }
+        } catch (writeError) {
+          console.error(`[IDB-Hydration] Error writing chain ${chainId} chunk ${index}:`, writeError);
+          throw writeError;
+        }
+      }
+    }
+
+    console.log(`[IDB-Hydration] Chain ${chainId} chunk processing completed: ${processedChunks}/${chunkCount} chunks`);
+  }
+
+  /**
+   * Write chain snapshot to IDB (append mode - skip existing keys)
+   */
+  async writeChainSnapshotToIDB(ndjsonData, abortSignal) {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open('level-js-railgun-engine-db', 1);
+
+      request.onerror = () => reject(new Error('Failed to open IDB'));
+      request.onsuccess = (event) => {
+        const db = event.target.result;
+
+        try {
+          // Process NDJSON lines
+          const lines = ndjsonData.trim().split('\n');
+          const records = [];
+
+          for (const line of lines) {
+            if (!line.trim()) continue;
+
+            try {
+              const record = JSON.parse(line);
+              if (record.k_b64 && record.v_b64) {
+                // Decode base64 keys and values to ArrayBuffers
+                const key = Uint8Array.from(atob(record.k_b64), c => c.charCodeAt(0)).buffer;
+                const value = Uint8Array.from(atob(record.v_b64), c => c.charCodeAt(0)).buffer;
+                records.push({ key, value });
+              }
+            } catch (parseError) {
+              console.warn('[IDB-Hydration] Failed to parse NDJSON line in chain snapshot:', parseError);
+            }
+          }
+
+          // Write records in append mode (skip existing keys)
+          const transaction = db.transaction(['railgun-engine-db'], 'readwrite');
+          const store = transaction.objectStore('railgun-engine-db');
+
+          let completed = 0;
+          const total = records.length;
+
+          if (total === 0) {
+            resolve();
+            return;
+          }
+
+          const checkComplete = () => {
+            completed++;
+            if (completed >= total) {
+              transaction.commit();
+              resolve();
+            }
+          };
+
+          transaction.oncomplete = () => resolve();
+          transaction.onerror = () => reject(new Error('IDB transaction failed'));
+          transaction.onabort = () => reject(new Error('IDB transaction aborted'));
+
+          // Write records (append mode - check if exists first)
+          for (const record of records) {
+            // Check if key already exists
+            const getRequest = store.get(record.key);
+
+            getRequest.onsuccess = () => {
+              if (getRequest.result === undefined) {
+                // Key doesn't exist - safe to add
+                const putRequest = store.put(record.value, record.key);
+                putRequest.onsuccess = checkComplete;
+                putRequest.onerror = () => {
+                  console.warn('[IDB-Hydration] Failed to write chain record');
+                  checkComplete(); // Continue anyway
+                };
+              } else {
+                // Key exists - skip to avoid overwriting
+                console.log(`[IDB-Hydration] Skipping existing chain key (append mode)`);
+                checkComplete();
+              }
+            };
+
+            getRequest.onerror = () => {
+              // If get fails, assume key doesn't exist and try to put
+              const putRequest = store.put(record.value, record.key);
+              putRequest.onsuccess = checkComplete;
+              putRequest.onerror = () => {
+                console.warn('[IDB-Hydration] Failed to write chain record after get error');
+                checkComplete();
+              };
+            };
+          }
+
+        } catch (error) {
+          reject(error);
+        } finally {
+          db.close();
+        }
+      };
+    });
   }
 
   /**
@@ -493,6 +926,26 @@ class HydrationManager {
   }
 }
 
+// Per-wallet:chain session lock to prevent duplicate hydration
+const hydratingChains = new Set();
+
+/**
+ * Check if a wallet:chain combination is currently being hydrated
+ */
+export const isChainHydrating = (walletId, chainId) => {
+  const key = `${walletId}:${Number(chainId)}`;
+  return hydratingChains.has(key);
+};
+
+/**
+ * Get hydration guard status for logging
+ */
+export const getHydrationGuardStatus = (walletId, chainId, hydratedChains) => {
+  const isHydrated = Array.isArray(hydratedChains) && hydratedChains.includes(Number(chainId));
+  const isLocked = isChainHydrating(walletId, chainId);
+  return { isHydrated, isLocked };
+};
+
 // Singleton instance
 const hydrationManager = new HydrationManager();
 
@@ -545,5 +998,145 @@ export const checkHydrationNeeded = async (walletId) => {
   } catch (error) {
     console.warn('[IDB-Hydration] Error checking hydration needed:', error);
     return true; // Assume hydration needed on error
+  }
+};
+
+/**
+ * Check if chain-specific bootstrap is available
+ */
+export const checkChainBootstrapAvailable = async (chainId) => {
+  return await hydrationManager.checkChainBootstrapAvailable(chainId);
+};
+
+/**
+ * Load chain-specific bootstrap data
+ */
+export const loadChainBootstrap = async (walletId, chainId, options = {}) => {
+  const {
+    force = false,
+    onProgress = null,
+    onComplete = null,
+    onError = null,
+    address = null // EOA address for Redis scannedChains check
+  } = options;
+
+  const abortController = new AbortController();
+
+  try {
+    console.log(`[IDB-Hydration] Starting chain ${chainId} bootstrap for wallet ${walletId}`);
+
+    // Per-wallet:chain session lock: bail if already hydrating this wallet:chain
+    if (isChainHydrating(walletId, chainId)) {
+      console.log(`[IDB-Hydration] Wallet ${walletId} chain ${chainId} already being hydrated, skipping`);
+      return;
+    }
+
+    // Mark wallet:chain as hydrating
+    const lockKey = `${walletId}:${Number(chainId)}`;
+    hydratingChains.add(lockKey);
+
+    // Check if chain has already been scanned in Redis before proceeding with hydration
+    if (!force && address) {
+      try {
+        console.log(`[IDB-Hydration] Checking if chain ${chainId} already scanned in Redis for address ${address}...`);
+        console.log(`[IDB-Hydration] Checking wallet ID: ${walletId}`);
+        const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+
+        if (response.ok) {
+          const data = await response.json();
+          const walletKeys = Array.isArray(data.keys) ? data.keys : [];
+          console.log(`[IDB-Hydration] Found ${walletKeys.length} wallet keys for address ${address}`);
+          console.log(`[IDB-Hydration] Wallet key IDs:`, walletKeys.map(k => k.walletId?.slice(0, 8) + '...' || 'undefined'));
+
+          // Use same logic as ensureChainScanned - find key by walletId only (EOA check via API)
+          const matchingKey = walletKeys.find(key => key.walletId === walletId) || null;
+          console.log(`[IDB-Hydration] Matching key found: ${!!matchingKey}`);
+          if (matchingKey) {
+            console.log(`[IDB-Hydration] Matching key details:`, {
+              walletId: matchingKey.walletId?.slice(0, 8) + '...',
+              hasHydratedChains: !!matchingKey.hydratedChains,
+              hydratedChains: matchingKey.hydratedChains,
+              hasMeta: !!matchingKey.meta,
+              metaHydratedChains: matchingKey.meta?.hydratedChains
+            });
+          }
+
+          if (matchingKey) {
+            // Check hydratedChains array (prevents duplicate hydration)
+            const hydratedChains = Array.isArray(matchingKey?.hydratedChains)
+              ? matchingKey.hydratedChains
+              : (Array.isArray(matchingKey?.meta?.hydratedChains) ? matchingKey.meta.hydratedChains : []);
+
+            const normalizedHydratedChains = hydratedChains
+              .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
+              .filter(n => Number.isFinite(n));
+
+            const isChainHydrated = normalizedHydratedChains.includes(Number(chainId));
+
+            console.log(`[IDB-Hydration] Hydrated chains check:`, {
+              rawHydratedChains: hydratedChains,
+              normalizedHydratedChains,
+              checkingForChain: Number(chainId),
+              isChainHydrated,
+              isLocked: isChainHydrating(walletId, chainId)
+            });
+
+            console.log(`[IDB-Hydration] Hydration guard: hydrated=${isChainHydrated}, locked=${isChainHydrating(walletId, chainId)} -> ${isChainHydrated ? 'skip' : 'proceed'}`);
+
+            if (isChainHydrated) {
+              console.log(`[IDB-Hydration] Chain ${chainId} already hydrated in Redis, skipping hydration`);
+              // Remove from hydrating set since we're not proceeding
+              hydratingChains.delete(`${walletId}:${Number(chainId)}`);
+              if (onComplete) {
+                const result = onComplete();
+                // Await the onComplete callback if it returns a promise
+                if (result && typeof result.then === 'function') {
+                  await result;
+                }
+              }
+              return; // Skip hydration entirely
+            }
+          }
+        }
+      } catch (redisCheckError) {
+        console.warn(`[IDB-Hydration] Failed to check Redis hydratedChains, proceeding with hydration:`, redisCheckError);
+        // Continue with hydration if Redis check fails
+      }
+    }
+
+    // Get chain manifest
+    const manifest = await hydrationManager.fetchChainManifest(chainId, abortController.signal);
+
+    // Try snapshot mode first (chain-specific)
+    try {
+      await hydrationManager.processChainSnapshot(walletId, chainId, manifest, abortController.signal, onProgress);
+      console.log(`[IDB-Hydration] Chain ${chainId} snapshot bootstrap completed successfully`);
+    } catch (snapshotError) {
+      if (snapshotError.message === 'CHAIN_SNAPSHOT_NOT_AVAILABLE') {
+        console.warn(`[IDB-Hydration] Chain ${chainId} snapshot not available, falling back to chunks`);
+        // Fall back to chunk processing for chains
+        await hydrationManager.processChainChunks(walletId, chainId, manifest, abortController.signal, onProgress);
+        console.log(`[IDB-Hydration] Chain ${chainId} chunk bootstrap completed successfully`);
+      } else {
+        console.warn(`[IDB-Hydration] Chain ${chainId} snapshot failed with error:`, snapshotError.message);
+        throw snapshotError; // Re-throw non-snapshot errors
+      }
+    }
+
+    if (onComplete) {
+      const result = onComplete();
+      // Await the onComplete callback if it returns a promise
+      if (result && typeof result.then === 'function') {
+        await result;
+      }
+    }
+
+  } catch (error) {
+    console.error(`[IDB-Hydration] Chain ${chainId} bootstrap failed:`, error);
+    if (onError) onError(error);
+    throw error;
+  } finally {
+    // Always remove from hydrating set
+    hydratingChains.delete(`${walletId}:${Number(chainId)}`);
   }
 };

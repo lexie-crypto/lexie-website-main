@@ -280,6 +280,51 @@ if (typeof window !== 'undefined') {
       } catch (error) {
         console.error('[IDB-Sync-Debug] Check hydration needed failed:', error);
       }
+    },
+
+    // Master wallet functions
+    startMasterExports: async () => {
+      console.log('[IDB-Sync-Debug] Starting master wallet exports');
+      try {
+        const { startMasterWalletExports } = await import('./scheduler.js');
+        return await startMasterWalletExports();
+      } catch (error) {
+        console.error('[IDB-Sync-Debug] Start master exports failed:', error);
+      }
+    },
+
+    stopMasterExports: async () => {
+      console.log('[IDB-Sync-Debug] Stopping master wallet exports');
+      try {
+        const { stopMasterWalletExports } = await import('./scheduler.js');
+        return await stopMasterWalletExports();
+      } catch (error) {
+        console.error('[IDB-Sync-Debug] Stop master exports failed:', error);
+      }
+    },
+
+    getMasterStatus: async () => {
+      console.log('[IDB-Sync-Debug] Getting master wallet export status');
+      try {
+        const { getMasterExportStatus } = await import('./scheduler.js');
+        const status = await getMasterExportStatus();
+        console.log('[IDB-Sync-Debug] Master export status:', status);
+        return status;
+      } catch (error) {
+        console.error('[IDB-Sync-Debug] Get master status failed:', error);
+      }
+    },
+
+    triggerMasterExport: async () => {
+      console.log('[IDB-Sync-Debug] Triggering manual master wallet export');
+      try {
+        const { exportMasterWalletToRedis } = await import('./scheduler.js');
+        const result = await exportMasterWalletToRedis();
+        console.log('[IDB-Sync-Debug] Manual master export result:', result);
+        return result;
+      } catch (error) {
+        console.error('[IDB-Sync-Debug] Manual master export failed:', error);
+      }
     }
   };
 
@@ -295,4 +340,9 @@ if (typeof window !== 'undefined') {
   console.log('   window.__LEXIE_IDB_SYNC__.getHydrationStatus(walletId)  // Get hydration status');
   console.log('   window.__LEXIE_IDB_SYNC__.cancelHydration(walletId)  // Cancel hydration');
   console.log('   window.__LEXIE_IDB_SYNC__.checkHydrationNeeded(walletId)  // Check if hydration needed');
+  console.log('👑 Master Wallet Functions:');
+  console.log('   window.__LEXIE_IDB_SYNC__.startMasterExports()  // Start periodic exports');
+  console.log('   window.__LEXIE_IDB_SYNC__.stopMasterExports()   // Stop periodic exports');
+  console.log('   window.__LEXIE_IDB_SYNC__.getMasterStatus()     // Get export status');
+  console.log('   window.__LEXIE_IDB_SYNC__.triggerMasterExport() // Manual export');
 }

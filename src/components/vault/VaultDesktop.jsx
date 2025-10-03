@@ -84,6 +84,7 @@ const VaultDesktopInner = () => {
   const [initProgress, setInitProgress] = useState({ percent: 0, message: '' });
   const [isInitInProgress, setIsInitInProgress] = useState(false);
   const [initFailedMessage, setInitFailedMessage] = useState('');
+  const [bootstrapProgress, setBootstrapProgress] = useState({ percent: 0, active: false });
   
   // Lexie ID linking state
   const [lexieIdInput, setLexieIdInput] = useState('');
@@ -146,7 +147,7 @@ const VaultDesktopInner = () => {
     if (!checkChainId) return null;
 
     try {
-      console.log('[VaultDesktop] Checking Redis scannedChains for:', {
+      console.log('[VaultDesktop] Checking Redis hydratedChains/scannedChains for:', {
         address, // exact EOA address
         railgunWalletId,
         checkChainId: Number(checkChainId)
@@ -168,38 +169,45 @@ const VaultDesktopInner = () => {
       const data = await response.json();
       const walletKeys = Array.isArray(data.keys) ? data.keys : [];
       
-      // Find matching key
-      const matchingKey = walletKeys.find(key => {
-        const keyAddr = key?.eoa || key?.walletAddress || key?.address;
-        const keyWalletId = key?.walletId || key?.railgunWalletId;
-        const hasAuth = !!key?.railgunAddress && (!!key?.signature || !!key?.encryptedMnemonic);
-        const walletOk = railgunWalletId ? keyWalletId === railgunWalletId : true;
-        return keyAddr === address && hasAuth && walletOk; // exact address match
-      });
+      // Use same logic as ensureChainScanned - find key by walletId only (EOA check via API)
+      const matchingKey = walletKeys.find(key => key.walletId === railgunWalletId) || null;
 
       if (!matchingKey) {
         console.log('[VaultDesktop] No matching wallet key found in Redis');
         return false;
       }
 
-      // Check scannedChains array
+      // Check both hydratedChains and scannedChains arrays
+      const hydratedChains = Array.isArray(matchingKey?.hydratedChains)
+        ? matchingKey.hydratedChains
+        : (Array.isArray(matchingKey?.meta?.hydratedChains) ? matchingKey.meta.hydratedChains : []);
+
       const scannedChains = Array.isArray(matchingKey?.scannedChains)
         ? matchingKey.scannedChains
         : (Array.isArray(matchingKey?.meta?.scannedChains) ? matchingKey.meta.scannedChains : []);
 
-      const normalizedChains = scannedChains
+      const normalizedHydratedChains = hydratedChains
         .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
         .filter(n => Number.isFinite(n));
 
-      const isChainScanned = normalizedChains.includes(Number(checkChainId));
-      
+      const normalizedScannedChains = scannedChains
+        .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
+        .filter(n => Number.isFinite(n));
+
+      const isChainHydrated = normalizedHydratedChains.includes(Number(checkChainId));
+      const isChainScanned = normalizedScannedChains.includes(Number(checkChainId));
+      const isChainReady = isChainHydrated || isChainScanned;
+
       console.log('[VaultDesktop] Redis check result:', {
         chainId: Number(checkChainId),
-        scannedChains: normalizedChains,
-        isChainScanned
+        hydratedChains: normalizedHydratedChains,
+        scannedChains: normalizedScannedChains,
+        isChainHydrated,
+        isChainScanned,
+        isChainReady
       });
-      
-      return isChainScanned;
+
+      return isChainReady;
       
     } catch (error) {
       console.error('[VaultDesktop] Redis check error:', error);
@@ -230,6 +238,7 @@ const VaultDesktopInner = () => {
           console.log('[VaultDesktop] Chain not scanned on connect - showing modal');
           setShowSignRequestPopup(true);
           setIsInitInProgress(true);
+          setBootstrapProgress({ percent: 0, active: true }); // Show progress bar for initial vault creation
           setScanComplete(false);
           const networkName = getNetworkName(chainId);
           setInitProgress({ 
@@ -654,6 +663,7 @@ const VaultDesktopInner = () => {
       setScanComplete(false);
       setIsChainReady(false);
       setIsInitInProgress(true);
+      setBootstrapProgress({ percent: 0, active: true }); // Show progress bar for initialization
       setInitFailedMessage('');
       const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
       setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
@@ -713,6 +723,35 @@ const VaultDesktopInner = () => {
     window.addEventListener('railgun-init-progress', onInitProgress);
     window.addEventListener('railgun-init-completed', onInitCompleted);
     window.addEventListener('railgun-init-failed', onInitFailed);
+
+    // Force unlock modal when initialization is complete
+    const onVaultInitComplete = () => {
+      console.log('[VaultDesktop] Force unlocking initialization modal');
+      setIsInitInProgress(false);
+      setInitProgress({ percent: 100, message: 'Initialization complete' });
+      // Don't reset bootstrap progress - let it stay at 100% until modal closes
+    };
+    window.addEventListener('vault-initialization-complete', onVaultInitComplete);
+
+      // Handle bootstrap progress updates
+      const onBootstrapProgress = (e) => {
+        const { chainId: eventChainId, progress } = e.detail;
+        console.log('[VaultDesktop] Bootstrap progress event:', { eventChainId, progress, currentChainId: chainId, networkName: network?.name });
+
+        // Always update progress bar during bootstrap (only one chain at a time)
+        console.log('[VaultDesktop] Updating progress bar for chain', eventChainId, 'progress:', progress);
+        setBootstrapProgress({ percent: Math.round(progress * 100) / 100, active: true });
+
+        // When bootstrap reaches 100%, change message to "Creating..."
+        if (Math.round(progress * 100) / 100 >= 100) {
+          const networkName = network?.name || `Chain ${eventChainId}`;
+          setInitProgress(prev => ({
+            ...prev,
+            message: `Creating your LexieVault on ${networkName} Network...`
+          }));
+        }
+      };
+    window.addEventListener('chain-bootstrap-progress', onBootstrapProgress);
     
     return () => {
       window.removeEventListener('railgun-signature-requested', onSignRequest);
@@ -722,6 +761,8 @@ const VaultDesktopInner = () => {
       window.removeEventListener('railgun-scan-started', onScanStarted);
       window.removeEventListener('railgun-init-completed', onInitCompleted);
       window.removeEventListener('railgun-init-failed', onInitFailed);
+      window.removeEventListener('vault-initialization-complete', onVaultInitComplete);
+      window.removeEventListener('chain-bootstrap-progress', onBootstrapProgress);
     };
   }, [address, chainId, railgunWalletId, network, checkChainReady, showSignRequestPopup]);
 
@@ -730,8 +771,16 @@ const VaultDesktopInner = () => {
     if (showSignRequestPopup && isInitInProgress && scanComplete && isChainReady) {
       setInitProgress({ percent: 100, message: 'Initialization complete' });
       setIsInitInProgress(false);
+      // Keep progress bar at 100% until modal closes, will reset when modal opens again
     }
   }, [scanComplete, isChainReady, isInitInProgress, showSignRequestPopup]);
+
+  // Reset bootstrap progress when modal closes
+  useEffect(() => {
+    if (!showSignRequestPopup) {
+      setBootstrapProgress({ percent: 0, active: false });
+    }
+  }, [showSignRequestPopup]);
 
   // Check if this Railgun address already has a linked Lexie ID
   useEffect(() => {
@@ -969,6 +1018,7 @@ const VaultDesktopInner = () => {
         console.log('[VaultDesktop] Target chain not scanned - showing modal');
         setShowSignRequestPopup(true);
         setIsInitInProgress(true);
+        setBootstrapProgress({ percent: 0, active: true }); // Show progress bar for chain switching
         const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
         setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
       } else {
@@ -1727,11 +1777,28 @@ const VaultDesktopInner = () => {
                 <>
                   <h3 className="text-lg font-bold text-emerald-300">Initializing Your LexieVault on {network?.name || 'network'} Network</h3>
                   <p className="text-green-400/80 text-sm">You only need to do this once. This may take a few minutes. Do not close this window.</p>
-                  <div className="bg-black/40 border border-green-500/20 rounded p-4 flex items-center gap-3">
-                    <div className={`h-5 w-5 rounded-full border-2 ${isInitInProgress ? 'border-emerald-400 border-t-transparent animate-spin' : 'border-emerald-400'}`} />
-                    <div className="text-xs text-green-400/80 truncate" title={initProgress.message}>
-                      {initProgress.message || 'Scanning...'}
-                    </div>
+                  <div className="bg-black/40 border border-green-500/20 rounded p-4 space-y-3">
+                    {bootstrapProgress.active ? (
+                      <>
+                        <div className="flex items-center justify-between text-xs text-green-400/80">
+                          <span>Loading blockchain data...</span>
+                          <span>{bootstrapProgress.percent}%</span>
+                        </div>
+                        <div className="w-full bg-gray-700 rounded-full h-2">
+                          <div
+                            className="bg-gradient-to-r from-emerald-400 to-green-400 h-2 rounded-full transition-all duration-300 ease-out"
+                            style={{ width: `${bootstrapProgress.percent}%` }}
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex items-center gap-3">
+                        <div className={`h-5 w-5 rounded-full border-2 ${isInitInProgress ? 'border-emerald-400 border-t-transparent animate-spin' : 'border-emerald-400'}`} />
+                        <div className="text-xs text-green-400/80 truncate" title={initProgress.message}>
+                          {initProgress.message || 'Scanning...'}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <div className="mt-2 text-green-400/80 text-xs">
                     While you're waiting check out Lexie on <a href="https://t.me/lexie_crypto_bot" className="text-purple-300 hover:underline" target="_blank" rel="noopener noreferrer">Telegram</a> to grab your Lexie ID and play our Titans game to earn airdrop points. 

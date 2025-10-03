@@ -932,6 +932,12 @@ export const monitorTransactionInGraph = async ({
         // ⚡ QUICKSYNC: Trigger immediate Railgun SDK refresh after Graph confirmation
         if ((transactionType === 'shield' || transactionType === 'unshield' || transactionType === 'transfer') && transactionDetails?.walletId) {
           console.log('[QuickSync] Triggered after Graph confirmation for', txHash, `(${transactionType})`);
+
+          // Set scanning flag to prevent chain bootstrap conflicts
+          if (typeof window !== 'undefined') {
+            window.__RAILGUN_SCANNING_IN_PROGRESS = true;
+          }
+
           try {
             const { refreshBalances } = await import('@railgun-community/wallet');
             const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
@@ -1027,12 +1033,26 @@ export const monitorTransactionInGraph = async ({
                     }
                   };
                   
-                  // Set up timeout (60 seconds)
+                  // Set up timeout (5 seconds - reduced from 60s for better UX)
                   timeoutId = setTimeout(() => {
-                    console.warn('[QuickSync] ⏰ Balance update timeout - proceeding anyway');
+                    console.warn('[QuickSync] ⏰ Balance update timeout - balance confirmation failed');
                     window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
-                    resolve(true); // Don't fail, just proceed
-                  }, 60000);
+
+                    // Dispatch warning event for UI to show user
+                    if (typeof window !== 'undefined') {
+                      window.dispatchEvent(new CustomEvent('railgun-quicksync-timeout', {
+                        detail: {
+                          txHash,
+                          chainId,
+                          transactionType,
+                          walletId: transactionDetails?.walletId,
+                          warning: 'Balance confirmation timed out - funds may not be visible immediately'
+                        }
+                      }));
+                    }
+
+                    resolve(true); // Proceed but with warning
+                  }, 5000);
                   
                   // Listen for balance updates
                   window.addEventListener('railgun-balance-update', handleBalanceUpdate);
@@ -1067,11 +1087,21 @@ export const monitorTransactionInGraph = async ({
             }
             
             console.log('[QuickSync] ✅ Successfully completed - SDK has latest note state for proof generation');
-            
+
+            // Clear scanning flag
+            if (typeof window !== 'undefined') {
+              window.__RAILGUN_SCANNING_IN_PROGRESS = false;
+            }
+
           } catch (error) {
             console.error('[QuickSync] ❌ Failed to complete QuickSync:', error.message);
             // Don't throw - allow transaction processing to continue with warning
             console.warn('[QuickSync] ⚠️ Continuing without QuickSync - may cause balance sync issues');
+
+            // Clear scanning flag even on error
+            if (typeof window !== 'undefined') {
+              window.__RAILGUN_SCANNING_IN_PROGRESS = false;
+            }
           }
         }
 

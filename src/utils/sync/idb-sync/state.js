@@ -189,7 +189,7 @@ export const setSnapshotCursor = (walletId, cursorB64) => {
 };
 
 /**
- * Clear snapshot cursor after successful export
+ * Clear snapshot cursor (for fresh exports or after completion)
  */
 export const clearSnapshotCursor = (walletId) => {
   try {
