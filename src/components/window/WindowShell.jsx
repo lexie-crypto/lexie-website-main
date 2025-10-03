@@ -300,28 +300,46 @@ const WindowShell = ({
         )}
       </div>
 
-      {/* Footer */}
-      {(footerLeft || footerRight) && (
-        <div className="flex items-center justify-between px-4 py-2 border-t border-gray-700 bg-gray-800 font-mono text-xs">
-          <div className="truncate text-gray-400">{footerLeft}</div>
-          <div className={`truncate ${statusTone === 'online' ? 'text-green-400' : 'text-yellow-300'}`}>
-            {footerRight}
+      {/* Footer with resize handle */}
+      <div className="relative">
+        {(footerLeft || footerRight) && (
+          <div className="flex items-center justify-between px-4 py-2 border-t border-gray-700 bg-gray-800 font-mono text-xs">
+            <div className="truncate text-gray-400">{footerLeft}</div>
+            <div className={`truncate ${statusTone === 'online' ? 'text-green-400' : 'text-yellow-300'}`}>
+              {footerRight}
+            </div>
           </div>
-        </div>
-      )}
+        )}
+
+        {/* Bottom resize handles - positioned relative to footer */}
+        {!isMaximized && (
+          <>
+            <div
+              className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize"
+              {...resizeHandlers[RESIZE_DIRECTIONS.S]}
+            />
+            <div
+              className="absolute bottom-0 left-0 w-3 h-3 cursor-nesw-resize"
+              {...resizeHandlers[RESIZE_DIRECTIONS.SW]}
+            />
+            <div
+              className="absolute bottom-0 right-0 w-3 h-3 cursor-nwse-resize"
+              {...resizeHandlers[RESIZE_DIRECTIONS.SE]}
+            />
+          </>
+        )}
+      </div>
 
       {/* Resize handles - only show when not maximized */}
       {!isMaximized && (
         <>
-          {/* Edge handles */}
+          {/* Top edge handle */}
           <div
             className="absolute top-[-3px] left-0 right-0 h-3 cursor-ns-resize"
             {...resizeHandlers[RESIZE_DIRECTIONS.N]}
           />
-          <div
-            className="absolute bottom-[-3px] left-0 right-0 h-3 cursor-ns-resize"
-            {...resizeHandlers[RESIZE_DIRECTIONS.S]}
-          />
+
+          {/* Side edge handles */}
           <div
             className="absolute top-0 bottom-0 left-[-3px] w-3 cursor-ew-resize"
             {...resizeHandlers[RESIZE_DIRECTIONS.W]}
@@ -331,7 +349,7 @@ const WindowShell = ({
             {...resizeHandlers[RESIZE_DIRECTIONS.E]}
           />
 
-          {/* Corner handles */}
+          {/* Top corner handles */}
           <div
             className="absolute top-[-3px] left-[-3px] w-3 h-3 cursor-nwse-resize"
             {...resizeHandlers[RESIZE_DIRECTIONS.NW]}
@@ -340,14 +358,6 @@ const WindowShell = ({
             className="absolute top-[-3px] right-[-3px] w-3 h-3 cursor-nesw-resize"
             {...resizeHandlers[RESIZE_DIRECTIONS.NE]}
           />
-          <div
-            className="absolute bottom-[-3px] left-[-3px] w-3 h-3 cursor-nesw-resize"
-            {...resizeHandlers[RESIZE_DIRECTIONS.SW]}
-          />
-          <div
-            className="absolute bottom-[-3px] right-[-3px] w-3 h-3 cursor-nwse-resize"
-            {...resizeHandlers[RESIZE_DIRECTIONS.SE]}
-          />
         </>
       )}
     </div>
@@ -355,6 +365,3 @@ const WindowShell = ({
 };
 
 export default WindowShell;
-
-
-
