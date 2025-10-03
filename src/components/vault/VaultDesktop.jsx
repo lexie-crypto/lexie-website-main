@@ -85,7 +85,8 @@ const VaultDesktopInner = () => {
   const [isInitInProgress, setIsInitInProgress] = useState(false);
   const [initFailedMessage, setInitFailedMessage] = useState('');
   const [bootstrapProgress, setBootstrapProgress] = useState({ percent: 0, active: false });
-  
+  const bootstrapLockedRef = useRef(false); // Prevents progress from resetting below 100% once reached
+
   // Lexie ID linking state
   const [lexieIdInput, setLexieIdInput] = useState('');
   const [lexieLinking, setLexieLinking] = useState(false);
@@ -233,24 +234,42 @@ const VaultDesktopInner = () => {
     if (isConnected && address && railgunWalletId && chainId) {
       console.log('[VaultDesktop] Wallet connected - checking Redis for scanned chains');
       (async () => {
-        const scanned = await checkRedisScannedChains();
+        // Don't re-init if modal is already open
+        if (showSignRequestPopup) {
+          console.log('[VaultDesktop] Modal already open, skipping Redis check');
+          return;
+        }
+
+        // Retry Redis check with backoff to handle race with metadata writes
+        let scanned = null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          scanned = await checkRedisScannedChains();
+          if (scanned !== null) break; // Got a definitive answer
+          if (attempt < 3) {
+            console.log(`[VaultDesktop] Redis check attempt ${attempt} returned null, retrying in 300ms...`);
+            await new Promise(resolve => setTimeout(resolve, 300));
+          }
+        }
+
         if (scanned === false || scanned === null) {
           console.log('[VaultDesktop] Chain not scanned on connect - showing modal');
+
+          // Guard reset-to-0: only reset progress if not already at 100%
           setShowSignRequestPopup(true);
           setIsInitInProgress(true);
-          setBootstrapProgress({ percent: 0, active: true }); // Show progress bar for initial vault creation
+          setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);
           setScanComplete(false);
           const networkName = getNetworkName(chainId);
-          setInitProgress({ 
-            percent: 0, 
-            message: `Setting up your LexieVault on ${networkName} Network...` 
+          setInitProgress({
+            percent: 0,
+            message: `Setting up your LexieVault on ${networkName} Network...`
           });
         } else {
           console.log('[VaultDesktop] Chain already scanned on connect - no modal needed');
         }
       })();
     }
-  }, [isConnected, address, railgunWalletId, chainId, checkRedisScannedChains]);
+  }, [isConnected, address, railgunWalletId, chainId, checkRedisScannedChains, showSignRequestPopup]);
 
   // Track when initial connection hydration is complete
   const initialConnectDoneRef = React.useRef(false);
@@ -266,16 +285,13 @@ const VaultDesktopInner = () => {
     };
   }, []);
 
-  // Reset modal state when address changes (but preserve progress during active initialization)
+  // Reset modal state when address changes
   useEffect(() => {
-    // Don't reset modal if initialization is currently in progress
-    if (!isInitInProgress) {
-      setShowSignRequestPopup(false);
-      setIsInitInProgress(false);
-      setInitFailedMessage('');
-      setInitProgress({ percent: 0, message: '' });
-    }
-  }, [address, isInitInProgress]);
+    setShowSignRequestPopup(false);
+    setIsInitInProgress(false);
+    setInitFailedMessage('');
+    setInitProgress({ percent: 0, message: '' });
+  }, [address]);
 
   // Update chain readiness
   useEffect(() => {
@@ -666,7 +682,8 @@ const VaultDesktopInner = () => {
       setScanComplete(false);
       setIsChainReady(false);
       setIsInitInProgress(true);
-      setBootstrapProgress({ percent: 0, active: true }); // Show progress bar for initialization
+      // Guard reset-to-0: don't reset progress if already at 100%
+      setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);
       setInitFailedMessage('');
       const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
       setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
@@ -742,11 +759,18 @@ const VaultDesktopInner = () => {
         console.log('[VaultDesktop] Bootstrap progress event:', { eventChainId, progress, currentChainId: chainId, networkName: network?.name });
 
         // Always update progress bar during bootstrap (only one chain at a time)
-        console.log('[VaultDesktop] Updating progress bar for chain', eventChainId, 'progress:', progress);
-        setBootstrapProgress({ percent: Math.round(progress * 100) / 100, active: true });
+        const newPercent = Math.round(progress * 100) / 100;
+        console.log('[VaultDesktop] Updating progress bar for chain', eventChainId, 'progress:', progress, '->', newPercent + '%');
 
-        // When bootstrap reaches 100%, change message to "Creating..."
-        if (Math.round(progress * 100) / 100 >= 100) {
+        // Lock at 100% once reached - don't allow it to go below 100% until modal closes
+        setBootstrapProgress(prev => {
+          const finalPercent = bootstrapLockedRef.current && newPercent < prev.percent ? prev.percent : newPercent;
+          return { percent: finalPercent, active: true };
+        });
+
+        // When bootstrap reaches 100%, lock it and change message to "Creating..."
+        if (newPercent >= 100 && !bootstrapLockedRef.current) {
+          bootstrapLockedRef.current = true;
           const networkName = network?.name || `Chain ${eventChainId}`;
           setInitProgress(prev => ({
             ...prev,
@@ -782,6 +806,7 @@ const VaultDesktopInner = () => {
   useEffect(() => {
     if (!showSignRequestPopup) {
       setBootstrapProgress({ percent: 0, active: false });
+      bootstrapLockedRef.current = false; // Reset the 100% lock
     }
   }, [showSignRequestPopup]);
 
@@ -1021,7 +1046,8 @@ const VaultDesktopInner = () => {
         console.log('[VaultDesktop] Target chain not scanned - showing modal');
         setShowSignRequestPopup(true);
         setIsInitInProgress(true);
-        setBootstrapProgress({ percent: 0, active: true }); // Show progress bar for chain switching
+        // Guard reset-to-0: don't reset progress if already at 100%
+        setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);
         const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
         setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
       } else {
