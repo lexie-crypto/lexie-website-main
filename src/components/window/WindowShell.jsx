@@ -228,7 +228,7 @@ const WindowShell = ({
         left: isMaximized ? leftSafe : currentPosition.x,
         top: isMaximized ? topSafe : currentPosition.y,
         width: isMaximized ? `calc(100vw - ${leftSafe + rightSafe}px)` : currentSize.width,
-        height: isMaximized ? `calc(100vh - ${topSafe + bottomSafe}px)` : `calc(${currentSize.height}px + 6px)`,
+        height: isMaximized ? `calc(100vh - ${topSafe + bottomSafe}px)` : currentSize.height,
         zIndex,
         transform: 'translateZ(0)', // Force hardware acceleration
       }}
@@ -319,7 +319,7 @@ const WindowShell = ({
             {...resizeHandlers[RESIZE_DIRECTIONS.N]}
           />
           <div
-            className="absolute bottom-[-6px] left-0 right-0 h-3 cursor-ns-resize"
+            className="absolute bottom-[-3px] left-0 right-0 h-3 cursor-ns-resize"
             {...resizeHandlers[RESIZE_DIRECTIONS.S]}
           />
           <div
@@ -341,11 +341,11 @@ const WindowShell = ({
             {...resizeHandlers[RESIZE_DIRECTIONS.NE]}
           />
           <div
-            className="absolute bottom-[-6px] left-[-3px] w-3 h-3 cursor-nesw-resize"
+            className="absolute bottom-[-3px] left-[-3px] w-3 h-3 cursor-nesw-resize"
             {...resizeHandlers[RESIZE_DIRECTIONS.SW]}
           />
           <div
-            className="absolute bottom-[-6px] right-[-3px] w-3 h-3 cursor-nwse-resize"
+            className="absolute bottom-[-3px] right-[-3px] w-3 h-3 cursor-nwse-resize"
             {...resizeHandlers[RESIZE_DIRECTIONS.SE]}
           />
         </>
