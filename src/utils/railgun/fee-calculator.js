@@ -46,7 +46,7 @@ export const calculateGasReclamationERC20 = async (
   }[chainId] || NetworkName.Ethereum;
 
   // Use conservative gas estimate (higher for mainnet due to proof verification complexity)
-  const gasLimit = chainId === 1 ? BigInt('2500000') : BigInt('1200000'); // 2.5M for mainnet, 1.2M for others
+  const gasLimit = chainId === 1 ? BigInt('2500000') : BigInt('1500000'); // 2.5M for mainnet, 1.5M for others (25% buffer)
 
   // Get current gas prices from RPC (same as working function)
   const gasPrices = await fetchGasPricesFromRPC(chainId);
