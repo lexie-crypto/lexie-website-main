@@ -119,22 +119,12 @@ const WindowShell = ({
       // Update both size and position after resize
       updatePosition(id, newPosition);
       updateSize(id, newSize);
-
-      // Save size to localStorage after resize completes
-      try {
-        localStorage.setItem(`lexie:window-size:${id}`, JSON.stringify({
-          width: newSize.width,
-          height: newSize.height
-        }));
-      } catch (e) {
-        console.warn(`Failed to save window size for ${id}:`, e);
-      }
     },
     onSizeChange: (newSize, newPosition) => {
-      // During resize: only update position (needed for edge resize positioning)
+      // Update position during resize
       updatePosition(id, newPosition);
-      // Do NOT call updateSize here - let the hook manage size internally
-    },
+      // Size is managed through the current window dimensions
+    }
   });
 
   // Use resize size/position when resizing, otherwise use drag values
@@ -219,7 +209,7 @@ const WindowShell = ({
             return null;
           }
 
-          const currentSize = isWindowResizing ? resizeSize : (windowState?.size || getCurrentSize());
+          const currentSize = isWindowResizing ? resizeSize : getCurrentSize();
           const isMaximized = windowState?.isMaximized || false;
           const zIndex = windowState?.zIndex || 1000;
           const isFocused = windowState?.isFocused || false;
@@ -376,6 +366,3 @@ const WindowShell = ({
 };
 
 export default WindowShell;
-
-
-
