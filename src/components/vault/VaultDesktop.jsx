@@ -1534,7 +1534,7 @@ const VaultDesktopInner = () => {
                 {/* Public Balances */}
                 <div className="border-t border-teal-500/10 pt-6">
                   <div className="flex items-center justify-between mb-4">
-                    <div className="text-emerald-300 text-sm font-medium font-mono">Public Balances</div>
+                    <div className="text-emerald-300 text-sm font-medium font-mono">{network?.name || 'Network'} Public Balances</div>
                     <button
                       onClick={refreshBalances}
                       disabled={isLoading || !isConnected}
