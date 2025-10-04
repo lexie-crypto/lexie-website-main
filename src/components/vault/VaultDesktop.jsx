@@ -1612,14 +1612,6 @@ const VaultDesktopInner = () => {
           </div>
         )}
 
-        {/* Last Update Time */}
-        {lastUpdateTime && (
-          <div className="mt-6 text-center">
-            <p className="text-green-500/70 text-xs font-mono">
-              Last updated: {new Date(lastUpdateTime).toLocaleTimeString()}
-            </p>
-          </div>
-        )}
 
       </div>
 
