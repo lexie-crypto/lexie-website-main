@@ -151,7 +151,7 @@ const WindowShell = ({
     // For first-time open, center horizontally and place below headers
     // Check if position is still at default initial position
     if (windowState.position.x === stableInitialPosition.x && windowState.position.y === stableInitialPosition.y) {
-      const currentSize = getCurrentSize();
+      const currentSize = windowState.size;
       const centerX = Math.max(leftSafe, (window.innerWidth - currentSize.width) / 2);
       const safeY = topSafe + 24; // 24px below header
 
@@ -163,13 +163,13 @@ const WindowShell = ({
       setPosition(centeredPosition);
       updatePosition(id, centeredPosition);
     }
-  }, [windowState, setPosition, updatePosition, id, topSafe, bottomSafe, leftSafe, rightSafe, getCurrentSize, stableInitialPosition]);
+  }, [windowState, setPosition, updatePosition, id, topSafe, bottomSafe, leftSafe, rightSafe, stableInitialPosition]);
 
   // Handle viewport changes - clamp position if window becomes invalid
   useEffect(() => {
     if (!windowState || isDragging) return;
 
-    const currentSize = getCurrentSize();
+    const currentSize = windowState.size;
     const clampedPosition = clampPosition(windowState.position, currentSize);
 
     // Only adjust if position is significantly out of bounds
@@ -210,7 +210,7 @@ const WindowShell = ({
             return null;
           }
 
-          const currentSize = isWindowResizing ? resizeSize : getCurrentSize();
+          const currentSize = isWindowResizing ? resizeSize : (windowState?.size || stableInitialSize);
           const isMaximized = windowState?.isMaximized || false;
           const zIndex = windowState?.zIndex || 1000;
           const isFocused = windowState?.isFocused || false;
