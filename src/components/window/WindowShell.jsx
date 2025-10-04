@@ -131,10 +131,10 @@ const WindowShell = ({
       }
     },
     onSizeChange: (newSize, newPosition) => {
-      // Update position during resize
+      // During resize: only update position (needed for edge resize positioning)
       updatePosition(id, newPosition);
-      // Size is managed through the current window dimensions
-    }
+      // Do NOT call updateSize here - let the hook manage size internally
+    },
   });
 
   // Use resize size/position when resizing, otherwise use drag values
@@ -376,3 +376,6 @@ const WindowShell = ({
 };
 
 export default WindowShell;
+
+
+

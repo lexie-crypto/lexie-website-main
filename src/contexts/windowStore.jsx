@@ -525,3 +525,6 @@ export const useWindowStore = () => {
 
 // Export action types for external use
 export { WINDOW_ACTIONS };
+
+
+
