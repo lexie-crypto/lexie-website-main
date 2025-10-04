@@ -181,6 +181,14 @@ export const useResize = ({
 
     e.preventDefault();
 
+    // Get the final resize values (either from pending RAF or current state)
+    const finalMousePos = { x: e.clientX, y: e.clientY };
+    const finalResult = calculateResize(finalMousePos, resizeStateRef.current.direction, size, position);
+
+    // Update hook state with final values
+    setSize(finalResult.size);
+    setPosition(finalResult.position);
+
     // Clean up event listeners
     document.removeEventListener('pointermove', handlePointerMove);
     document.removeEventListener('pointerup', handlePointerUp);
@@ -193,7 +201,8 @@ export const useResize = ({
     setIsResizing(false);
     setResizeDirection(null);
 
-    onResizeEnd?.(size, position);
+    // Call onResizeEnd with the FINAL calculated values, not hook state
+    onResizeEnd?.(finalResult.size, finalResult.position);
 
     // Cancel any pending RAF
     if (rafRef.current) {
