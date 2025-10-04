@@ -84,7 +84,6 @@ const WindowShell = ({
   const windowState = getWindowState(id);
   const windowRef = useRef(null);
   const [isResizing, setIsResizing] = useState(false);
-  const currentSizeRef = useRef(stableInitialSize);
 
   // Get current window dimensions for drag constraints
   const getCurrentSize = () => {
@@ -120,31 +119,13 @@ const WindowShell = ({
       // Update both size and position after resize
       updatePosition(id, newPosition);
       updateSize(id, newSize);
-      // Update our ref to track the current size
-      currentSizeRef.current = newSize;
     },
     onSizeChange: (newSize, newPosition) => {
       // Update position during resize
       updatePosition(id, newPosition);
-      // Save size to localStorage immediately when resizing
-      try {
-        const sizeData = {
-          width: newSize.width,
-          height: newSize.height
-        };
-        localStorage.setItem(`lexie:window-size:${id}`, JSON.stringify(sizeData));
-      } catch (e) {
-        console.warn(`Failed to save window size for ${id}:`, e);
-      }
+      // Size is managed through the current window dimensions
     }
   });
-
-  // Update currentSizeRef when window state size changes (for restore operations)
-  useEffect(() => {
-    if (windowState?.size && !isWindowResizing) {
-      currentSizeRef.current = windowState.size;
-    }
-  }, [windowState?.size, isWindowResizing]);
 
   // Use resize size/position when resizing, otherwise use drag values
   const currentPosition = isWindowResizing ? resizePosition : position;
@@ -228,7 +209,7 @@ const WindowShell = ({
             return null;
           }
 
-          const currentSize = isWindowResizing ? resizeSize : currentSizeRef.current;
+          const currentSize = isWindowResizing ? resizeSize : getCurrentSize();
           const isMaximized = windowState?.isMaximized || false;
           const zIndex = windowState?.zIndex || 1000;
           const isFocused = windowState?.isFocused || false;

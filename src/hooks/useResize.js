@@ -3,14 +3,14 @@ import { useSafeAreas } from './useSafeAreas.js';
 
 // Resize directions
 export const RESIZE_DIRECTIONS = {
-  N: 'N',    // North (top)
-  S: 'S',    // South (bottom)
-  E: 'E',    // East (right)
-  W: 'W',    // West (left)
-  NW: 'NW',  // Northwest (top-left)
-  NE: 'NE',  // Northeast (top-right)
-  SW: 'SW',  // Southwest (bottom-left)
-  SE: 'SE'   // Southeast (bottom-right)
+  N: 'n',    // North (top)
+  S: 's',    // South (bottom)
+  E: 'e',    // East (right)
+  W: 'w',    // West (left)
+  NW: 'nw',  // Northwest (top-left)
+  NE: 'ne',  // Northeast (top-right)
+  SW: 'sw',  // Southwest (bottom-left)
+  SE: 'se'   // Southeast (bottom-right)
 };
 
 // Minimum window dimensions
@@ -40,7 +40,7 @@ export const useResize = ({
     constraints: { minX: 0, maxX: 800, minY: 0, maxY: 600 }
   });
 
-  const { getBounds, left, top, right, bottom } = useSafeAreas();
+  const { getBounds } = useSafeAreas();
 
   // RAF callback ref
   const rafRef = useRef(null);
@@ -102,18 +102,18 @@ export const useResize = ({
         break;
     }
 
-    // Apply constraints using safe areas
-    const maxX = window.innerWidth - right - newWidth;
-    const maxY = window.innerHeight - bottom - newHeight;
+    // Apply constraints
+    const maxX = window.innerWidth - constraints.right - newWidth;
+    const maxY = window.innerHeight - constraints.bottom - newHeight;
 
-    newX = Math.max(left, Math.min(maxX, newX));
-    newY = Math.max(top, Math.min(maxY, newY));
+    newX = Math.max(constraints.minX, Math.min(maxX, newX));
+    newY = Math.max(constraints.minY, Math.min(maxY, newY));
 
     return {
       size: { width: newWidth, height: newHeight },
       position: { x: newX, y: newY }
     };
-  }, [left, top, right, bottom]);
+  }, [constraints]);
 
   // Schedule resize update with RAF
   const scheduleResizeUpdate = useCallback(() => {
@@ -131,7 +131,7 @@ export const useResize = ({
   }, [calculateResize, size, position, onSizeChange]);
 
   // Pointer event handlers
-  const handlePointerDown = useCallback((direction) => (e) => {
+  const handlePointerDown = useCallback((e, direction) => {
     if (disabled) return;
 
     e.preventDefault();
@@ -140,6 +140,7 @@ export const useResize = ({
     // Only allow resizing from left mouse button or touch
     if (e.button !== 0 && e.pointerType !== 'touch') return;
 
+    const rect = e.currentTarget.getBoundingClientRect();
     const mousePos = { x: e.clientX, y: e.clientY };
 
     resizeStateRef.current = {
@@ -209,10 +210,13 @@ export const useResize = ({
   }, [size, position, onResizeEnd]);
 
   // Generate resize handlers for each direction
-  const resizeHandlers = Object.keys(RESIZE_DIRECTIONS).reduce((handlers, key) => {
-    const direction = RESIZE_DIRECTIONS[key];
+  const resizeHandlers = Object.values(RESIZE_DIRECTIONS).reduce((handlers, direction) => {
     handlers[direction] = {
-      onPointerDown: handlePointerDown(direction)
+      onPointerDown: (e) => handlePointerDown(e, direction),
+      style: {
+        cursor: getResizeCursor(direction),
+        touchAction: 'none'
+      }
     };
     return handlers;
   }, {});
