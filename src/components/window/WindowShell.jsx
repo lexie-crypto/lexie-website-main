@@ -129,6 +129,7 @@ const WindowShell = ({
           width: newSize.width,
           height: newSize.height
         };
+        console.log(`WindowShell: Saving size to localStorage for ${id}:`, sizeData);
         localStorage.setItem(`lexie:window-size:${id}`, JSON.stringify(sizeData));
       } catch (e) {
         console.warn(`Failed to save window size for ${id}:`, e);
@@ -218,7 +219,7 @@ const WindowShell = ({
             return null;
           }
 
-          const currentSize = isWindowResizing ? resizeSize : getCurrentSize();
+          const currentSize = isWindowResizing ? resizeSize : (windowState?.size || getCurrentSize());
           const isMaximized = windowState?.isMaximized || false;
           const zIndex = windowState?.zIndex || 1000;
           const isFocused = windowState?.isFocused || false;
