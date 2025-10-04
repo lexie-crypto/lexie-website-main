@@ -265,14 +265,20 @@ function windowReducer(state, action) {
       const window = state.windows[id];
       if (!window) return state;
 
+      const newSize = window.isMaximized ? window.size : size;
+      const newLastRestoredSize = window.isMaximized ? window.lastRestoredSize : size;
+
+      // DO NOT save to localStorage here - too frequent during resize
+      // Size will be saved when resize ends or window is minimized
+
       return {
         ...state,
         windows: {
           ...state.windows,
           [id]: {
             ...window,
-            size: window.isMaximized ? window.size : size,
-            lastRestoredSize: window.isMaximized ? window.lastRestoredSize : size
+            size: newSize,
+            lastRestoredSize: newLastRestoredSize
           }
         }
       };
