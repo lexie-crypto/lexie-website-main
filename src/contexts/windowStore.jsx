@@ -55,6 +55,8 @@ const createWindowState = (id, initialData = {}) => {
     isClosed: false,
     position: initialData.position || { x: 100, y: 100 },
     size: savedSize,
+    lastRestoredPosition: initialData.position || { x: 100, y: 100 },
+    lastRestoredSize: savedSize,
     zIndex: initialData.zIndex || 1000,
     isFocused: false
   };
@@ -81,7 +83,9 @@ function windowReducer(state, action) {
               isMaximized: existingWindow.isMaximized,
               isClosed: existingWindow.isClosed,
               position: existingWindow.position,
-              size: existingWindow.size
+              size: existingWindow.size,
+              lastRestoredPosition: existingWindow.lastRestoredPosition,
+              lastRestoredSize: existingWindow.lastRestoredSize
             }
           }
         };
@@ -107,24 +111,24 @@ function windowReducer(state, action) {
         return state;
       }
 
-      // Save window position and size to localStorage when minimizing
-      const windowData = {
-        x: window.position.x,
-        y: window.position.y,
-        width: window.size.width,
-        height: window.size.height
+      // Save window size to localStorage when minimizing
+      const windowSizeData = {
+        width: window.lastRestoredSize.width,
+        height: window.lastRestoredSize.height
       };
       try {
-        localStorage.setItem(`lexie:window-state:${id}`, JSON.stringify(windowData));
+        localStorage.setItem(`lexie:window-size:${id}`, JSON.stringify(windowSizeData));
       } catch (e) {
-        console.warn(`Failed to save window state for ${id}:`, e);
+        console.warn(`Failed to save window size for ${id}:`, e);
       }
 
       const dockItem = {
         id,
         title: window.title,
         icon: window.icon,
-        appType: window.appType
+        appType: window.appType,
+        lastPosition: window.lastRestoredPosition,
+        lastSize: window.lastRestoredSize
       };
 
       // Remove from dock if already there, then add to front (LRU)
@@ -137,7 +141,9 @@ function windowReducer(state, action) {
           [id]: {
             ...window,
             isMinimized: true,
-            isFocused: false
+            isFocused: false,
+            position: window.lastRestoredPosition,
+            size: window.lastRestoredSize
           }
         },
         dockItems: [dockItem, ...filteredDock],
@@ -150,24 +156,19 @@ function windowReducer(state, action) {
       const window = state.windows[id];
       if (!window) return state;
 
-      // Load window position and size from localStorage
-      let restoredPosition = window.position;
-      let restoredSize = window.size;
+      // Load window size from localStorage
+      let restoredSize = window.lastRestoredSize;
       try {
-        const savedStateData = localStorage.getItem(`lexie:window-state:${id}`);
-        if (savedStateData) {
-          const parsedState = JSON.parse(savedStateData);
-          restoredPosition = {
-            x: parsedState.x ?? window.position.x,
-            y: parsedState.y ?? window.position.y
-          };
+        const savedSizeData = localStorage.getItem(`lexie:window-size:${id}`);
+        if (savedSizeData) {
+          const parsedSize = JSON.parse(savedSizeData);
           restoredSize = {
-            width: parsedState.width ?? window.size.width,
-            height: parsedState.height ?? window.size.height
+            width: parsedSize.width || window.lastRestoredSize.width,
+            height: parsedSize.height || window.lastRestoredSize.height
           };
         }
       } catch (e) {
-        console.warn(`Failed to load window state for ${id}:`, e);
+        console.warn(`Failed to load window size for ${id}:`, e);
       }
 
       // Remove from dock
@@ -182,8 +183,9 @@ function windowReducer(state, action) {
             isMinimized: false,
             isFocused: true,
             zIndex: state.nextZIndex,
-            position: restoredPosition,
-            size: restoredSize
+            position: window.lastRestoredPosition,
+            size: restoredSize,
+            lastRestoredSize: restoredSize
           }
         },
         dockItems: filteredDock,
@@ -251,7 +253,8 @@ function windowReducer(state, action) {
           ...state.windows,
           [id]: {
             ...window,
-            position: window.isMaximized ? window.position : position
+            position: window.isMaximized ? window.position : position,
+            lastRestoredPosition: window.isMaximized ? window.lastRestoredPosition : position
           }
         }
       };
@@ -268,7 +271,8 @@ function windowReducer(state, action) {
           ...state.windows,
           [id]: {
             ...window,
-            size: window.isMaximized ? window.size : size
+            size: window.isMaximized ? window.size : size,
+            lastRestoredSize: window.isMaximized ? window.lastRestoredSize : size
           }
         }
       };
@@ -294,8 +298,8 @@ function windowReducer(state, action) {
             ...window,
             isMaximized: willBeMaximized,
             // Store/restore position and size
-            position: willBeMaximized ? { x: 0, y: 0 } : window.position,
-            size: willBeMaximized ? maxSize : window.size,
+            position: willBeMaximized ? { x: 0, y: 0 } : window.lastRestoredPosition,
+            size: willBeMaximized ? maxSize : window.lastRestoredSize,
             // Bring to front when maximizing
             zIndex: willBeMaximized ? state.nextZIndex : window.zIndex,
             isFocused: willBeMaximized
@@ -323,7 +327,9 @@ function windowReducer(state, action) {
             isMaximized: persistedWindow.isMaximized,
             isClosed: persistedWindow.isClosed,
             position: persistedWindow.position,
-            size: persistedWindow.size
+            size: persistedWindow.size,
+            lastRestoredPosition: persistedWindow.lastRestoredPosition,
+            lastRestoredSize: persistedWindow.lastRestoredSize
           };
         } else {
           // Create window from persisted state
