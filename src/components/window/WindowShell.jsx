@@ -123,7 +123,16 @@ const WindowShell = ({
     onSizeChange: (newSize, newPosition) => {
       // Update position during resize
       updatePosition(id, newPosition);
-      // Size is managed through the current window dimensions
+      // Save size to localStorage immediately when resizing
+      try {
+        const sizeData = {
+          width: newSize.width,
+          height: newSize.height
+        };
+        localStorage.setItem(`lexie:window-size:${id}`, JSON.stringify(sizeData));
+      } catch (e) {
+        console.warn(`Failed to save window size for ${id}:`, e);
+      }
     }
   });
 

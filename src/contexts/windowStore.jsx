@@ -78,8 +78,8 @@ function windowReducer(state, action) {
         if (savedSizeData) {
           const parsedSize = JSON.parse(savedSizeData);
           const savedSize = {
-            width: parsedSize.width || newWindow.size.width,
-            height: parsedSize.height || newWindow.size.height
+            width: parsedSize.width,
+            height: parsedSize.height
           };
           newWindow = {
             ...newWindow,
@@ -109,10 +109,10 @@ function windowReducer(state, action) {
         return state;
       }
 
-      // Save window size to localStorage when minimizing
+      // Save current window size to localStorage when minimizing
       const windowSizeData = {
-        width: window.lastRestoredSize.width,
-        height: window.lastRestoredSize.height
+        width: window.size.width,
+        height: window.size.height
       };
       try {
         localStorage.setItem(`lexie:window-size:${id}`, JSON.stringify(windowSizeData));
@@ -161,8 +161,8 @@ function windowReducer(state, action) {
         if (savedSizeData) {
           const parsedSize = JSON.parse(savedSizeData);
           restoredSize = {
-            width: parsedSize.width || window.lastRestoredSize.width,
-            height: parsedSize.height || window.lastRestoredSize.height
+            width: parsedSize.width,
+            height: parsedSize.height
           };
         }
       } catch (e) {
