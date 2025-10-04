@@ -149,7 +149,8 @@ const WindowShell = ({
     if (!windowState) return;
 
     // For first-time open, center horizontally and place below headers
-    if (!windowState.lastRestoredPosition) {
+    // Check if position is still at default initial position
+    if (windowState.position.x === stableInitialPosition.x && windowState.position.y === stableInitialPosition.y) {
       const currentSize = getCurrentSize();
       const centerX = Math.max(leftSafe, (window.innerWidth - currentSize.width) / 2);
       const safeY = topSafe + 24; // 24px below header
@@ -162,7 +163,7 @@ const WindowShell = ({
       setPosition(centeredPosition);
       updatePosition(id, centeredPosition);
     }
-  }, [windowState, setPosition, updatePosition, id, topSafe, bottomSafe, leftSafe, rightSafe, getCurrentSize]);
+  }, [windowState, setPosition, updatePosition, id, topSafe, bottomSafe, leftSafe, rightSafe, getCurrentSize, stableInitialPosition]);
 
   // Handle viewport changes - clamp position if window becomes invalid
   useEffect(() => {
