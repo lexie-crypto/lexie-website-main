@@ -2188,7 +2188,6 @@ const VaultDesktopInner = () => {
           initialSize={{ width: 1000, height: 700 }}
           initialPosition={{ x: 50, y: 50 }}
           minSize={{ width: 800, height: 600 }}
-          className="z-[75]"
         >
           <TitansGameWindow
             lexieId={currentLexieId}
