@@ -205,15 +205,19 @@ const WindowShell = ({
     toggleMaximize(id, maximizedSize);
   };
 
-  // Don't render if window is closed or minimized
-          if (windowState?.isClosed || windowState?.isMinimized) {
-            return null;
-          }
+          // For closed/minimized windows, render but hide visually to preserve iframe state
+          const isClosed = windowState?.isClosed || false;
+          const isMinimized = windowState?.isMinimized || false;
 
           const currentSize = isWindowResizing ? resizeSize : (windowState?.size || stableInitialSize);
           const isMaximized = windowState?.isMaximized || false;
           const zIndex = windowState?.zIndex || 1000;
           const isFocused = windowState?.isFocused || false;
+
+          // Calculate heights for proper content fitting
+          const headerHeight = 52; // Header with padding and border
+          const footerHeight = (footerLeft || footerRight) ? 38 : 0; // Footer height when present
+          const totalChromeHeight = headerHeight + footerHeight;
 
   return (
     <div
@@ -224,6 +228,7 @@ const WindowShell = ({
         ${isFocused ? 'shadow-2xl shadow-purple-500/20' : 'shadow-lg'}
         ${isDragging ? 'shadow-3xl shadow-blue-500/30' : ''}
         ${isWindowResizing ? 'ring-2 ring-blue-400/50' : ''}
+        ${(isMinimized || isClosed) ? 'opacity-0 pointer-events-none' : ''}
         ${className}
       `}
       style={{
@@ -231,7 +236,7 @@ const WindowShell = ({
         top: isMaximized ? topSafe : currentPosition.y,
         width: isMaximized ? `calc(100vw - ${leftSafe + rightSafe}px)` : currentSize.width,
         height: isMaximized ? `calc(100vh - ${topSafe + bottomSafe}px)` : currentSize.height,
-        zIndex,
+        zIndex: isClosed ? -1 : zIndex,
         transform: 'translateZ(0)', // Force hardware acceleration
       }}
       onClick={handleWindowClick}
@@ -247,7 +252,7 @@ const WindowShell = ({
                   ${isMaximized ? 'cursor-default' : isDragging ? 'cursor-grabbing' : isWindowResizing ? 'cursor-wait' : 'cursor-grab'}
                   select-none
                 `}
-        {...(isMaximized ? {} : dragHandlers)}
+        {...(isMaximized || isMinimized || isClosed ? {} : dragHandlers)}
         role="banner"
         aria-grabbed={isDragging}
       >
@@ -287,12 +292,23 @@ const WindowShell = ({
         id={`window-content-${id}`}
         className="relative bg-black overflow-hidden"
         style={{
-          height: isMaximized ? 'calc(100vh - 52px)' : `calc(${currentSize.height}px - 52px)`
+          height: appType === 'game'
+            ? (isMaximized
+                ? `calc(100vh - ${topSafe + bottomSafe + totalChromeHeight}px)`
+                : `calc(${currentSize.height}px - ${totalChromeHeight}px)`
+              )
+            : (isMaximized ? 'calc(100vh - 52px)' : `calc(${currentSize.height}px - 52px)`)
         }}
       >
-        <div className="px-8 pt-4 pb-6 h-full overflow-auto scrollbar-terminal">
-          {children}
-        </div>
+        {appType === 'game' ? (
+          <div className="h-full w-full">
+            {children}
+          </div>
+        ) : (
+          <div className="px-8 pt-4 pb-6 h-full overflow-auto scrollbar-terminal">
+            {children}
+          </div>
+        )}
 
         {/* Background overlay */}
         {variant === 'connect' ? (
@@ -332,8 +348,8 @@ const WindowShell = ({
         )}
       </div>
 
-      {/* Resize handles - only show when not maximized */}
-      {!isMaximized && (
+      {/* Resize handles - only show when not maximized and not closed */}
+      {!isMaximized && !isClosed && (
         <>
           {/* Top edge handle */}
           <div

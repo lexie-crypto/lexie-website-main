@@ -63,7 +63,7 @@ const Taskbar = () => {
 
   return (
     <div
-      className="fixed bottom-0 left-0 right-0 z-40 h-12 bg-black/80 backdrop-blur-md border-t border-gray-700/50"
+      className="fixed bottom-0 left-0 right-0 z-[99] h-12 bg-black/80 backdrop-blur-md border-t border-gray-700/50"
       role="toolbar"
       aria-label="Minimized windows dock"
     >

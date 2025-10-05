@@ -566,6 +566,16 @@ export default async function handler(req, res) {
         backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
         console.log(`🔍 [WALLET-METADATA-PROXY-${requestId}] GET Lexie by-wallet for ${String(railgunAddress).slice(0,8)}...`);
 
+      } else if (action === 'check-verification') {
+        const eoa = req.query.eoa;
+        if (!eoa) {
+          console.log(`❌ [WALLET-METADATA-PROXY-${requestId}] Missing eoa for check-verification`);
+          return res.status(400).json({ success: false, error: 'Missing eoa parameter' });
+        }
+        backendPath = `/api/check-verification?eoa=${encodeURIComponent(eoa)}`;
+        backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+        console.log(`🔍 [WALLET-METADATA-PROXY-${requestId}] GET check-verification for EOA ${eoa.slice(0,8)}...`);
+
       } else if (action === 'resolve-wallet-id') {
         const resolveType = req.query.type;
         const identifier = req.query.identifier || req.query.address || req.query.railgunAddress || req.query.txId;
@@ -694,6 +704,21 @@ export default async function handler(req, res) {
         backendPath = '/api/verify';
         backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
         console.log(`✅ [WALLET-METADATA-PROXY-${requestId}] POST Lexie link verify`);
+
+      } else if (action === 'lexie-claim') {
+        backendPath = '/api/claim';
+        backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+        console.log(`🎯 [WALLET-METADATA-PROXY-${requestId}] POST Lexie claim`);
+
+      } else if (action === 'generate-verification') {
+        backendPath = '/api/generate-verification';
+        backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+        console.log(`🔗 [WALLET-METADATA-PROXY-${requestId}] POST generate verification`);
+
+      } else if (action === 'verify-cross-link') {
+        backendPath = '/api/verify-cross-link';
+        backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+        console.log(`✅ [WALLET-METADATA-PROXY-${requestId}] POST verify cross-link`);
 
       } else if (action === 'rewards-award') {
         backendPath = '/api/rewards/award';

@@ -6,6 +6,7 @@ const WINDOW_ACTIONS = {
   MINIMIZE_WINDOW: 'MINIMIZE_WINDOW',
   RESTORE_WINDOW: 'RESTORE_WINDOW',
   CLOSE_WINDOW: 'CLOSE_WINDOW',
+  REOPEN_WINDOW: 'REOPEN_WINDOW',
   BRING_TO_FRONT: 'BRING_TO_FRONT',
   UPDATE_POSITION: 'UPDATE_POSITION',
   UPDATE_SIZE: 'UPDATE_SIZE',
@@ -217,6 +218,32 @@ function windowReducer(state, action) {
         },
         dockItems: filteredDock,
         activeWindowId: state.activeWindowId === id ? null : state.activeWindowId
+      };
+    }
+
+    case WINDOW_ACTIONS.REOPEN_WINDOW: {
+      const { id } = action.payload;
+      console.log('windowStore reducer: REOPEN_WINDOW for', id);
+      const window = state.windows[id];
+      if (!window) {
+        console.log('windowStore reducer: Window not found for reopen:', id);
+        return state;
+      }
+
+      return {
+        ...state,
+        windows: {
+          ...state.windows,
+          [id]: {
+            ...window,
+            isClosed: false,
+            isMinimized: false,
+            isFocused: true,
+            zIndex: state.nextZIndex
+          }
+        },
+        activeWindowId: id,
+        nextZIndex: state.nextZIndex + 1
       };
     }
 
@@ -453,6 +480,11 @@ export const WindowProvider = ({ children }) => {
     closeWindow: useCallback((id) => {
       console.log('windowStore: closeWindow called for', id);
       dispatch({ type: WINDOW_ACTIONS.CLOSE_WINDOW, payload: { id } });
+    }, []),
+
+    reopenWindow: useCallback((id) => {
+      console.log('windowStore: reopenWindow called for', id);
+      dispatch({ type: WINDOW_ACTIONS.REOPEN_WINDOW, payload: { id } });
     }, []),
 
     bringToFront: useCallback((id) => {
