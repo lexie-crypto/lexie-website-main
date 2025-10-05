@@ -158,7 +158,7 @@ const VaultDesktopInner = () => {
   } = useWallet();
 
   // Window management hooks
-  const { getWindowState, reopenWindow, bringToFront, updateFocus } = useWindowStore();
+  const { getWindowState, reopenWindow } = useWindowStore();
   useKeyboardShortcuts();
 
   // Memoize footer content to prevent re-mounting
@@ -280,28 +280,6 @@ const VaultDesktopInner = () => {
       return () => window.removeEventListener('walletconnect-unsupported-network', handleUnsupportedNetworkDisconnect);
     }
   }, []);
-
-  // Listen for cross-origin messages from game iframe (only when modal is NOT showing)
-  useEffect(() => {
-    if (showSignRequestPopup) return; // Skip when modal is showing
-
-    const handleMessage = (event) => {
-      // Security: verify the message structure
-      if (!event.data || typeof event.data !== 'object') return;
-      if (event.data.type !== 'window-focused') return;
-      if (!event.data.windowId) return;
-
-      // Focus the window that sent the message
-      const { windowId } = event.data;
-      console.log('[VaultDesktop] Received focus message from iframe:', windowId);
-
-      bringToFront(windowId);
-      updateFocus(windowId);
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, [showSignRequestPopup, bringToFront, updateFocus]);
 
 
   // Simple Redis check for scanned chains (exact EOA address, no normalization)
@@ -2210,12 +2188,12 @@ const VaultDesktopInner = () => {
           initialSize={{ width: 1000, height: 700 }}
           initialPosition={{ x: 50, y: 50 }}
           minSize={{ width: 800, height: 600 }}
-          className="z-[75]"
+          className="z-[99]"
         >
           <TitansGameWindow
             lexieId={currentLexieId}
             walletAddress={address}
-            onClose={() => setShowTitansGame(false)}s
+            onClose={() => setShowTitansGame(false)}
           />
         </WindowShell>
       )}
