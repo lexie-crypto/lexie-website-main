@@ -875,18 +875,60 @@ const VaultDesktopInner = () => {
 
   // Listen for signature request and init lifecycle events (like old WalletPage)
   useEffect(() => {
-    const onSignRequest = () => {
+    const onSignRequest = async () => {
       setShowSignRequestPopup(true);
       setIsInitInProgress(false);
       setInitProgress({ percent: 0, message: '' });
       setInitFailedMessage('');
       console.log('[VaultDesktop] Signature requested - showing modal');
+
+      // Check if user has EOA-linked LexieID during vault creation
+      if (address) {
+        try {
+          const eoaCheckResp = await fetch(`/api/wallet-metadata?action=check-eoa-lexie&eoa=${encodeURIComponent(address)}`);
+          if (eoaCheckResp.ok) {
+            const eoaCheckData = await eoaCheckResp.json();
+            if (!eoaCheckData.hasLexieId) {
+              // No EOA-linked LexieID - show modal for setup during vault creation
+              console.log('[VaultDesktop] No EOA-linked LexieID found - showing LexieID setup during vault creation');
+              setTimeout(() => {
+                setShowLexieModal(true);
+              }, 1000); // Small delay to let vault modal settle
+            } else {
+              console.log('[VaultDesktop] EOA already has linked LexieID:', eoaCheckData.lexieId);
+            }
+          }
+        } catch (error) {
+          console.warn('[VaultDesktop] Failed to check EOA LexieID status:', error);
+        }
+      }
     };
     
-    const onInitStarted = (e) => {
+    const onInitStarted = async (e) => {
       // Open modal when init/scan starts
       if (!showSignRequestPopup) {
         setShowSignRequestPopup(true);
+
+        // Check if user has EOA-linked LexieID during vault creation
+        if (address) {
+          try {
+            const eoaCheckResp = await fetch(`/api/wallet-metadata?action=check-eoa-lexie&eoa=${encodeURIComponent(address)}`);
+            if (eoaCheckResp.ok) {
+              const eoaCheckData = await eoaCheckResp.json();
+              if (!eoaCheckData.hasLexieId) {
+                // No EOA-linked LexieID - show modal for setup during vault creation
+                console.log('[VaultDesktop] No EOA-linked LexieID found - showing LexieID setup during vault creation');
+                setTimeout(() => {
+                  setShowLexieModal(true);
+                }, 1000); // Small delay to let vault modal settle
+              } else {
+                console.log('[VaultDesktop] EOA already has linked LexieID:', eoaCheckData.lexieId);
+              }
+            }
+          } catch (error) {
+            console.warn('[VaultDesktop] Failed to check EOA LexieID status:', error);
+          }
+        }
       }
       setScanComplete(false);
       setIsChainReady(false);
@@ -1823,7 +1865,7 @@ const VaultDesktopInner = () => {
 
       {/* Lexie ID Modal */}
       {showLexieModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 font-mono">
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[99] p-4 font-mono">
           <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-4xl w-full overflow-hidden">
             {/* Modal Terminal Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
@@ -1858,7 +1900,7 @@ const VaultDesktopInner = () => {
                 </p>
               </div>
 
-              {canUseRailgun && railgunAddress ? (
+              {address && (
                 <div className="space-y-4">
                   <div className="bg-black/40 border border-green-500/20 rounded p-3">
                     <div className="text-green-400/80 text-xs mb-2">Enter your LexieID:</div>
@@ -1900,7 +1942,7 @@ const VaultDesktopInner = () => {
                                 // Lexie ID doesn't exist - claim it directly
                                 const claimResp = await fetch('/api/wallet-metadata?action=lexie-claim', {
                                   method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ lexieID: chosen, eoaAddress: address, railgunAddress })
+                                  body: JSON.stringify({ lexieID: chosen, eoaAddress: address, railgunAddress: railgunAddress || null })
                                 });
                                 const claimJson = await claimResp.json().catch(() => ({}));
                                 if (!claimResp.ok || !claimJson.success) {
@@ -1923,7 +1965,7 @@ const VaultDesktopInner = () => {
                               // Lexie ID exists but is not linked - user can link it (proves ownership via Telegram code)
                               const startResp = await fetch('/api/wallet-metadata?action=lexie-link-start', {
                                 method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ lexieID: chosen, railgunAddress })
+                                body: JSON.stringify({ lexieID: chosen, eoaAddress: address, railgunAddress: railgunAddress || null })
                               });
                               const startJson = await startResp.json().catch(() => ({}));
                               if (startResp.status === 404) { setLexieMessage('Lexie ID not found.'); setLexieLinking(false); return; }
@@ -1953,7 +1995,7 @@ const VaultDesktopInner = () => {
                                 const chosen = (lexieIdInput || '').trim().toLowerCase();
                                 const verifyResp = await fetch('/api/wallet-metadata?action=lexie-link-verify', {
                                   method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ lexieID: chosen, code: (lexieCode || '').trim() })
+                                  body: JSON.stringify({ lexieID: chosen, code: (lexieCode || '').trim(), eoaAddress: address, railgunAddress: railgunAddress || null })
                                 });
                                 const json = await verifyResp.json().catch(() => ({}));
                                 if (!verifyResp.ok || !json.success) { setLexieMessage('Verification failed. Check the code and try again.'); return; }
@@ -1992,12 +2034,6 @@ const VaultDesktopInner = () => {
                     <div className="text-purple-300/60 text-xs">
                     💡 Tip: Already have a LexieID? Enter it above to link it to your vault.
                     </div>
-                  </div>
-                </div>
-              ) : (
-                <div className="bg-yellow-900/20 border border-yellow-500/40 rounded p-3">
-                  <div className="text-yellow-300 text-xs">
-                    Please wait for your vault to initialize before linking a LexieID.
                   </div>
                 </div>
               )}
