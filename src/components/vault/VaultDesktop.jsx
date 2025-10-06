@@ -156,6 +156,7 @@ const VaultDesktopInner = () => {
     checkChainReady,
     walletConnectValidating,
     shouldShowLexieIdModal,
+    setShouldShowLexieIdModal,
     clearLexieIdModalFlag,
     showLexieIdChoiceModal,
     setShowLexieIdChoiceModal,
