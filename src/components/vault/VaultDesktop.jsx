@@ -157,6 +157,8 @@ const VaultDesktopInner = () => {
     walletConnectValidating,
     shouldShowLexieIdModal,
     clearLexieIdModalFlag,
+    showLexieIdChoiceModal,
+    setShowLexieIdChoiceModal,
   } = useWallet();
 
   // Window management hooks
@@ -212,6 +214,7 @@ const VaultDesktopInner = () => {
   const [currentLexieId, setCurrentLexieId] = useState('');
   const [pointsBalance, setPointsBalance] = useState(null);
   const [showTitansGame, setShowTitansGame] = useState(false);
+  const [waitingForGameLoad, setWaitingForGameLoad] = useState(false);
 
   // Handle LexieID linking and game opening
   const handleLexieIdLink = useCallback((lexieId) => {
@@ -233,6 +236,19 @@ const VaultDesktopInner = () => {
       }, 1000); // Small delay to allow UI to settle
     }
   }, [address]);
+
+  // Handle 5-second delay after game starts loading from LexieID choice
+  useEffect(() => {
+    if (waitingForGameLoad && currentLexieId) {
+      const timer = setTimeout(() => {
+        console.log('🎮 Game load delay complete, signaling choice is complete...');
+        setWaitingForGameLoad(false);
+        // NOW signal that entire flow is complete
+        window.dispatchEvent(new CustomEvent('lexie-choice-complete'));
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [waitingForGameLoad, currentLexieId]);
 
   // Cross-platform verification state
   const [showVerificationModal, setShowVerificationModal] = useState(false);
@@ -1817,6 +1833,59 @@ const VaultDesktopInner = () => {
 
 
       </div>
+
+      {/* Lexie ID Choice Modal */}
+      {showLexieIdChoiceModal && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] p-4 font-mono">
+          <div className="bg-gray-900 border border-green-500/30 rounded-lg shadow-2xl max-w-md w-full overflow-hidden">
+            {/* Modal Terminal Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-red-500" />
+                  <span className="w-3 h-3 rounded-full bg-yellow-500" />
+                  <span className="w-3 h-3 rounded-full bg-green-500" />
+                </div>
+                <span className="text-sm tracking-wide text-gray-400">lexie-id-choice</span>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 text-green-300 space-y-4">
+              <h3 className="text-xl font-bold text-green-300">Claim Your LexieID</h3>
+              <p className="text-green-200/80 text-sm">
+                You can easily transfer between vaults and play our Titans game while you wait for your vault to be created.
+              </p>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={() => {
+                    console.log('✅ User chose to create LexieID - opening LexieID modal and starting game delay...');
+                    setShowLexieIdChoiceModal(false);
+                    setShouldShowLexieIdModal(true);
+                    setWaitingForGameLoad(true);
+                    // Don't dispatch event yet - wait for game delay
+                  }}
+                  className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded border border-green-500/50 transition-colors"
+                >
+                  Yes
+                </button>
+                <button
+                  onClick={() => {
+                    console.log('❌ User chose not to create LexieID - proceeding directly with bootstrap...');
+                    setShowLexieIdChoiceModal(false);
+                    // Immediately signal that choice is complete
+                    window.dispatchEvent(new CustomEvent('lexie-choice-complete'));
+                  }}
+                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded border border-gray-500/50 transition-colors"
+                >
+                  No
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Lexie ID Modal */}
       {showLexieModal && (
