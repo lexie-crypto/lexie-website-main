@@ -1867,13 +1867,13 @@ const VaultDesktopInner = () => {
                   onClick={() => handleLexieIdChoice(true)}
                   className="flex-1 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-200 py-2.5 px-4 rounded border border-emerald-400/40 hover:border-emerald-400 transition-all duration-200 text-sm font-medium"
                 >
-                  [Y] Yes, claim LexieID
+                  Yes, claim LexieID
                 </button>
                 <button
                   onClick={() => handleLexieIdChoice(false)}
                   className="flex-1 bg-purple-700/30 hover:bg-purple-700/50 text-gray-300 py-2.5 px-4 rounded border border-purple-500/40 hover:border-purple-400 transition-all duration-200 text-sm font-medium"
                 >
-                  [N] No, skip for now
+                  No, skip for now
                 </button>
               </div>
 
