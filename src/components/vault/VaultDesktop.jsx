@@ -406,6 +406,26 @@ const VaultDesktopInner = () => {
             percent: 0,
             message: `Setting up your LexieVault on ${networkName} Network...`
           });
+
+          // Check if user has EOA-linked LexieID during vault creation
+          (async () => {
+            try {
+              const eoaCheckResp = await fetch(`/api/wallet-metadata?action=check-eoa-lexie&eoa=${encodeURIComponent(address)}`);
+              if (eoaCheckResp.ok) {
+                const eoaCheckData = await eoaCheckResp.json();
+                if (!eoaCheckData.hasLexieId) {
+                  console.log('[VaultDesktop] No EOA-linked LexieID found - showing LexieID setup during vault creation');
+                  setTimeout(() => {
+                    setShowLexieModal(true);
+                  }, 1000); // Small delay to let vault modal settle
+                } else {
+                  console.log('[VaultDesktop] EOA already has linked LexieID:', eoaCheckData.lexieId);
+                }
+              }
+            } catch (error) {
+              console.warn('[VaultDesktop] Failed to check EOA LexieID status:', error);
+            }
+          })();
         } else {
           console.log('[VaultDesktop] Chain already scanned on connect - no modal needed');
         }
