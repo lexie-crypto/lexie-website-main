@@ -2218,12 +2218,9 @@ const VaultDesktopInner = () => {
                     )}
                   </div>
                   <div className="mt-2">
-                    <button
-                      onClick={() => setShowLexieModal(true)}
-                      className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded border border-purple-500/50 transition-colors"
-                    >
-                      Get a Lexie ID
-                    </button>
+                    <div className="text-green-400/60 text-xs text-center">
+                      🔐 Your vault is being created securely using zero-knowledge cryptography.
+                    </div>
                   </div>
                 </>
               )}
