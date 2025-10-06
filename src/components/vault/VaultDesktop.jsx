@@ -1871,7 +1871,7 @@ const VaultDesktopInner = () => {
                 </button>
                 <button
                   onClick={() => handleLexieIdChoice(false)}
-                  className="flex-1 bg-purple-800/50 hover:bg-gray-700/50 text-gray-300 py-2.5 px-4 rounded border border-gray-500/40 hover:border-gray-400 transition-all duration-200 text-sm font-medium"
+                  className="flex-1 bg-purple-700/30 hover:bg-purple-700/50 text-gray-300 py-2.5 px-4 rounded border border-purple-500/40 hover:border-purple-400 transition-all duration-200 text-sm font-medium"
                 >
                   [N] No, skip for now
                 </button>
@@ -1879,7 +1879,7 @@ const VaultDesktopInner = () => {
 
               {/* Footer info */}
               <div className="text-center">
-                <div className="text-green-400/60 text-xs">
+                <div className="text-green-300/60 text-xs">
                 💡 Tip: You can always claim a LexieID later from the vault interface
                 </div>
               </div>
