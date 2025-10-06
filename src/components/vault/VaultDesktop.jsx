@@ -224,7 +224,9 @@ const VaultDesktopInner = () => {
 
   // Handle LexieID linking and game opening
   const handleLexieIdLink = useCallback((lexieId) => {
+    const previousLexieId = currentLexieId;
     setCurrentLexieId(lexieId);
+
     // Set localStorage for Titans game integration
     if (lexieId && address) {
       localStorage.setItem("connectedWallet", address.toLowerCase());
@@ -235,14 +237,16 @@ const VaultDesktopInner = () => {
       localStorage.removeItem("connectedWallet");
       localStorage.removeItem("linkedLexieId");
     }
+
     // Auto-open Titans game when LexieID is linked
-    if (lexieId) {
+    // BUT only if: 1) LexieID changed, 2) Game not already open, 3) Not already initializing
+    if (lexieId && lexieId !== previousLexieId && !showTitansGame && !gameInitializing) {
       setTimeout(() => {
         setGameInitializing(true); // ✅ Mark game as starting to load
         setShowTitansGame(true);
       }, 1000); // Small delay to allow UI to settle
     }
-  }, [address]);
+  }, [address, currentLexieId, showTitansGame, gameInitializing]); // Add dependencies
 
   // Handle 10-second delay after game starts loading from LexieID choice
   useEffect(() => {
