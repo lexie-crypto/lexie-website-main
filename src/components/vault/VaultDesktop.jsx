@@ -706,7 +706,7 @@ const VaultDesktopInner = () => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (!currentLexieId) { setPointsBalance(null); return; }
+      if (!currentLexieId || !isRailgunInitialized) { setPointsBalance(null); return; }
       try {
         const resp = await fetch(`/api/wallet-metadata?action=rewards-balance&lexieId=${encodeURIComponent(currentLexieId)}`);
         if (!cancelled && resp.ok) {
@@ -716,7 +716,7 @@ const VaultDesktopInner = () => {
       } catch {}
     })();
     return () => { cancelled = true; };
-  }, [currentLexieId]);
+  }, [currentLexieId, isRailgunInitialized]);
 
   // Listen for points update events
   useEffect(() => {
@@ -808,51 +808,6 @@ const VaultDesktopInner = () => {
     };
   }, [currentLexieId]);
 
-  // Poll for cross-platform verification codes when Lexie modal is open
-  useEffect(() => {
-    if (!showLexieModal || !address) return;
-
-    const checkForVerificationCode = async () => {
-      try {
-        const response = await fetch(`/api/wallet-metadata?action=check-verification&eoa=${encodeURIComponent(address)}`);
-        const data = await response.json();
-
-        if (data.success && data.hasCode) {
-          setVerificationCode(data.code);
-          setVerificationLexieId(data.lexieID);
-          setVerificationExpiresAt(data.expiresAt);
-          setVerificationTimeLeft(data.timeLeftSeconds);
-          setShowVerificationModal(true);
-
-          // Show notification
-          toast.custom((t) => (
-            <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-              <div className="rounded-lg border border-purple-500/30 bg-black/90 text-purple-200 shadow-2xl">
-                <div className="px-4 py-3 flex items-center gap-3">
-                  <div className="h-3 w-3 rounded-full bg-purple-400" />
-                  <div>
-                    <div className="text-sm">Verification Code Ready</div>
-                    <div className="text-xs text-purple-400/80">Check your LexieID modal for the code to link to Telegram</div>
-                  </div>
-                  <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-purple-900/30 text-purple-300/80">×</button>
-                </div>
-              </div>
-            </div>
-          ), { duration: 5000 });
-
-          return; // Stop polling once we find a code
-        }
-      } catch (error) {
-        console.error('[VaultDesktop] Error checking for verification code:', error);
-      }
-    };
-
-    // Check immediately, then poll every 3 seconds
-    checkForVerificationCode();
-    const interval = setInterval(checkForVerificationCode, 3000);
-
-    return () => clearInterval(interval);
-  }, [showLexieModal, address]);
 
   // Update countdown timer for verification code
   useEffect(() => {
