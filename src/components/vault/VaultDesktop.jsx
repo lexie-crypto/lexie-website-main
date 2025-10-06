@@ -229,8 +229,17 @@ const VaultDesktopInner = () => {
       localStorage.removeItem("connectedWallet");
       localStorage.removeItem("linkedLexieId");
     }
-    // Signal to WalletContext that Lexie ID linking is complete
-    onLexieIdLinked();
+    // Auto-open Titans game when LexieID is linked
+    if (lexieId) {
+      setTimeout(() => {
+        setShowTitansGame(true);
+        // Signal to WalletContext that Lexie ID linking is complete
+        onLexieIdLinked();
+      }, 1000); // Small delay to allow UI to settle
+    } else {
+      // If unlinking, also signal completion (though this shouldn't happen in the new flow)
+      onLexieIdLinked();
+    }
   }, [address, onLexieIdLinked]);
 
   // Cross-platform verification state
