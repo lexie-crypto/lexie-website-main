@@ -1023,7 +1023,7 @@ const VaultDesktopInner = () => {
 
   // Auto-open Lexie ID modal for new wallet creation
   useEffect(() => {
-    if (shouldShowLexieIdModal && !currentLexieId && !showSignRequestPopup) {
+    if (shouldShowLexieIdModal && !currentLexieId) {
       console.log('[VaultDesktop] 🎉 New wallet created - opening Lexie ID modal');
 
       setShowLexieModal(true);
@@ -1054,7 +1054,7 @@ const VaultDesktopInner = () => {
         </div>
       ), { duration: 5000 });
     }
-  }, [shouldShowLexieIdModal, currentLexieId, showSignRequestPopup, clearLexieIdModalFlag]);
+  }, [shouldShowLexieIdModal, currentLexieId, clearLexieIdModalFlag]);
 
   // Check if this Railgun address already has a linked Lexie ID
   useEffect(() => {
@@ -1865,7 +1865,7 @@ const VaultDesktopInner = () => {
 
       {/* Lexie ID Modal */}
       {showLexieModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 font-mono">
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[99] p-4 font-mono">
           <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-4xl w-full overflow-hidden">
             {/* Modal Terminal Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
