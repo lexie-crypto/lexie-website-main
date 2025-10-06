@@ -1863,7 +1863,7 @@ const WalletContextProvider = ({ children }) => {
 
                 // Now wait 5 seconds for game to load before starting bootstrap
                 console.log('⏳ Lexie ID linked, waiting 5 seconds for game to load...');
-                await new Promise(resolve => setTimeout(resolve, 10000));
+                await new Promise(resolve => setTimeout(resolve, 5000));
                 console.log('✅ Game loading period complete, proceeding to bootstrap...');
 
               } else {
