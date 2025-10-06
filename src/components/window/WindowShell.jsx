@@ -214,9 +214,6 @@ const WindowShell = ({
           const zIndex = windowState?.zIndex || 1000;
           const isFocused = windowState?.isFocused || false;
 
-          // Focused windows temporarily get z-index 99, unfocused use their normal z-index
-          const effectiveZIndex = isFocused ? 99 : zIndex;
-
           // Calculate heights for proper content fitting
           const headerHeight = 52; // Header with padding and border
           const footerHeight = (footerLeft || footerRight) ? 38 : 0; // Footer height when present
@@ -239,7 +236,7 @@ const WindowShell = ({
         top: isMaximized ? topSafe : currentPosition.y,
         width: isMaximized ? `calc(100vw - ${leftSafe + rightSafe}px)` : currentSize.width,
         height: isMaximized ? `calc(100vh - ${topSafe + bottomSafe}px)` : currentSize.height,
-        zIndex: isClosed ? -1 : effectiveZIndex,
+        zIndex: isClosed ? -1 : zIndex,
         transform: 'translateZ(0)', // Force hardware acceleration
       }}
       onClick={handleWindowClick}
