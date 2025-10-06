@@ -240,15 +240,15 @@ const VaultDesktopInner = () => {
     }
   }, [address]);
 
-  // Handle 5-second delay after game starts loading from LexieID choice
+  // Handle 10-second delay after game starts loading from LexieID choice
   useEffect(() => {
     if (gameInitializing) {  // ✅ Start delay when game actually begins loading
       const timer = setTimeout(() => {
-        console.log('🎮 Game delay complete (5s after game started loading), signaling choice is complete...');
+        console.log('🎮 Game delay complete (10s after game started loading), signaling choice is complete...');
         setWaitingForGameLoad(false);
         setGameInitializing(false);
         window.dispatchEvent(new CustomEvent('lexie-choice-complete'));
-      }, 5000);
+      }, 10000);
       return () => clearTimeout(timer);
     }
   }, [gameInitializing]); // ✅ Only depend on gameInitializing
