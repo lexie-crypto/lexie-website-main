@@ -1940,7 +1940,7 @@ const VaultDesktopInner = () => {
                               if (!exists) {
                                 // Lexie ID doesn't exist - claim it directly
                                 // First, get the railgunAddress from wallet metadata in Redis
-                                const walletMetadataResp = await fetch(`/api/get-wallet-metadata/${address}`);
+                                const walletMetadataResp = await fetch(`/api/wallet-metadata?walletAddress=${address}`);
                                 if (!walletMetadataResp.ok) {
                                   setLexieMessage('Failed to fetch wallet metadata.');
                                   setLexieLinking(false);
