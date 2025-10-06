@@ -1900,10 +1900,9 @@ const VaultDesktopInner = () => {
                 </p>
               </div>
 
-              {canUseRailgun && railgunAddress ? (
-                <div className="space-y-4">
-                  <div className="bg-black/40 border border-green-500/20 rounded p-3">
-                    <div className="text-green-400/80 text-xs mb-2">Enter your LexieID:</div>
+              <div className="space-y-4">
+                <div className="bg-black/40 border border-green-500/20 rounded p-3">
+                  <div className="text-green-400/80 text-xs mb-2">Enter your LexieID:</div>
                     <div className="flex items-center gap-2">
                       <input
                         type="text"
@@ -2036,13 +2035,6 @@ const VaultDesktopInner = () => {
                     </div>
                   </div>
                 </div>
-              ) : (
-                <div className="bg-yellow-900/20 border border-yellow-500/40 rounded p-3">
-                  <div className="text-yellow-300 text-xs">
-                    Please wait for your vault to initialize before linking a LexieID.
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
