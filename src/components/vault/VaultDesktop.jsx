@@ -44,11 +44,7 @@ const TitansGame = ({ lexieId, walletAddress, embedded, theme, onLoad, onError, 
   const [hasError, setHasError] = useState(false);
   const iframeRef = useRef(null);
 
-  // Memoize game URL to prevent iframe reloading on re-renders
-  const gameUrl = useMemo(() =>
-    `https://game.lexiecrypto.com/?lexieId=${encodeURIComponent(lexieId)}&walletAddress=${encodeURIComponent(walletAddress || '')}&embedded=true&theme=${theme || 'terminal'}`,
-    [lexieId, walletAddress, theme]
-  );
+  const gameUrl = `https://game.lexiecrypto.com/?lexieId=${encodeURIComponent(lexieId)}&walletAddress=${encodeURIComponent(walletAddress || '')}&embedded=true&theme=${theme || 'terminal'}`;
 
   const handleIframeLoad = () => {
     setIsLoading(false);
@@ -160,10 +156,10 @@ const VaultDesktopInner = () => {
     checkChainReady,
     walletConnectValidating,
     shouldShowLexieIdModal,
-    setShouldShowLexieIdModal,
     clearLexieIdModalFlag,
     showLexieIdChoiceModal,
-    setShowLexieIdChoiceModal,
+    handleLexieIdChoice,
+    onLexieIdLinked,
   } = useWallet();
 
   // Window management hooks
@@ -219,15 +215,10 @@ const VaultDesktopInner = () => {
   const [currentLexieId, setCurrentLexieId] = useState('');
   const [pointsBalance, setPointsBalance] = useState(null);
   const [showTitansGame, setShowTitansGame] = useState(false);
-  const [waitingForGameLoad, setWaitingForGameLoad] = useState(false);
-  const [gameInitializing, setGameInitializing] = useState(false);
-  const gameOpenedRef = useRef(false); // ✅ Prevent multiple game openings
 
   // Handle LexieID linking and game opening
   const handleLexieIdLink = useCallback((lexieId) => {
-    const previousLexieId = currentLexieId;
     setCurrentLexieId(lexieId);
-
     // Set localStorage for Titans game integration
     if (lexieId && address) {
       localStorage.setItem("connectedWallet", address.toLowerCase());
@@ -238,30 +229,18 @@ const VaultDesktopInner = () => {
       localStorage.removeItem("connectedWallet");
       localStorage.removeItem("linkedLexieId");
     }
-
     // Auto-open Titans game when LexieID is linked
-    // BUT only if: 1) LexieID changed, 2) Game not already open, 3) Not already initializing, 4) Game not already opened before
-    if (lexieId && lexieId !== previousLexieId && !showTitansGame && !gameInitializing && !gameOpenedRef.current) {
-      gameOpenedRef.current = true; // ✅ Mark that game has been opened
+    if (lexieId) {
       setTimeout(() => {
-        setGameInitializing(true); // ✅ Mark game as starting to load
         setShowTitansGame(true);
+        // Signal to WalletContext that Lexie ID linking is complete
+        onLexieIdLinked();
       }, 1000); // Small delay to allow UI to settle
+    } else {
+      // If unlinking, also signal completion (though this shouldn't happen in the new flow)
+      onLexieIdLinked();
     }
-  }, [address, currentLexieId, showTitansGame, gameInitializing]); // Add dependencies
-
-  // Handle 10-second delay after game starts loading from LexieID choice
-  useEffect(() => {
-    if (gameInitializing) {  // ✅ Start delay when game actually begins loading
-      const timer = setTimeout(() => {
-        console.log('🎮 Game delay complete (10s after game started loading), signaling choice is complete...');
-        setWaitingForGameLoad(false);
-        setGameInitializing(false);
-        window.dispatchEvent(new CustomEvent('lexie-choice-complete'));
-      }, 10000);
-      return () => clearTimeout(timer);
-    }
-  }, [gameInitializing]); // ✅ Only depend on gameInitializing
+  }, [address, onLexieIdLinked]);
 
   // Cross-platform verification state
   const [showVerificationModal, setShowVerificationModal] = useState(false);
@@ -1861,38 +1840,30 @@ const VaultDesktopInner = () => {
                 </div>
                 <span className="text-sm tracking-wide text-gray-400">lexie-id-choice</span>
               </div>
+              <div className="text-green-400 text-xs">PROCESSING</div>
             </div>
 
             {/* Modal Content */}
             <div className="p-6 text-green-300 space-y-4">
-              <h3 className="text-xl font-bold text-green-300">Claim Your LexieID</h3>
-              <p className="text-green-200/80 text-sm">
-                You can easily transfer between vaults and play our Titans game while you wait for your vault to be created.
-              </p>
+              <div className="space-y-2">
+                <h3 className="text-lg font-bold text-emerald-300">🎮 Would you like to claim a LexieID?</h3>
+                <p className="text-green-400/80 text-sm">
+                  You can easily transfer between vaults and play our Titans game while you wait for your vault to be created.
+                </p>
+              </div>
 
-              <div className="flex gap-3 pt-4">
+              <div className="flex gap-3 pt-2">
                 <button
-                  onClick={() => {
-                    console.log('✅ User chose to create LexieID - opening LexieID modal and starting game delay...');
-                    setShowLexieIdChoiceModal(false);
-                    setShouldShowLexieIdModal(true);
-                    setWaitingForGameLoad(true);
-                    // Don't dispatch event yet - wait for game delay
-                  }}
-                  className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded border border-green-500/50 transition-colors"
+                  onClick={() => handleLexieIdChoice(true)}
+                  className="flex-1 bg-green-600/80 hover:bg-green-600 text-white py-3 px-4 rounded border border-green-500/50 transition-all duration-200 hover:shadow-lg hover:shadow-green-500/20 font-medium"
                 >
-                  Yes
+                  Yes, claim LexieID
                 </button>
                 <button
-                  onClick={() => {
-                    console.log('❌ User chose not to create LexieID - proceeding directly with bootstrap...');
-                    setShowLexieIdChoiceModal(false);
-                    // Immediately signal that choice is complete
-                    window.dispatchEvent(new CustomEvent('lexie-choice-complete'));
-                  }}
-                  className="flex-1 bg-gray-600 hover:bg-gray-700 text-white py-2 px-4 rounded border border-gray-500/50 transition-colors"
+                  onClick={() => handleLexieIdChoice(false)}
+                  className="flex-1 bg-gray-600/80 hover:bg-gray-700 text-white py-3 px-4 rounded border border-gray-500/50 transition-all duration-200 hover:shadow-lg hover:shadow-gray-500/20 font-medium"
                 >
-                  No
+                  No, continue
                 </button>
               </div>
             </div>
@@ -2282,10 +2253,7 @@ const VaultDesktopInner = () => {
           footerLeft="Process: titans-game"
           footerRight={`@lex:${currentLexieId}`}
           variant="game"
-          onClose={() => {
-            setShowTitansGame(false);
-            gameOpenedRef.current = false; // ✅ Allow game to be opened again
-          }}
+          onClose={() => setShowTitansGame(false)}
           initialSize={{ width: 1000, height: 700 }}
           initialPosition={{ x: 50, y: 50 }}
           minSize={{ width: 800, height: 600 }}
@@ -2294,10 +2262,7 @@ const VaultDesktopInner = () => {
           <TitansGameWindow
             lexieId={currentLexieId}
             walletAddress={address}
-            onClose={() => {
-            setShowTitansGame(false);
-            gameOpenedRef.current = false; // ✅ Allow game to be opened again
-          }}
+            onClose={() => setShowTitansGame(false)}
           />
         </WindowShell>
       )}

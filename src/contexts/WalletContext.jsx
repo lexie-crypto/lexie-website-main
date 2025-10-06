@@ -316,6 +316,8 @@ const WalletContextProvider = ({ children }) => {
   const [railgunError, setRailgunError] = useState(null);
   const [shouldShowLexieIdModal, setShouldShowLexieIdModal] = useState(false);
   const [showLexieIdChoiceModal, setShowLexieIdChoiceModal] = useState(false);
+  const [lexieIdChoicePromise, setLexieIdChoicePromise] = useState(null);
+  const [lexieIdLinkPromise, setLexieIdLinkPromise] = useState(null);
 
   // Wagmi hooks - ONLY for UI wallet connection
   const { address, isConnected, chainId, connector, status } = useAccount();
@@ -1733,7 +1735,6 @@ const WalletContextProvider = ({ children }) => {
         }
         
         // 🆕 Only create new wallet if we truly don't have one
-        let shouldWaitForChoice = false; // ✅ Declare and initialize
         console.log('🔑 Creating NEW Railgun wallet (none exists for this EOA)...', { 
           userAddress: address,
           reason: !savedWalletID ? 'No stored walletID' : 'Failed to load existing wallet',
@@ -1828,9 +1829,46 @@ const WalletContextProvider = ({ children }) => {
               
               console.log('🎉 Wallet is now accessible from ANY device/browser!');
 
-              // DIRECT FLAG: Set flag to show Lexie ID choice modal
+              // DIRECT FLAG: Set flag to show Lexie ID modal
+              // NEW: Show Lexie ID choice modal instead of direct Lexie ID modal
               setShowLexieIdChoiceModal(true);
-              shouldWaitForChoice = true; // ✅ Local variable, immediate
+
+              // Create promise that resolves when user makes choice (blocks until Yes/No clicked)
+              const choicePromise = new Promise((resolve) => {
+                setLexieIdChoicePromise({ resolve });
+              });
+
+              // Wait for user choice (no timeout - user must choose)
+              const userWantsLexieId = await choicePromise;
+
+              // Reset choice modal state
+              setShowLexieIdChoiceModal(false);
+              setLexieIdChoicePromise(null);
+
+              if (userWantsLexieId) {
+                console.log('🎮 User chose to claim Lexie ID, showing modal...');
+                // Show Lexie ID modal
+                setShouldShowLexieIdModal(true);
+
+                // Create promise that resolves when Lexie ID is linked
+                const lexieIdPromise = new Promise((resolve) => {
+                  setLexieIdLinkPromise({ resolve });
+                });
+
+                // Wait for handleLexieIdLink to complete
+                await lexieIdPromise;
+
+                // Reset Lexie ID promise state
+                setLexieIdLinkPromise(null);
+
+                // Now wait 5 seconds for game to load before starting bootstrap
+                console.log('⏳ Lexie ID linked, waiting 5 seconds for game to load...');
+                await new Promise(resolve => setTimeout(resolve, 5000));
+                console.log('✅ Game loading period complete, proceeding to bootstrap...');
+
+              } else {
+                console.log('⏭️ User declined Lexie ID, proceeding immediately to bootstrap...');
+              }
             } else {
               console.warn('⚠️ Redis storage failed - wallet will only work on this device');
             }
@@ -1872,24 +1910,6 @@ const WalletContextProvider = ({ children }) => {
               if (alreadyHydrated || isHydrating) {
                 console.log(`🚀 Skipping chain bootstrap for new wallet - chain ${chainId} already ${alreadyHydrated ? 'hydrated' : 'hydrating'}`);
               } else {
-                // ⏳ WAIT FOR LEXIE ID CHOICE BEFORE PROCEEDING WITH BOOTSTRAP
-                if (shouldWaitForChoice) {  // ✅ Use local variable
-                  console.log('⏳ Waiting for LexieID choice...');
-
-                  await new Promise((resolve) => {
-                    // Listen for choice completion (either Yes after delay or No immediately)
-                    const handleChoiceComplete = () => {
-                      window.removeEventListener('lexie-choice-complete', handleChoiceComplete);
-                      console.log('✅ User made choice, proceeding with bootstrap...');
-                      resolve();
-                    };
-
-                    window.addEventListener('lexie-choice-complete', handleChoiceComplete);
-                  });
-
-                  console.log('✅ Ready to proceed with bootstrap...');
-                }
-
                 console.log('🚀 Checking for chain bootstrap data for newly created wallet...');
 
                 // For new wallets, try to load chain-specific bootstrap data
@@ -2697,10 +2717,22 @@ const WalletContextProvider = ({ children }) => {
 
     // Lexie ID modal control
     shouldShowLexieIdModal,
-    setShouldShowLexieIdModal,
     clearLexieIdModalFlag: () => setShouldShowLexieIdModal(false),
+
+    // Lexie ID choice modal control
     showLexieIdChoiceModal,
-    setShowLexieIdChoiceModal,
+    handleLexieIdChoice: (wantsLexieId) => {
+      if (lexieIdChoicePromise) {
+        lexieIdChoicePromise.resolve(wantsLexieId);
+      }
+    },
+
+    // Lexie ID linking completion
+    onLexieIdLinked: () => {
+      if (lexieIdLinkPromise) {
+        lexieIdLinkPromise.resolve();
+      }
+    },
   };
 
   return (
