@@ -221,6 +221,7 @@ const VaultDesktopInner = () => {
   const [showTitansGame, setShowTitansGame] = useState(false);
   const [waitingForGameLoad, setWaitingForGameLoad] = useState(false);
   const [gameInitializing, setGameInitializing] = useState(false);
+  const gameOpenedRef = useRef(false); // ✅ Prevent multiple game openings
 
   // Handle LexieID linking and game opening
   const handleLexieIdLink = useCallback((lexieId) => {
@@ -239,8 +240,9 @@ const VaultDesktopInner = () => {
     }
 
     // Auto-open Titans game when LexieID is linked
-    // BUT only if: 1) LexieID changed, 2) Game not already open, 3) Not already initializing
-    if (lexieId && lexieId !== previousLexieId && !showTitansGame && !gameInitializing) {
+    // BUT only if: 1) LexieID changed, 2) Game not already open, 3) Not already initializing, 4) Game not already opened before
+    if (lexieId && lexieId !== previousLexieId && !showTitansGame && !gameInitializing && !gameOpenedRef.current) {
+      gameOpenedRef.current = true; // ✅ Mark that game has been opened
       setTimeout(() => {
         setGameInitializing(true); // ✅ Mark game as starting to load
         setShowTitansGame(true);
@@ -2280,7 +2282,10 @@ const VaultDesktopInner = () => {
           footerLeft="Process: titans-game"
           footerRight={`@lex:${currentLexieId}`}
           variant="game"
-          onClose={() => setShowTitansGame(false)}
+          onClose={() => {
+            setShowTitansGame(false);
+            gameOpenedRef.current = false; // ✅ Allow game to be opened again
+          }}
           initialSize={{ width: 1000, height: 700 }}
           initialPosition={{ x: 50, y: 50 }}
           minSize={{ width: 800, height: 600 }}
@@ -2289,7 +2294,10 @@ const VaultDesktopInner = () => {
           <TitansGameWindow
             lexieId={currentLexieId}
             walletAddress={address}
-            onClose={() => setShowTitansGame(false)}
+            onClose={() => {
+            setShowTitansGame(false);
+            gameOpenedRef.current = false; // ✅ Allow game to be opened again
+          }}
           />
         </WindowShell>
       )}
