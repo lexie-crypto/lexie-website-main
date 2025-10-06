@@ -155,6 +155,8 @@ const VaultDesktopInner = () => {
     walletProvider,
     checkChainReady,
     walletConnectValidating,
+    shouldShowLexieIdModal,
+    clearLexieIdModalFlag,
   } = useWallet();
 
   // Window management hooks
@@ -1021,55 +1023,38 @@ const VaultDesktopInner = () => {
 
   // Auto-open Lexie ID modal for new wallet creation
   useEffect(() => {
-    const handleNewWalletCreated = (event) => {
-      const { isNewWallet, walletId } = event.detail || {};
+    if (shouldShowLexieIdModal && !currentLexieId && !showSignRequestPopup) {
+      console.log('[VaultDesktop] 🎉 New wallet created - opening Lexie ID modal');
 
-      // Only auto-open for new wallets when user doesn't have a Lexie ID yet
-      if (isNewWallet && !currentLexieId && canUseRailgun && railgunWalletId === walletId) {
-        console.log('[VaultDesktop] 🎉 New wallet created - auto-opening Lexie ID modal');
+      setShowLexieModal(true);
+      clearLexieIdModalFlag(); // Clear the flag
 
-        // Small delay to let the vault initialization modal close first
-        setTimeout(() => {
-          setShowLexieModal(true);
-
-          // Optional: Show a toast to guide the user
-          toast.custom((t) => (
-            <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-              <div className="rounded-lg border border-purple-500/30 bg-black/90 text-purple-200 shadow-2xl">
-                <div className="px-4 py-3 flex items-center gap-3">
-                  <div className="h-3 w-3 rounded-full bg-purple-400" />
-                  <div>
-                    <div className="text-sm">Get Your Lexie ID</div>
-                    <div className="text-xs text-purple-400/80">
-                      Claim your ID for easy transfers and to play LexieTitans!
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    aria-label="Dismiss"
-                    onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }}
-                    className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-purple-900/30 text-purple-300/80"
-                  >
-                    ×
-                  </button>
+      // Optional toast
+      toast.custom((t) => (
+        <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+          <div className="rounded-lg border border-purple-500/30 bg-black/90 text-purple-200 shadow-2xl">
+            <div className="px-4 py-3 flex items-center gap-3">
+              <div className="h-3 w-3 rounded-full bg-purple-400" />
+              <div>
+                <div className="text-sm">Get Your Lexie ID</div>
+                <div className="text-xs text-purple-400/80">
+                  Claim your ID for easy transfers and to play LexieTitans!
                 </div>
               </div>
+              <button
+                type="button"
+                aria-label="Dismiss"
+                onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }}
+                className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-purple-900/30 text-purple-300/80"
+              >
+                ×
+              </button>
             </div>
-          ), { duration: 5000 });
-        }, 1500); // Delay to ensure initialization modal closes first
-      }
-    };
-
-    if (typeof window !== 'undefined') {
-      window.addEventListener('railgun-wallet-metadata-ready', handleNewWalletCreated);
+          </div>
+        </div>
+      ), { duration: 5000 });
     }
-
-    return () => {
-      if (typeof window !== 'undefined') {
-        window.removeEventListener('railgun-wallet-metadata-ready', handleNewWalletCreated);
-      }
-    };
-  }, [currentLexieId, canUseRailgun, railgunWalletId]);
+  }, [shouldShowLexieIdModal, currentLexieId, showSignRequestPopup, clearLexieIdModalFlag]);
 
   // Check if this Railgun address already has a linked Lexie ID
   useEffect(() => {
