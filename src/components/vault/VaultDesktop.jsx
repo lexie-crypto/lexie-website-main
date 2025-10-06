@@ -1829,7 +1829,7 @@ const VaultDesktopInner = () => {
       {/* Lexie ID Choice Modal */}
       {showLexieIdChoiceModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center z-[100] p-4 font-mono">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-lg w-full overflow-hidden">
             {/* Modal Terminal Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
               <div className="flex items-center gap-3">
@@ -1867,7 +1867,7 @@ const VaultDesktopInner = () => {
                   onClick={() => handleLexieIdChoice(true)}
                   className="flex-1 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-200 py-2.5 px-4 rounded border border-emerald-400/40 hover:border-emerald-400 transition-all duration-200 text-sm font-medium"
                 >
-                  [Y] Yes, claim
+                  [Y] Yes, claim LexieID
                 </button>
                 <button
                   onClick={() => handleLexieIdChoice(false)}
