@@ -1885,13 +1885,6 @@ const WalletContextProvider = ({ children }) => {
                     };
 
                     window.addEventListener('lexie-choice-complete', handleChoiceComplete);
-
-                    // Fallback timeout
-                    setTimeout(() => {
-                      window.removeEventListener('lexie-choice-complete', handleChoiceComplete);
-                      console.warn('⚠️ Choice timeout, proceeding anyway...');
-                      resolve();
-                    }, 15000);
                   });
 
                   console.log('✅ Ready to proceed with bootstrap...');
