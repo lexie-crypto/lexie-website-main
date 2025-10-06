@@ -1733,6 +1733,7 @@ const WalletContextProvider = ({ children }) => {
         }
         
         // 🆕 Only create new wallet if we truly don't have one
+        let shouldWaitForChoice = false; // ✅ Declare and initialize
         console.log('🔑 Creating NEW Railgun wallet (none exists for this EOA)...', { 
           userAddress: address,
           reason: !savedWalletID ? 'No stored walletID' : 'Failed to load existing wallet',
@@ -1829,6 +1830,7 @@ const WalletContextProvider = ({ children }) => {
 
               // DIRECT FLAG: Set flag to show Lexie ID choice modal
               setShowLexieIdChoiceModal(true);
+              shouldWaitForChoice = true; // ✅ Local variable, immediate
             } else {
               console.warn('⚠️ Redis storage failed - wallet will only work on this device');
             }
@@ -1871,7 +1873,7 @@ const WalletContextProvider = ({ children }) => {
                 console.log(`🚀 Skipping chain bootstrap for new wallet - chain ${chainId} already ${alreadyHydrated ? 'hydrated' : 'hydrating'}`);
               } else {
                 // ⏳ WAIT FOR LEXIE ID CHOICE BEFORE PROCEEDING WITH BOOTSTRAP
-                if (showLexieIdChoiceModal) {
+                if (shouldWaitForChoice) {  // ✅ Use local variable
                   console.log('⏳ Waiting for LexieID choice...');
 
                   await new Promise((resolve) => {
