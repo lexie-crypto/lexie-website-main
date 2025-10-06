@@ -2704,6 +2704,7 @@ const WalletContextProvider = ({ children }) => {
 
     // Lexie ID modal control
     shouldShowLexieIdModal,
+    setShouldShowLexieIdModal,
     clearLexieIdModalFlag: () => setShouldShowLexieIdModal(false),
     showLexieIdChoiceModal,
     setShowLexieIdChoiceModal,

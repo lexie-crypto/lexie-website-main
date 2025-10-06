@@ -215,6 +215,7 @@ const VaultDesktopInner = () => {
   const [pointsBalance, setPointsBalance] = useState(null);
   const [showTitansGame, setShowTitansGame] = useState(false);
   const [waitingForGameLoad, setWaitingForGameLoad] = useState(false);
+  const [gameInitializing, setGameInitializing] = useState(false);
 
   // Handle LexieID linking and game opening
   const handleLexieIdLink = useCallback((lexieId) => {
@@ -232,6 +233,7 @@ const VaultDesktopInner = () => {
     // Auto-open Titans game when LexieID is linked
     if (lexieId) {
       setTimeout(() => {
+        setGameInitializing(true); // ✅ Mark game as starting to load
         setShowTitansGame(true);
       }, 1000); // Small delay to allow UI to settle
     }
@@ -239,16 +241,16 @@ const VaultDesktopInner = () => {
 
   // Handle 5-second delay after game starts loading from LexieID choice
   useEffect(() => {
-    if (waitingForGameLoad && currentLexieId) {
+    if (gameInitializing) {  // ✅ Start delay when game actually begins loading
       const timer = setTimeout(() => {
-        console.log('🎮 Game load delay complete, signaling choice is complete...');
+        console.log('🎮 Game delay complete (5s after game started loading), signaling choice is complete...');
         setWaitingForGameLoad(false);
-        // NOW signal that entire flow is complete
+        setGameInitializing(false);
         window.dispatchEvent(new CustomEvent('lexie-choice-complete'));
       }, 5000);
       return () => clearTimeout(timer);
     }
-  }, [waitingForGameLoad, currentLexieId]);
+  }, [gameInitializing]); // ✅ Only depend on gameInitializing
 
   // Cross-platform verification state
   const [showVerificationModal, setShowVerificationModal] = useState(false);
