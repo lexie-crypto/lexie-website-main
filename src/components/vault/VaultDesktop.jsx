@@ -1939,9 +1939,31 @@ const VaultDesktopInner = () => {
 
                               if (!exists) {
                                 // Lexie ID doesn't exist - claim it directly
+                                // First, get the railgunAddress from wallet metadata in Redis
+                                const walletMetadataResp = await fetch(`/api/get-wallet-metadata/${address}`);
+                                if (!walletMetadataResp.ok) {
+                                  setLexieMessage('Failed to fetch wallet metadata.');
+                                  setLexieLinking(false);
+                                  return;
+                                }
+                                const walletMetadata = await walletMetadataResp.json();
+                                if (!walletMetadata.success || !walletMetadata.keys || walletMetadata.keys.length === 0) {
+                                  setLexieMessage('No wallet metadata found.');
+                                  setLexieLinking(false);
+                                  return;
+                                }
+
+                                // Get the railgunAddress from the first (most recent) wallet metadata entry
+                                const railgunAddressFromMetadata = walletMetadata.keys[0].railgunAddress;
+                                if (!railgunAddressFromMetadata) {
+                                  setLexieMessage('Railgun address not found in wallet metadata.');
+                                  setLexieLinking(false);
+                                  return;
+                                }
+
                                 const claimResp = await fetch('/api/wallet-metadata?action=lexie-claim', {
                                   method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ lexieID: chosen, eoaAddress: address, railgunAddress })
+                                  body: JSON.stringify({ lexieID: chosen, eoaAddress: address, railgunAddress: railgunAddressFromMetadata })
                                 });
                                 const claimJson = await claimResp.json().catch(() => ({}));
                                 if (!claimResp.ok || !claimJson.success) {
