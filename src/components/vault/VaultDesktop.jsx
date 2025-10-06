@@ -44,7 +44,11 @@ const TitansGame = ({ lexieId, walletAddress, embedded, theme, onLoad, onError, 
   const [hasError, setHasError] = useState(false);
   const iframeRef = useRef(null);
 
-  const gameUrl = `https://game.lexiecrypto.com/?lexieId=${encodeURIComponent(lexieId)}&walletAddress=${encodeURIComponent(walletAddress || '')}&embedded=true&theme=${theme || 'terminal'}`;
+  // Memoize game URL to prevent iframe reloading on re-renders
+  const gameUrl = useMemo(() =>
+    `https://game.lexiecrypto.com/?lexieId=${encodeURIComponent(lexieId)}&walletAddress=${encodeURIComponent(walletAddress || '')}&embedded=true&theme=${theme || 'terminal'}`,
+    [lexieId, walletAddress, theme]
+  );
 
   const handleIframeLoad = () => {
     setIsLoading(false);
