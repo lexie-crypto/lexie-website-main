@@ -60,7 +60,6 @@ let isEngineStarted = false;
 let isProverLoaded = false;
 let areArtifactsLoaded = false;
 let enginePromise = null;
-let isGameReady = false; // Flag to track when game is ready for scanning
 
 /**
  * RPC Configuration via proxied endpoints
@@ -300,7 +299,7 @@ const startEngine = async () => {
     // Continue with rest of initialization...
     await loadSnarkJSGroth16();
     await setupNetworks();
-    // 🚫 DELAYED: setupBalanceCallbacks() - will be called when game is ready
+    await setupBalanceCallbacks();
     
     // Zero-Delay POI system is now active with enhanced real-time validation
     console.log('[RAILGUN] ⚡ Zero-Delay POI validation active - enhanced compliance with instant spendability');
@@ -338,33 +337,6 @@ export const initializeRailgun = async () => {
 
   enginePromise = startEngine();
   return enginePromise;
-};
-
-/**
- * Signal that the game is ready and start scanning callbacks
- * This should be called after the game has fully initialized
- */
-export const signalGameReady = async () => {
-  if (isGameReady) {
-    console.log('[RAILGUN] Game already signaled as ready');
-    return;
-  }
-
-  if (!isEngineStarted) {
-    console.warn('[RAILGUN] Cannot signal game ready - engine not started yet');
-    return;
-  }
-
-  console.log('[RAILGUN] 🎮 Game signaled as ready - starting scanning callbacks...');
-  isGameReady = true;
-
-  try {
-    // Now setup the balance callbacks that were delayed
-    await setupBalanceCallbacks();
-    console.log('[RAILGUN] ✅ Scanning callbacks started after game ready signal');
-  } catch (error) {
-    console.error('[RAILGUN] ❌ Failed to setup scanning callbacks:', error);
-  }
 };
 
 /**

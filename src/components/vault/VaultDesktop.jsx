@@ -36,7 +36,6 @@ import {
   isTokenSupportedByRailgun,
 } from '../../utils/railgun/actions';
 import { deriveEncryptionKey, clearAllWallets } from '../../utils/railgun/wallet';
-import { signalGameReady } from '../../utils/railgun/engine';
 import { Navbar } from '../Navbar';
 
 // Titans Game component that loads the actual game from game.lexiecrypto.com
@@ -47,17 +46,9 @@ const TitansGame = ({ lexieId, walletAddress, embedded, theme, onLoad, onError, 
 
   const gameUrl = `https://game.lexiecrypto.com/?lexieId=${encodeURIComponent(lexieId)}&walletAddress=${encodeURIComponent(walletAddress || '')}&embedded=true&theme=${theme || 'terminal'}`;
 
-  const handleIframeLoad = async () => {
+  const handleIframeLoad = () => {
     setIsLoading(false);
     onLoad && onLoad();
-
-    // Signal that the game is ready - start Railgun scanning callbacks
-    try {
-      await signalGameReady();
-      console.log('[TitansGame] 🎮 Game loaded - Railgun scanning callbacks started');
-    } catch (error) {
-      console.error('[TitansGame] ❌ Failed to signal game ready:', error);
-    }
   };
 
   const handleIframeError = () => {
