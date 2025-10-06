@@ -1846,7 +1846,7 @@ const VaultDesktopInner = () => {
             {/* Modal Content */}
             <div className="p-6 text-green-300 space-y-4">
               <div className="space-y-2">
-                <h3 className="text-lg font-bold text-emerald-300">🎮 LEXIE ID SETUP</h3>
+                <h3 className="text-lg font-bold text-emerald-300">LEXIE ID SETUP</h3>
                 <p className="text-green-400/80 text-sm leading-5">
                   Want a LexieID? Claim yours to unlock P2P transfers and play LexieTitans while your vault is being created.
                 </p>
@@ -1867,11 +1867,11 @@ const VaultDesktopInner = () => {
                   onClick={() => handleLexieIdChoice(true)}
                   className="flex-1 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-200 py-2.5 px-4 rounded border border-emerald-400/40 hover:border-emerald-400 transition-all duration-200 text-sm font-medium"
                 >
-                  [Y] Yes, claim LexieID
+                  [Y] Yes, claim
                 </button>
                 <button
                   onClick={() => handleLexieIdChoice(false)}
-                  className="flex-1 bg-gray-800/50 hover:bg-gray-700/50 text-gray-300 py-2.5 px-4 rounded border border-gray-500/40 hover:border-gray-400 transition-all duration-200 text-sm font-medium"
+                  className="flex-1 bg-purple-800/50 hover:bg-gray-700/50 text-gray-300 py-2.5 px-4 rounded border border-gray-500/40 hover:border-gray-400 transition-all duration-200 text-sm font-medium"
                 >
                   [N] No, skip for now
                 </button>
@@ -1880,7 +1880,7 @@ const VaultDesktopInner = () => {
               {/* Footer info */}
               <div className="text-center">
                 <div className="text-green-400/60 text-xs">
-                  You can always claim a LexieID later from the vault interface
+                💡 Tip: You can always claim a LexieID later from the vault interface
                 </div>
               </div>
             </div>
