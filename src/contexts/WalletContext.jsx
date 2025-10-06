@@ -1825,7 +1825,7 @@ const WalletContextProvider = ({ children }) => {
               
               console.log('🎉 Wallet is now accessible from ANY device/browser!');
               // Notify UI that wallet metadata has been persisted and polling can start
-              try { window.dispatchEvent(new CustomEvent('railgun-wallet-metadata-ready', { detail: { address, walletId: railgunWalletInfo.id } })); } catch {}
+              try { window.dispatchEvent(new CustomEvent('railgun-wallet-metadata-ready', { detail: { address, walletId: railgunWalletInfo.id, isNewWallet: true } })); } catch {}
             } else {
               console.warn('⚠️ Redis storage failed - wallet will only work on this device');
             }
