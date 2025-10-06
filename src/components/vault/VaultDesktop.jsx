@@ -155,12 +155,10 @@ const VaultDesktopInner = () => {
     walletProvider,
     checkChainReady,
     walletConnectValidating,
-    shouldShowLexieIdModal,
-    clearLexieIdModalFlag,
   } = useWallet();
 
   // Window management hooks
-  const { getWindowState, reopenWindow } = useWindowStore();
+  const { getWindowState, reopenWindow, bringToFront, updateFocus } = useWindowStore();
   useKeyboardShortcuts();
 
   // Memoize footer content to prevent re-mounting
@@ -282,6 +280,28 @@ const VaultDesktopInner = () => {
       return () => window.removeEventListener('walletconnect-unsupported-network', handleUnsupportedNetworkDisconnect);
     }
   }, []);
+
+  // Listen for cross-origin messages from game iframe (only when modal is NOT showing)
+  useEffect(() => {
+    if (showSignRequestPopup) return; // Skip when modal is showing
+
+    const handleMessage = (event) => {
+      // Security: verify the message structure
+      if (!event.data || typeof event.data !== 'object') return;
+      if (event.data.type !== 'window-focused') return;
+      if (!event.data.windowId) return;
+
+      // Focus the window that sent the message
+      const { windowId } = event.data;
+      console.log('[VaultDesktop] Received focus message from iframe:', windowId);
+
+      bringToFront(windowId);
+      updateFocus(windowId);
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [showSignRequestPopup, bringToFront, updateFocus]);
 
 
   // Simple Redis check for scanned chains (exact EOA address, no normalization)
@@ -1021,41 +1041,6 @@ const VaultDesktopInner = () => {
     }
   }, [showSignRequestPopup]);
 
-  // Auto-open Lexie ID modal for new wallet creation
-  useEffect(() => {
-    if (shouldShowLexieIdModal && !currentLexieId && !showSignRequestPopup) {
-      console.log('[VaultDesktop] 🎉 New wallet created - opening Lexie ID modal');
-
-      setShowLexieModal(true);
-      clearLexieIdModalFlag(); // Clear the flag
-
-      // Optional toast
-      toast.custom((t) => (
-        <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-          <div className="rounded-lg border border-purple-500/30 bg-black/90 text-purple-200 shadow-2xl">
-            <div className="px-4 py-3 flex items-center gap-3">
-              <div className="h-3 w-3 rounded-full bg-purple-400" />
-              <div>
-                <div className="text-sm">Get Your Lexie ID</div>
-                <div className="text-xs text-purple-400/80">
-                  Claim your ID for easy transfers and to play LexieTitans!
-                </div>
-              </div>
-              <button
-                type="button"
-                aria-label="Dismiss"
-                onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }}
-                className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-purple-900/30 text-purple-300/80"
-              >
-                ×
-              </button>
-            </div>
-          </div>
-        </div>
-      ), { duration: 5000 });
-    }
-  }, [shouldShowLexieIdModal, currentLexieId, showSignRequestPopup, clearLexieIdModalFlag]);
-
   // Check if this Railgun address already has a linked Lexie ID
   useEffect(() => {
     if (!railgunAddress) {
@@ -1595,13 +1580,8 @@ const VaultDesktopInner = () => {
                     <div className="text-yellow-300/80 text-xs">Please wait for balance updates to complete. This may take a few seconds.</div>
                   </div>
                 </div>
-                <div className="mt-2">
-                  <button
-                    onClick={() => setShowLexieModal(true)}
-                    className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded border border-purple-500/50 transition-colors"
-                  >
-                    Get a Lexie ID
-                  </button>
+                <div className="mt-2 text-yellow-300/80 text-xs">
+                  While you're waiting check out Lexie on <a href="https://t.me/lexie_crypto_bot" className="text-purple-300 hover:underline" target="_blank" rel="noopener noreferrer">Telegram</a> to grab your Lexie ID and play our LexieTitans game to earn airdrop points. 
                 </div>
               </div>
             )}
@@ -2178,13 +2158,8 @@ const VaultDesktopInner = () => {
                       </div>
                     )}
                   </div>
-                  <div className="mt-2">
-                    <button
-                      onClick={() => setShowLexieModal(true)}
-                      className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded border border-purple-500/50 transition-colors"
-                    >
-                      Get a Lexie ID
-                    </button>
+                  <div className="mt-2 text-green-400/80 text-xs">
+                    While you're waiting check out Lexie on <a href="https://t.me/lexie_crypto_bot" className="text-purple-300 hover:underline" target="_blank" rel="noopener noreferrer">Telegram</a> to grab your Lexie ID and play our LexieTitans game to earn airdrop points. 
                   </div>
                 </>
               )}
@@ -2235,12 +2210,12 @@ const VaultDesktopInner = () => {
           initialSize={{ width: 1000, height: 700 }}
           initialPosition={{ x: 50, y: 50 }}
           minSize={{ width: 800, height: 600 }}
-          className="z-[99]"
+          className="z-[75]"
         >
           <TitansGameWindow
             lexieId={currentLexieId}
             walletAddress={address}
-            onClose={() => setShowTitansGame(false)}
+            onClose={() => setShowTitansGame(false)}s
           />
         </WindowShell>
       )}

@@ -314,7 +314,6 @@ const WalletContextProvider = ({ children }) => {
   const [railgunWalletID, setRailgunWalletID] = useState(null);
   const [isInitializing, setIsInitializing] = useState(false);
   const [railgunError, setRailgunError] = useState(null);
-  const [shouldShowLexieIdModal, setShouldShowLexieIdModal] = useState(false);
 
   // Wagmi hooks - ONLY for UI wallet connection
   const { address, isConnected, chainId, connector, status } = useAccount();
@@ -1825,9 +1824,8 @@ const WalletContextProvider = ({ children }) => {
               });
               
               console.log('🎉 Wallet is now accessible from ANY device/browser!');
-
-              // DIRECT FLAG: Set flag to show Lexie ID modal
-              setShouldShowLexieIdModal(true);
+              // Notify UI that wallet metadata has been persisted and polling can start
+              try { window.dispatchEvent(new CustomEvent('railgun-wallet-metadata-ready', { detail: { address, walletId: railgunWalletInfo.id } })); } catch {}
             } else {
               console.warn('⚠️ Redis storage failed - wallet will only work on this device');
             }
@@ -2673,10 +2671,6 @@ const WalletContextProvider = ({ children }) => {
       railgunAddress,
       railgunWalletID: railgunWalletID?.slice(0, 8) + '...',
     }),
-
-    // Lexie ID modal control
-    shouldShowLexieIdModal,
-    clearLexieIdModalFlag: () => setShouldShowLexieIdModal(false),
   };
 
   return (
