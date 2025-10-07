@@ -214,6 +214,7 @@ const VaultDesktopInner = () => {
   const [showLexieModal, setShowLexieModal] = useState(false);
   const [currentLexieId, setCurrentLexieId] = useState('');
   const [pointsBalance, setPointsBalance] = useState(null);
+  const [pointsBreakdown, setPointsBreakdown] = useState(null);
   const [showTitansGame, setShowTitansGame] = useState(false);
 
   // Handle LexieID linking and game opening
@@ -500,6 +501,7 @@ const VaultDesktopInner = () => {
       // Reset local UI state
       handleLexieIdLink(''); // This will clear localStorage
       setPointsBalance(null);
+      setPointsBreakdown(null);
       setShowSignRequestPopup(false);
       setIsInitInProgress(false);
       setInitFailedMessage('');
@@ -714,12 +716,19 @@ const VaultDesktopInner = () => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (!currentLexieId || !isRailgunInitialized) { setPointsBalance(null); return; }
+      if (!currentLexieId || !isRailgunInitialized) {
+        setPointsBalance(null);
+        setPointsBreakdown(null);
+        return;
+      }
       try {
-        const resp = await fetch(`/api/wallet-metadata?action=rewards-balance&lexieId=${encodeURIComponent(currentLexieId)}`);
+        const resp = await fetch(`/api/wallet-metadata?action=rewards-combined-balance&lexieId=${encodeURIComponent(currentLexieId)}`);
         if (!cancelled && resp.ok) {
           const json = await resp.json().catch(() => ({}));
-          if (json?.success) setPointsBalance(Number(json.balance) || 0);
+          if (json?.success) {
+            setPointsBalance(Number(json.total) || 0);
+            setPointsBreakdown(json.breakdown);
+          }
         }
       } catch {}
     })();
@@ -734,16 +743,17 @@ const VaultDesktopInner = () => {
       console.log('[VaultDesktop] 🔄 Refreshing points balance after award...');
 
       try {
-        const resp = await fetch(`/api/wallet-metadata?action=rewards-balance&lexieId=${encodeURIComponent(currentLexieId)}`);
+        const resp = await fetch(`/api/wallet-metadata?action=rewards-combined-balance&lexieId=${encodeURIComponent(currentLexieId)}`);
 
         if (resp.ok) {
           const json = await resp.json().catch(() => ({}));
           if (json?.success) {
-            const newBalance = Number(json.balance) || 0;
+            const newBalance = Number(json.total) || 0;
             const previousBalance = pointsBalance;
             console.log('[VaultDesktop] ✅ Points balance updated:', newBalance);
 
             setPointsBalance(newBalance);
+            setPointsBreakdown(json.breakdown);
 
             // Show success toast if points actually increased
             if (previousBalance !== null && newBalance > previousBalance) {
@@ -1443,9 +1453,16 @@ const VaultDesktopInner = () => {
                         }}
                         title="Copy Lexie ID"
                       />
-                      <span className="ml-2 text-purple-300" title="Points = $ value × streak. Min $5. Streak resets if you skip a day.">
+                      <span
+                        className="ml-2 text-purple-300"
+                        title={
+                          pointsBreakdown
+                            ? `Vault Points: ${pointsBreakdown.vault?.toFixed(2) || '0.00'}\nGame Points: ${pointsBreakdown.game?.toFixed(2) || '0.00'}`
+                            : "Points = $ value × streak. Min $5. Streak resets if you skip a day."
+                        }
+                      >
                         <span className="text-purple-300/60">•</span> points{' '}
-                        {pointsBalance !== null && pointsBalance !== undefined ? pointsBalance : '0.00'}
+                        {pointsBalance !== null && pointsBalance !== undefined ? pointsBalance.toFixed(2) : '0.00'}
                       </span>
                     </div>
                   ) : (

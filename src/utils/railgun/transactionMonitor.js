@@ -1593,6 +1593,32 @@ export const monitorTransactionInGraph = async ({
                       newBalance: pointsData.balance || 0,
                       multiplier: pointsData.multiplier || 1.0
                     });
+
+                    // Sync combined balance after successful vault points award
+                    try {
+                      console.log('[TransactionMonitor] 🔄 Syncing combined balance after points award...');
+                      const syncResponse = await fetch(`/api/wallet-metadata?action=rewards-combined-balance&lexieId=${encodeURIComponent(lexieId)}`);
+                      if (syncResponse.ok) {
+                        const syncData = await syncResponse.json();
+                        if (syncData?.success) {
+                          console.log('[TransactionMonitor] ✅ Combined balance synced:', {
+                            lexieId,
+                            total: syncData.total,
+                            vault: syncData.breakdown?.vault || 0,
+                            game: syncData.breakdown?.game || 0
+                          });
+
+                          // Dispatch event so VaultDesktop updates the UI
+                          if (typeof window !== 'undefined') {
+                            window.dispatchEvent(new CustomEvent('points-updated'));
+                          }
+                        }
+                      } else {
+                        console.warn('[TransactionMonitor] ⚠️ Combined balance sync failed after points award');
+                      }
+                    } catch (syncError) {
+                      console.warn('[TransactionMonitor] ⚠️ Error syncing combined balance:', syncError?.message);
+                    }
                   } else {
                     console.warn('[TransactionMonitor] ⚠️ Points award returned non-success:', pointsData);
                   }
