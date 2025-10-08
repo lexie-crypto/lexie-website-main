@@ -8,6 +8,7 @@ import LandingPage from './pages/LandingPage';
 import WalletPage from './pages/WalletPage';
 import PaymentPage from './pages/PaymentPage';
 import AdminHistoryPage from './pages/AdminHistoryPage';
+import ChatPage from './pages/ChatPage';
 
 // PaymentPage moved to subdomain - redirect component
 const PaymentRedirect = () => {
@@ -172,6 +173,7 @@ function App() {
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/LexieVault" element={<WalletPage />} />
+            <Route path="/chat" element={<ChatPage />} />
             <Route path="/pay" element={<PaymentRedirect />} />
             <Route path="/admin-history" element={<AdminHistoryPage />} />
           </Routes>

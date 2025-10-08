@@ -2338,6 +2338,35 @@ const VaultDesktopInner = () => {
         </WindowShell>
       )}
 
+      {/* LexieAI Chat Window */}
+      {showLexieChat && (
+        <WindowShell
+          id="lexie-chat-terminal"
+          title="LexieAI-chat"
+          appType="chat"
+          statusLabel="Enable Degen Mode"
+          statusTone="online"
+          footerLeft="LexieAI Chat Terminal"
+          footerRight="Secure LexieAI Communication Channel"
+          variant="vault"
+          onClose={() => setShowLexieChat(false)}
+          initialSize={{ width: 1000, height: 700 }}
+          initialPosition={{ x: 200, y: 100 }}
+          minSize={{ width: 800, height: 600 }}
+          className="z-[98]"
+        >
+          <div className="h-full w-full bg-black relative">
+            <iframe
+              src="/chat"
+              className="w-full h-full border-0"
+              title="LexieAI Chat"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-presentation"
+            />
+          </div>
+        </WindowShell>
+      )}
+
       {/* Lexie Logo */}
       <div className="fixed bottom-2 right-1 z-10">
         <img
