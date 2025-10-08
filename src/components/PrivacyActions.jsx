@@ -35,6 +35,7 @@ import QRCodeGenerator from './QRCodeGenerator';
 import {
   getPrivateBalances,
   parseTokenAmount,
+  roundBalanceTo8Decimals,
 } from '../utils/railgun/balances';
 import {
   createWallet,
@@ -440,12 +441,25 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     return !isNaN(numAmount) && numAmount > 0;
   }, [amount, selectedToken]);
 
-  // Validation check: amount cannot exceed available balance
+  // Validation check: amount cannot exceed available balance (with 8-decimal rounding)
   const exceedsAvailableBalance = useMemo(() => {
     if (!amount || !selectedToken) return false;
 
-    const numAmount = parseFloat(amount);
-    return numAmount > selectedToken.numericBalance;
+    try {
+      // Parse user amount to wei with rounding
+      const userAmountInWei = parseTokenAmount(amount, selectedToken.decimals);
+
+      // Round available balance to 8 decimal places
+      const roundedBalanceInWei = roundBalanceTo8Decimals(selectedToken.balance || '0', selectedToken.decimals);
+
+      // Compare wei amounts
+      return BigInt(userAmountInWei) > BigInt(roundedBalanceInWei);
+    } catch (error) {
+      console.warn('[Balance Validation] Error in exceedsAvailableBalance check:', error);
+      // Fallback to original logic if rounding fails
+      const numAmount = parseFloat(amount);
+      return numAmount > (selectedToken.numericBalance || 0);
+    }
   }, [amount, selectedToken]);
 
   // State to hold gas fee estimation result
