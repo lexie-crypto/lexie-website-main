@@ -1083,10 +1083,25 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       const encryptionKey = await getEncryptionKey();
 
       // Use the entered amount directly - backend handles fee deductions
-      const actualAmount = amount;
+      let actualAmount = amount;
 
       // Parse amount to base units
-      const amountInUnits = parseTokenAmount(actualAmount, selectedToken.decimals);
+      let amountInUnits = parseTokenAmount(actualAmount, selectedToken.decimals);
+
+      // 🚨 CRITICAL: Ensure amount never exceeds available balance to prevent rounding issues
+      // The RAILGUN SDK will add fees on top of this amount, so we must ensure amount <= balance
+      const availableBalance = selectedToken.balance || '0';
+      if (BigInt(amountInUnits) > BigInt(availableBalance)) {
+        console.warn('[PrivacyActions] ⚠️ Amount exceeds available balance, using exact balance instead:', {
+          requestedAmount: amountInUnits,
+          availableBalance,
+          requestedDecimal: actualAmount,
+          maxDecimal: ethers.formatUnits(availableBalance, selectedToken.decimals)
+        });
+        // Use the exact available balance to avoid rounding issues
+        actualAmount = ethers.formatUnits(availableBalance, selectedToken.decimals);
+        amountInUnits = availableBalance;
+      }
 
       // Get chain configuration
       const chainConfig = { id: chainId };
