@@ -2313,7 +2313,7 @@ const VaultDesktopInner = () => {
         <img
           src="/lexie.png"
           alt="Lexie"
-          className="w-16 h-16 opacity-60 hover:opacity-80 transition-opacity cursor-pointer"
+          className="w-[640px] h-[640px] opacity-60 hover:opacity-80 transition-opacity cursor-pointer"
           title="Lexie AI"
         />
       </div>
