@@ -75,18 +75,36 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Forward to chat backend
-    const backendPath = '/api/chat';
-    const backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+    // Extract message from JSON body (frontend sends { message, funMode?, personalityMode? })
+    const { message, funMode, personalityMode } = req.body;
+    if (!message) {
+      console.log(`❌ [CHAT-PROXY-${requestId}] No message provided in request body`);
+      console.log(`❌ [CHAT-PROXY-${requestId}] Received body:`, req.body);
+      return res.status(400).json({ error: 'Message is required' });
+    }
 
+    console.log(`[CHAT-PROXY-${requestId}] Incoming chat request:`, {
+      messageLength: message.length,
+      hasFunMode: !!funMode,
+      personalityMode: personalityMode || 'normal'
+    });
+
+    // Check for internal key (bypasses all backend validation if valid)
+    const internalKey = process.env.LEXIE_INTERNAL_KEY;
+
+    // Always attempt to include HMAC headers if secret is available
+    const method = 'POST';
+    const backendPath = '/api/lexie/chat';
     const timestamp = Date.now().toString();
-    const signature = generateHmacSignature('POST', backendPath, timestamp, hmacSecret);
+    const signature = hmacSecret ? generateHmacSignature(method, backendPath, timestamp, hmacSecret) : undefined;
 
+    // Build headers: include internal key if available AND include HMAC headers when possible
     const headers = {
-      'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'X-Lexie-Timestamp': timestamp,
-      'X-Lexie-Signature': signature,
+      // Content-Type will be set dynamically based on mode later
+      ...(internalKey ? { 'LEXIE_INTERNAL_KEY': internalKey } : {}),
+      ...(signature ? { 'X-Lexie-Timestamp': timestamp, 'X-Lexie-Signature': signature } : {}),
+      // Keep canonical frontend origin
       'Origin': 'https://staging.app.lexiecrypto.com',
       'User-Agent': 'Lexie-Chat-Proxy/1.0',
     };
@@ -94,31 +112,120 @@ export default async function handler(req, res) {
     console.log(`🔐 [CHAT-PROXY-${requestId}] Generated HMAC headers`, {
       method: 'POST',
       timestamp,
-      signature: signature.substring(0, 20) + '...',
-      path: backendPath
+      signature: signature ? signature.substring(0, 20) + '...' : 'none',
+      path: backendPath,
+      hasInternalKey: !!internalKey
     });
 
-    console.log(`📡 [CHAT-PROXY-${requestId}] Forwarding to chat backend: ${backendUrl}`);
+    // Decide targets based on environment and origin
+    const clientOrigin = req.headers.origin || req.headers.referer || 'unknown';
+    const isLocalClient = /^(http:\/\/localhost|http:\/\/127\.0\.0\.1)/.test(clientOrigin);
+    const isDevEnv = process.env.NODE_ENV !== 'production';
 
-    // Make the backend request
-    const fetchOptions = {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(req.body),
-      signal: AbortSignal.timeout(60000), // 60 second timeout for chat responses
-    };
+    let targets = ['https://staging.api.lexiecrypto.com/api/lexie/chat'];
+    if (isLocalClient || isDevEnv) {
+      targets = ['http://localhost:3000/api/lexie/chat', 'https://staging.api.lexiecrypto.com/api/lexie/chat'];
+    }
+    console.log(`📡 [CHAT-PROXY-${requestId}] Client origin: ${clientOrigin}, isLocalClient: ${isLocalClient}, isDevEnv: ${isDevEnv}`);
+    console.log(`📡 [CHAT-PROXY-${requestId}] Target sequence:`, targets);
 
-    const backendResponse = await fetch(backendUrl, fetchOptions);
-    const result = await backendResponse.json();
+    // Create AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
 
-    console.log(`✅ [CHAT-PROXY-${requestId}] Chat backend responded with status ${backendResponse.status}`, {
-      messageLength: result.message?.length || 0,
-      hasAction: !!result.action
-    });
+    try {
+      // Prepare request body for external API
+      let requestBody;
+      if (funMode === true || personalityMode === 'degen') {
+        // Send as plain text with degen prefix
+        requestBody = '[degen] ' + message;
+        headers['Content-Type'] = 'text/plain';
+        console.log(`📝 [CHAT-PROXY-${requestId}] Sending request as plain text with degen prefix`);
+      } else {
+        // Send as plain text with normal personality
+        requestBody = message;
+        headers['Content-Type'] = 'text/plain';
+        console.log(`📝 [CHAT-PROXY-${requestId}] Sending request as plain text`);
+      }
 
-    // Forward the backend response
-    res.status(backendResponse.status).json(result);
+      // Try targets in order (local → external)
+      let result;
+      let lastError;
+      for (const url of targets) {
+        try {
+          console.log(`🚀 [CHAT-PROXY-${requestId}] Sending request to: ${url}`);
+          result = await fetch(url, {
+            method: 'POST',
+            headers,
+            body: requestBody,
+            signal: controller.signal,
+          });
+          // If we get any HTTP response (even errors), break the loop
+          break;
+        } catch (e) {
+          console.error(`❌ [CHAT-PROXY-${requestId}] Fetch attempt failed for ${url}:`, e?.message || e);
+          lastError = e;
+          continue;
+        }
+      }
+      if (!result) {
+        throw lastError || new Error('No response from any target');
+      }
 
+      clearTimeout(timeoutId);
+
+      console.log(`✅ [CHAT-PROXY-${requestId}] Chat server response status: ${result.status}`);
+
+      // Parse and forward the response
+      let responseData;
+      try {
+        const responseText = await result.text();
+        console.log(`📄 [CHAT-PROXY-${requestId}] Raw response text length: ${responseText.length}`);
+
+        if (!responseText.trim()) {
+          throw new Error('Empty response from server');
+        }
+
+        responseData = JSON.parse(responseText);
+        console.log(`✅ [CHAT-PROXY-${requestId}] Successfully parsed JSON response`);
+      } catch (parseError) {
+        console.error(`❌ [CHAT-PROXY-${requestId}] Failed to parse response as JSON:`, parseError);
+
+        if (!result.ok) {
+          throw new Error(`Server error ${result.status}: ${result.statusText}`);
+        } else {
+          throw new Error('Invalid JSON response from server');
+        }
+      }
+
+      if (!result.ok) {
+        console.log(`❌ [CHAT-PROXY-${requestId}] Chat request failed:`, {
+          status: result.status,
+          statusText: result.statusText,
+          error: responseData.error || 'Unknown error'
+        });
+        throw new Error(responseData.error || `Server error ${result.status}: ${result.statusText}`);
+      } else {
+        console.log(`🎉 [CHAT-PROXY-${requestId}] Chat request successful`);
+        console.log(`📊 [CHAT-PROXY-${requestId}] Response data:`, {
+          messageLength: responseData.message?.length || 0,
+          hasAction: !!responseData.action
+        });
+      }
+
+      // Forward the backend response
+      res.status(result.status).json(responseData);
+
+    } catch (fetchError) {
+      clearTimeout(timeoutId);
+      if (fetchError instanceof Error && fetchError.name === 'AbortError') {
+        console.error(`❌ [CHAT-PROXY-${requestId}] Request timeout after 60 seconds`);
+        res.status(504).json({ error: 'Request timeout - Chat server took too long to respond' });
+      } else {
+        console.error(`❌ [CHAT-PROXY-${requestId}] Fetch error:`, fetchError);
+        res.status(500).json({ error: 'Failed to connect to chat server' });
+      }
+    }
   } catch (error) {
     console.error(`❌ [CHAT-PROXY-${requestId}] Error:`, {
       method: req.method,
