@@ -566,7 +566,7 @@ const VaultDesktopInner = () => {
         const usdValue = Number(detail.usdValue || detail.usd || 0);
         if (!txHash) return;
         
-        fetch('/api/rewards/award', {
+        fetch('/api/wallet-metadata?action=rewards-award', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ lexieId: currentLexieId, txHash, usdValue })
@@ -577,7 +577,7 @@ const VaultDesktopInner = () => {
           } else if (r.ok && json?.ok && typeof json.balance === 'number') {
             setPointsBalance(json.balance);
           } else if (r.ok && json?.idempotent) {
-            fetch(`/api/rewards/balance?lexieId=${encodeURIComponent(currentLexieId)}`)
+            fetch(`/api/wallet-metadata?action=rewards-balance&lexieId=${encodeURIComponent(currentLexieId)}`)
               .then(res => res.json())
               .then(b => {
                 if (b?.success && typeof b.balance === 'number') setPointsBalance(b.balance);
@@ -722,7 +722,7 @@ const VaultDesktopInner = () => {
         return;
       }
       try {
-        const resp = await fetch(`/api/rewards/combined-balance&lexieId=${encodeURIComponent(currentLexieId)}`);
+        const resp = await fetch(`/api/wallet-metadata?action=rewards-combined-balance&lexieId=${encodeURIComponent(currentLexieId)}`);
         if (!cancelled && resp.ok) {
           const json = await resp.json().catch(() => ({}));
           if (json?.success) {
@@ -743,7 +743,7 @@ const VaultDesktopInner = () => {
       console.log('[VaultDesktop] 🔄 Refreshing points balance after award...');
 
       try {
-        const resp = await fetch(`/api/rewards/combined-balance&lexieId=${encodeURIComponent(currentLexieId)}`);
+        const resp = await fetch(`/api/wallet-metadata?action=rewards-combined-balance&lexieId=${encodeURIComponent(currentLexieId)}`);
 
         if (resp.ok) {
           const json = await resp.json().catch(() => ({}));
