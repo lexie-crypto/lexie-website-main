@@ -1048,9 +1048,9 @@ const VaultDesktopInner = () => {
             <div className="px-4 py-3 flex items-center gap-3">
               <div className="h-3 w-3 rounded-full bg-purple-400" />
               <div>
-                <div className="text-sm">Get Your Lexie ID</div>
+                <div className="text-sm">Get Your LexieID</div>
                 <div className="text-xs text-purple-400/80">
-                  Claim your ID for easy transfers and to play LexieTitans!
+                  Claim your LexieID for easy transfers and to play LexieTitans!
                 </div>
               </div>
               <button
