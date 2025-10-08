@@ -34,7 +34,7 @@ export function Navbar() {
         {/* Launch App Button - Far Right */}
         <a
           href="https://app.lexiecrypto.com"
-          className="hidden md:inline-flex items-center px-6 py-2 bg-gradient-to-r from-green-400 to-emerald-600 text-white font-bold rounded-lg shadow-lg hover:from-green-500 hover:to-emerald-700 transition-all duration-300 transform hover:scale-105 hover:shadow-green-500/25"
+          className="hidden md:inline-flex items-center px-6 py-2 bg-purple-300 text-black font-bold rounded-lg shadow-lg hover:bg-purple-400 transition-all duration-300 transform hover:scale-105 hover:shadow-purple-300/25"
         >
           Launch App →
         </a>
@@ -66,7 +66,7 @@ export function Navbar() {
             </a>
             <a
               href="https://app.lexiecrypto.com"
-              className="inline-flex items-center px-6 py-2 bg-gradient-to-r from-green-400 to-emerald-600 text-white font-bold rounded-lg shadow-lg hover:from-green-500 hover:to-emerald-700 transition-all duration-300"
+              className="inline-flex items-center px-6 py-2 bg-purple-300 text-black font-bold rounded-lg shadow-lg hover:bg-purple-400 transition-all duration-300"
             >
               Launch App →
             </a>
