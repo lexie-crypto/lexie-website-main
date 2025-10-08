@@ -32,7 +32,7 @@ export function LexieChat() {
   // If embedded in iframe, render just the core chat interface without headers
   if (isInIframe) {
     return (
-      <div className="h-full w-full bg-black">
+      <div className="h-full w-full scrollbar-terminal bg-black">
         <div className="font-mono text-green-300 space-y-1 h-full flex flex-col md:min-h-0 md:min-w-0 md:px-8 md:pt-4 md:pb-6">
           {/* Mobile Menu Button */}
           <div className="md:hidden flex items-center justify-between pb-4 flex-shrink-0">
@@ -57,7 +57,7 @@ export function LexieChat() {
           </div>
 
           {/* Desktop Header */}
-          <div className="hidden md:flex items-center justify-between border-b border-green-500/20 pb-4 flex-shrink-0">
+          <div className="hidden md:flex items-center scrollbar-terminal justify-between border-b border-green-500/20 pb-4 flex-shrink-0">
             <div>
               <h1 className="text-xl font-bold text-emerald-300">LexieAI Chat Terminal</h1>
               <div className="flex items-center space-x-2 text-sm">
@@ -81,7 +81,7 @@ export function LexieChat() {
           <div className="border-t border-teal-500/10 my-6"></div>
 
           {/* Chat Interface */}
-          <div className="flex h-full bg-background text-foreground relative md:flex-row flex-col md:min-h-0 md:min-w-0">
+          <div className="flex h-full bg-background scrollbar-terminal text-foreground relative md:flex-row flex-col md:min-h-0 md:min-w-0">
             {/* Mobile Sidebar Overlay */}
             {isMobileMenuOpen && (
               <div className="md:hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}>
@@ -97,7 +97,7 @@ export function LexieChat() {
             </div>
 
             {/* Main Chat Area */}
-            <div className="flex-1 md:min-h-0 md:min-w-0 flex flex-col">
+            <div className="flex-1 md:min-h-0 md:min-w-0  scrollbar-terminal flex flex-col">
               <Chat />
             </div>
           </div>
@@ -133,7 +133,7 @@ export function LexieChat() {
         </div>
 
         {/* Desktop Header */}
-        <div className="hidden md:flex items-center justify-between border-b border-green-500/20 pb-4 flex-shrink-0">
+        <div className="hidden md:flex items-center justify-between border-b scrollbar-terminal border-green-500/20 pb-4 flex-shrink-0">
           <div>
             <h1 className="text-xl font-bold text-emerald-300">LexieAI Chat Terminal</h1>
             <div className="flex items-center space-x-2 text-sm">
@@ -157,7 +157,7 @@ export function LexieChat() {
         <div className="border-t border-teal-500/10 my-6"></div>
 
         {/* Chat Interface */}
-        <div className="flex h-full bg-background text-foreground relative md:flex-row flex-col md:min-h-0 md:min-w-0 mobile-chat-container">
+        <div className="flex h-full bg-background text-foreground relative md:flex-row flex-col md:min-h-0 md:min-w-0 mobile-chat-container scrollbar-terminal">
           {/* Mobile Sidebar Overlay */}
           {isMobileMenuOpen && (
             <div className="md:hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-sm" onClick={() => setIsMobileMenuOpen(false)}>
