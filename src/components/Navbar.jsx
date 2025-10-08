@@ -59,14 +59,14 @@ export function Navbar() {
               Features
             </a>
             <a href="/docs" className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors" onClick={() => setIsMobileMenuOpen(false)}>
-              Docs
+              Documentation
             </a>
             <a href="#faqs" className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors" onClick={() => setIsMobileMenuOpen(false)}>
               FAQs
             </a>
             <a
               href="https://app.lexiecrypto.com"
-              className="inline-flex items-center px-6 py-2 bg-gradient-to-r from-purple-600 to-purple-800 text-white font-bold rounded-lg shadow-lg hover:from-purple-500 hover:to-purple-700 transition-all duration-300"
+              className="inline-flex items-center px-6 py-2 bg-gradient-to-r from-purple-200 to-purple-400 text-white font-bold rounded-lg shadow-lg hover:from-purple-500 hover:to-purple-700 transition-all duration-300"
             >
               Launch App →
             </a>
