@@ -722,7 +722,25 @@ const VaultDesktopInner = () => {
         return;
       }
       try {
-        const resp = await fetch(`/api/wallet-metadata?action=rewards-combined-balance&lexieId=${encodeURIComponent(currentLexieId)}`);
+        // First get game points from titans-be via proxy with HMAC
+        let gamePoints = 0;
+        let referralPoints = 0;
+        try {
+          const titansResp = await fetch(`/api/wallet-metadata?action=get-game-points&lexieId=${encodeURIComponent(currentLexieId)}`);
+          if (titansResp.ok) {
+            const gameData = await titansResp.json().catch(() => ({}));
+            gamePoints = Number(gameData.gamePoints) || 0;
+            referralPoints = Number(gameData.referralPoints) || 0;
+            console.log(`[VaultDesktop] ✅ Got game points for ${currentLexieId}: game=${gamePoints}, referral=${referralPoints}`);
+          } else {
+            console.log(`[VaultDesktop] ⚠️ Titans API proxy error for ${currentLexieId}: ${titansResp.status}`);
+          }
+        } catch (gameError) {
+          console.warn(`[VaultDesktop] ⚠️ Failed to fetch game points for ${currentLexieId}:`, gameError?.message);
+        }
+
+        // Then combine with vault points via rewards API
+        const resp = await fetch(`/api/wallet-metadata?action=rewards-combined-balance&lexieId=${encodeURIComponent(currentLexieId)}&gamePoints=${gamePoints}&referralPoints=${referralPoints}`);
         if (!cancelled && resp.ok) {
           const json = await resp.json().catch(() => ({}));
           if (json?.success) {
@@ -730,7 +748,9 @@ const VaultDesktopInner = () => {
             setPointsBreakdown(json.breakdown);
           }
         }
-      } catch {}
+      } catch (error) {
+        console.error('[VaultDesktop] Error fetching combined points:', error);
+      }
     })();
     return () => { cancelled = true; };
   }, [currentLexieId, isRailgunInitialized]);
@@ -743,7 +763,25 @@ const VaultDesktopInner = () => {
       console.log('[VaultDesktop] 🔄 Refreshing points balance after award...');
 
       try {
-        const resp = await fetch(`/api/wallet-metadata?action=rewards-combined-balance&lexieId=${encodeURIComponent(currentLexieId)}`);
+        // First get fresh game points from titans-be via proxy with HMAC
+        let gamePoints = 0;
+        let referralPoints = 0;
+        try {
+          const titansResp = await fetch(`/api/wallet-metadata?action=get-game-points&lexieId=${encodeURIComponent(currentLexieId)}`);
+          if (titansResp.ok) {
+            const gameData = await titansResp.json().catch(() => ({}));
+            gamePoints = Number(gameData.gamePoints) || 0;
+            referralPoints = Number(gameData.referralPoints) || 0;
+            console.log(`[VaultDesktop] 🔄 Refreshed game points for ${currentLexieId}: game=${gamePoints}, referral=${referralPoints}`);
+          } else {
+            console.log(`[VaultDesktop] ⚠️ Titans API proxy error during refresh for ${currentLexieId}: ${titansResp.status}`);
+          }
+        } catch (gameError) {
+          console.warn(`[VaultDesktop] ⚠️ Failed to refresh game points for ${currentLexieId}:`, gameError?.message);
+        }
+
+        // Then combine with latest vault points via rewards API
+        const resp = await fetch(`/api/wallet-metadata?action=rewards-combined-balance&lexieId=${encodeURIComponent(currentLexieId)}&gamePoints=${gamePoints}&referralPoints=${referralPoints}`);
 
         if (resp.ok) {
           const json = await resp.json().catch(() => ({}));
