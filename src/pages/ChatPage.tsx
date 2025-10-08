@@ -3,10 +3,11 @@ import '../styles/globals.css';
 import { LexieChat } from '../components/chat/LexieChat';
 
 const ChatPage = () => {
-  // Scrollbar styling is applied via CSS classes on containers
+  // Detect if running in an iframe
+  const isInIframe = typeof window !== 'undefined' && window.self !== window.top;
 
   return (
-    <div className="min-h-screen bg-black text-white scrollbar-terminal">
+    <div className={`${isInIframe ? 'h-screen' : 'min-h-screen'} bg-black text-white ${isInIframe ? '' : 'scrollbar-terminal'}`}>
       <LexieChat />
     </div>
   );
