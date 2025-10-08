@@ -366,10 +366,19 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       setMemoText('');
     };
 
+    const handleShieldTransactionDropped = useCallback((event) => {
+      console.log('[PrivacyActions] 🚫 Shield transaction dropped - unlocking UI:', event.detail);
+      setIsProcessing(false);
+      setIsTransactionLocked(false);
+      // Decrement monitor counter
+      setActiveTransactionMonitors(prev => Math.max(0, prev - 1));
+    }, []);
+
     if (typeof window !== 'undefined') {
       window.addEventListener('railgun-public-refresh', handleBalanceUpdateComplete);
       window.addEventListener('transaction-monitor-complete', handleTransactionMonitorComplete);
       window.addEventListener('abort-all-requests', handleAbortAllRequests);
+      window.addEventListener('shield-transaction-dropped', handleShieldTransactionDropped);
     }
 
     return () => {
@@ -377,6 +386,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         window.removeEventListener('railgun-public-refresh', handleBalanceUpdateComplete);
         window.removeEventListener('transaction-monitor-complete', handleTransactionMonitorComplete);
         window.removeEventListener('abort-all-requests', handleAbortAllRequests);
+        window.removeEventListener('shield-transaction-dropped', handleShieldTransactionDropped);
       }
     };
   }, []);
@@ -665,7 +675,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div className="px-4 py-3 flex items-center gap-3">
                   <div className="h-3 w-3 rounded-full bg-red-400 animate-pulse" />
                   <div>
-                    <div className="text-sm font-bold">TRANSACTION UNSUCCESSFUL</div>
+                    <div className="text-sm font-bold">Transaction Unsuccessful</div>
                     <div className="text-xs text-red-400/80 mt-1">Transaction was dropped by the network. Please try again.</div>
                   </div>
                   <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-red-900/30 text-red-300/80">×</button>
@@ -673,6 +683,13 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               </div>
             </div>
           ), { duration: 6000 });
+
+          // Unlock the UI since transaction was dropped
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('shield-transaction-dropped', {
+              detail: { transactionHash, chainId }
+            }));
+          }
 
           return;
         }
