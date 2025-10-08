@@ -2320,6 +2320,10 @@ const VaultDesktopInner = () => {
           footerLeft="LexieAI Chat Terminal"
           footerRight="Secure LexieAI Communication Channel"
           variant="vault"
+          onStatusClick={() => {
+            // This callback will be handled by the DegenModeButton component
+            // The button component will handle the personality mode toggle
+          }}
           onClose={() => setShowLexieChat(false)}
           initialSize={{ width: 1000, height: 700 }}
           initialPosition={{ x: 200, y: 100 }}

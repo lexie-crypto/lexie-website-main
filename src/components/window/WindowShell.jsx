@@ -4,6 +4,31 @@ import { useDraggable } from '../../hooks/useDraggable.js';
 import { useSafeAreas } from '../../hooks/useSafeAreas.js';
 import { useResize, RESIZE_DIRECTIONS } from '../../hooks/useResize.js';
 import { useWindowStore } from '../../contexts/windowStore.jsx';
+import { useChatStore } from '../../lib/store';
+
+const DegenModeButton = ({ onStatusClick }) => {
+  const { personalityMode } = useChatStore();
+
+  const handleClick = () => {
+    if (onStatusClick) {
+      onStatusClick();
+    } else {
+      // Fallback: direct store access
+      const { setPersonalityMode } = useChatStore.getState();
+      setPersonalityMode(personalityMode === 'degen' ? 'normal' : 'degen');
+    }
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      className={`px-3 py-1.5 rounded border text-xs ${personalityMode === 'degen' ? 'border-pink-400 text-pink-300' : 'border-green-400 text-green-300'} hover:bg-white/5 transition-colors`}
+      title="Toggle Degen Mode"
+    >
+      {personalityMode === 'degen' ? 'Disable Degen Mode' : 'Enable Degen Mode'}
+    </button>
+  );
+};
 
 const TrafficLight = ({ type, onClick }) => {
   const colors = {
@@ -56,6 +81,7 @@ const WindowShell = ({
   minHeight = 300,
   maxWidth = 1200,
   maxHeight = 800,
+  onStatusClick,
   ...terminalProps
 }) => {
   const {
@@ -279,11 +305,17 @@ const WindowShell = ({
         </div>
 
         {/* Status Section */}
-        <div className="flex items-center gap-2">
-          <div className={`w-2 h-2 rounded-full animate-pulse ${statusTone === 'online' ? 'bg-green-400' : 'bg-yellow-400'}`} />
-          <span className={`font-mono text-xs ${statusTone === 'online' ? 'text-green-400' : 'text-yellow-300'}`}>
-            {statusLabel}
-          </span>
+        <div className="flex items-center gap-3">
+          {statusLabel === 'Enable Degen Mode' ? (
+            <DegenModeButton onStatusClick={onStatusClick} />
+          ) : (
+            <>
+              <div className={`w-2 h-2 rounded-full animate-pulse ${statusTone === 'online' ? 'bg-green-400' : 'bg-yellow-400'}`} />
+              <span className={`font-mono text-xs ${statusTone === 'online' ? 'text-green-400' : 'text-yellow-300'}`}>
+                {statusLabel}
+              </span>
+            </>
+          )}
         </div>
       </div>
 
