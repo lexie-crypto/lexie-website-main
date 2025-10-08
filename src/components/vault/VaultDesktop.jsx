@@ -1349,7 +1349,7 @@ const VaultDesktopInner = () => {
 
   if (!isConnected || (isConnected && !isNetworkSupported) || walletConnectValidating) {
     return (
-      <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
+      <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
         {/* Navigation */}
         <Navbar />
 
@@ -1362,7 +1362,7 @@ const VaultDesktopInner = () => {
             <div className="absolute inset-0 bg-[linear-gradient(rgba(147,51,234,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(147,51,234,0.2)_1px,transparent_1px)] bg-[size:40px_40px] animate-pulse"></div>
             <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.1)_1px,transparent_1px)] bg-[size:80px_80px] animate-pulse" style={{animationDelay: '1s'}}></div>
           </div>
-          <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute inset-0 overflow-hidden scrollbar-terminal">
             {Array.from({ length: 3 }).map((_, i) => (
               <div 
                 key={i} 
@@ -1416,7 +1416,7 @@ const VaultDesktopInner = () => {
   }
 
   return (
-    <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
+    <div className="relative min-h-screen w-full bg-black text-white overflow-x-hiddenscrollbar-terminal">
       {/* Navigation */}
       <Navbar />
 
@@ -1526,7 +1526,7 @@ const VaultDesktopInner = () => {
                       <span className="ml-1">▾</span>
                     </button>
                     {isMobileChainMenuOpen && (
-                      <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden z-50">
+                      <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden scrollbar-terminal z-50">
                         {supportedNetworks.map((net) => (
                           <button
                             key={net.id}
@@ -1579,7 +1579,7 @@ const VaultDesktopInner = () => {
                     <span className="ml-1">▾</span>
                   </button>
                   {isChainMenuOpen && (
-                    <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden z-50">
+                    <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden scrollbar-terminal z-50">
                       {supportedNetworks.map((net) => (
                         <button
                           key={net.id}
@@ -1877,7 +1877,7 @@ const VaultDesktopInner = () => {
       {/* Lexie ID Choice Modal */}
       {showLexieIdChoiceModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center z-[100] p-4 font-mono">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-lg w-full overflow-hidden">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-lg w-full overflow-hidden scrollbar-terminal">
             {/* Modal Terminal Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
               <div className="flex items-center gap-3">
@@ -1934,7 +1934,7 @@ const VaultDesktopInner = () => {
       {/* Lexie ID Modal */}
       {showLexieModal && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[99] p-4 font-mono">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-4xl w-full overflow-hidden">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-4xl w-full overflow-hidden scrollbar-terminal">
             {/* Modal Terminal Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
               <div className="flex items-center gap-3">
@@ -2128,7 +2128,7 @@ const VaultDesktopInner = () => {
       {/* Cross-Platform Verification Modal */}
       {showVerificationModal && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 font-mono">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden scrollbar-terminal">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
               <div className="flex items-center gap-3">
                 <span className="text-sm tracking-wide text-gray-400">telegram-link</span>
@@ -2192,7 +2192,7 @@ const VaultDesktopInner = () => {
       {/* Sign-in & Initialization Popup */}
       {showSignRequestPopup && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center z-50 p-4 font-mono">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden scrollbar-terminal">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
               <div className="flex items-center gap-3">
                 <span className="text-sm tracking-wide text-gray-400">vault-sign</span>
@@ -2376,7 +2376,7 @@ const VaultDesktop = () => {
 
   if (isMobile) {
     return (
-      <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
+      <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
         <nav className="sticky top-0 z-40 w-full p-6 bg-black">
           <div className="max-w-7xl mx-auto flex justify-between items-center">
             <div className="text-4xl font-bold text-purple-300">LEXIEAI</div>
