@@ -605,6 +605,92 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     }
   }, [selectedToken]);
 
+  // Monitor shield transaction to detect if it gets dropped by provider
+  const monitorShieldTransaction = useCallback(async (transactionHash, chainId, provider) => {
+    if (!transactionHash || !provider) {
+      console.warn('[ShieldMonitor] Missing transaction hash or provider');
+      return;
+    }
+
+    console.log('[ShieldMonitor] Starting transaction monitoring:', {
+      transactionHash: transactionHash.slice(0, 10) + '...',
+      chainId
+    });
+
+    const maxWaitTime = 30 * 1000; // 30 seconds
+    const checkInterval = 10000; // Check every 10 seconds
+    const startTime = Date.now();
+
+    const checkTransaction = async () => {
+      try {
+        const receipt = await provider.getTransactionReceipt(transactionHash);
+
+        if (receipt) {
+          // Transaction was mined
+          console.log('[ShieldMonitor] Transaction confirmed:', {
+            transactionHash: transactionHash.slice(0, 10) + '...',
+            blockNumber: receipt.blockNumber,
+            status: receipt.status
+          });
+
+          if (receipt.status === 0) {
+            // Transaction failed on-chain
+            console.error('[ShieldMonitor] Transaction failed on-chain');
+            toast.custom((t) => (
+              <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+                <div className="rounded-lg border border-red-500/30 bg-black/90 text-red-200 shadow-2xl">
+                  <div className="px-4 py-3 flex items-center gap-3">
+                    <div className="h-3 w-3 rounded-full bg-red-400 animate-pulse" />
+                    <div>
+                      <div className="text-sm font-bold">TRANSACTION FAILED</div>
+                      <div className="text-xs text-red-400/80 mt-1">Transaction reverted on-chain. Please try again.</div>
+                    </div>
+                    <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-red-900/30 text-red-300/80">×</button>
+                  </div>
+                </div>
+              </div>
+            ), { duration: 6000 });
+          }
+          // Success case is handled by the Graph monitoring system
+          return;
+        }
+
+        // Check if we've exceeded max wait time
+        if (Date.now() - startTime > maxWaitTime) {
+          console.error('[ShieldMonitor] Transaction not mined within timeout period - likely dropped by provider');
+
+          toast.custom((t) => (
+            <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+              <div className="rounded-lg border border-red-500/30 bg-black/90 text-red-200 shadow-2xl">
+                <div className="px-4 py-3 flex items-center gap-3">
+                  <div className="h-3 w-3 rounded-full bg-red-400 animate-pulse" />
+                  <div>
+                    <div className="text-sm font-bold">TRANSACTION UNSUCCESSFUL</div>
+                    <div className="text-xs text-red-400/80 mt-1">Transaction was dropped by the network. Please try again.</div>
+                  </div>
+                  <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-red-900/30 text-red-300/80">×</button>
+                </div>
+              </div>
+            </div>
+          ), { duration: 6000 });
+
+          return;
+        }
+
+        // Continue checking
+        setTimeout(checkTransaction, checkInterval);
+
+      } catch (error) {
+        console.error('[ShieldMonitor] Error checking transaction:', error);
+        // Continue monitoring despite errors
+        setTimeout(checkTransaction, checkInterval);
+      }
+    };
+
+    // Start monitoring
+    setTimeout(checkTransaction, checkInterval);
+  }, []);
+
   // Detect recipient address type for smart handling
   const recipientType = useMemo(() => {
     if (!recipientAddress) return 'none';
@@ -809,8 +895,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       
       // Use signer.sendTransaction instead of provider.request
       const txResponse = await walletSigner.sendTransaction(txForSending);
-      
+
       console.log('[PrivacyActions] Transaction sent:', txResponse);
+
+      // Monitor transaction to detect if it gets dropped by provider
+      const transactionHash = txResponse.hash;
+      monitorShieldTransaction(transactionHash, chainId, walletSigner.provider);
 
       toast.dismiss(toastId);
       toast.custom((t) => (
