@@ -2343,7 +2343,7 @@ const VaultDesktopInner = () => {
         <WindowShell
           id="lexie-chat-terminal"
           title="LexieAI-chat"
-          appType="chat"
+          appType="vault"
           statusLabel="Enable Degen Mode"
           statusTone="online"
           footerLeft="LexieAI Chat Terminal"
