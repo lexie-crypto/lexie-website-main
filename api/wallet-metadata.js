@@ -140,8 +140,7 @@ export default async function handler(req, res) {
     });
   }
 
-  // Titans API may use different HMAC secret
-  const titansHmacSecret = process.env.LEXIE_HMAC_SECRET || hmacSecret;
+  // Titans API by-lexieid endpoint is now public (no auth needed)
 
   console.log(`🔄 [WALLET-METADATA-PROXY-${requestId}] ${req.method} request`, {
     method: req.method,
@@ -769,37 +768,45 @@ export default async function handler(req, res) {
       };
     }
 
-    // Generate appropriate HMAC headers based on backend
-    let hmacToUse = hmacSecret;
-    let headerPrefix = 'X-Lexie';
-
+    // Generate appropriate authentication headers based on backend
     if (backendUrl.includes('titans-api.lexiecrypto.com')) {
-      hmacToUse = titansHmacSecret;
-      headerPrefix = 'X-Titans'; // Titans API might use different header prefix
+      // Titans API by-lexieid endpoint is now public - no auth headers needed
+      headers = {
+        'Accept': 'application/json',
+        'Origin': 'https://staging.app.lexiecrypto.com',
+        'User-Agent': 'Lexie-Wallet-Proxy/1.0',
+      };
+
+      console.log(`🌐 [WALLET-METADATA-PROXY-${requestId}] Public endpoint - no auth headers`, {
+        method: req.method,
+        path: backendPath,
+        backend: 'titans'
+      });
+    } else {
+      // Lexie API uses HMAC authentication
+      const signature = generateHmacSignature(req.method, backendPath, timestamp, hmacSecret);
+
+      headers = {
+        'Accept': 'application/json',
+        'X-Lexie-Timestamp': timestamp,
+        'X-Lexie-Signature': signature,
+        'Origin': 'https://staging.app.lexiecrypto.com',
+        'User-Agent': 'Lexie-Wallet-Proxy/1.0',
+      };
+
+      console.log(`🔐 [WALLET-METADATA-PROXY-${requestId}] Generated HMAC headers`, {
+        method: req.method,
+        timestamp,
+        signature: signature.substring(0, 20) + '...',
+        path: backendPath,
+        backend: 'lexie'
+      });
     }
-
-    const signature = generateHmacSignature(req.method, backendPath, timestamp, hmacToUse);
-
-    headers = {
-      'Accept': 'application/json',
-      [`${headerPrefix}-Timestamp`]: timestamp,
-      [`${headerPrefix}-Signature`]: signature,
-      'Origin': 'https://staging.app.lexiecrypto.com',
-      'User-Agent': 'Lexie-Wallet-Proxy/1.0',
-    };
 
     // Add Content-Type for POST requests
     if (req.method === 'POST') {
       headers['Content-Type'] = 'application/json';
     }
-
-    console.log(`🔐 [WALLET-METADATA-PROXY-${requestId}] Generated HMAC headers`, {
-      method: req.method,
-      timestamp,
-      signature: headers[`${headerPrefix}-Signature`].substring(0, 20) + '...',
-      path: backendPath,
-      backend: backendUrl.includes('titans-api') ? 'titans' : 'lexie'
-    });
 
     console.log(`📡 [WALLET-METADATA-PROXY-${requestId}] Forwarding to backend: ${backendUrl}`);
 
