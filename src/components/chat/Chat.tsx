@@ -177,7 +177,7 @@ export function Chat() {
               System Prompt
             </label>
             <textarea
-              className="w-full py-0.5 px-0.5 md:p-0 rounded-lg bg-background text-foreground border border-border focus:border-ring focus:ring-2 focus:ring-ring/50 text-base md:text-sm"
+              className="w-full py-1 px-2 md:py-2 md:px-3 rounded border border-green-500/40 bg-black text-green-300 placeholder-green-400/70 focus:border-emerald-400 focus:outline-none transition-colors text-base md:text-sm font-mono resize-none"
               rows={3}
               value={currentConversation?.systemPrompt || ''}
               onChange={(e) =>
@@ -191,7 +191,7 @@ export function Chat() {
         </div>
       )}
 
-      <div className="flex-1 md:min-h-0 overflow-y-auto overflow-x-hidden py-1 px-0 md:p-0 md:pr-0 w-full max-w-full bg-black mobile-chat-messages">
+      <div className="flex-1 md:min-h-0 overflow-y-auto scrollbar-terminal overflow-x-hidden py-1 px-0 md:p-0 md:pr-0 w-full max-w-full bg-black mobile-chat-messages">
         <div className="w-full max-w-full overflow-x-hidden">
           {currentConversation?.messages.map((message: Message, index: number) => (
             <div
@@ -293,15 +293,15 @@ export function Chat() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder=" Type your message..."
-            className="flex-1 py-0.5 px-0.5 md:p-2 rounded-lg bg-background text-foreground border border-border focus:border-ring focus:ring-2 focus:ring-ring/50 transition-all text-base md:text-sm"
+            className="flex-1 py-1 px-2 md:py-2 md:px-3 rounded border border-green-500/40 bg-black text-green-300 placeholder-green-400/70 focus:border-emerald-400 focus:outline-none transition-colors text-base md:text-sm font-mono"
             disabled={isStreaming}
           />
           <button
             type="submit"
             disabled={!input.trim() || isStreaming}
-            className="py-0.5 px-0.5 md:p-0 rounded-lg bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-colors"
+            className="py-1 px-2 md:py-2 md:px-3 rounded border border-green-500/40 bg-black text-green-300 hover:bg-emerald-900/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            <SendIcon size={20} />
+            <SendIcon size={18} />
           </button>
         </form>
       </div>

@@ -61,7 +61,7 @@ export function Sidebar({ onCloseMobile }: SidebarProps) {
         New Chat
       </button>
 
-      <div className="flex-1 overflow-y-auto space-y-2">
+      <div className="flex-1 overflow-y-auto scrollbar-terminal space-y-2">
         {conversations.map((conv: Conversation) => (
           <div
             key={conv.id}
