@@ -9,13 +9,26 @@ import { useChatStore } from '../../lib/store';
 const DegenModeButton = ({ onStatusClick }) => {
   const { personalityMode } = useChatStore();
 
-  const handleClick = () => {
+  const handleClick = async () => {
+    const newMode = personalityMode === 'degen' ? 'normal' : 'degen';
+
     if (onStatusClick) {
-      onStatusClick();
+      onStatusClick(newMode);
     } else {
       // Fallback: direct store access
       const { setPersonalityMode } = useChatStore.getState();
-      setPersonalityMode(personalityMode === 'degen' ? 'normal' : 'degen');
+      setPersonalityMode(newMode);
+
+      // Send system message to confirm mode change
+      if (newMode === 'degen') {
+        try {
+          // Import ChatService and send confirmation message
+          const { ChatService } = await import('../../lib/api');
+          await ChatService.sendMessage('[system] Degen mode activated! Generate a fun, dynamic acknowledgement message in your degen personality.', { funMode: true });
+        } catch (error) {
+          console.error('Error sending degen mode confirmation:', error);
+        }
+      }
     }
   };
 
