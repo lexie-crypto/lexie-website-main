@@ -3,6 +3,80 @@ import { Sidebar } from './Sidebar';
 import { Chat } from './Chat';
 import { useChatStore } from '../../lib/store';
 import { MenuIcon, XIcon } from 'lucide-react';
+import { toast } from 'react-hot-toast';
+
+const DegenModeButton = () => {
+  const { personalityMode, setPersonalityMode } = useChatStore();
+  const [isSending, setIsSending] = useState(false);
+
+  console.log('🎯 DegenModeButton rendered with personalityMode:', personalityMode);
+
+  const handleClick = async () => {
+    console.log('🚀 DegenModeButton clicked! Current mode:', personalityMode);
+
+    const newMode = personalityMode === 'degen' ? 'normal' : 'degen';
+    console.log('🔄 Switching to mode:', newMode);
+
+    setPersonalityMode(newMode);
+
+    // If enabling degen mode, send confirmation message to chat
+    if (newMode === 'degen') {
+      console.log('📤 Sending degen confirmation message...');
+      setIsSending(true);
+      try {
+        // Import ChatService and send confirmation message
+        const { ChatService } = await import('../../lib/api');
+        await ChatService.sendMessage(
+          'Hey Lexie! I just enabled degen mode. Can you acknowledge this with your full degen personality?',
+          { funMode: true }
+        );
+        console.log('✅ Degen confirmation message sent successfully');
+      } catch (error) {
+        console.error('❌ Error sending degen mode confirmation:', error);
+        // Show user feedback on error
+        toast.custom((t) => (
+          <div className="font-mono pointer-events-auto">
+            <div className="rounded-lg border border-red-500/30 bg-black/90 text-red-200 shadow-2xl">
+              <div className="px-4 py-3 flex items-center gap-3">
+                <div className="h-3 w-3 rounded-full bg-red-400" />
+                <div>
+                  <div className="text-sm">Failed to activate degen mode</div>
+                  <div className="text-xs text-red-400/80">Try again or check your connection</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ), { duration: 3000 });
+      } finally {
+        setIsSending(false);
+      }
+    } else {
+      console.log('🔄 Switched back to normal mode');
+    }
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      disabled={isSending}
+      className={`px-3 py-1.5 rounded border text-xs ${
+        personalityMode === 'degen'
+          ? 'border-pink-400 text-pink-300'
+          : 'border-green-400 text-green-300'
+      } hover:bg-white/5 transition-colors ${
+        isSending ? 'opacity-50 cursor-not-allowed' : ''
+      }`}
+      title="Toggle Degen Mode"
+    >
+      {isSending
+        ? 'Activating...'
+        : personalityMode === 'degen'
+          ? 'Disable Degen Mode'
+          : 'Enable Degen Mode'
+      }
+    </button>
+  );
+};
 
 export function LexieChat() {
   const { darkMode, createConversation } = useChatStore();
@@ -64,6 +138,7 @@ export function LexieChat() {
                 <span className="text-green-400/80">Secure LexieAI Communication Channel</span>
               </div>
             </div>
+            <DegenModeButton />
           </div>
 
           {/* Boot log - Hidden on mobile */}
@@ -140,6 +215,7 @@ export function LexieChat() {
               <span className="text-green-400/80">Secure LexieAI Communication Channel</span>
             </div>
           </div>
+          <DegenModeButton />
         </div>
 
         {/* Boot log - Hidden on mobile */}
