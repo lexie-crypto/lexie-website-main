@@ -20,13 +20,13 @@ export function Navbar() {
 
         {/* Desktop Navigation - Center */}
         <div className="hidden md:flex absolute left-1/2 transform -translate-x-1/2 space-x-8">
-          <a href="#features" className="text-lg font-bold text-purple-300 hover:text-purple-100 transition-all duration-200 hover:underline underline-offset-4">
+          <a href="#features" className="text-lg font-bold text-purple-300 hover:text-purple-100 transition-all duration-200">
             Features
           </a>
-          <a href="/docs" className="text-lg font-bold text-purple-300 hover:text-purple-100 transition-all duration-200 hover:underline underline-offset-4">
+          <a href="/docs" className="text-lg font-bold text-purple-300 hover:text-purple-100 transition-all duration-200">
             Documentation
           </a>
-          <a href="#faqs" className="text-lg font-bold text-purple-300 hover:text-purple-100 transition-all duration-200 hover:underline underline-offset-4">
+          <a href="#faqs" className="text-lg font-bold text-purple-300 hover:text-purple-100 transition-all duration-200">
             FAQs
           </a>
         </div>
