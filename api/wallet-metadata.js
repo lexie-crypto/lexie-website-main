@@ -559,9 +559,24 @@ export default async function handler(req, res) {
           console.log(`❌ [REWARDS-PROXY-${requestId}] Missing lexieId for rewards-combined-balance`);
           return res.status(400).json({ success: false, error: 'Missing lexieId' });
         }
-        backendPath = `/api/rewards/combined-balance?lexieId=${encodeURIComponent(lexieID)}`;
+
+        // Forward all query parameters to the backend
+        const queryParams = new URLSearchParams();
+        queryParams.append('lexieId', lexieID);
+
+        // Forward game points and referral points if provided
+        if (req.query.gamePoints !== undefined) {
+          queryParams.append('gamePoints', req.query.gamePoints);
+        }
+        if (req.query.referralPoints !== undefined) {
+          queryParams.append('referralPoints', req.query.referralPoints);
+        }
+
+        backendPath = `/api/rewards/combined-balance?${queryParams.toString()}`;
         backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
-        console.log(`🎁 [REWARDS-PROXY-${requestId}] GET combined balance for ${lexieID}`);
+        console.log(`🎁 [REWARDS-PROXY-${requestId}] GET combined balance for ${lexieID} with gamePoints=${req.query.gamePoints}, referralPoints=${req.query.referralPoints}`);
+        console.log(`🎁 [REWARDS-PROXY-${requestId}] Full query:`, req.query);
+        console.log(`🎁 [REWARDS-PROXY-${requestId}] Backend URL: ${backendUrl}`);
 
       } else if (action === 'get-game-points') {
         const lexieID = req.query.lexieId || req.query.lexieID;

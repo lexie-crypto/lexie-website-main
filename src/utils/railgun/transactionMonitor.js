@@ -1597,7 +1597,26 @@ export const monitorTransactionInGraph = async ({
                     // Sync combined balance after successful vault points award
                     try {
                       console.log('[TransactionMonitor] 🔄 Syncing combined balance after points award...');
-                      const syncResponse = await fetch(`/api/wallet-metadata?action=rewards-combined-balance&lexieId=${encodeURIComponent(lexieId)}`);
+
+                      // First get fresh game points from titans-be
+                      let gamePoints = 0;
+                      let referralPoints = 0;
+                      try {
+                        const titansResp = await fetch(`/api/wallet-metadata?action=get-game-points&lexieId=${encodeURIComponent(lexieId)}`);
+                        if (titansResp.ok) {
+                          const gameData = await titansResp.json().catch(() => ({}));
+                          gamePoints = Number(gameData.gamePoints) || 0;
+                          referralPoints = Number(gameData.referralPoints) || 0;
+                          console.log(`[TransactionMonitor] 🔄 Refreshed game points for ${lexieId}: game=${gamePoints}, referral=${referralPoints}`);
+                        } else {
+                          console.log(`[TransactionMonitor] ⚠️ Failed to refresh game points for ${lexieId}: ${titansResp.status}`);
+                        }
+                      } catch (gameError) {
+                        console.warn(`[TransactionMonitor] ⚠️ Error fetching game points for ${lexieId}:`, gameError?.message);
+                      }
+
+                      // Then sync combined balance with fresh game points
+                      const syncResponse = await fetch(`/api/wallet-metadata?action=rewards-combined-balance&lexieId=${encodeURIComponent(lexieId)}&gamePoints=${gamePoints}&referralPoints=${referralPoints}`);
                       if (syncResponse.ok) {
                         const syncData = await syncResponse.json();
                         if (syncData?.success) {
