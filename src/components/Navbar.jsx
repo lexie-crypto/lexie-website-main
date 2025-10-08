@@ -24,7 +24,7 @@ export function Navbar() {
             Features
           </a>
           <a href="/docs" className="text-lg font-bold text-purple-300 hover:text-purple-100 transition-all duration-200 hover:underline underline-offset-4">
-            Docs
+            Documentation
           </a>
           <a href="#faqs" className="text-lg font-bold text-purple-300 hover:text-purple-100 transition-all duration-200 hover:underline underline-offset-4">
             FAQs
@@ -34,7 +34,7 @@ export function Navbar() {
         {/* Launch App Button - Far Right */}
         <a
           href="https://app.lexiecrypto.com"
-          className="hidden md:inline-flex items-center px-6 py-2 bg-gradient-to-r from-purple-600 to-purple-800 text-white font-bold rounded-lg shadow-lg hover:from-purple-500 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 hover:shadow-purple-500/25"
+          className="hidden md:inline-flex items-center px-6 py-2 bg-gradient-to-r from-purple-200 to-purple-400 text-white font-bold rounded-lg shadow-lg hover:from-purple-500 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 hover:shadow-purple-500/25"
         >
           Launch App →
         </a>
@@ -59,14 +59,14 @@ export function Navbar() {
               Features
             </a>
             <a href="/docs" className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors" onClick={() => setIsMobileMenuOpen(false)}>
-              Documentation
+              Docs
             </a>
             <a href="#faqs" className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors" onClick={() => setIsMobileMenuOpen(false)}>
               FAQs
             </a>
             <a
               href="https://app.lexiecrypto.com"
-              className="inline-flex items-center px-6 py-2 bg-gradient-to-r from-purple-200 to-purple-400 text-white font-bold rounded-lg shadow-lg hover:from-purple-500 hover:to-purple-700 transition-all duration-300"
+              className="inline-flex items-center px-6 py-2 bg-gradient-to-r from-purple-600 to-purple-800 text-white font-bold rounded-lg shadow-lg hover:from-purple-500 hover:to-purple-700 transition-all duration-300"
             >
               Launch App →
             </a>
