@@ -1,4 +1,5 @@
 import React from 'react';
+import '../styles/globals.css';
 import { LexieChat } from '../components/chat/LexieChat';
 
 const ChatPage = () => {
