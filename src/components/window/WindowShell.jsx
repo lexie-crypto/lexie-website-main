@@ -12,21 +12,27 @@ const DegenModeButton = () => {
   const [isSending, setIsSending] = useState(false);
 
   const handleClick = async () => {
+    console.log('🚀 DegenModeButton clicked! Current mode:', personalityMode);
+
     const newMode = personalityMode === 'degen' ? 'normal' : 'degen';
+    console.log('🔄 Switching to mode:', newMode);
+
     setPersonalityMode(newMode);
 
     // If enabling degen mode, send confirmation message to chat
     if (newMode === 'degen') {
+      console.log('📤 Sending degen confirmation message...');
       setIsSending(true);
       try {
         // Import ChatService and send confirmation message
         const { ChatService } = await import('../../lib/api');
         await ChatService.sendMessage(
           'Hey Lexie! I just enabled degen mode. Can you acknowledge this with your full degen personality?',
-          { personalityMode: 'degen' }
+          { funMode: true }
         );
+        console.log('✅ Degen confirmation message sent successfully');
       } catch (error) {
-        console.error('Error sending degen mode confirmation:', error);
+        console.error('❌ Error sending degen mode confirmation:', error);
         // Show user feedback on error
         toast.custom((t) => (
           <div className="font-mono pointer-events-auto">
@@ -44,6 +50,8 @@ const DegenModeButton = () => {
       } finally {
         setIsSending(false);
       }
+    } else {
+      console.log('🔄 Switched back to normal mode');
     }
   };
 
