@@ -26,7 +26,7 @@ export function LexieChat() {
   }, [createConversation]);
 
   return (
-    <div className="relative z-10 w-full md:max-w-screen-xl md:mx-auto md:px-4 md:sm:px-6 md:lg:px-8 md:py-8 min-h-screen min-w-0 mobile-app-wrapper">
+    <div className="relative z-10 w-full md:max-w-screen-xl md:mx-auto md:px-4 md:sm:px-6 md:lg:px-8 md:py-8 min-h-screen min-w-0 mobile-app-wrapper scrollbar-terminal">
       <div className="font-mono text-green-300 space-y-1 min-h-[18.75rem] md:h-screen flex flex-col md:min-h-0 md:min-w-0 mobile-chat-layout md:px-8 md:pt-4 md:pb-6">
         {/* Mobile Menu Button */}
         <div className="md:hidden flex items-center justify-between -pb-6 flex-shrink-0">

@@ -86,35 +86,6 @@
   }
 }
 
-/* Direct scrollbar styles for chat components */
-.chat-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(75, 85, 99, 0.6) rgba(31, 41, 55, 0.3);
-}
-
-.chat-scrollbar::-webkit-scrollbar {
-  width: 12px;
-}
-
-.chat-scrollbar::-webkit-scrollbar-track {
-  background: rgba(31, 41, 55, 0.3);
-  border-radius: 4px;
-}
-
-.chat-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(75, 85, 99, 0.6);
-  border-radius: 4px;
-  border: 1px solid rgba(31, 41, 55, 0.5);
-}
-
-.chat-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(107, 114, 128, 0.7);
-}
-
-.chat-scrollbar::-webkit-scrollbar-corner {
-  background: rgba(31, 41, 55, 0.3);
-}
-
 @keyframes fadeIn {
   from {
     opacity: 0;

@@ -191,8 +191,8 @@ export function Chat() {
         </div>
       )}
 
-      <div className="flex-1 md:min-h-0 overflow-y-auto chat-scrollbar overflow-x-hidden py-1 px-0 md:p-0 md:pr-0 w-full max-w-full bg-black mobile-chat-messages">
-        <div className="w-full max-w-full overflow-x-hidden">
+      <div className="flex-1 md:min-h-0 overflow-y-auto scrollbar-terminal overflow-x-hidden py-1 px-0 md:p-0 md:pr-0 w-full max-w-full bg-black mobile-chat-messages">
+        <div className="w-full max-w-full overflow-x-hidden scrollbar-terminal">
           {currentConversation?.messages.map((message: Message, index: number) => (
             <div
               key={message.id}
@@ -241,6 +241,7 @@ export function Chat() {
                           style={vscDarkPlus}
                           language={match[1]}
                           PreTag="div"
+                          className="scrollbar-terminal"
                           customStyle={{
                             whiteSpace: 'pre-wrap',
                             overflowX: 'auto',
