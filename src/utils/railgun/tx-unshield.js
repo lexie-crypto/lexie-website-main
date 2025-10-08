@@ -766,12 +766,23 @@ export const unshieldTokens = async ({
           usedRelayer = true;
           privacyLevel = 'transparent-relayer-base-token';
 
-          console.log('✅ [GAS RELAYER] Base token transaction submitted successfully!', {
-            transactionHash,
-            privacyLevel,
-            adjustedAmount: adjustedAmount?.toString() || amount,
-            combinedFee: combinedRelayerFee?.toString() || '0'
-          });
+          // Handle provider overload case specially
+          if (relayed.providerOverload) {
+            console.warn('⚠️ [GAS RELAYER] Base token transaction submitted despite provider overload:', {
+              transactionHash,
+              retryable: relayed.retryable,
+              code: relayed.code,
+              privacyLevel,
+              adjustedAmount: adjustedAmount?.toString() || amount
+            });
+          } else {
+            console.log('✅ [GAS RELAYER] Base token transaction submitted successfully!', {
+              transactionHash,
+              privacyLevel,
+              adjustedAmount: adjustedAmount?.toString() || amount,
+              combinedFee: combinedRelayerFee?.toString() || '0'
+            });
+          }
 
         } catch (gasRelayerError) {
           console.error('❌ [GAS RELAYER] Base token submission failed:', gasRelayerError.message);
@@ -1810,17 +1821,26 @@ export const unshieldTokens = async ({
           feeDetails,
           gasEstimate: contractTransaction.gasLimit?.toString()
         });
-        
+
         transactionHash = relayerResult.transactionHash;
         usedRelayer = true;
         privacyLevel = 'transparent-relayer';
-        
-        
-        console.log('✅ [GAS RELAYER] Transaction submitted successfully!', {
-          transactionHash,
-          privacyLevel,
-          noFees: true
-        });
+
+        // Handle provider overload case specially
+        if (relayerResult.providerOverload) {
+          console.warn('⚠️ [GAS RELAYER] Transaction submitted despite provider overload:', {
+            transactionHash,
+            retryable: relayerResult.retryable,
+            code: relayerResult.code,
+            privacyLevel
+          });
+        } else {
+          console.log('✅ [GAS RELAYER] Transaction submitted successfully!', {
+            transactionHash,
+            privacyLevel,
+            noFees: true
+          });
+        }
         
       } catch (gasRelayerError) {
         console.error('❌ [GAS RELAYER] Submission failed:', gasRelayerError.message);
