@@ -1350,10 +1350,36 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
       // Check for specific SnarkJS proof generation failure
       else if (error.message && error.message.includes('SnarkJS failed to fullProveRailgun')) {
-        toast.error('Max amount exceeds available vault balance. Please try again with a slightly lower amount.');
+        toast.custom((t) => (
+          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+            <div className="rounded-lg border border-red-500/30 bg-black/90 text-red-200 shadow-2xl">
+              <div className="px-4 py-3 flex items-center gap-3">
+                <div className="h-3 w-3 rounded-full bg-red-400 animate-pulse" />
+                <div>
+                  <div className="text-sm font-bold">TRANSACTION FAILED</div>
+                  <div className="text-xs text-red-400/80 mt-1">Max amount exceeds available vault balance. Please try again with a slightly lower amount.</div>
+                </div>
+                <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-red-900/30 text-red-300/80">×</button>
+              </div>
+            </div>
+          </div>
+        ), { duration: 8000 });
       } else {
         // Show generic error for other failures
-        toast.error(`Unshield failed: ${error.message || 'Unknown error'}`);
+        toast.custom((t) => (
+          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+            <div className="rounded-lg border border-red-500/30 bg-black/90 text-red-200 shadow-2xl">
+              <div className="px-4 py-3 flex items-center gap-3">
+                <div className="h-3 w-3 rounded-full bg-red-400 animate-pulse" />
+                <div>
+                  <div className="text-sm font-bold">TRANSACTION FAILED</div>
+                  <div className="text-xs text-red-400/80 mt-1">{error.message || 'Unknown error occurred'}</div>
+                </div>
+                <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-red-900/30 text-red-300/80">×</button>
+              </div>
+            </div>
+          </div>
+        ), { duration: 8000 });
       }
 
       // Dispatch transaction completion event to unlock UI globally
