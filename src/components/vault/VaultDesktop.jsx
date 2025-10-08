@@ -2309,7 +2309,7 @@ const VaultDesktopInner = () => {
       )}
 
       {/* Lexie Logo */}
-      <div className="fixed bottom-2 right-2 z-10">
+      <div className="fixed bottom-2 right-1 z-10">
         <img
           src="/lexie.png"
           alt="Lexie"
