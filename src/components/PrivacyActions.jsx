@@ -307,6 +307,15 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     };
   }, [isTokenMenuOpen]);
 
+  // Handle shield transaction dropped events
+  const handleShieldTransactionDropped = useCallback((event) => {
+    console.log('[PrivacyActions] 🚫 Shield transaction dropped - unlocking UI:', event.detail);
+    setIsProcessing(false);
+    setIsTransactionLocked(false);
+    // Decrement monitor counter
+    setActiveTransactionMonitors(prev => Math.max(0, prev - 1));
+  }, []);
+
   // Listen for balance update completion to unlock transactions
   useEffect(() => {
     const handleBalanceUpdateComplete = (event) => {
@@ -366,14 +375,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       setMemoText('');
     };
 
-    const handleShieldTransactionDropped = useCallback((event) => {
-      console.log('[PrivacyActions] 🚫 Shield transaction dropped - unlocking UI:', event.detail);
-      setIsProcessing(false);
-      setIsTransactionLocked(false);
-      // Decrement monitor counter
-      setActiveTransactionMonitors(prev => Math.max(0, prev - 1));
-    }, []);
-
     if (typeof window !== 'undefined') {
       window.addEventListener('railgun-public-refresh', handleBalanceUpdateComplete);
       window.addEventListener('transaction-monitor-complete', handleTransactionMonitorComplete);
@@ -389,7 +390,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         window.removeEventListener('shield-transaction-dropped', handleShieldTransactionDropped);
       }
     };
-  }, []);
+  }, [handleShieldTransactionDropped]);
 
   // Generate payment link when receive tab parameters change (uses active network)
   useEffect(() => {
