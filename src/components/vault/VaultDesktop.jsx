@@ -2307,6 +2307,16 @@ const VaultDesktopInner = () => {
           />
         </WindowShell>
       )}
+
+      {/* Lexie Logo */}
+      <div className="fixed bottom-4 right-4 z-10">
+        <img
+          src="/lexie.png"
+          alt="Lexie"
+          className="w-16 h-16 opacity-60 hover:opacity-80 transition-opacity cursor-pointer"
+          title="Lexie AI"
+        />
+      </div>
     </div>
   );
 };
