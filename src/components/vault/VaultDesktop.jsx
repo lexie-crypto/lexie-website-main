@@ -1575,14 +1575,6 @@ const VaultDesktopInner = () => {
                     <div className="text-yellow-300/80 text-xs">Please wait for balance updates to complete. This may take a few seconds.</div>
                   </div>
                 </div>
-                <div className="mt-2">
-                  <button
-                    onClick={() => setShowLexieModal(true)}
-                    className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded border border-purple-500/50 transition-colors"
-                  >
-                    Get a Lexie ID
-                  </button>
-                </div>
               </div>
             )}
 
