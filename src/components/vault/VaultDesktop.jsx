@@ -2227,12 +2227,12 @@ const VaultDesktopInner = () => {
                       <>
                         <div className="flex items-center justify-between text-xs text-green-400/80">
                           <span>Loading blockchain data...</span>
-                          <span>{bootstrapProgress.percent}%</span>
+                          <span>{Math.min(bootstrapProgress.percent, isInitInProgress ? 99 : 100)}%</span>
                         </div>
                         <div className="w-full bg-gray-700 rounded-full h-2">
                           <div
                             className="bg-gradient-to-r from-emerald-400 to-green-400 h-2 rounded-full transition-all duration-300 ease-out"
-                            style={{ width: `${bootstrapProgress.percent}%` }}
+                            style={{ width: `${Math.min(bootstrapProgress.percent, isInitInProgress ? 99 : 100)}%` }}
                           />
                         </div>
                       </>
