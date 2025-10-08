@@ -1571,7 +1571,7 @@ export const monitorTransactionInGraph = async ({
                   transactionType
                 });
 
-                const pointsResponse = await fetch('/api/wallet-metadata?action=rewards-award', {
+                const pointsResponse = await fetch('/api/rewards/award', {
                   method: 'POST',
                   headers: {
                     'Content-Type': 'application/json',
@@ -1597,7 +1597,7 @@ export const monitorTransactionInGraph = async ({
                     // Sync combined balance after successful vault points award
                     try {
                       console.log('[TransactionMonitor] 🔄 Syncing combined balance after points award...');
-                      const syncResponse = await fetch(`/api/wallet-metadata?action=rewards-combined-balance&lexieId=${encodeURIComponent(lexieId)}`);
+                      const syncResponse = await fetch(`/api/rewards/combined-balance?lexieId=${encodeURIComponent(lexieId)}`);
                       if (syncResponse.ok) {
                         const syncData = await syncResponse.json();
                         if (syncData?.success) {
