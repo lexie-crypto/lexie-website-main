@@ -5,29 +5,44 @@ import { useSafeAreas } from '../../hooks/useSafeAreas.js';
 import { useResize, RESIZE_DIRECTIONS } from '../../hooks/useResize.js';
 import { useWindowStore } from '../../contexts/windowStore.jsx';
 import { useChatStore } from '../../lib/store';
+import { toast } from 'react-hot-toast';
 
-const DegenModeButton = ({ onStatusClick }) => {
-  const { personalityMode } = useChatStore();
+const DegenModeButton = () => {
+  const { personalityMode, setPersonalityMode } = useChatStore();
+  const [isSending, setIsSending] = useState(false);
 
   const handleClick = async () => {
     const newMode = personalityMode === 'degen' ? 'normal' : 'degen';
+    setPersonalityMode(newMode);
 
-    if (onStatusClick) {
-      onStatusClick(newMode);
-    } else {
-      // Fallback: direct store access
-      const { setPersonalityMode } = useChatStore.getState();
-      setPersonalityMode(newMode);
-
-      // Send system message to confirm mode change
-      if (newMode === 'degen') {
-        try {
-          // Import ChatService and send confirmation message
-          const { ChatService } = await import('../../lib/api');
-          await ChatService.sendMessage('[system] Degen mode activated! Generate a fun, dynamic acknowledgement message in your degen personality.', { funMode: true });
-        } catch (error) {
-          console.error('Error sending degen mode confirmation:', error);
-        }
+    // If enabling degen mode, send confirmation message to chat
+    if (newMode === 'degen') {
+      setIsSending(true);
+      try {
+        // Import ChatService and send confirmation message
+        const { ChatService } = await import('../../lib/api');
+        await ChatService.sendMessage(
+          'Hey Lexie! I just enabled degen mode. Can you acknowledge this with your full degen personality?',
+          { personalityMode: 'degen' }
+        );
+      } catch (error) {
+        console.error('Error sending degen mode confirmation:', error);
+        // Show user feedback on error
+        toast.custom((t) => (
+          <div className="font-mono pointer-events-auto">
+            <div className="rounded-lg border border-red-500/30 bg-black/90 text-red-200 shadow-2xl">
+              <div className="px-4 py-3 flex items-center gap-3">
+                <div className="h-3 w-3 rounded-full bg-red-400" />
+                <div>
+                  <div className="text-sm">Failed to activate degen mode</div>
+                  <div className="text-xs text-red-400/80">Try again or check your connection</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ), { duration: 3000 });
+      } finally {
+        setIsSending(false);
       }
     }
   };
@@ -35,10 +50,22 @@ const DegenModeButton = ({ onStatusClick }) => {
   return (
     <button
       onClick={handleClick}
-      className={`px-3 py-1.5 rounded border text-xs ${personalityMode === 'degen' ? 'border-pink-400 text-pink-300' : 'border-green-400 text-green-300'} hover:bg-white/5 transition-colors`}
+      disabled={isSending}
+      className={`px-3 py-1.5 rounded border text-xs ${
+        personalityMode === 'degen'
+          ? 'border-pink-400 text-pink-300'
+          : 'border-green-400 text-green-300'
+      } hover:bg-white/5 transition-colors ${
+        isSending ? 'opacity-50 cursor-not-allowed' : ''
+      }`}
       title="Toggle Degen Mode"
     >
-      {personalityMode === 'degen' ? 'Disable Degen Mode' : 'Enable Degen Mode'}
+      {isSending
+        ? 'Activating...'
+        : personalityMode === 'degen'
+          ? 'Disable Degen Mode'
+          : 'Enable Degen Mode'
+      }
     </button>
   );
 };
@@ -94,7 +121,6 @@ const WindowShell = ({
   minHeight = 300,
   maxWidth = 1200,
   maxHeight = 800,
-  onStatusClick,
   ...terminalProps
 }) => {
   const {
@@ -320,7 +346,7 @@ const WindowShell = ({
         {/* Status Section */}
         <div className="flex items-center gap-3">
           {statusLabel === 'Enable Degen Mode' ? (
-            <DegenModeButton onStatusClick={onStatusClick} />
+            <DegenModeButton />
           ) : (
             <>
               <div className={`w-2 h-2 rounded-full animate-pulse ${statusTone === 'online' ? 'bg-green-400' : 'bg-yellow-400'}`} />

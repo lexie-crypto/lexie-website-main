@@ -2320,23 +2320,6 @@ const VaultDesktopInner = () => {
           footerLeft="LexieAI Chat Terminal"
           footerRight="Secure LexieAI Communication Channel"
           variant="vault"
-          onStatusClick={async (newMode) => {
-            // Handle personality mode change and send confirmation message
-            const { useChatStore } = await import('../../lib/store');
-            const { ChatService } = await import('../../lib/api');
-
-            const store = useChatStore.getState();
-            store.setPersonalityMode(newMode);
-
-            // Send confirmation message when enabling degen mode
-            if (newMode === 'degen') {
-              try {
-                await ChatService.sendMessage('[system] Degen mode activated! Generate a fun, dynamic acknowledgement message in your degen personality.', { funMode: true });
-              } catch (error) {
-                console.error('Error sending degen mode confirmation:', error);
-              }
-            }
-          }}
           onClose={() => setShowLexieChat(false)}
           initialSize={{ width: 1000, height: 700 }}
           initialPosition={{ x: 200, y: 100 }}
