@@ -383,10 +383,10 @@ const VaultDesktopInner = () => {
     return networks[id] || `Chain ${id}`;
   };
 
-  // Check Redis on wallet connect
+  // Check Redis on wallet connect - wait for Railgun initialization to complete first
   useEffect(() => {
-    if (isConnected && address && railgunWalletId && chainId) {
-      console.log('[VaultDesktop] Wallet connected - checking Redis for scanned chains');
+    if (isConnected && address && railgunWalletId && chainId && isRailgunInitialized) {
+      console.log('[VaultDesktop] Wallet connected and Railgun initialized - checking Redis for scanned chains');
       (async () => {
         // Don't re-init if modal is already open
         if (showSignRequestPopup) {
@@ -423,7 +423,7 @@ const VaultDesktopInner = () => {
         }
       })();
     }
-  }, [isConnected, address, railgunWalletId, chainId, checkRedisScannedChains, showSignRequestPopup]);
+  }, [isConnected, address, railgunWalletId, chainId, isRailgunInitialized, checkRedisScannedChains, showSignRequestPopup]);
 
   // Track when initial connection hydration is complete
   const initialConnectDoneRef = React.useRef(false);
