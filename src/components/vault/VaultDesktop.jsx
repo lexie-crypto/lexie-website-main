@@ -973,12 +973,6 @@ const VaultDesktopInner = () => {
       setIsInitInProgress(false);
       setInitProgress({ percent: 100, message: 'Initialization complete' });
       // Don't reset bootstrap progress - let it stay at 100% until modal closes
-
-      // Simple balance refresh once vault engine initializes
-      if (address && chainId) {
-        console.log('[VaultDesktop] Vault engine initialized - refreshing balances...');
-        refreshAllBalances();
-      }
     };
     window.addEventListener('vault-initialization-complete', onVaultInitComplete);
 
