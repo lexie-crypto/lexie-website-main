@@ -695,6 +695,14 @@ const VaultDesktopInner = () => {
     }
   }, [isConnected, address, chainId]);
 
+  // Simple balance refresh on page load for vault
+  useEffect(() => {
+    if (address && chainId) {
+      console.log('[VaultDesktop] Page load - refreshing vault balances...');
+      refreshAllBalances();
+    }
+  }, []); // Empty dependency array means this runs once on component mount
+
   // Auto-switch to privacy view when Railgun is ready
   useEffect(() => {
     if (canUseRailgun && railgunWalletId) {
