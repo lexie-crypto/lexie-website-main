@@ -695,14 +695,6 @@ const VaultDesktopInner = () => {
     }
   }, [isConnected, address, chainId]);
 
-  // Simple balance refresh on page load for vault
-  useEffect(() => {
-    if (address && chainId) {
-      console.log('[VaultDesktop] Page load - refreshing vault balances...');
-      refreshAllBalances();
-    }
-  }, []); // Empty dependency array means this runs once on component mount
-
   // Auto-switch to privacy view when Railgun is ready
   useEffect(() => {
     if (canUseRailgun && railgunWalletId) {
@@ -981,6 +973,12 @@ const VaultDesktopInner = () => {
       setIsInitInProgress(false);
       setInitProgress({ percent: 100, message: 'Initialization complete' });
       // Don't reset bootstrap progress - let it stay at 100% until modal closes
+
+      // Simple balance refresh once vault engine initializes
+      if (address && chainId) {
+        console.log('[VaultDesktop] Vault engine initialized - refreshing balances...');
+        refreshAllBalances();
+      }
     };
     window.addEventListener('vault-initialization-complete', onVaultInitComplete);
 
