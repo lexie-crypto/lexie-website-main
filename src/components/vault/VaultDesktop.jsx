@@ -2344,7 +2344,7 @@ const VaultDesktopInner = () => {
           src="/lexie.png"
           alt="Lexie"
           className="w-[320px] h-[320px] opacity-80 hover:opacity-80 transition-opacity cursor-pointer"
-          title="Lexie AI"
+          title="Click here to open up LexieChat"
           onClick={() => setShowLexieChat(true)}
         />
       </div>
