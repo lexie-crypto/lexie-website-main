@@ -108,7 +108,7 @@ const TitansGame = ({ lexieId, walletAddress, embedded, theme, onLoad, onError, 
         onLoad={handleIframeLoad}
         onError={handleIframeError}
         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-presentation"
+        sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-presentation allow-modals"
       />
     </div>
   );
