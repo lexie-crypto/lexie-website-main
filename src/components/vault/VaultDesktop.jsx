@@ -219,7 +219,7 @@ const VaultDesktopInner = () => {
   const [showLexieChat, setShowLexieChat] = useState(false);
 
   // Handle LexieID linking and game opening
-  const handleLexieIdLink = useCallback((lexieId) => {
+  const handleLexieIdLink = useCallback((lexieId, autoOpenGame = false) => {
     setCurrentLexieId(lexieId);
     // Set localStorage for Titans game integration
     if (lexieId && address) {
@@ -231,15 +231,15 @@ const VaultDesktopInner = () => {
       localStorage.removeItem("connectedWallet");
       localStorage.removeItem("linkedLexieId");
     }
-    // Auto-open Titans game when LexieID is linked
-    if (lexieId) {
+    // Auto-open Titans game only when explicitly requested (when user chooses LexieID)
+    if (lexieId && autoOpenGame) {
       setTimeout(() => {
         setShowTitansGame(true);
         // Signal to WalletContext that Lexie ID linking is complete
         onLexieIdLinked();
       }, 1000); // Small delay to allow UI to settle
     } else {
-      // If unlinking, also signal completion (though this shouldn't happen in the new flow)
+      // Signal completion without auto-opening game
       onLexieIdLinked();
     }
   }, [address, onLexieIdLinked]);
@@ -2036,7 +2036,7 @@ const VaultDesktopInner = () => {
                                 }
                                 setLexieNeedsCode(false); setLexieCode('');
                                 setLexieMessage('✅ Successfully claimed and linked your Lexie ID!');
-                                handleLexieIdLink(chosen);
+                                handleLexieIdLink(chosen, true); // Auto-open game for new LexieID choice
                                 setTimeout(() => {
                                   setShowLexieModal(false);
                                   setLexieIdInput('');
@@ -2084,7 +2084,7 @@ const VaultDesktopInner = () => {
                                 const json = await verifyResp.json().catch(() => ({}));
                                 if (!verifyResp.ok || !json.success) { setLexieMessage('Verification failed. Check the code and try again.'); return; }
                                 setLexieNeedsCode(false); setLexieCode(''); setLexieMessage('✅ Linked successfully to your Railgun wallet.');
-                                handleLexieIdLink(chosen);
+                                handleLexieIdLink(chosen, true); // Auto-open game for LexieID choice
                                 setTimeout(() => {
                                   setShowLexieModal(false);
                                   setLexieIdInput('');
