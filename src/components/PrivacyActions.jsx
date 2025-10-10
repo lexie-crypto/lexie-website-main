@@ -1535,7 +1535,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div className="px-4 py-3 flex items-center gap-3">
                   <div className="h-3 w-3 rounded-full bg-red-400" />
                   <div>
-                    <div className="text-sm">Lexie ID does not exist or is not linked to a LexieVault</div>
+                    <div className="text-sm">LexieID does not exist or is not linked to a LexieVault</div>
                   </div>
                 </div>
               </div>
@@ -1551,7 +1551,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div className="px-4 py-3 flex items-center gap-3">
                   <div className="h-3 w-3 rounded-full bg-red-400" />
                   <div>
-                    <div className="text-sm">Lexie ID does not exist or is not linked to a LexieVault</div>
+                    <div className="text-sm">LexieID does not exist or is not linked to a LexieVault</div>
                   </div>
                 </div>
               </div>
@@ -1566,7 +1566,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               <div className="px-4 py-3 flex items-center gap-3">
                 <div className="h-3 w-3 rounded-full bg-red-400" />
                 <div>
-                  <div className="text-sm">Lexie ID does not exist or is not linked to a LexieVault</div>
+                  <div className="text-sm">LexieID does not exist or is not linked to a LexieVault</div>
                 </div>
               </div>
             </div>
