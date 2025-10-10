@@ -192,11 +192,12 @@ const AdminDashboard = () => {
       const sortedData = getSortedPointsData();
 
       // CSV headers
-      const headers = ['LexieID', 'Railgun Wallet Address', 'Total Points'];
+      const headers = ['LexieID', 'EOA Address', 'Railgun Address', 'Total Points'];
 
       // Convert data to CSV rows
       const csvRows = sortedData.map(user => [
         user.lexieId || '',
+        user.eoaAddress || '',
         user.walletAddress || '',
         user.points || 0
       ]);
@@ -1189,7 +1190,10 @@ ${JSON.stringify(tx, null, 2)}
                             LexieID
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
-                            Railgun Wallet Address
+                            EOA Address
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                            Railgun Address
                           </th>
                           <th className="px-6 py-3 text-right text-xs font-medium text-gray-300 uppercase tracking-wider">
                             Total Points
@@ -1202,8 +1206,11 @@ ${JSON.stringify(tx, null, 2)}
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-300">
                               {user.lexieId || 'N/A'}
                             </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-orange-300 break-all">
+                              {user.eoaAddress ? `${user.eoaAddress.slice(0, 6)}...${user.eoaAddress.slice(-4)}` : 'N/A'}
+                            </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-purple-300 break-all">
-                              {user.walletAddress ? `${user.walletAddress.slice(0, 10)}...${user.walletAddress.slice(-8)}` : 'N/A'}
+                              {user.walletAddress ? `${user.walletAddress.slice(0, 6)}...${user.walletAddress.slice(-4)}` : 'N/A'}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-green-300 text-right font-medium">
                               {user.points?.toLocaleString() || 0}
