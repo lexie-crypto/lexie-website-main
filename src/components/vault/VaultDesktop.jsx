@@ -1965,7 +1965,7 @@ const VaultDesktopInner = () => {
 
               <div className="space-y-4">
                 <div className="bg-black/40 border border-green-500/20 rounded p-3">
-                  <div className="text-green-400/80 text-xs mb-2">Enter your LexieID:</div>
+                  <div className="text-green-400/80 text-xs mb-2">Create a new LexieID:</div>
                     <div className="flex items-center gap-2">
                       <input
                         type="text"
@@ -1982,8 +1982,8 @@ const VaultDesktopInner = () => {
                               setLexieMessage('');
                               setLexieLinking(true);
                               const chosen = (lexieIdInput || '').trim().toLowerCase();
-                              if (!chosen || chosen.length < 3) {
-                                setLexieMessage('Please enter a valid Lexie ID (3-20 chars).');
+                              if (!chosen || chosen.length < 3 || chosen.length > 15) {
+                                setLexieMessage('Please enter a valid Lexie ID (3-15 chars).');
                                 setLexieLinking(false);
                                 return;
                               }
