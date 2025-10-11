@@ -2345,7 +2345,14 @@ const VaultDesktopInner = () => {
           alt="Lexie"
           className="w-[320px] h-[320px] opacity-80 hover:opacity-80 transition-opacity cursor-pointer"
           title="Click here to open up LexieChat"
-          onClick={() => setShowLexieChat(true)}
+          onClick={() => {
+            const windowState = getWindowState('lexie-chat-terminal');
+            // If window exists and is closed, reopen it first
+            if (windowState && windowState.isClosed) {
+              reopenWindow('lexie-chat-terminal');
+            }
+            setShowLexieChat(true);
+          }}
         />
       </div>
     </div>
