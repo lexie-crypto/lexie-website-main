@@ -56,6 +56,7 @@ const WindowShell = ({
   minHeight = 300,
   maxWidth = 1200,
   maxHeight = 800,
+  onClose,
   ...terminalProps
 }) => {
   const {
@@ -190,6 +191,10 @@ const WindowShell = ({
   // Traffic light handlers
   const handleClose = () => {
     closeWindow(id);
+    // Also call the onClose prop if provided
+    if (onClose) {
+      onClose();
+    }
   };
 
   const handleMinimize = () => {
