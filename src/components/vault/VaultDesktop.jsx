@@ -160,6 +160,7 @@ const VaultDesktopInner = () => {
     showLexieIdChoiceModal,
     handleLexieIdChoice,
     onLexieIdLinked,
+    ensureChainScanned,
   } = useWallet();
 
   // Window management hooks
@@ -634,6 +635,16 @@ const VaultDesktopInner = () => {
     try {
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
       console.log('[VaultDesktop] Full refresh — SDK refresh + Redis persist, then UI fetch...');
+
+      // Step 0: Ensure chain has been scanned for private transfers (critical for discovering transfers before first shield)
+      try {
+        if (canUseRailgun && railgunWalletId && address && chainId) {
+          console.log('[VaultDesktop] Ensuring chain is scanned before refresh...');
+          await ensureChainScanned(chainId);
+        }
+      } catch (scanErr) {
+        console.warn('[VaultDesktop] Chain scan check failed (continuing with refresh):', scanErr?.message);
+      }
 
       // Step 1: Trigger SDK refresh + persist authoritative balances to Redis
       try {
