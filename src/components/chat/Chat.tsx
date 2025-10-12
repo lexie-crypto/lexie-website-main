@@ -23,6 +23,10 @@ export function Chat() {
   const [funMode, setFunMode] = useState(false);
   const messagesEndRef = useRef(null);
 
+  // Extract LexieID from URL parameters
+  const urlParams = new URLSearchParams(window.location.search);
+  const lexieId = urlParams.get('lexieId');
+
   const currentConversation = conversations.find(
     (conv: Conversation) => conv.id === currentConversationId
   );
@@ -92,7 +96,10 @@ export function Chat() {
     setTimeout(() => scrollToBottom(), 10);
 
     try {
-      const response = await ChatService.sendMessage(messageContent, { funMode: funMode || personalityMode === 'degen' });
+      const response = await ChatService.sendMessage(messageContent, {
+        funMode: funMode || personalityMode === 'degen',
+        lexieId
+      } as any);
       const assistantMessage: Message = {
         id: crypto.randomUUID(),
         role: 'assistant',

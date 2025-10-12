@@ -16,7 +16,7 @@ export interface ApiError {
 
 // Chat API service using secure proxy endpoints
 export class ChatService {
-  static async sendMessage(message: string, options?: { funMode?: boolean }): Promise<ChatResponse> {
+  static async sendMessage(message: string, options?: { funMode?: boolean; lexieId?: string }): Promise<ChatResponse> {
     try {
       const apiUrl = API_ENDPOINTS.chat;
       const headers = {
@@ -29,6 +29,8 @@ export class ChatService {
         ...(options || {}),
         // Provide explicit personality mode for the proxy/backend
         personalityMode: options?.funMode ? 'degen' : 'normal',
+        // Include LexieID for memory functionality
+        ...(options?.lexieId && { lexieId: options.lexieId }),
       });
 
       console.log(`[ChatService] Sending message to proxy endpoint:`, {
@@ -36,6 +38,7 @@ export class ChatService {
         method: 'POST',
         messageLength: message.length,
         funMode: options?.funMode,
+        hasLexieId: !!options?.lexieId,
       });
 
       const response = await fetch(apiUrl, {

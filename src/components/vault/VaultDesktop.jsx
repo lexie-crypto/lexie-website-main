@@ -2339,7 +2339,7 @@ const VaultDesktopInner = () => {
         >
           <div className="h-full w-full bg-black relative">
             <iframe
-              src="/chat"
+              src={currentLexieId ? `/chat?lexieId=${encodeURIComponent(currentLexieId)}` : "/chat"}
               className="w-full h-full border-0"
               title="LexieAI Chat"
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"

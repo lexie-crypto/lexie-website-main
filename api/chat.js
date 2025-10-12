@@ -75,8 +75,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Extract message from JSON body (frontend sends { message, funMode?, personalityMode? })
-    const { message, funMode, personalityMode } = req.body;
+    // Extract message from JSON body (frontend sends { message, funMode?, personalityMode?, lexieId? })
+    const { message, funMode, personalityMode, lexieId } = req.body;
     if (!message) {
       console.log(`❌ [CHAT-PROXY-${requestId}] No message provided in request body`);
       console.log(`❌ [CHAT-PROXY-${requestId}] Received body:`, req.body);
@@ -86,8 +86,45 @@ export default async function handler(req, res) {
     console.log(`[CHAT-PROXY-${requestId}] Incoming chat request:`, {
       messageLength: message.length,
       hasFunMode: !!funMode,
-      personalityMode: personalityMode || 'normal'
+      personalityMode: personalityMode || 'normal',
+      hasLexieId: !!lexieId
     });
+
+    // Retrieve conversation context if LexieID is provided
+    let conversationContext = '';
+    if (lexieId) {
+      try {
+        console.log(`🧠 [CHAT-PROXY-${requestId}] Retrieving conversation context for LexieID: ${lexieId}`);
+
+        // Use the same backend endpoint pattern to get memories
+        const memoryUrl = `${targets[0].replace('/api/lexie/chat', '/api/lexie/memory')}?action=get-context&lexieId=${encodeURIComponent(lexieId)}&limit=10`;
+
+        const memoryResponse = await fetch(memoryUrl, {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            ...(internalKey ? { 'LEXIE_INTERNAL_KEY': internalKey } : {}),
+            ...(signature ? { 'X-Lexie-Timestamp': timestamp, 'X-Lexie-Signature': signature } : {}),
+            'Origin': 'https://staging.app.lexiecrypto.com',
+            'User-Agent': 'Lexie-Chat-Proxy/1.0',
+          },
+          signal: AbortSignal.timeout(5000), // 5 second timeout for memory retrieval
+        });
+
+        if (memoryResponse.ok) {
+          const memoryData = await memoryResponse.json();
+          if (memoryData.success && memoryData.context) {
+            conversationContext = memoryData.context;
+            console.log(`✅ [CHAT-PROXY-${requestId}] Retrieved ${memoryData.messageCount || 0} conversation memories`);
+          }
+        } else {
+          console.log(`⚠️ [CHAT-PROXY-${requestId}] Could not retrieve conversation context: ${memoryResponse.status}`);
+        }
+      } catch (memoryError) {
+        console.log(`⚠️ [CHAT-PROXY-${requestId}] Memory retrieval failed:`, memoryError.message);
+        // Continue without context - don't fail the chat request
+      }
+    }
 
     // Check for internal key (bypasses all backend validation if valid)
     const internalKey = process.env.LEXIE_INTERNAL_KEY;
@@ -137,15 +174,23 @@ export default async function handler(req, res) {
       // Prepare request body for external API
       let requestBody;
       if (funMode === true || personalityMode === 'degen') {
-        // Send as plain text with degen prefix
-        requestBody = '[degen] ' + message;
+        // Send as plain text with degen prefix and context
+        let fullMessage = '[degen] ' + message;
+        if (conversationContext) {
+          fullMessage = `[degen]\n\nCONVERSATION CONTEXT:\n${conversationContext}\n\nCURRENT MESSAGE:\n${message}`;
+        }
+        requestBody = fullMessage;
         headers['Content-Type'] = 'text/plain';
-        console.log(`📝 [CHAT-PROXY-${requestId}] Sending request as plain text with degen prefix`);
+        console.log(`📝 [CHAT-PROXY-${requestId}] Sending request as plain text with degen prefix and context`);
       } else {
-        // Send as plain text with normal personality
-        requestBody = message;
+        // Send as plain text with normal personality and context
+        let fullMessage = message;
+        if (conversationContext) {
+          fullMessage = `CONVERSATION CONTEXT:\n${conversationContext}\n\nCURRENT MESSAGE:\n${message}`;
+        }
+        requestBody = fullMessage;
         headers['Content-Type'] = 'text/plain';
-        console.log(`📝 [CHAT-PROXY-${requestId}] Sending request as plain text`);
+        console.log(`📝 [CHAT-PROXY-${requestId}] Sending request as plain text with context`);
       }
 
       // Try targets in order (local → external)
@@ -211,6 +256,51 @@ export default async function handler(req, res) {
           messageLength: responseData.message?.length || 0,
           hasAction: !!responseData.action
         });
+      }
+
+      // Store conversation in memory if LexieID is provided
+      if (lexieId && responseData.message) {
+        try {
+          console.log(`💾 [CHAT-PROXY-${requestId}] Storing conversation memory for LexieID: ${lexieId}`);
+
+          const memoryUrl = `${targets[0].replace('/api/lexie/chat', '/api/lexie/memory')}?action=store-chat`;
+
+          const memoryPayload = {
+            lexieId: lexieId,
+            userMessage: message,
+            assistantMessage: responseData.message,
+            personalityMode: personalityMode || 'normal',
+            funMode: funMode || false,
+            platform: 'web'
+          };
+
+          // Store memory asynchronously - don't wait for it to complete
+          fetch(memoryUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              ...(internalKey ? { 'LEXIE_INTERNAL_KEY': internalKey } : {}),
+              ...(signature ? { 'X-Lexie-Timestamp': timestamp, 'X-Lexie-Signature': signature } : {}),
+              'Origin': 'https://staging.app.lexiecrypto.com',
+              'User-Agent': 'Lexie-Chat-Proxy/1.0',
+            },
+            body: JSON.stringify(memoryPayload),
+            signal: AbortSignal.timeout(5000), // 5 second timeout for memory storage
+          }).then(memoryResult => {
+            if (memoryResult.ok) {
+              console.log(`✅ [CHAT-PROXY-${requestId}] Successfully stored conversation memory`);
+            } else {
+              console.log(`⚠️ [CHAT-PROXY-${requestId}] Failed to store conversation memory: ${memoryResult.status}`);
+            }
+          }).catch(memoryError => {
+            console.log(`⚠️ [CHAT-PROXY-${requestId}] Memory storage failed:`, memoryError.message);
+          });
+
+        } catch (memoryError) {
+          console.log(`⚠️ [CHAT-PROXY-${requestId}] Memory storage setup failed:`, memoryError.message);
+          // Continue with response - don't fail the chat request
+        }
       }
 
       // Forward the backend response
