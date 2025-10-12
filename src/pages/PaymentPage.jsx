@@ -300,12 +300,12 @@ const PaymentPage = () => {
     fetchBalances();
   }, [isConnected, address, chainId, isCorrectNetwork, walletProvider, balanceRefreshTrigger]);
 
-  // Auto-select preferred token or first available
+  // Auto-select preferred token or first available (only if no token selected)
   useEffect(() => {
-    if (publicBalances.length === 0) return;
+    if (publicBalances.length === 0 || selectedToken) return;
 
     if (preferredToken) {
-      const token = publicBalances.find(t => 
+      const token = publicBalances.find(t =>
         (t.address || '').toLowerCase() === preferredToken.toLowerCase()
       );
       if (token) {
@@ -317,7 +317,7 @@ const PaymentPage = () => {
     // Select first token with balance or just the first token
     const tokenWithBalance = publicBalances.find(t => t.numericBalance > 0);
     setSelectedToken(tokenWithBalance || publicBalances[0]);
-  }, [publicBalances, preferredToken]);
+  }, [publicBalances, preferredToken, selectedToken]);
 
   // Close token menu on outside click or ESC
   useEffect(() => {
