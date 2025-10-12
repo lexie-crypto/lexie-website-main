@@ -224,7 +224,7 @@ const PaymentPage = () => {
             { symbol: 'BNB', address: null, name: 'BNB', decimals: 18 },
             { symbol: 'WETH', address: '0x2170Ed0880ac9A755fd29B2688956BD959F933F8', name: 'Wrapped Ether', decimals: 18 },
             { symbol: 'WBNB', address: '0xBB4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', name: 'Wrapped BNB', decimals: 18 },
-            { symbol: 'USDC', address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', name: 'USD Coin', decimals: 6 },
+            { symbol: 'USDC', address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', name: 'USD Coin', decimals: 18 },
             { symbol: 'USDT', address: '0x55d398326f99059fF775485246999027B3197955', name: 'Tether USD', decimals: 18 },
             { symbol: 'DAI', address: '0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3', name: 'Dai Token', decimals: 18 },
             { symbol: 'WBTC', address: '0x0555E30da8f98308EdB960aa94C0Db47230d2B9c', name: 'Wrapped Bitcoin', decimals: 8 },
