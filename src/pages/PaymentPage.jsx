@@ -1136,8 +1136,15 @@ const PaymentPage = () => {
                                 if (railgunContractAddress) {
                                   const allowance = await tokenContract.allowance(address, railgunContractAddress);
 
-                                  // Use BigInt min to avoid precision issues
-                                  maxWeiAmount = freshBalance < allowance ? freshBalance : allowance;
+                                  // For Max button, use balance if allowance is 0 (not approved yet)
+                                  // Otherwise use min(balance, allowance)
+                                  let effectiveMaxWei;
+                                  if (allowance === 0n) {
+                                    effectiveMaxWei = freshBalance; // Use full balance if not approved yet
+                                  } else {
+                                    effectiveMaxWei = freshBalance < allowance ? freshBalance : allowance;
+                                  }
+                                  maxWeiAmount = effectiveMaxWei;
 
                                   // Use formatUnits for precise decimal conversion
                                   const maxAmountStr = formatUnits(maxWeiAmount, selectedToken.decimals);
@@ -1146,12 +1153,15 @@ const PaymentPage = () => {
                                   console.log('[PaymentPage] Max button calculation (fresh):', {
                                     freshBalance: formatUnits(freshBalance, selectedToken.decimals),
                                     allowance: formatUnits(allowance, selectedToken.decimals),
+                                    effectiveMax: formatUnits(effectiveMaxWei, selectedToken.decimals),
                                     maxAmount: maxAmountStr,
                                     maxWeiAmount: maxWeiAmount.toString(),
-                                    contractAddress: railgunContractAddress.slice(0, 10) + '...'
+                                    contractAddress: railgunContractAddress.slice(0, 10) + '...',
+                                    usedAllowance: allowance > 0n
                                   });
                                 } else {
                                   // Fallback to fresh balance if contract address not found
+                                  maxWeiAmount = freshBalance;
                                   maxAmount = parseFloat(formatUnits(freshBalance, selectedToken.decimals));
                                 }
                               } else {
