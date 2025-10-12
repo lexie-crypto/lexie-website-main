@@ -2135,20 +2135,77 @@ const WalletContextProvider = ({ children }) => {
   };
 
   // Minimal engine bootstrap for client-only shielding (no wallet creation/signature)
-  const ensureEngineForShield = useCallback(async () => {
+  const ensureEngineForShield = useCallback(async (lightMode = false) => {
     try {
       if (typeof window !== 'undefined' && window.__LEXIE_ENGINE_READY) {
         return true;
       }
 
-      console.log('[Railgun Engine] 🔧 Initializing via engine.js (patched config, no wallet init)...');
+      console.log(`[Railgun Engine] 🔧 Initializing via engine.js (${lightMode ? 'light mode' : 'full mode'})...`);
       const { initializeRailgun } = await import('../utils/railgun/engine.js');
-      await initializeRailgun();
-      if (typeof window !== 'undefined') window.__LEXIE_ENGINE_READY = true;
-      console.log('[Railgun Engine] ✅ Engine ready (engine.js)');
-      return true;
+
+      if (lightMode) {
+        // Light mode: minimal engine setup with SDK patching but without network loading
+        const {
+          loadSnarkJSGroth16,
+          startRailgunEngine,
+          setLoggers,
+          patchRailgunForZeroDelay,
+          getArbitrumZeroDelayAddresses,
+          getLocalhostZeroDelayAddresses,
+          NETWORK_CONFIG
+        } = await import('../utils/railgun/engine.js');
+
+        // First, patch the SDK with Zero-Delay contracts (required for proper TXID setup)
+        console.log('[Railgun Engine] 🔧 Patching SDK for Zero-Delay (light mode)...');
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        const zeroDelayAddresses = isLocalhost
+          ? getLocalhostZeroDelayAddresses()
+          : getArbitrumZeroDelayAddresses();
+
+        const patchSuccess = await patchRailgunForZeroDelay(zeroDelayAddresses, NETWORK_CONFIG);
+        if (!patchSuccess) {
+          throw new Error('Failed to patch RAILGUN SDK for Zero-Delay POI contracts');
+        }
+
+        // Set up logging
+        setLoggers(
+          (message) => console.log(`🔍 [RAILGUN:LOG] ${message}`),
+          (error) => console.error(`🚨 [RAILGUN:ERROR] ${error}`)
+        );
+
+        // Create minimal database and engine
+        const { createRedisOnlyAdapter } = await import('../utils/railgun/redis-only-adapter.js');
+        const db = await createRedisOnlyAdapter('railgun-engine-light');
+
+        // Start minimal engine with TXID setup
+        await startRailgunEngine(
+          'lexiepay-light',
+          db,
+          true,  // useRedux
+          null,  // artifactStore (will use default)
+          false, // useNativeArtifacts
+          false, // useProver
+          [],    // poiNodeURLs
+          [],    // customPOIList
+          true   // skipMerkletreeScans
+        );
+
+        // Load prover
+        await loadSnarkJSGroth16();
+
+        console.log('[Railgun Engine] ✅ Light engine ready (patched SDK, TXID setup, no network loading)');
+        if (typeof window !== 'undefined') window.__LEXIE_ENGINE_READY = true;
+        return true;
+      } else {
+        // Full mode: complete initialization
+        await initializeRailgun();
+        if (typeof window !== 'undefined') window.__LEXIE_ENGINE_READY = true;
+        console.log('[Railgun Engine] ✅ Engine ready (engine.js)');
+        return true;
+      }
     } catch (err) {
-      console.error('[Railgun Engine] ❌ Light engine start failed:', err);
+      console.error('[Railgun Engine] ❌ Engine start failed:', err);
       return false;
     }
   }, [chainId]);
