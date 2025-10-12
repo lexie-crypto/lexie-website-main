@@ -373,11 +373,10 @@ const PaymentPage = () => {
     showTerminalToast('info', 'Starting Deposit', 'Preparing your deposit...', { duration: 2000 });
 
     try {
-      // Initialize Railgun engine in light mode for shield transaction creation (required for populateShield)
-      console.log('[PaymentPage] Initializing Railgun engine in light mode for payment...');
-      const { ensureEngineForShield } = await import('../contexts/WalletContext.jsx');
-      await ensureEngineForShield(true).catch((err) => {
-        console.warn('[PaymentPage] Light engine initialization failed, but continuing:', err);
+      // Initialize Railgun engine only when making payment (not during wallet connection)
+      console.log('[PaymentPage] Initializing Railgun engine for payment...');
+      await ensureEngineForShield().catch((err) => {
+        console.warn('[PaymentPage] Engine initialization failed, but continuing:', err);
       });
 
       // Sanctions screening for the payer (current user)
