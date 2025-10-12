@@ -93,37 +93,61 @@ export default async function handler(req, res) {
     // Retrieve conversation context if LexieID is provided
     let conversationContext = '';
     if (lexieId) {
+      console.log(`🧠 [CHAT-PROXY-${requestId}] STARTING memory retrieval for LexieID: ${lexieId}`);
       try {
         console.log(`🧠 [CHAT-PROXY-${requestId}] Retrieving conversation context for LexieID: ${lexieId}`);
 
         // Use the same backend endpoint pattern to get memories
-        const memoryUrl = `${targets[0].replace('/api/lexie/chat', '/api/lexie/memory')}?action=get-context&lexieId=${encodeURIComponent(lexieId)}&limit=10`;
+        const baseUrl = targets[0];
+        const memoryUrl = `${baseUrl.replace('/api/lexie/chat', '/api/lexie/memory')}?action=get-context&lexieId=${encodeURIComponent(lexieId)}&limit=10`;
+
+        console.log(`🧠 [CHAT-PROXY-${requestId}] Memory URL: ${memoryUrl}`);
+        console.log(`🧠 [CHAT-PROXY-${requestId}] Base targets:`, targets);
+
+        // Generate HMAC headers specifically for memory endpoint
+        const memoryMethod = 'GET';
+        const memoryBackendPath = '/api/lexie/memory';
+        const memoryTimestamp = Date.now().toString();
+        const memorySignature = hmacSecret ? generateHmacSignature(memoryMethod, memoryBackendPath, memoryTimestamp, hmacSecret) : undefined;
+
+        const memoryHeaders = {
+          'Accept': 'application/json',
+          ...(internalKey ? { 'LEXIE_INTERNAL_KEY': internalKey } : {}),
+          ...(memorySignature ? { 'X-Lexie-Timestamp': memoryTimestamp, 'X-Lexie-Signature': memorySignature } : {}),
+          'Origin': 'https://staging.app.lexiecrypto.com',
+          'User-Agent': 'Lexie-Chat-Proxy/1.0',
+        };
+
+        console.log(`🧠 [CHAT-PROXY-${requestId}] Memory request headers:`, Object.keys(memoryHeaders));
 
         const memoryResponse = await fetch(memoryUrl, {
           method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            ...(internalKey ? { 'LEXIE_INTERNAL_KEY': internalKey } : {}),
-            ...(signature ? { 'X-Lexie-Timestamp': timestamp, 'X-Lexie-Signature': signature } : {}),
-            'Origin': 'https://staging.app.lexiecrypto.com',
-            'User-Agent': 'Lexie-Chat-Proxy/1.0',
-          },
+          headers: memoryHeaders,
           signal: AbortSignal.timeout(5000), // 5 second timeout for memory retrieval
         });
 
+        console.log(`🧠 [CHAT-PROXY-${requestId}] Memory response status: ${memoryResponse.status}`);
+
         if (memoryResponse.ok) {
           const memoryData = await memoryResponse.json();
+          console.log(`🧠 [CHAT-PROXY-${requestId}] Memory response data:`, memoryData);
           if (memoryData.success && memoryData.context) {
             conversationContext = memoryData.context;
             console.log(`✅ [CHAT-PROXY-${requestId}] Retrieved ${memoryData.messageCount || 0} conversation memories`);
+          } else {
+            console.log(`⚠️ [CHAT-PROXY-${requestId}] Memory response not successful or no context:`, memoryData);
           }
         } else {
-          console.log(`⚠️ [CHAT-PROXY-${requestId}] Could not retrieve conversation context: ${memoryResponse.status}`);
+          const errorText = await memoryResponse.text();
+          console.log(`⚠️ [CHAT-PROXY-${requestId}] Could not retrieve conversation context: ${memoryResponse.status}, body: ${errorText}`);
         }
       } catch (memoryError) {
         console.log(`⚠️ [CHAT-PROXY-${requestId}] Memory retrieval failed:`, memoryError.message);
+        console.log(`⚠️ [CHAT-PROXY-${requestId}] Full error:`, memoryError);
         // Continue without context - don't fail the chat request
       }
+    } else {
+      console.log(`🧠 [CHAT-PROXY-${requestId}] No LexieID provided, skipping memory retrieval`);
     }
 
     // Check for internal key (bypasses all backend validation if valid)
@@ -260,10 +284,12 @@ export default async function handler(req, res) {
 
       // Store conversation in memory if LexieID is provided
       if (lexieId && responseData.message) {
+        console.log(`💾 [CHAT-PROXY-${requestId}] STARTING memory storage for LexieID: ${lexieId}`);
         try {
           console.log(`💾 [CHAT-PROXY-${requestId}] Storing conversation memory for LexieID: ${lexieId}`);
 
           const memoryUrl = `${targets[0].replace('/api/lexie/chat', '/api/lexie/memory')}?action=store-chat`;
+          console.log(`💾 [CHAT-PROXY-${requestId}] Memory storage URL: ${memoryUrl}`);
 
           const memoryPayload = {
             lexieId: lexieId,
@@ -274,33 +300,51 @@ export default async function handler(req, res) {
             platform: 'web'
           };
 
+          console.log(`💾 [CHAT-PROXY-${requestId}] Memory payload:`, memoryPayload);
+
+          // Generate HMAC headers specifically for memory storage endpoint
+          const storageMethod = 'POST';
+          const storageBackendPath = '/api/lexie/memory';
+          const storageTimestamp = Date.now().toString();
+          const storageSignature = hmacSecret ? generateHmacSignature(storageMethod, storageBackendPath, storageTimestamp, hmacSecret) : undefined;
+
+          const memoryHeaders = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            ...(internalKey ? { 'LEXIE_INTERNAL_KEY': internalKey } : {}),
+            ...(storageSignature ? { 'X-Lexie-Timestamp': storageTimestamp, 'X-Lexie-Signature': storageSignature } : {}),
+            'Origin': 'https://staging.app.lexiecrypto.com',
+            'User-Agent': 'Lexie-Chat-Proxy/1.0',
+          };
+
+          console.log(`💾 [CHAT-PROXY-${requestId}] Memory storage headers:`, Object.keys(memoryHeaders));
+
           // Store memory asynchronously - don't wait for it to complete
           fetch(memoryUrl, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-              ...(internalKey ? { 'LEXIE_INTERNAL_KEY': internalKey } : {}),
-              ...(signature ? { 'X-Lexie-Timestamp': timestamp, 'X-Lexie-Signature': signature } : {}),
-              'Origin': 'https://staging.app.lexiecrypto.com',
-              'User-Agent': 'Lexie-Chat-Proxy/1.0',
-            },
+            headers: memoryHeaders,
             body: JSON.stringify(memoryPayload),
             signal: AbortSignal.timeout(5000), // 5 second timeout for memory storage
-          }).then(memoryResult => {
+          }).then(async (memoryResult) => {
+            console.log(`💾 [CHAT-PROXY-${requestId}] Memory storage response status: ${memoryResult.status}`);
             if (memoryResult.ok) {
-              console.log(`✅ [CHAT-PROXY-${requestId}] Successfully stored conversation memory`);
+              const resultData = await memoryResult.json();
+              console.log(`✅ [CHAT-PROXY-${requestId}] Successfully stored conversation memory:`, resultData);
             } else {
-              console.log(`⚠️ [CHAT-PROXY-${requestId}] Failed to store conversation memory: ${memoryResult.status}`);
+              const errorText = await memoryResult.text();
+              console.log(`⚠️ [CHAT-PROXY-${requestId}] Failed to store conversation memory: ${memoryResult.status}, body: ${errorText}`);
             }
           }).catch(memoryError => {
             console.log(`⚠️ [CHAT-PROXY-${requestId}] Memory storage failed:`, memoryError.message);
+            console.log(`⚠️ [CHAT-PROXY-${requestId}] Memory storage full error:`, memoryError);
           });
 
         } catch (memoryError) {
           console.log(`⚠️ [CHAT-PROXY-${requestId}] Memory storage setup failed:`, memoryError.message);
           // Continue with response - don't fail the chat request
         }
+      } else {
+        console.log(`💾 [CHAT-PROXY-${requestId}] Skipping memory storage - lexieId: ${!!lexieId}, hasMessage: ${!!responseData.message}`);
       }
 
       // Forward the backend response
