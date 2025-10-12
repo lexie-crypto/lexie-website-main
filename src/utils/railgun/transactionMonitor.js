@@ -647,6 +647,12 @@ export const monitorTransactionInGraph = async ({
           logs: receipt?.logs?.length || 0
         });
 
+        // 🚨 CRITICAL: Check if transaction actually succeeded before proceeding with Graph monitoring
+        if (receipt && receipt.status === 0) {
+          console.error(`[TransactionMonitor] ❌ Transaction ${txHash} was reverted (status: 0). Stopping monitoring.`);
+          throw new Error(`Transaction reverted: ${txHash}`);
+        }
+
         // 🚀 SAVE TO REDIS TIMELINE AFTER RECEIPT CONFIRMATION - COMMENTED OUT (using immediate save instead)
         /*
         if (transactionDetails?.walletId && receipt) {
@@ -903,7 +909,7 @@ export const monitorTransactionInGraph = async ({
       throw new Error(`Cannot poll Graph API without valid block number. Got: ${blockNumber}`);
     }
 
-    while (attempts < maxAttempts) {
+    while (attempts < maxAttempts && (Date.now() - startTime) < maxWaitTime) {
       attempts++;
       console.log(`[TransactionMonitor] 🔍 Polling attempt ${attempts}/${maxAttempts} for ${transactionType} events on block ${blockNumber} with txHash ${txHash}`);
 
@@ -1706,7 +1712,7 @@ export const monitorTransactionInGraph = async ({
       await new Promise(resolve => setTimeout(resolve, currentPollInterval));
     }
 
-    console.warn('[TransactionMonitor] ❌ Transaction confirmation timed out but tx was mined');
+    console.warn(`[TransactionMonitor] ❌ Transaction confirmation timed out after ${maxWaitTime/1000}s (${attempts} attempts) - Graph API may be delayed`);
     if (listener && typeof listener === 'function') {
       listener({ timeout: true });
     }
