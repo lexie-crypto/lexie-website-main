@@ -167,7 +167,7 @@ export function Chat() {
     <div className="flex-1 md:min-h-0 md:min-w-0 flex flex-col overflow-hidden scrollbar-terminal h-full min-h-[18.75rem] bg-black font-mono border border-green-300 p-2 md:p-4">
       <div className="flex items-center justify-between py-1 px-0 md:p-0 border-b border-green-500/30 flex-shrink-0">
         <h2 className="text-lg font-semibold">
-          {currentConversation?.title || 'All your base are belong to us'}
+          {currentConversation?.title || 'Just vibing...'}
         </h2>
         <button
           onClick={() => setShowSettings(!showSettings)}
