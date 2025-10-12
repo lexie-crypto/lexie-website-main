@@ -373,12 +373,6 @@ const PaymentPage = () => {
     showTerminalToast('info', 'Starting Deposit', 'Preparing your deposit...', { duration: 2000 });
 
     try {
-      // Initialize Railgun engine only when making payment (not during wallet connection)
-      console.log('[PaymentPage] Initializing Railgun engine for payment...');
-      await ensureEngineForShield().catch((err) => {
-        console.warn('[PaymentPage] Engine initialization failed, but continuing:', err);
-      });
-
       // Sanctions screening for the payer (current user)
       console.log('[PaymentPage] Screening payer wallet:', address);
       await assertNotSanctioned(chainId, address);
