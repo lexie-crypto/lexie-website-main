@@ -107,6 +107,7 @@ const PaymentPage = () => {
 
   const [selectedToken, setSelectedToken] = useState(null);
   const [amount, setAmount] = useState('');
+  const [exactWeiAmount, setExactWeiAmount] = useState(null); // Store exact wei amount to avoid rounding issues
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Reset completion state when user starts new transaction
@@ -114,6 +115,7 @@ const PaymentPage = () => {
     setTransactionCompleted(false);
     setCompletedTransactionHash(null);
     setCopyStatus(null);
+    setExactWeiAmount(null);
   };
 
   // Copy transaction hash to clipboard
@@ -394,8 +396,15 @@ const PaymentPage = () => {
       }[chainId];
       if (!railgunNetwork) throw new Error(`Unsupported network: ${chainId}`);
 
-      // Parse amount to base units
-      const weiAmount = parseUnits(amount, selectedToken.decimals);
+      // Parse amount to base units - use exactWeiAmount if available to avoid rounding
+      let weiAmount;
+      if (exactWeiAmount) {
+        weiAmount = exactWeiAmount;
+        console.log('[PaymentPage] Using exact wei amount:', weiAmount.toString());
+      } else {
+        weiAmount = parseUnits(amount, selectedToken.decimals);
+        console.log('[PaymentPage] Parsed amount to wei:', weiAmount.toString());
+      }
 
       // Prepare recipients (use resolved Railgun address)
       const erc20AmountRecipients = [
@@ -1040,7 +1049,13 @@ const PaymentPage = () => {
                     <input
                       type="number"
                       value={amount}
-                      onChange={(e) => { setAmount(e.target.value); resetTransactionState(); }}
+                      onChange={(e) => {
+                        setAmount(e.target.value);
+                        setExactWeiAmount(null); // Clear exact amount when user types
+                        setTransactionCompleted(false);
+                        setCompletedTransactionHash(null);
+                        setCopyStatus(null);
+                      }}
                       placeholder="0.0"
                       step="any"
                       min="0"
@@ -1057,11 +1072,13 @@ const PaymentPage = () => {
                             const provider = await walletProvider();
                             const providerInstance = provider.provider;
 
-                            let maxAmount = 0;
+                            let maxWeiAmount;
+                            let maxAmount;
 
                             if (!selectedToken.address) {
                               // Native token - get fresh balance from provider
                               const nativeBalance = await providerInstance.getBalance(address);
+                              maxWeiAmount = nativeBalance;
                               maxAmount = Number(nativeBalance) / Math.pow(10, selectedToken.decimals);
                             } else {
                               // ERC20 token - get fresh balance and check allowance
@@ -1071,7 +1088,7 @@ const PaymentPage = () => {
 
                               const tokenContract = new Contract(selectedToken.address, erc20Abi, signer);
                               const freshBalance = await tokenContract.balanceOf(address);
-                              const balanceNumeric = Number(freshBalance) / Math.pow(10, selectedToken.decimals);
+                              maxWeiAmount = freshBalance;
 
                               // Create a dummy transaction to get the RAILGUN contract address
                               const railgunNetwork = {
@@ -1114,34 +1131,43 @@ const PaymentPage = () => {
                                 const railgunContractAddress = prelimResult.transaction.to;
                                 if (railgunContractAddress) {
                                   const allowance = await tokenContract.allowance(address, railgunContractAddress);
-                                  const allowanceNumeric = Number(allowance) / Math.pow(10, selectedToken.decimals);
 
-                                  // Use same logic as shieldTransactions.js: min(fresh balance, allowance)
+                                  // Use BigInt min to avoid precision issues
+                                  maxWeiAmount = freshBalance < allowance ? freshBalance : allowance;
+                                  const allowanceNumeric = Number(allowance) / Math.pow(10, selectedToken.decimals);
+                                  const balanceNumeric = Number(freshBalance) / Math.pow(10, selectedToken.decimals);
                                   maxAmount = Math.min(balanceNumeric, allowanceNumeric);
 
                                   console.log('[PaymentPage] Max button calculation (fresh):', {
                                     freshBalance: balanceNumeric,
                                     allowance: allowanceNumeric,
                                     maxAmount,
+                                    maxWeiAmount: maxWeiAmount.toString(),
                                     contractAddress: railgunContractAddress.slice(0, 10) + '...'
                                   });
                                 } else {
                                   // Fallback to fresh balance if contract address not found
-                                  maxAmount = balanceNumeric;
+                                  maxAmount = Number(freshBalance) / Math.pow(10, selectedToken.decimals);
                                 }
                               } else {
                                 // Fallback to fresh balance if network not supported
-                                maxAmount = balanceNumeric;
+                                maxAmount = Number(freshBalance) / Math.pow(10, selectedToken.decimals);
                               }
                             }
 
                             setAmount(maxAmount.toString());
-                            resetTransactionState();
+                            setExactWeiAmount(maxWeiAmount);
+                            setTransactionCompleted(false);
+                            setCompletedTransactionHash(null);
+                            setCopyStatus(null);
                           } catch (error) {
                             console.warn('[PaymentPage] Error calculating max amount, using cached balance:', error);
                             // Fallback to cached balance as last resort
                             setAmount(selectedToken.numericBalance.toString());
-                            resetTransactionState();
+                            setExactWeiAmount(BigInt(Math.floor(selectedToken.numericBalance * Math.pow(10, selectedToken.decimals))));
+                            setTransactionCompleted(false);
+                            setCompletedTransactionHash(null);
+                            setCopyStatus(null);
                           }
                         }}
                         className="absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded hover:bg-green-900/20"
