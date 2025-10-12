@@ -1076,11 +1076,14 @@ const PaymentPage = () => {
                             let maxWeiAmount;
                             let maxAmount;
 
+                            // Import formatUnits for precise BigInt handling
+                            const { formatUnits } = await import('ethers');
+
                             if (!selectedToken.address) {
                               // Native token - get fresh balance from provider
                               const nativeBalance = await providerInstance.getBalance(address);
                               maxWeiAmount = nativeBalance;
-                              maxAmount = Number(nativeBalance) / Math.pow(10, selectedToken.decimals);
+                              maxAmount = formatUnits(nativeBalance, selectedToken.decimals);
                             } else {
                               // ERC20 token - get fresh balance and check allowance
                               const { Contract } = await import('ethers');
@@ -1135,24 +1138,25 @@ const PaymentPage = () => {
 
                                   // Use BigInt min to avoid precision issues
                                   maxWeiAmount = freshBalance < allowance ? freshBalance : allowance;
-                                  const allowanceNumeric = Number(allowance) / Math.pow(10, selectedToken.decimals);
-                                  const balanceNumeric = Number(freshBalance) / Math.pow(10, selectedToken.decimals);
-                                  maxAmount = Math.min(balanceNumeric, allowanceNumeric);
+
+                                  // Use formatUnits for precise decimal conversion
+                                  const maxAmountStr = formatUnits(maxWeiAmount, selectedToken.decimals);
+                                  maxAmount = parseFloat(maxAmountStr);
 
                                   console.log('[PaymentPage] Max button calculation (fresh):', {
-                                    freshBalance: balanceNumeric,
-                                    allowance: allowanceNumeric,
-                                    maxAmount,
+                                    freshBalance: formatUnits(freshBalance, selectedToken.decimals),
+                                    allowance: formatUnits(allowance, selectedToken.decimals),
+                                    maxAmount: maxAmountStr,
                                     maxWeiAmount: maxWeiAmount.toString(),
                                     contractAddress: railgunContractAddress.slice(0, 10) + '...'
                                   });
                                 } else {
                                   // Fallback to fresh balance if contract address not found
-                                  maxAmount = Number(freshBalance) / Math.pow(10, selectedToken.decimals);
+                                  maxAmount = parseFloat(formatUnits(freshBalance, selectedToken.decimals));
                                 }
                               } else {
                                 // Fallback to fresh balance if network not supported
-                                maxAmount = Number(freshBalance) / Math.pow(10, selectedToken.decimals);
+                                maxAmount = parseFloat(formatUnits(freshBalance, selectedToken.decimals));
                               }
                             }
 
@@ -1165,7 +1169,9 @@ const PaymentPage = () => {
                             console.warn('[PaymentPage] Error calculating max amount, using cached balance:', error);
                             // Fallback to cached balance as last resort
                             setAmount(selectedToken.numericBalance.toString());
-                            setExactWeiAmount(BigInt(Math.floor(selectedToken.numericBalance * Math.pow(10, selectedToken.decimals))));
+                            // Use BigInt conversion for exact wei amount
+                            const { parseUnits } = await import('ethers');
+                            setExactWeiAmount(parseUnits(selectedToken.numericBalance.toString(), selectedToken.decimals));
                             setTransactionCompleted(false);
                             setCompletedTransactionHash(null);
                             setCopyStatus(null);
