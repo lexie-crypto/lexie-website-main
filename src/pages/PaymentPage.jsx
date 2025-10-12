@@ -370,7 +370,7 @@ const PaymentPage = () => {
 
     setIsProcessing(true);
 
-    showTerminalToast('info', 'Starting Deposit', 'Preparing your private vault deposit...', { duration: 2000 });
+    showTerminalToast('info', 'Starting Deposit', 'Preparing your deposit...', { duration: 2000 });
 
     try {
       // Initialize Railgun engine only when making payment (not during wallet connection)
