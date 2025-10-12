@@ -623,6 +623,84 @@ const PaymentPage = () => {
       setTransactionCompleted(true);
       setCompletedTransactionHash(sent.hash);
 
+      // 🎯 AWARD POINTS TO RECIPIENT: Since funds were deposited into their vault
+      try {
+        console.log('[PaymentPage] 🎯 Awarding points to recipient for receiving funds...');
+
+        // Resolve recipient's Lexie ID from their Railgun address
+        const lexieResponse = await fetch('/api/wallet-metadata?action=by-wallet&railgunAddress=' + encodeURIComponent(resolvedRecipientAddress));
+        if (!lexieResponse.ok) {
+          console.warn('[PaymentPage] Could not resolve recipient Lexie ID for points award');
+        } else {
+          const lexieData = await lexieResponse.json();
+          if (lexieData?.success && lexieData?.lexieID) {
+            const recipientLexieId = lexieData.lexieID.toLowerCase();
+            console.log('[PaymentPage] ✅ Resolved recipient Lexie ID for points:', recipientLexieId);
+
+            // Calculate USD value of the deposited amount
+            const { convertTokenAmountToUSD } = await import('../utils/railgun/transactionMonitor.js');
+            const usdValue = await convertTokenAmountToUSD(parseFloat(amount), selectedToken.address || null, chainId);
+
+            console.log('[PaymentPage] 💰 Calculated USD value for recipient points:', {
+              amount,
+              tokenSymbol: selectedToken.symbol,
+              usdValue,
+              recipientLexieId
+            });
+
+            // Award points to recipient
+            const pointsResponse = await fetch('/api/wallet-metadata?action=rewards-award', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                lexieId: recipientLexieId,
+                txHash: sent.hash,
+                usdValue: usdValue
+              })
+            });
+
+            if (pointsResponse.ok) {
+              const pointsData = await pointsResponse.json();
+              if (pointsData?.success) {
+                console.log('[PaymentPage] ✅ Points awarded to recipient:', {
+                  recipientLexieId,
+                  awarded: pointsData.awarded || 0,
+                  newBalance: pointsData.balance || 0,
+                  multiplier: pointsData.multiplier || 1.0
+                });
+
+                // Sync recipient's combined balance
+                try {
+                  const syncResponse = await fetch(`/api/wallet-metadata?action=rewards-combined-balance&lexieId=${encodeURIComponent(recipientLexieId)}`);
+                  if (syncResponse.ok) {
+                    const syncData = await syncResponse.json();
+                    if (syncData?.success) {
+                      console.log('[PaymentPage] ✅ Recipient combined balance synced:', {
+                        recipientLexieId,
+                        total: syncData.total,
+                        vault: syncData.breakdown?.vault || 0,
+                        game: syncData.breakdown?.game || 0
+                      });
+                    }
+                  }
+                } catch (syncError) {
+                  console.warn('[PaymentPage] ⚠️ Failed to sync recipient combined balance:', syncError?.message);
+                }
+              } else {
+                console.warn('[PaymentPage] ⚠️ Points award returned non-success:', pointsData);
+              }
+            } else {
+              console.warn('[PaymentPage] ⚠️ Points award API failed:', pointsResponse.status);
+            }
+          } else {
+            console.log('[PaymentPage] ⏭️ Recipient has no Lexie ID, skipping points award');
+          }
+        }
+      } catch (pointsError) {
+        console.warn('[PaymentPage] ⚠️ Error awarding points to recipient (non-critical):', pointsError?.message);
+        // Don't fail the transaction if points awarding fails
+      }
+
       // Refresh public balances to show updated available balance
       console.log('[PaymentPage] ✅ Triggering public balances refresh...');
       setBalanceRefreshTrigger(prev => prev + 1);
