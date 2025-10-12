@@ -667,7 +667,8 @@ const PaymentPage = () => {
             console.log('[PaymentPage] ✅ Resolved recipient Lexie ID for points:', recipientLexieId);
 
             // Calculate USD value of the deposited amount
-            const { convertTokenAmountToUSD } = await import('../utils/railgun/transactionMonitor.js');
+            const transactionMonitor = await import('../utils/railgun/transactionMonitor.js');
+            const convertTokenAmountToUSD = transactionMonitor.default.convertTokenAmountToUSD;
             const usdValue = await convertTokenAmountToUSD(parseFloat(amount), selectedToken.address || null, chainId);
 
             console.log('[PaymentPage] 💰 Calculated USD value for recipient points:', {
