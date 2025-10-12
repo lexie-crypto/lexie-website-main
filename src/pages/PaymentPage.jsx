@@ -224,7 +224,7 @@ const PaymentPage = () => {
             { symbol: 'BNB', address: null, name: 'BNB', decimals: 18 },
             { symbol: 'WETH', address: '0x2170Ed0880ac9A755fd29B2688956BD959F933F8', name: 'Wrapped Ether', decimals: 18 },
             { symbol: 'WBNB', address: '0xBB4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', name: 'Wrapped BNB', decimals: 18 },
-            { symbol: 'USDC', address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', name: 'USD Coin', decimals: 18 },
+            { symbol: 'USDC', address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', name: 'USD Coin', decimals: 6 },
             { symbol: 'USDT', address: '0x55d398326f99059fF775485246999027B3197955', name: 'Tether USD', decimals: 18 },
             { symbol: 'DAI', address: '0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3', name: 'Dai Token', decimals: 18 },
             { symbol: 'WBTC', address: '0x0555E30da8f98308EdB960aa94C0Db47230d2B9c', name: 'Wrapped Bitcoin', decimals: 8 },
@@ -528,10 +528,30 @@ const PaymentPage = () => {
       if (selectedToken.address) {
         const erc20Abi = [
           'function allowance(address owner,address spender) view returns (uint256)',
+          'function balanceOf(address account) view returns (uint256)',
           'function approve(address spender,uint256 amount) returns (bool)',
         ];
         const erc20 = new Contract(selectedToken.address, erc20Abi, signer);
+
+        // Check balance first (same as shieldTransactions.js)
+        const balance = await erc20.balanceOf(payerEOA);
+        console.log('[PaymentPage] Token balance check:', {
+          balance: balance.toString(),
+          requested: weiAmount.toString(),
+          hasEnough: balance >= weiAmount
+        });
+
+        if (balance < weiAmount) {
+          throw new Error(`Insufficient token balance. Have: ${balance}, Need: ${weiAmount}`);
+        }
+
         const currentAllowance = await erc20.allowance(payerEOA, spender);
+        console.log('[PaymentPage] Token allowance check:', {
+          current: currentAllowance.toString(),
+          required: weiAmount.toString(),
+          needsApproval: currentAllowance < weiAmount
+        });
+
         if (currentAllowance < weiAmount) {
           showTerminalToast('info', 'Approval Required', 'Please sign the token approval in your wallet to allow the deposit', { duration: 4000 });
           const approveTx = await erc20.approve(spender, weiAmount);
@@ -1031,82 +1051,7 @@ const PaymentPage = () => {
                     {selectedToken && (
                       <button
                         type="button"
-                        onClick={async () => {
-                          try {
-                            let maxAmount = selectedToken.numericBalance;
-
-                            // For ERC20 tokens, check allowance and use min(balance, allowance)
-                            if (selectedToken.address) {
-                              const { Contract } = await import('ethers');
-                              const provider = await walletProvider();
-                              const signer = provider.provider;
-                              const erc20Abi = ['function allowance(address owner,address spender) view returns (uint256)'];
-
-                              // Create a dummy transaction to get the RAILGUN contract address
-                              const railgunNetwork = {
-                                1: NetworkName.Ethereum,
-                                42161: NetworkName.Arbitrum,
-                                137: NetworkName.Polygon,
-                                56: NetworkName.BNBChain,
-                              }[chainId];
-
-                              if (railgunNetwork) {
-                                // Create minimal prelim transaction to get contract address
-                                const prelimGasDetails = {
-                                  evmGasType: EVMGasType.Type0,
-                                  gasEstimate: BigInt(300000),
-                                };
-
-                                const erc20AmountRecipients = [{
-                                  tokenAddress: selectedToken.address,
-                                  amount: BigInt(Math.floor(selectedToken.numericBalance * Math.pow(10, selectedToken.decimals))),
-                                  recipientAddress: resolvedRecipientAddress,
-                                }];
-
-                                const { populateShield } = await import('@railgun-community/wallet');
-                                const getRandomHex32 = () => {
-                                  const bytes = new Uint8Array(32);
-                                  (window.crypto || globalThis.crypto).getRandomValues(bytes);
-                                  return '0x' + Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
-                                };
-                                const dummyShieldPrivateKey = getRandomHex32();
-
-                                const prelimResult = await populateShield(
-                                  TXIDVersion.V2_PoseidonMerkle,
-                                  railgunNetwork,
-                                  dummyShieldPrivateKey,
-                                  erc20AmountRecipients,
-                                  [],
-                                  prelimGasDetails,
-                                );
-
-                                const railgunContractAddress = prelimResult.transaction.to;
-                                if (railgunContractAddress) {
-                                  const tokenContract = new Contract(selectedToken.address, erc20Abi, signer);
-                                  const allowance = await tokenContract.allowance(address, railgunContractAddress);
-                                  const allowanceNumeric = Number(allowance) / Math.pow(10, selectedToken.decimals);
-
-                                  // Use same logic as shieldTransactions.js: min(balance, allowance)
-                                  maxAmount = Math.min(selectedToken.numericBalance, allowanceNumeric);
-
-                                  console.log('[PaymentPage] Max button calculation:', {
-                                    balance: selectedToken.numericBalance,
-                                    allowance: allowanceNumeric,
-                                    maxAmount,
-                                    contractAddress: railgunContractAddress.slice(0, 10) + '...'
-                                  });
-                                }
-                              }
-                            }
-
-                            setAmount(maxAmount.toString());
-                            resetTransactionState();
-                          } catch (error) {
-                            console.warn('[PaymentPage] Error calculating max amount, using balance:', error);
-                            setAmount(selectedToken.numericBalance.toString());
-                            resetTransactionState();
-                          }
-                        }}
+                        onClick={() => { setAmount(selectedToken.numericBalance.toString()); resetTransactionState(); }}
                         className="absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded hover:bg-green-900/20"
                       >
                         Max
