@@ -19,7 +19,7 @@ async function getMemoryContext(lexieId, limit = 10, hmacSecret) {
 
   // Generate HMAC headers
   const method = 'GET';
-  const backendPath = `/api/lexie/memory`;
+  const backendPath = `/api/lexie/memory?action=get-context&lexieId=${encodeURIComponent(lexieId)}&limit=${limit}`;
   const timestamp = Date.now().toString();
   const signature = hmacSecret ? generateHmacSignature(method, backendPath, timestamp, hmacSecret) : undefined;
 
@@ -82,7 +82,7 @@ async function storeChatMemory(lexieId, userMessage, assistantMessage, personali
 
   // Generate HMAC headers
   const method = 'POST';
-  const backendPath = `/api/lexie/memory`;
+  const backendPath = `/api/lexie/memory?action=store-chat`;
   const timestamp = Date.now().toString();
   const signature = hmacSecret ? generateHmacSignature(method, backendPath, timestamp, hmacSecret) : undefined;
 
