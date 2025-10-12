@@ -647,6 +647,12 @@ export const monitorTransactionInGraph = async ({
           logs: receipt?.logs?.length || 0
         });
 
+        // 🚨 CRITICAL: Check if transaction actually succeeded before proceeding with Graph monitoring
+        if (receipt && receipt.status === 0) {
+          console.error(`[TransactionMonitor] ❌ Transaction ${txHash} was reverted (status: 0). Stopping monitoring.`);
+          throw new Error(`Transaction reverted: ${txHash}`);
+        }
+
         // 🚀 SAVE TO REDIS TIMELINE AFTER RECEIPT CONFIRMATION - COMMENTED OUT (using immediate save instead)
         /*
         if (transactionDetails?.walletId && receipt) {
@@ -903,7 +909,7 @@ export const monitorTransactionInGraph = async ({
       throw new Error(`Cannot poll Graph API without valid block number. Got: ${blockNumber}`);
     }
 
-    while (attempts < maxAttempts) {
+    while (attempts < maxAttempts && (Date.now() - startTime) < maxWaitTime) {
       attempts++;
       console.log(`[TransactionMonitor] 🔍 Polling attempt ${attempts}/${maxAttempts} for ${transactionType} events on block ${blockNumber} with txHash ${txHash}`);
 
@@ -1593,6 +1599,51 @@ export const monitorTransactionInGraph = async ({
                       newBalance: pointsData.balance || 0,
                       multiplier: pointsData.multiplier || 1.0
                     });
+
+                    // Sync combined balance after successful vault points award
+                    try {
+                      console.log('[TransactionMonitor] 🔄 Syncing combined balance after points award...');
+
+                      // First get fresh game points from titans-be
+                      let gamePoints = 0;
+                      let referralPoints = 0;
+                      try {
+                        const titansResp = await fetch(`/api/wallet-metadata?action=get-game-points&lexieId=${encodeURIComponent(lexieId)}`);
+                        if (titansResp.ok) {
+                          const gameData = await titansResp.json().catch(() => ({}));
+                          gamePoints = Number(gameData.gamePoints) || 0;
+                          referralPoints = Number(gameData.referralPoints) || 0;
+                          console.log(`[TransactionMonitor] 🔄 Refreshed game points for ${lexieId}: game=${gamePoints}, referral=${referralPoints}`);
+                        } else {
+                          console.log(`[TransactionMonitor] ⚠️ Failed to refresh game points for ${lexieId}: ${titansResp.status}`);
+                        }
+                      } catch (gameError) {
+                        console.warn(`[TransactionMonitor] ⚠️ Error fetching game points for ${lexieId}:`, gameError?.message);
+                      }
+
+                      // Then sync combined balance with fresh game points
+                      const syncResponse = await fetch(`/api/wallet-metadata?action=rewards-combined-balance&lexieId=${encodeURIComponent(lexieId)}&gamePoints=${gamePoints}&referralPoints=${referralPoints}`);
+                      if (syncResponse.ok) {
+                        const syncData = await syncResponse.json();
+                        if (syncData?.success) {
+                          console.log('[TransactionMonitor] ✅ Combined balance synced:', {
+                            lexieId,
+                            total: syncData.total,
+                            vault: syncData.breakdown?.vault || 0,
+                            game: syncData.breakdown?.game || 0
+                          });
+
+                          // Dispatch event so VaultDesktop updates the UI
+                          if (typeof window !== 'undefined') {
+                            window.dispatchEvent(new CustomEvent('points-updated'));
+                          }
+                        }
+                      } else {
+                        console.warn('[TransactionMonitor] ⚠️ Combined balance sync failed after points award');
+                      }
+                    } catch (syncError) {
+                      console.warn('[TransactionMonitor] ⚠️ Error syncing combined balance:', syncError?.message);
+                    }
                   } else {
                     console.warn('[TransactionMonitor] ⚠️ Points award returned non-success:', pointsData);
                   }
@@ -1661,7 +1712,7 @@ export const monitorTransactionInGraph = async ({
       await new Promise(resolve => setTimeout(resolve, currentPollInterval));
     }
 
-    console.warn('[TransactionMonitor] ❌ Transaction confirmation timed out but tx was mined');
+    console.warn(`[TransactionMonitor] ❌ Transaction confirmation timed out after ${maxWaitTime/1000}s (${attempts} attempts) - Graph API may be delayed`);
     if (listener && typeof listener === 'function') {
       listener({ timeout: true });
     }

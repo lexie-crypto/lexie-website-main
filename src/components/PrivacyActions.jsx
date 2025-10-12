@@ -35,6 +35,7 @@ import QRCodeGenerator from './QRCodeGenerator';
 import {
   getPrivateBalances,
   parseTokenAmount,
+  roundBalanceTo8Decimals,
 } from '../utils/railgun/balances';
 import {
   createWallet,
@@ -306,6 +307,15 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     };
   }, [isTokenMenuOpen]);
 
+  // Handle shield transaction dropped events
+  const handleShieldTransactionDropped = useCallback((event) => {
+    console.log('[PrivacyActions] 🚫 Shield transaction dropped - unlocking UI:', event.detail);
+    setIsProcessing(false);
+    setIsTransactionLocked(false);
+    // Decrement monitor counter
+    setActiveTransactionMonitors(prev => Math.max(0, prev - 1));
+  }, []);
+
   // Listen for balance update completion to unlock transactions
   useEffect(() => {
     const handleBalanceUpdateComplete = (event) => {
@@ -369,6 +379,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       window.addEventListener('railgun-public-refresh', handleBalanceUpdateComplete);
       window.addEventListener('transaction-monitor-complete', handleTransactionMonitorComplete);
       window.addEventListener('abort-all-requests', handleAbortAllRequests);
+      window.addEventListener('shield-transaction-dropped', handleShieldTransactionDropped);
     }
 
     return () => {
@@ -376,9 +387,10 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         window.removeEventListener('railgun-public-refresh', handleBalanceUpdateComplete);
         window.removeEventListener('transaction-monitor-complete', handleTransactionMonitorComplete);
         window.removeEventListener('abort-all-requests', handleAbortAllRequests);
+        window.removeEventListener('shield-transaction-dropped', handleShieldTransactionDropped);
       }
     };
-  }, []);
+  }, [handleShieldTransactionDropped]);
 
   // Generate payment link when receive tab parameters change (uses active network)
   useEffect(() => {
@@ -440,12 +452,25 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     return !isNaN(numAmount) && numAmount > 0;
   }, [amount, selectedToken]);
 
-  // Validation check: amount cannot exceed available balance
+  // Validation check: amount cannot exceed available balance (with 8-decimal rounding)
   const exceedsAvailableBalance = useMemo(() => {
     if (!amount || !selectedToken) return false;
 
-    const numAmount = parseFloat(amount);
-    return numAmount > selectedToken.numericBalance;
+    try {
+      // Parse user amount to wei with rounding
+      const userAmountInWei = parseTokenAmount(amount, selectedToken.decimals);
+
+      // Round available balance to 8 decimal places
+      const roundedBalanceInWei = roundBalanceTo8Decimals(selectedToken.balance || '0', selectedToken.decimals);
+
+      // Compare wei amounts
+      return BigInt(userAmountInWei) > BigInt(roundedBalanceInWei);
+    } catch (error) {
+      console.warn('[Balance Validation] Error in exceedsAvailableBalance check:', error);
+      // Fallback to original logic if rounding fails
+      const numAmount = parseFloat(amount);
+      return numAmount > (selectedToken.numericBalance || 0);
+    }
   }, [amount, selectedToken]);
 
   // State to hold gas fee estimation result
@@ -590,6 +615,99 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       return selectedToken.numericBalance.toString();
     }
   }, [selectedToken]);
+
+  // Monitor shield transaction to detect if it gets dropped by provider
+  const monitorShieldTransaction = useCallback(async (transactionHash, chainId, provider) => {
+    if (!transactionHash || !provider) {
+      console.warn('[ShieldMonitor] Missing transaction hash or provider');
+      return;
+    }
+
+    console.log('[ShieldMonitor] Starting transaction monitoring:', {
+      transactionHash: transactionHash.slice(0, 10) + '...',
+      chainId
+    });
+
+    const maxWaitTime = 30 * 1000; // 30 seconds
+    const checkInterval = 10000; // Check every 10 seconds
+    const startTime = Date.now();
+
+    const checkTransaction = async () => {
+      try {
+        const receipt = await provider.getTransactionReceipt(transactionHash);
+
+        if (receipt) {
+          // Transaction was mined
+          console.log('[ShieldMonitor] Transaction confirmed:', {
+            transactionHash: transactionHash.slice(0, 10) + '...',
+            blockNumber: receipt.blockNumber,
+            status: receipt.status
+          });
+
+          if (receipt.status === 0) {
+            // Transaction failed on-chain
+            console.error('[ShieldMonitor] Transaction failed on-chain');
+            toast.custom((t) => (
+              <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+                <div className="rounded-lg border border-red-500/30 bg-black/90 text-red-200 shadow-2xl">
+                  <div className="px-4 py-3 flex items-center gap-3">
+                    <div className="h-3 w-3 rounded-full bg-red-400 animate-pulse" />
+                    <div>
+                      <div className="text-sm font-bold">TRANSACTION FAILED</div>
+                      <div className="text-xs text-red-400/80 mt-1">Transaction reverted on-chain. Please try again.</div>
+                    </div>
+                    <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-red-900/30 text-red-300/80">×</button>
+                  </div>
+                </div>
+              </div>
+            ), { duration: 6000 });
+          }
+          // Success case is handled by the Graph monitoring system
+          return;
+        }
+
+        // Check if we've exceeded max wait time
+        if (Date.now() - startTime > maxWaitTime) {
+          console.error('[ShieldMonitor] Transaction not mined within timeout period - likely dropped by provider');
+
+          toast.custom((t) => (
+            <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+              <div className="rounded-lg border border-red-500/30 bg-black/90 text-red-200 shadow-2xl">
+                <div className="px-4 py-3 flex items-center gap-3">
+                  <div className="h-3 w-3 rounded-full bg-red-400 animate-pulse" />
+                  <div>
+                    <div className="text-sm font-bold">Transaction Unsuccessful</div>
+                    <div className="text-xs text-red-400/80 mt-1">Transaction was dropped by the network. Please try again.</div>
+                  </div>
+                  <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-red-900/30 text-red-300/80">×</button>
+                </div>
+              </div>
+            </div>
+          ), { duration: 6000 });
+
+          // Unlock the UI since transaction was dropped
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('shield-transaction-dropped', {
+              detail: { transactionHash, chainId }
+            }));
+          }
+
+          return;
+        }
+
+        // Continue checking
+        setTimeout(checkTransaction, checkInterval);
+
+      } catch (error) {
+        console.error('[ShieldMonitor] Error checking transaction:', error);
+        // Continue monitoring despite errors
+        setTimeout(checkTransaction, checkInterval);
+      }
+    };
+
+    // Start monitoring
+    setTimeout(checkTransaction, checkInterval);
+  }, []);
 
   // Detect recipient address type for smart handling
   const recipientType = useMemo(() => {
@@ -795,8 +913,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       
       // Use signer.sendTransaction instead of provider.request
       const txResponse = await walletSigner.sendTransaction(txForSending);
-      
+
       console.log('[PrivacyActions] Transaction sent:', txResponse);
+
+      // Monitor transaction to detect if it gets dropped by provider
+      const transactionHash = txResponse.hash;
+      monitorShieldTransaction(transactionHash, chainId, walletSigner.provider);
 
       toast.dismiss(toastId);
       toast.custom((t) => (
@@ -805,7 +927,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             <div className="px-4 py-3 flex items-center gap-3">
               <div className="h-3 w-3 rounded-full bg-emerald-400" />
               <div>
-                <div className="text-sm">Added {actualAmount} {selectedToken.symbol} to your vault</div>
+                <div className="text-sm">Adding {actualAmount} {selectedToken.symbol} to your vault</div>
                 <div className="text-xs text-green-400/80">TX sent</div>
               </div>
               <button 
@@ -872,7 +994,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                   <div className="px-4 py-3 flex items-center gap-3">
                     <div className="h-3 w-3 rounded-full bg-emerald-400" />
                     <div>
-                      <div className="text-sm">Added {actualAmount} {selectedToken.symbol} to your vault</div>
+                      <div className="text-sm">Adding {actualAmount} {selectedToken.symbol} to your vault</div>
                       <div className="text-xs text-green-400/80">Balance will update automatically</div>
                     </div>
                     <button 
@@ -1336,10 +1458,36 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
       // Check for specific SnarkJS proof generation failure
       else if (error.message && error.message.includes('SnarkJS failed to fullProveRailgun')) {
-        toast.error('Max amount exceeds available vault balance. Please try again with a slightly lower amount.');
+        toast.custom((t) => (
+          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+            <div className="rounded-lg border border-red-500/30 bg-black/90 text-red-200 shadow-2xl">
+              <div className="px-4 py-3 flex items-center gap-3">
+                <div className="h-3 w-3 rounded-full bg-red-400 animate-pulse" />
+                <div>
+                  <div className="text-sm font-bold">TRANSACTION FAILED</div>
+                  <div className="text-xs text-red-400/80 mt-1">Max amount exceeds available vault balance. Please try again with a slightly lower amount.</div>
+                </div>
+                <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-red-900/30 text-red-300/80">×</button>
+              </div>
+            </div>
+          </div>
+        ), { duration: 8000 });
       } else {
         // Show generic error for other failures
-        toast.error(`Unshield failed: ${error.message || 'Unknown error'}`);
+        toast.custom((t) => (
+          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+            <div className="rounded-lg border border-red-500/30 bg-black/90 text-red-200 shadow-2xl">
+              <div className="px-4 py-3 flex items-center gap-3">
+                <div className="h-3 w-3 rounded-full bg-red-400 animate-pulse" />
+                <div>
+                  <div className="text-sm font-bold">TRANSACTION FAILED</div>
+                  <div className="text-xs text-red-400/80 mt-1">{error.message || 'Unknown error occurred'}</div>
+                </div>
+                <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-red-900/30 text-red-300/80">×</button>
+              </div>
+            </div>
+          </div>
+        ), { duration: 8000 });
       }
 
       // Dispatch transaction completion event to unlock UI globally
@@ -1387,7 +1535,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div className="px-4 py-3 flex items-center gap-3">
                   <div className="h-3 w-3 rounded-full bg-red-400" />
                   <div>
-                    <div className="text-sm">Lexie ID does not exist or is not linked to a LexieVault</div>
+                    <div className="text-sm">LexieID does not exist or is not linked to a LexieVault</div>
                   </div>
                 </div>
               </div>
@@ -1403,7 +1551,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div className="px-4 py-3 flex items-center gap-3">
                   <div className="h-3 w-3 rounded-full bg-red-400" />
                   <div>
-                    <div className="text-sm">Lexie ID does not exist or is not linked to a LexieVault</div>
+                    <div className="text-sm">LexieID does not exist or is not linked to a LexieVault</div>
                   </div>
                 </div>
               </div>
@@ -1418,7 +1566,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               <div className="px-4 py-3 flex items-center gap-3">
                 <div className="h-3 w-3 rounded-full bg-red-400" />
                 <div>
-                  <div className="text-sm">Lexie ID does not exist or is not linked to a LexieVault</div>
+                  <div className="text-sm">LexieID does not exist or is not linked to a LexieVault</div>
                 </div>
               </div>
             </div>

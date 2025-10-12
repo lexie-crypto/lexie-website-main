@@ -3,12 +3,12 @@
  * Integrates external wallet connection and Railgun privacy functionality
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { toast } from 'react-hot-toast';
-import { 
-  WalletIcon, 
-  ArrowRightIcon, 
-  EyeIcon, 
+import {
+  WalletIcon,
+  ArrowRightIcon,
+  EyeIcon,
   EyeSlashIcon,
   ChevronDownIcon,
   ExclamationTriangleIcon,
@@ -20,7 +20,11 @@ import {
 } from '@heroicons/react/24/outline';
 
 import { useWallet } from '../../contexts/WalletContext';
+import { useWindowStore, WindowProvider } from '../../contexts/windowStore.jsx';
+import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts.js';
 import TerminalWindow from '../ui/TerminalWindow.jsx';
+import WindowShell from '../window/WindowShell.jsx';
+import Taskbar from '../window/Taskbar.jsx';
 import useBalances from '../../hooks/useBalances';
 import useInjectedProviders from '../../hooks/useInjectedProviders';
 import PrivacyActions from '../PrivacyActions';
@@ -33,6 +37,102 @@ import {
 } from '../../utils/railgun/actions';
 import { deriveEncryptionKey, clearAllWallets } from '../../utils/railgun/wallet';
 import { Navbar } from '../Navbar';
+
+// Titans Game component that loads the actual game from game.lexiecrypto.com
+const TitansGame = ({ lexieId, walletAddress, embedded, theme, onLoad, onError, onClose }) => {
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
+  const iframeRef = useRef(null);
+
+  const gameUrl = `https://game.lexiecrypto.com/?lexieId=${encodeURIComponent(lexieId)}&walletAddress=${encodeURIComponent(walletAddress || '')}&embedded=true&theme=${theme || 'terminal'}`;
+
+  const handleIframeLoad = () => {
+    setIsLoading(false);
+    onLoad && onLoad();
+  };
+
+  const handleIframeError = () => {
+    setIsLoading(false);
+    setHasError(true);
+    onError && onError(new Error('Failed to load Titans game'));
+  };
+
+  if (hasError) {
+    return (
+      <div className="w-full bg-gradient-to-br from-purple-900/20 to-blue-900/20 flex items-center justify-center min-h-screen">
+        <div className="text-center space-y-6 max-w-md mx-auto px-6">
+          <div className="text-6xl">⚠️</div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-bold text-red-300">Game Unavailable</h2>
+            <p className="text-red-200/80 text-sm">
+              Sorry, the LexieTitans game couldn't be loaded right now.
+            </p>
+          </div>
+          <div className="bg-black/40 border border-red-500/30 rounded-lg p-4">
+            <div className="text-sm text-red-300/70">
+              Please try again later or check your internet connection.
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full bg-black relative flex flex-col">
+      {isLoading && (
+        <div className="absolute inset-0 bg-gradient-to-br from-purple-900/20 to-blue-900/20 flex items-center justify-center z-10">
+          <div className="text-center space-y-6 max-w-md mx-auto px-6">
+            <div className="text-6xl">🎮</div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold text-purple-300">Loading LexieTitans Game</h2>
+              <p className="text-purple-200/80 text-sm">
+                Welcome to LexieTitans, <span className="text-emerald-300 font-mono">@{lexieId}</span>!
+              </p>
+            </div>
+            <div className="flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-400"></div>
+            </div>
+            <div className="text-xs text-purple-400/60">
+              Initializing game systems...
+            </div>
+          </div>
+        </div>
+      )}
+      <iframe
+        ref={iframeRef}
+        src={gameUrl}
+        className="w-full flex-1 border-0"
+        style={{ minHeight: '100vh' }}
+        title="Titans Game"
+        onLoad={handleIframeLoad}
+        onError={handleIframeError}
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-presentation allow-modals"
+      />
+    </div>
+  );
+};
+
+
+// Titans Game Window Component
+const TitansGameWindow = ({ lexieId, walletAddress, onClose }) => {
+  return (
+    <div className="h-full w-full bg-black text-green-300 font-mono overflow-auto scrollbar-terminal">
+      <div className="min-h-full w-full">
+        <TitansGame
+          lexieId={lexieId}
+          walletAddress={walletAddress}
+          embedded={true}
+          theme="terminal"
+          onLoad={() => {}}
+          onError={() => {}}
+          onClose={onClose}
+        />
+      </div>
+    </div>
+  );
+};
 
 const VaultDesktopInner = () => {
   const {
@@ -55,7 +155,26 @@ const VaultDesktopInner = () => {
     walletProvider,
     checkChainReady,
     walletConnectValidating,
+    shouldShowLexieIdModal,
+    clearLexieIdModalFlag,
+    showLexieIdChoiceModal,
+    handleLexieIdChoice,
+    onLexieIdLinked,
+    ensureChainScanned,
   } = useWallet();
+
+  // Window management hooks
+  const { getWindowState, reopenWindow } = useWindowStore();
+  useKeyboardShortcuts();
+
+  // Memoize footer content to prevent re-mounting
+  const footerContent = useMemo(() => <span>Process: lexie-vault</span>, []);
+
+  // Memoize status values to prevent re-mounting
+  const statusConfig = useMemo(() => ({
+    statusLabel: canUseRailgun ? 'ONLINE' : 'WAITING',
+    statusTone: canUseRailgun ? 'online' : 'waiting'
+  }), [canUseRailgun]);
 
   const { providers } = useInjectedProviders();
 
@@ -96,6 +215,42 @@ const VaultDesktopInner = () => {
   const [showLexieModal, setShowLexieModal] = useState(false);
   const [currentLexieId, setCurrentLexieId] = useState('');
   const [pointsBalance, setPointsBalance] = useState(null);
+  const [pointsBreakdown, setPointsBreakdown] = useState(null);
+  const [showTitansGame, setShowTitansGame] = useState(false);
+  const [showLexieChat, setShowLexieChat] = useState(false);
+
+  // Handle LexieID linking and game opening
+  const handleLexieIdLink = useCallback((lexieId, autoOpenGame = false) => {
+    setCurrentLexieId(lexieId);
+    // Set localStorage for Titans game integration
+    if (lexieId && address) {
+      localStorage.setItem("connectedWallet", address.toLowerCase());
+      localStorage.setItem("linkedLexieId", lexieId);
+      console.log('[Vault] Set localStorage for Titans integration:', { address: address.toLowerCase(), lexieId });
+    } else if (!lexieId) {
+      // Clear localStorage when unlinking
+      localStorage.removeItem("connectedWallet");
+      localStorage.removeItem("linkedLexieId");
+    }
+    // Auto-open Titans game only when explicitly requested (when user chooses LexieID)
+    if (lexieId && autoOpenGame) {
+      setTimeout(() => {
+        setShowTitansGame(true);
+        // Signal to WalletContext that Lexie ID linking is complete
+        onLexieIdLinked();
+      }, 1000); // Small delay to allow UI to settle
+    } else {
+      // Signal completion without auto-opening game
+      onLexieIdLinked();
+    }
+  }, [address, onLexieIdLinked]);
+
+  // Cross-platform verification state
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verificationLexieId, setVerificationLexieId] = useState('');
+  const [verificationExpiresAt, setVerificationExpiresAt] = useState(0);
+  const [verificationTimeLeft, setVerificationTimeLeft] = useState(0);
   
   // Local state to show a refreshing indicator for Vault Balances
   const [isRefreshingBalances, setIsRefreshingBalances] = useState(false);
@@ -229,10 +384,10 @@ const VaultDesktopInner = () => {
     return networks[id] || `Chain ${id}`;
   };
 
-  // Check Redis on wallet connect
+  // Check Redis on wallet connect - wait for Railgun initialization to complete first
   useEffect(() => {
-    if (isConnected && address && railgunWalletId && chainId) {
-      console.log('[VaultDesktop] Wallet connected - checking Redis for scanned chains');
+    if (isConnected && address && railgunWalletId && chainId && isRailgunInitialized) {
+      console.log('[VaultDesktop] Wallet connected and Railgun initialized - checking Redis for scanned chains');
       (async () => {
         // Don't re-init if modal is already open
         if (showSignRequestPopup) {
@@ -269,7 +424,7 @@ const VaultDesktopInner = () => {
         }
       })();
     }
-  }, [isConnected, address, railgunWalletId, chainId, checkRedisScannedChains, showSignRequestPopup]);
+  }, [isConnected, address, railgunWalletId, chainId, isRailgunInitialized, checkRedisScannedChains, showSignRequestPopup]);
 
   // Track when initial connection hydration is complete
   const initialConnectDoneRef = React.useRef(false);
@@ -346,8 +501,9 @@ const VaultDesktopInner = () => {
       } catch {}
       
       // Reset local UI state
-      setCurrentLexieId('');
+      handleLexieIdLink(''); // This will clear localStorage
       setPointsBalance(null);
+      setPointsBreakdown(null);
       setShowSignRequestPopup(false);
       setIsInitInProgress(false);
       setInitFailedMessage('');
@@ -480,6 +636,16 @@ const VaultDesktopInner = () => {
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
       console.log('[VaultDesktop] Full refresh — SDK refresh + Redis persist, then UI fetch...');
 
+      // Step 0: Ensure chain has been scanned for private transfers (critical for discovering transfers before first shield)
+      try {
+        if (canUseRailgun && railgunWalletId && address && chainId) {
+          console.log('[VaultDesktop] Ensuring chain is scanned before refresh...');
+          await ensureChainScanned(chainId);
+        }
+      } catch (scanErr) {
+        console.warn('[VaultDesktop] Chain scan check failed (continuing with refresh):', scanErr?.message);
+      }
+
       // Step 1: Trigger SDK refresh + persist authoritative balances to Redis
       try {
         if (railgunWalletId && address && chainId) {
@@ -562,17 +728,44 @@ const VaultDesktopInner = () => {
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      if (!currentLexieId) { setPointsBalance(null); return; }
+      if (!currentLexieId || !isRailgunInitialized) {
+        setPointsBalance(null);
+        setPointsBreakdown(null);
+        return;
+      }
       try {
-        const resp = await fetch(`/api/wallet-metadata?action=rewards-balance&lexieId=${encodeURIComponent(currentLexieId)}`);
+        // First get game points from titans-be via proxy with HMAC
+        let gamePoints = 0;
+        let referralPoints = 0;
+        try {
+          const titansResp = await fetch(`/api/wallet-metadata?action=get-game-points&lexieId=${encodeURIComponent(currentLexieId)}`);
+          if (titansResp.ok) {
+            const gameData = await titansResp.json().catch(() => ({}));
+            gamePoints = Number(gameData.gamePoints) || 0;
+            referralPoints = Number(gameData.referralPoints) || 0;
+            console.log(`[VaultDesktop] ✅ Got game points for ${currentLexieId}: game=${gamePoints}, referral=${referralPoints}`);
+          } else {
+            console.log(`[VaultDesktop] ⚠️ Titans API proxy error for ${currentLexieId}: ${titansResp.status}`);
+          }
+        } catch (gameError) {
+          console.warn(`[VaultDesktop] ⚠️ Failed to fetch game points for ${currentLexieId}:`, gameError?.message);
+        }
+
+        // Then combine with vault points via rewards API
+        const resp = await fetch(`/api/wallet-metadata?action=rewards-combined-balance&lexieId=${encodeURIComponent(currentLexieId)}&gamePoints=${gamePoints}&referralPoints=${referralPoints}`);
         if (!cancelled && resp.ok) {
           const json = await resp.json().catch(() => ({}));
-          if (json?.success) setPointsBalance(Number(json.balance) || 0);
+          if (json?.success) {
+            setPointsBalance(Number(json.total) || 0);
+            setPointsBreakdown(json.breakdown);
+          }
         }
-      } catch {}
+      } catch (error) {
+        console.error('[VaultDesktop] Error fetching combined points:', error);
+      }
     })();
     return () => { cancelled = true; };
-  }, [currentLexieId]);
+  }, [currentLexieId, isRailgunInitialized]);
 
   // Listen for points update events
   useEffect(() => {
@@ -582,16 +775,35 @@ const VaultDesktopInner = () => {
       console.log('[VaultDesktop] 🔄 Refreshing points balance after award...');
 
       try {
-        const resp = await fetch(`/api/wallet-metadata?action=rewards-balance&lexieId=${encodeURIComponent(currentLexieId)}`);
+        // First get fresh game points from titans-be via proxy with HMAC
+        let gamePoints = 0;
+        let referralPoints = 0;
+        try {
+          const titansResp = await fetch(`/api/wallet-metadata?action=get-game-points&lexieId=${encodeURIComponent(currentLexieId)}`);
+          if (titansResp.ok) {
+            const gameData = await titansResp.json().catch(() => ({}));
+            gamePoints = Number(gameData.gamePoints) || 0;
+            referralPoints = Number(gameData.referralPoints) || 0;
+            console.log(`[VaultDesktop] 🔄 Refreshed game points for ${currentLexieId}: game=${gamePoints}, referral=${referralPoints}`);
+          } else {
+            console.log(`[VaultDesktop] ⚠️ Titans API proxy error during refresh for ${currentLexieId}: ${titansResp.status}`);
+          }
+        } catch (gameError) {
+          console.warn(`[VaultDesktop] ⚠️ Failed to refresh game points for ${currentLexieId}:`, gameError?.message);
+        }
+
+        // Then combine with latest vault points via rewards API
+        const resp = await fetch(`/api/wallet-metadata?action=rewards-combined-balance&lexieId=${encodeURIComponent(currentLexieId)}&gamePoints=${gamePoints}&referralPoints=${referralPoints}`);
 
         if (resp.ok) {
           const json = await resp.json().catch(() => ({}));
           if (json?.success) {
-            const newBalance = Number(json.balance) || 0;
+            const newBalance = Number(json.total) || 0;
             const previousBalance = pointsBalance;
             console.log('[VaultDesktop] ✅ Points balance updated:', newBalance);
 
             setPointsBalance(newBalance);
+            setPointsBreakdown(json.breakdown);
 
             // Show success toast if points actually increased
             if (previousBalance !== null && newBalance > previousBalance) {
@@ -663,6 +875,28 @@ const VaultDesktopInner = () => {
       }
     };
   }, [currentLexieId]);
+
+
+  // Update countdown timer for verification code
+  useEffect(() => {
+    if (!showVerificationModal || verificationTimeLeft <= 0) return;
+
+    const interval = setInterval(() => {
+      setVerificationTimeLeft(prev => {
+        const newTime = prev - 1;
+        if (newTime <= 0) {
+          setShowVerificationModal(false);
+          setVerificationCode('');
+          setVerificationLexieId('');
+          setVerificationExpiresAt(0);
+          return 0;
+        }
+        return newTime;
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [showVerificationModal, verificationTimeLeft]);
 
   // Listen for signature request and init lifecycle events (like old WalletPage)
   useEffect(() => {
@@ -810,10 +1044,45 @@ const VaultDesktopInner = () => {
     }
   }, [showSignRequestPopup]);
 
+  // Auto-open Lexie ID modal for new wallet creation
+  useEffect(() => {
+    if (shouldShowLexieIdModal && !currentLexieId) {
+      console.log('[VaultDesktop] 🎉 New wallet created - opening Lexie ID modal');
+
+      setShowLexieModal(true);
+      clearLexieIdModalFlag(); // Clear the flag
+
+      // Optional toast
+      toast.custom((t) => (
+        <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+          <div className="rounded-lg border border-purple-500/30 bg-black/90 text-purple-200 shadow-2xl">
+            <div className="px-4 py-3 flex items-center gap-3">
+              <div className="h-3 w-3 rounded-full bg-purple-400" />
+              <div>
+                <div className="text-sm">Get Your LexieID</div>
+                <div className="text-xs text-purple-400/80">
+                  Claim your LexieID for easy transfers and to play LexieTitans!
+                </div>
+              </div>
+              <button
+                type="button"
+                aria-label="Dismiss"
+                onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }}
+                className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-purple-900/30 text-purple-300/80"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        </div>
+      ), { duration: 5000 });
+    }
+  }, [shouldShowLexieIdModal, currentLexieId, clearLexieIdModalFlag]);
+
   // Check if this Railgun address already has a linked Lexie ID
   useEffect(() => {
     if (!railgunAddress) {
-      setCurrentLexieId('');
+      handleLexieIdLink('');
       return;
     }
     (async () => {
@@ -822,15 +1091,15 @@ const VaultDesktopInner = () => {
         if (resp.ok) {
           const json = await resp.json().catch(() => ({}));
           if (json.success && json.lexieID) {
-            setCurrentLexieId(json.lexieID);
+            handleLexieIdLink(json.lexieID);
           } else {
-            setCurrentLexieId('');
+            handleLexieIdLink('');
           }
         } else {
-          setCurrentLexieId('');
+          handleLexieIdLink('');
         }
       } catch {
-        setCurrentLexieId('');
+        handleLexieIdLink('');
       }
     })();
   }, [railgunAddress]);
@@ -1091,7 +1360,7 @@ const VaultDesktopInner = () => {
 
   if (!isConnected || (isConnected && !isNetworkSupported) || walletConnectValidating) {
     return (
-      <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
+      <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
         {/* Navigation */}
         <Navbar />
 
@@ -1104,7 +1373,7 @@ const VaultDesktopInner = () => {
             <div className="absolute inset-0 bg-[linear-gradient(rgba(147,51,234,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(147,51,234,0.2)_1px,transparent_1px)] bg-[size:40px_40px] animate-pulse"></div>
             <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.1)_1px,transparent_1px)] bg-[size:80px_80px] animate-pulse" style={{animationDelay: '1s'}}></div>
           </div>
-          <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute inset-0 overflow-hidden scrollbar-terminal">
             {Array.from({ length: 3 }).map((_, i) => (
               <div 
                 key={i} 
@@ -1158,7 +1427,7 @@ const VaultDesktopInner = () => {
   }
 
   return (
-    <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
+    <div className="relative min-h-screen w-full bg-black text-white overflow-x-hiddenscrollbar-terminal">
       {/* Navigation */}
       <Navbar />
 
@@ -1190,14 +1459,15 @@ const VaultDesktopInner = () => {
         </div>
       </div>
 
-      <div className="relative z-10 max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <TerminalWindow
-          title="lexie-ai"
-          statusLabel={canUseRailgun ? 'ONLINE' : 'WAITING'}
-          statusTone={canUseRailgun ? 'online' : 'waiting'}
-          footerLeft={<span>Process: lexie-vault</span>}
+      <div className="relative z-10 px-4 sm:px-6 lg:px-8 py-8">
+        <WindowShell
+          id="lexie-vault-terminal"
+          title="lexie-vault"
+          appType="vault"
+          statusLabel={statusConfig.statusLabel}
+          statusTone={statusConfig.statusTone}
+          footerLeft={footerContent}
           variant="vault"
-          className="overflow-visible"
         >
           <div className="font-mono text-green-300 space-y-4">
             {/* Header */}
@@ -1233,9 +1503,16 @@ const VaultDesktopInner = () => {
                         }}
                         title="Copy Lexie ID"
                       />
-                      <span className="ml-2 text-purple-300" title="Points = $ value × streak. Min $5. Streak resets if you skip a day.">
+                      <span
+                        className="ml-2 text-purple-300"
+                        title={
+                          pointsBreakdown
+                            ? `Vault Points: ${pointsBreakdown.vault?.toFixed(2) || '0.00'}\nGame Points: ${pointsBreakdown.game?.toFixed(2) || '0.00'}`
+                            : "Points = $ value × streak. Min $5. Streak resets if you skip a day."
+                        }
+                      >
                         <span className="text-purple-300/60">•</span> points{' '}
-                        {pointsBalance !== null && pointsBalance !== undefined ? pointsBalance : '0.00'}
+                        {pointsBalance !== null && pointsBalance !== undefined ? pointsBalance.toFixed(2) : '0.00'}
                       </span>
                     </div>
                   ) : (
@@ -1260,7 +1537,7 @@ const VaultDesktopInner = () => {
                       <span className="ml-1">▾</span>
                     </button>
                     {isMobileChainMenuOpen && (
-                      <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden z-50">
+                      <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden scrollbar-terminal z-50">
                         {supportedNetworks.map((net) => (
                           <button
                             key={net.id}
@@ -1286,6 +1563,22 @@ const VaultDesktopInner = () => {
               </div>
               {/* Desktop controls in original position */}
               <div className="hidden sm:flex items-center space-x-3">
+                {currentLexieId && (
+                  <button
+                    onClick={() => {
+                      const windowState = getWindowState('titans-game-terminal');
+                      // If window exists and is closed, reopen it first
+                      if (windowState && windowState.isClosed) {
+                        reopenWindow('titans-game-terminal');
+                      }
+                      setShowTitansGame(true);
+                    }}
+                    className="bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 px-3 py-1 rounded text-sm border border-purple-400/40 transition-colors"
+                    title="Play LexieTitans Game"
+                  >
+                    Play Titans!
+                  </button>
+                )}
                 <div className="relative" ref={chainMenuRef}>
                   <button
                     onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsChainMenuOpen((v) => !v); }}
@@ -1297,7 +1590,7 @@ const VaultDesktopInner = () => {
                     <span className="ml-1">▾</span>
                   </button>
                   {isChainMenuOpen && (
-                    <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden z-50">
+                    <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden scrollbar-terminal z-50">
                       {supportedNetworks.map((net) => (
                         <button
                           key={net.id}
@@ -1332,9 +1625,6 @@ const VaultDesktopInner = () => {
                     <div className="text-yellow-300/80 text-xs">Please wait for balance updates to complete. This may take a few seconds.</div>
                   </div>
                 </div>
-                <div className="mt-2 text-yellow-300/80 text-xs">
-                  While you're waiting check out Lexie on <a href="https://t.me/lexie_crypto_bot" className="text-purple-300 hover:underline" target="_blank" rel="noopener noreferrer">Telegram</a> to grab your Lexie ID and play our Titans game to earn airdrop points. 
-                </div>
               </div>
             )}
 
@@ -1344,7 +1634,10 @@ const VaultDesktopInner = () => {
               <div className="space-y-1 text-green-300/80 text-xs leading-5 font-mono">
                 <div>✓ Vault interface loaded</div>
                 <div>✓ Network: {network?.name || 'Unknown'}</div>
-                <div>✓ Public balances: {Array.isArray(publicBalances) ? publicBalances.length : 0}</div>
+                <div>✓ Public balances: {Array.isArray(publicBalances) ? publicBalances.filter(token => {
+                  const usdValue = parseFloat(token.balanceUSD || '0');
+                  return usdValue >= 0.01 && token.chainId === chainId;
+                }).length : 0}</div>
                 <div>✓ Vault balances: {Array.isArray(privateBalances) ? privateBalances.length : 0}</div>
                 <div>{canUseRailgun ? '✓ Secure vault online' : '… Initializing secure vault'}</div>
                 <div className="pt-1 text-emerald-300">Ready for commands...</div>
@@ -1516,7 +1809,7 @@ const VaultDesktopInner = () => {
                 {/* Public Balances */}
                 <div className="border-t border-teal-500/10 pt-6">
                   <div className="flex items-center justify-between mb-4">
-                    <div className="text-emerald-300 text-sm font-medium font-mono">Public Balances</div>
+                    <div className="text-emerald-300 text-sm font-medium font-mono">{network?.name || 'Network'} Public Balances</div>
                     <button
                       onClick={refreshBalances}
                       disabled={isLoading || !isConnected}
@@ -1579,8 +1872,9 @@ const VaultDesktopInner = () => {
             )}
 
           </div>
-        </TerminalWindow>
-                
+        </WindowShell>
+
+
         {/* Error Messages */}
         {balanceErrors && (
           <div className="mt-4 p-3 bg-red-900/20 border border-red-500/40 rounded-lg">
@@ -1588,29 +1882,73 @@ const VaultDesktopInner = () => {
           </div>
         )}
 
-        {/* Last Update Time */}
-        {lastUpdateTime && (
-          <div className="mt-6 text-center">
-            <p className="text-green-500/70 text-xs font-mono">
-              Last updated: {new Date(lastUpdateTime).toLocaleTimeString()}
-            </p>
-          </div>
-        )}
 
       </div>
 
-      {/* Lexie ID Modal */}
-      {showLexieModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 font-mono">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-4xl w-full overflow-hidden">
+      {/* Lexie ID Choice Modal */}
+      {showLexieIdChoiceModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center z-[100] p-4 font-mono">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-lg w-full overflow-hidden scrollbar-terminal">
             {/* Modal Terminal Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
               <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-red-500" />
-                  <span className="w-3 h-3 rounded-full bg-yellow-500" />
-                  <span className="w-3 h-3 rounded-full bg-green-500" />
+                <span className="text-sm tracking-wide text-gray-400">lexie-id</span>
+              </div>
+              <div className="text-green-400 text-xs">WAITING</div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 text-green-300 space-y-4">
+              <div className="space-y-2">
+                <h3 className="text-lg font-bold text-emerald-300">LEXIE ID SETUP</h3>
+                <p className="text-green-400/80 text-sm leading-5">
+                  Want a LexieID? Claim yours to unlock P2P transfers and play LexieTitans while your vault is being created.
+                </p>
+              </div>
+
+              {/* Terminal-style instructions */}
+              <div className="bg-black/40 border border-green-500/20 rounded p-3">
+                <div className="text-green-200 text-xs mb-2 font-medium">Benefits:</div>
+                <div className="text-green-300/80 text-xs space-y-1">
+                  <div>• Vault-to-Vault transfers</div>
+                  <div>• Access to LexieTitans game</div>
+                  <div>• Enhanced features</div>
                 </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => handleLexieIdChoice(true)}
+                  className="flex-1 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-200 py-2.5 px-4 rounded border border-emerald-400/40 hover:border-emerald-400 transition-all duration-200 text-sm font-medium"
+                >
+                  Yes, claim LexieID
+                </button>
+                <button
+                  onClick={() => handleLexieIdChoice(false)}
+                  className="flex-1 bg-purple-700/30 hover:bg-purple-700/50 text-gray-300 py-2.5 px-4 rounded border border-purple-500/40 hover:border-purple-400 transition-all duration-200 text-sm font-medium"
+                >
+                  No, skip for now
+                </button>
+              </div>
+
+              {/* Footer info */}
+              <div className="text-center">
+                <div className="text-green-300/60 text-xs">
+                💡 Tip: You can always claim a LexieID later from the vault interface
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Lexie ID Modal */}
+      {showLexieModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[99] p-4 font-mono">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-4xl w-full overflow-hidden scrollbar-terminal">
+            {/* Modal Terminal Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
+              <div className="flex items-center gap-3">
                 <span className="text-sm tracking-wide text-gray-400">lexie-id-setup</span>
               </div>
               <button
@@ -1630,16 +1968,15 @@ const VaultDesktopInner = () => {
             {/* Modal Content */}
             <div className="p-6 text-green-300 space-y-4">
               <div>
-                <h3 className="text-lg font-bold text-emerald-300 mb-2">Get Your Lexie ID</h3>
+                <h3 className="text-lg font-bold text-emerald-300 mb-2">Setup Your LexieID</h3>
                 <p className="text-green-400/80 text-sm">
-                  Link your Railgun wallet to a Lexie ID for easy identification and social features.
+                 Grab a LexieID for easy P2P vault transfers and to be able to login to the LexieTitans game.
                 </p>
               </div>
 
-              {canUseRailgun && railgunAddress ? (
-                <div className="space-y-4">
-                  <div className="bg-black/40 border border-green-500/20 rounded p-3">
-                    <div className="text-green-400/80 text-xs mb-2">Enter your Lexie ID:</div>
+              <div className="space-y-4">
+                <div className="bg-black/40 border border-green-500/20 rounded p-3">
+                  <div className="text-green-400/80 text-xs mb-2">Create a new LexieID:</div>
                     <div className="flex items-center gap-2">
                       <input
                         type="text"
@@ -1656,8 +1993,8 @@ const VaultDesktopInner = () => {
                               setLexieMessage('');
                               setLexieLinking(true);
                               const chosen = (lexieIdInput || '').trim().toLowerCase();
-                              if (!chosen || chosen.length < 3) {
-                                setLexieMessage('Please enter a valid Lexie ID (3-20 chars).');
+                              if (!chosen || chosen.length < 3 || chosen.length > 15) {
+                                setLexieMessage('Please enter a valid Lexie ID (3-15 chars).');
                                 setLexieLinking(false);
                                 return;
                               }
@@ -1666,20 +2003,67 @@ const VaultDesktopInner = () => {
                               if (!statusResp.ok) { setLexieMessage('Failed to check Lexie ID status.'); setLexieLinking(false); return; }
                               const statusJson = await statusResp.json();
                               if (!statusJson.success) { setLexieMessage('Failed to check Lexie ID status.'); setLexieLinking(false); return; }
-                              const exists = !!statusJson.exists; const linked = !!statusJson.linked;
-                              if (!exists) {
-                                setLexieMessage('This Lexie ID does not exist yet. Please claim it via Telegram.');
+                              const exists = !!statusJson.exists; const linked = !!statusJson.linked; const owner = statusJson.owner;
+
+                              if (exists && linked) {
+                                setLexieMessage('This Lexie ID is already taken. Please try another one.');
                                 setLexieLinking(false);
                                 return;
                               }
-                              if (linked) { setLexieMessage('This ID is taken. Please try another one.'); setLexieLinking(false); return; }
-                              // Start linking
+
+                              if (!exists) {
+                                // Lexie ID doesn't exist - claim it directly
+                                // First, get the railgunAddress from wallet metadata in Redis
+                                const walletMetadataResp = await fetch(`/api/wallet-metadata?walletAddress=${address}`);
+                                if (!walletMetadataResp.ok) {
+                                  setLexieMessage('Failed to fetch wallet metadata.');
+                                  setLexieLinking(false);
+                                  return;
+                                }
+                                const walletMetadata = await walletMetadataResp.json();
+                                if (!walletMetadata.success || !walletMetadata.keys || walletMetadata.keys.length === 0) {
+                                  setLexieMessage('No wallet metadata found.');
+                                  setLexieLinking(false);
+                                  return;
+                                }
+
+                                // Get the railgunAddress from the first (most recent) wallet metadata entry
+                                const railgunAddressFromMetadata = walletMetadata.keys[0].railgunAddress;
+                                if (!railgunAddressFromMetadata) {
+                                  setLexieMessage('Railgun address not found in wallet metadata.');
+                                  setLexieLinking(false);
+                                  return;
+                                }
+
+                                const claimResp = await fetch('/api/wallet-metadata?action=lexie-claim', {
+                                  method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ lexieID: chosen, eoaAddress: address, railgunAddress: railgunAddressFromMetadata })
+                                });
+                                const claimJson = await claimResp.json().catch(() => ({}));
+                                if (!claimResp.ok || !claimJson.success) {
+                                  setLexieMessage(claimJson.error || 'Failed to claim Lexie ID.');
+                                  setLexieLinking(false);
+                                  return;
+                                }
+                                setLexieNeedsCode(false); setLexieCode('');
+                                setLexieMessage('✅ Successfully claimed and linked your Lexie ID!');
+                                handleLexieIdLink(chosen, true); // Auto-open game for new LexieID choice
+                                setTimeout(() => {
+                                  setShowLexieModal(false);
+                                  setLexieIdInput('');
+                                  setLexieMessage('');
+                                }, 2000);
+                                setLexieLinking(false);
+                                return;
+                              }
+
+                              // Lexie ID exists but is not linked - user can link it (proves ownership via Telegram code)
                               const startResp = await fetch('/api/wallet-metadata?action=lexie-link-start', {
                                 method: 'POST', headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ lexieID: chosen, railgunAddress })
                               });
                               const startJson = await startResp.json().catch(() => ({}));
-                              if (startResp.status === 404) { setLexieMessage('Lexie ID not found. Please claim it via Telegram.'); setLexieLinking(false); return; }
+                              if (startResp.status === 404) { setLexieMessage('Lexie ID not found.'); setLexieLinking(false); return; }
                               if (!startResp.ok || !startJson.success) { setLexieMessage('Failed to start verification.'); setLexieLinking(false); return; }
                               setLexieNeedsCode(true); setLexieMessage('We sent a 4‑digit code to your Telegram. Enter it below to confirm.');
                             } catch (_) { setLexieMessage('Unexpected error starting Lexie link.'); } finally { setLexieLinking(false); }
@@ -1711,7 +2095,7 @@ const VaultDesktopInner = () => {
                                 const json = await verifyResp.json().catch(() => ({}));
                                 if (!verifyResp.ok || !json.success) { setLexieMessage('Verification failed. Check the code and try again.'); return; }
                                 setLexieNeedsCode(false); setLexieCode(''); setLexieMessage('✅ Linked successfully to your Railgun wallet.');
-                                setCurrentLexieId(chosen);
+                                handleLexieIdLink(chosen, true); // Auto-open game for LexieID choice
                                 setTimeout(() => {
                                   setShowLexieModal(false);
                                   setLexieIdInput('');
@@ -1738,47 +2122,90 @@ const VaultDesktopInner = () => {
 
                   {/* Instructions */}
                   <div className="bg-purple-900/20 border border-purple-500/40 rounded p-3">
-                    <div className="text-purple-300 text-xs font-medium mb-2">Don't have a Lexie ID?</div>
+                    <div className="text-purple-300 text-xs font-medium mb-2">How it works:</div>
                     <p className="text-purple-200/80 text-xs mb-3">
-                      Check Lexie on Telegram to claim your unique Lexie ID:
+                      Enter any available LexieID above and we'll claim it for you instantly. If it's already taken, try another one!
                     </p>
-                    <div className="flex items-center space-x-2">
-                      <a
-                        href="https://t.me/lexie_crypto_bot"
-                        target="_blank"
-                        rel="noreferrer"
-                        className="bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 px-3 py-1 rounded text-xs border border-purple-400/40 transition-colors"
-                      >
-                        Open Telegram Bot
-                      </a>
-                      <span className="text-purple-300/60 text-xs">→ Use /lex command</span>
+                    <div className="text-purple-300/60 text-xs">
+                    💡 Tip: Already have a LexieID? Enter it above to link it to your vault.
                     </div>
                   </div>
                 </div>
-              ) : (
-                <div className="bg-yellow-900/20 border border-yellow-500/40 rounded p-3">
-                  <div className="text-yellow-300 text-xs">
-                    Please connect your Railgun wallet first to link a Lexie ID.
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </div>
       )}
 
+      {/* Cross-Platform Verification Modal */}
+      {showVerificationModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 font-mono">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden scrollbar-terminal">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
+              <div className="flex items-center gap-3">
+                <span className="text-sm tracking-wide text-gray-400">telegram-link</span>
+              </div>
+              <button
+                onClick={() => {
+                  setShowVerificationModal(false);
+                  setVerificationCode('');
+                  setVerificationLexieId('');
+                  setVerificationExpiresAt(0);
+                  setVerificationTimeLeft(0);
+                }}
+                className="text-green-400/70 hover:text-green-300 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 text-green-300 space-y-4">
+              <div>
+                <h3 className="text-lg font-bold text-emerald-300 mb-2">Link to Telegram</h3>
+                <p className="text-green-400/80 text-sm">
+                  Your LexieID <span className="text-purple-300 font-mono">{verificationLexieId}</span> is being linked to Telegram.
+                </p>
+              </div>
+
+              <div className="bg-black/40 border border-purple-500/20 rounded p-4">
+                <div className="text-center space-y-3">
+                  <div className="text-purple-300 text-sm font-medium">Verification Code</div>
+                  <div className="text-3xl font-mono font-bold text-emerald-300 tracking-wider">
+                    {verificationCode}
+                  </div>
+                  <div className="text-purple-300/60 text-xs">
+                    Expires in {Math.floor(verificationTimeLeft / 60)}:{(verificationTimeLeft % 60).toString().padStart(2, '0')}
+                  </div>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(verificationCode);
+                      toast.success('Code copied to clipboard');
+                    }}
+                    className="bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 px-3 py-1 rounded text-sm border border-purple-400/40 transition-colors"
+                  >
+                    Copy Code
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-blue-900/20 border border-blue-500/40 rounded p-3">
+                <div className="text-blue-300 text-xs font-medium mb-1">Next Steps:</div>
+                <div className="text-blue-200/80 text-xs space-y-1">
+                  <div>1. Switch to Telegram</div>
+                  <div>2. Enter this code when prompted</div>
+                  <div>3. Your LexieID will be linked across both platforms</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Sign-in & Initialization Popup */}
       {showSignRequestPopup && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center z-50 p-4 font-mono">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden scrollbar-terminal">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
               <div className="flex items-center gap-3">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-3 h-3 rounded-full bg-red-500" />
-                  <span className="w-3 h-3 rounded-full bg-yellow-500" />
-                  <span className="w-3 h-3 rounded-full bg-green-500" />
-                </div>
                 <span className="text-sm tracking-wide text-gray-400">vault-sign</span>
               </div>
               {isInitInProgress ? (
@@ -1807,30 +2234,32 @@ const VaultDesktopInner = () => {
                   <h3 className="text-lg font-bold text-emerald-300">Initializing Your LexieVault on {network?.name || 'network'} Network</h3>
                   <p className="text-green-400/80 text-sm">You only need to do this once. This may take a few minutes. Do not close this window.</p>
                   <div className="bg-black/40 border border-green-500/20 rounded p-4 space-y-3">
-                    {bootstrapProgress.active ? (
+                    {bootstrapProgress.active && bootstrapProgress.percent > 0 ? (
                       <>
                         <div className="flex items-center justify-between text-xs text-green-400/80">
                           <span>Loading blockchain data...</span>
-                          <span>{bootstrapProgress.percent}%</span>
+                          <span>{Math.min(bootstrapProgress.percent, isInitInProgress ? 99 : 100)}%</span>
                         </div>
                         <div className="w-full bg-gray-700 rounded-full h-2">
                           <div
                             className="bg-gradient-to-r from-emerald-400 to-green-400 h-2 rounded-full transition-all duration-300 ease-out"
-                            style={{ width: `${bootstrapProgress.percent}%` }}
+                            style={{ width: `${Math.min(bootstrapProgress.percent, isInitInProgress ? 99 : 100)}%` }}
                           />
                         </div>
                       </>
                     ) : (
                       <div className="flex items-center gap-3">
-                        <div className={`h-5 w-5 rounded-full border-2 ${isInitInProgress ? 'border-emerald-400 border-t-transparent animate-spin' : 'border-emerald-400'}`} />
-                        <div className="text-xs text-green-400/80 truncate" title={initProgress.message}>
-                          {initProgress.message || 'Scanning...'}
+                        <div className={`h-5 w-5 rounded-full border-2 ${isInitInProgress || bootstrapProgress.active ? 'border-emerald-400 border-t-transparent animate-spin' : 'border-emerald-400'}`} />
+                        <div className="text-xs text-green-400/80 truncate" title={bootstrapProgress.active ? 'Loading blockchain data...' : initProgress.message}>
+                          {bootstrapProgress.active ? 'Loading blockchain data...' : (initProgress.message || 'Scanning...')}
                         </div>
                       </div>
                     )}
                   </div>
-                  <div className="mt-2 text-green-400/80 text-xs">
-                    While you're waiting check out Lexie on <a href="https://t.me/lexie_crypto_bot" className="text-purple-300 hover:underline" target="_blank" rel="noopener noreferrer">Telegram</a> to grab your Lexie ID and play our Titans game to earn airdrop points. 
+                  <div className="mt-2">
+                    <div className="text-green-400/60 text-xs text-center">
+                      🔐 Your vault is being created securely using zero-knowledge cryptography.
+                    </div>
                   </div>
                 </>
               )}
@@ -1862,6 +2291,81 @@ const VaultDesktopInner = () => {
           </div>
         </div>
       )}
+
+      {/* Taskbar for minimized windows */}
+      <Taskbar />
+
+      {/* Titans Game Window */}
+      {showTitansGame && (
+        <WindowShell
+          id="titans-game-terminal"
+          title="titans-game"
+          appType="game"
+          statusLabel="Playing"
+          statusTone="success"
+          footerLeft="Process: titans-game"
+          footerRight={`@lex:${currentLexieId}`}
+          variant="game"
+          onClose={() => setShowTitansGame(false)}
+          initialSize={{ width: 1000, height: 700 }}
+          initialPosition={{ x: 50, y: 50 }}
+          minSize={{ width: 800, height: 600 }}
+          className="z-[99]"
+        >
+          <TitansGameWindow
+            lexieId={currentLexieId}
+            walletAddress={address}
+            onClose={() => setShowTitansGame(false)}
+          />
+        </WindowShell>
+      )}
+
+      {/* LexieAI Chat Window */}
+      {showLexieChat && (
+        <WindowShell
+          id="lexie-chat-terminal"
+          title="LexieAI-chat"
+          appType="game"
+          statusLabel="Enable Degen Mode"
+          statusTone="online"
+          footerLeft="LexieAI Chat Terminal"
+          footerRight="Secure LexieAI Communication Channel"
+          variant="vault"
+          onClose={() => setShowLexieChat(false)}
+          initialSize={{ width: 1000, height: 700 }}
+          initialPosition={{ x: 200, y: 100 }}
+          minSize={{ width: 800, height: 600 }}
+          className="z-[98]"
+        >
+          <div className="h-full w-full bg-black relative">
+            <iframe
+              src={currentLexieId ? `/chat?lexieId=${encodeURIComponent(currentLexieId)}` : "/chat"}
+              className="w-full h-full border-0"
+              title="LexieAI Chat"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-presentation"
+            />
+          </div>
+        </WindowShell>
+      )}
+
+      {/* Lexie Logo */}
+      <div className="fixed bottom-2 right-1 z-10">
+        <img
+          src="/lexie.png"
+          alt="Lexie"
+          className="w-[320px] h-[320px] opacity-80 hover:opacity-80 transition-opacity cursor-pointer"
+          title="Click here to open up LexieChat"
+          onClick={() => {
+            const windowState = getWindowState('lexie-chat-terminal');
+            // If window exists and is closed, reopen it first
+            if (windowState && windowState.isClosed) {
+              reopenWindow('lexie-chat-terminal');
+            }
+            setShowLexieChat(true);
+          }}
+        />
+      </div>
     </div>
   );
 };
@@ -1890,7 +2394,7 @@ const VaultDesktop = () => {
 
   if (isMobile) {
     return (
-      <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
+      <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
         <nav className="sticky top-0 z-40 w-full p-6 bg-black">
           <div className="max-w-7xl mx-auto flex justify-between items-center">
             <div className="text-4xl font-bold text-purple-300">LEXIEAI</div>
@@ -1906,7 +2410,11 @@ const VaultDesktop = () => {
     );
   }
 
-  return <VaultDesktopInner />;
+  return (
+    <WindowProvider>
+      <VaultDesktopInner />
+    </WindowProvider>
+  );
 };
 
 export default VaultDesktop;

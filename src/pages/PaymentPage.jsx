@@ -107,6 +107,7 @@ const PaymentPage = () => {
 
   const [selectedToken, setSelectedToken] = useState(null);
   const [amount, setAmount] = useState('');
+  const [exactWeiAmount, setExactWeiAmount] = useState(null); // Store exact wei amount to avoid rounding issues
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Reset completion state when user starts new transaction
@@ -114,6 +115,7 @@ const PaymentPage = () => {
     setTransactionCompleted(false);
     setCompletedTransactionHash(null);
     setCopyStatus(null);
+    setExactWeiAmount(null);
   };
 
   // Copy transaction hash to clipboard
@@ -161,23 +163,8 @@ const PaymentPage = () => {
   // Check if user is on correct network
   const isCorrectNetwork = chainId === targetChainId;
 
-  // Suppress vault/wallet creation on PaymentPage - this is only for paying into other vaults
-  useEffect(() => {
-    try {
-      if (typeof window !== 'undefined') {
-        window.__LEXIE_SUPPRESS_RAILGUN_INIT = true;
-        window.__LEXIE_PAYMENT_PAGE = true; // Additional flag to prevent wallet creation
-      }
-    } catch {}
-    return () => {
-      try {
-        if (typeof window !== 'undefined') {
-          delete window.__LEXIE_SUPPRESS_RAILGUN_INIT;
-          delete window.__LEXIE_PAYMENT_PAGE;
-        }
-      } catch {}
-    };
-  }, []);
+  // PaymentPage needs Railgun engine for shield transaction creation
+  // No suppression needed since we need populateShield functions
 
   // Fetch public balances when connected and on correct network
   useEffect(() => {
@@ -313,12 +300,12 @@ const PaymentPage = () => {
     fetchBalances();
   }, [isConnected, address, chainId, isCorrectNetwork, walletProvider, balanceRefreshTrigger]);
 
-  // Auto-select preferred token or first available
+  // Auto-select preferred token or first available (only if no token selected)
   useEffect(() => {
-    if (publicBalances.length === 0) return;
+    if (publicBalances.length === 0 || selectedToken) return;
 
     if (preferredToken) {
-      const token = publicBalances.find(t => 
+      const token = publicBalances.find(t =>
         (t.address || '').toLowerCase() === preferredToken.toLowerCase()
       );
       if (token) {
@@ -330,7 +317,7 @@ const PaymentPage = () => {
     // Select first token with balance or just the first token
     const tokenWithBalance = publicBalances.find(t => t.numericBalance > 0);
     setSelectedToken(tokenWithBalance || publicBalances[0]);
-  }, [publicBalances, preferredToken]);
+  }, [publicBalances, preferredToken, selectedToken]);
 
   // Close token menu on outside click or ESC
   useEffect(() => {
@@ -370,7 +357,7 @@ const PaymentPage = () => {
 
     setIsProcessing(true);
 
-    showTerminalToast('info', 'Starting Deposit', 'Preparing your private vault deposit...', { duration: 2000 });
+    showTerminalToast('info', 'Starting Deposit', 'Preparing your deposit...', { duration: 2000 });
 
     try {
       // Initialize Railgun engine only when making payment (not during wallet connection)
@@ -409,8 +396,15 @@ const PaymentPage = () => {
       }[chainId];
       if (!railgunNetwork) throw new Error(`Unsupported network: ${chainId}`);
 
-      // Parse amount to base units
-      const weiAmount = parseUnits(amount, selectedToken.decimals);
+      // Parse amount to base units - use exactWeiAmount if available to avoid rounding
+      let weiAmount;
+      if (exactWeiAmount) {
+        weiAmount = exactWeiAmount;
+        console.log('[PaymentPage] Using exact wei amount:', weiAmount.toString());
+      } else {
+        weiAmount = parseUnits(amount, selectedToken.decimals);
+        console.log('[PaymentPage] Parsed amount to wei:', weiAmount.toString());
+      }
 
       // Prepare recipients (use resolved Railgun address)
       const erc20AmountRecipients = [
@@ -459,10 +453,31 @@ const PaymentPage = () => {
         };
       }
 
+      // Validate parameters before calling populateShield functions
+      console.log('[PaymentPage] Validating shield parameters:', {
+        txidVersion: TXIDVersion.V2_PoseidonMerkle,
+        railgunNetwork,
+        shieldPrivateKey: shieldPrivateKey ? `${shieldPrivateKey.substring(0, 10)}...` : 'undefined',
+        erc20AmountRecipients,
+        resolvedRecipientAddress,
+        weiAmount: weiAmount?.toString(),
+        selectedTokenAddress: selectedToken?.address,
+        prelimGasDetails
+      });
+
+      // Ensure all required parameters are valid
+      if (!railgunNetwork) throw new Error('Railgun network not configured');
+      if (!shieldPrivateKey || typeof shieldPrivateKey !== 'string') throw new Error('Invalid shield private key');
+      if (!resolvedRecipientAddress || !resolvedRecipientAddress.startsWith('0zk')) throw new Error('Invalid recipient Railgun address');
+      if (!weiAmount || weiAmount <= 0n) throw new Error('Invalid amount');
+      if (!Array.isArray(erc20AmountRecipients)) throw new Error('Invalid recipients array');
+
       // Build a preliminary shield tx to get the RAILGUN shield contract (spender)
       let prelimTx;
+      console.log('[PaymentPage] Calling populateShield functions...');
       if (!selectedToken.address) {
         // Native token - use populateShieldBaseToken
+        console.log('[PaymentPage] Using populateShieldBaseToken for native token');
         const wrappedTokenAddress = {
           1: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', // WETH
           137: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', // WMATIC
@@ -473,6 +488,16 @@ const PaymentPage = () => {
         if (!wrappedTokenAddress) {
           throw new Error(`Unsupported chain for native token shielding: ${chainId}`);
         }
+
+        console.log('[PaymentPage] About to call populateShieldBaseToken with:', {
+          txidVersion: TXIDVersion.V2_PoseidonMerkle,
+          railgunNetwork,
+          recipientAddress: resolvedRecipientAddress,
+          shieldPrivateKey: shieldPrivateKey ? 'present' : 'missing',
+          tokenAddress: wrappedTokenAddress,
+          amount: weiAmount.toString(),
+          gasDetails: prelimGasDetails
+        });
 
         const result = await populateShieldBaseToken(
           TXIDVersion.V2_PoseidonMerkle,
@@ -485,6 +510,16 @@ const PaymentPage = () => {
         prelimTx = result.transaction;
       } else {
         // ERC-20 token - use populateShield
+        console.log('[PaymentPage] Using populateShield for ERC-20 token');
+        console.log('[PaymentPage] About to call populateShield with:', {
+          txidVersion: TXIDVersion.V2_PoseidonMerkle,
+          railgunNetwork,
+          shieldPrivateKey: shieldPrivateKey ? 'present' : 'missing',
+          erc20AmountRecipients,
+          commitments: [],
+          gasDetails: prelimGasDetails
+        });
+
         const result = await populateShield(
           TXIDVersion.V2_PoseidonMerkle,
           railgunNetwork,
@@ -502,10 +537,30 @@ const PaymentPage = () => {
       if (selectedToken.address) {
         const erc20Abi = [
           'function allowance(address owner,address spender) view returns (uint256)',
+          'function balanceOf(address account) view returns (uint256)',
           'function approve(address spender,uint256 amount) returns (bool)',
         ];
         const erc20 = new Contract(selectedToken.address, erc20Abi, signer);
+
+        // Check balance first (same as shieldTransactions.js)
+        const balance = await erc20.balanceOf(payerEOA);
+        console.log('[PaymentPage] Token balance check:', {
+          balance: balance.toString(),
+          requested: weiAmount.toString(),
+          hasEnough: balance >= weiAmount
+        });
+
+        if (balance < weiAmount) {
+          throw new Error(`Insufficient token balance. Have: ${balance}, Need: ${weiAmount}`);
+        }
+
         const currentAllowance = await erc20.allowance(payerEOA, spender);
+        console.log('[PaymentPage] Token allowance check:', {
+          current: currentAllowance.toString(),
+          required: weiAmount.toString(),
+          needsApproval: currentAllowance < weiAmount
+        });
+
         if (currentAllowance < weiAmount) {
           showTerminalToast('info', 'Approval Required', 'Please sign the token approval in your wallet to allow the deposit', { duration: 4000 });
           const approveTx = await erc20.approve(spender, weiAmount);
@@ -596,6 +651,85 @@ const PaymentPage = () => {
       // Set completion state instead of showing toast
       setTransactionCompleted(true);
       setCompletedTransactionHash(sent.hash);
+
+      // 🎯 AWARD POINTS TO RECIPIENT: Since funds were deposited into their vault
+      try {
+        console.log('[PaymentPage] 🎯 Awarding points to recipient for receiving funds...');
+
+        // Resolve recipient's Lexie ID from their Railgun address
+        const lexieResponse = await fetch('/api/wallet-metadata?action=by-wallet&railgunAddress=' + encodeURIComponent(resolvedRecipientAddress));
+        if (!lexieResponse.ok) {
+          console.warn('[PaymentPage] Could not resolve recipient Lexie ID for points award');
+        } else {
+          const lexieData = await lexieResponse.json();
+          if (lexieData?.success && lexieData?.lexieID) {
+            const recipientLexieId = lexieData.lexieID.toLowerCase();
+            console.log('[PaymentPage] ✅ Resolved recipient Lexie ID for points:', recipientLexieId);
+
+            // Calculate USD value of the deposited amount
+            const transactionMonitor = await import('../utils/railgun/transactionMonitor.js');
+            const convertTokenAmountToUSD = transactionMonitor.default.convertTokenAmountToUSD;
+            const usdValue = await convertTokenAmountToUSD(parseFloat(amount), selectedToken.address || null, chainId);
+
+            console.log('[PaymentPage] 💰 Calculated USD value for recipient points:', {
+              amount,
+              tokenSymbol: selectedToken.symbol,
+              usdValue,
+              recipientLexieId
+            });
+
+            // Award points to recipient
+            const pointsResponse = await fetch('/api/wallet-metadata?action=rewards-award', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                lexieId: recipientLexieId,
+                txHash: sent.hash,
+                usdValue: usdValue
+              })
+            });
+
+            if (pointsResponse.ok) {
+              const pointsData = await pointsResponse.json();
+              if (pointsData?.success) {
+                console.log('[PaymentPage] ✅ Points awarded to recipient:', {
+                  recipientLexieId,
+                  awarded: pointsData.awarded || 0,
+                  newBalance: pointsData.balance || 0,
+                  multiplier: pointsData.multiplier || 1.0
+                });
+
+                // Sync recipient's combined balance
+                try {
+                  const syncResponse = await fetch(`/api/wallet-metadata?action=rewards-combined-balance&lexieId=${encodeURIComponent(recipientLexieId)}`);
+                  if (syncResponse.ok) {
+                    const syncData = await syncResponse.json();
+                    if (syncData?.success) {
+                      console.log('[PaymentPage] ✅ Recipient combined balance synced:', {
+                        recipientLexieId,
+                        total: syncData.total,
+                        vault: syncData.breakdown?.vault || 0,
+                        game: syncData.breakdown?.game || 0
+                      });
+                    }
+                  }
+                } catch (syncError) {
+                  console.warn('[PaymentPage] ⚠️ Failed to sync recipient combined balance:', syncError?.message);
+                }
+              } else {
+                console.warn('[PaymentPage] ⚠️ Points award returned non-success:', pointsData);
+              }
+            } else {
+              console.warn('[PaymentPage] ⚠️ Points award API failed:', pointsResponse.status);
+            }
+          } else {
+            console.log('[PaymentPage] ⏭️ Recipient has no Lexie ID, skipping points award');
+          }
+        }
+      } catch (pointsError) {
+        console.warn('[PaymentPage] ⚠️ Error awarding points to recipient (non-critical):', pointsError?.message);
+        // Don't fail the transaction if points awarding fails
+      }
 
       // Refresh public balances to show updated available balance
       console.log('[PaymentPage] ✅ Triggering public balances refresh...');
@@ -916,7 +1050,13 @@ const PaymentPage = () => {
                     <input
                       type="number"
                       value={amount}
-                      onChange={(e) => { setAmount(e.target.value); resetTransactionState(); }}
+                      onChange={(e) => {
+                        setAmount(e.target.value);
+                        setExactWeiAmount(null); // Clear exact amount when user types
+                        setTransactionCompleted(false);
+                        setCompletedTransactionHash(null);
+                        setCopyStatus(null);
+                      }}
                       placeholder="0.0"
                       step="any"
                       min="0"
@@ -927,7 +1067,126 @@ const PaymentPage = () => {
                     {selectedToken && (
                       <button
                         type="button"
-                        onClick={() => { setAmount(selectedToken.numericBalance.toString()); resetTransactionState(); }}
+                        onClick={async () => {
+                          try {
+                            // Always get fresh balance from provider for max calculation
+                            const provider = await walletProvider();
+                            const providerInstance = provider.provider;
+
+                            let maxWeiAmount;
+                            let maxAmount;
+
+                            // Import formatUnits for precise BigInt handling
+                            const { formatUnits } = await import('ethers');
+
+                            if (!selectedToken.address) {
+                              // Native token - get fresh balance from provider
+                              const nativeBalance = await providerInstance.getBalance(address);
+                              maxWeiAmount = nativeBalance;
+                              maxAmount = formatUnits(nativeBalance, selectedToken.decimals);
+                            } else {
+                              // ERC20 token - get fresh balance and check allowance
+                              const { Contract } = await import('ethers');
+                              const signer = provider.provider;
+                              const erc20Abi = ['function balanceOf(address account) view returns (uint256)', 'function allowance(address owner,address spender) view returns (uint256)'];
+
+                              const tokenContract = new Contract(selectedToken.address, erc20Abi, signer);
+                              const freshBalance = await tokenContract.balanceOf(address);
+                              maxWeiAmount = freshBalance;
+
+                              // Create a dummy transaction to get the RAILGUN contract address
+                              const railgunNetwork = {
+                                1: NetworkName.Ethereum,
+                                42161: NetworkName.Arbitrum,
+                                137: NetworkName.Polygon,
+                                56: NetworkName.BNBChain,
+                              }[chainId];
+
+                              if (railgunNetwork) {
+                                // Create minimal prelim transaction to get contract address
+                                const prelimGasDetails = {
+                                  evmGasType: EVMGasType.Type0,
+                                  gasEstimate: BigInt(300000),
+                                };
+
+                                const erc20AmountRecipients = [{
+                                  tokenAddress: selectedToken.address,
+                                  amount: freshBalance, // Use fresh balance for prelim transaction
+                                  recipientAddress: resolvedRecipientAddress,
+                                }];
+
+                                const { populateShield } = await import('@railgun-community/wallet');
+                                const getRandomHex32 = () => {
+                                  const bytes = new Uint8Array(32);
+                                  (window.crypto || globalThis.crypto).getRandomValues(bytes);
+                                  return '0x' + Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+                                };
+                                const dummyShieldPrivateKey = getRandomHex32();
+
+                                const prelimResult = await populateShield(
+                                  TXIDVersion.V2_PoseidonMerkle,
+                                  railgunNetwork,
+                                  dummyShieldPrivateKey,
+                                  erc20AmountRecipients,
+                                  [],
+                                  prelimGasDetails,
+                                );
+
+                                const railgunContractAddress = prelimResult.transaction.to;
+                                if (railgunContractAddress) {
+                                  const allowance = await tokenContract.allowance(address, railgunContractAddress);
+
+                                  // For Max button, use balance if allowance is 0 (not approved yet)
+                                  // Otherwise use min(balance, allowance)
+                                  let effectiveMaxWei;
+                                  if (allowance === 0n) {
+                                    effectiveMaxWei = freshBalance; // Use full balance if not approved yet
+                                  } else {
+                                    effectiveMaxWei = freshBalance < allowance ? freshBalance : allowance;
+                                  }
+                                  maxWeiAmount = effectiveMaxWei;
+
+                                  // Use formatUnits for precise decimal conversion
+                                  const maxAmountStr = formatUnits(maxWeiAmount, selectedToken.decimals);
+                                  maxAmount = parseFloat(maxAmountStr);
+
+                                  console.log('[PaymentPage] Max button calculation (fresh):', {
+                                    freshBalance: formatUnits(freshBalance, selectedToken.decimals),
+                                    allowance: formatUnits(allowance, selectedToken.decimals),
+                                    effectiveMax: formatUnits(effectiveMaxWei, selectedToken.decimals),
+                                    maxAmount: maxAmountStr,
+                                    maxWeiAmount: maxWeiAmount.toString(),
+                                    contractAddress: railgunContractAddress.slice(0, 10) + '...',
+                                    usedAllowance: allowance > 0n
+                                  });
+                                } else {
+                                  // Fallback to fresh balance if contract address not found
+                                  maxWeiAmount = freshBalance;
+                                  maxAmount = parseFloat(formatUnits(freshBalance, selectedToken.decimals));
+                                }
+                              } else {
+                                // Fallback to fresh balance if network not supported
+                                maxAmount = parseFloat(formatUnits(freshBalance, selectedToken.decimals));
+                              }
+                            }
+
+                            setAmount(maxAmount.toString());
+                            setExactWeiAmount(maxWeiAmount);
+                            setTransactionCompleted(false);
+                            setCompletedTransactionHash(null);
+                            setCopyStatus(null);
+                          } catch (error) {
+                            console.warn('[PaymentPage] Error calculating max amount, using cached balance:', error);
+                            // Fallback to cached balance as last resort
+                            setAmount(selectedToken.numericBalance.toString());
+                            // Use BigInt conversion for exact wei amount
+                            const { parseUnits } = await import('ethers');
+                            setExactWeiAmount(parseUnits(selectedToken.numericBalance.toString(), selectedToken.decimals));
+                            setTransactionCompleted(false);
+                            setCompletedTransactionHash(null);
+                            setCopyStatus(null);
+                          }
+                        }}
                         className="absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded hover:bg-green-900/20"
                       >
                         Max
