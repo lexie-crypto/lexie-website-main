@@ -1031,7 +1031,82 @@ const PaymentPage = () => {
                     {selectedToken && (
                       <button
                         type="button"
-                        onClick={() => { setAmount(selectedToken.numericBalance.toString()); resetTransactionState(); }}
+                        onClick={async () => {
+                          try {
+                            let maxAmount = selectedToken.numericBalance;
+
+                            // For ERC20 tokens, check allowance and use min(balance, allowance)
+                            if (selectedToken.address) {
+                              const { Contract } = await import('ethers');
+                              const provider = await walletProvider();
+                              const signer = provider.provider;
+                              const erc20Abi = ['function allowance(address owner,address spender) view returns (uint256)'];
+
+                              // Create a dummy transaction to get the RAILGUN contract address
+                              const railgunNetwork = {
+                                1: NetworkName.Ethereum,
+                                42161: NetworkName.Arbitrum,
+                                137: NetworkName.Polygon,
+                                56: NetworkName.BNBChain,
+                              }[chainId];
+
+                              if (railgunNetwork) {
+                                // Create minimal prelim transaction to get contract address
+                                const prelimGasDetails = {
+                                  evmGasType: EVMGasType.Type0,
+                                  gasEstimate: BigInt(300000),
+                                };
+
+                                const erc20AmountRecipients = [{
+                                  tokenAddress: selectedToken.address,
+                                  amount: BigInt(Math.floor(selectedToken.numericBalance * Math.pow(10, selectedToken.decimals))),
+                                  recipientAddress: resolvedRecipientAddress,
+                                }];
+
+                                const { populateShield } = await import('@railgun-community/wallet');
+                                const getRandomHex32 = () => {
+                                  const bytes = new Uint8Array(32);
+                                  (window.crypto || globalThis.crypto).getRandomValues(bytes);
+                                  return '0x' + Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+                                };
+                                const dummyShieldPrivateKey = getRandomHex32();
+
+                                const prelimResult = await populateShield(
+                                  TXIDVersion.V2_PoseidonMerkle,
+                                  railgunNetwork,
+                                  dummyShieldPrivateKey,
+                                  erc20AmountRecipients,
+                                  [],
+                                  prelimGasDetails,
+                                );
+
+                                const railgunContractAddress = prelimResult.transaction.to;
+                                if (railgunContractAddress) {
+                                  const tokenContract = new Contract(selectedToken.address, erc20Abi, signer);
+                                  const allowance = await tokenContract.allowance(address, railgunContractAddress);
+                                  const allowanceNumeric = Number(allowance) / Math.pow(10, selectedToken.decimals);
+
+                                  // Use same logic as shieldTransactions.js: min(balance, allowance)
+                                  maxAmount = Math.min(selectedToken.numericBalance, allowanceNumeric);
+
+                                  console.log('[PaymentPage] Max button calculation:', {
+                                    balance: selectedToken.numericBalance,
+                                    allowance: allowanceNumeric,
+                                    maxAmount,
+                                    contractAddress: railgunContractAddress.slice(0, 10) + '...'
+                                  });
+                                }
+                              }
+                            }
+
+                            setAmount(maxAmount.toString());
+                            resetTransactionState();
+                          } catch (error) {
+                            console.warn('[PaymentPage] Error calculating max amount, using balance:', error);
+                            setAmount(selectedToken.numericBalance.toString());
+                            resetTransactionState();
+                          }
+                        }}
                         className="absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded hover:bg-green-900/20"
                       >
                         Max
