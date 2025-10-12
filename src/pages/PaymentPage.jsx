@@ -161,23 +161,8 @@ const PaymentPage = () => {
   // Check if user is on correct network
   const isCorrectNetwork = chainId === targetChainId;
 
-  // Suppress vault/wallet creation on PaymentPage - this is only for paying into other vaults
-  useEffect(() => {
-    try {
-      if (typeof window !== 'undefined') {
-        window.__LEXIE_SUPPRESS_RAILGUN_INIT = true;
-        window.__LEXIE_PAYMENT_PAGE = true; // Additional flag to prevent wallet creation
-      }
-    } catch {}
-    return () => {
-      try {
-        if (typeof window !== 'undefined') {
-          delete window.__LEXIE_SUPPRESS_RAILGUN_INIT;
-          delete window.__LEXIE_PAYMENT_PAGE;
-        }
-      } catch {}
-    };
-  }, []);
+  // PaymentPage needs Railgun engine for shield transaction creation
+  // No suppression needed since we need populateShield functions
 
   // Fetch public balances when connected and on correct network
   useEffect(() => {
@@ -459,10 +444,31 @@ const PaymentPage = () => {
         };
       }
 
+      // Validate parameters before calling populateShield functions
+      console.log('[PaymentPage] Validating shield parameters:', {
+        txidVersion: TXIDVersion.V2_PoseidonMerkle,
+        railgunNetwork,
+        shieldPrivateKey: shieldPrivateKey ? `${shieldPrivateKey.substring(0, 10)}...` : 'undefined',
+        erc20AmountRecipients,
+        resolvedRecipientAddress,
+        weiAmount: weiAmount?.toString(),
+        selectedTokenAddress: selectedToken?.address,
+        prelimGasDetails
+      });
+
+      // Ensure all required parameters are valid
+      if (!railgunNetwork) throw new Error('Railgun network not configured');
+      if (!shieldPrivateKey || typeof shieldPrivateKey !== 'string') throw new Error('Invalid shield private key');
+      if (!resolvedRecipientAddress || !resolvedRecipientAddress.startsWith('0zk')) throw new Error('Invalid recipient Railgun address');
+      if (!weiAmount || weiAmount <= 0n) throw new Error('Invalid amount');
+      if (!Array.isArray(erc20AmountRecipients)) throw new Error('Invalid recipients array');
+
       // Build a preliminary shield tx to get the RAILGUN shield contract (spender)
       let prelimTx;
+      console.log('[PaymentPage] Calling populateShield functions...');
       if (!selectedToken.address) {
         // Native token - use populateShieldBaseToken
+        console.log('[PaymentPage] Using populateShieldBaseToken for native token');
         const wrappedTokenAddress = {
           1: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', // WETH
           137: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', // WMATIC
@@ -473,6 +479,16 @@ const PaymentPage = () => {
         if (!wrappedTokenAddress) {
           throw new Error(`Unsupported chain for native token shielding: ${chainId}`);
         }
+
+        console.log('[PaymentPage] About to call populateShieldBaseToken with:', {
+          txidVersion: TXIDVersion.V2_PoseidonMerkle,
+          railgunNetwork,
+          recipientAddress: resolvedRecipientAddress,
+          shieldPrivateKey: shieldPrivateKey ? 'present' : 'missing',
+          tokenAddress: wrappedTokenAddress,
+          amount: weiAmount.toString(),
+          gasDetails: prelimGasDetails
+        });
 
         const result = await populateShieldBaseToken(
           TXIDVersion.V2_PoseidonMerkle,
@@ -485,6 +501,16 @@ const PaymentPage = () => {
         prelimTx = result.transaction;
       } else {
         // ERC-20 token - use populateShield
+        console.log('[PaymentPage] Using populateShield for ERC-20 token');
+        console.log('[PaymentPage] About to call populateShield with:', {
+          txidVersion: TXIDVersion.V2_PoseidonMerkle,
+          railgunNetwork,
+          shieldPrivateKey: shieldPrivateKey ? 'present' : 'missing',
+          erc20AmountRecipients,
+          commitments: [],
+          gasDetails: prelimGasDetails
+        });
+
         const result = await populateShield(
           TXIDVersion.V2_PoseidonMerkle,
           railgunNetwork,
