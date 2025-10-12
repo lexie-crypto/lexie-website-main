@@ -97,12 +97,11 @@ export default async function handler(req, res) {
       try {
         console.log(`🧠 [CHAT-PROXY-${requestId}] Retrieving conversation context for LexieID: ${lexieId}`);
 
-        // Use the same backend endpoint pattern to get memories
-        const baseUrl = targets[0];
-        const memoryUrl = `${baseUrl.replace('/api/lexie/chat', '/api/lexie/memory')}?action=get-context&lexieId=${encodeURIComponent(lexieId)}&limit=10`;
+        // Use the local memory proxy instead of calling backend directly
+        const memoryUrl = `${req.protocol}://${req.headers.host}/api/memory?action=get-context&lexieId=${encodeURIComponent(lexieId)}&limit=10`;
 
         console.log(`🧠 [CHAT-PROXY-${requestId}] Memory URL: ${memoryUrl}`);
-        console.log(`🧠 [CHAT-PROXY-${requestId}] Base targets:`, targets);
+        console.log(`🧠 [CHAT-PROXY-${requestId}] Host: ${req.headers.host}`);
 
         // Generate HMAC headers specifically for memory endpoint
         const memoryMethod = 'GET';
@@ -288,7 +287,7 @@ export default async function handler(req, res) {
         try {
           console.log(`💾 [CHAT-PROXY-${requestId}] Storing conversation memory for LexieID: ${lexieId}`);
 
-          const memoryUrl = `${targets[0].replace('/api/lexie/chat', '/api/lexie/memory')}?action=store-chat`;
+          const memoryUrl = `${req.protocol}://${req.headers.host}/api/memory?action=store-chat`;
           console.log(`💾 [CHAT-PROXY-${requestId}] Memory storage URL: ${memoryUrl}`);
 
           const memoryPayload = {

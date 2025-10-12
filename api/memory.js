@@ -35,7 +35,7 @@ export default async function handler(req, res) {
     });
   }
 
-  // Set CORS headers
+  // Set CORS headers (same as wallet-metadata.js)
   const origin = req.headers.origin;
   const allowedOrigins = [
     'https://app.lexiecrypto.com',
@@ -74,7 +74,7 @@ export default async function handler(req, res) {
 
     // Always attempt to include HMAC headers if secret is available
     const method = req.method;
-    const backendPath = `/api/lexie/memory${action ? `?action=${action}` : ''}`;
+    const backendPath = `/api/lexie/memory`;
     const timestamp = Date.now().toString();
     const signature = hmacSecret ? generateHmacSignature(method, backendPath, timestamp, hmacSecret) : undefined;
 
