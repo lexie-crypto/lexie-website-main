@@ -297,6 +297,28 @@ const formatTransactionHistoryItem = async (historyItem, chainId) => {
     }
   };
 
+  // Create to/from display field for private transfers
+  let toFrom = null;
+  if (isPrivateTransfer) {
+    if (category === TransactionCategory.TRANSFER_SEND && recipientAddress) {
+      toFrom = {
+        direction: 'to',
+        address: recipientAddress,
+        lexieId: recipientLexieId,
+        display: recipientLexieId ? `@${recipientLexieId}` : `${recipientAddress.slice(0, 8)}...${recipientAddress.slice(-6)}`,
+        fullAddress: recipientAddress
+      };
+    } else if (category === TransactionCategory.TRANSFER_RECEIVE && senderAddress) {
+      toFrom = {
+        direction: 'from',
+        address: senderAddress,
+        lexieId: senderLexieId,
+        display: senderLexieId ? `@${senderLexieId}` : `${senderAddress.slice(0, 8)}...${senderAddress.slice(-6)}`,
+        fullAddress: senderAddress
+      };
+    }
+  }
+
   return {
     txid,
     blockNumber,
@@ -307,6 +329,7 @@ const formatTransactionHistoryItem = async (historyItem, chainId) => {
     description,
     memo: memoText,
     isPrivateTransfer,
+    toFrom, // New to/from field for private transfers
     recipientAddress: recipientAddress, // For send transactions
     senderAddress: senderAddress, // For receive transactions
     recipientLexieId: recipientLexieId, // Lexie ID for recipient
@@ -683,6 +706,14 @@ export const createUITransactionItem = (transaction) => {
       fullId: transaction.txid,
       copy: transaction.copyTxId
     },
+    // To/From display for private transfers
+    toFromDisplay: transaction.toFrom ? {
+      direction: transaction.toFrom.direction,
+      display: transaction.toFrom.display,
+      fullAddress: transaction.toFrom.fullAddress,
+      lexieId: transaction.toFrom.lexieId,
+      label: transaction.toFrom.direction === 'to' ? 'To' : 'From'
+    } : null,
     // Memo display for private transfers
     memoDisplay: transaction.isPrivateTransfer && transaction.memo ? {
       text: transaction.memo,
