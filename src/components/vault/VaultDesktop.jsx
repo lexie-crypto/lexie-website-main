@@ -102,8 +102,7 @@ const TitansGame = ({ lexieId, walletAddress, embedded, theme, onLoad, onError, 
       <iframe
         ref={iframeRef}
         src={gameUrl}
-        className="w-full flex-1 border-0"
-        style={{ minHeight: '100vh' }}
+        className="w-full h-full border-0"
         title="Titans Game"
         onLoad={handleIframeLoad}
         onError={handleIframeError}
@@ -118,18 +117,16 @@ const TitansGame = ({ lexieId, walletAddress, embedded, theme, onLoad, onError, 
 // Titans Game Window Component
 const TitansGameWindow = ({ lexieId, walletAddress, onClose }) => {
   return (
-    <div className="h-full w-full bg-black text-green-300 font-mono overflow-auto scrollbar-terminal">
-      <div className="min-h-full w-full">
-        <TitansGame
-          lexieId={lexieId}
-          walletAddress={walletAddress}
-          embedded={true}
-          theme="terminal"
-          onLoad={() => {}}
-          onError={() => {}}
-          onClose={onClose}
-        />
-      </div>
+    <div className="h-full w-full bg-black">
+      <TitansGame
+        lexieId={lexieId}
+        walletAddress={walletAddress}
+        embedded={true}
+        theme="terminal"
+        onLoad={() => {}}
+        onError={() => {}}
+        onClose={onClose}
+      />
     </div>
   );
 };
