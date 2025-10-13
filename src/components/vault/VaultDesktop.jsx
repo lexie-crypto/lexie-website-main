@@ -987,6 +987,16 @@ const VaultDesktopInner = () => {
     };
     window.addEventListener('vault-initialization-complete', onVaultInitComplete);
 
+    // Force unlock modal immediately when Railgun initialization completes (regardless of chain readiness)
+    const onRailgunInitForceUnlock = () => {
+      console.log('[VaultDesktop] FORCE unlocking modal - Railgun initialization completed');
+      setIsInitInProgress(false);
+      setScanComplete(true);
+      setIsChainReady(true);
+      setInitProgress({ percent: 100, message: 'Vault ready - initialization complete!' });
+    };
+    window.addEventListener('railgun-init-force-unlock', onRailgunInitForceUnlock);
+
       // Handle bootstrap progress updates
       const onBootstrapProgress = (e) => {
         const { chainId: eventChainId, progress } = e.detail;
@@ -1023,6 +1033,7 @@ const VaultDesktopInner = () => {
       window.removeEventListener('railgun-init-completed', onInitCompleted);
       window.removeEventListener('railgun-init-failed', onInitFailed);
       window.removeEventListener('vault-initialization-complete', onVaultInitComplete);
+      window.removeEventListener('railgun-init-force-unlock', onRailgunInitForceUnlock);
       window.removeEventListener('chain-bootstrap-progress', onBootstrapProgress);
     };
   }, [address, chainId, railgunWalletId, network, checkChainReady, showSignRequestPopup]);
