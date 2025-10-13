@@ -59,7 +59,7 @@ export const TransactionCategory = {
  * @param {string} railgunAddress - Railgun address to look up
  * @returns {Promise<string|null>} Lexie ID or null if not found
  */
-const lookupLexieId = async (railgunAddress) => {
+export const lookupLexieId = async (railgunAddress) => {
   if (!railgunAddress || typeof railgunAddress !== 'string') {
     return null;
   }
@@ -898,6 +898,9 @@ export const getPrivateTransfers = async (walletID, chainId, currentWalletAddres
     tx.category === TransactionCategory.TRANSFER_RECEIVE
   );
 };
+
+// Named exports for specific utilities
+export { formatTokenAmount, getTokenDecimals };
 
 // Export for use in other modules
 export default {

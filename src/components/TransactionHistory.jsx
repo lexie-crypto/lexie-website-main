@@ -5,8 +5,51 @@
 
 import React, { useState } from 'react';
 import useTransactionHistory from '../hooks/useTransactionHistory';
-import { TransactionCategory } from '../utils/railgun/transactionHistory';
+import { TransactionCategory, formatTokenAmount, getTokenDecimals, lookupLexieId } from '../utils/railgun/transactionHistory';
 import { useWallet } from '../contexts/WalletContext';
+import { useContacts } from '../hooks/useContacts';
+
+// Component to display Lexie ID or Railgun address
+const LexieIdOrAddress = ({ railgunAddress, fallbackDisplay }) => {
+  const [lexieId, setLexieId] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  React.useEffect(() => {
+    const lookupId = async () => {
+      if (!railgunAddress) return;
+
+      setLoading(true);
+      try {
+        const id = await lookupLexieId(railgunAddress);
+        setLexieId(id);
+      } catch (error) {
+        console.error('Failed to lookup Lexie ID:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    lookupId();
+  }, [railgunAddress]);
+
+  if (loading) {
+    return <span className="text-gray-400">Loading...</span>;
+  }
+
+  return (
+    <span
+      onClick={() => navigator.clipboard.writeText(lexieId || railgunAddress)}
+      className="cursor-pointer hover:text-blue-200 transition-colors select-all"
+      title={`Click to copy ${lexieId ? 'Lexie ID' : 'Railgun address'}`}
+    >
+      {lexieId ? (
+        <span className="text-emerald-300 font-medium">@{lexieId}</span>
+      ) : (
+        fallbackDisplay
+      )}
+    </span>
+  );
+};
 
 const TransactionHistory = () => {
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -14,6 +57,9 @@ const TransactionHistory = () => {
 
   // Debug wallet context values
   const { chainId, railgunWalletId, isRailgunInitialized, canUseRailgun, address } = useWallet();
+
+  // Contacts for address resolution
+  const { contacts, searchContacts } = useContacts();
   
   React.useEffect(() => {
     console.log('[TransactionHistory] Wallet context debug:', {
@@ -40,14 +86,31 @@ const TransactionHistory = () => {
     isEmpty
   } = useTransactionHistory({ autoLoad: true, limit: 100 });
 
+
+  // Find contact name for an address
+  const findContactName = (address) => {
+    if (!address || !contacts.length) return null;
+
+    // Search for contacts by address
+    const matchingContacts = searchContacts(address, 1);
+
+    if (matchingContacts.length > 0) {
+      const contact = matchingContacts[0];
+      // Return contact ID with @ prefix for display
+      return `@${contact.id}`;
+    }
+
+    return null;
+  };
+
   // Get filtered transactions
   const getDisplayTransactions = () => {
     let filtered = getTransactionsByType(selectedCategory);
-    
+
     if (searchQuery.trim()) {
       filtered = searchTransactions(searchQuery);
     }
-    
+
     return filtered;
   };
 
@@ -232,13 +295,16 @@ const TransactionHistory = () => {
                       </div>
                     </div>
                   ))
-                ) : tx.token && tx.amount ? (
+                ) : tx.token && tx.amount !== undefined && tx.amount !== null ? (
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-1 gap-1">
                     <div className="flex items-center space-x-2 min-w-0">
                       <span className="text-green-200 font-medium">{tx.token}</span>
                     </div>
                     <div className="text-green-200 font-medium text-right">
-                      {tx.amount}
+                      {tx.isPrivateTransfer ?
+                        formatTokenAmount(tx.amount.toString(), getTokenDecimals(tx.tokenAddress || tx.token, chainId)) :
+                        tx.amount
+                      }
                     </div>
                   </div>
                 ) : (
@@ -271,31 +337,17 @@ const TransactionHistory = () => {
                     };
                   } else if (tx.transactionType === 'Remove from Vault') {
                     // Unshield transactions: show the EOA that received the funds
+                    const contactName = findContactName(tx.recipientAddress);
                     toFrom = {
                       direction: 'to',
-                      display: tx.recipientAddress
+                      display: contactName || (tx.recipientAddress
                         ? `${tx.recipientAddress.slice(0, 8)}...${tx.recipientAddress.slice(-6)}`
-                        : 'External Address',
+                        : 'External Address'),
                       fullAddress: tx.recipientAddress,
-                      type: tx.recipientAddress ? 'eoa' : 'external'
-                    };
-                  } else if (tx.transactionType === 'Send Transaction' && tx.recipientAddress) {
-                    // Private transfer send
-                    toFrom = {
-                      direction: 'to',
-                      display: tx.recipientAddress.slice(0, 8) + '...' + tx.recipientAddress.slice(-6),
-                      fullAddress: tx.recipientAddress,
-                      type: 'transfer'
-                    };
-                  } else if (tx.transactionType === 'Receive Transaction' && tx.senderAddress) {
-                    // Private transfer receive
-                    toFrom = {
-                      direction: 'from',
-                      display: tx.senderAddress.slice(0, 8) + '...' + tx.senderAddress.slice(-6),
-                      fullAddress: tx.senderAddress,
-                      type: 'transfer'
+                      type: contactName ? 'contact' : (tx.recipientAddress ? 'eoa' : 'external')
                     };
                   }
+                  // Skip To/From display for private transfers - we show Lexie ID/contact info separately
 
                   return toFrom ? (
                     <div className="mt-1 text-blue-300 break-words">
@@ -305,13 +357,36 @@ const TransactionHistory = () => {
                       <span
                         onClick={() => toFrom.fullAddress ? navigator.clipboard.writeText(toFrom.fullAddress) : null}
                         className={`cursor-pointer hover:text-blue-200 transition-colors select-all ${!toFrom.fullAddress ? 'cursor-default' : ''}`}
-                        title={toFrom.fullAddress ? `Click to copy ${toFrom.type === 'vault' ? 'vault reference' : 'address'}` : ''}
+                        title={toFrom.fullAddress ? `Click to copy ${toFrom.type === 'contact' ? 'contact address' : toFrom.type === 'vault' ? 'vault reference' : 'address'}` : ''}
                       >
                         {toFrom.display}
                       </span>
                     </div>
                   ) : null;
                 })()}
+
+                {/* Recipient/Sender Address for Private Transfers */}
+                {tx.isPrivateTransfer && (tx.recipientAddress || tx.senderAddress) && (
+                  <div className="mt-1 text-blue-300 break-words">
+                    {tx.recipientAddress ? (
+                      <div>
+                        <span className="text-blue-400/80">To LexieID: </span>
+                        <LexieIdOrAddress
+                          railgunAddress={tx.recipientAddress}
+                          fallbackDisplay={`${tx.recipientAddress.slice(0, 8)}...${tx.recipientAddress.slice(-6)}`}
+                        />
+                      </div>
+                    ) : tx.senderAddress ? (
+                      <div>
+                        <span className="text-blue-400/80">Sender: </span>
+                        <LexieIdOrAddress
+                          railgunAddress={tx.senderAddress}
+                          fallbackDisplay={`${tx.senderAddress.slice(0, 8)}...${tx.senderAddress.slice(-6)}`}
+                        />
+                      </div>
+                    ) : null}
+                  </div>
+                )}
 
                 {/* Debug logging for memo and address data */}
                 {(() => {
