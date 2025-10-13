@@ -13,13 +13,11 @@ export const RESIZE_DIRECTIONS = {
   SE: 'se'   // Southeast (bottom-right)
 };
 
-// Minimum window dimensions
-const MIN_WIDTH = 300;
-const MIN_HEIGHT = 200;
-
 export const useResize = ({
   initialSize = { width: 800, height: 600 },
   initialPosition = { x: 100, y: 100 },
+  minWidth = 300,
+  minHeight = 200,
   onResizeStart,
   onResizeEnd,
   onSizeChange,
@@ -61,40 +59,40 @@ export const useResize = ({
     // Handle different resize directions
     switch (direction) {
       case RESIZE_DIRECTIONS.E:
-        newWidth = Math.max(MIN_WIDTH, resizeStateRef.current.startSize.width + deltaX);
+        newWidth = Math.max(minWidth, resizeStateRef.current.startSize.width + deltaX);
         break;
       case RESIZE_DIRECTIONS.W:
-        const newWidthW = Math.max(MIN_WIDTH, resizeStateRef.current.startSize.width - deltaX);
+        const newWidthW = Math.max(minWidth, resizeStateRef.current.startSize.width - deltaX);
         newX = resizeStateRef.current.startPosition.x + (resizeStateRef.current.startSize.width - newWidthW);
         newWidth = newWidthW;
         break;
       case RESIZE_DIRECTIONS.S:
-        newHeight = Math.max(MIN_HEIGHT, resizeStateRef.current.startSize.height + deltaY);
+        newHeight = Math.max(minHeight, resizeStateRef.current.startSize.height + deltaY);
         break;
       case RESIZE_DIRECTIONS.N:
-        const newHeightN = Math.max(MIN_HEIGHT, resizeStateRef.current.startSize.height - deltaY);
+        const newHeightN = Math.max(minHeight, resizeStateRef.current.startSize.height - deltaY);
         newY = resizeStateRef.current.startPosition.y + (resizeStateRef.current.startSize.height - newHeightN);
         newHeight = newHeightN;
         break;
       case RESIZE_DIRECTIONS.SE:
-        newWidth = Math.max(MIN_WIDTH, resizeStateRef.current.startSize.width + deltaX);
-        newHeight = Math.max(MIN_HEIGHT, resizeStateRef.current.startSize.height + deltaY);
+        newWidth = Math.max(minWidth, resizeStateRef.current.startSize.width + deltaX);
+        newHeight = Math.max(minHeight, resizeStateRef.current.startSize.height + deltaY);
         break;
       case RESIZE_DIRECTIONS.SW:
-        const newWidthSW = Math.max(MIN_WIDTH, resizeStateRef.current.startSize.width - deltaX);
+        const newWidthSW = Math.max(minWidth, resizeStateRef.current.startSize.width - deltaX);
         newX = resizeStateRef.current.startPosition.x + (resizeStateRef.current.startSize.width - newWidthSW);
         newWidth = newWidthSW;
-        newHeight = Math.max(MIN_HEIGHT, resizeStateRef.current.startSize.height + deltaY);
+        newHeight = Math.max(minHeight, resizeStateRef.current.startSize.height + deltaY);
         break;
       case RESIZE_DIRECTIONS.NE:
-        newWidth = Math.max(MIN_WIDTH, resizeStateRef.current.startSize.width + deltaX);
-        const newHeightNE = Math.max(MIN_HEIGHT, resizeStateRef.current.startSize.height - deltaY);
+        newWidth = Math.max(minWidth, resizeStateRef.current.startSize.width + deltaX);
+        const newHeightNE = Math.max(minHeight, resizeStateRef.current.startSize.height - deltaY);
         newY = resizeStateRef.current.startPosition.y + (resizeStateRef.current.startSize.height - newHeightNE);
         newHeight = newHeightNE;
         break;
       case RESIZE_DIRECTIONS.NW:
-        const newWidthNW = Math.max(MIN_WIDTH, resizeStateRef.current.startSize.width - deltaX);
-        const newHeightNW = Math.max(MIN_HEIGHT, resizeStateRef.current.startSize.height - deltaY);
+        const newWidthNW = Math.max(minWidth, resizeStateRef.current.startSize.width - deltaX);
+        const newHeightNW = Math.max(minHeight, resizeStateRef.current.startSize.height - deltaY);
         newX = resizeStateRef.current.startPosition.x + (resizeStateRef.current.startSize.width - newWidthNW);
         newY = resizeStateRef.current.startPosition.y + (resizeStateRef.current.startSize.height - newHeightNW);
         newWidth = newWidthNW;

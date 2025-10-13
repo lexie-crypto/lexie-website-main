@@ -52,8 +52,8 @@ const WindowShell = ({
   className = '',
   initialPosition = { x: 100, y: 100 },
   initialSize = { width: 800, height: 600 },
-  minWidth = 400,
-  minHeight = 300,
+  minWidth,
+  minHeight,
   maxWidth = 1200,
   maxHeight = 800,
   ...terminalProps
@@ -70,16 +70,21 @@ const WindowShell = ({
     updateFocus
   } = useWindowStore();
 
-  // Safe areas for positioning
-  const { getBounds, clampPosition, top: topSafe, bottom: bottomSafe, left: leftSafe, right: rightSafe } = useSafeAreas();
+  // Safe areas for positioning and responsive sizing
+  const { getBounds, clampPosition, getResponsiveWindowSize, getResponsiveMinSize, top: topSafe, bottom: bottomSafe, left: leftSafe, right: rightSafe } = useSafeAreas();
 
   // Memoize default values to prevent re-registration
   const defaultPosition = React.useMemo(() => ({ x: 200, y: 100 }), []);
-  const defaultSize = React.useMemo(() => ({ width: 900, height: 700 }), []);
+  const defaultSize = React.useMemo(() => getResponsiveWindowSize({ width: 900, height: 700 }), [getResponsiveWindowSize]);
 
-  // Use defaults if props are not provided
+  // Use responsive defaults if props are not provided
   const stableInitialPosition = initialPosition ?? defaultPosition;
   const stableInitialSize = initialSize ?? defaultSize;
+
+  // Use responsive minimum sizes if not provided
+  const responsiveMinSize = React.useMemo(() => getResponsiveMinSize(), [getResponsiveMinSize]);
+  const stableMinWidth = minWidth ?? responsiveMinSize.width;
+  const stableMinHeight = minHeight ?? responsiveMinSize.height;
 
   const windowState = getWindowState(id);
   const windowRef = useRef(null);
@@ -112,6 +117,8 @@ const WindowShell = ({
   const { size: resizeSize, position: resizePosition, isResizing: isWindowResizing, resizeDirection, resizeHandlers, setSize, setPosition: setResizePosition } = useResize({
     initialSize: windowState?.size || stableInitialSize,
     initialPosition: windowState?.position || stableInitialPosition,
+    minWidth: stableMinWidth,
+    minHeight: stableMinHeight,
     onResizeStart: (direction) => {
       bringToFront(id);
     },

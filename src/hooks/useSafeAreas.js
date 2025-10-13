@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 export const useSafeAreas = () => {
   const [safeAreas, setSafeAreas] = useState({
     top: 0,      // Navbar height
-    bottom: 40,  // Taskbar height
+    bottom: 0,   // Taskbar height (responsive)
     left: 0,
     right: 0
   });
@@ -26,9 +26,19 @@ export const useSafeAreas = () => {
       const navbar = document.querySelector('nav, [role="navigation"]');
       const topSafe = navbar ? navbar.offsetHeight : 0;
 
-      // Measure taskbar height (our custom taskbar)
+      // Measure taskbar height (our custom taskbar) - responsive to screen size
       const taskbar = document.querySelector('[role="toolbar"]');
-      const bottomSafe = taskbar ? taskbar.offsetHeight : 40; // fallback to 40px
+      let bottomSafe = taskbar ? taskbar.offsetHeight : 0; // default to 0 for smaller screens
+
+      // On larger screens (>1024px), ensure minimum taskbar space
+      if (window.innerWidth > 1024 && !taskbar) {
+        bottomSafe = 40; // fallback for larger screens
+      }
+
+      // For mobile/smaller screens, reduce safe areas
+      if (window.innerWidth <= 768) {
+        bottomSafe = Math.min(bottomSafe, 32); // cap at 32px on mobile
+      }
 
       // For mobile, add safe areas for notches, etc.
       const leftSafe = window.visualViewport?.offsetLeft || 0;
@@ -117,10 +127,56 @@ export const useSafeAreas = () => {
     return { x: clampedX, y: clampedY };
   }, [getBounds]);
 
+  // Get responsive window sizes based on screen dimensions
+  const getResponsiveWindowSize = useCallback((preferredSize = { width: 800, height: 600 }) => {
+    if (typeof window === 'undefined') return preferredSize;
+
+    const availableWidth = window.innerWidth - safeAreas.left - safeAreas.right;
+    const availableHeight = window.innerHeight - safeAreas.top - safeAreas.bottom;
+
+    // Calculate responsive sizes based on screen breakpoints
+    let responsiveWidth, responsiveHeight;
+
+    if (window.innerWidth <= 640) { // Mobile
+      responsiveWidth = Math.min(availableWidth * 0.95, preferredSize.width * 0.7);
+      responsiveHeight = Math.min(availableHeight * 0.8, preferredSize.height * 0.7);
+    } else if (window.innerWidth <= 1024) { // Tablet/Small laptop
+      responsiveWidth = Math.min(availableWidth * 0.9, preferredSize.width * 0.85);
+      responsiveHeight = Math.min(availableHeight * 0.85, preferredSize.height * 0.85);
+    } else { // Desktop
+      responsiveWidth = Math.min(availableWidth * 0.8, preferredSize.width);
+      responsiveHeight = Math.min(availableHeight * 0.8, preferredSize.height);
+    }
+
+    // Ensure minimum sizes
+    const minWidth = window.innerWidth <= 640 ? 300 : 400;
+    const minHeight = window.innerWidth <= 640 ? 250 : 300;
+
+    return {
+      width: Math.max(minWidth, responsiveWidth),
+      height: Math.max(minHeight, responsiveHeight)
+    };
+  }, [safeAreas]);
+
+  // Get responsive minimum window sizes
+  const getResponsiveMinSize = useCallback(() => {
+    if (typeof window === 'undefined') return { width: 400, height: 300 };
+
+    if (window.innerWidth <= 640) { // Mobile
+      return { width: 300, height: 250 };
+    } else if (window.innerWidth <= 1024) { // Tablet/Small laptop
+      return { width: 350, height: 280 };
+    } else { // Desktop
+      return { width: 400, height: 300 };
+    }
+  }, []);
+
   return {
     ...safeAreas,
     getBounds,
     clampPosition,
+    getResponsiveWindowSize,
+    getResponsiveMinSize,
     measureSafeAreas
   };
 };
