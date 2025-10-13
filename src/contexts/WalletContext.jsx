@@ -2691,9 +2691,7 @@ const WalletContextProvider = ({ children }) => {
         const data = await resp.json();
         const meta = data?.keys?.find((k) => k.walletId === railgunWalletID);
         const scannedChains = meta?.scannedChains || [];
-        // Convert numeric chainId to Railgun format (chainType:chainId) for checking
-        const railgunChainId = `0:${chainId}`;
-        return Array.isArray(scannedChains) && scannedChains.includes(railgunChainId);
+        return Array.isArray(scannedChains) && scannedChains.includes(chainId);
       } catch {
         return false;
       }
