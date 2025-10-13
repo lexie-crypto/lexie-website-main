@@ -22,7 +22,6 @@ import {
 import { useWallet } from '../../contexts/WalletContext';
 import { useWindowStore, WindowProvider } from '../../contexts/windowStore.jsx';
 import { useKeyboardShortcuts } from '../../hooks/useKeyboardShortcuts.js';
-import { useSafeAreas } from '../../hooks/useSafeAreas.js';
 import TerminalWindow from '../ui/TerminalWindow.jsx';
 import WindowShell from '../window/WindowShell.jsx';
 import Taskbar from '../window/Taskbar.jsx';
@@ -104,7 +103,7 @@ const TitansGame = ({ lexieId, walletAddress, embedded, theme, onLoad, onError, 
         ref={iframeRef}
         src={gameUrl}
         className="w-full flex-1 border-0"
-        style={{ minHeight: '500px' }}
+        style={{ minHeight: '100vh' }}
         title="Titans Game"
         onLoad={handleIframeLoad}
         onError={handleIframeError}
@@ -168,9 +167,6 @@ const VaultDesktopInner = () => {
   const { getWindowState, reopenWindow } = useWindowStore();
   useKeyboardShortcuts();
 
-  // Responsive sizing hooks
-  const { getResponsiveWindowSize, getResponsiveMinSize } = useSafeAreas();
-
   // Memoize footer content to prevent re-mounting
   const footerContent = useMemo(() => <span>Process: lexie-vault</span>, []);
 
@@ -179,10 +175,6 @@ const VaultDesktopInner = () => {
     statusLabel: canUseRailgun ? 'ONLINE' : 'WAITING',
     statusTone: canUseRailgun ? 'online' : 'waiting'
   }), [canUseRailgun]);
-
-  // Responsive window sizes for game windows
-  const responsiveGameSize = useMemo(() => getResponsiveWindowSize({ width: 1000, height: 700 }), [getResponsiveWindowSize]);
-  const responsiveGameMinSize = useMemo(() => getResponsiveMinSize(), [getResponsiveMinSize]);
 
   const { providers } = useInjectedProviders();
 
@@ -2326,9 +2318,9 @@ const VaultDesktopInner = () => {
           footerRight={`@lex:${currentLexieId}`}
           variant="game"
           onClose={() => setShowTitansGame(false)}
-          initialSize={responsiveGameSize}
+          initialSize={{ width: 1000, height: 700 }}
           initialPosition={{ x: 50, y: 50 }}
-          minSize={responsiveGameMinSize}
+          minSize={{ width: 800, height: 600 }}
           className="z-[99]"
         >
           <TitansGameWindow
@@ -2351,9 +2343,9 @@ const VaultDesktopInner = () => {
           footerRight="Secure LexieAI Communication Channel"
           variant="vault"
           onClose={() => setShowLexieChat(false)}
-          initialSize={responsiveGameSize}
+          initialSize={{ width: 1000, height: 700 }}
           initialPosition={{ x: 200, y: 100 }}
-          minSize={responsiveGameMinSize}
+          minSize={{ width: 800, height: 600 }}
           className="z-[98]"
         >
           <div className="h-full w-full bg-black relative">
