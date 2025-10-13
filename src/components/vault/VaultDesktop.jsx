@@ -37,6 +37,7 @@ import {
 } from '../../utils/railgun/actions';
 import { deriveEncryptionKey, clearAllWallets } from '../../utils/railgun/wallet';
 import { Navbar } from '../Navbar';
+import AccessCodeGate from '../AccessCodeGate.jsx';
 
 // Titans Game component that loads the actual game from game.lexiecrypto.com
 const TitansGame = ({ lexieId, walletAddress, embedded, theme, onLoad, onError, onClose }) => {
@@ -2423,7 +2424,9 @@ const VaultDesktop = () => {
 
   return (
     <WindowProvider>
-      <VaultDesktopInner />
+      <AccessCodeGate>
+        <VaultDesktopInner />
+      </AccessCodeGate>
     </WindowProvider>
   );
 };

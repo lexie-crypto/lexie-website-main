@@ -85,7 +85,7 @@ const AdminDashboard = () => {
   const [logs, setLogs] = useState([]);
 
   // Tab management
-  const [activeTab, setActiveTab] = useState('compliance'); // 'compliance' or 'points'
+  const [activeTab, setActiveTab] = useState('compliance'); // 'compliance', 'points', or 'access-codes'
 
   // Points tab state
   const [pointsData, setPointsData] = useState([]);
@@ -99,6 +99,13 @@ const AdminDashboard = () => {
   const [analyticsPeriod, setAnalyticsPeriod] = useState('all'); // 'all', '24h', '7d', '30d', '90d', 'custom'
   const [analyticsStartDate, setAnalyticsStartDate] = useState('');
   const [analyticsEndDate, setAnalyticsEndDate] = useState('');
+
+  // Access codes tab state
+  const [accessCodesData, setAccessCodesData] = useState([]);
+  const [isLoadingAccessCodes, setIsLoadingAccessCodes] = useState(false);
+  const [newAccessCode, setNewAccessCode] = useState('');
+  const [isCreatingCode, setIsCreatingCode] = useState(false);
+  const [accessCodesStats, setAccessCodesStats] = useState(null);
 
   // Add log entry - memoized to prevent infinite re-renders
   const addLog = useCallback((message, type = 'info') => {
@@ -292,6 +299,148 @@ const AdminDashboard = () => {
       loadAnalyticsData();
     }
   }, [activeTab, analyticsData, isLoadingAnalytics]);
+
+  // Load access codes data for Access Codes tab
+  const loadAccessCodesData = async () => {
+    setIsLoadingAccessCodes(true);
+    addLog('🔐 Loading access codes data...', 'info');
+
+    try {
+      // Load access codes list
+      const codesResponse = await fetch('/api/access-codes?action=list-access-codes', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Origin': window.location.origin,
+          'User-Agent': navigator.userAgent
+        }
+      });
+
+      if (!codesResponse.ok) {
+        throw new Error(`Access codes fetch failed: ${codesResponse.status}`);
+      }
+
+      const codesResult = await codesResponse.json();
+
+      if (codesResult.success) {
+        setAccessCodesData(codesResult.codes || []);
+        addLog(`✅ Loaded ${codesResult.codes?.length || 0} access codes`, 'success');
+      } else {
+        addLog(`❌ Failed to load access codes: ${codesResult.error || 'Unknown error'}`, 'error');
+      }
+
+      // Load access codes stats
+      const statsResponse = await fetch('/api/access-codes?action=get-access-code-stats', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Origin': window.location.origin,
+          'User-Agent': navigator.userAgent
+        }
+      });
+
+      if (statsResponse.ok) {
+        const statsResult = await statsResponse.json();
+        if (statsResult.success) {
+          setAccessCodesStats(statsResult.stats);
+        }
+      }
+
+    } catch (error) {
+      addLog(`❌ Access codes loading failed: ${error.message}`, 'error');
+      console.error('Access codes loading error:', error);
+    } finally {
+      setIsLoadingAccessCodes(false);
+    }
+  };
+
+  // Create new access code
+  const createAccessCode = async () => {
+    if (!newAccessCode.trim()) {
+      addLog('Please enter an access code', 'error');
+      return;
+    }
+
+    const code = newAccessCode.trim().toUpperCase();
+    if (code.length < 3 || code.length > 15) {
+      addLog('Access code must be 3-15 characters', 'error');
+      return;
+    }
+
+    setIsCreatingCode(true);
+    addLog(`🔐 Creating access code: ${code}`, 'info');
+
+    try {
+      const response = await fetch('/api/access-codes?action=create-access-code', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Origin': window.location.origin,
+          'User-Agent': navigator.userAgent
+        },
+        body: JSON.stringify({
+          code: code,
+          createdBy: 'admin'
+        })
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setNewAccessCode('');
+        addLog(`✅ Access code "${code}" created successfully`, 'success');
+        // Reload access codes data
+        await loadAccessCodesData();
+      } else {
+        addLog(`❌ Failed to create access code: ${result.error || 'Unknown error'}`, 'error');
+      }
+    } catch (error) {
+      addLog(`❌ Access code creation failed: ${error.message}`, 'error');
+      console.error('Access code creation error:', error);
+    } finally {
+      setIsCreatingCode(false);
+    }
+  };
+
+  // Deactivate access code
+  const deactivateAccessCode = async (codeId, code) => {
+    if (!confirm(`Are you sure you want to deactivate access code "${code}"?`)) {
+      return;
+    }
+
+    addLog(`🔒 Deactivating access code: ${code}`, 'info');
+
+    try {
+      const response = await fetch(`/api/access-codes?action=deactivate-access-code&codeId=${codeId}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Origin': window.location.origin,
+          'User-Agent': navigator.userAgent
+        }
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        addLog(`✅ Access code "${code}" deactivated`, 'success');
+        // Reload access codes data
+        await loadAccessCodesData();
+      } else {
+        addLog(`❌ Failed to deactivate access code: ${result.error || 'Unknown error'}`, 'error');
+      }
+    } catch (error) {
+      addLog(`❌ Access code deactivation failed: ${error.message}`, 'error');
+      console.error('Access code deactivation error:', error);
+    }
+  };
+
+  // Load access codes data when Access Codes tab is selected
+  useEffect(() => {
+    if (activeTab === 'access-codes' && accessCodesData.length === 0 && !isLoadingAccessCodes) {
+      loadAccessCodesData();
+    }
+  }, [activeTab, accessCodesData.length, isLoadingAccessCodes]);
 
   // Password authentication UI
   if (!isAuthenticated) {
@@ -804,6 +953,16 @@ ${JSON.stringify(tx, null, 2)}
                 }`}
               >
                 📊 Analytics
+              </button>
+              <button
+                onClick={() => setActiveTab('access-codes')}
+                className={`flex-1 px-6 py-3 rounded-md font-medium transition-colors ${
+                  activeTab === 'access-codes'
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-400 hover:text-white hover:bg-gray-700'
+                }`}
+              >
+                🔐 Access Codes
               </button>
             </div>
           </div>
@@ -1484,6 +1643,166 @@ ${JSON.stringify(tx, null, 2)}
               <div className="bg-gray-900 rounded-md p-4 max-h-64 overflow-y-auto">
                 {logs.length === 0 ? (
                   <p className="text-gray-500 text-center">No logs yet. Analytics activity will be logged here.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {logs.map((log, index) => (
+                      <div key={index} className={`text-sm p-2 rounded-md ${
+                        log.type === 'error' ? 'bg-red-900/30 text-red-300' :
+                        log.type === 'success' ? 'bg-green-900/30 text-green-300' :
+                        log.type === 'warning' ? 'bg-yellow-900/30 text-yellow-300' :
+                        'bg-gray-700/30 text-gray-300'
+                      }`}>
+                        <span className="text-xs text-gray-500 mr-2">
+                          {new Date(log.timestamp).toLocaleTimeString()}
+                        </span>
+                        <span>{log.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Access Codes Tab Content */}
+        {activeTab === 'access-codes' && (
+          <div className="space-y-6">
+            {/* Access Codes Overview */}
+            <div className="bg-gray-800 rounded-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold text-blue-300">🔐 Access Codes Dashboard</h2>
+                <div className="text-sm text-gray-400">
+                  Total Codes: {accessCodesData.length}
+                </div>
+              </div>
+
+              {/* Create New Access Code */}
+              <div className="mb-6 p-4 bg-gray-900 rounded-lg">
+                <h3 className="text-sm font-medium text-gray-300 mb-3">Create New Access Code</h3>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="text"
+                    value={newAccessCode}
+                    onChange={(e) => setNewAccessCode(e.target.value.toUpperCase().slice(0, 15))}
+                    placeholder="Enter access code (3-15 chars)"
+                    className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md focus:ring-blue-500 focus:border-blue-500 text-white font-mono"
+                    onKeyPress={(e) => e.key === 'Enter' && createAccessCode()}
+                  />
+                  <button
+                    onClick={createAccessCode}
+                    disabled={isCreatingCode || !newAccessCode.trim()}
+                    className="px-4 py-2 bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white text-sm font-medium rounded-md transition-colors flex items-center gap-2"
+                  >
+                    {isCreatingCode ? 'Creating...' : 'Create'}
+                  </button>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Codes are case-insensitive and can be used multiple times
+                </p>
+              </div>
+
+              {/* Access Codes Stats */}
+              {accessCodesStats && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                  <div className="bg-gray-900 rounded-lg p-4">
+                    <h3 className="text-lg font-medium text-blue-300 mb-2">Total Codes</h3>
+                    <div className="text-2xl font-bold text-green-300">{accessCodesStats.totalCodes || 0}</div>
+                  </div>
+                  <div className="bg-gray-900 rounded-lg p-4">
+                    <h3 className="text-lg font-medium text-blue-300 mb-2">Active Codes</h3>
+                    <div className="text-2xl font-bold text-green-300">{accessCodesStats.activeCodes || 0}</div>
+                  </div>
+                  <div className="bg-gray-900 rounded-lg p-4">
+                    <h3 className="text-lg font-medium text-blue-300 mb-2">Total Uses</h3>
+                    <div className="text-2xl font-bold text-purple-300">{accessCodesStats.totalUses || 0}</div>
+                  </div>
+                </div>
+              )}
+
+              {/* Loading State */}
+              {isLoadingAccessCodes && (
+                <div className="text-center py-8">
+                  <div className="text-blue-400">Loading access codes...</div>
+                </div>
+              )}
+
+              {/* Access Codes Table */}
+              {!isLoadingAccessCodes && accessCodesData.length > 0 && (
+                <div className="bg-gray-900 rounded-md overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-800">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                            Access Code
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                            Status
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                            Usage Count
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                            Created
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-700">
+                        {accessCodesData.map((code, index) => (
+                          <tr key={index} className="hover:bg-gray-800/50">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-blue-300">
+                              {code.code}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                code.isActive ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'
+                              }`}>
+                                {code.isActive ? 'Active' : 'Inactive'}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-purple-300">
+                              {code.usageCount || 0}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                              {new Date(code.createdAt).toLocaleDateString()}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              {code.isActive && (
+                                <button
+                                  onClick={() => deactivateAccessCode(code.id, code.code)}
+                                  className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs font-medium rounded transition-colors"
+                                >
+                                  Deactivate
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* No Data Message */}
+              {!isLoadingAccessCodes && accessCodesData.length === 0 && (
+                <div className="text-center py-8 text-gray-400">
+                  No access codes found. Create your first access code above.
+                </div>
+              )}
+            </div>
+
+            {/* Activity Logs for Access Codes Tab */}
+            <div className="bg-gray-800 rounded-lg p-6">
+              <h2 className="text-xl font-semibold mb-4 text-blue-300">Activity Logs</h2>
+
+              <div className="bg-gray-900 rounded-md p-4 max-h-64 overflow-y-auto">
+                {logs.length === 0 ? (
+                  <p className="text-gray-500 text-center">No logs yet. Access code activity will be logged here.</p>
                 ) : (
                   <div className="space-y-2">
                     {logs.map((log, index) => (
