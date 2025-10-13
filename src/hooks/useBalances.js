@@ -87,7 +87,7 @@ const CHAIN_RPC_MAPPING = {
 };
 
 export function useBalances() {
-  const { address, chainId, railgunWalletId, isRailgunInitialized } = useWallet();
+  const { address, chainId, railgunWalletId, isRailgunInitialized, ensureChainScanned } = useWallet();
 
   // State
   const [publicBalances, setPublicBalances] = useState([]);
@@ -934,13 +934,37 @@ export function useBalances() {
     try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
     // Clear immediately to avoid showing previous-chain balances
     setPrivateBalances([]);
-    // Load for the active chain
-    loadPrivateBalancesFromMetadata(address, railgunWalletId)
-      .finally(() => {
+
+    // Load for the active chain - ensure chain is scanned first, then SDK refresh if needed
+    (async () => {
+      try {
+        // Ensure chain has been scanned for private transfers
+        console.log('[useBalances] Ensuring chain is scanned on chain switch...');
+        await ensureChainScanned(chainId);
+
+        // If Railgun is initialized, do a full SDK refresh for this chain
+        if (isRailgunInitialized) {
+          console.log('[useBalances] Chain switch - triggering SDK refresh for chain:', chainId);
+          const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
+          await syncBalancesAfterTransaction({
+            walletAddress: address,
+            walletId: railgunWalletId,
+            chainId,
+          });
+        }
+
+        // Load balances from Redis (which should now have fresh data)
+        await loadPrivateBalancesFromMetadata(address, railgunWalletId);
+      } catch (error) {
+        console.warn('[useBalances] Error during chain switch balance refresh:', error);
+        // Fallback to loading from Redis anyway
+        await loadPrivateBalancesFromMetadata(address, railgunWalletId);
+      } finally {
         setIsPrivateBalancesLoading(false);
         try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
-      });
-  }, [chainId]);
+      }
+    })();
+  }, [chainId, address, railgunWalletId, isRailgunInitialized, ensureChainScanned]);
 
   // Load private balances using SDK refresh when Railgun wallet is ready (same as refresh button)
   useEffect(() => {
@@ -952,6 +976,10 @@ export function useBalances() {
       // Use the same SDK refresh + persist logic as the refresh button
       (async () => {
         try {
+          // Step 0: Ensure chain has been scanned for private transfers (critical for discovering transfers before first shield)
+          console.log('[useBalances] Ensuring chain is scanned before initial SDK refresh...');
+          await ensureChainScanned(chainId);
+
           const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
           await syncBalancesAfterTransaction({
             walletAddress: address,
@@ -979,7 +1007,7 @@ export function useBalances() {
         }
       })();
     }
-  }, [railgunWalletId, address, isRailgunInitialized, chainId, bootstrappedChains]);
+  }, [railgunWalletId, address, isRailgunInitialized, chainId, bootstrappedChains, ensureChainScanned]);
 
   // Listen for chain bootstrap completion to sequence balance refresh
   useEffect(() => {
