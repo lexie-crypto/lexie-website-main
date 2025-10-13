@@ -23,12 +23,12 @@ import {
  * @param {string} options.category - Filter by transaction category
  * @returns {Object} Transaction history state and functions
  */
-const useTransactionHistory = ({ 
-  autoLoad = true, 
-  limit = 50, 
-  category = null 
+const useTransactionHistory = ({
+  autoLoad = true,
+  limit = 50,
+  category = null
 } = {}) => {
-  const { chainId, railgunWalletId } = useWallet();
+  const { chainId, railgunWalletId, address } = useWallet();
   
   // State management
   const [transactions, setTransactions] = useState([]);
@@ -50,72 +50,88 @@ const useTransactionHistory = ({
       return;
     }
 
+
     setLoading(true);
     setError(null);
 
     try {
-      console.log('[useTransactionHistory] Loading transaction history:', {
+      console.log('[useTransactionHistory] Loading transaction history from backend API (like AdminHistoryPage):', {
         walletID: railgunWalletId?.slice(0, 8) + '...',
         chainId,
         category,
         limit
       });
 
-      let history = [];
-
-      // Load based on category filter
-      if (category) {
-        switch (category) {
-          case TransactionCategory.SHIELD:
-            history = await getShieldTransactions(railgunWalletId, chainId);
-            break;
-          case TransactionCategory.UNSHIELD:
-            history = await getUnshieldTransactions(railgunWalletId, chainId);
-            break;
-          case 'TRANSFERS':
-            history = await getPrivateTransfers(railgunWalletId, chainId);
-            break;
-          default:
-            history = await getTransactionHistory(railgunWalletId, chainId);
-        }
-      } else if (limit && limit <= 50) {
-        // Use recent history for performance
-        history = await getRecentTransactionHistory(railgunWalletId, chainId);
-      } else {
-        // Load full history
-        history = await getTransactionHistory(railgunWalletId, chainId);
-      }
-
-      // Apply limit if specified
-      if (limit && history.length > limit) {
-        history = history.slice(0, limit);
-      }
-
-      setTransactions(history);
-      setLastUpdated(new Date());
-
-      // Separate by category for quick access
-      const shields = history.filter(tx => tx.category === TransactionCategory.SHIELD);
-      const unshields = history.filter(tx => tx.category === TransactionCategory.UNSHIELD);
-      const transfers = history.filter(tx => 
-        tx.category === TransactionCategory.TRANSFER_SEND || 
-        tx.category === TransactionCategory.TRANSFER_RECEIVE
-      );
-
-      setShieldTransactions(shields);
-      setUnshieldTransactions(unshields);
-      setPrivateTransfers(transfers);
-
-      console.log('[useTransactionHistory] ✅ Transaction history loaded:', {
-        total: history.length,
-        shields: shields.length,
-        unshields: unshields.length,
-        transfers: transfers.length,
-        dateRange: history.length > 0 ? {
-          latest: history[0]?.date?.toLocaleString(),
-          earliest: history[history.length - 1]?.date?.toLocaleString()
-        } : null
+      // Call the wallet-timeline endpoint through the proxy (exactly like AdminHistoryPage)
+      const timelineParams = new URLSearchParams({
+        action: 'wallet-timeline',
+        walletId: railgunWalletId,
+        page: '1',
+        pageSize: limit ? Math.max(limit, 100) : '100' // Get up to 100 transactions or the specified limit
       });
+
+      const timelineResponse = await fetch(`/api/wallet-metadata?${timelineParams}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Origin': window.location.origin,
+          'User-Agent': navigator.userAgent
+        }
+      });
+
+      if (!timelineResponse.ok) {
+        throw new Error(`Timeline fetch failed: ${timelineResponse.status}`);
+      }
+
+      const timelineData = await timelineResponse.json();
+
+      if (timelineData.success) {
+        // Use the already formatted transactions from the backend (exactly like AdminHistoryPage)
+        let history = timelineData.timeline || [];
+
+        // Filter by category if specified (exactly like AdminHistoryPage logic)
+        if (category) {
+          switch (category) {
+            case TransactionCategory.SHIELD:
+              history = history.filter(tx => tx.transactionType === 'Add to Vault');
+              break;
+            case TransactionCategory.UNSHIELD:
+              history = history.filter(tx => tx.transactionType === 'Remove from Vault');
+              break;
+            case 'TRANSFERS':
+              history = history.filter(tx =>
+                tx.transactionType === 'Send Transaction' ||
+                tx.transactionType === 'Receive Transaction'
+              );
+              break;
+            default:
+              // Keep all transactions
+              break;
+          }
+        }
+
+        // Apply limit if specified
+        if (limit && history.length > limit) {
+          history = history.slice(0, limit);
+        }
+
+        setTransactions(history);
+        setLastUpdated(new Date());
+
+        // Separate by category for quick access
+        const shields = history.filter(tx => tx.transactionType === 'Add to Vault');
+        const unshields = history.filter(tx => tx.transactionType === 'Remove from Vault');
+        const transfers = history.filter(tx =>
+          tx.transactionType === 'Send Transaction' ||
+          tx.transactionType === 'Receive Transaction'
+        );
+
+        setShieldTransactions(shields);
+        setUnshieldTransactions(unshields);
+        setPrivateTransfers(transfers);
+      } else {
+        throw new Error(timelineData.error || 'Failed to load timeline');
+      }
 
     } catch (err) {
       console.error('[useTransactionHistory] Failed to load transaction history:', err);

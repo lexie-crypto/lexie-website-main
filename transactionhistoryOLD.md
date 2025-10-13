@@ -13,19 +13,18 @@ const TransactionHistory = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Debug wallet context values
-  const { chainId, railgunWalletId, isRailgunInitialized, canUseRailgun, address } = useWallet();
+  const { chainId, railgunWalletId, isRailgunInitialized, canUseRailgun } = useWallet();
   
   React.useEffect(() => {
     console.log('[TransactionHistory] Wallet context debug:', {
       chainId,
       hasRailgunWalletId: !!railgunWalletId,
       railgunWalletId: railgunWalletId?.slice(0, 8) + '...' || 'null',
-      address: address?.slice(0, 8) + '...' || 'null',
       isRailgunInitialized,
       canUseRailgun,
       userAgent: navigator.userAgent.includes('Mobile') ? 'Mobile' : 'Desktop'
     });
-  }, [chainId, railgunWalletId, isRailgunInitialized, canUseRailgun, address]);
+  }, [chainId, railgunWalletId, isRailgunInitialized, canUseRailgun]);
 
   const {
     transactions,
@@ -203,49 +202,25 @@ const TransactionHistory = () => {
                       {tx.transactionType}
                     </div>
                     <div className="text-green-400/70 text-sm">
-                      Time: {tx.date ? (tx.date instanceof Date ? tx.date.toLocaleString() : new Date(tx.date).toLocaleString()) : 'Unknown time'}
+                      {tx.date ? tx.date.toLocaleString() : 'Unknown time'}
                     </div>
                   </div>
                 </div>
-                {tx.status && (
-                  <span className={`text-xs px-2 py-1 rounded ${
-                    tx.status === 'confirmed' ? 'bg-green-900/30 text-green-300' :
-                    tx.status === 'pending' ? 'bg-yellow-900/30 text-yellow-300' :
-                    'bg-red-900/30 text-red-300'
-                  }`}>
-                    {tx.status}
-                  </span>
-                )}
               </div>
 
               {/* Token Amounts */}
               <div className="mb-3">
-                {tx.tokenAmounts && tx.tokenAmounts.length > 0 ? (
-                  tx.tokenAmounts.map((token, index) => (
-                    <div key={index} className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-1 gap-1">
-                      <div className="flex items-center space-x-2 min-w-0">
-                        <span className="text-green-200 font-medium">{token.symbol}</span>
-                        {/* Token address hidden for cleaner display */}
-                      </div>
-                      <div className="text-green-200 font-medium text-right">
-                        {token.formattedAmount}
-                      </div>
-                    </div>
-                  ))
-                ) : tx.token && tx.amount ? (
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-1 gap-1">
+                {tx.tokenAmounts.map((token, index) => (
+                  <div key={index} className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-1 gap-1">
                     <div className="flex items-center space-x-2 min-w-0">
-                      <span className="text-green-200 font-medium">{tx.token}</span>
+                      <span className="text-green-200 font-medium">{token.symbol}</span>
+                      {/* Token address hidden for cleaner display */}
                     </div>
                     <div className="text-green-200 font-medium text-right">
-                      {tx.amount}
+                      {token.formattedAmount}
                     </div>
                   </div>
-                ) : (
-                  <div className="text-green-400/70 text-sm italic">
-                    No token amounts available
-                  </div>
-                )}
+                ))}
               </div>
 
               {/* Description + Memo */}
@@ -257,104 +232,77 @@ const TransactionHistory = () => {
                   </div>
                 )}
 
-                {/* To/From Display for All Transaction Types */}
-                {(() => {
-                  // Calculate toFrom field exactly like AdminHistoryPage
-                  let toFrom = null;
-
-                  if (tx.transactionType === 'Add to Vault') {
-                    // Shield transactions: show the EOA that initiated the shield
-                    toFrom = {
-                      direction: 'from',
-                      display: 'Your Wallet (EOA)',
-                      type: 'eoa'
-                    };
-                  } else if (tx.transactionType === 'Remove from Vault') {
-                    // Unshield transactions: show the EOA that received the funds
-                    toFrom = {
-                      direction: 'to',
-                      display: tx.recipientAddress
-                        ? `${tx.recipientAddress.slice(0, 8)}...${tx.recipientAddress.slice(-6)}`
-                        : 'External Address',
-                      fullAddress: tx.recipientAddress,
-                      type: tx.recipientAddress ? 'eoa' : 'external'
-                    };
-                  } else if (tx.transactionType === 'Send Transaction' && tx.recipientAddress) {
-                    // Private transfer send
-                    toFrom = {
-                      direction: 'to',
-                      display: tx.recipientAddress.slice(0, 8) + '...' + tx.recipientAddress.slice(-6),
-                      fullAddress: tx.recipientAddress,
-                      type: 'transfer'
-                    };
-                  } else if (tx.transactionType === 'Receive Transaction' && tx.senderAddress) {
-                    // Private transfer receive
-                    toFrom = {
-                      direction: 'from',
-                      display: tx.senderAddress.slice(0, 8) + '...' + tx.senderAddress.slice(-6),
-                      fullAddress: tx.senderAddress,
-                      type: 'transfer'
-                    };
-                  }
-
-                  return toFrom ? (
-                    <div className="mt-1 text-blue-300 break-words">
-                      <span className="text-blue-400/80">
-                        {toFrom.direction === 'to' ? 'To: ' : 'From: '}
-                      </span>
-                      <span
-                        onClick={() => toFrom.fullAddress ? navigator.clipboard.writeText(toFrom.fullAddress) : null}
-                        className={`cursor-pointer hover:text-blue-200 transition-colors select-all ${!toFrom.fullAddress ? 'cursor-default' : ''}`}
-                        title={toFrom.fullAddress ? `Click to copy ${toFrom.type === 'vault' ? 'vault reference' : 'address'}` : ''}
-                      >
-                        {toFrom.display}
-                      </span>
-                    </div>
-                  ) : null;
-                })()}
+                {/* Recipient/Sender Address for Private Transfers */}
+                {tx.isPrivateTransfer && (tx.recipientAddress || tx.senderAddress) && (
+                  <div className="mt-1 text-blue-300 break-words">
+                    {tx.recipientAddress ? (
+                      <div>
+                        <span className="text-blue-400/80">Recipient: </span>
+                        <span
+                          onClick={() => navigator.clipboard.writeText(tx.recipientLexieId || tx.recipientAddress)}
+                          className="cursor-pointer hover:text-blue-200 transition-colors select-all"
+                          title={`Click to copy ${tx.recipientLexieId ? 'Lexie ID' : 'recipient address'}`}
+                        >
+                          {tx.recipientLexieId ? (
+                            <span className="text-emerald-300 font-medium">{tx.recipientLexieId}</span>
+                          ) : (
+                            `${tx.recipientAddress.slice(0, 8)}...${tx.recipientAddress.slice(-6)}`
+                          )}
+                        </span>
+                      </div>
+                    ) : tx.senderAddress ? (
+                      <div>
+                        <span className="text-blue-400/80">Sender: </span>
+                        <span
+                          onClick={() => navigator.clipboard.writeText(tx.senderLexieId || tx.senderAddress)}
+                          className="cursor-pointer hover:text-blue-200 transition-colors select-all"
+                          title={`Click to copy ${tx.senderLexieId ? 'Lexie ID' : 'sender address'}`}
+                        >
+                          {tx.senderLexieId ? (
+                            <span className="text-emerald-300 font-medium">{tx.senderLexieId}</span>
+                          ) : (
+                            `${tx.senderAddress.slice(0, 8)}...${tx.senderAddress.slice(-6)}`
+                          )}
+                        </span>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
 
                 {/* Debug logging for memo and address data */}
-                {(() => {
-                  // Safely log transaction data (avoid BigInt serialization issues)
-                  const safeTxData = {
-                    txid: tx.txid?.substring(0, 10) + '...',
-                    category: tx.category,
-                    isPrivateTransfer: tx.isPrivateTransfer,
-                    hasMemo: !!tx.memo,
-                    memoLength: tx.memo?.length || 0,
-                    hasRecipientAddress: !!tx.recipientAddress,
-                    hasSenderAddress: !!tx.senderAddress,
-                    recipientAddress: tx.recipientAddress?.substring(0, 8) + '...',
-                    senderAddress: tx.senderAddress?.substring(0, 8) + '...',
-                    recipientLexieId: tx.recipientLexieId,
-                    senderLexieId: tx.senderLexieId,
-                    hasToFrom: !!tx.toFrom,
-                    toFromDirection: tx.toFrom?.direction,
-                    toFromDisplay: tx.toFrom?.display,
-                    toFromType: tx.toFrom?.type,
-                    currentWalletAddress: address?.substring(0, 8) + '...'
-                  };
-                  console.log('📧 [TransactionHistory] Rendering transaction with address info:', safeTxData);
-                  return null;
-                })()}
+                {console.log('📧 [TransactionHistory] Rendering transaction with address info:', {
+                  txid: tx.txid?.substring(0, 10) + '...',
+                  category: tx.category,
+                  isPrivateTransfer: tx.isPrivateTransfer,
+                  hasMemo: !!tx.memo,
+                  memoLength: tx.memo?.length || 0,
+                  hasRecipientAddress: !!tx.recipientAddress,
+                  hasSenderAddress: !!tx.senderAddress,
+                  recipientAddress: tx.recipientAddress?.substring(0, 8) + '...',
+                  senderAddress: tx.senderAddress?.substring(0, 8) + '...',
+                  recipientLexieId: tx.recipientLexieId,
+                  senderLexieId: tx.senderLexieId,
+                  displayRecipient: tx.recipientLexieId || tx.recipientAddress?.substring(0, 8) + '...',
+                  displaySender: tx.senderLexieId || tx.senderAddress?.substring(0, 8) + '...'
+                })}
               </div>
 
-              {/* Transaction ID (legacy - keep for backward compatibility) */}
-              <div className="text-green-400/70 text-sm font-mono break-all flex items-center gap-2 mt-3">
+              {/* Transaction ID */}
+              <div className="text-green-400/70 text-sm font-mono break-all flex items-center gap-2">
                 <span className="text-green-400/80">Transaction ID: </span>
                 <span
-                  onClick={() => tx.copyTxId ? tx.copyTxId() : null}
+                  onClick={() => tx.copyTxId()}
                   className="cursor-pointer hover:text-green-300 transition-colors select-all"
                   title="Click to copy Transaction ID"
                 >
-                  {tx.txid || tx.traceId || tx.txHash || tx.id || 'N/A'}
+                  {tx.txid}
                 </span>
-                {(tx.txid || tx.txHash || tx.traceId) && (
+                {getBlockExplorerUrl(tx.chainId, tx.txid) && (
                   <a
-                    href={getBlockExplorerUrl(chainId, tx.txid || tx.txHash || tx.traceId) || `https://etherscan.io/tx/${tx.txid || tx.txHash || tx.traceId}`}
+                    href={getBlockExplorerUrl(tx.chainId, tx.txid)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="text-purple-300 hover:text-purple-200 transition-colors text-xs ml-2"
+                    className="text-purple-300 hover:text-purple-200 transition-colors text-xs"
                     title="View in Block Explorer"
                   >
                     □↗

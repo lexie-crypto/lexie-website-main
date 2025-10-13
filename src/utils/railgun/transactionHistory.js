@@ -98,9 +98,10 @@ const lookupLexieId = async (railgunAddress) => {
  * Format transaction history item for UI display
  * @param {Object} historyItem - Raw history item from RAILGUN
  * @param {number} chainId - Chain ID
+ * @param {string} currentWalletAddress - Current user's EOA address
  * @returns {Object} Formatted transaction object
  */
-const formatTransactionHistoryItem = async (historyItem, chainId) => {
+export const formatTransactionHistoryItem = async (historyItem, chainId, currentWalletAddress = null) => {
   const {
     txid,
     blockNumber,
@@ -115,6 +116,38 @@ const formatTransactionHistoryItem = async (historyItem, chainId) => {
   // Extract memoText from historyItem (not as const since we may reassign it)
   let memoText = historyItem.memoText;
 
+  // Debug: Log all available fields in historyItem for ALL transaction types
+  if (category === TransactionCategory.SHIELD || category === TransactionCategory.UNSHIELD) {
+    console.log('🔍 [TRANSACTION_HISTORY] Shield/Unshield transaction fields:', {
+      txid: txid?.substring(0, 10) + '...',
+      category,
+      allKeys: Object.keys(historyItem),
+      unshieldERC20Amounts: unshieldERC20Amounts?.map(amount => ({
+        ...amount,
+        amount: amount.amount?.toString()
+      })),
+      transferERC20Amounts: transferERC20Amounts?.map(amount => ({
+        ...amount,
+        amount: amount.amount?.toString()
+      })),
+      receiveERC20Amounts: receiveERC20Amounts?.map(amount => ({
+        ...amount,
+        amount: amount.amount?.toString()
+      })),
+      currentWalletAddress: currentWalletAddress?.substring(0, 10) + '...',
+      // Show the full historyItem structure for debugging
+      historyItem: Object.keys(historyItem).reduce((obj, key) => {
+        const value = historyItem[key];
+        obj[key] = Array.isArray(value)
+          ? value.map(item => typeof item === 'object' ? Object.keys(item || {}) : item)
+          : typeof value === 'bigint'
+          ? value.toString()
+          : value;
+        return obj;
+      }, {})
+    });
+  }
+
   // Debug: Log all available fields in historyItem for private transfers
   if (category === TransactionCategory.TRANSFER_SEND || category === TransactionCategory.TRANSFER_RECEIVE) {
     console.log('🔍 [TRANSACTION_HISTORY] Full historyItem fields for private transfer:', {
@@ -124,9 +157,10 @@ const formatTransactionHistoryItem = async (historyItem, chainId) => {
       memoText: historyItem.memoText,
       memoTextType: typeof historyItem.memoText,
       memoType: typeof historyItem.memo,
-      // Check for any other memo-related fields
+      // Check for any other memo-related fields (safely handle BigInts)
       ...Object.keys(historyItem).filter(key => key.toLowerCase().includes('memo')).reduce((obj, key) => {
-        obj[key] = historyItem[key];
+        const value = historyItem[key];
+        obj[key] = typeof value === 'bigint' ? value.toString() : value;
         return obj;
       }, {})
     });
@@ -297,26 +331,88 @@ const formatTransactionHistoryItem = async (historyItem, chainId) => {
     }
   };
 
-  // Create to/from display field for private transfers
+  // Create to/from display field for all transaction types
   let toFrom = null;
-  if (isPrivateTransfer) {
-    if (category === TransactionCategory.TRANSFER_SEND && recipientAddress) {
-      toFrom = {
-        direction: 'to',
-        address: recipientAddress,
-        lexieId: recipientLexieId,
-        display: recipientLexieId ? `@${recipientLexieId}` : `${recipientAddress.slice(0, 8)}...${recipientAddress.slice(-6)}`,
-        fullAddress: recipientAddress
-      };
-    } else if (category === TransactionCategory.TRANSFER_RECEIVE && senderAddress) {
-      toFrom = {
-        direction: 'from',
-        address: senderAddress,
-        lexieId: senderLexieId,
-        display: senderLexieId ? `@${senderLexieId}` : `${senderAddress.slice(0, 8)}...${senderAddress.slice(-6)}`,
-        fullAddress: senderAddress
-      };
+
+  if (category === TransactionCategory.SHIELD) {
+    // Shield transactions: show the EOA that initiated the shield
+    // This is the "from" address (who sent the funds to vault)
+    // For shield, the sender is always the current user
+    toFrom = {
+      direction: 'from',
+      address: currentWalletAddress,
+      display: currentWalletAddress ? `${currentWalletAddress.slice(0, 8)}...${currentWalletAddress.slice(-6)}` : 'Your Wallet',
+      fullAddress: currentWalletAddress,
+      type: 'eoa'
+    };
+  } else if (category === TransactionCategory.UNSHIELD) {
+    // Unshield transactions: Try to find the actual recipient address
+    // The RAILGUN data should contain the unshield destination
+    let recipientAddress = null;
+
+    // First, check transferERC20Amounts - this often contains the final recipient
+    if (!recipientAddress && transferERC20Amounts && transferERC20Amounts.length > 0) {
+      console.log('🔍 [UNSHIELD] Checking transferERC20Amounts:', transferERC20Amounts.map(t => ({
+        recipient: t.recipientAddress,
+        amount: t.amount?.toString()
+      })));
+
+      // Look for transfers that go to external addresses (not the current wallet)
+      const externalTransfers = transferERC20Amounts
+        .filter(t => t.recipientAddress && t.recipientAddress.toLowerCase() !== currentWalletAddress?.toLowerCase())
+        .sort((a, b) => {
+          const aAmount = a.amount ? BigInt(a.amount.toString()) : 0n;
+          const bAmount = b.amount ? BigInt(b.amount.toString()) : 0n;
+          return bAmount > aAmount ? 1 : bAmount < aAmount ? -1 : 0;
+        });
+
+      if (externalTransfers.length > 0) {
+        recipientAddress = externalTransfers[0].recipientAddress;
+        console.log('✅ [UNSHIELD] Found recipient in transferERC20Amounts:', recipientAddress);
+      }
     }
+
+    // If not found, check unshieldERC20Amounts
+    if (!recipientAddress && unshieldERC20Amounts && unshieldERC20Amounts.length > 0) {
+      recipientAddress = unshieldERC20Amounts[0].recipientAddress;
+      console.log('🔍 [UNSHIELD] Found recipient in unshieldERC20Amounts:', recipientAddress);
+    }
+
+    // If not found, check if there's a specific unshieldToAddress field
+    if (!recipientAddress && historyItem.unshieldToAddress) {
+      recipientAddress = historyItem.unshieldToAddress;
+      console.log('🔍 [UNSHIELD] Found recipient in unshieldToAddress:', recipientAddress);
+    }
+
+    toFrom = {
+      direction: 'to',
+      address: recipientAddress,
+      display: recipientAddress
+        ? `${recipientAddress.slice(0, 8)}...${recipientAddress.slice(-6)}`
+        : 'External Address',
+      fullAddress: recipientAddress,
+      type: recipientAddress ? 'eoa' : 'external'
+    };
+  } else if (category === TransactionCategory.TRANSFER_SEND && recipientAddress) {
+    // Private transfer send
+    toFrom = {
+      direction: 'to',
+      address: recipientAddress,
+      lexieId: recipientLexieId,
+      display: recipientLexieId ? `@${recipientLexieId}` : `${recipientAddress.slice(0, 8)}...${recipientAddress.slice(-6)}`,
+      fullAddress: recipientAddress,
+      type: 'transfer'
+    };
+  } else if (category === TransactionCategory.TRANSFER_RECEIVE && senderAddress) {
+    // Private transfer receive
+    toFrom = {
+      direction: 'from',
+      address: senderAddress,
+      lexieId: senderLexieId,
+      display: senderLexieId ? `@${senderLexieId}` : `${senderAddress.slice(0, 8)}...${senderAddress.slice(-6)}`,
+      fullAddress: senderAddress,
+      type: 'transfer'
+    };
   }
 
   return {
@@ -533,9 +629,10 @@ const formatTokenAmount = (amount, decimals) => {
  * @param {string} walletID - RAILGUN wallet ID
  * @param {number} chainId - Chain ID to filter by
  * @param {number} startingBlock - Optional starting block number
+ * @param {string} currentWalletAddress - Current user's EOA address
  * @returns {Array} Array of formatted transaction history items for the specified chain
  */
-export const getTransactionHistory = async (walletID, chainId, startingBlock = null) => {
+export const getTransactionHistory = async (walletID, chainId, startingBlock = null, currentWalletAddress = null) => {
   try {
     await waitForRailgunReady();
     
@@ -593,7 +690,7 @@ export const getTransactionHistory = async (walletID, chainId, startingBlock = n
     
     // Format for UI display (handle async Lexie ID lookups)
     const formattedHistory = await Promise.all(
-      rawHistory.map(item => formatTransactionHistoryItem(item, chainId))
+      rawHistory.map(item => formatTransactionHistoryItem(item, chainId, currentWalletAddress))
     );
     
     // Sort by timestamp (most recent first)
@@ -632,11 +729,12 @@ export const getTransactionHistory = async (walletID, chainId, startingBlock = n
  * Get recent transaction history (last 50 transactions)
  * @param {string} walletID - RAILGUN wallet ID
  * @param {number} chainId - Chain ID
+ * @param {string} currentWalletAddress - Current user's EOA address
  * @returns {Array} Recent transactions
  */
-export const getRecentTransactionHistory = async (walletID, chainId) => {
+export const getRecentTransactionHistory = async (walletID, chainId, currentWalletAddress = null) => {
   try {
-    const history = await getTransactionHistory(walletID, chainId);
+    const history = await getTransactionHistory(walletID, chainId, null, currentWalletAddress);
     return history.slice(0, 50); // Return last 50 transactions
   } catch (error) {
     console.error('[TransactionHistory] Failed to get recent history:', error);
@@ -649,11 +747,12 @@ export const getRecentTransactionHistory = async (walletID, chainId) => {
  * @param {string} walletID - RAILGUN wallet ID
  * @param {number} chainId - Chain ID
  * @param {string} category - Transaction category to filter by
+ * @param {string} currentWalletAddress - Current user's EOA address
  * @returns {Array} Filtered transactions
  */
-export const getTransactionHistoryByCategory = async (walletID, chainId, category) => {
+export const getTransactionHistoryByCategory = async (walletID, chainId, category, currentWalletAddress = null) => {
   try {
-    const history = await getTransactionHistory(walletID, chainId);
+    const history = await getTransactionHistory(walletID, chainId, null, currentWalletAddress);
     return history.filter(tx => tx.category === category);
   } catch (error) {
     console.error('[TransactionHistory] Failed to get categorized history:', error);
@@ -664,9 +763,10 @@ export const getTransactionHistoryByCategory = async (walletID, chainId, categor
 /**
  * Get transaction history for current wallet on specific chain (convenience function)
  * @param {number} chainId - Chain ID to get transactions for
+ * @param {string} currentWalletAddress - Current user's EOA address
  * @returns {Array} Transaction history for current wallet on specified chain
  */
-export const getCurrentWalletTransactionHistory = async (chainId) => {
+export const getCurrentWalletTransactionHistory = async (chainId, currentWalletAddress = null) => {
   try {
     const walletID = getCurrentWalletID();
     if (!walletID) {
@@ -674,7 +774,7 @@ export const getCurrentWalletTransactionHistory = async (chainId) => {
     }
 
     console.log('[TransactionHistory] Getting current wallet history for chain:', chainId);
-    return await getTransactionHistory(walletID, chainId);
+    return await getTransactionHistory(walletID, chainId, null, currentWalletAddress);
   } catch (error) {
     console.error('[TransactionHistory] Failed to get current wallet history:', error);
     return [];
@@ -684,11 +784,12 @@ export const getCurrentWalletTransactionHistory = async (chainId) => {
 /**
  * Get transaction history for current wallet on current chain only
  * @param {number} chainId - Current chain ID
+ * @param {string} currentWalletAddress - Current user's EOA address
  * @returns {Array} Transaction history filtered to current chain
  */
-export const getCurrentChainTransactionHistory = async (chainId) => {
+export const getCurrentChainTransactionHistory = async (chainId, currentWalletAddress = null) => {
   console.log('[TransactionHistory] 🔍 Getting transaction history for current chain only:', chainId);
-  return await getCurrentWalletTransactionHistory(chainId);
+  return await getCurrentWalletTransactionHistory(chainId, currentWalletAddress);
 };
 
 /**
@@ -706,13 +807,14 @@ export const createUITransactionItem = (transaction) => {
       fullId: transaction.txid,
       copy: transaction.copyTxId
     },
-    // To/From display for private transfers
+    // To/From display for all transaction types
     toFromDisplay: transaction.toFrom ? {
       direction: transaction.toFrom.direction,
       display: transaction.toFrom.display,
       fullAddress: transaction.toFrom.fullAddress,
       lexieId: transaction.toFrom.lexieId,
-      label: transaction.toFrom.direction === 'to' ? 'To' : 'From'
+      label: transaction.toFrom.direction === 'to' ? 'To' : 'From',
+      type: transaction.toFrom.type // 'vault' or 'transfer'
     } : null,
     // Memo display for private transfers
     memoDisplay: transaction.isPrivateTransfer && transaction.memo ? {
@@ -764,32 +866,35 @@ const getChainName = (chainId) => {
  * Get shield transactions only
  * @param {string} walletID - RAILGUN wallet ID
  * @param {number} chainId - Chain ID
+ * @param {string} currentWalletAddress - Current user's EOA address
  * @returns {Array} Shield transactions
  */
-export const getShieldTransactions = async (walletID, chainId) => {
-  return await getTransactionHistoryByCategory(walletID, chainId, TransactionCategory.SHIELD);
+export const getShieldTransactions = async (walletID, chainId, currentWalletAddress = null) => {
+  return await getTransactionHistoryByCategory(walletID, chainId, TransactionCategory.SHIELD, currentWalletAddress);
 };
 
 /**
  * Get unshield transactions only
  * @param {string} walletID - RAILGUN wallet ID
+ * @param {number} currentWalletAddress - Current user's EOA address
  * @param {number} chainId - Chain ID
  * @returns {Array} Unshield transactions
  */
-export const getUnshieldTransactions = async (walletID, chainId) => {
-  return await getTransactionHistoryByCategory(walletID, chainId, TransactionCategory.UNSHIELD);
+export const getUnshieldTransactions = async (walletID, chainId, currentWalletAddress = null) => {
+  return await getTransactionHistoryByCategory(walletID, chainId, TransactionCategory.UNSHIELD, currentWalletAddress);
 };
 
 /**
  * Get private transfer transactions only
  * @param {string} walletID - RAILGUN wallet ID
  * @param {number} chainId - Chain ID
+ * @param {string} currentWalletAddress - Current user's EOA address
  * @returns {Array} Private transfer transactions
  */
-export const getPrivateTransfers = async (walletID, chainId) => {
-  const history = await getTransactionHistory(walletID, chainId);
-  return history.filter(tx => 
-    tx.category === TransactionCategory.TRANSFER_SEND || 
+export const getPrivateTransfers = async (walletID, chainId, currentWalletAddress = null) => {
+  const history = await getTransactionHistory(walletID, chainId, null, currentWalletAddress);
+  return history.filter(tx =>
+    tx.category === TransactionCategory.TRANSFER_SEND ||
     tx.category === TransactionCategory.TRANSFER_RECEIVE
   );
 };
