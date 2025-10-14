@@ -18,26 +18,18 @@ export function Navbar() {
           LEXIEAI
         </a>
 
-        {/* Desktop Navigation - Center */}
-        <div className="hidden md:flex absolute left-1/2 transform -translate-x-1/2 space-x-8">
-          <a href="#features" className="text-lg font-bold text-purple-300 hover:text-purple-100 transition-all duration-200">
-            Features
-          </a>
-          <a href="/docs" className="text-lg font-bold text-purple-300 hover:text-purple-100 transition-all duration-200">
+        {/* Desktop Navigation - Right */}
+        <div className="hidden md:flex items-center space-x-6">
+          <a href="https://lexie-crypto.gitbook.io/lexie-crypto/" className="text-lg font-bold text-purple-300 hover:text-purple-100 transition-all duration-200">
             Documentation
           </a>
-          <a href="#faqs" className="text-lg font-bold text-purple-300 hover:text-purple-100 transition-all duration-200">
-            FAQs
+          <a
+            href="https://staging.app.lexiecrypto.com/lexievault"
+            className="inline-flex items-center px-6 py-2 bg-purple-300 text-black font-bold rounded-lg shadow-lg hover:bg-purple-300 transition-all duration-300 transform hover:scale-105"
+          >
+            Launch App →
           </a>
         </div>
-
-        {/* Launch App Button - Far Right */}
-        <a
-          href="https://staging.app.lexiecrypto.com/lexievault"
-          className="hidden md:inline-flex items-center px-6 py-2 bg-purple-300 text-black font-bold rounded-lg shadow-lg hover:bg-purple-300 transition-all duration-300 transform hover:scale-105"
-        >
-          Launch App →
-        </a>
 
         {/* Mobile Menu Button */}
         <button
@@ -55,14 +47,8 @@ export function Navbar() {
       {isMobileMenuOpen && (
         <div className="md:hidden bg-black border-t border-purple-800">
           <div className="px-6 py-4 space-y-4">
-            <a href="#features" className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors" onClick={() => setIsMobileMenuOpen(false)}>
-              Features
-            </a>
-            <a href="/docs" className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors" onClick={() => setIsMobileMenuOpen(false)}>
+            <a href="https://lexie-crypto.gitbook.io/lexie-crypto/" className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors" onClick={() => setIsMobileMenuOpen(false)}>
               Docs
-            </a>
-            <a href="#faqs" className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors" onClick={() => setIsMobileMenuOpen(false)}>
-              FAQs
             </a>
             <a
               href="https://app.lexiecrypto.com"
