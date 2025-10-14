@@ -64,34 +64,6 @@ const AccessCodeGate = ({ children }) => {
     }
   };
 
-  // Handle logout (clear access)
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    localStorage.removeItem('app_access_granted');
-    localStorage.removeItem('access_code_used');
-    setAccessCode('');
-    setError('');
-  };
-
-  // If authenticated, show children
-  if (isAuthenticated) {
-    return (
-      <div className="relative">
-        {/* Logout button positioned in top-right */}
-        <div className="fixed top-4 right-4 z-50">
-          <button
-            onClick={handleLogout}
-            className="bg-black/80 hover:bg-red-900/30 text-red-300 px-3 py-2 rounded text-sm border border-red-500/40 hover:border-red-400 transition-colors font-mono"
-            title="Clear access and return to access code screen"
-          >
-            🚪 Clear Access
-          </button>
-        </div>
-        {children}
-      </div>
-    );
-  }
-
   // Access code authentication screen
   return (
     <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
@@ -169,7 +141,7 @@ const AccessCodeGate = ({ children }) => {
                         onClick={() => setShowCode(!showCode)}
                         className="absolute right-3 top-1/2 transform -translate-y-1/2 text-green-400/60 hover:text-green-400 transition-colors"
                       >
-                        {showCode ? '🙈' : '👁️'}
+                        {showCode ? '👁️‍🗨️' : '👁️'}
                       </button>
                     </div>
                   </div>
@@ -186,7 +158,7 @@ const AccessCodeGate = ({ children }) => {
                   <button
                     type="submit"
                     disabled={isVerifying || !accessCode.trim()}
-                    className="w-full px-4 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-gray-600 disabled:cursor-not-allowed rounded-md transition-colors font-medium font-mono text-black"
+                    className="w-full px-4 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-green-900 disabled:cursor-not-allowed rounded-md transition-colors font-medium font-mono text-black"
                   >
                     {isVerifying ? '🔍 VERIFYING...' : '🔓 ACCESS VAULT'}
                   </button>
