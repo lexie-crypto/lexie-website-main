@@ -858,7 +858,20 @@ const WalletContextProvider = ({ children }) => {
       // Light cleanup of storage and globals without heavy timers/reload
       try {
         if (typeof window !== 'undefined') {
+          // Preserve access code authentication across disconnects
+          const accessGranted = localStorage.getItem('app_access_granted');
+          const accessCodeUsed = localStorage.getItem('access_code_used');
+
           try { localStorage.clear(); } catch {}
+
+          // Restore access code authentication
+          if (accessGranted) {
+            try { localStorage.setItem('app_access_granted', accessGranted); } catch {}
+          }
+          if (accessCodeUsed) {
+            try { localStorage.setItem('access_code_used', accessCodeUsed); } catch {}
+          }
+
           try { sessionStorage.clear(); } catch {}
           delete window.__RAILGUN_INITIAL_SCAN_DONE;
           delete window.__LEXIE_ENGINE_READY;
