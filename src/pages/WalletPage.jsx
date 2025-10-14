@@ -1,8 +1,9 @@
 /**
- * Wallet Page Wrapper - decides mobile vs desktop before loading wallet logic
+ * Wallet Page Wrapper - gates access with access codes before loading wallet logic
  */
 
 import React, { useEffect, useState } from 'react';
+import AccessCodeGate from '../components/AccessCodeGate.jsx';
 
 const WalletPage = () => {
   const [isMobile, setIsMobile] = useState(false);
@@ -26,20 +27,30 @@ const WalletPage = () => {
 
   if (!isReady) return null;
 
-  if (isMobile) {
-    const VaultMobileFallback = React.lazy(() => import('../components/vault/VaultMobileFallback.jsx'));
+  // Create the wallet content based on mobile/desktop detection
+  const renderWalletContent = () => {
+    if (isMobile) {
+      const VaultMobileFallback = React.lazy(() => import('../components/vault/VaultMobileFallback.jsx'));
+      return (
+        <React.Suspense fallback={null}>
+          <VaultMobileFallback />
+        </React.Suspense>
+      );
+    }
+
+    const VaultDesktop = React.lazy(() => import('../components/vault/VaultDesktop.jsx'));
     return (
       <React.Suspense fallback={null}>
-        <VaultMobileFallback />
+        <VaultDesktop />
       </React.Suspense>
     );
-  }
+  };
 
-  const VaultDesktop = React.lazy(() => import('../components/vault/VaultDesktop.jsx'));
+  // Wrap the entire wallet experience with access code gate
   return (
-    <React.Suspense fallback={null}>
-      <VaultDesktop />
-    </React.Suspense>
+    <AccessCodeGate>
+      {renderWalletContent()}
+    </AccessCodeGate>
   );
 };
 
