@@ -1962,18 +1962,6 @@ const VaultDesktopInner = () => {
               <div className="flex items-center gap-3">
                 <span className="text-sm tracking-wide text-gray-400">lexie-id-setup</span>
               </div>
-              <button
-                onClick={() => {
-                  setShowLexieModal(false);
-                  setLexieNeedsCode(false);
-                  setLexieCode('');
-                  setLexieMessage('');
-                  setLexieIdInput('');
-                }}
-                className="text-green-400/70 hover:text-green-300 transition-colors"
-              >
-                ✕
-              </button>
             </div>
 
             {/* Modal Content */}
