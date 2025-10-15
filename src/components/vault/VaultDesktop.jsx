@@ -716,7 +716,10 @@ const VaultDesktopInner = () => {
   // Re-check readiness immediately after scan completes
   useEffect(() => {
     const onScanComplete = () => {
+      console.log('[VaultDesktop] Chain scanning completed - unlocking modal');
       setScanComplete(true);
+      setIsInitInProgress(false); // Unlock modal now that scanning is complete
+      setInitProgress({ percent: 100, message: 'Vault ready - initialization complete!' });
       setIsChainReady(false);
       checkChainReady().then((ready) => setIsChainReady(!!ready)).catch(() => setIsChainReady(false));
     };
@@ -987,13 +990,12 @@ const VaultDesktopInner = () => {
     };
     window.addEventListener('vault-initialization-complete', onVaultInitComplete);
 
-    // Force unlock modal immediately when Railgun initialization completes (regardless of chain readiness)
+    // Railgun initialization completed - only unlock modal if scanning is also complete
     const onRailgunInitForceUnlock = () => {
-      console.log('[VaultDesktop] FORCE unlocking modal - Railgun initialization completed');
-      setIsInitInProgress(false);
-      setScanComplete(true);
-      setIsChainReady(true);
-      setInitProgress({ percent: 100, message: 'Vault ready - initialization complete!' });
+      console.log('[VaultDesktop] Railgun initialization completed - modal will unlock when scanning completes');
+      // Don't set isInitInProgress=false here - wait for scanning to complete
+      // Don't set scanComplete=true here - let actual scanning completion do that
+      setInitProgress({ percent: 95, message: 'Railgun ready - completing chain scan...' });
     };
     window.addEventListener('railgun-init-force-unlock', onRailgunInitForceUnlock);
 
@@ -2442,3 +2444,6 @@ const VaultDesktop = () => {
 };
 
 export default VaultDesktop;
+
+
+

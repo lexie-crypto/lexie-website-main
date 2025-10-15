@@ -343,35 +343,9 @@ const WalletContextProvider = ({ children }) => {
   const lastInitializedAddressRef = useRef(null);
 
   // Ensure initial full scan is completed for a given chain before user transacts
-  const ensureChainScanned = useCallback(async (targetChainId, options = {}) => {
-    const { skipIfWalletExists = false } = options;
+  const ensureChainScanned = useCallback(async (targetChainId) => {
     try {
       if (!isConnected || !address || !railgunWalletID) return;
-
-      // 🛡️ RACE CONDITION PREVENTION: Check if user already has complete wallet setup
-      // If they do, skip ALL chain scanning to prevent false rescans after deployments
-      if (skipIfWalletExists) {
-        console.log(`[Railgun Init] ⏭️ Skipping chain scan for ${targetChainId} - wallet exists flag set`);
-        return;
-      }
-
-      // Additional check: verify wallet is actually complete in Redis
-      try {
-        const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-        if (resp.ok) {
-          const json = await resp.json();
-          const metaKey = json?.keys?.find((k) => k.walletId === railgunWalletID) || null;
-
-          // If wallet has railgunAddress and crossDeviceReady, it's a complete setup - skip scanning
-          if (metaKey?.railgunAddress && metaKey?.crossDeviceReady) {
-            console.log(`[Railgun Init] ⏭️ Skipping chain scan for ${targetChainId} - wallet already fully set up in Redis`);
-            return;
-          }
-        }
-      } catch (redisError) {
-        console.warn('[Railgun Init] ⚠️ Could not verify wallet setup status:', redisError);
-        // Continue with normal checks if Redis check fails
-      }
 
       // Resolve Railgun chain config by chainId
       const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
@@ -458,7 +432,8 @@ const WalletContextProvider = ({ children }) => {
                 onComplete: async () => {
                   console.log(`[Railgun Init] 🚀 Chain ${railgunChain.id} bootstrap loaded successfully`);
 
-                  // Mark chain as scanned and hydrated in Redis metadata since we loaded bootstrap data
+                  // Mark chain as hydrated in Redis metadata since we loaded bootstrap data
+                  // Note: scannedChains will only be marked when modal unlocks to prevent premature marking
                   try {
                     const resp = await fetch('/api/wallet-metadata?action=persist-metadata', {
                       method: 'POST',
@@ -467,17 +442,16 @@ const WalletContextProvider = ({ children }) => {
                         walletAddress: address,
                         walletId: railgunWalletID,
                         railgunAddress: railgunAddress,
-                        scannedChains: [railgunChain.id], // Mark this chain as scanned
-                        hydratedChains: [railgunChain.id] // Mark this chain as hydrated
+                        hydratedChains: [railgunChain.id] // Mark this chain as hydrated only
                       })
                     });
                     if (resp.ok) {
-                      console.log(`[Railgun Init] ✅ Marked scannedChains += ${railgunChain.id} and hydratedChains += ${railgunChain.id}`);
+                      console.log(`[Railgun Init] ✅ Marked hydratedChains += ${railgunChain.id} (scannedChains will be marked on modal unlock)`);
                     } else {
-                      console.error(`[Railgun Init] ❌ Failed to mark scannedChains and hydratedChains += ${railgunChain.id}:`, await resp.text());
+                      console.error(`[Railgun Init] ❌ Failed to mark hydratedChains += ${railgunChain.id}:`, await resp.text());
                     }
                   } catch (err) {
-                    console.warn('[Railgun Init] Failed to update scanned and hydrated chains:', err);
+                    console.warn('[Railgun Init] Failed to update hydrated chains:', err);
                   }
                 },
                 onError: (error) => {
@@ -1000,18 +974,6 @@ const WalletContextProvider = ({ children }) => {
       console.warn('[WalletContext] Redis wallet metadata check failed, falling back to localStorage:', redisError);
     }
     
-    // 🛡️ RACE CONDITION PREVENTION: If user already has complete wallet setup,
-    // set flag to skip ALL modal flows and chain scanning
-    let skipModalFlows = false;
-    if (redisWalletData?.walletId && redisWalletData?.railgunAddress && redisWalletData?.crossDeviceReady) {
-      console.log('[WalletContext] 🎉 User already has complete wallet setup - will skip modals and rescanning', {
-        walletId: redisWalletData.walletId.slice(0, 8) + '...',
-        railgunAddress: redisWalletData.railgunAddress.slice(0, 8) + '...',
-        crossDeviceReady: redisWalletData.crossDeviceReady
-      });
-      skipModalFlows = true; // Flag to skip Lexie ID modals and prevent duplicate scanning
-    }
-
     // ✅ REDIS-ONLY: Pure cross-device persistence (no localStorage fallback)
     if (redisWalletData?.crossDeviceReady) {
       console.log('[WalletContext] 🚀 Using COMPLETE wallet data from Redis - true cross-device access!', {
@@ -1156,8 +1118,6 @@ const WalletContextProvider = ({ children }) => {
 
             if (alreadyHydrated || isHydrating) {
               console.log(`🚀 Skipping chain bootstrap - chain ${chainId} already ${alreadyHydrated ? 'hydrated' : 'hydrating'}`);
-            } else if (skipModalFlows) {
-              console.log(`🚀 Skipping chain bootstrap - wallet already exists completely`);
             } else {
               console.log('🚀 Checking for chain bootstrap data for existing wallet...');
 
@@ -1182,7 +1142,8 @@ const WalletContextProvider = ({ children }) => {
                   onComplete: async () => {
                     console.log(`🚀 Chain ${chainId} bootstrap completed successfully for existing wallet`);
 
-                    // Mark chain as scanned and hydrated in Redis metadata since we loaded bootstrap data
+                    // Mark chain as hydrated in Redis metadata since we loaded bootstrap data
+                    // Note: scannedChains will only be marked when modal unlocks to prevent premature marking
                     try {
                       const persistResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
                         method: 'POST',
@@ -1191,13 +1152,12 @@ const WalletContextProvider = ({ children }) => {
                           walletAddress: address,
                           walletId: railgunWalletInfo.id,
                           railgunAddress: existingRailgunAddress,
-                          scannedChains: [chainId], // Mark this chain as scanned
-                          hydratedChains: [chainId] // Mark this chain as hydrated
+                          hydratedChains: [chainId] // Mark this chain as hydrated only
                         })
                       });
 
                       if (persistResp.ok) {
-                        console.log(`✅ Marked scannedChains += ${chainId} and hydratedChains += ${chainId} after bootstrap loading`);
+                        console.log(`✅ Marked hydratedChains += ${chainId} after bootstrap loading (scannedChains will be marked on modal unlock)`);
 
                         // Only emit completion event after successful persistence
                         try {
@@ -1443,38 +1403,9 @@ const WalletContextProvider = ({ children }) => {
                   window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
                   window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id] = true;
                 }
-                // Persist scannedChains to Redis metadata
-                try {
-                  const getResp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-                  let existing = {};
-                  let scannedChains = [];
-                  if (getResp.ok) {
-                    const data = await getResp.json();
-                    const metaKey = data?.keys?.find((k) => k.walletId === railgunWalletInfo.id);
-                    if (metaKey) {
-                      scannedChains = Array.from(new Set([...(metaKey.scannedChains || []), railgunChain.id]));
-                      existing = {
-                        railgunAddress: metaKey.railgunAddress,
-                        signature: metaKey.signature,
-                        encryptedMnemonic: metaKey.encryptedMnemonic,
-                        privateBalances: metaKey.privateBalances,
-                        scannedChains,
-                      };
-                    }
-                  }
-                  const persistResp = await fetch('/api/wallet-metadata', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ walletAddress: address, walletId: railgunWalletInfo.id, ...existing })
-                  });
-                  if (persistResp.ok) {
-                    console.log('[Railgun Init] 💾 Persisted scannedChains to Redis:', {
-                      chainId: railgunChain.id,
-                      walletId: railgunWalletInfo.id?.slice(0,8) + '...'
-                    });
-                  }
-                } catch {}
-                console.log('[Railgun Init] ✅ Initial scan complete for chain', railgunChain.id);
+                // Note: scannedChains will only be marked when modal unlocks to prevent premature marking
+                // This ensures that if user refreshes before modal unlocks, scanning will restart
+                console.log('[Railgun Init] ✅ Initial scan complete for chain (scannedChains will be marked on modal unlock)', railgunChain.id);
               }
             } catch (e) {
               console.warn('[Railgun Init] ⚠️ Failed to read scannedChains from Redis, proceeding with scan:', e?.message);
@@ -1882,31 +1813,21 @@ const WalletContextProvider = ({ children }) => {
               
               console.log('🎉 Wallet is now accessible from ANY device/browser!');
 
-              // 🛡️ SKIP MODALS: If wallet already existed, skip Lexie ID modal flows
-              if (skipModalFlows) {
-                console.log('[WalletContext] ⏭️ Skipping Lexie ID modal flows - wallet already exists');
-              } else {
-                // DIRECT FLAG: Set flag to show Lexie ID modal
-                // NEW: Show Lexie ID choice modal instead of direct Lexie ID modal
-                setShowLexieIdChoiceModal(true);
-              }
+              // DIRECT FLAG: Set flag to show Lexie ID modal
+              // NEW: Show Lexie ID choice modal instead of direct Lexie ID modal
+              setShowLexieIdChoiceModal(true);
 
-              // Handle modal flow (skip if wallet already exists)
-              let userWantsLexieId = false; // Default for skipped flows
+              // Create promise that resolves when user makes choice (blocks until Yes/No clicked)
+              const choicePromise = new Promise((resolve) => {
+                setLexieIdChoicePromise({ resolve });
+              });
 
-              if (!skipModalFlows) {
-                // Create promise that resolves when user makes choice (blocks until Yes/No clicked)
-                const choicePromise = new Promise((resolve) => {
-                  setLexieIdChoicePromise({ resolve });
-                });
+              // Wait for user choice (no timeout - user must choose)
+              const userWantsLexieId = await choicePromise;
 
-                // Wait for user choice (no timeout - user must choose)
-                userWantsLexieId = await choicePromise;
-
-                // Reset choice modal state
-                setShowLexieIdChoiceModal(false);
-                setLexieIdChoicePromise(null);
-              }
+              // Reset choice modal state
+              setShowLexieIdChoiceModal(false);
+              setLexieIdChoicePromise(null);
 
               if (userWantsLexieId) {
                 console.log('🎮 User chose to claim Lexie ID, showing modal...');
@@ -1972,8 +1893,6 @@ const WalletContextProvider = ({ children }) => {
 
               if (alreadyHydrated || isHydrating) {
                 console.log(`🚀 Skipping chain bootstrap for new wallet - chain ${chainId} already ${alreadyHydrated ? 'hydrated' : 'hydrating'}`);
-              } else if (skipModalFlows) {
-                console.log(`🚀 Skipping chain bootstrap for new wallet - wallet already exists completely`);
               } else {
                 console.log('🚀 Checking for chain bootstrap data for newly created wallet...');
 
@@ -1999,7 +1918,6 @@ const WalletContextProvider = ({ children }) => {
                         console.log(`🚀 Chain ${chainId} bootstrap completed successfully for new wallet`);
 
                         // Mark chain as hydrated in Redis metadata since we loaded bootstrap data
-                        // NOTE: Chain will be marked as scanned AFTER vault setup is complete
                         try {
                           const persistResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
                             method: 'POST',
@@ -2008,12 +1926,12 @@ const WalletContextProvider = ({ children }) => {
                               walletAddress: address,
                               walletId: railgunWalletInfo.id,
                               railgunAddress: railgunWalletInfo.railgunAddress,
-                              hydratedChains: [chainId] // Mark this chain as hydrated (but NOT scanned yet)
+                              hydratedChains: [chainId] // Mark this chain as hydrated
                             })
                           });
 
                           if (persistResp.ok) {
-                            console.log(`✅ Marked hydratedChains += ${chainId} for new wallet (scanned will be marked after setup complete)`);
+                            console.log(`✅ Marked hydratedChains += ${chainId} for new wallet (scannedChains will be marked on modal unlock)`);
 
                             // Only emit completion event after successful persistence
                             try {
@@ -2129,40 +2047,9 @@ const WalletContextProvider = ({ children }) => {
               window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id] = true;
               try { localStorage.setItem(scanKey, '1'); } catch {}
             }
-            // Persist scannedChains to Redis metadata
-            try {
-              const getResp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-              let existing = {};
-              let scannedChains = [];
-              if (getResp.ok) {
-                const data = await getResp.json();
-                const metaKey = data?.keys?.find((k) => k.walletId === railgunWalletInfo.id);
-                if (metaKey) {
-                  scannedChains = Array.from(new Set([...(metaKey.scannedChains || []), railgunChain.id]));
-                  existing = {
-                    railgunAddress: metaKey.railgunAddress,
-                    signature: metaKey.signature,
-                    encryptedMnemonic: metaKey.encryptedMnemonic,
-                    privateBalances: metaKey.privateBalances,
-                    scannedChains,
-                  };
-                }
-              }
-            const persistResp = await fetch('/api/wallet-metadata', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ walletAddress: address, walletId: railgunWalletInfo.id, ...existing })
-            });
-            if (persistResp.ok) {
-              console.log('[Railgun Init] 💾 Persisted scannedChains to Redis:', {
-                chainId: railgunChain.id,
-                walletId: railgunWalletInfo.id?.slice(0,8) + '...'
-              });
-            } else {
-              console.warn('[Railgun Init] ⚠️ Failed to persist scannedChains to Redis:', await persistResp.text());
-            }
-            } catch {}
-            console.log('[Railgun Init] ✅ Initial scan complete for chain', railgunChain.id);
+            // Note: scannedChains will only be marked when modal unlocks to prevent premature marking
+            // This ensures that if user refreshes before modal unlocks, scanning will restart
+            console.log('[Railgun Init] ✅ Initial scan complete for chain (scannedChains will be marked on modal unlock)', railgunChain.id);
           } else {
             console.log('[Railgun Init] ⏭️ Skipping initial scan (already completed) for chain', railgunChain.id);
           }
@@ -2831,3 +2718,5 @@ export const WalletProvider = ({ children }) => {
 };
 
 export default WalletProvider; 
+
+
