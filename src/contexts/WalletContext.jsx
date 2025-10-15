@@ -1999,6 +1999,7 @@ const WalletContextProvider = ({ children }) => {
                         console.log(`🚀 Chain ${chainId} bootstrap completed successfully for new wallet`);
 
                         // Mark chain as hydrated in Redis metadata since we loaded bootstrap data
+                        // NOTE: Chain will be marked as scanned AFTER vault setup is complete
                         try {
                           const persistResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
                             method: 'POST',
@@ -2007,13 +2008,12 @@ const WalletContextProvider = ({ children }) => {
                               walletAddress: address,
                               walletId: railgunWalletInfo.id,
                               railgunAddress: railgunWalletInfo.railgunAddress,
-                              scannedChains: [chainId], // Mark this chain as scanned
-                              hydratedChains: [chainId] // Mark this chain as hydrated
+                              hydratedChains: [chainId] // Mark this chain as hydrated (but NOT scanned yet)
                             })
                           });
 
                           if (persistResp.ok) {
-                            console.log(`✅ Marked scannedChains += ${chainId} and hydratedChains += ${chainId} for new wallet`);
+                            console.log(`✅ Marked hydratedChains += ${chainId} for new wallet (scanned will be marked after setup complete)`);
 
                             // Only emit completion event after successful persistence
                             try {
@@ -2081,6 +2081,29 @@ const WalletContextProvider = ({ children }) => {
         } catch (syncError) {
           console.info('ℹ️ IDB sync system initialization failed (optional feature):', syncError.message);
           console.info('ℹ️ Railgun wallet functionality remains fully operational');
+        }
+
+        // ✅ VAULT SETUP COMPLETE - Now mark chain as scanned to prevent premature loading on refresh
+        try {
+          console.log(`🏁 Vault setup complete - marking chain ${chainId} as scanned for wallet ${walletId}`);
+          const scanResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              walletAddress: address,
+              walletId: walletId,
+              railgunAddress: railgunWalletInfo.railgunAddress,
+              scannedChains: [chainId] // Mark this chain as scanned NOW that vault is fully set up
+            })
+          });
+
+          if (scanResp.ok) {
+            console.log(`✅ Vault setup complete - chain ${chainId} marked as scanned`);
+          } else {
+            console.warn(`⚠️ Failed to mark chain ${chainId} as scanned:`, await scanResp.text());
+          }
+        } catch (scanError) {
+          console.warn(`⚠️ Error marking chain ${chainId} as scanned:`, scanError);
         }
 
         // 🚀 Initialize master wallet exports if this is the master wallet
