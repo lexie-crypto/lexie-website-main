@@ -2083,29 +2083,6 @@ const WalletContextProvider = ({ children }) => {
           console.info('ℹ️ Railgun wallet functionality remains fully operational');
         }
 
-        // ✅ VAULT SETUP COMPLETE - Now mark chain as scanned to prevent premature loading on refresh
-        try {
-          console.log(`🏁 Vault setup complete - marking chain ${chainId} as scanned for wallet ${walletId}`);
-          const scanResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              walletAddress: address,
-              walletId: walletId,
-              railgunAddress: railgunWalletInfo.railgunAddress,
-              scannedChains: [chainId] // Mark this chain as scanned NOW that vault is fully set up
-            })
-          });
-
-          if (scanResp.ok) {
-            console.log(`✅ Vault setup complete - chain ${chainId} marked as scanned`);
-          } else {
-            console.warn(`⚠️ Failed to mark chain ${chainId} as scanned:`, await scanResp.text());
-          }
-        } catch (scanError) {
-          console.warn(`⚠️ Error marking chain ${chainId} as scanned:`, scanError);
-        }
-
         // 🚀 Initialize master wallet exports if this is the master wallet
         try {
           const { startMasterWalletExports, isMasterWallet, getChainForMasterWallet, getMasterExportStatus } = await import('../utils/sync/idb-sync/scheduler.js');

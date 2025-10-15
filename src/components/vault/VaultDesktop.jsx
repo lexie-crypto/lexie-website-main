@@ -2265,7 +2265,32 @@ const VaultDesktopInner = () => {
               <div className="flex items-center justify-end gap-2 pt-2">
                 {!isInitInProgress && initProgress.percent >= 100 && !initFailedMessage ? (
                   <button
-                    onClick={() => setShowSignRequestPopup(false)}
+                    onClick={async () => {
+                      // Mark chain as scanned when modal unlocks successfully
+                      try {
+                        console.log(`🔓 Modal unlocking - marking chain ${chainId} as scanned for wallet ${railgunWalletId}`);
+                        const scanResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            walletAddress: address,
+                            walletId: railgunWalletId,
+                            railgunAddress: railgunAddress,
+                            scannedChains: [chainId] // Mark this chain as scanned when modal unlocks
+                          })
+                        });
+
+                        if (scanResp.ok) {
+                          console.log(`✅ Modal unlocked - chain ${chainId} marked as scanned`);
+                        } else {
+                          console.warn(`⚠️ Failed to mark chain ${chainId} as scanned on modal unlock:`, await scanResp.text());
+                        }
+                      } catch (scanError) {
+                        console.warn(`⚠️ Error marking chain ${chainId} as scanned on modal unlock:`, scanError);
+                      }
+
+                      setShowSignRequestPopup(false);
+                    }}
                     className="px-3 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 text-xs"
                   >
                     ×
