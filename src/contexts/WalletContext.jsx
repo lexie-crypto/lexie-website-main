@@ -343,9 +343,35 @@ const WalletContextProvider = ({ children }) => {
   const lastInitializedAddressRef = useRef(null);
 
   // Ensure initial full scan is completed for a given chain before user transacts
-  const ensureChainScanned = useCallback(async (targetChainId) => {
+  const ensureChainScanned = useCallback(async (targetChainId, options = {}) => {
+    const { skipIfWalletExists = false } = options;
     try {
       if (!isConnected || !address || !railgunWalletID) return;
+
+      // 🛡️ RACE CONDITION PREVENTION: Check if user already has complete wallet setup
+      // If they do, skip ALL chain scanning to prevent false rescans after deployments
+      if (skipIfWalletExists) {
+        console.log(`[Railgun Init] ⏭️ Skipping chain scan for ${targetChainId} - wallet exists flag set`);
+        return;
+      }
+
+      // Additional check: verify wallet is actually complete in Redis
+      try {
+        const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+        if (resp.ok) {
+          const json = await resp.json();
+          const metaKey = json?.keys?.find((k) => k.walletId === railgunWalletID) || null;
+
+          // If wallet has railgunAddress and crossDeviceReady, it's a complete setup - skip scanning
+          if (metaKey?.railgunAddress && metaKey?.crossDeviceReady) {
+            console.log(`[Railgun Init] ⏭️ Skipping chain scan for ${targetChainId} - wallet already fully set up in Redis`);
+            return;
+          }
+        }
+      } catch (redisError) {
+        console.warn('[Railgun Init] ⚠️ Could not verify wallet setup status:', redisError);
+        // Continue with normal checks if Redis check fails
+      }
 
       // Resolve Railgun chain config by chainId
       const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
@@ -974,6 +1000,18 @@ const WalletContextProvider = ({ children }) => {
       console.warn('[WalletContext] Redis wallet metadata check failed, falling back to localStorage:', redisError);
     }
     
+    // 🛡️ RACE CONDITION PREVENTION: If user already has complete wallet setup,
+    // set flag to skip ALL modal flows and chain scanning
+    let skipModalFlows = false;
+    if (redisWalletData?.walletId && redisWalletData?.railgunAddress && redisWalletData?.crossDeviceReady) {
+      console.log('[WalletContext] 🎉 User already has complete wallet setup - will skip modals and rescanning', {
+        walletId: redisWalletData.walletId.slice(0, 8) + '...',
+        railgunAddress: redisWalletData.railgunAddress.slice(0, 8) + '...',
+        crossDeviceReady: redisWalletData.crossDeviceReady
+      });
+      skipModalFlows = true; // Flag to skip Lexie ID modals and prevent duplicate scanning
+    }
+
     // ✅ REDIS-ONLY: Pure cross-device persistence (no localStorage fallback)
     if (redisWalletData?.crossDeviceReady) {
       console.log('[WalletContext] 🚀 Using COMPLETE wallet data from Redis - true cross-device access!', {
@@ -1118,6 +1156,8 @@ const WalletContextProvider = ({ children }) => {
 
             if (alreadyHydrated || isHydrating) {
               console.log(`🚀 Skipping chain bootstrap - chain ${chainId} already ${alreadyHydrated ? 'hydrated' : 'hydrating'}`);
+            } else if (skipModalFlows) {
+              console.log(`🚀 Skipping chain bootstrap - wallet already exists completely`);
             } else {
               console.log('🚀 Checking for chain bootstrap data for existing wallet...');
 
@@ -1842,21 +1882,31 @@ const WalletContextProvider = ({ children }) => {
               
               console.log('🎉 Wallet is now accessible from ANY device/browser!');
 
-              // DIRECT FLAG: Set flag to show Lexie ID modal
-              // NEW: Show Lexie ID choice modal instead of direct Lexie ID modal
-              setShowLexieIdChoiceModal(true);
+              // 🛡️ SKIP MODALS: If wallet already existed, skip Lexie ID modal flows
+              if (skipModalFlows) {
+                console.log('[WalletContext] ⏭️ Skipping Lexie ID modal flows - wallet already exists');
+              } else {
+                // DIRECT FLAG: Set flag to show Lexie ID modal
+                // NEW: Show Lexie ID choice modal instead of direct Lexie ID modal
+                setShowLexieIdChoiceModal(true);
+              }
 
-              // Create promise that resolves when user makes choice (blocks until Yes/No clicked)
-              const choicePromise = new Promise((resolve) => {
-                setLexieIdChoicePromise({ resolve });
-              });
+              // Handle modal flow (skip if wallet already exists)
+              let userWantsLexieId = false; // Default for skipped flows
 
-              // Wait for user choice (no timeout - user must choose)
-              const userWantsLexieId = await choicePromise;
+              if (!skipModalFlows) {
+                // Create promise that resolves when user makes choice (blocks until Yes/No clicked)
+                const choicePromise = new Promise((resolve) => {
+                  setLexieIdChoicePromise({ resolve });
+                });
 
-              // Reset choice modal state
-              setShowLexieIdChoiceModal(false);
-              setLexieIdChoicePromise(null);
+                // Wait for user choice (no timeout - user must choose)
+                userWantsLexieId = await choicePromise;
+
+                // Reset choice modal state
+                setShowLexieIdChoiceModal(false);
+                setLexieIdChoicePromise(null);
+              }
 
               if (userWantsLexieId) {
                 console.log('🎮 User chose to claim Lexie ID, showing modal...');
@@ -1922,6 +1972,8 @@ const WalletContextProvider = ({ children }) => {
 
               if (alreadyHydrated || isHydrating) {
                 console.log(`🚀 Skipping chain bootstrap for new wallet - chain ${chainId} already ${alreadyHydrated ? 'hydrated' : 'hydrating'}`);
+              } else if (skipModalFlows) {
+                console.log(`🚀 Skipping chain bootstrap for new wallet - wallet already exists completely`);
               } else {
                 console.log('🚀 Checking for chain bootstrap data for newly created wallet...');
 
