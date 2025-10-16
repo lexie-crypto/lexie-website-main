@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { VaultDesktopInner } from './VaultDesktop.jsx';
 
 const LexieMobileShell = () => {
-  const [activeModule, setActiveModule] = useState('home');
+  const [activeModule, setActiveModule] = useState('vault');
   const [menuOpen, setMenuOpen] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
 
