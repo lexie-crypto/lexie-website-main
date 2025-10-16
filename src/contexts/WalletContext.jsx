@@ -2632,6 +2632,9 @@ const WalletContextProvider = ({ children }) => {
     railgunError,
     canUseRailgun: isRailgunInitialized,
     railgunWalletId: railgunWalletID,
+
+    // Expose wallet metadata for scanned chains checking
+    walletMetadata: redisWalletData,
     
     // Connection info
     connectedWalletType: connector?.id,
