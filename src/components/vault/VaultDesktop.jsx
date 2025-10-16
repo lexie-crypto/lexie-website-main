@@ -262,7 +262,10 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   const [isChainReady, setIsChainReady] = useState(false);
   const [scanComplete, setScanComplete] = useState(false);
 
-  const network = getCurrentNetwork();
+  // Use selectedChainId as the PRIMARY chain for all vault operations
+  // This overrides the provider's chainId when user explicitly selects a network
+  const activeChainId = selectedChainId;
+  const network = { id: selectedChainId, name: {1: 'Ethereum', 137: 'Polygon', 42161: 'Arbitrum', 56: 'BNB Chain'}[selectedChainId] || `Chain ${selectedChainId}` };
 
   // Supported networks array
   const supportedNetworks = [
@@ -302,7 +305,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   const checkRedisScannedChains = useCallback(async (targetChainId = null) => {
     if (!address || !railgunWalletId) return null;
     
-    const checkChainId = targetChainId || chainId;
+    const checkChainId = targetChainId || activeChainId;
     if (!checkChainId) return null;
 
     try {
@@ -358,7 +361,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       const isChainReady = isChainHydrated || isChainScanned;
 
       console.log('[VaultDesktop] Redis check result:', {
-        chainId: Number(checkChainId),
+        chainId: Number(activeChainId),
         hydratedChains: normalizedHydratedChains,
         scannedChains: normalizedScannedChains,
         isChainHydrated,
@@ -372,7 +375,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       console.error('[VaultDesktop] Redis check error:', error);
       return null;
     }
-  }, [address, railgunWalletId, chainId]);
+  }, [address, railgunWalletId, activeChainId]);
 
   // Remove the complex modal gating logic - we'll use the same approach as old WalletPage
 
@@ -389,7 +392,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   // Check Redis on wallet connect - wait for Railgun initialization to complete first
   useEffect(() => {
-    if (isConnected && address && railgunWalletId && chainId && isRailgunInitialized) {
+    if (isConnected && address && railgunWalletId && activeChainId && isRailgunInitialized) {
       console.log('[VaultDesktop] Wallet connected and Railgun initialized - checking Redis for scanned chains');
       (async () => {
         // Don't re-init if modal is already open
@@ -417,7 +420,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
           setIsInitInProgress(true);
           setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);
           setScanComplete(false);
-          const networkName = getNetworkName(chainId);
+          const networkName = network.name;
           setInitProgress({
             percent: 0,
             message: `Setting up your LexieVault on ${networkName} Network...`
@@ -427,7 +430,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         }
       })();
     }
-  }, [isConnected, address, railgunWalletId, chainId, isRailgunInitialized, checkRedisScannedChains, showSignRequestPopup]);
+  }, [isConnected, address, railgunWalletId, activeChainId, isRailgunInitialized, checkRedisScannedChains, showSignRequestPopup]);
 
   // Track when initial connection hydration is complete
   const initialConnectDoneRef = React.useRef(false);
@@ -465,7 +468,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       }
     })();
     return () => { mounted = false; };
-  }, [canUseRailgun, railgunWalletId, address, chainId, checkChainReady]);
+  }, [canUseRailgun, railgunWalletId, address, activeChainId, checkChainReady]);
 
   // Disconnect handler
   const handleDisconnect = useCallback(async () => {
@@ -641,9 +644,9 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
       // Step 0: Ensure chain has been scanned for private transfers (critical for discovering transfers before first shield)
       try {
-        if (canUseRailgun && railgunWalletId && address && chainId) {
+        if (canUseRailgun && railgunWalletId && address && activeChainId) {
           console.log('[VaultDesktop] Ensuring chain is scanned before refresh...');
-          await ensureChainScanned(chainId);
+          await ensureChainScanned(activeChainId);
         }
       } catch (scanErr) {
         console.warn('[VaultDesktop] Chain scan check failed (continuing with refresh):', scanErr?.message);
@@ -651,12 +654,12 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
       // Step 1: Trigger SDK refresh + persist authoritative balances to Redis
       try {
-        if (railgunWalletId && address && chainId) {
+        if (railgunWalletId && address && activeChainId) {
           const { syncBalancesAfterTransaction } = await import('../../utils/railgun/syncBalances.js');
           await syncBalancesAfterTransaction({
             walletAddress: address,
             walletId: railgunWalletId,
-            chainId,
+            chainId: activeChainId,
           });
         }
       } catch (sdkErr) {
@@ -703,15 +706,15 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     } finally {
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
     }
-  }, [refreshAllBalances, railgunWalletId, address, chainId]);
+  }, [refreshAllBalances, railgunWalletId, address, activeChainId]);
 
   // Auto-refresh balances when wallet connects and Railgun is ready (full refresh including private transfers)
   useEffect(() => {
-    if (isConnected && address && chainId && canUseRailgun && railgunWalletId) {
+    if (isConnected && address && activeChainId && canUseRailgun && railgunWalletId) {
       console.log('[VaultDesktop] Wallet connected and Railgun ready - auto-refreshing balances...');
       refreshBalances(false); // Full refresh but no toast notification
     }
-  }, [isConnected, address, chainId, canUseRailgun, railgunWalletId, refreshBalances]);
+  }, [isConnected, address, activeChainId, canUseRailgun, railgunWalletId, refreshBalances]);
 
   // Auto-switch to privacy view when Railgun is ready
   useEffect(() => {
@@ -929,13 +932,13 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       // Guard reset-to-0: don't reset progress if already at 100%
       setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);
       setInitFailedMessage('');
-      const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
+      const chainLabel = network?.name || (activeChainId ? `Chain ${activeChainId}` : 'network');
       setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
       console.log('[VaultDesktop] Initialization started');
     };
     
     const onInitProgress = () => {
-      const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
+      const chainLabel = network?.name || (activeChainId ? `Chain ${activeChainId}` : 'network');
       setInitProgress((prev) => ({
         percent: prev.percent,
         message: prev.message || `Setting up your LexieVault on ${chainLabel}...`,
@@ -1045,7 +1048,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       window.removeEventListener('railgun-init-force-unlock', onRailgunInitForceUnlock);
       window.removeEventListener('chain-bootstrap-progress', onBootstrapProgress);
     };
-  }, [address, chainId, railgunWalletId, network, checkChainReady, showSignRequestPopup]);
+  }, [address, activeChainId, railgunWalletId, network, checkChainReady, showSignRequestPopup]);
 
   // Unlock modal using the same readiness flag as old WalletPage
   useEffect(() => {
@@ -1133,13 +1136,13 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
     try {
       const secret = address.toLowerCase();
-      const salt = `lexie-railgun-${chainId}`;
+      const salt = `lexie-railgun-${activeChainId}`;
       return await deriveEncryptionKey(secret, salt, 100000);
     } catch (error) {
       console.error('[VaultDesktop] Failed to derive encryption key:', error);
       throw new Error('Failed to derive encryption key');
     }
-  }, [address, chainId]);
+  }, [address, activeChainId]);
 
   // Handle individual token shielding
   const handleShieldToken = useCallback(async (token) => {
@@ -1159,14 +1162,14 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       setShieldingTokens(prev => new Set([...prev, token.symbol]));
       
       // Validate token is supported by Railgun
-      if (!isTokenSupportedByRailgun(token.address, chainId)) {
+      if (!isTokenSupportedByRailgun(token.address, activeChainId)) {
         throw new Error(`${token.symbol} is not supported by Railgun on this network`);
       }
 
       // Check sufficient balance
       const requestedAmount = parseFloat(amount);
       const availableAmount = token.numericBalance || 0;
-      
+
       if (availableAmount < requestedAmount) {
         throw new Error(`Insufficient balance. Available: ${availableAmount} ${token.symbol}`);
       }
@@ -1175,7 +1178,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       const amountInUnits = parseTokenAmount(amount, token.decimals);
 
       // Get chain configuration
-      const chainConfig = { type: network.name.toLowerCase(), id: chainId };
+      const chainConfig = { type: network.name.toLowerCase(), id: activeChainId };
 
       // Get encryption key
       const key = await getEncryptionKey();
@@ -1284,7 +1287,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         return newSet;
       });
     }
-  }, [canUseRailgun, railgunWalletId, address, chainId, network, shieldAmounts, refreshBalancesAfterTransaction, getEncryptionKey, walletProvider]);
+  }, [canUseRailgun, railgunWalletId, address, activeChainId, network, shieldAmounts, refreshBalancesAfterTransaction, getEncryptionKey, walletProvider]);
 
   // Handle network switch
   const handleNetworkSwitch = async (targetChainId) => {
