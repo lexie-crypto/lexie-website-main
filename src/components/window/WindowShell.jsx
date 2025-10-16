@@ -264,7 +264,7 @@ const WindowShell = ({
               {children}
             </div>
           ) : (
-            <div className="h-full overflow-auto scrollbar-terminal">
+            <div className="h-full w-full overflow-x-hidden overflow-y-auto scrollbar-terminal">
               {children}
             </div>
           )}
