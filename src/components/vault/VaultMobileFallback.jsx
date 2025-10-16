@@ -1,10 +1,55 @@
 import React, { useState, useEffect } from 'react';
 import { VaultDesktopInner } from './VaultDesktop.jsx';
 
+// Load Eruda for mobile debugging
+const loadEruda = async () => {
+  if (typeof window !== 'undefined' && !window.eruda) {
+    try {
+      // Load Eruda script
+      const script = document.createElement('script');
+      script.src = 'https://cdn.jsdelivr.net/npm/eruda';
+      script.onload = () => {
+        if (window.eruda) {
+          window.eruda.init();
+          window.eruda.hide();
+        }
+      };
+      document.head.appendChild(script);
+    } catch (error) {
+      console.warn('Failed to load Eruda:', error);
+    }
+  }
+};
+
+const toggleEruda = () => {
+  if (window.eruda) {
+    if (window.eruda._isShow) {
+      window.eruda.hide();
+    } else {
+      window.eruda.show();
+    }
+  } else {
+    loadEruda().then(() => {
+      if (window.eruda) {
+        window.eruda.show();
+      }
+    });
+  }
+};
+
 const LexieMobileShell = () => {
   const [activeModule, setActiveModule] = useState('vault');
   const [menuOpen, setMenuOpen] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
+
+  // Load Eruda on component mount (only in development/staging)
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development' ||
+        window.location.hostname.includes('staging') ||
+        window.location.hostname.includes('localhost')) {
+      loadEruda();
+    }
+  }, []);
 
   const modules = [
     { id: 'home', name: 'Home', color: 'text-green-300' },
@@ -117,13 +162,23 @@ const LexieMobileShell = () => {
           {currentModule?.name || 'Home'}
         </div>
 
-        <button
-          onClick={() => setMenuOpen(!menuOpen)}
-          className="text-green-400 hover:text-green-300 transition-colors text-xl p-1"
-          aria-label="Menu"
-        >
-          ☰
-        </button>
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={toggleEruda}
+            className="text-green-400 hover:text-green-300 transition-colors text-lg p-1"
+            aria-label="Debug Tools"
+            title="Open Eruda Debug Tools"
+          >
+            ⚙️
+          </button>
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="text-green-400 hover:text-green-300 transition-colors text-xl p-1"
+            aria-label="Menu"
+          >
+            ☰
+          </button>
+        </div>
       </div>
 
       {/* Slide-out Menu */}
