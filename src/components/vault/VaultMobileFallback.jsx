@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { VaultDesktopInner } from './VaultDesktop.jsx';
 import { WindowProvider } from '../../contexts/windowStore.jsx';
 
 // Load Eruda for mobile debugging
@@ -45,6 +44,7 @@ const LexieMobileShell = () => {
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [railgunFunctions, setRailgunFunctions] = useState(null);
+  const [VaultDesktopInner, setVaultDesktopInner] = useState(null);
 
   // Load railgun functions dynamically to avoid circular dependencies
   useEffect(() => {
@@ -59,6 +59,21 @@ const LexieMobileShell = () => {
       }
     };
     loadRailgunFunctions();
+  }, []);
+
+  // Load VaultDesktopInner dynamically to avoid circular dependencies
+  useEffect(() => {
+    const loadVaultDesktopInner = async () => {
+      try {
+        const { VaultDesktopInner: VaultInner } = await import('./VaultDesktop.jsx');
+        setVaultDesktopInner(() => VaultInner);
+      } catch (error) {
+        console.error('Failed to load VaultDesktopInner:', error);
+        setHasError(true);
+        setErrorMessage('Failed to load vault component');
+      }
+    };
+    loadVaultDesktopInner();
   }, []);
 
   // Load Eruda on component mount (only in development/staging)
@@ -140,7 +155,7 @@ const LexieMobileShell = () => {
         );
 
       case 'vault':
-        if (!railgunFunctions) {
+        if (!railgunFunctions || !VaultDesktopInner) {
           return (
             <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] px-6">
               <div className="text-center space-y-4">
@@ -152,28 +167,15 @@ const LexieMobileShell = () => {
             </div>
           );
         }
-        try {
-          return (
-            <WindowProvider>
-              <VaultDesktopInner
-                mobileMode={true}
-                deriveEncryptionKey={railgunFunctions.deriveEncryptionKey}
-                clearAllWallets={railgunFunctions.clearAllWallets}
-              />
-            </WindowProvider>
-          );
-        } catch (error) {
-          console.error('Error rendering VaultDesktopInner:', error);
-          return (
-            <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] px-6">
-              <div className="text-center space-y-4">
-                <div className="text-2xl font-bold text-red-300">Error Loading Vault</div>
-                <div className="text-sm text-red-300/70">There was an error loading the vault interface</div>
-                <div className="text-xs text-red-400/60">Check console for details</div>
-              </div>
-            </div>
-          );
-        }
+        return (
+          <WindowProvider>
+            <VaultDesktopInner
+              mobileMode={true}
+              deriveEncryptionKey={railgunFunctions.deriveEncryptionKey}
+              clearAllWallets={railgunFunctions.clearAllWallets}
+            />
+          </WindowProvider>
+        );
 
       case 'chat':
         return (
