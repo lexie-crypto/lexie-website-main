@@ -2417,19 +2417,18 @@ const VaultDesktop = () => {
 
   if (isMobile) {
     return (
-      <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
-        <nav className="sticky top-0 z-40 w-full p-6 bg-black">
-          <div className="max-w-7xl mx-auto flex justify-between items-center">
-            <div className="text-4xl font-bold text-purple-300">LEXIEAI</div>
-          </div>
-        </nav>
-        <div className="flex items-center justify-center px-6 py-16">
-          <div className="max-w-md w-full text-center font-mono text-green-300">
-            <div className="text-lg text-green-200 mb-2">Not available on mobile yet…</div>
-            <div className="text-green-400/80 text-sm">Please open this page on a desktop to access LexieVault.</div>
-          </div>
-        </div>
-      </div>
+      <WindowProvider>
+        <WindowShell
+          id="vault-mobile-fullscreen"
+          title="LexieVault"
+          appType="vault"
+          statusLabel="ONLINE"
+          statusTone="online"
+          fullscreen={true}
+        >
+          <VaultDesktopInner mobileMode={true} />
+        </WindowShell>
+      </WindowProvider>
     );
   }
 

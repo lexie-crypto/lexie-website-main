@@ -50,6 +50,7 @@ const WindowShell = ({
   footerRight,
   variant,
   className = '',
+  fullscreen = false,
   initialPosition = { x: 100, y: 100 },
   initialSize = { width: 800, height: 600 },
   minWidth = 400,
@@ -218,6 +219,59 @@ const WindowShell = ({
           const headerHeight = 52; // Header with padding and border
           const footerHeight = (footerLeft || footerRight) ? 38 : 0; // Footer height when present
           const totalChromeHeight = headerHeight + footerHeight;
+
+  // Fullscreen mode for mobile - render as overlay without window chrome
+  if (fullscreen) {
+    return (
+      <div
+        className={`fixed inset-0 z-50 bg-black ${className}`}
+        onClick={handleWindowClick}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={`window-title-${id}`}
+        aria-describedby={`window-content-${id}`}
+      >
+        {/* Optional minimal header for fullscreen mode */}
+        {title && (
+          <div className="flex items-center justify-between px-4 py-3 bg-gray-900/90 border-b border-gray-700">
+            <span
+              id={`window-title-${id}`}
+              className="font-mono text-sm text-gray-300"
+            >
+              {title}
+            </span>
+            {statusLabel && (
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full animate-pulse ${statusTone === 'online' ? 'bg-green-400' : 'bg-yellow-400'}`} />
+                <span className={`font-mono text-xs ${statusTone === 'online' ? 'text-green-400' : 'text-yellow-300'}`}>
+                  {statusLabel}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Fullscreen content */}
+        <div
+          id={`window-content-${id}`}
+          className="relative bg-black overflow-auto scrollbar-terminal"
+          style={{
+            height: title ? 'calc(100vh - 52px)' : '100vh'
+          }}
+        >
+          {appType === 'game' ? (
+            <div className="h-full w-full">
+              {children}
+            </div>
+          ) : (
+            <div className="h-full overflow-auto scrollbar-terminal">
+              {children}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
