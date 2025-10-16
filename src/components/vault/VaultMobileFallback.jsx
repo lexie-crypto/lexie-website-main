@@ -219,11 +219,12 @@ const LexieMobileShell = () => {
       </div>
 
       {/* Header Bar */}
-      <div className="relative z-20 flex items-left justify-between px-4 py-3 bg-black/80 border-b border-green-500/20">
-        <div className="text-green-400 text-xl font-mono">&gt;</div>
-
-        <div className="text-purple-300 text-sm font-mono">
-          LEXIEAI
+      <div className="relative z-20 flex items-center justify-between px-4 py-3 bg-black/80 border-b border-green-500/20">
+        <div className="flex items-center space-x-2">
+          <div className="text-green-400 text-xl font-mono">&gt;</div>
+          <div className="text-purple-300 text-sm font-mono">
+            LEXIEAI
+          </div>
         </div>
 
         <div className="flex items-center space-x-2">
