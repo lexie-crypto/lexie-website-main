@@ -1452,6 +1452,7 @@ export const VaultDesktopInner = ({ mobileMode = false }) => {
             footerLeft={<span>Process: wallet-connect</span>}
             variant="connect"
             className="overflow-hidden"
+            mobileMode={mobileMode}
           >
             <div className="font-mono text-green-300 text-center">
               <WalletIcon className="h-16 w-16 text-emerald-300 mx-auto mb-6" />
