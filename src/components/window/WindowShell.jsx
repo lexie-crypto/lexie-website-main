@@ -74,6 +74,21 @@ const WindowShell = ({
   // Safe areas for positioning
   const { getBounds, clampPosition, top: topSafe, bottom: bottomSafe, left: leftSafe, right: rightSafe } = useSafeAreas();
 
+  // Mobile detection for size clamping
+  const [isMobile, setIsMobile] = useState(false);
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 639px)');
+    const apply = () => setIsMobile(mq.matches);
+    apply();
+    if (mq.addEventListener) mq.addEventListener('change', apply);
+    else if (mq.addListener) mq.addListener(apply);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', apply);
+      else if (mq.removeListener) mq.removeListener(apply);
+    };
+  }, []);
+
   // Memoize default values to prevent re-registration
   const defaultPosition = React.useMemo(() => ({ x: 200, y: 100 }), []);
   const defaultSize = React.useMemo(() => ({ width: 900, height: 700 }), []);
@@ -181,6 +196,48 @@ const WindowShell = ({
       updatePosition(id, clampedPosition);
     }
   }, [windowState, isDragging, clampPosition, setPosition, updatePosition, id]);
+
+  // Handle viewport changes - clamp size on mobile if window exceeds viewport limits
+  useEffect(() => {
+    if (!windowState || !isMobile || fullscreen) return;
+
+    const clampSize = () => {
+      const currentSize = windowState.size;
+      const viewportWidth = window.innerWidth - leftSafe - rightSafe;
+      const viewportHeight = window.innerHeight - topSafe - bottomSafe;
+
+      // Clamp size to viewport limits
+      const clampedSize = {
+        width: Math.min(currentSize.width, viewportWidth),
+        height: Math.min(currentSize.height, viewportHeight)
+      };
+
+      // Only update if size has changed significantly
+      const sizeTolerance = 10;
+      if (Math.abs(clampedSize.width - currentSize.width) > sizeTolerance ||
+          Math.abs(clampedSize.height - currentSize.height) > sizeTolerance) {
+        updateSize(id, clampedSize);
+      }
+    };
+
+    // Initial clamp
+    clampSize();
+
+    // Re-clamp on resize/orientation change
+    const handleResize = () => clampSize();
+    const handleOrientationChange = () => {
+      // Small delay to allow viewport to settle after orientation change
+      setTimeout(clampSize, 100);
+    };
+
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleOrientationChange);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleOrientationChange);
+    };
+  }, [windowState, isMobile, fullscreen, leftSafe, rightSafe, topSafe, bottomSafe, updateSize, id]);
 
   // Handle window focus
   const handleWindowClick = () => {
@@ -359,8 +416,12 @@ const WindowShell = ({
             {children}
           </div>
         ) : (
-          <div className="px-8 pt-4 pb-6 h-full overflow-auto scrollbar-terminal">
-            {children}
+          <div className="h-full overflow-y-auto overflow-x-hidden scrollbar-terminal">
+            <div className="px-4 sm:px-6 lg:px-8 py-4 h-full">
+              <div className="break-words whitespace-pre-wrap max-w-none">
+                {children}
+              </div>
+            </div>
           </div>
         )}
 
