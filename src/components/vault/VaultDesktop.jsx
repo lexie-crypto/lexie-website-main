@@ -1376,7 +1376,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   if (!isConnected || (isConnected && !isNetworkSupported) || walletConnectValidating) {
     return (
-      <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
+      <div className="relative h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
         {/* Background overlays */}
         <div className="fixed inset-0 z-0">
           <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
@@ -1440,7 +1440,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   }
 
   return (
-    <div className="relative min-h-screen w-full bg-black text-white overflow-x-hiddenscrollbar-terminal">
+    <div className="relative h-screen w-full bg-black text-white overflow-x-hiddenscrollbar-terminal">
       {/* Background overlays */}
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>

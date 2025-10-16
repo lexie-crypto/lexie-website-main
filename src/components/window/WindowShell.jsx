@@ -279,9 +279,23 @@ const WindowShell = ({
 
   // Fullscreen mode for mobile - render as overlay without window chrome
   if (fullscreen) {
+    // Prevent body scrolling when fullscreen window is active
+    React.useEffect(() => {
+      const originalOverflow = document.body.style.overflow;
+      const originalHeight = document.body.style.height;
+
+      document.body.style.overflow = 'hidden';
+      document.body.style.height = '100vh';
+
+      return () => {
+        document.body.style.overflow = originalOverflow;
+        document.body.style.height = originalHeight;
+      };
+    }, []);
+
     return (
       <div
-        className={`fixed inset-0 z-50 bg-black ${className}`}
+        className={`fixed inset-0 z-50 bg-black fullscreen-window-active ${className}`}
         onClick={handleWindowClick}
         role="dialog"
         aria-modal="true"

@@ -170,6 +170,7 @@
     }
   }
 
+
   /* Specific fullscreen window scrollbar styling for mobile */
   .fullscreen-mobile-scrollbar::-webkit-scrollbar {
     width: 8px !important;
