@@ -375,37 +375,36 @@ const WindowShell = ({
         role="banner"
         aria-grabbed={isDragging}
       >
-        {/* Traffic Lights - Hidden on mobile */}
-        {!isMobile && (
-          <div className="flex items-center gap-2" data-nodrag>
-          <TrafficLight
-            type="close"
-            onClick={handleClose}
-          />
-          <TrafficLight
-            type="minimize"
-            onClick={handleMinimize}
-          />
-          <TrafficLight
-            type="maximize"
-            onClick={handleMaximize}
-          />
+        {/* Left Section - Traffic Lights + Title */}
+        <div className="flex items-center gap-2" data-nodrag>
+          {/* Traffic Lights - Hidden on mobile */}
+          {!isMobile && (
+            <>
+              <TrafficLight
+                type="close"
+                onClick={handleClose}
+              />
+              <TrafficLight
+                type="minimize"
+                onClick={handleMinimize}
+              />
+              <TrafficLight
+                type="maximize"
+                onClick={handleMaximize}
+              />
+            </>
+          )}
+
+          {/* Window Title - Always visible */}
+          <span
+            id={`window-title-${id}`}
+            className="font-mono text-sm text-gray-400 select-none"
+          >
+            {title}
+          </span>
         </div>
-        )}
 
-        {/* Mobile Window Title */}
-        {isMobile && (
-          <div className="flex items-center">
-            <span
-              id={`window-title-${id}`}
-              className="font-mono text-sm text-gray-400 select-none"
-            >
-              {title}
-            </span>
-          </div>
-        )}
-
-        {/* Status Section */}
+        {/* Status Section - Always on right */}
         <div className="flex items-center gap-3">
           <div className={`w-2 h-2 rounded-full animate-pulse ${statusTone === 'online' ? 'bg-green-400' : 'bg-yellow-400'}`} />
           <span className={`font-mono text-xs ${statusTone === 'online' ? 'text-green-400' : 'text-yellow-300'}`}>
