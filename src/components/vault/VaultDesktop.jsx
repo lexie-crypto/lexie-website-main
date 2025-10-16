@@ -36,7 +36,6 @@ import {
   isTokenSupportedByRailgun,
 } from '../../utils/railgun/actions';
 import { deriveEncryptionKey, clearAllWallets } from '../../utils/railgun/wallet';
-import { Navbar } from '../Navbar';
 
 // Titans Game component that loads the actual game from game.lexiecrypto.com
 const TitansGame = ({ lexieId, walletAddress, embedded, theme, onLoad, onError, onClose }) => {
@@ -1378,9 +1377,6 @@ const VaultDesktopInner = () => {
   if (!isConnected || (isConnected && !isNetworkSupported) || walletConnectValidating) {
     return (
       <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
-        {/* Navigation */}
-        <Navbar />
-
         {/* Background overlays */}
         <div className="fixed inset-0 z-0">
           <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
@@ -1445,9 +1441,6 @@ const VaultDesktopInner = () => {
 
   return (
     <div className="relative min-h-screen w-full bg-black text-white overflow-x-hiddenscrollbar-terminal">
-      {/* Navigation */}
-      <Navbar />
-
       {/* Background overlays */}
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
