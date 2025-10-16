@@ -247,6 +247,10 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   // Cross-platform verification state
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [verificationCode, setVerificationCode] = useState('');
+
+  // Chain selection modal state
+  const [showChainSelectionModal, setShowChainSelectionModal] = useState(false);
+  const [selectedChainId, setSelectedChainId] = useState(1); // Default to Ethereum
   const [verificationLexieId, setVerificationLexieId] = useState('');
   const [verificationExpiresAt, setVerificationExpiresAt] = useState(0);
   const [verificationTimeLeft, setVerificationTimeLeft] = useState(0);
@@ -406,18 +410,10 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         }
 
         if (scanned === false || scanned === null) {
-          console.log('[VaultDesktop] Chain not scanned on connect - showing modal');
+          console.log('[VaultDesktop] Chain not scanned on connect - showing chain selection modal');
 
-          // Guard reset-to-0: only reset progress if not already at 100%
-          setShowSignRequestPopup(true);
-          setIsInitInProgress(true);
-          setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);
-          setScanComplete(false);
-          const networkName = getNetworkName(chainId);
-          setInitProgress({
-            percent: 0,
-            message: `Setting up your LexieVault on ${networkName} Network...`
-          });
+          // Show chain selection modal first instead of immediately starting vault creation
+          setShowChainSelectionModal(true);
         } else {
           console.log('[VaultDesktop] Chain already scanned on connect - no modal needed');
         }
@@ -504,6 +500,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       setPointsBalance(null);
       setPointsBreakdown(null);
       setShowSignRequestPopup(false);
+      setShowChainSelectionModal(false);
       setIsInitInProgress(false);
       setInitFailedMessage('');
       setInitProgress({ percent: 0, message: '' });
@@ -533,6 +530,42 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       } catch {}
     }
   }, [address, disconnectWallet]);
+
+  // Handle chain selection and proceed with vault creation
+  const handleChainSelection = useCallback(async (selectedChainId) => {
+    console.log('[VaultDesktop] User selected chain:', selectedChainId);
+
+    // Close chain selection modal
+    setShowChainSelectionModal(false);
+
+    // If selected chain is different from current, switch networks
+    if (selectedChainId !== chainId) {
+      try {
+        console.log('[VaultDesktop] Switching to selected chain:', selectedChainId);
+        await switchNetwork(selectedChainId);
+        // Wait a bit for the network switch to take effect
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      } catch (error) {
+        console.error('[VaultDesktop] Failed to switch network:', error);
+        // If network switch fails, show error but continue with vault creation on current chain
+        toast.error(`Failed to switch to selected network. Creating vault on current network instead.`);
+      }
+    }
+
+    // Start vault creation process (same logic as before)
+    console.log('[VaultDesktop] Starting vault creation on chain:', selectedChainId);
+
+    // Guard reset-to-0: only reset progress if not already at 100%
+    setShowSignRequestPopup(true);
+    setIsInitInProgress(true);
+    setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);
+    setScanComplete(false);
+    const networkName = getNetworkName(selectedChainId);
+    setInitProgress({
+      percent: 0,
+      message: `Setting up your LexieVault on ${networkName} Network...`
+    });
+  }, [chainId, switchNetwork, getNetworkName]);
 
   // Listen for transaction lock/unlock events
   useEffect(() => {
@@ -2185,6 +2218,53 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                   <div>2. Enter this code when prompted</div>
                   <div>3. Your LexieID will be linked across both platforms</div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Chain Selection Modal */}
+      {showChainSelectionModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center z-50 p-4 font-mono">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden scrollbar-none">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
+              <div className="flex items-center gap-3">
+                <span className="text-sm tracking-wide text-gray-400">chain-select</span>
+              </div>
+            </div>
+            <div className="p-6 text-green-300 space-y-4">
+              <h3 className="text-lg font-bold text-emerald-300">Choose Your Vault Network</h3>
+              <p className="text-green-400/80 text-sm">
+                Select the network where you'd like to create your LexieVault. You can create vaults on multiple networks later.
+              </p>
+
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-green-400/80">
+                  Network:
+                </label>
+                <select
+                  value={selectedChainId}
+                  onChange={(e) => setSelectedChainId(parseInt(e.target.value))}
+                  className="w-full px-3 py-3 bg-black/60 border border-green-500/40 rounded-md text-green-200 placeholder-green-600/50 font-mono focus:ring-emerald-500 focus:border-emerald-400"
+                >
+                  <option value={1}>Ethereum Mainnet</option>
+                  <option value={42161}>Arbitrum One</option>
+                  <option value={137}>Polygon</option>
+                  <option value={56}>BNB Smart Chain</option>
+                </select>
+                <div className="text-xs text-green-400/60">
+                  Your vault will be created on the selected network and all transactions will use this network.
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-4">
+                <button
+                  onClick={() => handleChainSelection(selectedChainId)}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-green-900 disabled:cursor-not-allowed rounded-md transition-colors font-medium font-mono text-black"
+                >
+                  Create Vault
+                </button>
               </div>
             </div>
           </div>
