@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { VaultDesktopInner } from './VaultDesktop.jsx';
 
 const LexieMobileShell = () => {
   const [activeModule, setActiveModule] = useState('home');
@@ -56,25 +57,7 @@ const LexieMobileShell = () => {
         );
 
       case 'vault':
-        return (
-          <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] px-6">
-            <div className="text-center space-y-6">
-              <div className="text-3xl font-bold text-purple-300">LexieVault</div>
-              <div className="text-sm text-purple-300/70">Secure Privacy Vault</div>
-
-              <div className="bg-black/40 border border-purple-500/30 rounded-lg p-6 max-w-sm">
-                <div className="space-y-4">
-                  <div className="text-sm text-purple-300/80">
-                    Connect your wallet to access privacy features
-                  </div>
-                  <button className="w-full bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 py-3 px-6 rounded border border-purple-400/40 transition-colors">
-                    Connect Wallet
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        );
+        return <VaultDesktopInner />;
 
       case 'chat':
         return (
