@@ -100,7 +100,6 @@ const LexieMobileShell = () => {
           <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] px-6">
             <div className="text-center space-y-8">
               <div className="space-y-4">
-                <div className="text-4xl font-bold text-purple-300">LEXIEAI</div>
                 <div className="text-lg text-green-300/80">Mobile Terminal</div>
               </div>
 
