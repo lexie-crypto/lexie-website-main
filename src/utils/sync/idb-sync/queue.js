@@ -283,24 +283,3 @@ export const getQueueStats = async () => {
   }
 };
 
-/**
- * Clear the queue (useful for debugging)
- */
-export const clearQueue = async () => {
-  try {
-    const db = await openQueueDB();
-    const transaction = db.transaction([QUEUE_STORE_NAME], 'readwrite');
-    const store = transaction.objectStore(QUEUE_STORE_NAME);
-
-    await new Promise((resolve, reject) => {
-      const request = store.clear();
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
-
-    console.log('[IDB-Sync-Queue] Cleared sync queue');
-
-  } catch (error) {
-    console.error('[IDB-Sync-Queue] Failed to clear queue:', error);
-  }
-};

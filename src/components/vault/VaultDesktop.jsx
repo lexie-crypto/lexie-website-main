@@ -160,7 +160,6 @@ const VaultDesktopInner = () => {
     handleLexieIdChoice,
     onLexieIdLinked,
     ensureChainScanned,
-    walletMetadata,
   } = useWallet();
 
   // Window management hooks
@@ -295,174 +294,81 @@ const VaultDesktopInner = () => {
   }, []);
 
 
-  // Enhanced Redis check for scanned chains - uses context data as fallback
+  // Simple Redis check for scanned chains (exact EOA address, no normalization)
   const checkRedisScannedChains = useCallback(async (targetChainId = null) => {
-    if (!address) return null;
-
+    if (!address || !railgunWalletId) return null;
+    
     const checkChainId = targetChainId || chainId;
     if (!checkChainId) return null;
 
     try {
       console.log('[VaultDesktop] Checking Redis hydratedChains/scannedChains for:', {
         address, // exact EOA address
-        railgunWalletId: railgunWalletId || 'any',
-        checkChainId: Number(checkChainId),
-        hasContextData: !!walletMetadata
+        railgunWalletId,
+        checkChainId: Number(checkChainId)
       });
-
-      // FIRST: Try to use wallet metadata from context (fastest, most reliable)
-      if (walletMetadata && walletMetadata.keys && Array.isArray(walletMetadata.keys)) {
-        console.log('[VaultDesktop] Using wallet metadata from context for chain check');
-
-        for (const walletKey of walletMetadata.keys) {
-          const hydratedChains = Array.isArray(walletKey?.hydratedChains)
-            ? walletKey.hydratedChains
-            : (Array.isArray(walletKey?.meta?.hydratedChains) ? walletKey.meta.hydratedChains : []);
-
-          const scannedChains = Array.isArray(walletKey?.scannedChains)
-            ? walletKey.scannedChains
-            : (Array.isArray(walletKey?.meta?.scannedChains) ? walletKey.meta.scannedChains : []);
-
-          const normalizedHydratedChains = hydratedChains
-            .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
-            .filter(n => Number.isFinite(n));
-
-          const normalizedScannedChains = scannedChains
-            .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
-            .filter(n => Number.isFinite(n));
-
-          const isChainHydrated = normalizedHydratedChains.includes(Number(checkChainId));
-          const isChainScanned = normalizedScannedChains.includes(Number(checkChainId));
-
-          if (isChainHydrated || isChainScanned) {
-            console.log('[VaultDesktop] ✅ Chain already scanned (from context data)');
-            return true;
-          }
-        }
-
-        console.log('[VaultDesktop] ❌ Chain not scanned by any wallet (from context data)');
-        return false;
-      }
-
-      // SECOND: Try API call to get fresh data
+      
+      // Use exact EOA address as provided - no normalization
       const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-
+      
       if (response.status === 404) {
         console.log('[VaultDesktop] No wallet metadata in Redis - needs initialization');
         return false;
       }
-
+      
       if (!response.ok) {
-        console.warn('[VaultDesktop] Redis API check failed, using context data as fallback:', response.status);
-        // If API fails but we have context data, trust the context data
-        if (walletMetadata && walletMetadata.keys && Array.isArray(walletMetadata.keys)) {
-          console.log('[VaultDesktop] Falling back to context data after API failure');
-          for (const walletKey of walletMetadata.keys) {
-            const hydratedChains = Array.isArray(walletKey?.hydratedChains)
-              ? walletKey.hydratedChains
-              : (Array.isArray(walletKey?.meta?.hydratedChains) ? walletKey.meta.hydratedChains : []);
-
-            const scannedChains = Array.isArray(walletKey?.scannedChains)
-              ? walletKey.scannedChains
-              : (Array.isArray(walletKey?.meta?.scannedChains) ? walletKey.meta.scannedChains : []);
-
-            const normalizedHydratedChains = hydratedChains
-              .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
-              .filter(n => Number.isFinite(n));
-
-            const normalizedScannedChains = scannedChains
-              .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
-              .filter(n => Number.isFinite(n));
-
-            const isChainHydrated = normalizedHydratedChains.includes(Number(checkChainId));
-            const isChainScanned = normalizedScannedChains.includes(Number(checkChainId));
-
-            if (isChainHydrated || isChainScanned) {
-              return true;
-            }
-          }
-          return false;
-        }
-        // If both API and context data fail, return null
+        console.warn('[VaultDesktop] Redis check failed:', response.status);
         return null;
       }
-
+      
       const data = await response.json();
       const walletKeys = Array.isArray(data.keys) ? data.keys : [];
+      
+      // Use same logic as ensureChainScanned - find key by walletId only (EOA check via API)
+      const matchingKey = walletKeys.find(key => key.walletId === railgunWalletId) || null;
 
-      if (walletKeys.length === 0) {
-        console.log('[VaultDesktop] No wallet keys found in Redis');
+      if (!matchingKey) {
+        console.log('[VaultDesktop] No matching wallet key found in Redis');
         return false;
       }
 
-      // Check ALL wallets for this EOA to see if chain has been scanned
-      console.log('[VaultDesktop] Checking all wallets from API for chain scan status...');
+      // Check both hydratedChains and scannedChains arrays
+      const hydratedChains = Array.isArray(matchingKey?.hydratedChains)
+        ? matchingKey.hydratedChains
+        : (Array.isArray(matchingKey?.meta?.hydratedChains) ? matchingKey.meta.hydratedChains : []);
 
-      for (const walletKey of walletKeys) {
-        const hydratedChains = Array.isArray(walletKey?.hydratedChains)
-          ? walletKey.hydratedChains
-          : (Array.isArray(walletKey?.meta?.hydratedChains) ? walletKey.meta.hydratedChains : []);
+      const scannedChains = Array.isArray(matchingKey?.scannedChains)
+        ? matchingKey.scannedChains
+        : (Array.isArray(matchingKey?.meta?.scannedChains) ? matchingKey.meta.scannedChains : []);
 
-        const scannedChains = Array.isArray(walletKey?.scannedChains)
-          ? walletKey.scannedChains
-          : (Array.isArray(walletKey?.meta?.scannedChains) ? walletKey.meta.scannedChains : []);
+      const normalizedHydratedChains = hydratedChains
+        .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
+        .filter(n => Number.isFinite(n));
 
-        const normalizedHydratedChains = hydratedChains
-          .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
-          .filter(n => Number.isFinite(n));
+      const normalizedScannedChains = scannedChains
+        .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
+        .filter(n => Number.isFinite(n));
 
-        const normalizedScannedChains = scannedChains
-          .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
-          .filter(n => Number.isFinite(n));
+      const isChainHydrated = normalizedHydratedChains.includes(Number(checkChainId));
+      const isChainScanned = normalizedScannedChains.includes(Number(checkChainId));
+      const isChainReady = isChainHydrated || isChainScanned;
 
-        const isChainHydrated = normalizedHydratedChains.includes(Number(checkChainId));
-        const isChainScanned = normalizedScannedChains.includes(Number(checkChainId));
+      console.log('[VaultDesktop] Redis check result:', {
+        chainId: Number(checkChainId),
+        hydratedChains: normalizedHydratedChains,
+        scannedChains: normalizedScannedChains,
+        isChainHydrated,
+        isChainScanned,
+        isChainReady
+      });
 
-        if (isChainHydrated || isChainScanned) {
-          console.log('[VaultDesktop] Chain already scanned by wallet (from API)');
-          return true; // Chain has been scanned by at least one wallet
-        }
-      }
-
-      console.log('[VaultDesktop] Chain not scanned by any wallet (from API)');
-      return false;
-
+      return isChainReady;
+      
     } catch (error) {
       console.error('[VaultDesktop] Redis check error:', error);
-
-      // LAST RESORT: If API fails but we have context data, use that
-      if (walletMetadata && walletMetadata.keys && Array.isArray(walletMetadata.keys)) {
-        console.log('[VaultDesktop] Using context data as last resort after API error');
-        for (const walletKey of walletMetadata.keys) {
-          const hydratedChains = Array.isArray(walletKey?.hydratedChains)
-            ? walletKey.hydratedChains
-            : (Array.isArray(walletKey?.meta?.hydratedChains) ? walletKey.meta.hydratedChains : []);
-
-          const scannedChains = Array.isArray(walletKey?.scannedChains)
-            ? walletKey.scannedChains
-            : (Array.isArray(walletKey?.meta?.scannedChains) ? walletKey.meta.scannedChains : []);
-
-          const normalizedHydratedChains = hydratedChains
-            .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
-            .filter(n => Number.isFinite(n));
-
-          const normalizedScannedChains = scannedChains
-            .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
-            .filter(n => Number.isFinite(n));
-
-          const isChainHydrated = normalizedHydratedChains.includes(Number(checkChainId));
-          const isChainScanned = normalizedScannedChains.includes(Number(checkChainId));
-
-          if (isChainHydrated || isChainScanned) {
-            return true;
-          }
-        }
-        return false;
-      }
-
-      return null; // Both API and context data failed
+      return null;
     }
-  }, [address, railgunWalletId, chainId, walletMetadata]);
+  }, [address, railgunWalletId, chainId]);
 
   // Remove the complex modal gating logic - we'll use the same approach as old WalletPage
 
@@ -499,22 +405,10 @@ const VaultDesktopInner = () => {
           }
         }
 
-        if (scanned === false) {
-          console.log('[VaultDesktop] Chain not scanned by any wallet for this EOA - showing modal');
+        if (scanned === false || scanned === null) {
+          console.log('[VaultDesktop] Chain not scanned on connect - showing modal');
 
           // Guard reset-to-0: only reset progress if not already at 100%
-          setShowSignRequestPopup(true);
-          setIsInitInProgress(true);
-          setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);
-          setScanComplete(false);
-          const networkName = getNetworkName(chainId);
-          setInitProgress({
-            percent: 0,
-            message: `Setting up your LexieVault on ${networkName} Network...`
-          });
-        } else if (scanned === null) {
-          console.log('[VaultDesktop] Chain scan check failed completely - showing modal as safety measure');
-          // Safety fallback: if we can't determine scan status, show modal to ensure chains get scanned
           setShowSignRequestPopup(true);
           setIsInitInProgress(true);
           setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);

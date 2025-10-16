@@ -318,7 +318,6 @@ const WalletContextProvider = ({ children }) => {
   const [showLexieIdChoiceModal, setShowLexieIdChoiceModal] = useState(false);
   const [lexieIdChoicePromise, setLexieIdChoicePromise] = useState(null);
   const [lexieIdLinkPromise, setLexieIdLinkPromise] = useState(null);
-  const [walletMetadata, setWalletMetadata] = useState(null);
 
   // Wagmi hooks - ONLY for UI wallet connection
   const { address, isConnected, chainId, connector, status } = useAccount();
@@ -818,7 +817,6 @@ const WalletContextProvider = ({ children }) => {
       setRailgunWalletID(null);
       setRailgunError(null);
       setIsInitializing(false);
-      setWalletMetadata(null);
       selectedInjectedProviderRef.current = null;
 
       // Best-effort: pause Railgun polling quickly
@@ -953,7 +951,7 @@ const WalletContextProvider = ({ children }) => {
         walletAddress: address?.slice(0, 8) + '...' 
       });
       redisWalletData = await getWalletMetadata(address);
-
+      
       if (redisWalletData) {
         console.log('[WalletContext] ✅ Found wallet metadata in Redis:', {
           walletId: redisWalletData.walletId?.slice(0, 8) + '...',
@@ -962,8 +960,6 @@ const WalletContextProvider = ({ children }) => {
           totalKeys: redisWalletData.totalKeys,
           source: 'Redis'
         });
-        // Store wallet metadata in state for use by other components
-        setWalletMetadata(redisWalletData);
         existingWalletID = redisWalletData.walletId;
         existingRailgunAddress = redisWalletData.railgunAddress;
         
@@ -2636,9 +2632,6 @@ const WalletContextProvider = ({ children }) => {
     railgunError,
     canUseRailgun: isRailgunInitialized,
     railgunWalletId: railgunWalletID,
-
-    // Expose wallet metadata for scanned chains checking
-    walletMetadata,
     
     // Connection info
     connectedWalletType: connector?.id,
