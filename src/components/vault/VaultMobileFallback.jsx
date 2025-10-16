@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { VaultDesktopInner } from './VaultDesktop.jsx';
 import { WindowProvider } from '../../contexts/windowStore.jsx';
-import { deriveEncryptionKey, clearAllWallets } from '../../utils/railgun/wallet';
 
 // Load Eruda for mobile debugging
 const loadEruda = async () => {
@@ -45,6 +44,22 @@ const LexieMobileShell = () => {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [railgunFunctions, setRailgunFunctions] = useState(null);
+
+  // Load railgun functions dynamically to avoid circular dependencies
+  useEffect(() => {
+    const loadRailgunFunctions = async () => {
+      try {
+        const { deriveEncryptionKey, clearAllWallets } = await import('../../utils/railgun/wallet');
+        setRailgunFunctions({ deriveEncryptionKey, clearAllWallets });
+      } catch (error) {
+        console.error('Failed to load railgun functions:', error);
+        setHasError(true);
+        setErrorMessage('Failed to load vault functions');
+      }
+    };
+    loadRailgunFunctions();
+  }, []);
 
   // Load Eruda on component mount (only in development/staging)
   useEffect(() => {
@@ -125,13 +140,25 @@ const LexieMobileShell = () => {
         );
 
       case 'vault':
+        if (!railgunFunctions) {
+          return (
+            <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] px-6">
+              <div className="text-center space-y-4">
+                <div className="text-green-300">Loading LexieVault...</div>
+                <div className="flex items-center justify-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-400"></div>
+                </div>
+              </div>
+            </div>
+          );
+        }
         try {
           return (
             <WindowProvider>
               <VaultDesktopInner
                 mobileMode={true}
-                deriveEncryptionKey={deriveEncryptionKey}
-                clearAllWallets={clearAllWallets}
+                deriveEncryptionKey={railgunFunctions.deriveEncryptionKey}
+                clearAllWallets={railgunFunctions.clearAllWallets}
               />
             </WindowProvider>
           );
