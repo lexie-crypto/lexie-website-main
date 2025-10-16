@@ -304,7 +304,7 @@ const WindowShell = ({
       >
         {/* Optional minimal header for fullscreen mode */}
         {title && (
-          <div className="flex items-center justify-between px-4 py-3 bg-gray-900/90 border-b border-gray-700">
+          <div className="flex items-center px-4 py-3 bg-gray-900/90 border-b border-gray-700">
             <span
               id={`window-title-${id}`}
               className="font-mono text-sm text-gray-300"
@@ -312,7 +312,7 @@ const WindowShell = ({
               {title}
             </span>
             {statusLabel && (
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 ml-4">
                 <div className={`w-2 h-2 rounded-full animate-pulse ${statusTone === 'online' ? 'bg-green-400' : 'bg-yellow-400'}`} />
                 <span className={`font-mono text-xs ${statusTone === 'online' ? 'text-green-400' : 'text-yellow-300'}`}>
                   {statusLabel}
@@ -390,23 +390,21 @@ const WindowShell = ({
             type="maximize"
             onClick={handleMaximize}
           />
-        </div>
-        )}
-
-        {/* Title and Status Section */}
-        <div className="flex items-center gap-4">
           <span
             id={`window-title-${id}`}
-            className="font-mono text-sm text-gray-400 select-none"
+            className="ml-4 font-mono text-sm text-gray-400 select-none"
           >
             {title}
           </span>
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full animate-pulse ${statusTone === 'online' ? 'bg-green-400' : 'bg-yellow-400'}`} />
-            <span className={`font-mono text-xs ${statusTone === 'online' ? 'text-green-400' : 'text-yellow-300'}`}>
-              {statusLabel}
-            </span>
-          </div>
+        </div>
+        )}
+
+        {/* Status Section */}
+        <div className="flex items-center gap-3">
+          <div className={`w-2 h-2 rounded-full animate-pulse ${statusTone === 'online' ? 'bg-green-400' : 'bg-yellow-400'}`} />
+          <span className={`font-mono text-xs ${statusTone === 'online' ? 'text-green-400' : 'text-yellow-300'}`}>
+            {statusLabel}
+          </span>
         </div>
       </div>
 
