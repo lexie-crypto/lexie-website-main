@@ -1402,17 +1402,19 @@ export const VaultDesktopInner = ({ mobileMode = false }) => {
   if (!isConnected || (isConnected && !isNetworkSupported) || walletConnectValidating) {
     return (
       <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
-        {/* Logo in top left - redirects to main site */}
-        <div className="absolute top-6 left-6 z-50">
-          <a
-            href="https://www.lexiecrypto.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:opacity-80 transition-opacity"
-          >
-            <span className="text-3xl font-bold text-purple-300">LEXIEAI</span>
-          </a>
-        </div>
+        {/* Logo in top left - redirects to main site - Hidden on mobile */}
+        {!mobileMode && (
+          <div className="absolute top-6 left-6 z-50">
+            <a
+              href="https://www.lexiecrypto.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:opacity-80 transition-opacity"
+            >
+              <span className="text-3xl font-bold text-purple-300">LEXIEAI</span>
+            </a>
+          </div>
+        )}
 
         {/* Background overlays */}
         <div className="fixed inset-0 z-0">
@@ -1478,17 +1480,19 @@ export const VaultDesktopInner = ({ mobileMode = false }) => {
 
   return (
     <div className="relative min-h-screen w-full bg-black text-white overflow-x-hiddenscrollbar-terminal">
-      {/* Logo in top left - redirects to main site */}
-      <div className="absolute top-6 left-6 z-50">
-        <a
-          href="https://www.lexiecrypto.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hover:opacity-80 transition-opacity"
-        >
-          <span className="text-3xl font-bold text-purple-300">LEXIEAI</span>
-        </a>
-      </div>
+      {/* Logo in top left - redirects to main site - Hidden on mobile */}
+      {!mobileMode && (
+        <div className="absolute top-6 left-6 z-50">
+          <a
+            href="https://www.lexiecrypto.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:opacity-80 transition-opacity"
+          >
+            <span className="text-3xl font-bold text-purple-300">LEXIEAI</span>
+          </a>
+        </div>
+      )}
 
       {/* Background overlays */}
       <div className="fixed inset-0 z-0">
