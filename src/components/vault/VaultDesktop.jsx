@@ -35,7 +35,6 @@ import {
   parseTokenAmount,
   isTokenSupportedByRailgun,
 } from '../../utils/railgun/actions';
-import { deriveEncryptionKey, clearAllWallets } from '../../utils/railgun/wallet';
 
 // Titans Game component that loads the actual game from game.lexiecrypto.com
 const TitansGame = ({ lexieId, walletAddress, embedded, theme, onLoad, onError, onClose }) => {
@@ -133,7 +132,11 @@ const TitansGameWindow = ({ lexieId, walletAddress, onClose }) => {
   );
 };
 
-export const VaultDesktopInner = ({ mobileMode = false }) => {
+export const VaultDesktopInner = ({
+  mobileMode = false,
+  deriveEncryptionKey: deriveEncryptionKeyProp,
+  clearAllWallets: clearAllWalletsProp
+}) => {
   // Add mobile-specific styles to suppress window chrome
   React.useEffect(() => {
     if (mobileMode) {
@@ -493,7 +496,9 @@ export const VaultDesktopInner = ({ mobileMode = false }) => {
     try {
       // Unload all Railgun wallets/state before disconnecting
       try {
-        await clearAllWallets();
+        if (clearAllWalletsProp) {
+          await clearAllWalletsProp();
+        }
       } catch {}
       // Clear per-address guide flag
       if (address) {
@@ -1153,14 +1158,17 @@ export const VaultDesktopInner = ({ mobileMode = false }) => {
     }
 
     try {
+      if (!deriveEncryptionKeyProp) {
+        throw new Error('deriveEncryptionKey function not provided');
+      }
       const secret = address.toLowerCase();
       const salt = `lexie-railgun-${chainId}`;
-      return await deriveEncryptionKey(secret, salt, 100000);
+      return await deriveEncryptionKeyProp(secret, salt, 100000);
     } catch (error) {
       console.error('[VaultDesktop] Failed to derive encryption key:', error);
       throw new Error('Failed to derive encryption key');
     }
-  }, [address, chainId]);
+  }, [address, chainId, deriveEncryptionKeyProp]);
 
   // Handle individual token shielding
   const handleShieldToken = useCallback(async (token) => {
@@ -2452,9 +2460,31 @@ export const VaultDesktopInner = ({ mobileMode = false }) => {
 };
 
 const VaultDesktop = () => {
+  // Import railgun functions dynamically to avoid circular dependencies
+  const [railgunFunctions, setRailgunFunctions] = React.useState(null);
+
+  React.useEffect(() => {
+    const loadFunctions = async () => {
+      try {
+        const { deriveEncryptionKey, clearAllWallets } = await import('../../utils/railgun/wallet');
+        setRailgunFunctions({ deriveEncryptionKey, clearAllWallets });
+      } catch (error) {
+        console.error('Failed to load railgun functions:', error);
+      }
+    };
+    loadFunctions();
+  }, []);
+
+  if (!railgunFunctions) {
+    return null; // Loading...
+  }
+
   return (
     <WindowProvider>
-      <VaultDesktopInner />
+      <VaultDesktopInner
+        deriveEncryptionKey={railgunFunctions.deriveEncryptionKey}
+        clearAllWallets={railgunFunctions.clearAllWallets}
+      />
     </WindowProvider>
   );
 };

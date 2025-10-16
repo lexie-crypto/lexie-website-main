@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { VaultDesktopInner } from './VaultDesktop.jsx';
 import { WindowProvider } from '../../contexts/windowStore.jsx';
+import { deriveEncryptionKey, clearAllWallets } from '../../utils/railgun/wallet';
 
 // Load Eruda for mobile debugging
 const loadEruda = async () => {
@@ -127,7 +128,11 @@ const LexieMobileShell = () => {
         try {
           return (
             <WindowProvider>
-              <VaultDesktopInner mobileMode={true} />
+              <VaultDesktopInner
+                mobileMode={true}
+                deriveEncryptionKey={deriveEncryptionKey}
+                clearAllWallets={clearAllWallets}
+              />
             </WindowProvider>
           );
         } catch (error) {
