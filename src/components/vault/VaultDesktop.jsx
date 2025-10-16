@@ -30,6 +30,7 @@ import useInjectedProviders from '../../hooks/useInjectedProviders';
 import PrivacyActions from '../PrivacyActions';
 import TransactionHistory from '../TransactionHistory';
 import InjectedProviderButtons from '../InjectedProviderButtons.jsx';
+import ChainSelector from '../ChainSelector.jsx';
 import {
   shieldTokens,
   parseTokenAmount,
@@ -133,7 +134,7 @@ const TitansGameWindow = ({ lexieId, walletAddress, onClose }) => {
   );
 };
 
-const VaultDesktopInner = ({ mobileMode = false, selectedChainId }) => {
+const VaultDesktopInner = ({ mobileMode = false }) => {
   const {
     isConnected,
     isConnecting,
@@ -253,7 +254,10 @@ const VaultDesktopInner = ({ mobileMode = false, selectedChainId }) => {
   
   // Local state to show a refreshing indicator for Vault Balances
   const [isRefreshingBalances, setIsRefreshingBalances] = useState(false);
-  
+
+  // Selected chain state - defaults to Ethereum (chain ID 1)
+  const [selectedChainId, setSelectedChainId] = useState(1);
+
   // Chain readiness state
   const [isChainReady, setIsChainReady] = useState(false);
   const [scanComplete, setScanComplete] = useState(false);
@@ -1424,6 +1428,15 @@ const VaultDesktopInner = ({ mobileMode = false, selectedChainId }) => {
                 }
               </p>
 
+              {/* Chain Selector */}
+              <div className="mt-6 mb-4">
+                <ChainSelector
+                  selectedChainId={selectedChainId}
+                  onChainSelect={setSelectedChainId}
+                  disabled={isConnecting}
+                />
+              </div>
+
               <div className="space-y-4">
                 <InjectedProviderButtons disabled={isConnecting} selectedChainId={selectedChainId} />
               </div>
@@ -2390,7 +2403,7 @@ const VaultDesktopInner = ({ mobileMode = false, selectedChainId }) => {
   );
 };
 
-const VaultDesktop = ({ selectedChainId }) => {
+const VaultDesktop = () => {
   const [isMobile, setIsMobile] = React.useState(false);
   const [isReady, setIsReady] = React.useState(false);
 
@@ -2423,7 +2436,7 @@ const VaultDesktop = ({ selectedChainId }) => {
           statusTone="online"
           fullscreen={true}
         >
-          <VaultDesktopInner mobileMode={true} selectedChainId={selectedChainId} />
+          <VaultDesktopInner mobileMode={true} />
         </WindowShell>
       </WindowProvider>
     );
@@ -2431,7 +2444,7 @@ const VaultDesktop = ({ selectedChainId }) => {
 
   return (
     <WindowProvider>
-      <VaultDesktopInner selectedChainId={selectedChainId} />
+      <VaultDesktopInner />
     </WindowProvider>
   );
 };
