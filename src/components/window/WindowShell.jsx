@@ -390,13 +390,19 @@ const WindowShell = ({
             type="maximize"
             onClick={handleMaximize}
           />
-          <span
-            id={`window-title-${id}`}
-            className="ml-4 font-mono text-sm text-gray-400 select-none"
-          >
-            {title}
-          </span>
         </div>
+        )}
+
+        {/* Mobile Window Title */}
+        {isMobile && (
+          <div className="flex items-center">
+            <span
+              id={`window-title-${id}`}
+              className="font-mono text-sm text-gray-400 select-none"
+            >
+              {title}
+            </span>
+          </div>
         )}
 
         {/* Status Section */}
