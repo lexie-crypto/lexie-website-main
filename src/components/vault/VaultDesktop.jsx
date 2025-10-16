@@ -1385,7 +1385,7 @@ const VaultDesktopInner = () => {
             rel="noopener noreferrer"
             className="hover:opacity-80 transition-opacity"
           >
-            <span className="text-2xl font-bold text-purple-300">LEXIEAI</span>
+            <span className="text-4xl font-bold text-purple-300">LEXIEAI</span>
           </a>
         </div>
 
@@ -1461,7 +1461,7 @@ const VaultDesktopInner = () => {
           rel="noopener noreferrer"
           className="hover:opacity-80 transition-opacity"
         >
-          <span className="text-2xl font-bold text-purple-300">LEXIEAI</span>
+          <span className="text-4xl font-bold text-purple-300">LEXIEAI</span>
         </a>
       </div>
 
