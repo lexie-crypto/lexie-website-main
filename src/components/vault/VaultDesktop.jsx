@@ -133,7 +133,7 @@ const TitansGameWindow = ({ lexieId, walletAddress, onClose }) => {
   );
 };
 
-const VaultDesktopInner = () => {
+const VaultDesktopInner = ({ mobileMode = false }) => {
   const {
     isConnected,
     isConnecting,
@@ -2372,23 +2372,25 @@ const VaultDesktopInner = () => {
         </WindowShell>
       )}
 
-      {/* Lexie Logo */}
-      <div className="fixed bottom-2 right-1 z-10">
-        <img
-          src="/lexie.png"
-          alt="Lexie"
-          className="w-[320px] h-[320px] opacity-80 hover:opacity-80 transition-opacity cursor-pointer"
-          title="Click here to open up LexieChat"
-          onClick={() => {
-            const windowState = getWindowState('lexie-chat-terminal');
-            // If window exists and is closed, reopen it first
-            if (windowState && windowState.isClosed) {
-              reopenWindow('lexie-chat-terminal');
-            }
-            setShowLexieChat(true);
-          }}
-        />
-      </div>
+      {/* Lexie Logo - Only show on desktop */}
+      {!mobileMode && (
+        <div className="fixed bottom-2 right-1 z-10">
+          <img
+            src="/lexie.png"
+            alt="Lexie"
+            className="w-[320px] h-[320px] opacity-80 hover:opacity-80 transition-opacity cursor-pointer"
+            title="Click here to open up LexieChat"
+            onClick={() => {
+              const windowState = getWindowState('lexie-chat-terminal');
+              // If window exists and is closed, reopen it first
+              if (windowState && windowState.isClosed) {
+                reopenWindow('lexie-chat-terminal');
+              }
+              setShowLexieChat(true);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 };
