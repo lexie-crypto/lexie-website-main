@@ -321,6 +321,37 @@ export const VaultDesktopInner = ({
     }
   }, []);
 
+  // Chain menu state
+  const [isChainMenuOpen, setIsChainMenuOpen] = useState(false);
+  const [isMobileChainMenuOpen, setIsMobileChainMenuOpen] = useState(false);
+  const chainMenuRef = useRef(null);
+  const mobileChainMenuRef = useRef(null);
+
+  // Close custom chain menu on outside click or ESC
+  useEffect(() => {
+    if (!isChainMenuOpen && !isMobileChainMenuOpen) return;
+    const onClickOutside = (e) => {
+      if (chainMenuRef.current && !chainMenuRef.current.contains(e.target)) {
+        setIsChainMenuOpen(false);
+      }
+      if (mobileChainMenuRef.current && !mobileChainMenuRef.current.contains(e.target)) {
+        setIsMobileChainMenuOpen(false);
+      }
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        setIsChainMenuOpen(false);
+        setIsMobileChainMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [isChainMenuOpen, isMobileChainMenuOpen]);
+
 
   // Simple Redis check for scanned chains (exact EOA address, no normalization)
   const checkRedisScannedChains = useCallback(async (targetChainId = null) => {
@@ -1377,35 +1408,6 @@ export const VaultDesktopInner = ({
     }
   };
 
-  const [isChainMenuOpen, setIsChainMenuOpen] = useState(false);
-  const [isMobileChainMenuOpen, setIsMobileChainMenuOpen] = useState(false);
-  const chainMenuRef = useRef(null);
-  const mobileChainMenuRef = useRef(null);
-
-  // Close custom chain menu on outside click or ESC
-  useEffect(() => {
-    if (!isChainMenuOpen && !isMobileChainMenuOpen) return;
-    const onClickOutside = (e) => {
-      if (chainMenuRef.current && !chainMenuRef.current.contains(e.target)) {
-        setIsChainMenuOpen(false);
-      }
-      if (mobileChainMenuRef.current && !mobileChainMenuRef.current.contains(e.target)) {
-        setIsMobileChainMenuOpen(false);
-      }
-    };
-    const onKey = (e) => { 
-      if (e.key === 'Escape') {
-        setIsChainMenuOpen(false);
-        setIsMobileChainMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onClickOutside);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onClickOutside);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [isChainMenuOpen, isMobileChainMenuOpen]);
 
   if (!isConnected || (isConnected && !isNetworkSupported) || walletConnectValidating) {
     return (
