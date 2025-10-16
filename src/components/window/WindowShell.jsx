@@ -305,12 +305,17 @@ const WindowShell = ({
         {/* Optional minimal header for fullscreen mode */}
         {title && (
           <div className="flex items-center justify-between px-4 py-3 bg-gray-900/90 border-b border-gray-700">
-            <span
-              id={`window-title-${id}`}
-              className="font-mono text-sm text-gray-300"
-            >
-              {title}
-            </span>
+            <div className="flex flex-col">
+              <span
+                id={`window-title-${id}`}
+                className="font-mono text-sm text-gray-300"
+              >
+                {title}
+              </span>
+              <span className="font-mono text-xs text-gray-500">
+                lexie-vault
+              </span>
+            </div>
             {statusLabel && (
               <div className="flex items-center gap-2">
                 <div className={`w-2 h-2 rounded-full animate-pulse ${statusTone === 'online' ? 'bg-green-400' : 'bg-yellow-400'}`} />
