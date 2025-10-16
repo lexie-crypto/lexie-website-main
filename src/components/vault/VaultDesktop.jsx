@@ -35,6 +35,7 @@ import {
   parseTokenAmount,
   isTokenSupportedByRailgun,
 } from '../../utils/railgun/actions';
+import { deriveEncryptionKey, clearAllWallets } from '../../utils/railgun/wallet';
 
 // Titans Game component that loads the actual game from game.lexiecrypto.com
 const TitansGame = ({ lexieId, walletAddress, embedded, theme, onLoad, onError, onClose }) => {
@@ -132,11 +133,7 @@ const TitansGameWindow = ({ lexieId, walletAddress, onClose }) => {
   );
 };
 
-export const VaultDesktopInner = ({
-  mobileMode = false,
-  deriveEncryptionKey: deriveEncryptionKeyProp,
-  clearAllWallets: clearAllWalletsProp
-}) => {
+export const VaultDesktopInner = ({ mobileMode = false }) => {
   // Add mobile-specific styles to suppress window chrome
   React.useEffect(() => {
     if (mobileMode) {
@@ -321,37 +318,6 @@ export const VaultDesktopInner = ({
     }
   }, []);
 
-  // Chain menu state
-  const [isChainMenuOpen, setIsChainMenuOpen] = useState(false);
-  const [isMobileChainMenuOpen, setIsMobileChainMenuOpen] = useState(false);
-  const chainMenuRef = useRef(null);
-  const mobileChainMenuRef = useRef(null);
-
-  // Close custom chain menu on outside click or ESC
-  useEffect(() => {
-    if (!isChainMenuOpen && !isMobileChainMenuOpen) return;
-    const onClickOutside = (e) => {
-      if (chainMenuRef.current && !chainMenuRef.current.contains(e.target)) {
-        setIsChainMenuOpen(false);
-      }
-      if (mobileChainMenuRef.current && !mobileChainMenuRef.current.contains(e.target)) {
-        setIsMobileChainMenuOpen(false);
-      }
-    };
-    const onKey = (e) => {
-      if (e.key === 'Escape') {
-        setIsChainMenuOpen(false);
-        setIsMobileChainMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onClickOutside);
-    document.addEventListener('keydown', onKey);
-    return () => {
-      document.removeEventListener('mousedown', onClickOutside);
-      document.removeEventListener('keydown', onKey);
-    };
-  }, [isChainMenuOpen, isMobileChainMenuOpen]);
-
 
   // Simple Redis check for scanned chains (exact EOA address, no normalization)
   const checkRedisScannedChains = useCallback(async (targetChainId = null) => {
@@ -527,9 +493,7 @@ export const VaultDesktopInner = ({
     try {
       // Unload all Railgun wallets/state before disconnecting
       try {
-        if (clearAllWalletsProp) {
-          await clearAllWalletsProp();
-        }
+        await clearAllWallets();
       } catch {}
       // Clear per-address guide flag
       if (address) {
@@ -1189,17 +1153,14 @@ export const VaultDesktopInner = ({
     }
 
     try {
-      if (!deriveEncryptionKeyProp) {
-        throw new Error('deriveEncryptionKey function not provided');
-      }
       const secret = address.toLowerCase();
       const salt = `lexie-railgun-${chainId}`;
-      return await deriveEncryptionKeyProp(secret, salt, 100000);
+      return await deriveEncryptionKey(secret, salt, 100000);
     } catch (error) {
       console.error('[VaultDesktop] Failed to derive encryption key:', error);
       throw new Error('Failed to derive encryption key');
     }
-  }, [address, chainId, deriveEncryptionKeyProp]);
+  }, [address, chainId]);
 
   // Handle individual token shielding
   const handleShieldToken = useCallback(async (token) => {
@@ -1408,6 +1369,35 @@ export const VaultDesktopInner = ({
     }
   };
 
+  const [isChainMenuOpen, setIsChainMenuOpen] = useState(false);
+  const [isMobileChainMenuOpen, setIsMobileChainMenuOpen] = useState(false);
+  const chainMenuRef = useRef(null);
+  const mobileChainMenuRef = useRef(null);
+
+  // Close custom chain menu on outside click or ESC
+  useEffect(() => {
+    if (!isChainMenuOpen && !isMobileChainMenuOpen) return;
+    const onClickOutside = (e) => {
+      if (chainMenuRef.current && !chainMenuRef.current.contains(e.target)) {
+        setIsChainMenuOpen(false);
+      }
+      if (mobileChainMenuRef.current && !mobileChainMenuRef.current.contains(e.target)) {
+        setIsMobileChainMenuOpen(false);
+      }
+    };
+    const onKey = (e) => { 
+      if (e.key === 'Escape') {
+        setIsChainMenuOpen(false);
+        setIsMobileChainMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onClickOutside);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [isChainMenuOpen, isMobileChainMenuOpen]);
 
   if (!isConnected || (isConnected && !isNetworkSupported) || walletConnectValidating) {
     return (
@@ -2462,31 +2452,9 @@ export const VaultDesktopInner = ({
 };
 
 const VaultDesktop = () => {
-  // Import railgun functions dynamically to avoid circular dependencies
-  const [railgunFunctions, setRailgunFunctions] = React.useState(null);
-
-  React.useEffect(() => {
-    const loadFunctions = async () => {
-      try {
-        const { deriveEncryptionKey, clearAllWallets } = await import('../../utils/railgun/wallet');
-        setRailgunFunctions({ deriveEncryptionKey, clearAllWallets });
-      } catch (error) {
-        console.error('Failed to load railgun functions:', error);
-      }
-    };
-    loadFunctions();
-  }, []);
-
-  if (!railgunFunctions) {
-    return null; // Loading...
-  }
-
   return (
     <WindowProvider>
-      <VaultDesktopInner
-        deriveEncryptionKey={railgunFunctions.deriveEncryptionKey}
-        clearAllWallets={railgunFunctions.clearAllWallets}
-      />
+      <VaultDesktopInner />
     </WindowProvider>
   );
 };
