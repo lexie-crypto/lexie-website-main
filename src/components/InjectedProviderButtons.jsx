@@ -193,14 +193,123 @@ const InjectedProviderButtons = ({ disabled, selectedChainId }) => {
     try {
       setBusyKey('walletconnect');
 
-      // For WalletConnect, network validation happens automatically after connection
-      console.log('[WalletConnect] Starting WalletConnect connection...');
+      // Show user guidance about the selected network
+      const networkNames = {
+        1: 'Ethereum',
+        137: 'Polygon',
+        42161: 'Arbitrum',
+        56: 'BNB Chain'
+      };
+
+      const selectedNetworkName = networkNames[selectedChainId] || 'Ethereum';
+
+      console.log(`[WalletConnect] Starting WalletConnect connection...`);
+      console.log(`[WalletConnect] User selected network: ${selectedNetworkName} (chain ID: ${selectedChainId})`);
+
+      // Show a toast to guide the user about network selection
+      if (selectedChainId && selectedChainId !== 1) {
+        toast.custom((t) => (
+          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+            <div className="rounded-lg border border-blue-500/30 bg-black/90 text-blue-200 shadow-2xl max-w-md">
+              <div className="px-4 py-3 flex items-start gap-3">
+                <div className="h-5 w-5 rounded-full bg-blue-400 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium">Network Selection Required</div>
+                  <div className="text-xs text-blue-300/80 mt-1">
+                    After scanning the QR code, please select <strong>{selectedNetworkName}</strong> in your mobile wallet to create your vault on the correct network.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Dismiss"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toast.dismiss(t.id);
+                  }}
+                  className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-blue-900/30 text-blue-300/80 flex-shrink-0"
+                >
+                  ×
+                </button>
+              </div>
+            </div>
+          </div>
+        ), { duration: 10000 });
+      }
 
       await connectWallet('walletconnect');
 
-      // After connection, immediately check if we can determine the chain
-      // WalletConnect validation will happen in WalletContext automatically
-      console.log('[WalletConnect] Connection established, network validation will happen automatically');
+      // After connection, wait a moment for chainId to be available and validate
+      console.log('[WalletConnect] Connection established, waiting for chain validation...');
+
+      // Wait for chainId to be available (WalletConnect can be slow)
+      await new Promise(resolve => setTimeout(resolve, 2000));
+
+      // Check if we're on the correct network
+      try {
+        const walletConnectConnector = window?.wagmi?.connectors?.find(c => c.id === 'walletConnect');
+        if (walletConnectConnector) {
+          const provider = await walletConnectConnector.getProvider();
+          if (provider) {
+            const chainIdHex = await provider.request({ method: 'eth_chainId' });
+            const connectedChainId = parseInt(chainIdHex, 16);
+
+            console.log(`[WalletConnect] Connected to chain ${connectedChainId}, selected chain ${selectedChainId}`);
+
+            if (connectedChainId !== selectedChainId) {
+              const networkNames = {
+                1: 'Ethereum',
+                137: 'Polygon',
+                42161: 'Arbitrum',
+                56: 'BNB Chain'
+              };
+              const connectedNetworkName = networkNames[connectedChainId] || `Chain ${connectedChainId}`;
+              const selectedNetworkName = networkNames[selectedChainId] || `Chain ${selectedChainId}`;
+
+              toast.custom((t) => (
+                <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+                  <div className="rounded-lg border border-red-500/30 bg-black/90 text-red-200 shadow-2xl max-w-md">
+                    <div className="px-4 py-3 flex items-start gap-3">
+                      <div className="h-5 w-5 rounded-full bg-red-400 flex-shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium">Wrong Network Selected</div>
+                        <div className="text-xs text-red-300/80 mt-1">
+                          You selected <strong>{selectedNetworkName}</strong> but connected to <strong>{connectedNetworkName}</strong>.
+                          Please disconnect and select <strong>{selectedNetworkName}</strong> in your mobile wallet.
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        aria-label="Dismiss"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toast.dismiss(t.id);
+                        }}
+                        className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-red-900/30 text-red-300/80 flex-shrink-0"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ), { duration: 15000 });
+
+              // Disconnect to let them try again
+              setTimeout(() => {
+                if (window?.wagmi?.disconnect) {
+                  window.wagmi.disconnect();
+                }
+              }, 1000);
+
+              return; // Don't proceed
+            }
+          }
+        }
+      } catch (chainCheckError) {
+        console.warn('[WalletConnect] Could not verify chain:', chainCheckError);
+        // Continue anyway if we can't check
+      }
+
+      console.log('[WalletConnect] Chain validation completed successfully');
 
     } catch (e) {
       console.error('[WalletConnect] Connection failed:', e);
