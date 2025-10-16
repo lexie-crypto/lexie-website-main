@@ -1,6 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { VaultDesktopInner } from './VaultDesktop.jsx';
+import React, { useState, useEffect, Suspense } from 'react';
 import { WindowProvider } from '../../contexts/windowStore.jsx';
+
+// Lazy load the vault component instead
+const VaultDesktopInner = React.lazy(() =>
+  import('./VaultDesktop.jsx').then(module => ({ default: module.VaultDesktopInner }))
+);
 
 // Load Eruda for mobile debugging
 const loadEruda = async () => {
@@ -127,7 +131,13 @@ const LexieMobileShell = () => {
         try {
           return (
             <WindowProvider>
-              <VaultDesktopInner mobileMode={true} />
+              <Suspense fallback={
+                <div className="flex items-center justify-center min-h-[calc(100vh-80px)]">
+                  <div className="text-green-300 text-sm">Loading vault...</div>
+                </div>
+              }>
+                <VaultDesktopInner mobileMode={true} />
+              </Suspense>
             </WindowProvider>
           );
         } catch (error) {
