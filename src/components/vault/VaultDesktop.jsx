@@ -1440,7 +1440,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   }
 
   return (
-    <div className="relative h-screen w-full bg-black text-white overflow-x-hiddenscrollbar-terminal">
+    <div className="relative h-screen w-full bg-black text-white overflow-x-hidden scrollbar-none">
       {/* Background overlays */}
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
@@ -1547,7 +1547,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                       <span className="ml-1">▾</span>
                     </button>
                     {isMobileChainMenuOpen && (
-                      <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden scrollbar-terminal z-50">
+                      <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden scrollbar-none z-50">
                         {supportedNetworks.map((net) => (
                           <button
                             key={net.id}
@@ -1600,7 +1600,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                     <span className="ml-1">▾</span>
                   </button>
                   {isChainMenuOpen && (
-                    <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden scrollbar-terminal z-50">
+                    <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden scrollbar-none z-50">
                       {supportedNetworks.map((net) => (
                         <button
                           key={net.id}
@@ -1898,7 +1898,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       {/* Lexie ID Choice Modal */}
       {showLexieIdChoiceModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center z-[100] p-4 font-mono">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-lg w-full overflow-hidden scrollbar-terminal">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-lg w-full overflow-hidden scrollbar-none">
             {/* Modal Terminal Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
               <div className="flex items-center gap-3">
@@ -1955,7 +1955,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       {/* Lexie ID Modal */}
       {showLexieModal && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[99] p-4 font-mono">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-4xl w-full overflow-hidden scrollbar-terminal">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-4xl w-full overflow-hidden scrollbar-none">
             {/* Modal Terminal Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
               <div className="flex items-center gap-3">
@@ -2137,7 +2137,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       {/* Cross-Platform Verification Modal */}
       {showVerificationModal && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 font-mono">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden scrollbar-terminal">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden scrollbar-none">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
               <div className="flex items-center gap-3">
                 <span className="text-sm tracking-wide text-gray-400">telegram-link</span>
@@ -2201,7 +2201,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       {/* Sign-in & Initialization Popup */}
       {showSignRequestPopup && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center z-50 p-4 font-mono">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden scrollbar-terminal">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden scrollbar-none">
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
               <div className="flex items-center gap-3">
                 <span className="text-sm tracking-wide text-gray-400">vault-sign</span>

@@ -330,7 +330,7 @@ const WindowShell = ({
             height: title ? 'calc(100vh - 52px)' : '100vh'
           }}
         >
-          <div className="h-full overflow-y-auto overflow-x-hidden scrollbar-terminal fullscreen-mobile-scrollbar">
+          <div className="h-full overflow-y-auto overflow-x-hidden scrollbar-none">
             {children}
           </div>
         </div>
@@ -424,7 +424,7 @@ const WindowShell = ({
             {children}
           </div>
         ) : (
-          <div className="h-full overflow-y-auto overflow-x-hidden scrollbar-terminal">
+          <div className="h-full overflow-y-auto overflow-x-hidden scrollbar-none">
             <div className="px-4 sm:px-6 lg:px-8 py-4 h-full">
               <div className="break-words whitespace-pre-wrap max-w-none">
                 {children}
