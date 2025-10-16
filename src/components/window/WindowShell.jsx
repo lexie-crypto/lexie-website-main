@@ -368,15 +368,16 @@ const WindowShell = ({
       <div
         className={`
                   flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800
-                  ${isMaximized ? 'cursor-default' : isDragging ? 'cursor-grabbing' : isWindowResizing ? 'cursor-wait' : 'cursor-grab'}
+                  ${isMobile ? 'cursor-default' : isMaximized ? 'cursor-default' : isDragging ? 'cursor-grabbing' : isWindowResizing ? 'cursor-wait' : 'cursor-grab'}
                   select-none
                 `}
-        {...(isMaximized || isMinimized || isClosed ? {} : dragHandlers)}
+        {...(isMaximized || isMinimized || isClosed || isMobile ? {} : dragHandlers)}
         role="banner"
         aria-grabbed={isDragging}
       >
-        {/* Traffic Lights */}
-        <div className="flex items-center gap-2" data-nodrag>
+        {/* Traffic Lights - Hidden on mobile */}
+        {!isMobile && (
+          <div className="flex items-center gap-2" data-nodrag>
           <TrafficLight
             type="close"
             onClick={handleClose}
@@ -396,6 +397,7 @@ const WindowShell = ({
             {title}
           </span>
         </div>
+        )}
 
         {/* Status Section */}
         <div className="flex items-center gap-3">
@@ -453,7 +455,7 @@ const WindowShell = ({
         )}
 
         {/* Bottom resize handles - positioned relative to footer */}
-        {!isMaximized && (
+        {!isMaximized && !isMobile && (
           <>
             <div
               className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize"
@@ -471,8 +473,8 @@ const WindowShell = ({
         )}
       </div>
 
-      {/* Resize handles - only show when not maximized and not closed */}
-      {!isMaximized && !isClosed && (
+      {/* Resize handles - only show when not maximized and not closed and not mobile */}
+      {!isMaximized && !isClosed && !isMobile && (
         <>
           {/* Top edge handle */}
           <div

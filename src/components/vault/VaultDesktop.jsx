@@ -2315,8 +2315,8 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         </div>
       )}
 
-      {/* Taskbar for minimized windows */}
-      <Taskbar />
+      {/* Taskbar for minimized windows - Hidden on mobile */}
+      {!mobileMode && <Taskbar />}
 
       {/* Titans Game Window */}
       {showTitansGame && (
