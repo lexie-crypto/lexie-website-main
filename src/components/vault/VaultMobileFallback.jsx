@@ -127,7 +127,7 @@ const LexieMobileShell = () => {
         try {
           return (
             <WindowProvider>
-              <VaultDesktopInner />
+              <VaultDesktopInner mobileMode={true} />
             </WindowProvider>
           );
         } catch (error) {
@@ -222,8 +222,8 @@ const LexieMobileShell = () => {
       <div className="relative z-20 flex items-center justify-between px-4 py-3 bg-black/80 border-b border-green-500/20">
         <div className="text-green-400 text-xl font-mono">&gt;</div>
 
-        <div className={`text-lg font-bold transition-colors duration-300 ${currentModule?.color || 'text-green-300'}`}>
-          {currentModule?.name || 'Home'}
+        <div className="text-green-400 text-sm font-mono">
+          ONLINE
         </div>
 
         <div className="flex items-center space-x-2">

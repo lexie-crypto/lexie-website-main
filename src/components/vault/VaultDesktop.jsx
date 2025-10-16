@@ -133,7 +133,32 @@ const TitansGameWindow = ({ lexieId, walletAddress, onClose }) => {
   );
 };
 
-export const VaultDesktopInner = () => {
+export const VaultDesktopInner = ({ mobileMode = false }) => {
+  // Add mobile-specific styles to suppress window chrome
+  React.useEffect(() => {
+    if (mobileMode) {
+      const style = document.createElement('style');
+      style.textContent = `
+        .mobile-vault-mode > div:first-child {
+          display: none !important;
+        }
+        .mobile-vault-mode [role="banner"] {
+          display: none !important;
+        }
+        .mobile-vault-mode button[aria-label*="window"] {
+          display: none !important;
+        }
+        .mobile-vault-mode .traffic-lights {
+          display: none !important;
+        }
+      `;
+      document.head.appendChild(style);
+      return () => {
+        document.head.removeChild(style);
+      };
+    }
+  }, [mobileMode]);
+
   const {
     isConnected,
     isConnecting,
@@ -1502,6 +1527,7 @@ export const VaultDesktopInner = () => {
           statusTone={statusConfig.statusTone}
           footerLeft={footerContent}
           variant="vault"
+          className={mobileMode ? 'mobile-vault-mode' : ''}
         >
           <div className="font-mono text-green-300 space-y-4">
             {/* Header */}
@@ -1663,8 +1689,9 @@ export const VaultDesktopInner = () => {
             )}
 
             {/* Boot log */}
-            <div className="mb-6">
-              <div className="text-xs text-green-400/60 tracking-wide mb-3">LEXIEAI SYSTEM BOOT v2.1.3</div>
+            {!mobileMode && (
+              <div className="mb-6">
+                <div className="text-xs text-green-400/60 tracking-wide mb-3">LEXIEAI SYSTEM BOOT v2.1.3</div>
               <div className="space-y-1 text-green-300/80 text-xs leading-5 font-mono">
                 <div>✓ Vault interface loaded</div>
                 <div>✓ Network: {network?.name || 'Unknown'}</div>
@@ -1677,6 +1704,7 @@ export const VaultDesktopInner = () => {
                 <div className="pt-1 text-emerald-300">Ready for commands...</div>
               </div>
             </div>
+            )}
 
             {/* Divider */}
             <div className="border-t border-teal-500/10 my-6"></div>
