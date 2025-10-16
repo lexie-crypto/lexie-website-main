@@ -311,20 +311,14 @@ const WindowShell = ({
         {/* Fullscreen content */}
         <div
           id={`window-content-${id}`}
-          className="relative bg-black overflow-auto scrollbar-terminal p-4 sm:p-6"
+          className="relative bg-black overflow-hidden p-4 sm:p-6"
           style={{
             height: title ? 'calc(100vh - 52px)' : '100vh'
           }}
         >
-          {appType === 'game' ? (
-            <div className="h-full w-full">
-              {children}
-            </div>
-          ) : (
-            <div className="h-full w-full overflow-x-hidden overflow-y-auto scrollbar-terminal">
-              {children}
-            </div>
-          )}
+          <div className="h-full overflow-y-auto overflow-x-hidden scrollbar-terminal fullscreen-mobile-scrollbar">
+            {children}
+          </div>
         </div>
       </div>
     );
