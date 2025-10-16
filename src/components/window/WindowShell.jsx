@@ -281,7 +281,7 @@ const WindowShell = ({
   if (fullscreen) {
     return (
       <div
-        className={`fixed inset-0 z-50 bg-black p-3 sm:p-4 ${className}`}
+        className={`fixed inset-0 z-50 bg-black p-4 sm:p-6 ${className}`}
         onClick={handleWindowClick}
         role="dialog"
         aria-modal="true"
