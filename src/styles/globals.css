@@ -2,6 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Ensure html and body don't show scrollbars */
+html, body {
+  margin: 0;
+  padding: 0;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
+}
+
 @layer utilities {
   .animate-fade-in {
     animation: fadeIn 1s ease-in-out forwards;
@@ -53,6 +66,16 @@
   }
   
   .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Hide scrollbars completely */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
     display: none;
   }
 
