@@ -281,7 +281,7 @@ const WindowShell = ({
   if (fullscreen) {
     return (
       <div
-        className={`fixed inset-0 z-50 bg-black p-4 sm:p-6 ${className}`}
+        className={`fixed inset-0 z-50 bg-black ${className}`}
         onClick={handleWindowClick}
         role="dialog"
         aria-modal="true"
@@ -311,7 +311,7 @@ const WindowShell = ({
         {/* Fullscreen content */}
         <div
           id={`window-content-${id}`}
-          className="relative bg-black overflow-auto scrollbar-terminal"
+          className="relative bg-black overflow-auto scrollbar-terminal p-4 sm:p-6"
           style={{
             height: title ? 'calc(100vh - 52px)' : '100vh'
           }}
