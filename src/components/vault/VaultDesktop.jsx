@@ -1377,6 +1377,23 @@ const VaultDesktopInner = () => {
   if (!isConnected || (isConnected && !isNetworkSupported) || walletConnectValidating) {
     return (
       <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
+        {/* Logo in top left - redirects to main site */}
+        <div className="absolute top-6 left-6 z-50">
+          <a
+            href="https://www.lexiecrypto.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
+          >
+            <img
+              src="/lexie.png"
+              alt="LexieAI"
+              className="h-8 w-8 object-contain"
+            />
+            <span className="text-xl font-bold text-purple-300">LEXIEAI</span>
+          </a>
+        </div>
+
         {/* Background overlays */}
         <div className="fixed inset-0 z-0">
           <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
@@ -1441,6 +1458,23 @@ const VaultDesktopInner = () => {
 
   return (
     <div className="relative min-h-screen w-full bg-black text-white overflow-x-hiddenscrollbar-terminal">
+      {/* Logo in top left - redirects to main site */}
+      <div className="absolute top-6 left-6 z-50">
+        <a
+          href="https://www.lexiecrypto.com"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center space-x-2 hover:opacity-80 transition-opacity"
+        >
+          <img
+            src="/lexie.png"
+            alt="LexieAI"
+            className="h-8 w-8 object-contain"
+          />
+          <span className="text-xl font-bold text-purple-300">LEXIEAI</span>
+        </a>
+      </div>
+
       {/* Background overlays */}
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
