@@ -1527,6 +1527,7 @@ export const VaultDesktopInner = ({ mobileMode = false }) => {
           statusTone={statusConfig.statusTone}
           footerLeft={footerContent}
           variant="vault"
+          mobileMode={mobileMode}
           className={mobileMode ? 'mobile-vault-mode' : ''}
         >
           <div className="font-mono text-green-300 space-y-4">
