@@ -113,6 +113,33 @@
   .scrollbar-terminal::-webkit-scrollbar-corner {
     background: rgba(31, 41, 55, 0.3);
   }
+
+  /* Mobile-specific scrollbar overrides */
+  @media (max-width: 768px) {
+    .scrollbar-terminal::-webkit-scrollbar {
+      width: 8px !important;
+    }
+
+    .scrollbar-terminal::-webkit-scrollbar-thumb {
+      background: rgba(34, 197, 94, 0.6) !important; /* Green accent for mobile */
+      border: 1px solid rgba(31, 41, 55, 0.8) !important;
+    }
+
+    .scrollbar-terminal::-webkit-scrollbar-thumb:hover {
+      background: rgba(34, 197, 94, 0.8) !important;
+    }
+
+    .scrollbar-terminal::-webkit-scrollbar-track {
+      background: rgba(17, 24, 39, 0.5) !important;
+    }
+  }
+
+  /* Additional mobile browser support */
+  @supports (-webkit-overflow-scrolling: touch) {
+    .scrollbar-terminal {
+      -webkit-overflow-scrolling: touch;
+    }
+  }
 }
 
 @keyframes fadeIn {
