@@ -251,6 +251,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   // Chain selection modal state
   const [showChainSelectionModal, setShowChainSelectionModal] = useState(false);
   const [selectedChainId, setSelectedChainId] = useState(1); // Default to Ethereum
+  const [chainSelectionPending, setChainSelectionPending] = useState(false); // Prevent signature modal until chain selected
   const [verificationLexieId, setVerificationLexieId] = useState('');
   const [verificationExpiresAt, setVerificationExpiresAt] = useState(0);
   const [verificationTimeLeft, setVerificationTimeLeft] = useState(0);
@@ -412,6 +413,8 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         if (scanned === false || scanned === null) {
           console.log('[VaultDesktop] Chain not scanned on connect - showing chain selection modal');
 
+          // Set flag to prevent signature modal until chain is selected
+          setChainSelectionPending(true);
           // Show chain selection modal first instead of immediately starting vault creation
           setShowChainSelectionModal(true);
         } else {
@@ -501,6 +504,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       setPointsBreakdown(null);
       setShowSignRequestPopup(false);
       setShowChainSelectionModal(false);
+      setChainSelectionPending(false);
       setIsInitInProgress(false);
       setInitFailedMessage('');
       setInitProgress({ percent: 0, message: '' });
@@ -535,7 +539,8 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   const handleChainSelection = useCallback(async (selectedChainId) => {
     console.log('[VaultDesktop] User selected chain:', selectedChainId);
 
-    // Close chain selection modal
+    // Clear the chain selection pending flag and close modal
+    setChainSelectionPending(false);
     setShowChainSelectionModal(false);
 
     // If selected chain is different from current, switch networks
@@ -940,14 +945,24 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   // Listen for signature request and init lifecycle events (like old WalletPage)
   useEffect(() => {
     const onSignRequest = () => {
+      // Don't show signature modal if chain selection is pending
+      if (chainSelectionPending) {
+        console.log('[VaultDesktop] Signature requested but chain selection pending - ignoring');
+        return;
+      }
       setShowSignRequestPopup(true);
       setIsInitInProgress(false);
       setInitProgress({ percent: 0, message: '' });
       setInitFailedMessage('');
       console.log('[VaultDesktop] Signature requested - showing modal');
     };
-    
+
     const onInitStarted = (e) => {
+      // Don't show modal if chain selection is pending
+      if (chainSelectionPending) {
+        console.log('[VaultDesktop] Init started but chain selection pending - ignoring');
+        return;
+      }
       // Open modal when init/scan starts
       if (!showSignRequestPopup) {
         setShowSignRequestPopup(true);
