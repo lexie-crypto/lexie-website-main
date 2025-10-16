@@ -631,7 +631,7 @@ const VaultDesktopInner = () => {
   }, []);
 
   // Full refresh: SDK refresh + Redis persist, then UI reload
-  const refreshBalances = useCallback(async () => {
+  const refreshBalances = useCallback(async (showToast = true) => {
     try {
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
       console.log('[VaultDesktop] Full refresh — SDK refresh + Redis persist, then UI fetch...');
@@ -663,48 +663,52 @@ const VaultDesktopInner = () => {
       // Step 2: Refresh UI from sources of truth
       await refreshAllBalances();
 
-      toast.custom((t) => (
-        <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-          <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
-            <div className="px-4 py-3 flex items-center gap-3">
-              <div className="h-3 w-3 rounded-full bg-emerald-400" />
-              <div>
-                <div className="text-sm">Balances refreshed</div>
-                <div className="text-xs text-green-400/80">Public and vault balances updated</div>
+      if (showToast) {
+        toast.custom((t) => (
+          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+            <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+              <div className="px-4 py-3 flex items-center gap-3">
+                <div className="h-3 w-3 rounded-full bg-emerald-400" />
+                <div>
+                  <div className="text-sm">Balances refreshed</div>
+                  <div className="text-xs text-green-400/80">Public and vault balances updated</div>
+                </div>
+                <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
               </div>
-              <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
             </div>
           </div>
-        </div>
-      ), { duration: 2500 });
+        ), { duration: 2500 });
+      }
     } catch (error) {
       console.error('[VaultDesktop] Full refresh failed:', error);
-      toast.custom((t) => (
-        <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-          <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
-            <div className="px-4 py-3 flex items-center gap-3">
-              <div className="h-3 w-3 rounded-full bg-red-400" />
-              <div>
-                <div className="text-sm">Failed to refresh balances</div>
-                <div className="text-xs text-green-400/80">Please try again</div>
+      if (showToast) {
+        toast.custom((t) => (
+          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+            <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+              <div className="px-4 py-3 flex items-center gap-3">
+                <div className="h-3 w-3 rounded-full bg-red-400" />
+                <div>
+                  <div className="text-sm">Failed to refresh balances</div>
+                  <div className="text-xs text-green-400/80">Please try again</div>
+                </div>
+                <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
               </div>
-              <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
             </div>
           </div>
-        </div>
-      ), { duration: 3500 });
+        ), { duration: 3500 });
+      }
     } finally {
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
     }
   }, [refreshAllBalances, railgunWalletId, address, chainId]);
 
-  // Auto-refresh public balances when wallet connects
+  // Auto-refresh balances when wallet connects and Railgun is ready (full refresh including private transfers)
   useEffect(() => {
-    if (isConnected && address && chainId) {
-      console.log('[VaultDesktop] Wallet connected - auto-refreshing public balances...');
-      refreshAllBalances();
+    if (isConnected && address && chainId && canUseRailgun && railgunWalletId) {
+      console.log('[VaultDesktop] Wallet connected and Railgun ready - auto-refreshing balances...');
+      refreshBalances(false); // Full refresh but no toast notification
     }
-  }, [isConnected, address, chainId]);
+  }, [isConnected, address, chainId, canUseRailgun, railgunWalletId, refreshBalances]);
 
   // Auto-switch to privacy view when Railgun is ready
   useEffect(() => {
@@ -1666,14 +1670,14 @@ const VaultDesktopInner = () => {
               <div className="flex flex-wrap gap-2 mb-2">
                 <button
                   onClick={refreshBalances}
-                  disabled={isLoading || !isConnected || isTransactionLocked}
+                  disabled={isLoading || !isConnected || isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-emerald-400/40 bg-emerald-900/20 hover:bg-emerald-900/40 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
                 >
                   refresh
                 </button>
                 <button
                   onClick={() => setSelectedView('balances')}
-                  disabled={isTransactionLocked}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   balances
@@ -1683,7 +1687,7 @@ const VaultDesktopInner = () => {
                     setActiveAction('contacts');
                     setSelectedView('privacy');
                   }}
-                  disabled={isTransactionLocked}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-pink-400/40 bg-pink-900/20 hover:bg-pink-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   contacts
@@ -1693,7 +1697,7 @@ const VaultDesktopInner = () => {
                     setActiveAction('shield');
                     setSelectedView('privacy');
                   }}
-                  disabled={isTransactionLocked}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-purple-300/50 bg-purple-300/10 hover:bg-purple-300/20 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   add
@@ -1703,7 +1707,7 @@ const VaultDesktopInner = () => {
                     setActiveAction('receive');
                     setSelectedView('privacy');
                   }}
-                  disabled={isTransactionLocked}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   receive
@@ -1713,7 +1717,7 @@ const VaultDesktopInner = () => {
                     setActiveAction('transfer');
                     setSelectedView('privacy');
                   }}
-                  disabled={isTransactionLocked}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-cyan-400/40 bg-cyan-900/20 hover:bg-cyan-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   send
@@ -1723,14 +1727,14 @@ const VaultDesktopInner = () => {
                     setActiveAction('unshield');
                     setSelectedView('privacy');
                   }}
-                  disabled={isTransactionLocked}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-amber-400/40 bg-amber-900/20 hover:bg-amber-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   remove
                 </button>
                 <button
                   onClick={() => setSelectedView('history')}
-                  disabled={isTransactionLocked}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-purple-400/40 bg-purple-900/20 hover:bg-purple-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   history

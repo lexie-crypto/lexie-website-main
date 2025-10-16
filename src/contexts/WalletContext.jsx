@@ -2696,6 +2696,9 @@ const WalletContextProvider = ({ children }) => {
         lexieIdLinkPromise.resolve();
       }
     },
+
+    // Chain scanning
+    ensureChainScanned,
   };
 
   return (
