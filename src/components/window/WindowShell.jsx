@@ -367,7 +367,7 @@ const WindowShell = ({
       {/* Custom Header with Traffic Lights */}
       <div
         className={`
-                  flex items-center ${isMobile ? 'justify-end' : 'justify-between'} px-4 py-3 border-b border-gray-700 bg-gray-800
+                  flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800
                   ${isMobile ? 'cursor-default' : isMaximized ? 'cursor-default' : isDragging ? 'cursor-grabbing' : isWindowResizing ? 'cursor-wait' : 'cursor-grab'}
                   select-none
                 `}
