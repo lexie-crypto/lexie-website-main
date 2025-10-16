@@ -6,8 +6,9 @@ import { useWallet } from '../contexts/WalletContext';
 /**
  * Renders detected injected wallets as connect buttons.
  * Clicking a button calls provider.request({ method: 'eth_requestAccounts' }).
+ * Attempts to switch to selectedChainId before requesting accounts.
  */
-const InjectedProviderButtons = ({ disabled }) => {
+const InjectedProviderButtons = ({ disabled, selectedChainId }) => {
   const { providers } = useInjectedProviders();
   const { connectWallet, isConnected } = useWallet();
   const [busyKey, setBusyKey] = useState(null);
@@ -53,30 +54,113 @@ const InjectedProviderButtons = ({ disabled }) => {
     const key = meta?.id || meta?.name;
     console.log('[InjectedProviderButtons] Setting busy key for', meta?.name, ':', key);
     console.log('[InjectedProviderButtons] Meta object:', meta);
+    console.log('[InjectedProviderButtons] Selected chain ID:', selectedChainId);
     setBusyKey(key);
 
     try {
-      // Check network BEFORE requesting accounts
-      const chainIdHex = await provider.request({ method: 'eth_chainId' });
-      const chainId = parseInt(chainIdHex, 16);
+      // If a chain is selected, attempt to switch to it first
+      if (selectedChainId) {
+        const targetChainHex = `0x${selectedChainId.toString(16)}`;
+        console.log(`[InjectedProviderButtons] 🔄 Attempting to switch to chain ${selectedChainId} (${targetChainHex})`);
 
-      console.log('[InjectedProviderButtons] Current chainId:', chainId);
+        try {
+          await provider.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: targetChainHex }],
+          });
+          console.log(`[InjectedProviderButtons] ✅ Successfully switched to chain ${selectedChainId}`);
+        } catch (switchError) {
+          console.warn(`[InjectedProviderButtons] ⚠️ Chain switch failed for chain ${selectedChainId}:`, switchError);
 
-      // Supported networks: Ethereum (1), Polygon (137), Arbitrum (42161), BNB Chain (56)
-      const supportedNetworks = [1, 137, 42161, 56];
-      if (!supportedNetworks.includes(chainId)) {
-        console.log(`[InjectedProviderButtons] 🚫 Blocking connection on unsupported network (chainId: ${chainId})`);
+          // Handle specific chain switch errors
+          if (switchError.code === 4902) {
+            // Chain not added to wallet - try to add it
+            console.log(`[InjectedProviderButtons] 🔗 Chain ${selectedChainId} not added to wallet, attempting to add...`);
 
-        // Show toast notification for unsupported network
+            const origin = typeof window !== 'undefined' ? window.location.origin : '';
+            const networkConfigs = {
+              1: { // Ethereum
+                chainId: '0x1',
+                chainName: 'Ethereum Mainnet',
+                nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+                rpcUrls: [`${origin}/api/rpc?chainId=1&provider=auto`],
+                blockExplorerUrls: ['https://etherscan.io/']
+              },
+              137: { // Polygon
+                chainId: '0x89',
+                chainName: 'Polygon Mainnet',
+                nativeCurrency: { name: 'MATIC', symbol: 'MATIC', decimals: 18 },
+                rpcUrls: [`${origin}/api/rpc?chainId=137&provider=auto`],
+                blockExplorerUrls: ['https://polygonscan.com/']
+              },
+              42161: { // Arbitrum
+                chainId: '0xa4b1',
+                chainName: 'Arbitrum One',
+                nativeCurrency: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+                rpcUrls: [`${origin}/api/rpc?chainId=42161&provider=auto`],
+                blockExplorerUrls: ['https://arbiscan.io/']
+              },
+              56: { // BNB Chain
+                chainId: '0x38',
+                chainName: 'BNB Smart Chain',
+                nativeCurrency: { name: 'BNB', symbol: 'BNB', decimals: 18 },
+                rpcUrls: [`${origin}/api/rpc?chainId=56&provider=auto`],
+                blockExplorerUrls: ['https://bscscan.com/']
+              }
+            };
+
+            const networkConfig = networkConfigs[selectedChainId];
+            if (networkConfig) {
+              try {
+                await provider.request({
+                  method: 'wallet_addEthereumChain',
+                  params: [networkConfig],
+                });
+                console.log(`[InjectedProviderButtons] ✅ Successfully added chain ${selectedChainId}`);
+
+                // Now try switching again
+                await provider.request({
+                  method: 'wallet_switchEthereumChain',
+                  params: [{ chainId: targetChainHex }],
+                });
+                console.log(`[InjectedProviderButtons] ✅ Successfully switched to newly added chain ${selectedChainId}`);
+              } catch (addError) {
+                console.error(`[InjectedProviderButtons] ❌ Failed to add chain ${selectedChainId}:`, addError);
+                throw new Error(`Please add the ${networkConfig.chainName} network to your wallet manually and try again.`);
+              }
+            } else {
+              throw new Error(`Unsupported chain ID: ${selectedChainId}`);
+            }
+          } else if (switchError.code === 4001) {
+            // User rejected the request
+            throw new Error('Chain switch cancelled by user.');
+          } else {
+            // Other chain switch error
+            throw new Error(`Failed to switch to the selected network. Please switch to the correct network manually.`);
+          }
+        }
+      }
+
+      // Request accounts after chain switching (if any)
+      console.log('[InjectedProviderButtons] 🔑 Requesting accounts...');
+      await provider.request({ method: 'eth_requestAccounts' });
+
+      // Use generic injected connector and pass through provider metadata
+      await connectWallet('injected', { provider, name: meta?.name, id: meta?.id });
+    } catch (err) {
+      console.error('Failed to connect provider:', err);
+
+      // Show user-friendly error message for chain-related issues
+      if (err.message?.includes('switch to') || err.message?.includes('add') || err.message?.includes('network')) {
         toast.custom((t) => (
           <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
             <div className="rounded-lg border border-yellow-500/30 bg-black/90 text-yellow-200 shadow-2xl max-w-md">
               <div className="px-4 py-3 flex items-start gap-3">
                 <div className="h-5 w-5 rounded-full bg-yellow-400 flex-shrink-0 mt-0.5" />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium">Unsupported Network</div>
+                  <div className="text-sm font-medium">Network Setup Required</div>
                   <div className="text-xs text-yellow-300/80 mt-1">
-                    Your wallet is connected to an unsupported network (Chain ID: {chainId}). Please switch to Ethereum, Arbitrum, Polygon, or BNB Chain to use LexieVault features.
+                    {err.message}
                   </div>
                 </div>
                 <button
@@ -94,20 +178,11 @@ const InjectedProviderButtons = ({ disabled }) => {
             </div>
           </div>
         ), { duration: 8000 });
-
-        return; // Don't proceed with connection, but don't throw error
+        return; // Don't proceed with connection
       }
 
-      console.log(`[InjectedProviderButtons] ✅ Network supported (chainId: ${chainId}), proceeding with connection`);
-      await provider.request({ method: 'eth_requestAccounts' });
-      // Use generic injected connector and pass through provider metadata
-      await connectWallet('injected', { provider, name: meta?.name, id: meta?.id });
-    } catch (err) {
-      console.error('Failed to connect provider:', err);
-      // Only re-throw if it's not a network validation issue (which we handle with toast)
-      if (!err.message?.includes('switch to') && !err.message?.includes('Unsupported network')) {
-        throw err; // Re-throw other errors
-      }
+      // Re-throw other errors
+      throw err;
     } finally {
       console.log('[InjectedProviderButtons] Finally block in handleClick - clearing busy key');
       setBusyKey(null);
