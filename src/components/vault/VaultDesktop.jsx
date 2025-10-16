@@ -1440,7 +1440,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   }
 
   return (
-    <div className="relative h-screen w-full bg-black text-white overflow-x-hidden scrollbar-none">
+    <div className="relative h-screen w-full bg-black text-white overflow-x-hidden">
       {/* Background overlays */}
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>

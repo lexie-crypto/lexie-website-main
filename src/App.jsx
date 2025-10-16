@@ -64,7 +64,7 @@ const PaymentRedirect = () => {
   const subdomainUrl = `https://staging.pay.lexiecrypto.com/pay?${urlParams.toString()}`;
 
   return (
-    <div className="h-screen bg-black text-white flex items-center justify-center scrollbar-none">
+    <div className="h-screen bg-black text-white flex items-center justify-center">
       <div className="text-center max-w-md mx-auto px-4">
         <div className="text-green-300 text-lg mb-4">Redirecting to payment page...</div>
         <div className="text-green-400/70 text-sm mb-6">
@@ -169,7 +169,7 @@ function App() {
   return (
     <WalletProvider>
       <Router>
-        <div className="App scrollbar-none">
+        <div className="App">
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/LexieVault" element={<WalletPage />} />

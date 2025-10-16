@@ -2,17 +2,19 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Ensure html and body don't show scrollbars */
-html, body {
-  margin: 0;
-  padding: 0;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
+/* Ensure html and body don't show scrollbars on mobile only */
+@media (max-width: 768px) {
+  html, body {
+    margin: 0;
+    padding: 0;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
 
-html::-webkit-scrollbar,
-body::-webkit-scrollbar {
-  display: none;
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 @layer utilities {
@@ -69,14 +71,16 @@ body::-webkit-scrollbar {
     display: none;
   }
 
-  /* Hide scrollbars completely */
-  .scrollbar-none {
-    scrollbar-width: none;
-    -ms-overflow-style: none;
-  }
+  /* Hide scrollbars completely on mobile only */
+  @media (max-width: 768px) {
+    .scrollbar-none {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
 
-  .scrollbar-none::-webkit-scrollbar {
-    display: none;
+    .scrollbar-none::-webkit-scrollbar {
+      display: none;
+    }
   }
 
   /* Global terminal scrollbar - applies to ALL scrollbars */
