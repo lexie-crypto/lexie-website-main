@@ -14,24 +14,12 @@ const AccessCodeGate = ({ children }) => {
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState('');
   const [showCode, setShowCode] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
 
   // Check if user is already authenticated on component mount
   useEffect(() => {
     const authStatus = localStorage.getItem('app_access_granted');
     if (authStatus === 'true') {
       setIsAuthenticated(true);
-    }
-  }, []);
-
-  // Mobile detection
-  useEffect(() => {
-    if (typeof window !== 'undefined' && window.matchMedia) {
-      const mq = window.matchMedia('(max-width: 639px)');
-      setIsMobile(mq.matches);
-      const handler = () => setIsMobile(mq.matches);
-      mq.addEventListener('change', handler);
-      return () => mq.removeEventListener('change', handler);
     }
   }, []);
 
@@ -84,8 +72,8 @@ const AccessCodeGate = ({ children }) => {
   // Access code authentication screen
   return (
     <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
-      {/* Navigation - Hidden on mobile */}
-      {!isMobile && <Navbar />}
+      {/* Navigation */}
+      <Navbar />
 
       {/* Background overlays */}
       <div className="fixed inset-0 z-0">

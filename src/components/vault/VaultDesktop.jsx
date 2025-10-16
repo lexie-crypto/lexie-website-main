@@ -133,32 +133,7 @@ const TitansGameWindow = ({ lexieId, walletAddress, onClose }) => {
   );
 };
 
-export const VaultDesktopInner = ({ mobileMode = false }) => {
-  // Add mobile-specific styles to suppress window chrome
-  React.useEffect(() => {
-    if (mobileMode) {
-      const style = document.createElement('style');
-      style.textContent = `
-        .mobile-vault-mode > div:first-child {
-          display: none !important;
-        }
-        .mobile-vault-mode [role="banner"] {
-          display: none !important;
-        }
-        .mobile-vault-mode button[aria-label*="window"] {
-          display: none !important;
-        }
-        .mobile-vault-mode .traffic-lights {
-          display: none !important;
-        }
-      `;
-      document.head.appendChild(style);
-      return () => {
-        document.head.removeChild(style);
-      };
-    }
-  }, [mobileMode]);
-
+const VaultDesktopInner = () => {
   const {
     isConnected,
     isConnecting,
@@ -1402,20 +1377,6 @@ export const VaultDesktopInner = ({ mobileMode = false }) => {
   if (!isConnected || (isConnected && !isNetworkSupported) || walletConnectValidating) {
     return (
       <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
-        {/* Logo in top left - redirects to main site - Hidden on mobile */}
-        {!mobileMode && (
-          <div className="absolute top-6 left-6 z-50">
-            <a
-              href="https://www.lexiecrypto.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:opacity-80 transition-opacity"
-            >
-              <span className="text-3xl font-bold text-purple-300">LEXIEAI</span>
-            </a>
-          </div>
-        )}
-
         {/* Background overlays */}
         <div className="fixed inset-0 z-0">
           <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
@@ -1452,7 +1413,6 @@ export const VaultDesktopInner = ({ mobileMode = false }) => {
             footerLeft={<span>Process: wallet-connect</span>}
             variant="connect"
             className="overflow-hidden"
-            mobileMode={mobileMode}
           >
             <div className="font-mono text-green-300 text-center">
               <WalletIcon className="h-16 w-16 text-emerald-300 mx-auto mb-6" />
@@ -1481,20 +1441,6 @@ export const VaultDesktopInner = ({ mobileMode = false }) => {
 
   return (
     <div className="relative min-h-screen w-full bg-black text-white overflow-x-hiddenscrollbar-terminal">
-      {/* Logo in top left - redirects to main site - Hidden on mobile */}
-      {!mobileMode && (
-        <div className="absolute top-6 left-6 z-50">
-          <a
-            href="https://www.lexiecrypto.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:opacity-80 transition-opacity"
-          >
-            <span className="text-3xl font-bold text-purple-300">LEXIEAI</span>
-          </a>
-        </div>
-      )}
-
       {/* Background overlays */}
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
@@ -1532,8 +1478,6 @@ export const VaultDesktopInner = ({ mobileMode = false }) => {
           statusTone={statusConfig.statusTone}
           footerLeft={footerContent}
           variant="vault"
-          mobileMode={mobileMode}
-          className={mobileMode ? 'mobile-vault-mode' : ''}
         >
           <div className="font-mono text-green-300 space-y-4">
             {/* Header */}
@@ -1695,9 +1639,8 @@ export const VaultDesktopInner = ({ mobileMode = false }) => {
             )}
 
             {/* Boot log */}
-            {!mobileMode && (
-              <div className="mb-6">
-                <div className="text-xs text-green-400/60 tracking-wide mb-3">LEXIEAI SYSTEM BOOT v2.1.3</div>
+            <div className="mb-6">
+              <div className="text-xs text-green-400/60 tracking-wide mb-3">LEXIEAI SYSTEM BOOT v2.1.3</div>
               <div className="space-y-1 text-green-300/80 text-xs leading-5 font-mono">
                 <div>✓ Vault interface loaded</div>
                 <div>✓ Network: {network?.name || 'Unknown'}</div>
@@ -1710,7 +1653,6 @@ export const VaultDesktopInner = ({ mobileMode = false }) => {
                 <div className="pt-1 text-emerald-300">Ready for commands...</div>
               </div>
             </div>
-            )}
 
             {/* Divider */}
             <div className="border-t border-teal-500/10 my-6"></div>
@@ -2452,6 +2394,45 @@ export const VaultDesktopInner = ({ mobileMode = false }) => {
 };
 
 const VaultDesktop = () => {
+  const [isMobile, setIsMobile] = React.useState(false);
+  const [isReady, setIsReady] = React.useState(false);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia === 'undefined') {
+      setIsReady(true);
+      return;
+    }
+    const mq = window.matchMedia('(max-width: 639px)');
+    const apply = () => { setIsMobile(mq.matches); setIsReady(true); };
+    apply();
+    if (mq.addEventListener) mq.addEventListener('change', apply);
+    else if (mq.addListener) mq.addListener(apply);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', apply);
+      else if (mq.removeListener) mq.removeListener(apply);
+    };
+  }, []);
+
+  if (!isReady) return null;
+
+  if (isMobile) {
+    return (
+      <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
+        <nav className="sticky top-0 z-40 w-full p-6 bg-black">
+          <div className="max-w-7xl mx-auto flex justify-between items-center">
+            <div className="text-4xl font-bold text-purple-300">LEXIEAI</div>
+          </div>
+        </nav>
+        <div className="flex items-center justify-center px-6 py-16">
+          <div className="max-w-md w-full text-center font-mono text-green-300">
+            <div className="text-lg text-green-200 mb-2">Not available on mobile yet…</div>
+            <div className="text-green-400/80 text-sm">Please open this page on a desktop to access LexieVault.</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <WindowProvider>
       <VaultDesktopInner />

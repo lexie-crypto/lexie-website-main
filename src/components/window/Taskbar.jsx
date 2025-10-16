@@ -7,20 +7,6 @@ const Taskbar = () => {
   const dockItems = getMinimizedWindows();
   const activeWindowId = getActiveWindowId();
 
-  // Don't render on mobile devices
-  const [isMobile, setIsMobile] = React.useState(false);
-  React.useEffect(() => {
-    if (typeof window !== 'undefined' && window.matchMedia) {
-      const mq = window.matchMedia('(max-width: 639px)');
-      setIsMobile(mq.matches);
-      const handler = () => setIsMobile(mq.matches);
-      mq.addEventListener('change', handler);
-      return () => mq.removeEventListener('change', handler);
-    }
-  }, []);
-
-  if (isMobile) return null;
-
   const scrollContainerRef = useRef(null);
   const [showLeftArrow, setShowLeftArrow] = useState(false);
   const [showRightArrow, setShowRightArrow] = useState(false);

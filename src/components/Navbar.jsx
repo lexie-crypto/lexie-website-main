@@ -51,7 +51,7 @@ export function Navbar() {
               Docs
             </a>
             <a
-              href="https://staging.app.lexiecrypto.com/lexievault"
+              href="https://app.lexiecrypto.com"
               className="inline-flex items-center px-6 py-2 bg-purple-300 text-black font-bold rounded-lg shadow-lg hover:bg-purple-400 transition-all duration-300"
             >
               Launch App →

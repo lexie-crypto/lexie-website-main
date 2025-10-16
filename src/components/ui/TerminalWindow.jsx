@@ -9,7 +9,6 @@ export default function TerminalWindow({
   footerRight,
   variant = 'vault',
   className = '',
-  mobileMode = false,
 }) {
   const toneDot = statusTone === 'online' ? 'bg-green-400' : 'bg-yellow-400';
   const toneText = statusTone === 'online' ? 'text-green-400' : 'text-yellow-300';
@@ -37,13 +36,9 @@ export default function TerminalWindow({
     >
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
         <div className="flex items-center gap-2">
-          {!mobileMode && (
-            <>
-              <div className="w-3 h-3 rounded-full bg-red-500" />
-              <div className="w-3 h-3 rounded-full bg-yellow-500" />
-              <div className="w-3 h-3 rounded-full bg-green-500" />
-            </>
-          )}
+          <div className="w-3 h-3 rounded-full bg-red-500" />
+          <div className="w-3 h-3 rounded-full bg-yellow-500" />
+          <div className="w-3 h-3 rounded-full bg-green-500" />
           <span className="ml-4 font-mono text-sm text-gray-400">{title}</span>
         </div>
         <div className="flex items-center gap-2">

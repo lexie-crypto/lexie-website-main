@@ -50,7 +50,6 @@ const WindowShell = ({
   footerRight,
   variant,
   className = '',
-  mobileMode = false,
   initialPosition = { x: 100, y: 100 },
   initialSize = { width: 800, height: 600 },
   minWidth = 400,
@@ -246,18 +245,17 @@ const WindowShell = ({
       aria-labelledby={`window-title-${id}`}
       aria-describedby={`window-content-${id}`}
     >
-      {/* Custom Header with Traffic Lights - Hidden in mobile mode */}
-      {!mobileMode && (
-        <div
-          className={`
-                    flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800
-                    ${isMaximized ? 'cursor-default' : isDragging ? 'cursor-grabbing' : isWindowResizing ? 'cursor-wait' : 'cursor-grab'}
-                    select-none
-                  `}
-          {...(isMaximized || isMinimized || isClosed ? {} : dragHandlers)}
-          role="banner"
-          aria-grabbed={isDragging}
-        >
+      {/* Custom Header with Traffic Lights */}
+      <div
+        className={`
+                  flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800
+                  ${isMaximized ? 'cursor-default' : isDragging ? 'cursor-grabbing' : isWindowResizing ? 'cursor-wait' : 'cursor-grab'}
+                  select-none
+                `}
+        {...(isMaximized || isMinimized || isClosed ? {} : dragHandlers)}
+        role="banner"
+        aria-grabbed={isDragging}
+      >
         {/* Traffic Lights */}
         <div className="flex items-center gap-2" data-nodrag>
           <TrafficLight
@@ -288,7 +286,6 @@ const WindowShell = ({
           </span>
         </div>
       </div>
-      )}
 
       {/* Window Content */}
       <div
