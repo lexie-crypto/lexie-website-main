@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { VaultDesktopInner } from './VaultDesktop.jsx';
+import { WindowProvider } from '../../contexts/windowStore.jsx';
 
 // Load Eruda for mobile debugging
 const loadEruda = async () => {
@@ -41,6 +42,8 @@ const LexieMobileShell = () => {
   const [activeModule, setActiveModule] = useState('vault');
   const [menuOpen, setMenuOpen] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
+  const [hasError, setHasError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   // Load Eruda on component mount (only in development/staging)
   useEffect(() => {
@@ -49,6 +52,26 @@ const LexieMobileShell = () => {
         window.location.hostname.includes('localhost')) {
       loadEruda();
     }
+  }, []);
+
+  // Global error handler for React errors
+  useEffect(() => {
+    const handleError = (event) => {
+      console.error('React Error Boundary caught:', event.error);
+      setHasError(true);
+      setErrorMessage(event.error.message || 'Unknown error');
+    };
+
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', (event) => {
+      console.error('Unhandled Promise Rejection:', event.reason);
+      setHasError(true);
+      setErrorMessage(event.reason?.message || 'Unhandled promise rejection');
+    });
+
+    return () => {
+      window.removeEventListener('error', handleError);
+    };
   }, []);
 
   const modules = [
@@ -102,7 +125,24 @@ const LexieMobileShell = () => {
         );
 
       case 'vault':
-        return <VaultDesktopInner />;
+        try {
+          return (
+            <WindowProvider>
+              <VaultDesktopInner />
+            </WindowProvider>
+          );
+        } catch (error) {
+          console.error('Error rendering VaultDesktopInner:', error);
+          return (
+            <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] px-6">
+              <div className="text-center space-y-4">
+                <div className="text-2xl font-bold text-red-300">Error Loading Vault</div>
+                <div className="text-sm text-red-300/70">There was an error loading the vault interface</div>
+                <div className="text-xs text-red-400/60">Check console for details</div>
+              </div>
+            </div>
+          );
+        }
 
       case 'chat':
         return (
@@ -146,6 +186,31 @@ const LexieMobileShell = () => {
   };
 
   const currentModule = modules.find(m => m.id === activeModule);
+
+  // Show error screen if there's a React error
+  if (hasError) {
+    return (
+      <div className="relative min-h-screen w-full bg-black text-white overflow-hidden flex items-center justify-center">
+        <div className="text-center space-y-4 px-6">
+          <div className="text-3xl font-bold text-red-300">System Error</div>
+          <div className="text-sm text-red-300/70">Something went wrong with the mobile interface</div>
+          <div className="text-xs text-red-400/60 bg-black/40 p-3 rounded border border-red-500/30 max-w-sm">
+            {errorMessage}
+          </div>
+          <button
+            onClick={() => {
+              setHasError(false);
+              setErrorMessage('');
+              window.location.reload();
+            }}
+            className="bg-red-600/30 hover:bg-red-600/50 text-red-200 py-2 px-4 rounded border border-red-400/40 transition-colors"
+          >
+            Reload Page
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen w-full bg-black text-white overflow-hidden">
