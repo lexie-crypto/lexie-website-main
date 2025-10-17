@@ -2400,7 +2400,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
               <div>
                 <h3 className="text-lg font-bold text-emerald-300 mb-2">Create Your LexieVault</h3>
                 <p className="text-green-400/80 text-sm">
-                  Choose a blockchain network and confirm the signature to initialize your LexieVault.
+                  Choose the blockchain network for your vault and confirm the signature to securely initialize your privacy wallet.
                 </p>
               </div>
 
@@ -2469,7 +2469,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
               <div className="bg-blue-900/20 border border-blue-500/40 rounded p-3">
                 <div className="text-blue-300 text-xs font-medium mb-1">🔒 Security Note:</div>
                 <div className="text-blue-200/80 text-xs">
-                  This signature is needed to create your LexieVault, it does not grant access to your funds.
+                  This signature only creates your vault and never grants access to your funds. Your private keys remain secure in your wallet.
                 </div>
               </div>
 
