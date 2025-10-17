@@ -927,24 +927,20 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       ), { duration: 3000 });
 
       // ✅ ENHANCED: Graph-based transaction monitoring with new API
-      // Only show monitoring toast once to avoid spam during polling attempts
-      if (!window.__SHIELD_MONITORING_TOAST_SHOWN) {
-        window.__SHIELD_MONITORING_TOAST_SHOWN = true;
-        toast.dismiss(toastId);
-        toast.custom((t) => (
-          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-            <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
-              <div className="px-4 py-3 flex items-center gap-3">
-                <div className="h-3 w-3 rounded-full bg-emerald-400" />
-                <div>
-                  <div className="text-sm">Adding {amount} {selectedToken.symbol} to your vault...</div>
-                  <div className="text-xs text-green-400/80">Monitoring for confirmation...</div>
-                </div>
+      toast.dismiss(toastId);
+      toast.custom((t) => (
+        <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+          <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+            <div className="px-4 py-3 flex items-center gap-3">
+              <div className="h-3 w-3 rounded-full bg-emerald-400" />
+              <div>
+                <div className="text-sm">Adding {amount} {selectedToken.symbol} to your vault...</div>
+                <div className="text-xs text-green-400/80">Monitoring for confirmation...</div>
               </div>
             </div>
           </div>
-        ), { duration: 2500 });
-      }
+        </div>
+      ), { duration: 2500 });
       console.log('[PrivacyActions] Starting Graph-based shield monitoring...');
       
       try {
@@ -967,37 +963,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             decimals: selectedToken.decimals,
             amount: amount,
           },
-          listener: async (event) => {
-            console.log(`[PrivacyActions] ✅ Shield tx ${txResponse?.hash || txResponse} indexed on chain ${chainConfig.id}`);
-            
-            // 🎯 FIXED: Just show success message - let useBalances hook handle refresh when appropriate
-            toast.custom((t) => (
-              <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-                <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
-                  <div className="px-4 py-3 flex items-center gap-3">
-                    <div className="h-3 w-3 rounded-full bg-emerald-400" />
-                    <div>
-                      <div className="text-sm">Adding {actualAmount} {selectedToken.symbol} to your vault</div>
-                      <div className="text-xs text-green-400/80">Balance will update automatically</div>
-                    </div>
-                    <button 
-                      type="button" 
-                      aria-label="Dismiss" 
-                      onClick={(e) => { 
-                        e.preventDefault(); 
-                        e.stopPropagation(); 
-                        console.log('Dismissing toast:', t.id);
-                        toast.dismiss(t.id);
-                      }} 
-                      className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer"
-                    >
-                      ×
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ), { duration: 3000 });
-          }
         })
         .then(async (result) => {
           if (result.found) {
@@ -1180,20 +1145,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               </div>
             ), { duration: 4000 });
 
-            // Reset monitoring toast flag on timeout success
-            if (typeof window !== 'undefined') {
-              window.__SHIELD_MONITORING_TOAST_SHOWN = false;
-            }
             // Dispatch transaction monitor completion event to unlock UI
             if (typeof window !== 'undefined') {
               window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
                 detail: { transactionType: 'shield', found: false, elapsedTime: 30000 }
               }));
             }
-          }
-          // Reset monitoring toast flag on success
-          if (typeof window !== 'undefined') {
-            window.__SHIELD_MONITORING_TOAST_SHOWN = false;
           }
           // Dispatch transaction monitor completion event
           if (typeof window !== 'undefined') {
@@ -1204,10 +1161,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         })
         .catch((error) => {
           console.error('[PrivacyActions] Shield Graph monitoring failed:', error);
-          // Reset monitoring toast flag on failure
-          if (typeof window !== 'undefined') {
-            window.__SHIELD_MONITORING_TOAST_SHOWN = false;
-          }
           // Dispatch transaction monitor completion event even on failure
           if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
@@ -1218,10 +1171,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         
       } catch (monitorError) {
         console.error('[PrivacyActions] Failed to start shield monitoring:', monitorError);
-        // Reset monitoring toast flag on start failure
-        if (typeof window !== 'undefined') {
-          window.__SHIELD_MONITORING_TOAST_SHOWN = false;
-        }
         // Dispatch transaction monitor completion event even if failed to start
         if (typeof window !== 'undefined') {
           window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
