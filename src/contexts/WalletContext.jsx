@@ -4,7 +4,7 @@
  * No custom connector hacks - just clean UI layer over official SDK
  */
 
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createConfig, custom } from 'wagmi';
 import { mainnet, polygon, arbitrum, bsc } from 'wagmi/chains';
 import { metaMask, walletConnect, injected } from 'wagmi/connectors';
@@ -237,17 +237,25 @@ const getSelectedChainForWalletConnect = () => {
 
 // Create wagmi config inside a function to avoid module-level initialization issues
 const createWagmiConfig = () => {
-  return createConfig({
-    chains: [mainnet, polygon, arbitrum, bsc],
-    connectors: [
-      injected({ shimDisconnect: true }),
-      metaMask(),
-      walletConnect({
-        projectId: WALLETCONNECT_CONFIG.projectId,
-        metadata: WALLETCONNECT_CONFIG.metadata,
-        chains: [mainnet, polygon, arbitrum, bsc], // Include all supported chains
-      }),
-    ],
+  try {
+    // Get selected chain safely
+    const selectedChainId = getSelectedChainForWalletConnect();
+    const walletConnectChains = selectedChainId === 1 ? [mainnet] :
+                               selectedChainId === 137 ? [polygon] :
+                               selectedChainId === 42161 ? [arbitrum] :
+                               selectedChainId === 56 ? [bsc] : [mainnet];
+
+    return createConfig({
+      chains: [mainnet, polygon, arbitrum, bsc],
+      connectors: [
+        injected({ shimDisconnect: true }),
+        metaMask(),
+        walletConnect({
+          projectId: WALLETCONNECT_CONFIG.projectId,
+          metadata: WALLETCONNECT_CONFIG.metadata,
+          chains: walletConnectChains, // Use selected chain for WalletConnect
+        }),
+      ],
   transports: {
     [mainnet.id]: custom({
       async request({ method, params }) {
@@ -300,7 +308,33 @@ const createWagmiConfig = () => {
   },
   // Prevent silent reconnection after disconnect; require explicit connect
   autoConnect: false,
-});
+    });
+  } catch (error) {
+    console.error('[WalletContext] Failed to create wagmi config:', error);
+    // Return a minimal config as fallback
+    return createConfig({
+      chains: [mainnet],
+      connectors: [
+        injected({ shimDisconnect: true }),
+        metaMask(),
+      ],
+      transports: {
+        [mainnet.id]: custom({
+          async request({ method, params }) {
+            const response = await fetch(RPC_URLS.ethereum, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ id: 1, jsonrpc: '2.0', method, params }),
+            });
+            const { result, error } = await response.json();
+            if (error) throw new Error(`RPC error: ${JSON.stringify(error)}`);
+            return result;
+          },
+        }),
+      },
+      autoConnect: false,
+    });
+  }
 };
 
 const WalletContext = createContext({
@@ -2748,8 +2782,26 @@ const WalletContextProvider = ({ children }) => {
 };
 
 export const WalletProvider = ({ children }) => {
-  // Create wagmi config at component level to avoid module initialization issues
-  const wagmiConfig = createWagmiConfig();
+  // Create wagmi config lazily using useMemo to avoid initialization issues
+  const wagmiConfig = useMemo(() => {
+    try {
+      console.log('[WalletProvider] Creating wagmi config...');
+      const config = createWagmiConfig();
+      console.log('[WalletProvider] Wagmi config created successfully');
+      return config;
+    } catch (error) {
+      console.error('[WalletProvider] Error creating wagmi config:', error);
+      // Return a minimal fallback config
+      try {
+        const fallbackConfig = createWagmiConfig();
+        console.log('[WalletProvider] Fallback config created');
+        return fallbackConfig;
+      } catch (fallbackError) {
+        console.error('[WalletProvider] Even fallback config failed:', fallbackError);
+        throw fallbackError; // Re-throw if even fallback fails
+      }
+    }
+  }, []); // Empty dependency array - create once when component mounts
 
   return (
     <QueryClientProvider client={queryClient}>
