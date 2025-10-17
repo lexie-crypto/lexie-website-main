@@ -507,14 +507,7 @@ const WalletContextProvider = ({ children }) => {
 
           if (!isScanning) {
             console.log(`[Railgun Init] 🚀 Checking for chain ${railgunChain.id} bootstrap data...`);
-            const { checkChainBootstrapAvailable, loadChainBootstrap, isChainHydrated } = await import('../utils/sync/idb-sync/hydration.js');
-
-            // First check if chain is already hydrated
-            const alreadyHydrated = await isChainHydrated(railgunWalletID, targetChainId, address);
-            if (alreadyHydrated) {
-              console.log(`[Railgun Init] ⏭️ Chain ${targetChainId} already hydrated, skipping bootstrap`);
-              return;
-            }
+            const { checkChainBootstrapAvailable, loadChainBootstrap } = await import('../utils/sync/idb-sync/hydration.js');
 
             const hasBootstrap = await checkChainBootstrapAvailable(targetChainId);
             if (hasBootstrap) {
@@ -1222,14 +1215,7 @@ const WalletContextProvider = ({ children }) => {
               console.log('🚀 Checking for chain bootstrap data for existing wallet...');
 
               // For existing wallets, try to load chain-specific bootstrap data
-              const { checkChainBootstrapAvailable, loadChainBootstrap, isChainHydrated } = await import('../utils/sync/idb-sync/hydration.js');
-
-              // First check if chain is already hydrated
-              const alreadyHydrated = await isChainHydrated(railgunWalletInfo.id, chainIdRef.current, address); // ✅ Use ref
-              if (alreadyHydrated) {
-                console.log(`🚀 Skipping chain bootstrap - chain ${chainIdRef.current} already hydrated`); // ✅ Use ref
-                return;
-              }
+              const { checkChainBootstrapAvailable, loadChainBootstrap } = await import('../utils/sync/idb-sync/hydration.js');
 
               const hasBootstrap = await checkChainBootstrapAvailable(chainIdRef.current); // ✅ Use ref
               if (hasBootstrap) {
@@ -2012,83 +1998,6 @@ const WalletContextProvider = ({ children }) => {
                 }
               } catch {}
 
-              if (alreadyHydrated || isHydrating) {
-                console.log(`🚀 Skipping chain bootstrap for new wallet - chain ${chainIdRef.current} already ${alreadyHydrated ? 'hydrated' : 'hydrating'}`); // ✅ Use ref
-              } else {
-                console.log('🚀 Checking for chain bootstrap data for newly created wallet...');
-
-                // For new wallets, try to load chain-specific bootstrap data
-                const { checkChainBootstrapAvailable, loadChainBootstrap, isChainHydrated } = await import('../utils/sync/idb-sync/hydration.js');
-
-                // First check if chain is already hydrated
-                const alreadyHydrated = await isChainHydrated(railgunWalletInfo.id, chainIdRef.current, address); // ✅ Use ref
-                if (alreadyHydrated) {
-                  console.log(`🚀 Skipping chain bootstrap for new wallet - chain ${chainIdRef.current} already hydrated`); // ✅ Use ref
-                  return;
-                }
-
-                const hasBootstrap = await checkChainBootstrapAvailable(chainIdRef.current); // ✅ Use ref
-                if (hasBootstrap) {
-                  console.log(`🚀 Loading chain ${chainIdRef.current} bootstrap for newly created wallet...`); // ✅ Use ref
-
-                    // Load chain bootstrap data (append mode for new wallets)
-                    await loadChainBootstrap(railgunWalletInfo.id, chainIdRef.current, { // ✅ Use ref
-                      address, // Pass EOA address for Redis scannedChains check
-                      onProgress: (progress) => {
-                        console.log(`🚀 Chain ${chainIdRef.current} bootstrap progress: ${progress}%`); // ✅ Use ref
-                        try {
-                          window.dispatchEvent(new CustomEvent('chain-bootstrap-progress', {
-                            detail: { walletId: railgunWalletInfo.id, chainId: chainIdRef.current, progress } // ✅ Use ref
-                          }));
-                        } catch {}
-                      },
-                      onComplete: async () => {
-                        console.log(`🚀 Chain ${chainIdRef.current} bootstrap completed successfully for new wallet`); // ✅ Use ref
-
-                        // Mark chain as hydrated in Redis metadata since we loaded bootstrap data
-                        try {
-                          const persistResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                              walletAddress: address,
-                              walletId: railgunWalletInfo.id,
-                              railgunAddress: railgunWalletInfo.railgunAddress,
-                              hydratedChains: [chainIdRef.current] // ✅ Use ref
-                            })
-                          });
-
-                          if (persistResp.ok) {
-                            console.log(`✅ Marked hydratedChains += ${chainIdRef.current} for new wallet (scannedChains will be marked on modal unlock)`); // ✅ Use ref
-
-                            // Only emit completion event after successful persistence
-                            try {
-                              window.dispatchEvent(new CustomEvent('chain-bootstrap-complete', {
-                                detail: { walletId: railgunWalletInfo.id, chainId: chainIdRef.current } // ✅ Use ref
-                              }));
-                            } catch {}
-                          } else {
-                            console.error(`❌ Failed to mark hydratedChains += ${chainIdRef.current} for new wallet:`, await persistResp.text()); // ✅ Use ref
-                            // TODO: Show user error - persistence failed
-                          }
-                        } catch (persistError) {
-                          console.warn(`⚠️ Error marking chain ${chainIdRef.current} as hydrated:`, persistError); // ✅ Use ref
-                          // TODO: Show user error - persistence failed
-                        }
-                      },
-                      onError: (error) => {
-                        console.error(`🚀 Chain ${chainIdRef.current} bootstrap failed for new wallet:`, error); // ✅ Use ref
-                        try {
-                          window.dispatchEvent(new CustomEvent('chain-bootstrap-error', {
-                            detail: { walletId: railgunWalletInfo.id, chainId: chainIdRef.current, error: error.message } // ✅ Use ref
-                          }));
-                        } catch {}
-                      }
-                    });
-                  } else {
-                    console.log(`ℹ️ No chain ${chainIdRef.current} bootstrap available for newly created wallet`); // ✅ Use ref
-                  }
-                }
               }
             }
         catch (createError) {
@@ -2299,22 +2208,26 @@ const WalletContextProvider = ({ children }) => {
           try {
             if (railgunWalletID) {
               console.log('🚀 Checking chain bootstrap after auto-init...');
-              const { checkChainBootstrapAvailable, loadChainBootstrap, isChainHydrating, isChainHydrated } = await import('../utils/sync/idb-sync/hydration.js');
+              const { checkChainBootstrapAvailable, loadChainBootstrap, isChainHydrating } = await import('../utils/sync/idb-sync/hydration.js');
               const { isMasterWallet } = await import('../utils/sync/idb-sync/scheduler.js');
 
               // Only load bootstrap for regular wallets
               if (!isMasterWallet(railgunWalletID)) {
-                // First check if chain is already hydrated
-                const alreadyHydrated = await isChainHydrated(railgunWalletID, chainId, address);
-                if (alreadyHydrated) {
-                  console.log(`🚀 Skipping chain bootstrap - chain ${chainId} already hydrated`);
-                  return;
-                }
-
                 // Check hydration guard: hydratedChains + hydration lock
                 const isHydrating = isChainHydrating(railgunWalletID, chainId);
-                if (isHydrating) {
-                  console.log(`🚀 Skipping chain bootstrap - chain ${chainId} already hydrating`);
+                let alreadyHydrated = false;
+                try {
+                  const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+                  if (resp.ok) {
+                    const json = await resp.json();
+                    const metaKey = json?.keys?.find((k) => k.walletId === railgunWalletID) || null;
+                    const hydratedChains = metaKey?.hydratedChains || [];
+                    alreadyHydrated = hydratedChains.includes(chainId);
+                  }
+                } catch {}
+
+                if (alreadyHydrated || isHydrating) {
+                  console.log(`🚀 Skipping chain bootstrap - chain ${chainId} already ${alreadyHydrated ? 'hydrated' : 'hydrating'}`);
                   return;
                 }
 

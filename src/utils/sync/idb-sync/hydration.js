@@ -1002,40 +1002,6 @@ export const checkHydrationNeeded = async (walletId) => {
 };
 
 /**
- * Check if a chain is already hydrated for a wallet
- */
-export const isChainHydrated = async (walletId, chainId, address) => {
-  if (!address) {
-    return false; // Cannot check without address
-  }
-
-  try {
-    const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-    if (response.ok) {
-      const data = await response.json();
-      const walletKeys = Array.isArray(data.keys) ? data.keys : [];
-      const matchingKey = walletKeys.find(key => key.walletId === walletId) || null;
-
-      if (matchingKey) {
-        const hydratedChains = Array.isArray(matchingKey?.hydratedChains)
-          ? matchingKey.hydratedChains
-          : (Array.isArray(matchingKey?.meta?.hydratedChains) ? matchingKey.meta.hydratedChains : []);
-
-        const normalizedHydratedChains = hydratedChains
-          .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
-          .filter(n => Number.isFinite(n));
-
-        return normalizedHydratedChains.includes(Number(chainId));
-      }
-    }
-  } catch (error) {
-    console.warn('[IDB-Hydration] Error checking if chain is hydrated:', error.message);
-  }
-
-  return false;
-};
-
-/**
  * Check if chain-specific bootstrap is available
  */
 export const checkChainBootstrapAvailable = async (chainId) => {
