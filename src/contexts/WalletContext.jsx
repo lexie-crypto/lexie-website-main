@@ -219,6 +219,28 @@ async function fetchCurrentBlockNumbers() {
 // Create a client for React Query
 const queryClient = new QueryClient();
 
+// Get selected chain from localStorage for WalletConnect config
+const getSelectedChainForWalletConnect = () => {
+  try {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('lexie-selected-chain');
+      const parsed = saved ? parseInt(saved, 10) : null;
+      if (parsed && [1, 137, 42161, 56].includes(parsed)) {
+        return parsed;
+      }
+    }
+  } catch (error) {
+    console.warn('[WalletContext] Failed to read selected chain from localStorage:', error);
+  }
+  return 1; // Default to Ethereum
+};
+
+const selectedChainId = getSelectedChainForWalletConnect();
+const walletConnectChains = selectedChainId === 1 ? [mainnet] :
+                           selectedChainId === 137 ? [polygon] :
+                           selectedChainId === 42161 ? [arbitrum] :
+                           selectedChainId === 56 ? [bsc] : [mainnet];
+
 // Create wagmi config - MINIMAL, just for UI wallet connection
 const wagmiConfig = createConfig({
   chains: [mainnet, polygon, arbitrum, bsc],
@@ -228,7 +250,7 @@ const wagmiConfig = createConfig({
     walletConnect({
       projectId: WALLETCONNECT_CONFIG.projectId,
       metadata: WALLETCONNECT_CONFIG.metadata,
-      chains: [mainnet, polygon, arbitrum, bsc],
+      chains: walletConnectChains, // Use selected chain from localStorage
     }),
   ],
   transports: {

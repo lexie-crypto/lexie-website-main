@@ -2383,16 +2383,37 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                     key={network.id}
                     onClick={async () => {
                       console.log(`[VaultDesktop] User selected chain: ${network.name} (${network.id})`);
-                      setSelectedChainId(network.id);
-                      setShowChainSelectionModal(false);
 
-                      // Switch the wallet to the selected network before showing sign popup
                       try {
+                        // Switch the wallet to the selected network FIRST
                         await switchNetwork(network.id);
                         console.log(`[VaultDesktop] Successfully switched wallet to ${network.name}`);
+
+                        // Only then update state and close modal
+                        setSelectedChainId(network.id);
+                        setShowChainSelectionModal(false);
                       } catch (error) {
                         console.error(`[VaultDesktop] Failed to switch wallet to ${network.name}:`, error);
-                        // Continue anyway - the sign popup will still work
+                        // Still update state and close modal, but show error
+                        setSelectedChainId(network.id);
+                        setShowChainSelectionModal(false);
+
+                        toast.custom((t) => (
+                          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+                            <div className="rounded-lg border border-yellow-500/30 bg-black/90 text-yellow-200 shadow-2xl max-w-md">
+                              <div className="px-4 py-3 flex items-start gap-3">
+                                <div className="h-5 w-5 rounded-full bg-yellow-400 flex-shrink-0 mt-0.5" />
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-sm font-medium">Network Switch Failed</div>
+                                  <div className="text-xs text-yellow-300/80 mt-1">
+                                    Please manually switch to {network.name} in your wallet before signing.
+                                  </div>
+                                </div>
+                                <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-yellow-900/30 text-yellow-300/80">×</button>
+                              </div>
+                            </div>
+                          </div>
+                        ), { duration: 5000 });
                       }
                     }}
                     className="w-full p-3 bg-black/40 border border-green-500/40 rounded-lg hover:bg-green-900/20 hover:border-emerald-400 transition-all duration-200 text-left"
