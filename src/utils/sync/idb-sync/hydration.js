@@ -1136,10 +1136,7 @@ export const loadChainBootstrap = async (walletId, chainId, options = {}) => {
     if (onError) onError(error);
     throw error;
   } finally {
-    // Delay releasing hydration lock to allow async metadata persistence to complete
-    // This prevents double hydration when metadata persistence is still in progress
-    setTimeout(() => {
-      hydratingChains.delete(`${walletId}:${Number(chainId)}`);
-    }, 2000); // 2 second delay to allow metadata persistence to complete
+    // Always remove from hydrating set
+    hydratingChains.delete(`${walletId}:${Number(chainId)}`);
   }
 };
