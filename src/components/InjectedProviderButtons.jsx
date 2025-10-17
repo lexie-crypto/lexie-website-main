@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { toast } from 'react-hot-toast';
 import useInjectedProviders from '../hooks/useInjectedProviders';
 import { useWallet } from '../contexts/WalletContext';
 
@@ -48,7 +47,6 @@ const InjectedProviderButtons = ({ disabled }) => {
     }
   }, [isConnected]);
 
-
   const handleClick = async (provider, meta) => {
     const key = meta?.id || meta?.name;
     console.log('[InjectedProviderButtons] Setting busy key for', meta?.name, ':', key);
@@ -56,58 +54,12 @@ const InjectedProviderButtons = ({ disabled }) => {
     setBusyKey(key);
 
     try {
-      // Check network BEFORE requesting accounts
-      const chainIdHex = await provider.request({ method: 'eth_chainId' });
-      const chainId = parseInt(chainIdHex, 16);
-
-      console.log('[InjectedProviderButtons] Current chainId:', chainId);
-
-      // Supported networks: Ethereum (1), Polygon (137), Arbitrum (42161), BNB Chain (56)
-      const supportedNetworks = [1, 137, 42161, 56];
-      if (!supportedNetworks.includes(chainId)) {
-        console.log(`[InjectedProviderButtons] 🚫 Blocking connection on unsupported network (chainId: ${chainId})`);
-
-        // Show toast notification for unsupported network
-        toast.custom((t) => (
-          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-            <div className="rounded-lg border border-yellow-500/30 bg-black/90 text-yellow-200 shadow-2xl max-w-md">
-              <div className="px-4 py-3 flex items-start gap-3">
-                <div className="h-5 w-5 rounded-full bg-yellow-400 flex-shrink-0 mt-0.5" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium">Unsupported Network</div>
-                  <div className="text-xs text-yellow-300/80 mt-1">
-                    Your wallet is connected to an unsupported network (Chain ID: {chainId}). Please switch to Ethereum, Arbitrum, Polygon, or BNB Chain to use LexieVault features.
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  aria-label="Dismiss"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toast.dismiss(t.id);
-                  }}
-                  className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-yellow-900/30 text-yellow-300/80 flex-shrink-0"
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-          </div>
-        ), { duration: 8000 });
-
-        return; // Don't proceed with connection, but don't throw error
-      }
-
-      console.log(`[InjectedProviderButtons] ✅ Network supported (chainId: ${chainId}), proceeding with connection`);
       await provider.request({ method: 'eth_requestAccounts' });
       // Use generic injected connector and pass through provider metadata
       await connectWallet('injected', { provider, name: meta?.name, id: meta?.id });
     } catch (err) {
       console.error('Failed to connect provider:', err);
-      // Only re-throw if it's not a network validation issue (which we handle with toast)
-      if (!err.message?.includes('switch to') && !err.message?.includes('Unsupported network')) {
-        throw err; // Re-throw other errors
-      }
+      throw err; // Re-throw so caller can handle
     } finally {
       console.log('[InjectedProviderButtons] Finally block in handleClick - clearing busy key');
       setBusyKey(null);
@@ -117,30 +69,9 @@ const InjectedProviderButtons = ({ disabled }) => {
   const onWalletConnect = async () => {
     try {
       setBusyKey('walletconnect');
-
-      // For WalletConnect, network validation happens automatically after connection
-      console.log('[WalletConnect] Starting WalletConnect connection...');
-
       await connectWallet('walletconnect');
-
-      // After connection, immediately check if we can determine the chain
-      // WalletConnect validation will happen in WalletContext automatically
-      console.log('[WalletConnect] Connection established, network validation will happen automatically');
-
     } catch (e) {
-      console.error('[WalletConnect] Connection failed:', e);
-
-      // Provide user-friendly error messages
-      if (e.message?.includes('Unsupported network') || e.message?.includes('switch to') || e.message?.includes('Ethereum, Arbitrum, Polygon')) {
-        throw new Error('Please ensure your mobile wallet is connected to Ethereum, Arbitrum, Polygon, or BNB Chain before connecting.');
-      }
-
-      // Handle other WalletConnect-specific errors
-      if (e.message?.includes('User rejected') || e.message?.includes('rejected')) {
-        throw new Error('Connection cancelled by user.');
-      }
-
-      throw e; // Re-throw other errors
+      console.error(e);
     } finally {
       setBusyKey(null);
     }

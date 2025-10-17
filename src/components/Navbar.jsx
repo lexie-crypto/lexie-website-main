@@ -1,64 +1,41 @@
-import React, { useState } from 'react';
+import React from 'react';
 
-export function Navbar() {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
+export function Navbar({ variant = 'website' }) {
   const baseClasses = "sticky top-0 z-40 w-full p-6 bg-black";
   const containerClasses = "max-w-7xl mx-auto flex justify-between items-center";
 
-  const toggleMobileMenu = () => {
-    setIsMobileMenuOpen(!isMobileMenuOpen);
+  const renderLinks = () => {
+    if (variant === 'chat') {
+      return (
+        <div className="hidden md:flex space-x-6">
+          <a href="/" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Features</a>
+          <a href="/chat" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Security</a>
+          <a href="/docs" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Beta</a>
+          <a href="/lexievault" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">LexieVault</a>
+          <a href="https://chatroom.lexiecrypto.com" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">LexieChat</a>
+        </div>
+      );
+    }
+
+    return (
+      <div className="hidden md:flex space-x-6">
+        <a href="#features" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Features</a>
+        <a href="#security" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Security</a>
+        <a href="#beta" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">Beta</a>
+        <a href="/lexievault" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">LexieVault</a>
+        <a href="https://chatroom.lexiecrypto.com" className="text-lg font-bold text-purple-300 hover:text-white transition-colors">LexieChat</a>
+      </div>
+    );
   };
 
   return (
     <nav className={baseClasses}>
       <div className={containerClasses}>
-        {/* Logo - Far Left */}
-        <a href="/" className="text-4xl font-bold text-purple-300 hover:text-white transition-colors flex-shrink-0">
+        <a href="https://www.lexiecrypto.com" className="text-4xl font-bold text-purple-300 hover:text-white transition-colors">
           LEXIEAI
         </a>
-
-        {/* Desktop Navigation - Right */}
-        <div className="hidden md:flex items-center space-x-6">
-          <a href="https://lexie-crypto.gitbook.io/lexie-crypto/" className="text-lg font-bold text-purple-300 hover:text-purple-100 transition-all duration-200">
-            Documentation
-          </a>
-          <a
-            href="https://staging.app.lexiecrypto.com/lexievault"
-            className="inline-flex items-center px-6 py-2 bg-purple-300 text-black font-bold rounded-lg shadow-lg hover:bg-purple-300 transition-all duration-300 transform hover:scale-105"
-          >
-            Launch App →
-          </a>
-        </div>
-
-        {/* Mobile Menu Button */}
-        <button
-          onClick={toggleMobileMenu}
-          className="md:hidden text-purple-300 hover:text-white p-2"
-          aria-label="Toggle mobile menu"
-        >
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-        </button>
+        {renderLinks()}
       </div>
-
-      {/* Mobile Menu */}
-      {isMobileMenuOpen && (
-        <div className="md:hidden bg-black border-t border-purple-800">
-          <div className="px-6 py-4 space-y-4">
-            <a href="https://lexie-crypto.gitbook.io/lexie-crypto/" className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors" onClick={() => setIsMobileMenuOpen(false)}>
-              Docs
-            </a>
-            <a
-              href="https://app.lexiecrypto.com"
-              className="inline-flex items-center px-6 py-2 bg-purple-300 text-black font-bold rounded-lg shadow-lg hover:bg-purple-400 transition-all duration-300"
-            >
-              Launch App →
-            </a>
-          </div>
-        </div>
-      )}
     </nav>
   );
 }

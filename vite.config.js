@@ -48,6 +48,7 @@ export default defineConfig({
       '@railgun-community/shared-models',
       '@railgun-community/engine',
       'localforage',
+      'level-js',
       'snarkjs'
     ],
     exclude: ['@railgun-community/wallet/dist/cjs']

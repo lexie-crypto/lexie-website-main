@@ -45,8 +45,8 @@ export const calculateGasReclamationERC20 = async (
     56: NetworkName.BNBChain
   }[chainId] || NetworkName.Ethereum;
 
-  // Use conservative gas estimate (higher for mainnet due to proof verification complexity)
-  const gasLimit = chainId === 1 ? BigInt('2500000') : BigInt('1500000'); // 2.5M for mainnet, 1.5M for others (25% buffer)
+  // Use conservative 1M gas estimate (same as UI)
+  const gasLimit = BigInt('1200000');
 
   // Get current gas prices from RPC (same as working function)
   const gasPrices = await fetchGasPricesFromRPC(chainId);
@@ -177,7 +177,7 @@ export const applyGasPriceGuard = (chainId, rawGasPrice, gasFeeData = null) => {
  */
 export const validateCombinedFee = (combinedRelayerFee, userAmountGross, tokenType = 'token') => {
   if (combinedRelayerFee >= userAmountGross) {
-    throw new Error("Transaction failed: You don't have enough funds to cover the fees please try a larger transaction.");
+    throw new Error(`${tokenType} combined relayer fee (${combinedRelayerFee.toString()}) exceeds user amount (${userAmountGross.toString()}). Gas price may be too high or amount too small.`);
   }
 
   console.log('✅ [FEE_CALC] Fee validation passed:', {

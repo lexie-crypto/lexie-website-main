@@ -24,7 +24,7 @@ import {
   populateShieldBaseToken,
 } from '@railgun-community/wallet';
 import { calculateGasPrice } from '@railgun-community/shared-models';
-import { createShieldGasDetails, getTxFeeParams } from './tx-gas-details.js';
+import { createShieldGasDetails, getTxFeeParams, estimateGasForTransaction } from './tx-gas-details.js';
 import { fetchGasPricesFromRPC } from './tx-gas-details.js';
 import { estimateGasWithBroadcasterFee } from './tx-gas-broadcaster-fee-estimator.js';
 import { assertNotSanctioned } from '../sanctions/chainalysis-oracle.js';
@@ -354,20 +354,37 @@ export const buildBaseTokenShieldGasAndEstimate = async ({
   try {
     const signer = walletProvider; // walletProvider is a Signer object, not a function
 
-    // Get real-time gas prices directly from RPC for market rate
-    console.log('[ShieldTransactions] Using market rate gas prices for base token shield...');
+    // Use simple gas estimation for reasonable gas prices
+    console.log('[ShieldTransactions] Using simple gas estimation for base token shield...');
+    const gasCostEstimate = await estimateGasForTransaction({
+      transactionType: 'shield',
+      chainId,
+      networkName,
+      tokenAddress,
+      amount: BigInt(amount),
+      walletProvider: signer,
+    });
+
+    // Get gas prices from the simple estimation
     const gasPrices = await fetchGasPricesFromRPC(chainId);
     const evmGasType = getEVMGasTypeForTransaction(networkName, true); // Use correct gas type for self-signing
 
     // For SDK population, use a conservative gas estimate (not the hardcoded 1M from simple estimation)
     const sdkGasEstimate = 1200000n; // Conservative base token shield gas estimate
 
-    // Final gasDetails to pass into populate() - omit gas prices to let wallet use market rates
-    const gasDetails = {
-      evmGasType,
-      gasEstimate: sdkGasEstimate,
-      // Omit gasPrice/maxFeePerGas/maxPriorityFeePerGas to let MetaMask use market rates
-    };
+    // Final gasDetails to pass into populate() - include gas prices for MetaMask
+    const gasDetails = evmGasType === EVMGasType.Type2
+      ? {
+          evmGasType,
+          gasEstimate: sdkGasEstimate,
+          maxFeePerGas: gasPrices.maxFeePerGas,
+          maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas,
+        }
+      : {
+          evmGasType,
+          gasEstimate: sdkGasEstimate,
+          gasPrice: gasPrices.gasPrice,
+        };
 
     // Pad estimate for headroom (applied to transaction.gasLimit, not gasDetails)
     const paddedGasEstimate = (sdkGasEstimate * 120n) / 100n;
@@ -376,6 +393,7 @@ export const buildBaseTokenShieldGasAndEstimate = async ({
       chainId,
       gasEstimate: sdkGasEstimate.toString(),
       paddedGasEstimate: paddedGasEstimate.toString(),
+      uiEstimate: gasCostEstimate.gasCostUSD,
       gasPrices: {
         maxFeePerGas: gasPrices.maxFeePerGas?.toString(),
         maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas?.toString(),
@@ -389,7 +407,7 @@ export const buildBaseTokenShieldGasAndEstimate = async ({
       paddedGasEstimate,
       overallBatchMinGasPrice: '0',
       accurateGasEstimate: sdkGasEstimate,
-      uiGasEstimate: gasPrices // Use market rate gas prices for UI display
+      uiGasEstimate: gasCostEstimate // For UI display
     };
 
   } catch (error) {
@@ -416,20 +434,39 @@ export const buildShieldGasAndEstimate = async ({
   try {
     const signer = walletProvider; // walletProvider is a Signer object, not a function
 
-    // Get real-time gas prices directly from RPC for market rate
-    console.log('[ShieldTransactions] Using market rate gas prices for shield...');
+    // Use simple gas estimation for reasonable gas prices
+    // Use the first ERC20 recipient for estimation
+    const firstRecipient = erc20AmountRecipients?.[0];
+    console.log('[ShieldTransactions] Using simple gas estimation for shield...');
+    const gasCostEstimate = await estimateGasForTransaction({
+      transactionType: 'shield',
+      chainId,
+      networkName,
+      tokenAddress: firstRecipient?.tokenAddress,
+      amount: firstRecipient?.amount || 0n,
+      walletProvider: signer,
+    });
+
+    // Get gas prices from the simple estimation
     const gasPrices = await fetchGasPricesFromRPC(chainId);
     const evmGasType = getEVMGasTypeForTransaction(networkName, true); // Use correct gas type for self-signing
 
     // For SDK population, use a conservative gas estimate (not the hardcoded 1M from simple estimation)
     const sdkGasEstimate = 1000000n; // Conservative ERC20 shield gas estimate
 
-    // Final gasDetails to pass into populate() - omit gas prices to let wallet use market rates
-    const gasDetails = {
-      evmGasType,
-      gasEstimate: sdkGasEstimate,
-      // Omit gasPrice/maxFeePerGas/maxPriorityFeePerGas to let MetaMask use market rates
-    };
+    // Final gasDetails to pass into populate() - include gas prices for MetaMask
+    const gasDetails = evmGasType === EVMGasType.Type2
+      ? {
+          evmGasType,
+          gasEstimate: sdkGasEstimate,
+          maxFeePerGas: gasPrices.maxFeePerGas,
+          maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas,
+        }
+      : {
+          evmGasType,
+          gasEstimate: sdkGasEstimate,
+          gasPrice: gasPrices.gasPrice,
+        };
 
     // Pad estimate for headroom (applied to transaction.gasLimit, not gasDetails)
     const paddedGasEstimate = (sdkGasEstimate * 120n) / 100n;
@@ -438,6 +475,7 @@ export const buildShieldGasAndEstimate = async ({
       chainId,
       gasEstimate: sdkGasEstimate.toString(),
       paddedGasEstimate: paddedGasEstimate.toString(),
+      uiEstimate: gasCostEstimate.gasCostUSD,
       gasPrices: {
         maxFeePerGas: gasPrices.maxFeePerGas?.toString(),
         maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas?.toString(),
@@ -451,7 +489,7 @@ export const buildShieldGasAndEstimate = async ({
       paddedGasEstimate,
       overallBatchMinGasPrice: '0',
       accurateGasEstimate: sdkGasEstimate,
-      uiGasEstimate: gasPrices // Use market rate gas prices for UI display
+      uiGasEstimate: gasCostEstimate // For UI display
     };
 
   } catch (error) {
