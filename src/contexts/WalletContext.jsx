@@ -237,12 +237,6 @@ const getSelectedChainForWalletConnect = () => {
 
 // Create wagmi config inside a function to avoid module-level initialization issues
 const createWagmiConfig = () => {
-  const selectedChainId = getSelectedChainForWalletConnect();
-  const walletConnectChains = selectedChainId === 1 ? [mainnet] :
-                             selectedChainId === 137 ? [polygon] :
-                             selectedChainId === 42161 ? [arbitrum] :
-                             selectedChainId === 56 ? [bsc] : [mainnet];
-
   return createConfig({
     chains: [mainnet, polygon, arbitrum, bsc],
     connectors: [
@@ -251,7 +245,7 @@ const createWagmiConfig = () => {
       walletConnect({
         projectId: WALLETCONNECT_CONFIG.projectId,
         metadata: WALLETCONNECT_CONFIG.metadata,
-        chains: walletConnectChains, // Use selected chain from localStorage
+        chains: [mainnet, polygon, arbitrum, bsc], // Include all supported chains
       }),
     ],
   transports: {
