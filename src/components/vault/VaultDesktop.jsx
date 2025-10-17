@@ -1459,15 +1459,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                 }
               </p>
 
-              {/* Chain Selector */}
-              <div className="mt-6 mb-4">
-                <ChainSelector
-                  selectedChainId={selectedChainId}
-                  onChainSelect={setSelectedChainId}
-                  disabled={isConnecting}
-                />
-              </div>
-
               <div className="space-y-4">
                 <InjectedProviderButtons disabled={isConnecting} selectedChainId={selectedChainId} />
               </div>
