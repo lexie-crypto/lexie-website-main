@@ -1154,7 +1154,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   // Get encryption key
   const getEncryptionKey = useCallback(async () => {
-    if (!address || !chainId) {
+    if (!address || !walletChainId) {
       throw new Error('Wallet not connected');
     }
 
@@ -1681,7 +1681,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                 <div>✓ Network: {network?.name || 'Unknown'}</div>
                 <div>✓ Public balances: {Array.isArray(publicBalances) ? publicBalances.filter(token => {
                   const usdValue = parseFloat(token.balanceUSD || '0');
-                  return usdValue >= 0.01 && token.chainId === chainId;
+                  return usdValue >= 0.01 && token.chainId === walletChainId;
                 }).length : 0}</div>
                 <div>✓ Vault balances: {Array.isArray(privateBalances) ? privateBalances.length : 0}</div>
                 <div>{canUseRailgun ? '✓ Secure vault online' : '… Initializing secure vault'}</div>
@@ -1866,7 +1866,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                       return (
                         <>
                           {filteredBalances.map((token) => {
-                            const isSupported = isTokenSupportedByRailgun(token.address, chainId);
+                            const isSupported = isTokenSupportedByRailgun(token.address, walletChainId);
                             const isShieldingThis = shieldingTokens.has(token.symbol);
 
                             return (
@@ -2295,7 +2295,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                     onClick={async () => {
                       // Mark chain as scanned when modal unlocks successfully
                       try {
-                        console.log(`🔓 Modal unlocking - marking chain ${chainId} as scanned for wallet ${railgunWalletId}`);
+                        console.log(`🔓 Modal unlocking - marking chain ${activeChainId} as scanned for wallet ${railgunWalletId}`);
                         const scanResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
@@ -2303,17 +2303,17 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                             walletAddress: address,
                             walletId: railgunWalletId,
                             railgunAddress: railgunAddress,
-                            scannedChains: [chainId] // Mark this chain as scanned when modal unlocks
+                            scannedChains: [activeChainId] // Mark this chain as scanned when modal unlocks
                           })
                         });
 
                         if (scanResp.ok) {
-                          console.log(`✅ Modal unlocked - chain ${chainId} marked as scanned`);
+                          console.log(`✅ Modal unlocked - chain ${activeChainId} marked as scanned`);
                         } else {
-                          console.warn(`⚠️ Failed to mark chain ${chainId} as scanned on modal unlock:`, await scanResp.text());
+                          console.warn(`⚠️ Failed to mark chain ${activeChainId} as scanned on modal unlock:`, await scanResp.text());
                         }
                       } catch (scanError) {
-                        console.warn(`⚠️ Error marking chain ${chainId} as scanned on modal unlock:`, scanError);
+                        console.warn(`⚠️ Error marking chain ${activeChainId} as scanned on modal unlock:`, scanError);
                       }
 
                       setShowSignRequestPopup(false);
