@@ -222,7 +222,7 @@ const queryClient = new QueryClient();
 // Get selected chain from localStorage for WalletConnect config
 const getSelectedChainForWalletConnect = () => {
   try {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
       const saved = localStorage.getItem('lexie-selected-chain');
       const parsed = saved ? parseInt(saved, 10) : null;
       if (parsed && [1, 137, 42161, 56].includes(parsed)) {
@@ -235,24 +235,25 @@ const getSelectedChainForWalletConnect = () => {
   return 1; // Default to Ethereum
 };
 
-const selectedChainId = getSelectedChainForWalletConnect();
-const walletConnectChains = selectedChainId === 1 ? [mainnet] :
-                           selectedChainId === 137 ? [polygon] :
-                           selectedChainId === 42161 ? [arbitrum] :
-                           selectedChainId === 56 ? [bsc] : [mainnet];
+// Create wagmi config inside a function to avoid module-level initialization issues
+const createWagmiConfig = () => {
+  const selectedChainId = getSelectedChainForWalletConnect();
+  const walletConnectChains = selectedChainId === 1 ? [mainnet] :
+                             selectedChainId === 137 ? [polygon] :
+                             selectedChainId === 42161 ? [arbitrum] :
+                             selectedChainId === 56 ? [bsc] : [mainnet];
 
-// Create wagmi config - MINIMAL, just for UI wallet connection
-const wagmiConfig = createConfig({
-  chains: [mainnet, polygon, arbitrum, bsc],
-  connectors: [
-    injected({ shimDisconnect: true }),
-    metaMask(),
-    walletConnect({
-      projectId: WALLETCONNECT_CONFIG.projectId,
-      metadata: WALLETCONNECT_CONFIG.metadata,
-      chains: walletConnectChains, // Use selected chain from localStorage
-    }),
-  ],
+  return createConfig({
+    chains: [mainnet, polygon, arbitrum, bsc],
+    connectors: [
+      injected({ shimDisconnect: true }),
+      metaMask(),
+      walletConnect({
+        projectId: WALLETCONNECT_CONFIG.projectId,
+        metadata: WALLETCONNECT_CONFIG.metadata,
+        chains: walletConnectChains, // Use selected chain from localStorage
+      }),
+    ],
   transports: {
     [mainnet.id]: custom({
       async request({ method, params }) {
@@ -306,6 +307,7 @@ const wagmiConfig = createConfig({
   // Prevent silent reconnection after disconnect; require explicit connect
   autoConnect: false,
 });
+};
 
 const WalletContext = createContext({
   isConnected: false,
@@ -2153,36 +2155,6 @@ const WalletContextProvider = ({ children }) => {
     }
   }, [chainId]);
 
-  // Special handling for WalletConnect redirect flow - trigger init when connection is restored
-  useEffect(() => {
-    console.log(`🔍 [WalletConnect Debug] Effect triggered - isConnected: ${isConnected}, connector: ${connector?.id}, address: ${address?.slice(0, 6)}..., chainId: ${chainId}, isRailgunInitialized: ${isRailgunInitialized}, isInitializing: ${isInitializing}`);
-
-    if (isConnected && connector?.id === 'walletConnect' && !isRailgunInitialized && !isInitializing) {
-      console.log(`🔍 [WalletConnect Debug] WalletConnect connection detected`);
-
-      // Check if we have valid chain and address for WalletConnect
-      if (address && chainId && !isNaN(chainId) && chainId !== 'NaN') {
-        const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
-        if (supportedNetworks[chainId]) {
-          console.log('🚀 [WalletConnect] Detected valid connection state, triggering Railgun initialization...');
-          // Small delay to ensure all wagmi state is settled
-          setTimeout(() => {
-            if (!isInitializing && !isRailgunInitialized) {
-              console.log('🚀 [WalletConnect] Executing delayed initialization...');
-              initializeRailgun();
-            } else {
-              console.log(`🚀 [WalletConnect] Skipping delayed init - isInitializing: ${isInitializing}, isRailgunInitialized: ${isRailgunInitialized}`);
-            }
-          }, 500);
-        } else {
-          console.log(`🚫 [WalletConnect] Unsupported chainId: ${chainId}`);
-        }
-      } else {
-        console.log(`⏳ [WalletConnect] Waiting for valid state - address: ${!!address}, chainId: ${chainId}, isNaN: ${isNaN(chainId)}`);
-      }
-    }
-  }, [isConnected, connector?.id, address, chainId, isRailgunInitialized, isInitializing]);
-
   // Auto-initialize Railgun when wallet connects (only if not already initialized)
   useEffect(() => {
     // 🛡️ Prevent force reinitialization if already initialized
@@ -2206,12 +2178,8 @@ const WalletContextProvider = ({ children }) => {
       return;
     }
 
-    // Require wagmi status to be fully connected, or WalletConnect isConnected (handles redirect flow)
-    const shouldInitialize = status === 'connected' || (isConnected && connector?.id === 'walletConnect');
-
-    console.log(`🔍 [Auto-Init Debug] status: ${status}, isConnected: ${isConnected}, connector: ${connector?.id}, shouldInitialize: ${shouldInitialize}`);
-
-    if (!shouldInitialize) {
+    // Require wagmi status to be fully connected, not just isConnected
+    if (status !== 'connected') {
       return;
     }
 
@@ -2786,6 +2754,9 @@ const WalletContextProvider = ({ children }) => {
 };
 
 export const WalletProvider = ({ children }) => {
+  // Create wagmi config at component level to avoid module initialization issues
+  const wagmiConfig = createWagmiConfig();
+
   return (
     <QueryClientProvider client={queryClient}>
       <WagmiProvider config={wagmiConfig}>
@@ -2797,6 +2768,4 @@ export const WalletProvider = ({ children }) => {
   );
 };
 
-export default WalletProvider; 
-
-
+export default WalletProvider;
