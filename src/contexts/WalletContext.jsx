@@ -235,6 +235,21 @@ const getSelectedChainForWalletConnect = () => {
   return 1; // Default to Ethereum
 };
 
+// Get a valid chainId for vault operations, defaulting to Ethereum if none provided
+const getValidChainId = (chainId) => {
+  // Supported networks: Ethereum (1), Polygon (137), Arbitrum (42161), BNB Chain (56)
+  const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
+
+  // If chainId is valid and supported, use it
+  if (chainId && typeof chainId === 'number' && !isNaN(chainId) && supportedNetworks[chainId]) {
+    return chainId;
+  }
+
+  // Otherwise default to Ethereum
+  console.log('[WalletContext] Using default Ethereum chain for vault initialization (provided chainId:', chainId, ')');
+  return 1; // Ethereum mainnet
+};
+
 // Create wagmi config inside a function to avoid module-level initialization issues
 const createWagmiConfig = () => {
   try {
@@ -470,14 +485,15 @@ const WalletContextProvider = ({ children }) => {
     try {
       if (!isConnected || !address || !railgunWalletID) return;
 
-      // Resolve Railgun chain config by chainId
+      // Resolve Railgun chain config by chainId (default to Ethereum if none provided)
+      const validChainId = getValidChainId(targetChainId);
       const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
       let railgunChain = null;
       for (const [, cfg] of Object.entries(NETWORK_CONFIG)) {
-        if (cfg.chain.id === targetChainId) { railgunChain = cfg.chain; break; }
+        if (cfg.chain.id === validChainId) { railgunChain = cfg.chain; break; }
       }
       if (!railgunChain) {
-        console.warn('[Railgun Init] ⚠️ No Railgun chain for chainId:', targetChainId);
+        console.warn('[Railgun Init] ⚠️ No Railgun chain for chainId:', validChainId);
         return;
       }
 
@@ -1498,10 +1514,11 @@ const WalletContextProvider = ({ children }) => {
         try {
           const { refreshBalances } = await import('@railgun-community/wallet');
           const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
-          // Resolve current chain
+          // Resolve current chain (default to Ethereum if none provided)
+          const validChainId = getValidChainId(chainIdRef.current);
           let railgunChain = null;
           for (const [, cfg] of Object.entries(NETWORK_CONFIG)) {
-            if (cfg.chain.id === chainIdRef.current) { railgunChain = cfg.chain; break; } // ✅ Use ref
+            if (cfg.chain.id === validChainId) { railgunChain = cfg.chain; break; }
           }
           if (railgunChain) {
             // Strictly check Redis first to decide whether to scan
@@ -2096,9 +2113,11 @@ const WalletContextProvider = ({ children }) => {
       try {
         const { refreshBalances } = await import('@railgun-community/wallet');
         const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
+        // Resolve current chain (default to Ethereum if none provided)
+        const validChainId = getValidChainId(chainIdRef.current);
         let railgunChain = null;
         for (const [, cfg] of Object.entries(NETWORK_CONFIG)) {
-          if (cfg.chain.id === chainIdRef.current) { railgunChain = cfg.chain; break; } // ✅ Use ref
+          if (cfg.chain.id === validChainId) { railgunChain = cfg.chain; break; }
         }
         if (railgunChain) {
           const scanKey = `railgun-initial-scan:${address?.toLowerCase()}:${railgunWalletInfo.id}:${railgunChain.id}`;
@@ -2218,19 +2237,10 @@ const WalletContextProvider = ({ children }) => {
     }
 
     if (isConnected && address && !isInitializing) {
-      // Final safety check: ensure we have a valid supported chainId before initializing Railgun
-      if (!chainId || chainId === 'NaN' || isNaN(chainId)) {
-        console.log('⏳ [Railgun Init] Chain ID not yet available, deferring initialization...');
-        return;
-      }
+      // Get a valid chainId (defaults to Ethereum if none provided)
+      const validChainId = getValidChainId(chainId);
 
-      const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
-      if (!supportedNetworks[chainId]) {
-        console.log(`🚫 [Railgun Init] Refusing to initialize on unsupported network (chainId: ${chainId})`);
-        return;
-      }
-
-      console.log('🚀 Auto-initializing Railgun for connected wallet:', address);
+      console.log('🚀 Auto-initializing Railgun for connected wallet:', address, 'on chain:', validChainId);
       lastInitializedAddressRef.current = address;
       initializeRailgun().then(() => {
         // 🚀 BOOTSTRAP: After Railgun init, check if we need to load chain bootstrap
@@ -2244,7 +2254,7 @@ const WalletContextProvider = ({ children }) => {
               // Only load bootstrap for regular wallets
               if (!isMasterWallet(railgunWalletID)) {
                 // Check hydration guard: hydratedChains + hydration lock
-                const isHydrating = isChainHydrating(railgunWalletID, chainId);
+                const isHydrating = isChainHydrating(railgunWalletID, validChainId);
                 let alreadyHydrated = false;
                 try {
                   const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
@@ -2252,12 +2262,12 @@ const WalletContextProvider = ({ children }) => {
                     const json = await resp.json();
                     const metaKey = json?.keys?.find((k) => k.walletId === railgunWalletID) || null;
                     const hydratedChains = metaKey?.hydratedChains || [];
-                    alreadyHydrated = hydratedChains.includes(chainId);
+                    alreadyHydrated = hydratedChains.includes(validChainId);
                   }
                 } catch {}
 
                 if (alreadyHydrated || isHydrating) {
-                  console.log(`🚀 Skipping chain bootstrap - chain ${chainId} already ${alreadyHydrated ? 'hydrated' : 'hydrating'}`);
+                  console.log(`🚀 Skipping chain bootstrap - chain ${validChainId} already ${alreadyHydrated ? 'hydrated' : 'hydrating'}`);
                   return;
                 }
 
@@ -2269,10 +2279,10 @@ const WalletContextProvider = ({ children }) => {
                   return;
                 }
 
-                const hasBootstrap = await checkChainBootstrapAvailable(chainId);
+                const hasBootstrap = await checkChainBootstrapAvailable(validChainId);
                 if (hasBootstrap) {
-                  console.log(`🚀 Loading chain ${chainId} bootstrap after auto-init...`);
-                  await loadChainBootstrap(railgunWalletID, chainId, {
+                  console.log(`🚀 Loading chain ${validChainId} bootstrap after auto-init...`);
+                  await loadChainBootstrap(railgunWalletID, validChainId, {
                     address, // Pass EOA address for Redis scannedChains check
                     onProgress: (progress) => {
                       console.log(`🚀 Auto-bootstrap progress: ${progress}%`);
@@ -2294,17 +2304,17 @@ const WalletContextProvider = ({ children }) => {
                             walletAddress: address,
                             walletId: railgunWalletID,
                             railgunAddress: railgunAddress,
-                            hydratedChains: [chainId] // Mark this chain as hydrated
+                            hydratedChains: [validChainId] // Mark this chain as hydrated
                           })
                         });
 
                         if (persistResp.ok) {
-                          console.log(`✅ Marked hydratedChains += ${chainId} after auto-bootstrap`);
+                          console.log(`✅ Marked hydratedChains += ${validChainId} after auto-bootstrap`);
                         } else {
-                          console.error(`❌ Failed to mark hydratedChains += ${chainId} after auto-bootstrap:`, await persistResp.text());
+                          console.error(`❌ Failed to mark hydratedChains += ${validChainId} after auto-bootstrap:`, await persistResp.text());
                         }
                       } catch (persistError) {
-                        console.warn(`⚠️ Error marking chain ${chainId} as hydrated:`, persistError);
+                        console.warn(`⚠️ Error marking chain ${validChainId} as hydrated:`, persistError);
                       }
                     },
                     onError: (error) => {
@@ -2312,7 +2322,7 @@ const WalletContextProvider = ({ children }) => {
                     }
                   });
                 } else {
-                  console.log(`ℹ️ No chain ${chainId} bootstrap available after auto-init`);
+                  console.log(`ℹ️ No chain ${validChainId} bootstrap available after auto-init`);
                 }
               }
             }
