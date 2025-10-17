@@ -4,7 +4,7 @@
  * No custom connector hacks - just clean UI layer over official SDK
  */
 
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { createConfig, custom } from 'wagmi';
 import { mainnet, polygon, arbitrum, bsc } from 'wagmi/chains';
 import { metaMask, walletConnect, injected } from 'wagmi/connectors';
@@ -219,58 +219,18 @@ async function fetchCurrentBlockNumbers() {
 // Create a client for React Query
 const queryClient = new QueryClient();
 
-// Get selected chain from localStorage for WalletConnect config
-const getSelectedChainForWalletConnect = () => {
-  try {
-    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
-      const saved = localStorage.getItem('lexie-selected-chain');
-      const parsed = saved ? parseInt(saved, 10) : null;
-      if (parsed && [1, 137, 42161, 56].includes(parsed)) {
-        return parsed;
-      }
-    }
-  } catch (error) {
-    console.warn('[WalletContext] Failed to read selected chain from localStorage:', error);
-  }
-  return 1; // Default to Ethereum
-};
-
-// Get a valid chainId for vault operations, defaulting to Ethereum if none provided
-const getValidChainId = (chainId) => {
-  // Supported networks: Ethereum (1), Polygon (137), Arbitrum (42161), BNB Chain (56)
-  const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
-
-  // If chainId is valid and supported, use it
-  if (chainId && typeof chainId === 'number' && !isNaN(chainId) && supportedNetworks[chainId]) {
-    return chainId;
-  }
-
-  // Otherwise default to Ethereum
-  console.log('[WalletContext] Using default Ethereum chain for vault initialization (provided chainId:', chainId, ')');
-  return 1; // Ethereum mainnet
-};
-
-// Create wagmi config inside a function to avoid module-level initialization issues
-const createWagmiConfig = () => {
-  try {
-    // Get selected chain safely
-    const selectedChainId = getSelectedChainForWalletConnect();
-    const walletConnectChains = selectedChainId === 1 ? [mainnet] :
-                               selectedChainId === 137 ? [polygon] :
-                               selectedChainId === 42161 ? [arbitrum] :
-                               selectedChainId === 56 ? [bsc] : [mainnet];
-
-    return createConfig({
+// Create wagmi config - MINIMAL, just for UI wallet connection
+const wagmiConfig = createConfig({
+  chains: [mainnet, polygon, arbitrum, bsc],
+  connectors: [
+    injected({ shimDisconnect: true }),
+    metaMask(),
+    walletConnect({
+      projectId: WALLETCONNECT_CONFIG.projectId,
+      metadata: WALLETCONNECT_CONFIG.metadata,
       chains: [mainnet, polygon, arbitrum, bsc],
-      connectors: [
-        injected({ shimDisconnect: true }),
-        metaMask(),
-        walletConnect({
-          projectId: WALLETCONNECT_CONFIG.projectId,
-          metadata: WALLETCONNECT_CONFIG.metadata,
-          chains: walletConnectChains, // Use selected chain for WalletConnect
-        }),
-      ],
+    }),
+  ],
   transports: {
     [mainnet.id]: custom({
       async request({ method, params }) {
@@ -323,34 +283,7 @@ const createWagmiConfig = () => {
   },
   // Prevent silent reconnection after disconnect; require explicit connect
   autoConnect: false,
-    });
-  } catch (error) {
-    console.error('[WalletContext] Failed to create wagmi config:', error);
-    // Return a minimal config as fallback
-    return createConfig({
-      chains: [mainnet],
-      connectors: [
-        injected({ shimDisconnect: true }),
-        metaMask(),
-      ],
-      transports: {
-        [mainnet.id]: custom({
-          async request({ method, params }) {
-            const response = await fetch(RPC_URLS.ethereum, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id: 1, jsonrpc: '2.0', method, params }),
-            });
-            const { result, error } = await response.json();
-            if (error) throw new Error(`RPC error: ${JSON.stringify(error)}`);
-            return result;
-          },
-        }),
-      },
-      autoConnect: false,
-    });
-  }
-};
+});
 
 const WalletContext = createContext({
   isConnected: false,
@@ -385,9 +318,6 @@ const WalletContextProvider = ({ children }) => {
   const [showLexieIdChoiceModal, setShowLexieIdChoiceModal] = useState(false);
   const [lexieIdChoicePromise, setLexieIdChoicePromise] = useState(null);
   const [lexieIdLinkPromise, setLexieIdLinkPromise] = useState(null);
-  const [showSignatureConfirmation, setShowSignatureConfirmation] = useState(false);
-  const [signatureConfirmationPromise, setSignatureConfirmationPromise] = useState(null);
-  const [pendingSignatureMessage, setPendingSignatureMessage] = useState('');
 
   // Wagmi hooks - ONLY for UI wallet connection
   const { address, isConnected, chainId, connector, status } = useAccount();
@@ -412,88 +342,19 @@ const WalletContextProvider = ({ children }) => {
   const disconnectingRef = useRef(false);
   const lastInitializedAddressRef = useRef(null);
 
-  // Track current chain in real-time (avoids closure issues)
-  const chainIdRef = useRef(chainId);
-
-  // Track target chain for signature confirmation
-  const targetChainIdRef = useRef(null);
-
-  // Update target chain ref when user selects chain in modal
-  useEffect(() => {
-    try {
-      const selected = parseInt(localStorage.getItem('lexie-selected-chain'), 10);
-      if (selected) {
-        targetChainIdRef.current = selected;
-      }
-    } catch {}
-  }, []);
-
-  // Update chainId ref whenever chainId changes (avoids closure issues)
-  useEffect(() => {
-    chainIdRef.current = chainId;
-  }, [chainId]);
-
-  // Signature confirmation
-  const requestSignatureConfirmation = useCallback((message) => {
-    return new Promise((resolve) => {
-      setPendingSignatureMessage(message);
-      setShowSignatureConfirmation(true);
-      setSignatureConfirmationPromise({ resolve });
-    });
-  }, []);
-
-  const confirmSignature = useCallback(async () => {
-    if (signatureConfirmationPromise) {
-      const selectedChain = targetChainIdRef.current || parseInt(localStorage.getItem('lexie-selected-chain'), 10);
-
-      if (selectedChain && selectedChain !== chainIdRef.current) {  // Use ref for initial check
-        console.log(`[Signature Confirm] Waiting for chain switch: ${chainIdRef.current} → ${selectedChain}`);
-
-        // Wait up to 10 seconds for chainId to update
-        const startTime = Date.now();
-        while (Date.now() - startTime < 10000) {
-          if (chainIdRef.current === selectedChain) {  // ✅ Poll the ref, not the closure variable!
-            console.log(`[Signature Confirm] ✅ Chain switched!`);
-            break;
-          }
-          await new Promise(resolve => setTimeout(resolve, 100));
-        }
-
-        if (chainIdRef.current !== selectedChain) {  // Use ref for timeout check
-          console.warn(`[Signature Confirm] ⚠️ Timeout, proceeding with chain ${chainIdRef.current}`);
-        }
-      }
-
-      signatureConfirmationPromise.resolve(true);
-      setSignatureConfirmationPromise(null);
-      setShowSignatureConfirmation(false);
-      setPendingSignatureMessage('');
-    }
-  }, [signatureConfirmationPromise]);  // Remove chainId from dependencies
-
-  const cancelSignature = useCallback(() => {
-    if (signatureConfirmationPromise) {
-      signatureConfirmationPromise.resolve(false);
-      setSignatureConfirmationPromise(null);
-      setShowSignatureConfirmation(false);
-      setPendingSignatureMessage('');
-    }
-  }, [signatureConfirmationPromise]);
-
   // Ensure initial full scan is completed for a given chain before user transacts
   const ensureChainScanned = useCallback(async (targetChainId) => {
     try {
       if (!isConnected || !address || !railgunWalletID) return;
 
-      // Resolve Railgun chain config by chainId (default to Ethereum if none provided)
-      const validChainId = getValidChainId(targetChainId);
+      // Resolve Railgun chain config by chainId
       const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
       let railgunChain = null;
       for (const [, cfg] of Object.entries(NETWORK_CONFIG)) {
-        if (cfg.chain.id === validChainId) { railgunChain = cfg.chain; break; }
+        if (cfg.chain.id === targetChainId) { railgunChain = cfg.chain; break; }
       }
       if (!railgunChain) {
-        console.warn('[Railgun Init] ⚠️ No Railgun chain for chainId:', validChainId);
+        console.warn('[Railgun Init] ⚠️ No Railgun chain for chainId:', targetChainId);
         return;
       }
 
@@ -1241,7 +1102,7 @@ const WalletContextProvider = ({ children }) => {
             console.log('👑 Master wallet detected - skipping hydration (master wallet is the data source)');
           } else {
             // Check hydration guard: hydratedChains + hydration lock
-            const isHydrating = isChainHydrating(railgunWalletInfo.id, chainIdRef.current); // ✅ Use ref
+            const isHydrating = isChainHydrating(railgunWalletInfo.id, chainId);
 
             // Check if chain is already hydrated
             let alreadyHydrated = false;
@@ -1251,35 +1112,35 @@ const WalletContextProvider = ({ children }) => {
                 const json = await resp.json();
                 const metaKey = json?.keys?.find((k) => k.walletId === railgunWalletInfo.id) || null;
                 const hydratedChains = metaKey?.hydratedChains || [];
-                alreadyHydrated = hydratedChains.includes(chainIdRef.current); // ✅ Use ref
+                alreadyHydrated = hydratedChains.includes(chainId);
               }
             } catch {}
 
             if (alreadyHydrated || isHydrating) {
-              console.log(`🚀 Skipping chain bootstrap - chain ${chainIdRef.current} already ${alreadyHydrated ? 'hydrated' : 'hydrating'}`); // ✅ Use ref
+              console.log(`🚀 Skipping chain bootstrap - chain ${chainId} already ${alreadyHydrated ? 'hydrated' : 'hydrating'}`);
             } else {
               console.log('🚀 Checking for chain bootstrap data for existing wallet...');
 
               // For existing wallets, try to load chain-specific bootstrap data
               const { checkChainBootstrapAvailable, loadChainBootstrap } = await import('../utils/sync/idb-sync/hydration.js');
 
-              const hasBootstrap = await checkChainBootstrapAvailable(chainIdRef.current); // ✅ Use ref
+              const hasBootstrap = await checkChainBootstrapAvailable(chainId);
               if (hasBootstrap) {
-                console.log(`🚀 Loading chain ${chainIdRef.current} bootstrap for existing wallet...`); // ✅ Use ref
+                console.log(`🚀 Loading chain ${chainId} bootstrap for existing wallet...`);
 
                 // Load chain bootstrap data (append mode for existing wallets)
-                await loadChainBootstrap(railgunWalletInfo.id, chainIdRef.current, { // ✅ Use ref
+                await loadChainBootstrap(railgunWalletInfo.id, chainId, {
                   address, // Pass EOA address for Redis scannedChains check
                   onProgress: (progress) => {
-                    console.log(`🚀 Chain ${chainIdRef.current} bootstrap progress: ${progress}%`); // ✅ Use ref
+                    console.log(`🚀 Chain ${chainId} bootstrap progress: ${progress}%`);
                     try {
                       window.dispatchEvent(new CustomEvent('chain-bootstrap-progress', {
-                        detail: { walletId: railgunWalletInfo.id, chainId: chainIdRef.current, progress } // ✅ Use ref
+                        detail: { walletId: railgunWalletInfo.id, chainId, progress }
                       }));
                     } catch {}
                   },
                   onComplete: async () => {
-                    console.log(`🚀 Chain ${chainIdRef.current} bootstrap completed successfully for existing wallet`); // ✅ Use ref
+                    console.log(`🚀 Chain ${chainId} bootstrap completed successfully for existing wallet`);
 
                     // Mark chain as hydrated in Redis metadata since we loaded bootstrap data
                     // Note: scannedChains will only be marked when modal unlocks to prevent premature marking
@@ -1291,42 +1152,42 @@ const WalletContextProvider = ({ children }) => {
                           walletAddress: address,
                           walletId: railgunWalletInfo.id,
                           railgunAddress: existingRailgunAddress,
-                          hydratedChains: [chainIdRef.current] // ✅ Use ref
+                          hydratedChains: [chainId] // Mark this chain as hydrated only
                         })
                       });
 
                       if (persistResp.ok) {
-                        console.log(`✅ Marked hydratedChains += ${chainIdRef.current} after bootstrap loading (scannedChains will be marked on modal unlock)`); // ✅ Use ref
+                        console.log(`✅ Marked hydratedChains += ${chainId} after bootstrap loading (scannedChains will be marked on modal unlock)`);
 
                         // Only emit completion event after successful persistence
                         try {
                           window.dispatchEvent(new CustomEvent('chain-bootstrap-complete', {
-                            detail: { walletId: railgunWalletInfo.id, chainId: chainIdRef.current } // ✅ Use ref
+                            detail: { walletId: railgunWalletInfo.id, chainId }
                           }));
                         } catch {}
                       } else {
-                        console.error(`❌ Failed to mark hydratedChains += ${chainIdRef.current}:`, await persistResp.text()); // ✅ Use ref
+                        console.error(`❌ Failed to mark hydratedChains += ${chainId}:`, await persistResp.text());
                         // TODO: Show user error - persistence failed
                       }
                     } catch (persistError) {
-                      console.warn(`⚠️ Error marking chain ${chainIdRef.current} as hydrated:`, persistError); // ✅ Use ref
+                      console.warn(`⚠️ Error marking chain ${chainId} as hydrated:`, persistError);
                       // TODO: Show user error - persistence failed
                     }
                   },
                   onError: (error) => {
-                    console.error(`🚀 Chain ${chainIdRef.current} bootstrap failed for existing wallet:`, error); // ✅ Use ref
+                    console.error(`🚀 Chain ${chainId} bootstrap failed for existing wallet:`, error);
                     try {
                       window.dispatchEvent(new CustomEvent('chain-bootstrap-error', {
-                        detail: { walletId: railgunWalletInfo.id, chainId: chainIdRef.current, error: error.message } // ✅ Use ref
+                        detail: { walletId: railgunWalletInfo.id, chainId, error: error.message }
                       }));
                     } catch {}
                   }
                 });
-              } else {
-                console.log(`ℹ️ No chain ${chainIdRef.current} bootstrap available for existing wallet`); // ✅ Use ref
+                } else {
+                  console.log(`ℹ️ No chain ${chainId} bootstrap available for existing wallet`);
+                }
               }
             }
-          }
         } catch (hydrationError) {
           console.warn('🚰 IDB hydration check/init failed (continuing):', hydrationError.message);
         }
@@ -1514,11 +1375,10 @@ const WalletContextProvider = ({ children }) => {
         try {
           const { refreshBalances } = await import('@railgun-community/wallet');
           const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
-          // Resolve current chain (default to Ethereum if none provided)
-          const validChainId = getValidChainId(chainIdRef.current);
+          // Resolve current chain
           let railgunChain = null;
           for (const [, cfg] of Object.entries(NETWORK_CONFIG)) {
-            if (cfg.chain.id === validChainId) { railgunChain = cfg.chain; break; }
+            if (cfg.chain.id === chainId) { railgunChain = cfg.chain; break; }
           }
           if (railgunChain) {
             // Strictly check Redis first to decide whether to scan
@@ -1583,13 +1443,6 @@ const WalletContextProvider = ({ children }) => {
     try {
       if (!existingSignature) {
         const signatureMessage = `LexieVault Creation\nAddress: ${address}\n\nSign this message to create your LexieVault.`;
-
-        // Show confirmation popup before early signature request
-        const confirmed = await requestSignatureConfirmation(signatureMessage);
-        if (!confirmed) {
-          throw new Error('Early signature request cancelled by user');
-        }
-
         try {
           window.dispatchEvent(new CustomEvent('railgun-signature-requested', { detail: { address } }));
         } catch (_) {}
@@ -1801,13 +1654,6 @@ const WalletContextProvider = ({ children }) => {
       if (!signature) {
         // First time for this EOA or migration needed - request signature
         const signatureMessage = `LexieVault Creation\nAddress: ${address}\n\nSign this message to create your LexieVault.`;
-
-        // Show confirmation popup before signature request
-        const confirmed = await requestSignatureConfirmation(signatureMessage);
-        if (!confirmed) {
-          throw new Error('Signature request cancelled by user');
-        }
-
         // Notify UI that a signature is being requested
         try {
           window.dispatchEvent(new CustomEvent('railgun-signature-requested', { detail: { address } }));
@@ -2031,7 +1877,7 @@ const WalletContextProvider = ({ children }) => {
               console.log('👑 Master wallet detected - skipping hydration for new wallet (master wallet is the data source)');
             } else {
               // Check hydration guard: hydratedChains + hydration lock
-              const isHydrating = isChainHydrating(railgunWalletInfo.id, chainIdRef.current); // ✅ Use ref
+              const isHydrating = isChainHydrating(railgunWalletInfo.id, chainId);
 
               // For new wallets, hydratedChains should be empty, but double-check
               let alreadyHydrated = false;
@@ -2041,10 +1887,80 @@ const WalletContextProvider = ({ children }) => {
                   const json = await resp.json();
                   const metaKey = json?.keys?.find((k) => k.walletId === railgunWalletInfo.id) || null;
                   const hydratedChains = metaKey?.hydratedChains || [];
-                  alreadyHydrated = hydratedChains.includes(chainIdRef.current); // ✅ Use ref
+                  alreadyHydrated = hydratedChains.includes(chainId);
                 }
               } catch {}
 
+              if (alreadyHydrated || isHydrating) {
+                console.log(`🚀 Skipping chain bootstrap for new wallet - chain ${chainId} already ${alreadyHydrated ? 'hydrated' : 'hydrating'}`);
+              } else {
+                console.log('🚀 Checking for chain bootstrap data for newly created wallet...');
+
+                // For new wallets, try to load chain-specific bootstrap data
+                const { checkChainBootstrapAvailable, loadChainBootstrap } = await import('../utils/sync/idb-sync/hydration.js');
+
+                  const hasBootstrap = await checkChainBootstrapAvailable(chainId);
+                  if (hasBootstrap) {
+                    console.log(`🚀 Loading chain ${chainId} bootstrap for newly created wallet...`);
+
+                    // Load chain bootstrap data (append mode for new wallets)
+                    await loadChainBootstrap(railgunWalletInfo.id, chainId, {
+                      address, // Pass EOA address for Redis scannedChains check
+                      onProgress: (progress) => {
+                        console.log(`🚀 Chain ${chainId} bootstrap progress: ${progress}%`);
+                        try {
+                          window.dispatchEvent(new CustomEvent('chain-bootstrap-progress', {
+                            detail: { walletId: railgunWalletInfo.id, chainId, progress }
+                          }));
+                        } catch {}
+                      },
+                      onComplete: async () => {
+                        console.log(`🚀 Chain ${chainId} bootstrap completed successfully for new wallet`);
+
+                        // Mark chain as hydrated in Redis metadata since we loaded bootstrap data
+                        try {
+                          const persistResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              walletAddress: address,
+                              walletId: railgunWalletInfo.id,
+                              railgunAddress: railgunWalletInfo.railgunAddress,
+                              hydratedChains: [chainId] // Mark this chain as hydrated
+                            })
+                          });
+
+                          if (persistResp.ok) {
+                            console.log(`✅ Marked hydratedChains += ${chainId} for new wallet (scannedChains will be marked on modal unlock)`);
+
+                            // Only emit completion event after successful persistence
+                            try {
+                              window.dispatchEvent(new CustomEvent('chain-bootstrap-complete', {
+                                detail: { walletId: railgunWalletInfo.id, chainId }
+                              }));
+                            } catch {}
+                          } else {
+                            console.error(`❌ Failed to mark hydratedChains += ${chainId} for new wallet:`, await persistResp.text());
+                            // TODO: Show user error - persistence failed
+                          }
+                        } catch (persistError) {
+                          console.warn(`⚠️ Error marking chain ${chainId} as hydrated:`, persistError);
+                          // TODO: Show user error - persistence failed
+                        }
+                      },
+                      onError: (error) => {
+                        console.error(`🚀 Chain ${chainId} bootstrap failed for new wallet:`, error);
+                        try {
+                          window.dispatchEvent(new CustomEvent('chain-bootstrap-error', {
+                            detail: { walletId: railgunWalletInfo.id, chainId, error: error.message }
+                          }));
+                        } catch {}
+                      }
+                    });
+                  } else {
+                    console.log(`ℹ️ No chain ${chainId} bootstrap available for newly created wallet`);
+                  }
+                }
               }
             }
         catch (createError) {
@@ -2113,11 +2029,9 @@ const WalletContextProvider = ({ children }) => {
       try {
         const { refreshBalances } = await import('@railgun-community/wallet');
         const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
-        // Resolve current chain (default to Ethereum if none provided)
-        const validChainId = getValidChainId(chainIdRef.current);
         let railgunChain = null;
         for (const [, cfg] of Object.entries(NETWORK_CONFIG)) {
-          if (cfg.chain.id === validChainId) { railgunChain = cfg.chain; break; }
+          if (cfg.chain.id === chainId) { railgunChain = cfg.chain; break; }
         }
         if (railgunChain) {
           const scanKey = `railgun-initial-scan:${address?.toLowerCase()}:${railgunWalletInfo.id}:${railgunChain.id}`;
@@ -2140,7 +2054,7 @@ const WalletContextProvider = ({ children }) => {
             console.log('[Railgun Init] ⏭️ Skipping initial scan (already completed) for chain', railgunChain.id);
           }
         } else {
-          console.warn('[Railgun Init] ⚠️ Unable to resolve Railgun chain for initial scan; chainId:', chainIdRef.current);
+          console.warn('[Railgun Init] ⚠️ Unable to resolve Railgun chain for initial scan; chainId:', chainId);
         }
       } catch (scanError) {
         console.warn('[Railgun Init] ⚠️ Initial balance refresh failed (continuing):', scanError?.message);
@@ -2237,10 +2151,19 @@ const WalletContextProvider = ({ children }) => {
     }
 
     if (isConnected && address && !isInitializing) {
-      // Get a valid chainId (defaults to Ethereum if none provided)
-      const validChainId = getValidChainId(chainId);
+      // Final safety check: ensure we have a valid supported chainId before initializing Railgun
+      if (!chainId || chainId === 'NaN' || isNaN(chainId)) {
+        console.log('⏳ [Railgun Init] Chain ID not yet available, deferring initialization...');
+        return;
+      }
 
-      console.log('🚀 Auto-initializing Railgun for connected wallet:', address, 'on chain:', validChainId);
+      const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
+      if (!supportedNetworks[chainId]) {
+        console.log(`🚫 [Railgun Init] Refusing to initialize on unsupported network (chainId: ${chainId})`);
+        return;
+      }
+
+      console.log('🚀 Auto-initializing Railgun for connected wallet:', address);
       lastInitializedAddressRef.current = address;
       initializeRailgun().then(() => {
         // 🚀 BOOTSTRAP: After Railgun init, check if we need to load chain bootstrap
@@ -2254,7 +2177,7 @@ const WalletContextProvider = ({ children }) => {
               // Only load bootstrap for regular wallets
               if (!isMasterWallet(railgunWalletID)) {
                 // Check hydration guard: hydratedChains + hydration lock
-                const isHydrating = isChainHydrating(railgunWalletID, validChainId);
+                const isHydrating = isChainHydrating(railgunWalletID, chainId);
                 let alreadyHydrated = false;
                 try {
                   const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
@@ -2262,12 +2185,12 @@ const WalletContextProvider = ({ children }) => {
                     const json = await resp.json();
                     const metaKey = json?.keys?.find((k) => k.walletId === railgunWalletID) || null;
                     const hydratedChains = metaKey?.hydratedChains || [];
-                    alreadyHydrated = hydratedChains.includes(validChainId);
+                    alreadyHydrated = hydratedChains.includes(chainId);
                   }
                 } catch {}
 
                 if (alreadyHydrated || isHydrating) {
-                  console.log(`🚀 Skipping chain bootstrap - chain ${validChainId} already ${alreadyHydrated ? 'hydrated' : 'hydrating'}`);
+                  console.log(`🚀 Skipping chain bootstrap - chain ${chainId} already ${alreadyHydrated ? 'hydrated' : 'hydrating'}`);
                   return;
                 }
 
@@ -2279,10 +2202,10 @@ const WalletContextProvider = ({ children }) => {
                   return;
                 }
 
-                const hasBootstrap = await checkChainBootstrapAvailable(validChainId);
+                const hasBootstrap = await checkChainBootstrapAvailable(chainId);
                 if (hasBootstrap) {
-                  console.log(`🚀 Loading chain ${validChainId} bootstrap after auto-init...`);
-                  await loadChainBootstrap(railgunWalletID, validChainId, {
+                  console.log(`🚀 Loading chain ${chainId} bootstrap after auto-init...`);
+                  await loadChainBootstrap(railgunWalletID, chainId, {
                     address, // Pass EOA address for Redis scannedChains check
                     onProgress: (progress) => {
                       console.log(`🚀 Auto-bootstrap progress: ${progress}%`);
@@ -2304,17 +2227,17 @@ const WalletContextProvider = ({ children }) => {
                             walletAddress: address,
                             walletId: railgunWalletID,
                             railgunAddress: railgunAddress,
-                            hydratedChains: [validChainId] // Mark this chain as hydrated
+                            hydratedChains: [chainId] // Mark this chain as hydrated
                           })
                         });
 
                         if (persistResp.ok) {
-                          console.log(`✅ Marked hydratedChains += ${validChainId} after auto-bootstrap`);
+                          console.log(`✅ Marked hydratedChains += ${chainId} after auto-bootstrap`);
                         } else {
-                          console.error(`❌ Failed to mark hydratedChains += ${validChainId} after auto-bootstrap:`, await persistResp.text());
+                          console.error(`❌ Failed to mark hydratedChains += ${chainId} after auto-bootstrap:`, await persistResp.text());
                         }
                       } catch (persistError) {
-                        console.warn(`⚠️ Error marking chain ${validChainId} as hydrated:`, persistError);
+                        console.warn(`⚠️ Error marking chain ${chainId} as hydrated:`, persistError);
                       }
                     },
                     onError: (error) => {
@@ -2322,7 +2245,7 @@ const WalletContextProvider = ({ children }) => {
                     }
                   });
                 } else {
-                  console.log(`ℹ️ No chain ${validChainId} bootstrap available after auto-init`);
+                  console.log(`ℹ️ No chain ${chainId} bootstrap available after auto-init`);
                 }
               }
             }
@@ -2774,12 +2697,6 @@ const WalletContextProvider = ({ children }) => {
       }
     },
 
-    // Signature confirmation modal
-    showSignatureConfirmation,
-    pendingSignatureMessage,
-    confirmSignature,
-    cancelSignature,
-
     // Chain scanning
     ensureChainScanned,
   };
@@ -2792,27 +2709,6 @@ const WalletContextProvider = ({ children }) => {
 };
 
 export const WalletProvider = ({ children }) => {
-  // Create wagmi config lazily using useMemo to avoid initialization issues
-  const wagmiConfig = useMemo(() => {
-    try {
-      console.log('[WalletProvider] Creating wagmi config...');
-      const config = createWagmiConfig();
-      console.log('[WalletProvider] Wagmi config created successfully');
-      return config;
-    } catch (error) {
-      console.error('[WalletProvider] Error creating wagmi config:', error);
-      // Return a minimal fallback config
-      try {
-        const fallbackConfig = createWagmiConfig();
-        console.log('[WalletProvider] Fallback config created');
-        return fallbackConfig;
-      } catch (fallbackError) {
-        console.error('[WalletProvider] Even fallback config failed:', fallbackError);
-        throw fallbackError; // Re-throw if even fallback fails
-      }
-    }
-  }, []); // Empty dependency array - create once when component mounts
-
   return (
     <QueryClientProvider client={queryClient}>
       <WagmiProvider config={wagmiConfig}>
@@ -2824,4 +2720,6 @@ export const WalletProvider = ({ children }) => {
   );
 };
 
-export default WalletProvider;
+export default WalletProvider; 
+
+

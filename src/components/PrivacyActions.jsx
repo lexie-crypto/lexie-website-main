@@ -963,6 +963,37 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             decimals: selectedToken.decimals,
             amount: amount,
           },
+          listener: async (event) => {
+            console.log(`[PrivacyActions] ✅ Shield tx ${txResponse?.hash || txResponse} indexed on chain ${chainConfig.id}`);
+            
+            // 🎯 FIXED: Just show success message - let useBalances hook handle refresh when appropriate
+            toast.custom((t) => (
+              <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+                <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+                  <div className="px-4 py-3 flex items-center gap-3">
+                    <div className="h-3 w-3 rounded-full bg-emerald-400" />
+                    <div>
+                      <div className="text-sm">Adding {actualAmount} {selectedToken.symbol} to your vault</div>
+                      <div className="text-xs text-green-400/80">Balance will update automatically</div>
+                    </div>
+                    <button 
+                      type="button" 
+                      aria-label="Dismiss" 
+                      onClick={(e) => { 
+                        e.preventDefault(); 
+                        e.stopPropagation(); 
+                        console.log('Dismissing toast:', t.id);
+                        toast.dismiss(t.id);
+                      }} 
+                      className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ), { duration: 3000 });
+          }
         })
         .then(async (result) => {
           if (result.found) {
@@ -1144,13 +1175,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 </div>
               </div>
             ), { duration: 4000 });
-
-            // Dispatch transaction monitor completion event to unlock UI
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
-                detail: { transactionType: 'shield', found: false, elapsedTime: 30000 }
-              }));
-            }
           }
           // Dispatch transaction monitor completion event
           if (typeof window !== 'undefined') {
@@ -1510,7 +1534,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               console.warn('[PrivacyActions] Points processing failed for assumed unshield success:', pointsError);
             }
 
-            // Trigger balance refresh for assumed unshield success (same as successful case)
+            // Trigger balance refresh for assumed unshield success
             try {
               const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
               await syncBalancesAfterTransaction({
@@ -1521,11 +1545,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               console.log('[PrivacyActions] ✅ Balance refresh triggered for assumed unshield success');
             } catch (balanceError) {
               console.warn('[PrivacyActions] ⚠️ Balance refresh failed for assumed unshield success:', balanceError?.message);
-            }
-
-            // Dispatch railgun-public-refresh event to unlock modal (same as successful transaction flow)
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('railgun-public-refresh', { detail: { chainId } }));
             }
 
             // Show success toast for assumed unshield success

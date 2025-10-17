@@ -71,7 +71,7 @@ const AccessCodeGate = ({ children }) => {
 
   // Access code authentication screen
   return (
-    <div className="relative h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
+    <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
       {/* Navigation */}
       <Navbar />
 

@@ -64,7 +64,7 @@ const PaymentRedirect = () => {
   const subdomainUrl = `https://staging.pay.lexiecrypto.com/pay?${urlParams.toString()}`;
 
   return (
-    <div className="h-screen bg-black text-white flex items-center justify-center">
+    <div className="min-h-screen bg-black text-white flex items-center justify-center">
       <div className="text-center max-w-md mx-auto px-4">
         <div className="text-green-300 text-lg mb-4">Redirecting to payment page...</div>
         <div className="text-green-400/70 text-sm mb-6">
@@ -96,43 +96,43 @@ const PaymentRedirect = () => {
 };
 
 function App() {
-  const [showMobileDebug, setShowMobileDebug] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  // const [showMobileDebug, setShowMobileDebug] = useState(false);
+  // const [isMobile, setIsMobile] = useState(false);
 
   // Check if we're on the payment subdomain
   const isPaymentSubdomain = typeof window !== 'undefined' &&
     window.location.hostname === 'staging.pay.lexiecrypto.com';
 
-  // Detect mobile and initialize Eruda
+  // Detect mobile and initialize Eruda - Commented out
+  /*
   useEffect(() => {
     const checkMobile = () => {
       const mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
       setIsMobile(mobile);
-
-      // Auto-initialize Eruda on mobile devices
-      if (mobile && typeof window !== 'undefined') {
-        // Small delay to ensure DOM is ready
-        setTimeout(async () => {
-          try {
-            const eruda = await import('eruda');
-            eruda.default.init({
-              defaults: {
-                displaySize: 50,
-                transparency: 0.9,
-                theme: 'Monokai Pro'
-              }
-            });
-            setShowMobileDebug(true);
-            console.log('🛠️ Eruda mobile debugging initialized');
-          } catch (error) {
-            console.error('Failed to initialize Eruda:', error);
-          }
-        }, 1000);
-      }
     };
 
     checkMobile();
   }, []);
+  */
+
+  /*
+  const toggleMobileDebug = async () => {
+    if (!isMobile) return;
+
+    try {
+      const eruda = await import('eruda');
+      if (showMobileDebug) {
+        eruda.default.destroy();
+        setShowMobileDebug(false);
+      } else {
+        eruda.default.init();
+        setShowMobileDebug(true);
+      }
+    } catch (error) {
+      console.error('Failed to toggle Eruda:', error);
+    }
+  };
+  */
 
   // If on payment subdomain, serve PaymentPage directly
   if (isPaymentSubdomain) {
@@ -178,6 +178,18 @@ function App() {
             <Route path="/admin-history" element={<AdminHistoryPage />} />
           </Routes>
 
+          {/* Mobile Debug Gear Icon - Commented out */}
+          {/*
+          {isMobile && (
+            <button
+              onClick={toggleMobileDebug}
+              className="fixed top-4 right-4 z-50 w-10 h-10 bg-gray-800/90 hover:bg-gray-700/90 text-white rounded-full flex items-center justify-center border border-gray-600/50 backdrop-blur-sm"
+              title="Toggle Debug Console"
+            >
+              ⚙️
+            </button>
+          )}
+          */}
 
           {/* Toast notifications */}
           <Toaster
