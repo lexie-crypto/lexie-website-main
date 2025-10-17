@@ -9,7 +9,7 @@ import React, { useState, useEffect } from 'react';
 import { ShieldCheckIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
 
 const AccessCodeGate = ({ children }) => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(null); // null = loading, true = authenticated, false = not authenticated
   const [accessCode, setAccessCode] = useState('');
   const [isVerifying, setIsVerifying] = useState(false);
   const [error, setError] = useState('');
@@ -18,9 +18,7 @@ const AccessCodeGate = ({ children }) => {
   // Check if user is already authenticated on component mount
   useEffect(() => {
     const authStatus = localStorage.getItem('app_access_granted');
-    if (authStatus === 'true') {
-      setIsAuthenticated(true);
-    }
+    setIsAuthenticated(authStatus === 'true');
   }, []);
 
   // Handle access code verification
@@ -63,6 +61,11 @@ const AccessCodeGate = ({ children }) => {
       setIsVerifying(false);
     }
   };
+
+  // Don't render anything while checking authentication status
+  if (isAuthenticated === null) {
+    return null;
+  }
 
   // If authenticated, show children
   if (isAuthenticated) {
