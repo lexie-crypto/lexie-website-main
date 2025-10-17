@@ -2153,6 +2153,36 @@ const WalletContextProvider = ({ children }) => {
     }
   }, [chainId]);
 
+  // Special handling for WalletConnect redirect flow - trigger init when connection is restored
+  useEffect(() => {
+    console.log(`🔍 [WalletConnect Debug] Effect triggered - isConnected: ${isConnected}, connector: ${connector?.id}, address: ${address?.slice(0, 6)}..., chainId: ${chainId}, isRailgunInitialized: ${isRailgunInitialized}, isInitializing: ${isInitializing}`);
+
+    if (isConnected && connector?.id === 'walletConnect' && !isRailgunInitialized && !isInitializing) {
+      console.log(`🔍 [WalletConnect Debug] WalletConnect connection detected`);
+
+      // Check if we have valid chain and address for WalletConnect
+      if (address && chainId && !isNaN(chainId) && chainId !== 'NaN') {
+        const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
+        if (supportedNetworks[chainId]) {
+          console.log('🚀 [WalletConnect] Detected valid connection state, triggering Railgun initialization...');
+          // Small delay to ensure all wagmi state is settled
+          setTimeout(() => {
+            if (!isInitializing && !isRailgunInitialized) {
+              console.log('🚀 [WalletConnect] Executing delayed initialization...');
+              initializeRailgun();
+            } else {
+              console.log(`🚀 [WalletConnect] Skipping delayed init - isInitializing: ${isInitializing}, isRailgunInitialized: ${isRailgunInitialized}`);
+            }
+          }, 500);
+        } else {
+          console.log(`🚫 [WalletConnect] Unsupported chainId: ${chainId}`);
+        }
+      } else {
+        console.log(`⏳ [WalletConnect] Waiting for valid state - address: ${!!address}, chainId: ${chainId}, isNaN: ${isNaN(chainId)}`);
+      }
+    }
+  }, [isConnected, connector?.id, address, chainId, isRailgunInitialized, isInitializing]);
+
   // Auto-initialize Railgun when wallet connects (only if not already initialized)
   useEffect(() => {
     // 🛡️ Prevent force reinitialization if already initialized
@@ -2176,8 +2206,12 @@ const WalletContextProvider = ({ children }) => {
       return;
     }
 
-    // Require wagmi status to be fully connected, not just isConnected
-    if (status !== 'connected') {
+    // Require wagmi status to be fully connected, or WalletConnect isConnected (handles redirect flow)
+    const shouldInitialize = status === 'connected' || (isConnected && connector?.id === 'walletConnect');
+
+    console.log(`🔍 [Auto-Init Debug] status: ${status}, isConnected: ${isConnected}, connector: ${connector?.id}, shouldInitialize: ${shouldInitialize}`);
+
+    if (!shouldInitialize) {
       return;
     }
 
