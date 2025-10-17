@@ -205,6 +205,19 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   const [bootstrapProgress, setBootstrapProgress] = useState({ percent: 0, active: false });
   const bootstrapLockedRef = useRef(false); // Prevents progress from resetting below 100% once reached
 
+  // Track which chain is being initialized
+  const [initializingChainId, setInitializingChainId] = useState(null);
+
+  // Helper to get network name by chain ID
+  const getNetworkNameById = (chainId) => {
+    return {
+      1: 'Ethereum',
+      137: 'Polygon',
+      42161: 'Arbitrum',
+      56: 'BNB Chain'
+    }[Number(chainId)] || `Chain ${chainId}`;
+  };
+
   // Lexie ID linking state
   const [lexieIdInput, setLexieIdInput] = useState('');
   const [lexieLinking, setLexieLinking] = useState(false);
@@ -438,13 +451,18 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         if (scanned === false || scanned === null) {
           console.log('[VaultDesktop] Chain not scanned on connect - will show signature confirmation modal');
 
+          // Set which chain we're initializing
+          setInitializingChainId(activeChainId);
+
           // The signature confirmation modal will handle chain selection
           // Guard reset-to-0: only reset progress if not already at 100%
           setShowSignRequestPopup(true);
           setIsInitInProgress(true);
           setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);
           setScanComplete(false);
-          const networkName = network.name;
+
+          // Use activeChainId, not network.name
+          const networkName = getNetworkNameById(activeChainId);
           setInitProgress({
             percent: 0,
             message: `Setting up your LexieVault on ${networkName} Network...`
@@ -957,15 +975,11 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);
       setInitFailedMessage('');
 
-      // Extract chainId from event if available
-      const eventChainId = e?.detail?.chainId || activeChainId;
-      const chainLabel = {
-        1: 'Ethereum',
-        137: 'Polygon',
-        42161: 'Arbitrum',
-        56: 'BNB Chain'
-      }[Number(eventChainId)] || `Chain ${eventChainId}`;
+      // Use eventChainId if available, otherwise use initializingChainId or activeChainId
+      const chainToInit = e?.detail?.chainId || initializingChainId || activeChainId;
+      setInitializingChainId(chainToInit);
 
+      const chainLabel = getNetworkNameById(chainToInit);
       setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
       console.log('[VaultDesktop] Initialization started');
     };
@@ -1046,19 +1060,16 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       const onBootstrapProgress = (e) => {
         const { chainId: eventChainId, progress } = e.detail;
 
-        // Look up network name based on the chain being bootstrapped
-        const bootstrapNetworkName = {
-          1: 'Ethereum',
-          137: 'Polygon',
-          42161: 'Arbitrum',
-          56: 'BNB Chain'
-        }[Number(eventChainId)] || `Chain ${eventChainId}`;
+        // Update which chain we're initializing
+        setInitializingChainId(eventChainId);
+
+        const bootstrapNetworkName = getNetworkNameById(eventChainId);
 
         console.log('[VaultDesktop] Bootstrap progress event:', {
           eventChainId,
           progress,
           currentChainId: walletChainId,
-          networkName: bootstrapNetworkName  // Correct - uses bootstrap chain
+          networkName: bootstrapNetworkName
         });
 
         // Always update progress bar during bootstrap (only one chain at a time)
@@ -1386,11 +1397,14 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       const scanned = await checkRedisScannedChains(targetChainId);
       if (scanned === false || scanned === null) {
         console.log('[VaultDesktop] Target chain not scanned - showing modal');
+
+        setInitializingChainId(targetChainId); // Track which chain we're initializing
         setShowSignRequestPopup(true);
         setIsInitInProgress(true);
         // Guard reset-to-0: don't reset progress if already at 100%
         setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);
-        const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
+
+        const chainLabel = getNetworkNameById(targetChainId);
         setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
       } else {
         console.log('[VaultDesktop] Target chain already scanned - no modal needed');
@@ -2279,7 +2293,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                 </>
               ) : (
                 <>
-                  <h3 className="text-lg font-bold text-emerald-300">Initializing Your LexieVault on {network?.name || 'network'} Network</h3>
+                  <h3 className="text-lg font-bold text-emerald-300">Initializing Your LexieVault on {getNetworkNameById(initializingChainId || activeChainId)} Network</h3>
                   <p className="text-green-400/80 text-sm">You only need to do this once. This may take a few minutes. Do not close this window.</p>
                   <div className="bg-black/40 border border-green-500/20 rounded p-4 space-y-3">
                     {bootstrapProgress.active && bootstrapProgress.percent > 0 ? (
@@ -2397,6 +2411,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                   onChainSelect={async (selectedChain) => {
                     console.log(`[Signature Modal] User selected chain ${selectedChain}, current wallet chainId: ${walletChainId}`);
                     setSelectedChainId(selectedChain);
+                    setInitializingChainId(selectedChain); // Track which chain we're initializing
                     // Also switch the wallet to the selected network
                     try {
                       await switchNetwork(selectedChain);
