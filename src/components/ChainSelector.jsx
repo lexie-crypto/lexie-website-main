@@ -39,7 +39,7 @@ const ChainSelector = ({ selectedChainId, onChainSelect, disabled = false }) => 
     },
   ];
 
-  const selectedNetwork = supportedNetworks.find(net => net.id === selectedChainId) || supportedNetworks[0];
+  const selectedNetwork = selectedChainId ? supportedNetworks.find(net => net.id === selectedChainId) : null;
 
   const handleSelect = (chainId) => {
     onChainSelect(chainId);
@@ -75,8 +75,14 @@ const ChainSelector = ({ selectedChainId, onChainSelect, disabled = false }) => 
           aria-haspopup="listbox"
           aria-expanded={isOpen}
         >
-          <span className="text-base">{selectedNetwork.logo}</span>
-          <span className="font-medium">{selectedNetwork.name}</span>
+          {selectedNetwork ? (
+            <>
+              <span className="text-base">{selectedNetwork.logo}</span>
+              <span className="font-medium">{selectedNetwork.name}</span>
+            </>
+          ) : (
+            <span className="font-medium text-emerald-400/70">Choose Network</span>
+          )}
           <ChevronDownIcon
             className={`h-4 w-4 text-emerald-400 transition-transform duration-200 ${
               isOpen ? 'rotate-180' : ''
@@ -111,7 +117,7 @@ const ChainSelector = ({ selectedChainId, onChainSelect, disabled = false }) => 
                       <div className="font-medium text-emerald-200 text-sm">{network.name}</div>
                     </div>
                   </div>
-                  {network.id === selectedChainId && (
+                  {selectedChainId === network.id && (
                     <CheckIcon className="h-4 w-4 text-emerald-400" />
                   )}
                 </button>

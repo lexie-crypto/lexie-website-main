@@ -255,19 +255,19 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   // Local state to show a refreshing indicator for Vault Balances
   const [isRefreshingBalances, setIsRefreshingBalances] = useState(false);
 
-  // Selected chain state - load from localStorage or default to Ethereum (chain ID 1)
+  // Selected chain state - load from localStorage, no default
   const [selectedChainId, setSelectedChainId] = useState(() => {
     try {
       const saved = localStorage.getItem('lexie-selected-chain');
       const parsed = saved ? parseInt(saved, 10) : null;
       // Validate that the saved chain is still supported
       const isValidChain = parsed && supportedNetworks.some(net => net.id === parsed);
-      const defaultChainId = isValidChain ? parsed : 1;
-      console.log('[VaultDesktop] Loaded chain selection from localStorage:', { saved, parsed, isValidChain, defaultChainId });
-      return defaultChainId;
+      const chainId = isValidChain ? parsed : null;
+      console.log('[VaultDesktop] Loaded chain selection from localStorage:', { saved, parsed, isValidChain, chainId });
+      return chainId;
     } catch (error) {
       console.warn('[VaultDesktop] Failed to load chain selection from localStorage:', error);
-      return 1; // Fallback to Ethereum
+      return null; // No fallback
     }
   });
 
@@ -276,9 +276,11 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   const [scanComplete, setScanComplete] = useState(false);
 
   // Use selectedChainId as the PRIMARY chain for all vault operations
-  // This overrides the provider's chainId when user explicitly selects a network
-  const activeChainId = selectedChainId;
-  const network = { id: selectedChainId, name: {1: 'Ethereum', 137: 'Polygon', 42161: 'Arbitrum', 56: 'BNB Chain'}[selectedChainId] || `Chain ${selectedChainId}` };
+  // Fall back to wallet's chainId if no selection made
+  const activeChainId = selectedChainId || chainId;
+  const network = selectedChainId
+    ? { id: selectedChainId, name: {1: 'Ethereum', 137: 'Polygon', 42161: 'Arbitrum', 56: 'BNB Chain'}[selectedChainId] || `Chain ${selectedChainId}` }
+    : getCurrentNetwork();
 
   // Supported networks array
   const supportedNetworks = [
