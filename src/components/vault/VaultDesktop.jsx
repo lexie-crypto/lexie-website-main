@@ -220,6 +220,14 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   const [showTitansGame, setShowTitansGame] = useState(false);
   const [showLexieChat, setShowLexieChat] = useState(false);
 
+  // Signature confirmation from WalletContext
+  const {
+    showSignatureConfirmation,
+    pendingSignatureMessage,
+    confirmSignature,
+    cancelSignature,
+  } = useWallet();
+
   // Handle LexieID linking and game opening
   const handleLexieIdLink = useCallback((lexieId, autoOpenGame = false) => {
     setCurrentLexieId(lexieId);
@@ -2439,6 +2447,63 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                 <div className="text-blue-200/80 text-xs">
                   Once created, your vault will only work on the selected network. You can switch networks later, but each network requires separate vault initialization.
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Signature Confirmation Modal */}
+      {showSignatureConfirmation && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center z-50 p-4 font-mono">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden scrollbar-none">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
+              <div className="flex items-center gap-3">
+                <span className="text-sm tracking-wide text-gray-400">vault-signature-confirm</span>
+              </div>
+              <button
+                onClick={cancelSignature}
+                className="text-green-400/70 hover:text-green-300 transition-colors text-lg"
+                title="Cancel"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-6 text-green-300 space-y-4">
+              <div>
+                <h3 className="text-lg font-bold text-emerald-300 mb-2">Confirm Signature Request</h3>
+                <p className="text-green-400/80 text-sm">
+                  Your wallet will ask you to sign a message to create your LexieVault. This signature is required to securely initialize your privacy wallet.
+                </p>
+              </div>
+
+              <div className="bg-black/40 border border-green-500/20 rounded p-3">
+                <div className="text-green-200 text-xs mb-2 font-medium">Message to sign:</div>
+                <pre className="whitespace-pre-wrap text-green-300 text-xs font-mono bg-black/60 p-2 rounded border border-green-500/10">
+                  {pendingSignatureMessage}
+                </pre>
+              </div>
+
+              <div className="bg-blue-900/20 border border-blue-500/40 rounded p-3">
+                <div className="text-blue-300 text-xs font-medium mb-1">🔒 Security Note:</div>
+                <div className="text-blue-200/80 text-xs">
+                  This signature only creates your vault and never grants access to your funds. Your private keys remain secure in your wallet.
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={confirmSignature}
+                  className="flex-1 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-200 py-2.5 px-4 rounded border border-emerald-400/40 hover:border-emerald-400 transition-all duration-200 text-sm font-medium"
+                >
+                  Sign Message
+                </button>
+                <button
+                  onClick={cancelSignature}
+                  className="flex-1 bg-gray-700/30 hover:bg-gray-700/50 text-gray-300 py-2.5 px-4 rounded border border-gray-500/40 hover:border-gray-400 transition-all duration-200 text-sm font-medium"
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           </div>

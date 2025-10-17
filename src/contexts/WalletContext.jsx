@@ -340,6 +340,9 @@ const WalletContextProvider = ({ children }) => {
   const [showLexieIdChoiceModal, setShowLexieIdChoiceModal] = useState(false);
   const [lexieIdChoicePromise, setLexieIdChoicePromise] = useState(null);
   const [lexieIdLinkPromise, setLexieIdLinkPromise] = useState(null);
+  const [showSignatureConfirmation, setShowSignatureConfirmation] = useState(false);
+  const [signatureConfirmationPromise, setSignatureConfirmationPromise] = useState(null);
+  const [pendingSignatureMessage, setPendingSignatureMessage] = useState('');
 
   // Wagmi hooks - ONLY for UI wallet connection
   const { address, isConnected, chainId, connector, status } = useAccount();
@@ -363,6 +366,33 @@ const WalletContextProvider = ({ children }) => {
   const selectedInjectedProviderRef = useRef(null);
   const disconnectingRef = useRef(false);
   const lastInitializedAddressRef = useRef(null);
+
+  // Signature confirmation
+  const requestSignatureConfirmation = useCallback((message) => {
+    return new Promise((resolve) => {
+      setPendingSignatureMessage(message);
+      setShowSignatureConfirmation(true);
+      setSignatureConfirmationPromise({ resolve });
+    });
+  }, []);
+
+  const confirmSignature = useCallback(() => {
+    if (signatureConfirmationPromise) {
+      signatureConfirmationPromise.resolve(true);
+      setSignatureConfirmationPromise(null);
+      setShowSignatureConfirmation(false);
+      setPendingSignatureMessage('');
+    }
+  }, [signatureConfirmationPromise]);
+
+  const cancelSignature = useCallback(() => {
+    if (signatureConfirmationPromise) {
+      signatureConfirmationPromise.resolve(false);
+      setSignatureConfirmationPromise(null);
+      setShowSignatureConfirmation(false);
+      setPendingSignatureMessage('');
+    }
+  }, [signatureConfirmationPromise]);
 
   // Ensure initial full scan is completed for a given chain before user transacts
   const ensureChainScanned = useCallback(async (targetChainId) => {
@@ -1465,6 +1495,13 @@ const WalletContextProvider = ({ children }) => {
     try {
       if (!existingSignature) {
         const signatureMessage = `LexieVault Creation\nAddress: ${address}\n\nSign this message to create your LexieVault.`;
+
+        // Show confirmation popup before early signature request
+        const confirmed = await requestSignatureConfirmation(signatureMessage);
+        if (!confirmed) {
+          throw new Error('Early signature request cancelled by user');
+        }
+
         try {
           window.dispatchEvent(new CustomEvent('railgun-signature-requested', { detail: { address } }));
         } catch (_) {}
@@ -1676,6 +1713,13 @@ const WalletContextProvider = ({ children }) => {
       if (!signature) {
         // First time for this EOA or migration needed - request signature
         const signatureMessage = `LexieVault Creation\nAddress: ${address}\n\nSign this message to create your LexieVault.`;
+
+        // Show confirmation popup before signature request
+        const confirmed = await requestSignatureConfirmation(signatureMessage);
+        if (!confirmed) {
+          throw new Error('Signature request cancelled by user');
+        }
+
         // Notify UI that a signature is being requested
         try {
           window.dispatchEvent(new CustomEvent('railgun-signature-requested', { detail: { address } }));
@@ -2718,6 +2762,12 @@ const WalletContextProvider = ({ children }) => {
         lexieIdLinkPromise.resolve();
       }
     },
+
+    // Signature confirmation modal
+    showSignatureConfirmation,
+    pendingSignatureMessage,
+    confirmSignature,
+    cancelSignature,
 
     // Chain scanning
     ensureChainScanned,
