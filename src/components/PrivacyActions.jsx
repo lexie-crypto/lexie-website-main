@@ -1600,6 +1600,13 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 </div>
               </div>
             ), { duration: 4000 });
+
+            // Dispatch transaction monitor completion event to unlock UI
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
+                detail: { transactionType: 'unshield', found: false, elapsedTime: 30000 }
+              }));
+            }
           }
           // Dispatch transaction monitor completion event
           if (typeof window !== 'undefined') {
