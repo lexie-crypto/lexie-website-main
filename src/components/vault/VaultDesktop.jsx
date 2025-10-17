@@ -139,7 +139,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     isConnected,
     isConnecting,
     address,
-    chainId,
+    chainId: walletChainId,
     railgunWalletId,
     railgunAddress,
     isRailgunInitialized,
@@ -285,7 +285,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   // Use selectedChainId as the PRIMARY chain for all vault operations
   // Fall back to wallet's chainId if no selection made
-  const activeChainId = selectedChainId || chainId;
+  const activeChainId = selectedChainId || walletChainId;
   const network = selectedChainId
     ? { id: selectedChainId, name: {1: 'Ethereum', 137: 'Polygon', 42161: 'Arbitrum', 56: 'BNB Chain'}[selectedChainId] || `Chain ${selectedChainId}` }
     : getCurrentNetwork();
@@ -299,7 +299,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   ];
 
   // Check if current network is supported
-  const isNetworkSupported = chainId && supportedNetworks.some(net => net.id === chainId);
+  const isNetworkSupported = walletChainId && supportedNetworks.some(net => net.id === walletChainId);
 
   // Track if we were just disconnected due to unsupported network
   const [wasDisconnectedForUnsupportedNetwork, setWasDisconnectedForUnsupportedNetwork] = useState(false);
@@ -1036,7 +1036,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       // Handle bootstrap progress updates
       const onBootstrapProgress = (e) => {
         const { chainId: eventChainId, progress } = e.detail;
-        console.log('[VaultDesktop] Bootstrap progress event:', { eventChainId, progress, currentChainId: chainId, networkName: network?.name });
+        console.log('[VaultDesktop] Bootstrap progress event:', { eventChainId, progress, currentChainId: walletChainId, networkName: network?.name });
 
         // Always update progress bar during bootstrap (only one chain at a time)
         const newPercent = Math.round(progress * 100) / 100;
@@ -2372,14 +2372,15 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                 <div className="text-green-200 text-sm font-medium">Select Network:</div>
                 <ChainSelector
                   selectedChainId={selectedChainId}
-                  onChainSelect={async (chainId) => {
-                    setSelectedChainId(chainId);
+                  onChainSelect={async (selectedChain) => {
+                    console.log(`[Signature Modal] User selected chain ${selectedChain}, current wallet chainId: ${walletChainId}`);
+                    setSelectedChainId(selectedChain);
                     // Also switch the wallet to the selected network
                     try {
-                      await switchNetwork(chainId);
-                      console.log(`[Signature Modal] Successfully switched wallet to chain ${chainId}`);
+                      await switchNetwork(selectedChain);
+                      console.log(`[Signature Modal] Successfully switched wallet to chain ${selectedChain}, wallet should now be on chainId: ${selectedChain}`);
                     } catch (error) {
-                      console.error(`[Signature Modal] Failed to switch wallet to chain ${chainId}:`, error);
+                      console.error(`[Signature Modal] Failed to switch wallet to chain ${selectedChain}:`, error);
                     }
                   }}
                   disabled={false}
@@ -2403,14 +2404,19 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
               <div className="flex gap-3 pt-2">
                 <button
                   onClick={confirmSignature}
-                  disabled={!selectedChainId}
+                  disabled={!selectedChainId || walletChainId !== selectedChainId}
                   className={`flex-1 py-2.5 px-4 rounded border transition-all duration-200 text-sm font-medium ${
-                    !selectedChainId
+                    !selectedChainId || walletChainId !== selectedChainId
                       ? 'bg-gray-700/30 text-gray-500 cursor-not-allowed border-gray-500/40'
                       : 'bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-200 border-emerald-400/40 hover:border-emerald-400'
                   }`}
                 >
-                  {!selectedChainId ? 'Select Network First' : 'Create Vault'}
+                  {!selectedChainId
+                    ? 'Select Network First'
+                    : walletChainId !== selectedChainId
+                    ? 'Switching Network...'
+                    : 'Create Vault'
+                  }
                 </button>
                 <button
                   onClick={cancelSignature}
@@ -2420,9 +2426,12 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                 </button>
               </div>
 
-              {!selectedChainId && (
+              {(!selectedChainId || walletChainId !== selectedChainId) && (
                 <div className="text-center text-yellow-300/80 text-xs mt-2">
-                  Please select a network above to continue
+                  {!selectedChainId
+                    ? 'Please select a network above to continue'
+                    : 'Waiting for wallet to switch networks...'
+                  }
                 </div>
               )}
             </div>
