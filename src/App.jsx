@@ -178,35 +178,6 @@ function App() {
             <Route path="/admin-history" element={<AdminHistoryPage />} />
           </Routes>
 
-          {/* Mobile Debug Toggle */}
-          {isMobile && (
-            <button
-              onClick={async () => {
-                try {
-                  const eruda = await import('eruda');
-                  if (showMobileDebug) {
-                    eruda.default.destroy();
-                    setShowMobileDebug(false);
-                  } else {
-                    eruda.default.init({
-                      defaults: {
-                        displaySize: 50,
-                        transparency: 0.9,
-                        theme: 'Monokai Pro'
-                      }
-                    });
-                    setShowMobileDebug(true);
-                  }
-                } catch (error) {
-                  console.error('Failed to toggle Eruda:', error);
-                }
-              }}
-              className="fixed top-4 right-4 z-50 w-10 h-10 bg-gray-800/90 hover:bg-gray-700/90 text-white rounded-full flex items-center justify-center border border-gray-600/50 backdrop-blur-sm"
-              title={showMobileDebug ? "Hide Debug Console" : "Show Debug Console"}
-            >
-              🛠️
-            </button>
-          )}
 
           {/* Toast notifications */}
           <Toaster
