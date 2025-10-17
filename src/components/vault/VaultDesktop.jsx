@@ -1513,15 +1513,15 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   return (
     <div className="relative h-screen w-full bg-black text-white overflow-x-hidden">
-      {/* LEXIEAI Header */}
-      <div className="absolute top-0 left-0 z-[100] p-4">
+      {/* Logo in top left - redirects to main site */}
+      <div className="absolute top-6 left-6 z-50">
         <a
-          href="https://www.lexiecrypto.com/"
+          href="https://www.lexiecrypto.com"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-green-300 font-mono text-lg font-bold hover:text-emerald-400 transition-colors"
+          className="hover:opacity-80 transition-opacity"
         >
-          LEXIEAI
+          <span className="text-4xl font-bold text-purple-300">LEXIEAI</span>
         </a>
       </div>
       {/* Background overlays */}

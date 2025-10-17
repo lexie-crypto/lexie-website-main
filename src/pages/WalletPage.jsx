@@ -9,16 +9,17 @@ import VaultDesktop from '../components/vault/VaultDesktop.jsx';
 const WalletPage = () => {
   // VaultDesktop now handles mobile/desktop rendering internally
   return (
-    <div className="relative min-h-screen bg-black">
-      {/* LEXIEAI Header */}
-      <div className="absolute top-0 left-0 z-50 p-4">
+    <div className="relative min-h-screen w-full bg-black text-white overflow-x-hiddenscrollbar-terminal">
+      {/* Logo in top left - redirects to main site */}
+      <div className="absolute top-6 left-6 z-50">
         <a
-          href="https://www.lexiecrypto.com/"
+          href="https://www.lexiecrypto.com"
           target="_blank"
           rel="noopener noreferrer"
-          className="text-green-300 font-mono text-lg font-bold hover:text-emerald-400 transition-colors"
+          className="hover:opacity-80 transition-opacity"
         >
-          LEXIEAI
+          <span className="text-4xl font-bold text-purple-300">LEXIEAI</span>
+          <span className="text-3xl font-bold text-purple-300">LEXIEAI</span>
         </a>
       </div>
 
