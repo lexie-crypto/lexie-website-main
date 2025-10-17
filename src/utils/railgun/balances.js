@@ -31,7 +31,7 @@ const getRailgunNetworkName = (chainId) => {
 // Native gas token mapping by chain ID
 const NATIVE_GAS_TOKENS = {
   1: 'ETH',      // Ethereum
-  137: 'MATIC',  // Polygon
+  137: 'POL',    // Polygon (POL after rebrand)
   56: 'BNB',     // BSC
   42161: 'ETH',  // Arbitrum (uses ETH)
 };
