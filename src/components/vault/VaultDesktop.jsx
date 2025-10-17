@@ -956,7 +956,16 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       // Guard reset-to-0: don't reset progress if already at 100%
       setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);
       setInitFailedMessage('');
-      const chainLabel = network?.name || (activeChainId ? `Chain ${activeChainId}` : 'network');
+
+      // Extract chainId from event if available
+      const eventChainId = e?.detail?.chainId || activeChainId;
+      const chainLabel = {
+        1: 'Ethereum',
+        137: 'Polygon',
+        42161: 'Arbitrum',
+        56: 'BNB Chain'
+      }[Number(eventChainId)] || `Chain ${eventChainId}`;
+
       setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
       console.log('[VaultDesktop] Initialization started');
     };
@@ -1036,7 +1045,21 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       // Handle bootstrap progress updates
       const onBootstrapProgress = (e) => {
         const { chainId: eventChainId, progress } = e.detail;
-        console.log('[VaultDesktop] Bootstrap progress event:', { eventChainId, progress, currentChainId: walletChainId, networkName: network?.name });
+
+        // Look up network name based on the chain being bootstrapped
+        const bootstrapNetworkName = {
+          1: 'Ethereum',
+          137: 'Polygon',
+          42161: 'Arbitrum',
+          56: 'BNB Chain'
+        }[Number(eventChainId)] || `Chain ${eventChainId}`;
+
+        console.log('[VaultDesktop] Bootstrap progress event:', {
+          eventChainId,
+          progress,
+          currentChainId: walletChainId,
+          networkName: bootstrapNetworkName  // Correct - uses bootstrap chain
+        });
 
         // Always update progress bar during bootstrap (only one chain at a time)
         const newPercent = Math.round(progress * 100) / 100;
@@ -1051,10 +1074,9 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         // When bootstrap reaches 100%, lock it and change message to "Creating..."
         if (newPercent >= 100 && !bootstrapLockedRef.current) {
           bootstrapLockedRef.current = true;
-          const networkName = network?.name || `Chain ${eventChainId}`;
           setInitProgress(prev => ({
             ...prev,
-            message: `Creating your LexieVault on ${networkName} Network...`
+            message: `Creating your LexieVault on ${bootstrapNetworkName} Network...`
           }));
         }
       };
