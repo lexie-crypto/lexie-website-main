@@ -367,6 +367,27 @@ const WalletContextProvider = ({ children }) => {
   const disconnectingRef = useRef(false);
   const lastInitializedAddressRef = useRef(null);
 
+  // Track current chain in real-time (avoids closure issues)
+  const chainIdRef = useRef(chainId);
+
+  // Track target chain for signature confirmation
+  const targetChainIdRef = useRef(null);
+
+  // Update target chain ref when user selects chain in modal
+  useEffect(() => {
+    try {
+      const selected = parseInt(localStorage.getItem('lexie-selected-chain'), 10);
+      if (selected) {
+        targetChainIdRef.current = selected;
+      }
+    } catch {}
+  }, []);
+
+  // Update chainId ref whenever chainId changes (avoids closure issues)
+  useEffect(() => {
+    chainIdRef.current = chainId;
+  }, [chainId]);
+
   // Signature confirmation
   const requestSignatureConfirmation = useCallback((message) => {
     return new Promise((resolve) => {
@@ -376,14 +397,34 @@ const WalletContextProvider = ({ children }) => {
     });
   }, []);
 
-  const confirmSignature = useCallback(() => {
+  const confirmSignature = useCallback(async () => {
     if (signatureConfirmationPromise) {
+      const selectedChain = targetChainIdRef.current || parseInt(localStorage.getItem('lexie-selected-chain'), 10);
+
+      if (selectedChain && selectedChain !== chainIdRef.current) {  // Use ref for initial check
+        console.log(`[Signature Confirm] Waiting for chain switch: ${chainIdRef.current} → ${selectedChain}`);
+
+        // Wait up to 10 seconds for chainId to update
+        const startTime = Date.now();
+        while (Date.now() - startTime < 10000) {
+          if (chainIdRef.current === selectedChain) {  // ✅ Poll the ref, not the closure variable!
+            console.log(`[Signature Confirm] ✅ Chain switched!`);
+            break;
+          }
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+
+        if (chainIdRef.current !== selectedChain) {  // Use ref for timeout check
+          console.warn(`[Signature Confirm] ⚠️ Timeout, proceeding with chain ${chainIdRef.current}`);
+        }
+      }
+
       signatureConfirmationPromise.resolve(true);
       setSignatureConfirmationPromise(null);
       setShowSignatureConfirmation(false);
       setPendingSignatureMessage('');
     }
-  }, [signatureConfirmationPromise]);
+  }, [signatureConfirmationPromise]);  // Remove chainId from dependencies
 
   const cancelSignature = useCallback(() => {
     if (signatureConfirmationPromise) {

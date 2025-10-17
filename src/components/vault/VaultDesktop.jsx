@@ -304,10 +304,10 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   // Supported networks array
   const supportedNetworks = [
-    { id: 1, name: 'Ethereum', symbol: 'ETH', logo: '🔷' },
-    { id: 137, name: 'Polygon', symbol: 'MATIC', logo: '💜' },
-    { id: 42161, name: 'Arbitrum', symbol: 'ETH', logo: '🌊' },
-    { id: 56, name: 'BNB Chain', symbol: 'BNB', logo: '🟡' },
+    { id: 1, name: 'Ethereum', symbol: 'ETH' },
+    { id: 137, name: 'Polygon', symbol: 'MATIC' },
+    { id: 42161, name: 'Arbitrum', symbol: 'ETH'},
+    { id: 56, name: 'BNB Chain', symbol: 'BNB' },
   ];
 
   // Check if current network is supported
