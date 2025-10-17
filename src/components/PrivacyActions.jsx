@@ -1510,7 +1510,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               console.warn('[PrivacyActions] Points processing failed for assumed unshield success:', pointsError);
             }
 
-            // Trigger balance refresh for assumed unshield success
+            // Trigger balance refresh for assumed unshield success (same as successful case)
             try {
               const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
               await syncBalancesAfterTransaction({
@@ -1521,6 +1521,11 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               console.log('[PrivacyActions] ✅ Balance refresh triggered for assumed unshield success');
             } catch (balanceError) {
               console.warn('[PrivacyActions] ⚠️ Balance refresh failed for assumed unshield success:', balanceError?.message);
+            }
+
+            // Dispatch railgun-public-refresh event to unlock modal (same as successful transaction flow)
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('railgun-public-refresh', { detail: { chainId } }));
             }
 
             // Show success toast for assumed unshield success
@@ -1549,13 +1554,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 </div>
               </div>
             ), { duration: 4000 });
-
-            // Dispatch transaction monitor completion event to unlock UI
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
-                detail: { transactionType: 'unshield', found: false, elapsedTime: 30000 }
-              }));
-            }
           }
           // Dispatch transaction monitor completion event
           if (typeof window !== 'undefined') {
