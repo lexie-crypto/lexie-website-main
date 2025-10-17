@@ -255,8 +255,21 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   // Local state to show a refreshing indicator for Vault Balances
   const [isRefreshingBalances, setIsRefreshingBalances] = useState(false);
 
-  // Selected chain state - defaults to Ethereum (chain ID 1)
-  const [selectedChainId, setSelectedChainId] = useState(1);
+  // Selected chain state - load from localStorage or default to Ethereum (chain ID 1)
+  const [selectedChainId, setSelectedChainId] = useState(() => {
+    try {
+      const saved = localStorage.getItem('lexie-selected-chain');
+      const parsed = saved ? parseInt(saved, 10) : null;
+      // Validate that the saved chain is still supported
+      const isValidChain = parsed && supportedNetworks.some(net => net.id === parsed);
+      const defaultChainId = isValidChain ? parsed : 1;
+      console.log('[VaultDesktop] Loaded chain selection from localStorage:', { saved, parsed, isValidChain, defaultChainId });
+      return defaultChainId;
+    } catch (error) {
+      console.warn('[VaultDesktop] Failed to load chain selection from localStorage:', error);
+      return 1; // Fallback to Ethereum
+    }
+  });
 
   // Chain readiness state
   const [isChainReady, setIsChainReady] = useState(false);
@@ -1313,8 +1326,12 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         return;
       }
       
+      // Update our selected chain state (this will persist to localStorage via ChainSelector)
+      console.log('[VaultDesktop] Updating selected chain to', targetChainId);
+      setSelectedChainId(targetChainId);
+
       // Switch network immediately for snappy UX
-      console.log('[VaultDesktop] Switching network to', targetChainId);
+      console.log('[VaultDesktop] Switching wallet network to', targetChainId);
       await switchNetwork(targetChainId);
       
       const targetNetwork = supportedNetworks.find(net => net.id === targetChainId);
@@ -1559,7 +1576,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                       title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : 'Select network'}
                       aria-disabled={!canUseRailgun || !railgunWalletId}
                     >
-                      {supportedNetworks.find(n => n.id === chainId)?.name || 'Select'}
+                      {supportedNetworks.find(n => n.id === activeChainId)?.name || 'Select'}
                       <span className="ml-1">▾</span>
                     </button>
                     {isMobileChainMenuOpen && (
@@ -1612,7 +1629,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                     title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : 'Select network'}
                     aria-disabled={!canUseRailgun || !railgunWalletId}
                   >
-                    {supportedNetworks.find(n => n.id === chainId)?.name || 'Select'}
+                    {supportedNetworks.find(n => n.id === activeChainId)?.name || 'Select'}
                     <span className="ml-1">▾</span>
                   </button>
                   {isChainMenuOpen && (

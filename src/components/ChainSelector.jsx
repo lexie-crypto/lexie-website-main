@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronDownIcon, CheckIcon } from '@heroicons/react/24/outline';
 
 /**
@@ -6,6 +6,7 @@ import { ChevronDownIcon, CheckIcon } from '@heroicons/react/24/outline';
  *
  * Allows users to select their preferred blockchain network before wallet connection.
  * Displays supported networks with logos and ensures proper chain selection for vault creation.
+ * Persists user's selection to localStorage for consistent experience.
  */
 const ChainSelector = ({ selectedChainId, onChainSelect, disabled = false }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -44,6 +45,18 @@ const ChainSelector = ({ selectedChainId, onChainSelect, disabled = false }) => 
     onChainSelect(chainId);
     setIsOpen(false);
   };
+
+  // Save selection to localStorage whenever it changes
+  useEffect(() => {
+    if (selectedChainId && supportedNetworks.some(net => net.id === selectedChainId)) {
+      try {
+        localStorage.setItem('lexie-selected-chain', selectedChainId.toString());
+        console.log('[ChainSelector] Saved chain selection to localStorage:', selectedChainId);
+      } catch (error) {
+        console.warn('[ChainSelector] Failed to save chain selection to localStorage:', error);
+      }
+    }
+  }, [selectedChainId, supportedNetworks]);
 
   return (
     <div className="flex flex-col items-center">
