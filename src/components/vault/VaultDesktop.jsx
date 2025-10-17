@@ -2381,11 +2381,19 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                 {supportedNetworks.map((network) => (
                   <button
                     key={network.id}
-                    onClick={() => {
+                    onClick={async () => {
                       console.log(`[VaultDesktop] User selected chain: ${network.name} (${network.id})`);
                       setSelectedChainId(network.id);
                       setShowChainSelectionModal(false);
-                      // The useEffect will now detect the chain selection and show the sign popup
+
+                      // Switch the wallet to the selected network before showing sign popup
+                      try {
+                        await switchNetwork(network.id);
+                        console.log(`[VaultDesktop] Successfully switched wallet to ${network.name}`);
+                      } catch (error) {
+                        console.error(`[VaultDesktop] Failed to switch wallet to ${network.name}:`, error);
+                        // Continue anyway - the sign popup will still work
+                      }
                     }}
                     className="w-full p-3 bg-black/40 border border-green-500/40 rounded-lg hover:bg-green-900/20 hover:border-emerald-400 transition-all duration-200 text-left"
                   >
