@@ -7,21 +7,25 @@
 const COINGECKO_TOKEN_IDS = {
   // Ethereum Network
   'ETH': 'ethereum',
+  'BTC': 'bitcoin',
   'USDC': 'usd-coin',
   'USDT': 'tether',
   'DAI': 'dai',
   'WETH': 'weth',
-  
+  'WBTC': 'wrapped-bitcoin',
+
   // Polygon Network
   'MATIC': 'matic-network',
+  'POL': 'polygon-ecosystem-token',
   'WMATIC': 'wmatic',
-  
+  'WPOL': 'wrapped-polygon-ecosystem-token',
+
   // Arbitrum Network
   'ARB': 'arbitrum',
-  
+
   // Optimism Network
   'OP': 'optimism',
-  
+
   // BSC Network
   'BNB': 'binancecoin',
   'WBNB': 'wbnb',

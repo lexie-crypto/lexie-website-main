@@ -542,8 +542,8 @@ export const estimateGasForTransaction = async ({
       recipientAddress: recipientAddress?.substring(0, 20) + '...'
     });
 
-    // Use hardcoded gas limit instead of SDK dummy transactions
-    const gasLimit = 1200000n; // 1.2M gas limit
+    // Use conservative gas limit with mainnet adjustment (same as fee-calculator.js)
+    const gasLimit = chainId === 1 ? 2500000n : 1500000n; // 2.5M for mainnet, 1.5M for others (25% buffer)
 
     // Get current gas prices from RPC provider
     const gasPrices = await fetchGasPricesFromRPC(chainId);
@@ -609,7 +609,7 @@ export const estimateGasForTransaction = async ({
       gasCostUSD: '0.12',
       gasCostNative: '0.00004167',
       nativeGasToken: fallbackToken,
-      gasEstimate: '1200000',
+      gasEstimate: '1500000',
       evmGasType: EVMGasType.Type2,
       error: error.message
     };

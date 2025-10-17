@@ -1,45 +1,17 @@
 /**
- * Wallet Page Wrapper - decides mobile vs desktop before loading wallet logic
+ * Wallet Page Wrapper - gates access with access codes before loading wallet logic
  */
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
+import AccessCodeGate from '../components/AccessCodeGate.jsx';
+import VaultDesktop from '../components/vault/VaultDesktop.jsx';
 
 const WalletPage = () => {
-  const [isMobile, setIsMobile] = useState(false);
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia === 'undefined') {
-      setIsReady(true);
-      return;
-    }
-    const mq = window.matchMedia('(max-width: 639px)'); // Tailwind <sm
-    const apply = () => { setIsMobile(mq.matches); setIsReady(true); };
-    apply();
-    if (mq.addEventListener) mq.addEventListener('change', apply);
-    else if (mq.addListener) mq.addListener(apply);
-    return () => {
-      if (mq.removeEventListener) mq.removeEventListener('change', apply);
-      else if (mq.removeListener) mq.removeListener(apply);
-    };
-  }, []);
-
-  if (!isReady) return null;
-
-  if (isMobile) {
-    const VaultMobileFallback = React.lazy(() => import('../components/vault/VaultMobileFallback.jsx'));
-    return (
-      <React.Suspense fallback={null}>
-        <VaultMobileFallback />
-      </React.Suspense>
-    );
-  }
-
-  const VaultDesktop = React.lazy(() => import('../components/vault/VaultDesktop.jsx'));
+  // VaultDesktop now handles mobile/desktop rendering internally
   return (
-    <React.Suspense fallback={null}>
+    <AccessCodeGate>
       <VaultDesktop />
-    </React.Suspense>
+    </AccessCodeGate>
   );
 };
 

@@ -67,7 +67,10 @@ export default async function handler(req, res) {
     'http://localhost:5173',
     'http://localhost:3001',
     'https://staging.lexiecrypto.com',
+    'https://staging.app.lexiecrypto.com',
     'https://staging.chatroom.lexiecrypto.com',
+    'https://staging.pay.lexiecrypto.com',
+    'https://pay.lexiecrypto.com',
   ];
   const isOriginAllowed = origin && (allowedOrigins.includes(origin) || origin.endsWith('.lexiecrypto.com'));
   if (isOriginAllowed) {

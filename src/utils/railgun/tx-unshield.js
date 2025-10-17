@@ -421,25 +421,10 @@ export const unshieldTokens = async ({
       console.warn('⚠️ [UNSHIELD] Balance refresh failed:', refreshError.message);
     }
 
-    // STEP 2: Network rescan for up-to-date Merkle tree
-    console.log('🔄 [UNSHIELD] Step 2: Performing network rescan...');
-    
-    try {
-      const { performNetworkRescan, getRailgunNetworkName } = await import('./scanning-service.js');
-      const networkName = getRailgunNetworkName(chain.id);
-      
-      await performNetworkRescan(networkName, [railgunWalletID]);
-      console.log('✅ [UNSHIELD] Network rescan completed');
-      
-    } catch (rescanError) {
-      console.error('❌ [UNSHIELD] Network rescan failed:', rescanError.message);
-      throw new Error(`Failed to rescan network: ${rescanError.message}`);
-    }
+    // STEP 2: SDK handles note selection internally
 
-    // STEP 3: SDK handles note selection internally
-
-    // STEP 4: Determine transaction method and prepare recipients
-    console.log('🔧 [UNSHIELD] Step 4: Determining transaction method...');
+    // STEP 3: Determine transaction method and prepare recipients
+    console.log('🔧 [UNSHIELD] Step 3: Determining transaction method...');
     
     const useRelayer = shouldUseRelayer(chain.id, amount);
     const sendWithPublicWallet = !useRelayer; // false when relaying, true when self-signing
@@ -781,12 +766,23 @@ export const unshieldTokens = async ({
           usedRelayer = true;
           privacyLevel = 'transparent-relayer-base-token';
 
-          console.log('✅ [GAS RELAYER] Base token transaction submitted successfully!', {
-            transactionHash,
-            privacyLevel,
-            adjustedAmount: adjustedAmount?.toString() || amount,
-            combinedFee: combinedRelayerFee?.toString() || '0'
-          });
+          // Handle provider overload case specially
+          if (relayed.providerOverload) {
+            console.warn('⚠️ [GAS RELAYER] Base token transaction submitted despite provider overload:', {
+              transactionHash,
+              retryable: relayed.retryable,
+              code: relayed.code,
+              privacyLevel,
+              adjustedAmount: adjustedAmount?.toString() || amount
+            });
+          } else {
+            console.log('✅ [GAS RELAYER] Base token transaction submitted successfully!', {
+              transactionHash,
+              privacyLevel,
+              adjustedAmount: adjustedAmount?.toString() || amount,
+              combinedFee: combinedRelayerFee?.toString() || '0'
+            });
+          }
 
         } catch (gasRelayerError) {
           console.error('❌ [GAS RELAYER] Base token submission failed:', gasRelayerError.message);
@@ -1084,8 +1080,8 @@ export const unshieldTokens = async ({
       });
     }
 
-    // STEP 6: Build final gas details using SDK estimation + live fee data (with correct params)
-    console.log('📝 [UNSHIELD] Step 6: Building final gas details with correct proof parameters...');
+    // STEP 4: Build final gas details using SDK estimation + live fee data (with correct params)
+    console.log('📝 [UNSHIELD] Step 4: Building final gas details with correct proof parameters...');
 
     const networkName = getRailgunNetworkName(chain.id);
 
@@ -1115,7 +1111,7 @@ export const unshieldTokens = async ({
     // NOTE: Gas reclamation estimate is already calculated above and baked into the proof
     // The relayer takes win/loss on the difference between estimated vs actual gas costs
     
-    console.log('📝 [UNSHIELD] Step 5b: Generating real unshield proof with accurate gas...');
+    console.log('📝 [UNSHIELD] Step 5: Generating real unshield proof with accurate gas...');
     
     console.log('🔧 [UNSHIELD] Real proof mode:', {
       sendWithPublicWallet,
@@ -1169,7 +1165,7 @@ export const unshieldTokens = async ({
       // Import the cross-contract calls proof generation function
       const { generateCrossContractCallsProof } = await import('@railgun-community/wallet');
 
-      // using hoisted relayAdaptUnshieldERC20Amounts and crossContractCalls from Step 4
+      // using hoisted relayAdaptUnshieldERC20Amounts and crossContractCalls from Step 3
       
       // LOG PARITY BUNDLE BEFORE PROOF (should match estimate bundle)
       const parityBundleBeforeProof = {
@@ -1292,7 +1288,7 @@ export const unshieldTokens = async ({
         }
       });
 
-      // using hoisted relayAdaptUnshieldERC20Amounts and crossContractCalls from Step 4
+      // using hoisted relayAdaptUnshieldERC20Amounts and crossContractCalls from Step 3
 
       const proofBundle = {
         relayAdaptUnshieldERC20Amounts: relayAdaptUnshieldERC20Amounts.map(a => ({ tokenAddress: a.tokenAddress, amount: a.amount.toString() })),
@@ -1579,7 +1575,7 @@ export const unshieldTokens = async ({
         requiredSpend: (unshieldInputAmount + combinedRelayerFee).toString()
       });
       
-      // using hoisted relayAdaptUnshieldERC20Amounts and crossContractCalls from Step 4
+      // using hoisted relayAdaptUnshieldERC20Amounts and crossContractCalls from Step 3
       
       // Create JSON-serializable version for logging
       const populateBundleForLogging = {
@@ -1825,17 +1821,26 @@ export const unshieldTokens = async ({
           feeDetails,
           gasEstimate: contractTransaction.gasLimit?.toString()
         });
-        
+
         transactionHash = relayerResult.transactionHash;
         usedRelayer = true;
         privacyLevel = 'transparent-relayer';
-        
-        
-        console.log('✅ [GAS RELAYER] Transaction submitted successfully!', {
-          transactionHash,
-          privacyLevel,
-          noFees: true
-        });
+
+        // Handle provider overload case specially
+        if (relayerResult.providerOverload) {
+          console.warn('⚠️ [GAS RELAYER] Transaction submitted despite provider overload:', {
+            transactionHash,
+            retryable: relayerResult.retryable,
+            code: relayerResult.code,
+            privacyLevel
+          });
+        } else {
+          console.log('✅ [GAS RELAYER] Transaction submitted successfully!', {
+            transactionHash,
+            privacyLevel,
+            noFees: true
+          });
+        }
         
       } catch (gasRelayerError) {
         console.error('❌ [GAS RELAYER] Submission failed:', gasRelayerError.message);
@@ -1990,22 +1995,7 @@ export const privateTransferWithRelayer = async ({
       console.warn('⚠️ [PRIVATE TRANSFER] Balance refresh failed:', refreshError.message);
     }
 
-    // STEP 1: Network rescan for up-to-date Merkle tree
-    console.log('🔄 [PRIVATE TRANSFER] Step 1: Performing network rescan...');
-
-    try {
-      const { performNetworkRescan, getRailgunNetworkName } = await import('./scanning-service.js');
-      const railgunNetworkName = getRailgunNetworkName(chainId);
-
-      await performNetworkRescan(railgunNetworkName, [railgunWalletID]);
-      console.log('✅ [PRIVATE TRANSFER] Network rescan completed');
-
-    } catch (rescanError) {
-      console.error('❌ [PRIVATE TRANSFER] Network rescan failed:', rescanError.message);
-      throw new Error(`Failed to rescan network: ${rescanError.message}`);
-    }
-
-    // STEP 2: Gas details (relayer path) - Use same approach as unshield for consistency
+    // STEP 1: Gas details (relayer path) - Use same approach as unshield for consistency
     const evmGasType = getEVMGasTypeForTransaction(networkName, false);
 
     // Fetch real-time network gas prices like unshield function does

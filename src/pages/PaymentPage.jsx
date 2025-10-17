@@ -4,16 +4,17 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { toast } from 'react-hot-toast';
 import {
   WalletIcon,
   ShieldCheckIcon,
   ExclamationTriangleIcon,
   ArrowDownIcon,
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline';
 
 import TerminalWindow from '../components/ui/TerminalWindow';
+import { Navbar } from '../components/Navbar';
 
 import { useWallet } from '../contexts/WalletContext';
 import useInjectedProviders from '../hooks/useInjectedProviders';
@@ -25,7 +26,7 @@ import { TXIDVersion, EVMGasType, NetworkName, getEVMGasTypeForTransaction } fro
 import { populateShield, populateShieldBaseToken } from '@railgun-community/wallet';
 import { Contract, parseUnits } from 'ethers';
 import { fetchTokenPrices } from '../utils/pricing/coinGecko';
-import { fetchGasPricesFromRPC } from '../utils/railgun/tx-gas-details';
+import { estimateGasForTransaction } from '../utils/railgun/tx-gas-details';
 
 // Terminal-themed toast helper (matches tx-unshield.js and PrivacyActions.jsx)
 const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
@@ -87,10 +88,11 @@ const formatBalance = (balance, decimals = 2) => {
 
 
 const PaymentPage = () => {
-  const [searchParams] = useSearchParams();
-  const toParam = searchParams.get('to');
-  const chainIdParam = searchParams.get('chainId');
-  const preferredToken = searchParams.get('token');
+  // Parse URL parameters directly (works with or without React Router)
+  const urlParams = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  const toParam = urlParams.get('to');
+  const chainIdParam = urlParams.get('chainId');
+  const preferredToken = urlParams.get('token');
 
   const {
     isConnected,
@@ -105,12 +107,42 @@ const PaymentPage = () => {
 
   const [selectedToken, setSelectedToken] = useState(null);
   const [amount, setAmount] = useState('');
+  const [exactWeiAmount, setExactWeiAmount] = useState(null); // Store exact wei amount to avoid rounding issues
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // Reset completion state when user starts new transaction
+  const resetTransactionState = () => {
+    setTransactionCompleted(false);
+    setCompletedTransactionHash(null);
+    setCopyStatus(null);
+    setExactWeiAmount(null);
+  };
+
+  // Copy transaction hash to clipboard
+  const copyTransactionHash = async () => {
+    if (!completedTransactionHash) return;
+
+    try {
+      await navigator.clipboard.writeText(completedTransactionHash);
+      setCopyStatus('copied');
+      showTerminalToast('success', 'Copied!', 'Transaction hash copied to clipboard', { duration: 2000 });
+
+      // Reset copy status after 2 seconds
+      setTimeout(() => setCopyStatus(null), 2000);
+    } catch (error) {
+      console.error('Failed to copy transaction hash:', error);
+      setCopyStatus('error');
+      showTerminalToast('error', 'Copy failed', 'Could not copy to clipboard', { duration: 2000 });
+    }
+  };
   const [publicBalances, setPublicBalances] = useState([]);
   const [isLoadingBalances, setIsLoadingBalances] = useState(false);
   const [isTokenMenuOpen, setIsTokenMenuOpen] = useState(false);
   const [tokenPrices, setTokenPrices] = useState({});
   const [balanceRefreshTrigger, setBalanceRefreshTrigger] = useState(0);
+  const [transactionCompleted, setTransactionCompleted] = useState(false);
+  const [completedTransactionHash, setCompletedTransactionHash] = useState(null);
+  const [copyStatus, setCopyStatus] = useState(null);
   const tokenMenuRef = useRef(null);
 
   // Parse target chain ID
@@ -131,23 +163,8 @@ const PaymentPage = () => {
   // Check if user is on correct network
   const isCorrectNetwork = chainId === targetChainId;
 
-  // Suppress vault/wallet creation on PaymentPage - this is only for paying into other vaults
-  useEffect(() => {
-    try {
-      if (typeof window !== 'undefined') {
-        window.__LEXIE_SUPPRESS_RAILGUN_INIT = true;
-        window.__LEXIE_PAYMENT_PAGE = true; // Additional flag to prevent wallet creation
-      }
-    } catch {}
-    return () => {
-      try {
-        if (typeof window !== 'undefined') {
-          delete window.__LEXIE_SUPPRESS_RAILGUN_INIT;
-          delete window.__LEXIE_PAYMENT_PAGE;
-        }
-      } catch {}
-    };
-  }, []);
+  // PaymentPage needs Railgun engine for shield transaction creation
+  // No suppression needed since we need populateShield functions
 
   // Fetch public balances when connected and on correct network
   useEffect(() => {
@@ -162,7 +179,7 @@ const PaymentPage = () => {
         // PaymentPage doesn't need Railgun engine for balance fetching - only for payment transactions
 
         // Fetch token prices first
-        const symbols = ['ETH', 'USDC', 'USDT', 'DAI', 'MATIC', 'BNB', 'WETH', 'WMATIC', 'WBNB'];
+        const symbols = ['ETH', 'USDC', 'USDT', 'DAI', 'MATIC', 'BNB', 'WETH', 'WMATIC', 'WBNB', 'USDC.e'];
         let prices = {};
         try {
           prices = await fetchTokenPrices(symbols);
@@ -183,22 +200,36 @@ const PaymentPage = () => {
             { symbol: 'USDC', address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', name: 'USD Coin', decimals: 6 },
             { symbol: 'USDT', address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', name: 'Tether USD', decimals: 6 },
             { symbol: 'DAI', address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', name: 'Dai Stablecoin', decimals: 18 },
+            { symbol: 'WBTC', address: '0x2260FAC5E5542a773Aa44fBcfeDf7C193bc2c599', name: 'Wrapped Bitcoin', decimals: 8 },
+            { symbol: 'WETH', address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', name: 'Wrapped Ether', decimals: 18 },
           ],
           137: [ // Polygon
             { symbol: 'MATIC', address: null, name: 'Polygon', decimals: 18 },
-            { symbol: 'USDC', address: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', name: 'USD Coin', decimals: 6 },
-            { symbol: 'USDT', address: '0xc2132D05D31c914a87C6611c10748AEb04B58e8F', name: 'Tether USD', decimals: 6 },
+            { symbol: 'POL', address: '0x4557328F4C0E5F986bC92c6a6f25b7E9C6E25B9e', name: 'Polygon Ecosystem Token', decimals: 18 },
+            { symbol: 'WPOL', address: '0x6d1fdBB266fCc09A16a22016369210a15bb95761', name: 'Wrapped POL', decimals: 18 },
+            { symbol: 'WETH', address: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619', name: 'Wrapped Ether', decimals: 18 },
+            { symbol: 'WMATIC', address: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', name: 'Wrapped MATIC', decimals: 18 },
+            { symbol: 'USDC', address: '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359', name: 'USD Coin', decimals: 6 },
+            { symbol: 'USDT', address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', name: 'Tether USD (PoS)', decimals: 6 },
+            { symbol: 'DAI', address: '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063', name: 'Dai Stablecoin (PoS)', decimals: 18 },
+            { symbol: 'WBTC', address: '0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6', name: 'Wrapped Bitcoin', decimals: 8 },
           ],
           42161: [ // Arbitrum
             { symbol: 'ETH', address: null, name: 'Ethereum', decimals: 18 },
-            // Native USDC
-            { symbol: 'USDC', address: '0xaf88d065e77c8cc2239327c5edb3a432268e5831', name: 'USD Coin', decimals: 6 },
+            { symbol: 'WETH', address: '0x82af49447D8a07e3bd95BD0d56f35241523fBab1', name: 'Wrapped Ether', decimals: 18 },
+            { symbol: 'USDC', address: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831', name: 'USD Coin', decimals: 6 },
             { symbol: 'USDT', address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', name: 'Tether USD', decimals: 6 },
+            { symbol: 'DAI', address: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1', name: 'Dai Stablecoin', decimals: 18 },
+            { symbol: 'WBTC', address: '0x2f2a2543B76A4166549F7AaB2e75BEF0aefC5b0f', name: 'Wrapped Bitcoin', decimals: 8 },
           ],
           56: [ // BNB Chain
             { symbol: 'BNB', address: null, name: 'BNB', decimals: 18 },
-            { symbol: 'USDT', address: '0x55d398326f99059fF775485246999027B3197955', name: 'Tether USD', decimals: 18 },
+            { symbol: 'WETH', address: '0x2170Ed0880ac9A755fd29B2688956BD959F933F8', name: 'Wrapped Ether', decimals: 18 },
+            { symbol: 'WBNB', address: '0xBB4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', name: 'Wrapped BNB', decimals: 18 },
             { symbol: 'USDC', address: '0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d', name: 'USD Coin', decimals: 18 },
+            { symbol: 'USDT', address: '0x55d398326f99059fF775485246999027B3197955', name: 'Tether USD', decimals: 18 },
+            { symbol: 'DAI', address: '0x1AF3F329e8BE154074D8769D1FFa4eE058B1DBc3', name: 'Dai Token', decimals: 18 },
+            { symbol: 'WBTC', address: '0x0555E30da8f98308EdB960aa94C0Db47230d2B9c', name: 'Wrapped Bitcoin', decimals: 8 },
           ],
         };
 
@@ -269,12 +300,12 @@ const PaymentPage = () => {
     fetchBalances();
   }, [isConnected, address, chainId, isCorrectNetwork, walletProvider, balanceRefreshTrigger]);
 
-  // Auto-select preferred token or first available
+  // Auto-select preferred token or first available (only if no token selected)
   useEffect(() => {
-    if (publicBalances.length === 0) return;
+    if (publicBalances.length === 0 || selectedToken) return;
 
     if (preferredToken) {
-      const token = publicBalances.find(t => 
+      const token = publicBalances.find(t =>
         (t.address || '').toLowerCase() === preferredToken.toLowerCase()
       );
       if (token) {
@@ -286,7 +317,7 @@ const PaymentPage = () => {
     // Select first token with balance or just the first token
     const tokenWithBalance = publicBalances.find(t => t.numericBalance > 0);
     setSelectedToken(tokenWithBalance || publicBalances[0]);
-  }, [publicBalances, preferredToken]);
+  }, [publicBalances, preferredToken, selectedToken]);
 
   // Close token menu on outside click or ESC
   useEffect(() => {
@@ -326,7 +357,7 @@ const PaymentPage = () => {
 
     setIsProcessing(true);
 
-    showTerminalToast('info', 'Starting Deposit', 'Preparing your private vault deposit...', { duration: 2000 });
+    showTerminalToast('info', 'Starting Deposit', 'Preparing your deposit...', { duration: 2000 });
 
     try {
       // Initialize Railgun engine only when making payment (not during wallet connection)
@@ -365,8 +396,15 @@ const PaymentPage = () => {
       }[chainId];
       if (!railgunNetwork) throw new Error(`Unsupported network: ${chainId}`);
 
-      // Parse amount to base units
-      const weiAmount = parseUnits(amount, selectedToken.decimals);
+      // Parse amount to base units - use exactWeiAmount if available to avoid rounding
+      let weiAmount;
+      if (exactWeiAmount) {
+        weiAmount = exactWeiAmount;
+        console.log('[PaymentPage] Using exact wei amount:', weiAmount.toString());
+      } else {
+        weiAmount = parseUnits(amount, selectedToken.decimals);
+        console.log('[PaymentPage] Parsed amount to wei:', weiAmount.toString());
+      }
 
       // Prepare recipients (use resolved Railgun address)
       const erc20AmountRecipients = [
@@ -381,71 +419,65 @@ const PaymentPage = () => {
       };
       const shieldPrivateKey = getRandomHex32();
 
-      // Fetch current gas prices from RPC (same as shieldTransactions.js)
-      console.log('[PaymentPage] Fetching current gas prices from RPC...');
-      let gasPrices = await fetchGasPricesFromRPC(chainId);
+      // Use gas estimation for network awareness but let wallet handle pricing
+      console.log('[PaymentPage] Running gas estimation for network compatibility...');
+      const gasCostEstimate = await estimateGasForTransaction({
+        transactionType: 'shield',
+        chainId,
+        networkName: railgunNetwork,
+        tokenAddress: selectedToken.address,
+        amount: weiAmount,
+        walletProvider: await walletProvider(),
+      });
 
-      // Enforce minimum gas prices for networks that need them
-      if (chainId === 56) {
-        // BNB Chain often returns very low gas prices from RPC
-        const minGasPrice = BigInt('100000000'); // 0.1 gwei minimum for BNB
-        if (gasPrices.gasPrice < minGasPrice) {
-          console.log(`[PaymentPage] BNB gas price too low (${gasPrices.gasPrice}), enforcing minimum: ${minGasPrice}`);
-          gasPrices = {
-            ...gasPrices,
-            gasPrice: minGasPrice,
-            maxFeePerGas: minGasPrice,
-            maxPriorityFeePerGas: minGasPrice / 10n
-          };
-        }
-      } else if (chainId === 137) {
-        // Polygon minimum gas price
-        const minGasPrice = BigInt('30000000000'); // 30 gwei minimum for Polygon
-        if (gasPrices.gasPrice < minGasPrice) {
-          console.log(`[PaymentPage] Polygon gas price too low (${gasPrices.gasPrice}), enforcing minimum: ${minGasPrice}`);
-          gasPrices = {
-            ...gasPrices,
-            gasPrice: minGasPrice,
-            maxFeePerGas: minGasPrice,
-            maxPriorityFeePerGas: minGasPrice / 10n
-          };
-        }
-      }
+      // Don't fetch custom gas prices - let wallet use its market rates
+      console.log('[PaymentPage] Using wallet market gas rates instead of custom pricing');
 
       // Determine gas type and preliminary gas details (to discover spender address)
       const evmGasType = getEVMGasTypeForTransaction(railgunNetwork, true);
 
       let prelimGasDetails;
       if (evmGasType === EVMGasType.Type2) {
-        // EIP-1559 networks (Arbitrum) - use RPC gas prices
+        // EIP-1559 networks (Arbitrum) - let wallet estimate fees
         prelimGasDetails = {
           evmGasType,
-          gasEstimate: BigInt(1200000), // 1.2M gas for Arbitrum L2
-          maxFeePerGas: gasPrices.maxFeePerGas,
-          maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas,
+          gasEstimate: BigInt(1200000), // 1.2M gas for all networks
+          // Don't set maxFeePerGas/maxPriorityFeePerGas - let wallet estimate
         };
       } else {
-        // Legacy networks - network-specific gas limits with RPC prices
-        let gasEstimate;
-        if (chainId === 1) {
-          gasEstimate = BigInt(1000000); // 1M gas for Ethereum
-        } else if (chainId === 137) {
-          gasEstimate = BigInt(800000); // 800k gas for Polygon
-        } else if (chainId === 56) {
-          gasEstimate = BigInt(300000); // 300k gas for BNB (lower limits)
-        }
-
+        // Legacy networks - let wallet estimate gas prices
         prelimGasDetails = {
           evmGasType: EVMGasType.Type0,
-          gasEstimate,
-          gasPrice: gasPrices.gasPrice,
+          gasEstimate: BigInt(1200000), // 1.2M gas for all networks
+          // Don't set gasPrice - let wallet estimate
         };
       }
 
+      // Validate parameters before calling populateShield functions
+      console.log('[PaymentPage] Validating shield parameters:', {
+        txidVersion: TXIDVersion.V2_PoseidonMerkle,
+        railgunNetwork,
+        shieldPrivateKey: shieldPrivateKey ? `${shieldPrivateKey.substring(0, 10)}...` : 'undefined',
+        erc20AmountRecipients,
+        resolvedRecipientAddress,
+        weiAmount: weiAmount?.toString(),
+        selectedTokenAddress: selectedToken?.address,
+        prelimGasDetails
+      });
+
+      // Ensure all required parameters are valid
+      if (!railgunNetwork) throw new Error('Railgun network not configured');
+      if (!shieldPrivateKey || typeof shieldPrivateKey !== 'string') throw new Error('Invalid shield private key');
+      if (!resolvedRecipientAddress || !resolvedRecipientAddress.startsWith('0zk')) throw new Error('Invalid recipient Railgun address');
+      if (!weiAmount || weiAmount <= 0n) throw new Error('Invalid amount');
+      if (!Array.isArray(erc20AmountRecipients)) throw new Error('Invalid recipients array');
+
       // Build a preliminary shield tx to get the RAILGUN shield contract (spender)
       let prelimTx;
+      console.log('[PaymentPage] Calling populateShield functions...');
       if (!selectedToken.address) {
         // Native token - use populateShieldBaseToken
+        console.log('[PaymentPage] Using populateShieldBaseToken for native token');
         const wrappedTokenAddress = {
           1: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', // WETH
           137: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', // WMATIC
@@ -456,6 +488,16 @@ const PaymentPage = () => {
         if (!wrappedTokenAddress) {
           throw new Error(`Unsupported chain for native token shielding: ${chainId}`);
         }
+
+        console.log('[PaymentPage] About to call populateShieldBaseToken with:', {
+          txidVersion: TXIDVersion.V2_PoseidonMerkle,
+          railgunNetwork,
+          recipientAddress: resolvedRecipientAddress,
+          shieldPrivateKey: shieldPrivateKey ? 'present' : 'missing',
+          tokenAddress: wrappedTokenAddress,
+          amount: weiAmount.toString(),
+          gasDetails: prelimGasDetails
+        });
 
         const result = await populateShieldBaseToken(
           TXIDVersion.V2_PoseidonMerkle,
@@ -468,6 +510,16 @@ const PaymentPage = () => {
         prelimTx = result.transaction;
       } else {
         // ERC-20 token - use populateShield
+        console.log('[PaymentPage] Using populateShield for ERC-20 token');
+        console.log('[PaymentPage] About to call populateShield with:', {
+          txidVersion: TXIDVersion.V2_PoseidonMerkle,
+          railgunNetwork,
+          shieldPrivateKey: shieldPrivateKey ? 'present' : 'missing',
+          erc20AmountRecipients,
+          commitments: [],
+          gasDetails: prelimGasDetails
+        });
+
         const result = await populateShield(
           TXIDVersion.V2_PoseidonMerkle,
           railgunNetwork,
@@ -485,10 +537,30 @@ const PaymentPage = () => {
       if (selectedToken.address) {
         const erc20Abi = [
           'function allowance(address owner,address spender) view returns (uint256)',
+          'function balanceOf(address account) view returns (uint256)',
           'function approve(address spender,uint256 amount) returns (bool)',
         ];
         const erc20 = new Contract(selectedToken.address, erc20Abi, signer);
+
+        // Check balance first (same as shieldTransactions.js)
+        const balance = await erc20.balanceOf(payerEOA);
+        console.log('[PaymentPage] Token balance check:', {
+          balance: balance.toString(),
+          requested: weiAmount.toString(),
+          hasEnough: balance >= weiAmount
+        });
+
+        if (balance < weiAmount) {
+          throw new Error(`Insufficient token balance. Have: ${balance}, Need: ${weiAmount}`);
+        }
+
         const currentAllowance = await erc20.allowance(payerEOA, spender);
+        console.log('[PaymentPage] Token allowance check:', {
+          current: currentAllowance.toString(),
+          required: weiAmount.toString(),
+          needsApproval: currentAllowance < weiAmount
+        });
+
         if (currentAllowance < weiAmount) {
           showTerminalToast('info', 'Approval Required', 'Please sign the token approval in your wallet to allow the deposit', { duration: 4000 });
           const approveTx = await erc20.approve(spender, weiAmount);
@@ -498,49 +570,40 @@ const PaymentPage = () => {
 
       // Final gas estimate for shield - network-specific
       let gasEstimate;
-      if (!selectedToken.address) {
-        // For native tokens - network-specific base estimates
-        if (chainId === 1) {
-          gasEstimate = BigInt(1200000); // 1.2M for Ethereum
-        } else if (chainId === 137) {
-          gasEstimate = BigInt(1000000); // 1M for Polygon
-        } else if (chainId === 56) {
-          gasEstimate = BigInt(500000); // 500k for BNB (lower)
-        } else if (chainId === 42161) {
-          gasEstimate = BigInt(1200000); // 1.2M for Arbitrum L2
-        }
+      if (chainId === 137) {
+        // Polygon needs much higher gas limits
+        gasEstimate = BigInt(2000000); // 2M for Polygon
+      } else if (!selectedToken.address) {
+        // For native tokens - use 1.2M for all other networks
+        gasEstimate = BigInt(1200000); // 1.2M for all native token shields
       } else {
-        // For ERC-20 tokens - network-specific base estimates
-        if (chainId === 1) {
-          gasEstimate = BigInt(1000000); // 1M for Ethereum
-        } else if (chainId === 137) {
-          gasEstimate = BigInt(800000); // 800k for Polygon
-        } else if (chainId === 56) {
-          gasEstimate = BigInt(300000); // 300k for BNB (lower)
-        } else if (chainId === 42161) {
-          gasEstimate = BigInt(1000000); // 1M for Arbitrum L2
-        }
+        // For ERC-20 tokens - use 1M for all other networks (same as shieldTransactions.js ERC20)
+        gasEstimate = BigInt(1200000); // 1M for all ERC20 shields
       }
 
-      // Apply 20% padding for safety
-      const paddedGasEstimate = (gasEstimate * 120n) / 100n;
+      // Apply padding for safety (no padding for Polygon since it's already set to 2M, 20% for others)
+      let paddedGasEstimate;
+      if (chainId === 137) {
+        paddedGasEstimate = gasEstimate; // Use the 2M directly for Polygon
+      } else {
+        paddedGasEstimate = (gasEstimate * 120n) / 100n; // 20% padding for other networks
+      }
 
-      // Final gas details - use RPC gas prices (same as shieldTransactions.js)
+      // Final gas details - let wallet determine gas prices for better market rates
       let gasDetails;
       if (evmGasType === EVMGasType.Type2) {
-        // EIP-1559 networks (Arbitrum) - use RPC gas prices
+        // EIP-1559 networks (Arbitrum) - let wallet estimate fees
         gasDetails = {
           evmGasType,
           gasEstimate: paddedGasEstimate,
-          maxFeePerGas: gasPrices.maxFeePerGas,
-          maxPriorityFeePerGas: gasPrices.maxPriorityFeePerGas,
+          // Don't set maxFeePerGas/maxPriorityFeePerGas - let wallet use market rates
         };
       } else {
-        // Legacy networks - use RPC gas prices
+        // Legacy networks - let wallet estimate gas price
         gasDetails = {
           evmGasType: EVMGasType.Type0,
           gasEstimate: paddedGasEstimate,
-          gasPrice: gasPrices.gasPrice,
+          // Don't set gasPrice - let wallet use market rate
         };
       }
 
@@ -585,13 +648,94 @@ const PaymentPage = () => {
       showTerminalToast('info', 'Transaction Submitted', 'Waiting for blockchain confirmation...', { duration: 3000 });
       const receipt = await sent.wait();
 
-      showTerminalToast('success', 'Payment sent', `Deposited ${amount} ${selectedToken.symbol} to recipient's vault. TX: ${sent.hash.slice(0, 10)}...${sent.hash.slice(-8)}`, { duration: 6000 });
+      // Set completion state instead of showing toast
+      setTransactionCompleted(true);
+      setCompletedTransactionHash(sent.hash);
+
+      // 🎯 AWARD POINTS TO RECIPIENT: Since funds were deposited into their vault
+      try {
+        console.log('[PaymentPage] 🎯 Awarding points to recipient for receiving funds...');
+
+        // Resolve recipient's Lexie ID from their Railgun address
+        const lexieResponse = await fetch('/api/wallet-metadata?action=by-wallet&railgunAddress=' + encodeURIComponent(resolvedRecipientAddress));
+        if (!lexieResponse.ok) {
+          console.warn('[PaymentPage] Could not resolve recipient Lexie ID for points award');
+        } else {
+          const lexieData = await lexieResponse.json();
+          if (lexieData?.success && lexieData?.lexieID) {
+            const recipientLexieId = lexieData.lexieID.toLowerCase();
+            console.log('[PaymentPage] ✅ Resolved recipient Lexie ID for points:', recipientLexieId);
+
+            // Calculate USD value of the deposited amount
+            const transactionMonitor = await import('../utils/railgun/transactionMonitor.js');
+            const convertTokenAmountToUSD = transactionMonitor.default.convertTokenAmountToUSD;
+            const usdValue = await convertTokenAmountToUSD(parseFloat(amount), selectedToken.address || null, chainId);
+
+            console.log('[PaymentPage] 💰 Calculated USD value for recipient points:', {
+              amount,
+              tokenSymbol: selectedToken.symbol,
+              usdValue,
+              recipientLexieId
+            });
+
+            // Award points to recipient
+            const pointsResponse = await fetch('/api/wallet-metadata?action=rewards-award', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                lexieId: recipientLexieId,
+                txHash: sent.hash,
+                usdValue: usdValue
+              })
+            });
+
+            if (pointsResponse.ok) {
+              const pointsData = await pointsResponse.json();
+              if (pointsData?.success) {
+                console.log('[PaymentPage] ✅ Points awarded to recipient:', {
+                  recipientLexieId,
+                  awarded: pointsData.awarded || 0,
+                  newBalance: pointsData.balance || 0,
+                  multiplier: pointsData.multiplier || 1.0
+                });
+
+                // Sync recipient's combined balance
+                try {
+                  const syncResponse = await fetch(`/api/wallet-metadata?action=rewards-combined-balance&lexieId=${encodeURIComponent(recipientLexieId)}`);
+                  if (syncResponse.ok) {
+                    const syncData = await syncResponse.json();
+                    if (syncData?.success) {
+                      console.log('[PaymentPage] ✅ Recipient combined balance synced:', {
+                        recipientLexieId,
+                        total: syncData.total,
+                        vault: syncData.breakdown?.vault || 0,
+                        game: syncData.breakdown?.game || 0
+                      });
+                    }
+                  }
+                } catch (syncError) {
+                  console.warn('[PaymentPage] ⚠️ Failed to sync recipient combined balance:', syncError?.message);
+                }
+              } else {
+                console.warn('[PaymentPage] ⚠️ Points award returned non-success:', pointsData);
+              }
+            } else {
+              console.warn('[PaymentPage] ⚠️ Points award API failed:', pointsResponse.status);
+            }
+          } else {
+            console.log('[PaymentPage] ⏭️ Recipient has no Lexie ID, skipping points award');
+          }
+        }
+      } catch (pointsError) {
+        console.warn('[PaymentPage] ⚠️ Error awarding points to recipient (non-critical):', pointsError?.message);
+        // Don't fail the transaction if points awarding fails
+      }
 
       // Refresh public balances to show updated available balance
       console.log('[PaymentPage] ✅ Triggering public balances refresh...');
       setBalanceRefreshTrigger(prev => prev + 1);
 
-      // Reset form amount
+      // Reset form amount for next transaction
       setAmount('');
       
     } catch (error) {
@@ -599,6 +743,8 @@ const PaymentPage = () => {
       
       if (error.message.includes('sanctions') || error.message.includes('sanctioned')) {
         showTerminalToast('error', 'Transaction blocked', 'Address appears on sanctions list');
+      } else if (error.code === 'TRANSACTION_REPLACED' || (error.code === 'TRANSACTION_REPLACED' && error.reason === 'cancelled')) {
+        showTerminalToast('error', 'Transaction cancelled by user');
       } else if (error.code === 4001 || /rejected/i.test(error?.message || '')) {
         showTerminalToast('error', 'Transaction cancelled by user');
       } else {
@@ -687,6 +833,9 @@ const PaymentPage = () => {
 
   return (
     <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
+      {/* Navigation */}
+      <Navbar />
+
       {/* Background overlays (match other pages) */}
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
@@ -712,32 +861,83 @@ const PaymentPage = () => {
               </p>
             </div>
 
-            {/* Recipient Info / Validation */}
+            {/* Recipient Info / Transaction Status */}
             <div className="bg-black/40 border border-green-500/20 rounded p-3 mb-6">
-              {/* Labels row */}
-              <div className="grid grid-cols-2 items-center px-3 text-center">
-                <div className="text-green-400/80 text-xs">Recipient:</div>
-                <div className="text-green-400/80 text-xs">Network:</div>
-              </div>
-              {/* Values row */}
-              <div className="mt-1 grid grid-cols-2 items-center px-3 text-center">
-                <div className="text-green-200 text-sm font-mono break-all">
-                  {recipientLexieId ? `@${recipientLexieId}` : (
-                    <>
-                      They didn't claim a Lexie ID yet — might as well be yeeting
-                      <br />
-                      crypto via paper airplane.
-                    </>
+              {transactionCompleted ? (
+                /* Transaction Completed Message */
+                <div className="text-center">
+                  <div className="text-green-200 text-lg font-bold mb-2">
+                    ✅ Transaction complete!
+                  </div>
+                  <div className="text-green-300 text-sm mb-4">
+                    <span className="mr-2">Txn hash:</span>
+                    <button
+                      onClick={copyTransactionHash}
+                      className={`font-mono break-all px-2 py-1 rounded text-left transition-colors ${
+                        copyStatus === 'copied'
+                          ? 'bg-green-600/20 text-green-200 border border-green-400/50'
+                          : copyStatus === 'error'
+                          ? 'bg-red-600/20 text-red-200 border border-red-400/50'
+                          : 'bg-green-900/30 hover:bg-green-800/40 text-green-200 border border-green-500/30 hover:border-green-400/50'
+                      }`}
+                      title="Click to copy transaction hash"
+                    >
+                      {completedTransactionHash}
+                      {copyStatus === 'copied' && <span className="ml-2 text-green-300">✓</span>}
+                      {copyStatus === 'error' && <span className="ml-2 text-red-300">✗</span>}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 items-center px-3 text-center">
+                    <div className="text-green-400/80 text-xs">Recipient:</div>
+                    <div className="text-green-400/80 text-xs">Network:</div>
+                  </div>
+                  <div className="mt-1 grid grid-cols-2 items-center px-3 text-center">
+                    <div className="text-green-200 text-sm font-mono break-all">
+                      {recipientLexieId ? `@${recipientLexieId}` : (
+                        <>
+                          They didn't claim a Lexie ID yet — might as well be yeeting
+                          <br />
+                          crypto via paper airplane.
+                        </>
+                      )}
+                    </div>
+                    <div className="text-green-200 text-sm font-mono">
+                      {networks[targetChainId]?.name || `Chain ${targetChainId}`}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Normal Recipient Info */
+                <>
+                  {/* Mobile: stacked layout, Desktop: grid layout */}
+                  <div className="flex flex-col sm:grid sm:grid-cols-2 gap-2 sm:gap-0 px-6 sm:px-3">
+                    {/* Recipient */}
+                    <div className="sm:text-center">
+                      <div className="text-green-400/80 text-xs mb-1">Recipient:</div>
+                      <div className="text-green-200 text-sm font-mono break-all">
+                        {recipientLexieId ? `@${recipientLexieId}` : (
+                          <>
+                            They didn't claim a Lexie ID yet — might as well be yeeting
+                            <br />
+                            crypto via paper airplane.
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    {/* Network */}
+                    <div className="sm:text-center mt-2 sm:mt-0">
+                      <div className="text-green-400/80 text-xs mb-1 sm:mb-1">Network:</div>
+                      <div className="text-green-200 text-sm font-mono">
+                        {networks[targetChainId]?.name || `Chain ${targetChainId}`}
+                      </div>
+                    </div>
+                  </div>
+                  {recipientResolveError && (
+                    <div className="text-red-300 text-xs mt-2">
+                      {recipientResolveError}
+                    </div>
                   )}
-                </div>
-                <div className="text-green-200 text-sm font-mono">
-                  {networks[targetChainId]?.name || `Chain ${targetChainId}`}
-                </div>
-              </div>
-              {recipientResolveError && (
-                <div className="text-red-300 text-xs mt-2">
-                  {recipientResolveError}
-                </div>
+                </>
               )}
             </div>
 
@@ -776,9 +976,29 @@ const PaymentPage = () => {
               <form onSubmit={handlePayment} className="space-y-4">
                 {/* Token Selection */}
                 <div>
-                  <label className="block text-sm font-medium text-green-300 mb-2">
-                    Token
-                  </label>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-sm font-medium text-green-300">
+                      Token
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        console.log('[PaymentPage] Manual balance refresh triggered');
+                        setBalanceRefreshTrigger(prev => prev + 1);
+                        showTerminalToast('info', 'Refreshing balances...', 'Updating your token balances', { duration: 2000 });
+                      }}
+                      disabled={!isConnected || isLoadingBalances}
+                      className={`flex items-center gap-2 px-3 py-1 text-xs rounded border transition-colors ${
+                        !isConnected || isLoadingBalances
+                          ? 'border-green-500/20 text-green-400/50 cursor-not-allowed'
+                          : 'border-green-500/40 text-green-400 hover:bg-green-900/20 hover:border-green-500/60'
+                      }`}
+                      title="Refresh token balances"
+                    >
+                      <ArrowPathIcon className={`h-3 w-3 ${isLoadingBalances ? 'animate-spin' : ''}`} />
+                      {isLoadingBalances ? 'Refreshing...' : 'Refresh'}
+                    </button>
+                  </div>
                   <div className="relative" ref={tokenMenuRef}>
                     <button
                       type="button"
@@ -805,7 +1025,7 @@ const PaymentPage = () => {
                           <button
                             key={token.address || 'native'}
                             type="button"
-                            onClick={() => { setSelectedToken(token); setIsTokenMenuOpen(false); }}
+                            onClick={() => { setSelectedToken(token); setIsTokenMenuOpen(false); resetTransactionState(); }}
                             className="w-full text-left px-3 py-2 hover:bg-emerald-900/30 focus:bg-emerald-900/30 focus:outline-none"
                           >
                             {token.symbol} - {formatBalance(token.numericBalance)} available
@@ -830,7 +1050,13 @@ const PaymentPage = () => {
                     <input
                       type="number"
                       value={amount}
-                      onChange={(e) => setAmount(e.target.value)}
+                      onChange={(e) => {
+                        setAmount(e.target.value);
+                        setExactWeiAmount(null); // Clear exact amount when user types
+                        setTransactionCompleted(false);
+                        setCompletedTransactionHash(null);
+                        setCopyStatus(null);
+                      }}
                       placeholder="0.0"
                       step="any"
                       min="0"
@@ -841,7 +1067,126 @@ const PaymentPage = () => {
                     {selectedToken && (
                       <button
                         type="button"
-                        onClick={() => setAmount(selectedToken.numericBalance.toString())}
+                        onClick={async () => {
+                          try {
+                            // Always get fresh balance from provider for max calculation
+                            const provider = await walletProvider();
+                            const providerInstance = provider.provider;
+
+                            let maxWeiAmount;
+                            let maxAmount;
+
+                            // Import formatUnits for precise BigInt handling
+                            const { formatUnits } = await import('ethers');
+
+                            if (!selectedToken.address) {
+                              // Native token - get fresh balance from provider
+                              const nativeBalance = await providerInstance.getBalance(address);
+                              maxWeiAmount = nativeBalance;
+                              maxAmount = formatUnits(nativeBalance, selectedToken.decimals);
+                            } else {
+                              // ERC20 token - get fresh balance and check allowance
+                              const { Contract } = await import('ethers');
+                              const signer = provider.provider;
+                              const erc20Abi = ['function balanceOf(address account) view returns (uint256)', 'function allowance(address owner,address spender) view returns (uint256)'];
+
+                              const tokenContract = new Contract(selectedToken.address, erc20Abi, signer);
+                              const freshBalance = await tokenContract.balanceOf(address);
+                              maxWeiAmount = freshBalance;
+
+                              // Create a dummy transaction to get the RAILGUN contract address
+                              const railgunNetwork = {
+                                1: NetworkName.Ethereum,
+                                42161: NetworkName.Arbitrum,
+                                137: NetworkName.Polygon,
+                                56: NetworkName.BNBChain,
+                              }[chainId];
+
+                              if (railgunNetwork) {
+                                // Create minimal prelim transaction to get contract address
+                                const prelimGasDetails = {
+                                  evmGasType: EVMGasType.Type0,
+                                  gasEstimate: BigInt(300000),
+                                };
+
+                                const erc20AmountRecipients = [{
+                                  tokenAddress: selectedToken.address,
+                                  amount: freshBalance, // Use fresh balance for prelim transaction
+                                  recipientAddress: resolvedRecipientAddress,
+                                }];
+
+                                const { populateShield } = await import('@railgun-community/wallet');
+                                const getRandomHex32 = () => {
+                                  const bytes = new Uint8Array(32);
+                                  (window.crypto || globalThis.crypto).getRandomValues(bytes);
+                                  return '0x' + Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+                                };
+                                const dummyShieldPrivateKey = getRandomHex32();
+
+                                const prelimResult = await populateShield(
+                                  TXIDVersion.V2_PoseidonMerkle,
+                                  railgunNetwork,
+                                  dummyShieldPrivateKey,
+                                  erc20AmountRecipients,
+                                  [],
+                                  prelimGasDetails,
+                                );
+
+                                const railgunContractAddress = prelimResult.transaction.to;
+                                if (railgunContractAddress) {
+                                  const allowance = await tokenContract.allowance(address, railgunContractAddress);
+
+                                  // For Max button, use balance if allowance is 0 (not approved yet)
+                                  // Otherwise use min(balance, allowance)
+                                  let effectiveMaxWei;
+                                  if (allowance === 0n) {
+                                    effectiveMaxWei = freshBalance; // Use full balance if not approved yet
+                                  } else {
+                                    effectiveMaxWei = freshBalance < allowance ? freshBalance : allowance;
+                                  }
+                                  maxWeiAmount = effectiveMaxWei;
+
+                                  // Use formatUnits for precise decimal conversion
+                                  const maxAmountStr = formatUnits(maxWeiAmount, selectedToken.decimals);
+                                  maxAmount = parseFloat(maxAmountStr);
+
+                                  console.log('[PaymentPage] Max button calculation (fresh):', {
+                                    freshBalance: formatUnits(freshBalance, selectedToken.decimals),
+                                    allowance: formatUnits(allowance, selectedToken.decimals),
+                                    effectiveMax: formatUnits(effectiveMaxWei, selectedToken.decimals),
+                                    maxAmount: maxAmountStr,
+                                    maxWeiAmount: maxWeiAmount.toString(),
+                                    contractAddress: railgunContractAddress.slice(0, 10) + '...',
+                                    usedAllowance: allowance > 0n
+                                  });
+                                } else {
+                                  // Fallback to fresh balance if contract address not found
+                                  maxWeiAmount = freshBalance;
+                                  maxAmount = parseFloat(formatUnits(freshBalance, selectedToken.decimals));
+                                }
+                              } else {
+                                // Fallback to fresh balance if network not supported
+                                maxAmount = parseFloat(formatUnits(freshBalance, selectedToken.decimals));
+                              }
+                            }
+
+                            setAmount(maxAmount.toString());
+                            setExactWeiAmount(maxWeiAmount);
+                            setTransactionCompleted(false);
+                            setCompletedTransactionHash(null);
+                            setCopyStatus(null);
+                          } catch (error) {
+                            console.warn('[PaymentPage] Error calculating max amount, using cached balance:', error);
+                            // Fallback to cached balance as last resort
+                            setAmount(selectedToken.numericBalance.toString());
+                            // Use BigInt conversion for exact wei amount
+                            const { parseUnits } = await import('ethers');
+                            setExactWeiAmount(parseUnits(selectedToken.numericBalance.toString(), selectedToken.decimals));
+                            setTransactionCompleted(false);
+                            setCompletedTransactionHash(null);
+                            setCopyStatus(null);
+                          }
+                        }}
                         className="absolute right-2 top-2 px-2 py-1 text-xs bg-black border border-green-500/40 text-green-200 rounded hover:bg-green-900/20"
                       >
                         Max

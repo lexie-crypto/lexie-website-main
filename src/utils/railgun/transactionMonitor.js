@@ -471,6 +471,8 @@ const getKnownTokenDecimalsInMonitor = (tokenAddress, chainId) => {
     // Polygon
     137: {
       '0x7ceb23fd6bc0add59e62ac25578270cff1b9f619': { decimals: 18, symbol: 'WETH' }, // WETH
+      '0x4557328f4c0e5f986bc92c6a6f25b7e9c6e25b9e': { decimals: 18, symbol: 'POL' }, // POL
+      '0x6d1fdbb266fcc09a16a22016369210a15bb95761': { decimals: 18, symbol: 'WPOL' }, // WPOL
       '0xc2132d05d31c914a87c6611c10748aeb04b58e8f': { decimals: 6, symbol: 'USDT' }, // USDT
       '0x2791bca1f2de4661ed88a30c99a7a9449aa84174': { decimals: 6, symbol: 'USDC' }, // USDC
       '0x8f3cf7ad23cd3cadbd9735aff958023239c6a063': { decimals: 18, symbol: 'DAI' }, // DAI
@@ -485,7 +487,7 @@ const getKnownTokenDecimalsInMonitor = (tokenAddress, chainId) => {
       '0x55d398326f99059ff775485246999027b3197955': { decimals: 18, symbol: 'USDT' }, // BSC USDT uses 18 decimals!
       '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': { decimals: 18, symbol: 'USDC' }, // BSC USDC uses 18 decimals!
       '0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3': { decimals: 18, symbol: 'DAI' }, // DAI
-      '0x7130d2a12b9bcbfae4f2634d864a1ee1ce3ead9c': { decimals: 18, symbol: 'BTCB' }, // BTCB
+      '0x0555e30da8f98308edb960aa94c0db47230d2b9c': { decimals: 8, symbol: 'WBTC' }, // WBTC
       '0xCC42724C6683B7E57334c4E856f4c9965ED682bD': { decimals: 18, symbol: 'MATIC' }, // MATIC
       '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': { decimals: 18, symbol: 'WBNB' }, // WBNB
     }
@@ -644,6 +646,12 @@ export const monitorTransactionInGraph = async ({
           status: receipt?.status,
           logs: receipt?.logs?.length || 0
         });
+
+        // 🚨 CRITICAL: Check if transaction actually succeeded before proceeding with Graph monitoring
+        if (receipt && receipt.status === 0) {
+          console.error(`[TransactionMonitor] ❌ Transaction ${txHash} was reverted (status: 0). Stopping monitoring.`);
+          throw new Error(`Transaction reverted: ${txHash}`);
+        }
 
         // 🚀 SAVE TO REDIS TIMELINE AFTER RECEIPT CONFIRMATION - COMMENTED OUT (using immediate save instead)
         /*
@@ -901,7 +909,7 @@ export const monitorTransactionInGraph = async ({
       throw new Error(`Cannot poll Graph API without valid block number. Got: ${blockNumber}`);
     }
 
-    while (attempts < maxAttempts) {
+    while (attempts < maxAttempts && (Date.now() - startTime) < maxWaitTime) {
       attempts++;
       console.log(`[TransactionMonitor] 🔍 Polling attempt ${attempts}/${maxAttempts} for ${transactionType} events on block ${blockNumber} with txHash ${txHash}`);
 
@@ -930,6 +938,12 @@ export const monitorTransactionInGraph = async ({
         // ⚡ QUICKSYNC: Trigger immediate Railgun SDK refresh after Graph confirmation
         if ((transactionType === 'shield' || transactionType === 'unshield' || transactionType === 'transfer') && transactionDetails?.walletId) {
           console.log('[QuickSync] Triggered after Graph confirmation for', txHash, `(${transactionType})`);
+
+          // Set scanning flag to prevent chain bootstrap conflicts
+          if (typeof window !== 'undefined') {
+            window.__RAILGUN_SCANNING_IN_PROGRESS = true;
+          }
+
           try {
             const { refreshBalances } = await import('@railgun-community/wallet');
             const { NETWORK_CONFIG, NetworkName } = await import('@railgun-community/shared-models');
@@ -1025,12 +1039,26 @@ export const monitorTransactionInGraph = async ({
                     }
                   };
                   
-                  // Set up timeout (60 seconds)
+                  // Set up timeout (5 seconds - reduced from 60s for better UX)
                   timeoutId = setTimeout(() => {
-                    console.warn('[QuickSync] ⏰ Balance update timeout - proceeding anyway');
+                    console.warn('[QuickSync] ⏰ Balance update timeout - balance confirmation failed');
                     window.removeEventListener('railgun-balance-update', handleBalanceUpdate);
-                    resolve(true); // Don't fail, just proceed
-                  }, 60000);
+
+                    // Dispatch warning event for UI to show user
+                    if (typeof window !== 'undefined') {
+                      window.dispatchEvent(new CustomEvent('railgun-quicksync-timeout', {
+                        detail: {
+                          txHash,
+                          chainId,
+                          transactionType,
+                          walletId: transactionDetails?.walletId,
+                          warning: 'Balance confirmation timed out - funds may not be visible immediately'
+                        }
+                      }));
+                    }
+
+                    resolve(true); // Proceed but with warning
+                  }, 5000);
                   
                   // Listen for balance updates
                   window.addEventListener('railgun-balance-update', handleBalanceUpdate);
@@ -1065,11 +1093,21 @@ export const monitorTransactionInGraph = async ({
             }
             
             console.log('[QuickSync] ✅ Successfully completed - SDK has latest note state for proof generation');
-            
+
+            // Clear scanning flag
+            if (typeof window !== 'undefined') {
+              window.__RAILGUN_SCANNING_IN_PROGRESS = false;
+            }
+
           } catch (error) {
             console.error('[QuickSync] ❌ Failed to complete QuickSync:', error.message);
             // Don't throw - allow transaction processing to continue with warning
             console.warn('[QuickSync] ⚠️ Continuing without QuickSync - may cause balance sync issues');
+
+            // Clear scanning flag even on error
+            if (typeof window !== 'undefined') {
+              window.__RAILGUN_SCANNING_IN_PROGRESS = false;
+            }
           }
         }
 
@@ -1091,6 +1129,7 @@ export const monitorTransactionInGraph = async ({
                   // Get wallet info from transactionDetails or current context
                   const walletAddress = transactionDetails?.walletAddress;
                   const walletId = transactionDetails?.walletId;
+                  const railgunAddress = transactionDetails?.railgunAddress;
                   const tokenSymbol = transactionDetails?.tokenSymbol || 'UNKNOWN';
                   
                   // Get proper decimals from token data or transaction details
@@ -1111,11 +1150,12 @@ export const monitorTransactionInGraph = async ({
                     }
                   }
 
-                  if (walletAddress && walletId) {
+                  if (walletAddress && walletId && railgunAddress) {
                     // Make request to Vercel proxy - NO client-side HMAC needed
                     const requestBody = {
                       walletAddress,
                       walletId,
+                      railgunAddress,
                       chainId,
                       tokenSymbol,
                       decimals: resolvedDecimals,
@@ -1559,6 +1599,51 @@ export const monitorTransactionInGraph = async ({
                       newBalance: pointsData.balance || 0,
                       multiplier: pointsData.multiplier || 1.0
                     });
+
+                    // Sync combined balance after successful vault points award
+                    try {
+                      console.log('[TransactionMonitor] 🔄 Syncing combined balance after points award...');
+
+                      // First get fresh game points from titans-be
+                      let gamePoints = 0;
+                      let referralPoints = 0;
+                      try {
+                        const titansResp = await fetch(`/api/wallet-metadata?action=get-game-points&lexieId=${encodeURIComponent(lexieId)}`);
+                        if (titansResp.ok) {
+                          const gameData = await titansResp.json().catch(() => ({}));
+                          gamePoints = Number(gameData.gamePoints) || 0;
+                          referralPoints = Number(gameData.referralPoints) || 0;
+                          console.log(`[TransactionMonitor] 🔄 Refreshed game points for ${lexieId}: game=${gamePoints}, referral=${referralPoints}`);
+                        } else {
+                          console.log(`[TransactionMonitor] ⚠️ Failed to refresh game points for ${lexieId}: ${titansResp.status}`);
+                        }
+                      } catch (gameError) {
+                        console.warn(`[TransactionMonitor] ⚠️ Error fetching game points for ${lexieId}:`, gameError?.message);
+                      }
+
+                      // Then sync combined balance with fresh game points
+                      const syncResponse = await fetch(`/api/wallet-metadata?action=rewards-combined-balance&lexieId=${encodeURIComponent(lexieId)}&gamePoints=${gamePoints}&referralPoints=${referralPoints}`);
+                      if (syncResponse.ok) {
+                        const syncData = await syncResponse.json();
+                        if (syncData?.success) {
+                          console.log('[TransactionMonitor] ✅ Combined balance synced:', {
+                            lexieId,
+                            total: syncData.total,
+                            vault: syncData.breakdown?.vault || 0,
+                            game: syncData.breakdown?.game || 0
+                          });
+
+                          // Dispatch event so VaultDesktop updates the UI
+                          if (typeof window !== 'undefined') {
+                            window.dispatchEvent(new CustomEvent('points-updated'));
+                          }
+                        }
+                      } else {
+                        console.warn('[TransactionMonitor] ⚠️ Combined balance sync failed after points award');
+                      }
+                    } catch (syncError) {
+                      console.warn('[TransactionMonitor] ⚠️ Error syncing combined balance:', syncError?.message);
+                    }
                   } else {
                     console.warn('[TransactionMonitor] ⚠️ Points award returned non-success:', pointsData);
                   }
@@ -1627,7 +1712,7 @@ export const monitorTransactionInGraph = async ({
       await new Promise(resolve => setTimeout(resolve, currentPollInterval));
     }
 
-    console.warn('[TransactionMonitor] ❌ Transaction confirmation timed out but tx was mined');
+    console.warn(`[TransactionMonitor] ❌ Transaction confirmation timed out after ${maxWaitTime/1000}s (${attempts} attempts) - Graph API may be delayed`);
     if (listener && typeof listener === 'function') {
       listener({ timeout: true });
     }
@@ -1897,3 +1982,4 @@ export default {
   monitorTransferTransaction,
   convertTokenAmountToUSD,
 }; 
+

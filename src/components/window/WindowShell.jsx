@@ -50,6 +50,7 @@ const WindowShell = ({
   footerRight,
   variant,
   className = '',
+  fullscreen = false,
   initialPosition = { x: 100, y: 100 },
   initialSize = { width: 800, height: 600 },
   minWidth = 400,
@@ -72,6 +73,21 @@ const WindowShell = ({
 
   // Safe areas for positioning
   const { getBounds, clampPosition, top: topSafe, bottom: bottomSafe, left: leftSafe, right: rightSafe } = useSafeAreas();
+
+  // Mobile detection for size clamping
+  const [isMobile, setIsMobile] = useState(false);
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 639px)');
+    const apply = () => setIsMobile(mq.matches);
+    apply();
+    if (mq.addEventListener) mq.addEventListener('change', apply);
+    else if (mq.addListener) mq.addListener(apply);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', apply);
+      else if (mq.removeListener) mq.removeListener(apply);
+    };
+  }, []);
 
   // Memoize default values to prevent re-registration
   const defaultPosition = React.useMemo(() => ({ x: 200, y: 100 }), []);
@@ -181,6 +197,48 @@ const WindowShell = ({
     }
   }, [windowState, isDragging, clampPosition, setPosition, updatePosition, id]);
 
+  // Handle viewport changes - clamp size on mobile if window exceeds viewport limits
+  useEffect(() => {
+    if (!windowState || !isMobile || fullscreen) return;
+
+    const clampSize = () => {
+      const currentSize = windowState.size;
+      const viewportWidth = window.innerWidth - leftSafe - rightSafe;
+      const viewportHeight = window.innerHeight - topSafe - bottomSafe;
+
+      // Clamp size to viewport limits
+      const clampedSize = {
+        width: Math.min(currentSize.width, viewportWidth),
+        height: Math.min(currentSize.height, viewportHeight)
+      };
+
+      // Only update if size has changed significantly
+      const sizeTolerance = 10;
+      if (Math.abs(clampedSize.width - currentSize.width) > sizeTolerance ||
+          Math.abs(clampedSize.height - currentSize.height) > sizeTolerance) {
+        updateSize(id, clampedSize);
+      }
+    };
+
+    // Initial clamp
+    clampSize();
+
+    // Re-clamp on resize/orientation change
+    const handleResize = () => clampSize();
+    const handleOrientationChange = () => {
+      // Small delay to allow viewport to settle after orientation change
+      setTimeout(clampSize, 100);
+    };
+
+    window.addEventListener('resize', handleResize);
+    window.addEventListener('orientationchange', handleOrientationChange);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      window.removeEventListener('orientationchange', handleOrientationChange);
+    };
+  }, [windowState, isMobile, fullscreen, leftSafe, rightSafe, topSafe, bottomSafe, updateSize, id]);
+
   // Handle window focus
   const handleWindowClick = () => {
     bringToFront(id);
@@ -219,6 +277,67 @@ const WindowShell = ({
           const footerHeight = (footerLeft || footerRight) ? 38 : 0; // Footer height when present
           const totalChromeHeight = headerHeight + footerHeight;
 
+  // Fullscreen mode for mobile - render as overlay without window chrome
+  if (fullscreen) {
+    // Prevent body scrolling when fullscreen window is active
+    React.useEffect(() => {
+      const originalOverflow = document.body.style.overflow;
+      const originalHeight = document.body.style.height;
+
+      document.body.style.overflow = 'hidden';
+      document.body.style.height = '100vh';
+
+      return () => {
+        document.body.style.overflow = originalOverflow;
+        document.body.style.height = originalHeight;
+      };
+    }, []);
+
+    return (
+      <div
+        className={`fixed inset-0 z-50 bg-black fullscreen-window-active ${className}`}
+        onClick={handleWindowClick}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={`window-title-${id}`}
+        aria-describedby={`window-content-${id}`}
+      >
+        {/* Optional minimal header for fullscreen mode */}
+        {title && (
+          <div className="flex items-center justify-between px-4 py-3 bg-gray-900/90 border-b border-gray-700">
+            <span
+              id={`window-title-${id}`}
+              className="font-mono text-sm text-gray-300"
+            >
+              {title}
+            </span>
+            {statusLabel && (
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full animate-pulse ${statusTone === 'online' ? 'bg-green-400' : 'bg-yellow-400'}`} />
+                <span className={`font-mono text-xs ${statusTone === 'online' ? 'text-green-400' : 'text-yellow-300'}`}>
+                  {statusLabel}
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Fullscreen content */}
+        <div
+          id={`window-content-${id}`}
+          className="relative bg-black overflow-hidden p-4 sm:p-6"
+          style={{
+            height: title ? 'calc(100vh - 52px)' : '100vh'
+          }}
+        >
+          <div className="h-full overflow-y-auto overflow-x-hidden scrollbar-none">
+            {children}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={windowRef}
@@ -249,36 +368,43 @@ const WindowShell = ({
       <div
         className={`
                   flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800
-                  ${isMaximized ? 'cursor-default' : isDragging ? 'cursor-grabbing' : isWindowResizing ? 'cursor-wait' : 'cursor-grab'}
+                  ${isMobile ? 'cursor-default' : isMaximized ? 'cursor-default' : isDragging ? 'cursor-grabbing' : isWindowResizing ? 'cursor-wait' : 'cursor-grab'}
                   select-none
                 `}
-        {...(isMaximized || isMinimized || isClosed ? {} : dragHandlers)}
+        {...(isMaximized || isMinimized || isClosed || isMobile ? {} : dragHandlers)}
         role="banner"
         aria-grabbed={isDragging}
       >
-        {/* Traffic Lights */}
+        {/* Left Section - Traffic Lights + Title */}
         <div className="flex items-center gap-2" data-nodrag>
-          <TrafficLight
-            type="close"
-            onClick={handleClose}
-          />
-          <TrafficLight
-            type="minimize"
-            onClick={handleMinimize}
-          />
-          <TrafficLight
-            type="maximize"
-            onClick={handleMaximize}
-          />
+          {/* Traffic Lights - Hidden on mobile */}
+          {!isMobile && (
+            <>
+              <TrafficLight
+                type="close"
+                onClick={handleClose}
+              />
+              <TrafficLight
+                type="minimize"
+                onClick={handleMinimize}
+              />
+              <TrafficLight
+                type="maximize"
+                onClick={handleMaximize}
+              />
+            </>
+          )}
+
+          {/* Window Title - Always visible */}
           <span
             id={`window-title-${id}`}
-            className="ml-4 font-mono text-sm text-gray-400 select-none"
+            className="font-mono text-sm text-gray-400 select-none"
           >
             {title}
           </span>
         </div>
 
-        {/* Status Section */}
+        {/* Status Section - Always on right */}
         <div className="flex items-center gap-3">
           <div className={`w-2 h-2 rounded-full animate-pulse ${statusTone === 'online' ? 'bg-green-400' : 'bg-yellow-400'}`} />
           <span className={`font-mono text-xs ${statusTone === 'online' ? 'text-green-400' : 'text-yellow-300'}`}>
@@ -305,8 +431,12 @@ const WindowShell = ({
             {children}
           </div>
         ) : (
-          <div className="px-8 pt-4 pb-6 h-full overflow-auto scrollbar-terminal">
-            {children}
+          <div className="h-full overflow-y-auto overflow-x-hidden scrollbar-none">
+            <div className="px-4 sm:px-6 lg:px-8 py-4 h-full">
+              <div className="break-words whitespace-pre-wrap max-w-none">
+                {children}
+              </div>
+            </div>
           </div>
         )}
 
@@ -330,7 +460,7 @@ const WindowShell = ({
         )}
 
         {/* Bottom resize handles - positioned relative to footer */}
-        {!isMaximized && (
+        {!isMaximized && !isMobile && (
           <>
             <div
               className="absolute bottom-0 left-0 right-0 h-3 cursor-ns-resize"
@@ -348,8 +478,8 @@ const WindowShell = ({
         )}
       </div>
 
-      {/* Resize handles - only show when not maximized and not closed */}
-      {!isMaximized && !isClosed && (
+      {/* Resize handles - only show when not maximized and not closed and not mobile */}
+      {!isMaximized && !isClosed && !isMobile && (
         <>
           {/* Top edge handle */}
           <div

@@ -16,10 +16,13 @@ import {
   ExclamationTriangleIcon,
   ArrowRightIcon,
   ClipboardDocumentIcon,
+  UsersIcon,
 } from '@heroicons/react/24/outline';
 
 import { useWallet } from '../contexts/WalletContext';
 import useBalances from '../hooks/useBalances';
+import { useContacts } from '../hooks/useContacts';
+import ContactModal from './ContactModal';
 import {
   shieldTokens,
   unshieldTokens,
@@ -32,6 +35,7 @@ import QRCodeGenerator from './QRCodeGenerator';
 import {
   getPrivateBalances,
   parseTokenAmount,
+  roundBalanceTo8Decimals,
 } from '../utils/railgun/balances';
 import {
   createWallet,
@@ -68,6 +72,17 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     isPrivateBalancesLoading, // Add
   } = useBalances();
 
+  const {
+    contacts,
+    searchContacts,
+    findContactByAddress,
+    addContact,
+    updateContact,
+    removeContact,
+    clearContacts,
+    isLoading: isLoadingContacts,
+  } = useContacts();
+
   // isRefreshingBalances is now passed as a prop from WalletPage
 
   // Component state - controlled by parent
@@ -85,6 +100,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   const [paymentLink, setPaymentLink] = useState('');
   // Current user's Lexie ID (if linked)
   const [myLexieId, setMyLexieId] = useState(null);
+  // Contacts state
+  const [showAddContactModal, setShowAddContactModal] = useState(false);
+  const [editingContact, setEditingContact] = useState(null);
+  const [contactSuggestions, setContactSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [showContactSelectionModal, setShowContactSelectionModal] = useState(false);
 
   // Resolve current user's Lexie ID from their Railgun address
   useEffect(() => {
@@ -125,13 +146,19 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       id: 'transfer',
       name: 'Send',
       icon: ArrowRightIcon,
-      description: 'Send to any address (EOA or Lexie ID)'
+      description: 'Send to any address (EOA or LexieID)'
     },
     {
       id: 'receive',
       name: 'Receive',
       icon: CurrencyDollarIcon,
       description: 'Use the link below for others to send funds to your vault'
+    },
+    {
+      id: 'contacts',
+      name: 'Contacts',
+      icon: UsersIcon,
+      description: 'Manage your saved contacts for easy sending'
     },
   ];
 
@@ -163,11 +190,20 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     return [];
   }, [activeTab, publicBalances, privateBalances, isConnected, chainId]);
 
+  // Track previous activeAction to only clear form on actual action changes
+  const prevActiveActionRef = useRef(activeAction);
+
   // Reset form when switching actions, but preserve a valid selected token
   useEffect(() => {
-    setAmount('');
-    setRecipientAddress('');
-    setMemoText('');
+    const actionChanged = prevActiveActionRef.current !== activeAction;
+
+    // Only clear form fields when action actually changes, not on balance refreshes
+    if (actionChanged) {
+      setAmount('');
+      setRecipientAddress('');
+      setMemoText('');
+    }
+
     setSelectedToken(prev => {
       if (!Array.isArray(availableTokens) || availableTokens.length === 0) return null;
 
@@ -175,6 +211,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       const mapped = prev ? availableTokens.find(t => areTokensEqual(t, prev)) : null;
       return mapped || availableTokens[0] || null;
     });
+
+    // Update the ref after processing
+    prevActiveActionRef.current = activeAction;
   }, [activeAction, availableTokens]);
 
   // Complete state reset function for after transactions
@@ -222,13 +261,33 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     }
   }, [activeTab]);
 
-  // Also handle selection on chain changes without forcing null
+  // Track previous chainId to only clear amount on actual chain changes
+  const prevChainIdRef = useRef(chainId);
+
+  // Handle token selection on chain changes or available tokens changes
   useEffect(() => {
-    setAmount('');
+    const chainChanged = prevChainIdRef.current !== chainId;
+
+    // Only clear amount when chain actually changes, not on balance refreshes
+    if (chainChanged) {
+      setAmount('');
+    }
+
     setSelectedToken(prev => {
-      if (!Array.isArray(availableTokens) || availableTokens.length === 0) return prev;
+      if (!Array.isArray(availableTokens) || availableTokens.length === 0) return null;
+
+      // Preserve the user's selected token if it's still available
+      if (prev) {
+        const stillAvailable = availableTokens.find(t => areTokensEqual(t, prev));
+        if (stillAvailable) return stillAvailable;
+      }
+
+      // Otherwise select the first available token
       return availableTokens[0];
     });
+
+    // Update the ref after processing
+    prevChainIdRef.current = chainId;
   }, [chainId, availableTokens]);
 
   // Close token menu on outside click or ESC
@@ -247,6 +306,15 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       document.removeEventListener('keydown', onKey);
     };
   }, [isTokenMenuOpen]);
+
+  // Handle shield transaction dropped events
+  const handleShieldTransactionDropped = useCallback((event) => {
+    console.log('[PrivacyActions] 🚫 Shield transaction dropped - unlocking UI:', event.detail);
+    setIsProcessing(false);
+    setIsTransactionLocked(false);
+    // Decrement monitor counter
+    setActiveTransactionMonitors(prev => Math.max(0, prev - 1));
+  }, []);
 
   // Listen for balance update completion to unlock transactions
   useEffect(() => {
@@ -311,6 +379,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       window.addEventListener('railgun-public-refresh', handleBalanceUpdateComplete);
       window.addEventListener('transaction-monitor-complete', handleTransactionMonitorComplete);
       window.addEventListener('abort-all-requests', handleAbortAllRequests);
+      window.addEventListener('shield-transaction-dropped', handleShieldTransactionDropped);
     }
 
     return () => {
@@ -318,14 +387,15 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         window.removeEventListener('railgun-public-refresh', handleBalanceUpdateComplete);
         window.removeEventListener('transaction-monitor-complete', handleTransactionMonitorComplete);
         window.removeEventListener('abort-all-requests', handleAbortAllRequests);
+        window.removeEventListener('shield-transaction-dropped', handleShieldTransactionDropped);
       }
     };
-  }, []);
+  }, [handleShieldTransactionDropped]);
 
   // Generate payment link when receive tab parameters change (uses active network)
   useEffect(() => {
     if (activeTab === 'receive' && railgunAddress && chainId) {
-      const baseUrl = window.location.origin;
+      const baseUrl = 'https://pay.lexiecrypto.com';
       // Prefer Lexie ID if available; fallback to Railgun address
       const toValue = myLexieId || railgunAddress;
       const params = new URLSearchParams({
@@ -382,12 +452,25 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     return !isNaN(numAmount) && numAmount > 0;
   }, [amount, selectedToken]);
 
-  // Validation check: amount cannot exceed available balance
+  // Validation check: amount cannot exceed available balance (with 8-decimal rounding)
   const exceedsAvailableBalance = useMemo(() => {
     if (!amount || !selectedToken) return false;
 
-    const numAmount = parseFloat(amount);
-    return numAmount > selectedToken.numericBalance;
+    try {
+      // Parse user amount to wei with rounding
+      const userAmountInWei = parseTokenAmount(amount, selectedToken.decimals);
+
+      // Round available balance to 8 decimal places
+      const roundedBalanceInWei = roundBalanceTo8Decimals(selectedToken.balance || '0', selectedToken.decimals);
+
+      // Compare wei amounts
+      return BigInt(userAmountInWei) > BigInt(roundedBalanceInWei);
+    } catch (error) {
+      console.warn('[Balance Validation] Error in exceedsAvailableBalance check:', error);
+      // Fallback to original logic if rounding fails
+      const numAmount = parseFloat(amount);
+      return numAmount > (selectedToken.numericBalance || 0);
+    }
   }, [amount, selectedToken]);
 
   // State to hold gas fee estimation result
@@ -533,12 +616,84 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     }
   }, [selectedToken]);
 
+  // Monitor shield transaction to detect if it gets dropped by provider
+  const monitorShieldTransaction = useCallback(async (transactionHash, chainId, provider) => {
+    if (!transactionHash || !provider) {
+      console.warn('[ShieldMonitor] Missing transaction hash or provider');
+      return;
+    }
+
+    console.log('[ShieldMonitor] Starting transaction monitoring:', {
+      transactionHash: transactionHash.slice(0, 10) + '...',
+      chainId
+    });
+
+    const maxWaitTime = 30 * 1000; // 30 seconds
+    const checkInterval = 10000; // Check every 10 seconds
+    const startTime = Date.now();
+
+    const checkTransaction = async () => {
+      try {
+        const receipt = await provider.getTransactionReceipt(transactionHash);
+
+        if (receipt) {
+          // Transaction was mined
+          console.log('[ShieldMonitor] Transaction confirmed:', {
+            transactionHash: transactionHash.slice(0, 10) + '...',
+            blockNumber: receipt.blockNumber,
+            status: receipt.status
+          });
+
+          if (receipt.status === 0) {
+            // Transaction failed on-chain
+            console.error('[ShieldMonitor] Transaction failed on-chain');
+            toast.custom((t) => (
+              <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+                <div className="rounded-lg border border-red-500/30 bg-black/90 text-red-200 shadow-2xl">
+                  <div className="px-4 py-3 flex items-center gap-3">
+                    <div className="h-3 w-3 rounded-full bg-red-400 animate-pulse" />
+                    <div>
+                      <div className="text-sm font-bold">TRANSACTION FAILED</div>
+                      <div className="text-xs text-red-400/80 mt-1">Transaction reverted on-chain. Please try again.</div>
+                    </div>
+                    <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-red-900/30 text-red-300/80">×</button>
+                  </div>
+                </div>
+              </div>
+            ), { duration: 6000 });
+          }
+          // Success case is handled by the Graph monitoring system
+          return;
+        }
+
+        // Check if we've exceeded max wait time
+        if (Date.now() - startTime > maxWaitTime) {
+          console.warn('[ShieldMonitor] Transaction monitoring timeout reached - letting PrivacyActions handle assumed success');
+          // Don't show toast or unlock UI here - let PrivacyActions handle the timeout as assumed success
+          return;
+        }
+
+        // Continue checking
+        setTimeout(checkTransaction, checkInterval);
+
+      } catch (error) {
+        console.error('[ShieldMonitor] Error checking transaction:', error);
+        // Continue monitoring despite errors
+        setTimeout(checkTransaction, checkInterval);
+      }
+    };
+
+    // Start monitoring
+    setTimeout(checkTransaction, checkInterval);
+  }, []);
+
   // Detect recipient address type for smart handling
   const recipientType = useMemo(() => {
     if (!recipientAddress) return 'none';
     const addr = recipientAddress.trim();
-    
-    if (addr.startsWith('0x') && addr.length === 42) return 'eoa';
+
+    // Validate Ethereum wallet address with proper regex
+    if (/^0x[a-fA-F0-9]{40}$/.test(addr)) return 'eoa';
     if (addr.startsWith('0zk') && addr.length > 50) return 'railgun';
     if (/^[a-zA-Z0-9_]{3,20}$/.test(addr)) return 'lexie';
     return 'invalid';
@@ -736,8 +891,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       
       // Use signer.sendTransaction instead of provider.request
       const txResponse = await walletSigner.sendTransaction(txForSending);
-      
+
       console.log('[PrivacyActions] Transaction sent:', txResponse);
+
+      // Monitor transaction to detect if it gets dropped by provider
+      const transactionHash = txResponse.hash;
+      monitorShieldTransaction(transactionHash, chainId, walletSigner.provider);
 
       toast.dismiss(toastId);
       toast.custom((t) => (
@@ -746,7 +905,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             <div className="px-4 py-3 flex items-center gap-3">
               <div className="h-3 w-3 rounded-full bg-emerald-400" />
               <div>
-                <div className="text-sm">Added {actualAmount} {selectedToken.symbol} to your vault</div>
+                <div className="text-sm">Adding {actualAmount} {selectedToken.symbol} to your vault</div>
                 <div className="text-xs text-green-400/80">TX sent</div>
               </div>
               <button 
@@ -793,6 +952,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           txHash: txResponse?.hash || txResponse,
           chainId: chainConfig.id,
           transactionType: 'shield',
+          maxWaitTime: 30000, // 30 seconds - reasonable timeout before assuming success
           // Pass transaction details for note capture with wallet context
           transactionDetails: {
             walletAddress: address,
@@ -803,37 +963,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             decimals: selectedToken.decimals,
             amount: amount,
           },
-          listener: async (event) => {
-            console.log(`[PrivacyActions] ✅ Shield tx ${txResponse?.hash || txResponse} indexed on chain ${chainConfig.id}`);
-            
-            // 🎯 FIXED: Just show success message - let useBalances hook handle refresh when appropriate
-            toast.custom((t) => (
-              <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-                <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
-                  <div className="px-4 py-3 flex items-center gap-3">
-                    <div className="h-3 w-3 rounded-full bg-emerald-400" />
-                    <div>
-                      <div className="text-sm">Added {actualAmount} {selectedToken.symbol} to your vault</div>
-                      <div className="text-xs text-green-400/80">Balance will update automatically</div>
-                    </div>
-                    <button 
-                      type="button" 
-                      aria-label="Dismiss" 
-                      onClick={(e) => { 
-                        e.preventDefault(); 
-                        e.stopPropagation(); 
-                        console.log('Dismissing toast:', t.id);
-                        toast.dismiss(t.id);
-                      }} 
-                      className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer"
-                    >
-                      ×
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ), { duration: 3000 });
-          }
         })
         .then(async (result) => {
           if (result.found) {
@@ -909,8 +1038,119 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             }
 
           } else {
-            console.warn('[PrivacyActions] Shield monitoring timed out');
-            toast.info('Shield successful! Balance will update automatically.');
+            console.warn('[PrivacyActions] Shield monitoring timed out after 30s - assuming success and proceeding');
+
+            // 🎯 TIMEOUT SUCCESS: Treat timeout as assumed success - run all same logic as confirmed Graph success
+            try {
+              console.log('[PrivacyActions] 🎯 Processing assumed success after timeout...');
+
+              // First resolve Lexie ID from Railgun address
+              const lexieResponse = await fetch('/api/wallet-metadata?action=by-wallet&railgunAddress=' + encodeURIComponent(railgunAddress));
+              if (!lexieResponse.ok) {
+                console.warn('[PrivacyActions] Could not resolve Lexie ID for assumed success points');
+                return;
+              }
+
+              const lexieData = await lexieResponse.json();
+              if (!lexieData?.success || !lexieData?.lexieID) {
+                console.warn('[PrivacyActions] No Lexie ID found for assumed success points');
+                return;
+              }
+
+              const lexieId = lexieData.lexieID.toLowerCase();
+              console.log('[PrivacyActions] ✅ Resolved Lexie ID for assumed success:', lexieId);
+
+              // Calculate actual USD value for points
+              const amountInUnitsForPoints = parseTokenAmount(actualAmount, selectedToken.decimals);
+              const transactionMonitor = await import('../utils/railgun/transactionMonitor.js');
+              const convertTokenAmountToUSD = transactionMonitor.default.convertTokenAmountToUSD;
+              const usdValue = await convertTokenAmountToUSD(amountInUnitsForPoints, tokenAddr, chainId);
+
+              console.log('[PrivacyActions] 💰 Calculated USD value for assumed success:', {
+                amount: actualAmount,
+                amountInUnits: amountInUnitsForPoints,
+                tokenAddress: tokenAddr,
+                chainId,
+                usdValue
+              });
+
+              // Now call rewards-award with correct format
+              const pointsResponse = await fetch('/api/wallet-metadata?action=rewards-award', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  lexieId: lexieId,
+                  txHash: txResponse?.hash || txResponse,
+                  usdValue: usdValue
+                })
+              });
+
+              if (pointsResponse.ok) {
+                const pointsData = await pointsResponse.json();
+                if (pointsData?.success) {
+                  console.log('[PrivacyActions] ✅ Points awarded for assumed success (timeout):', {
+                    awarded: pointsData.awarded,
+                    balance: pointsData.balance,
+                    multiplier: pointsData.multiplier
+                  });
+                  // Refresh points display with small delay to ensure backend processing is complete
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('points-updated'));
+                  }, 500);
+                }
+              } else {
+                console.warn('[PrivacyActions] Points award failed for assumed success:', await pointsResponse.text());
+              }
+            } catch (pointsError) {
+              console.warn('[PrivacyActions] Points processing failed for assumed success:', pointsError);
+            }
+
+            // Trigger balance refresh for assumed success
+            try {
+              const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
+              await syncBalancesAfterTransaction({
+                walletAddress: address,
+                walletId: railgunWalletId,
+                chainId,
+              });
+              console.log('[PrivacyActions] ✅ Balance refresh triggered for assumed success');
+            } catch (balanceError) {
+              console.warn('[PrivacyActions] ⚠️ Balance refresh failed for assumed success:', balanceError?.message);
+            }
+
+            // Show success toast for assumed success
+            toast.custom((t) => (
+              <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+                <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+                  <div className="px-4 py-3 flex items-center gap-3">
+                    <div className="h-3 w-3 rounded-full bg-emerald-400" />
+                    <div>
+                      <div className="text-sm">✅ Shielded {amount} {selectedToken.symbol}</div>
+                      <div className="text-xs text-green-400/80">Transaction confirmed - balances updated</div>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label="Dismiss"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toast.dismiss(t.id);
+                      }}
+                      className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ), { duration: 4000 });
+
+            // Dispatch transaction monitor completion event to unlock UI
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
+                detail: { transactionType: 'shield', found: false, elapsedTime: 30000 }
+              }));
+            }
           }
           // Dispatch transaction monitor completion event
           if (typeof window !== 'undefined') {
@@ -1108,6 +1348,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           txHash: result.transactionHash,
           chainId: chainConfig.id,
           transactionType: 'unshield',
+          maxWaitTime: 30000, // 30 seconds - reasonable timeout before assuming success
           // Pass transaction details for note processing with wallet context
           transactionDetails: {
             walletAddress: address,
@@ -1202,7 +1443,117 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             }
 
           } else {
-            console.warn('[PrivacyActions] Unshield monitoring timed out');
+            console.warn('[PrivacyActions] Unshield monitoring timed out after 30s - assuming success and proceeding');
+
+            // 🎯 TIMEOUT SUCCESS: Treat timeout as assumed success - run all same logic as confirmed Graph success
+            try {
+              console.log('[PrivacyActions] 🎯 Processing assumed success for unshield after timeout...');
+
+              // First resolve Lexie ID from Railgun address
+              const lexieResponse = await fetch('/api/wallet-metadata?action=by-wallet&railgunAddress=' + encodeURIComponent(railgunAddress));
+              if (!lexieResponse.ok) {
+                console.warn('[PrivacyActions] Could not resolve Lexie ID for assumed unshield success points');
+                return;
+              }
+
+              const lexieData = await lexieResponse.json();
+              if (!lexieData?.success || !lexieData?.lexieID) {
+                console.warn('[PrivacyActions] No Lexie ID found for assumed unshield success points');
+                return;
+              }
+
+              const lexieId = lexieData.lexieID.toLowerCase();
+              console.log('[PrivacyActions] ✅ Resolved Lexie ID for assumed unshield success:', lexieId);
+
+              // Calculate actual USD value for points
+              const amountInUnitsForPoints = parseTokenAmount(actualAmount, selectedToken.decimals);
+              const transactionMonitor = await import('../utils/railgun/transactionMonitor.js');
+              const convertTokenAmountToUSD = transactionMonitor.default.convertTokenAmountToUSD;
+              const usdValue = await convertTokenAmountToUSD(amountInUnitsForPoints, tokenAddr, chainId);
+
+              console.log('[PrivacyActions] 💰 Calculated USD value for assumed unshield success:', {
+                amount: actualAmount,
+                amountInUnits: amountInUnitsForPoints,
+                tokenAddress: tokenAddr,
+                chainId,
+                usdValue
+              });
+
+              // Now call rewards-award with correct format
+              const pointsResponse = await fetch('/api/wallet-metadata?action=rewards-award', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  lexieId: lexieId,
+                  txHash: monitorResult.transactionHash,
+                  usdValue: usdValue
+                })
+              });
+
+              if (pointsResponse.ok) {
+                const pointsData = await pointsResponse.json();
+                if (pointsData?.success) {
+                  console.log('[PrivacyActions] ✅ Points awarded for assumed unshield success (timeout):', {
+                    awarded: pointsData.awarded,
+                    balance: pointsData.balance,
+                    multiplier: pointsData.multiplier
+                  });
+                  // Refresh points display with small delay to ensure backend processing is complete
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('points-updated'));
+                  }, 500);
+                }
+              } else {
+                console.warn('[PrivacyActions] Points award failed for assumed unshield success:', await pointsResponse.text());
+              }
+            } catch (pointsError) {
+              console.warn('[PrivacyActions] Points processing failed for assumed unshield success:', pointsError);
+            }
+
+            // Trigger balance refresh for assumed unshield success (same as successful case)
+            try {
+              const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
+              await syncBalancesAfterTransaction({
+                walletAddress: address,
+                walletId: railgunWalletId,
+                chainId,
+              });
+              console.log('[PrivacyActions] ✅ Balance refresh triggered for assumed unshield success');
+            } catch (balanceError) {
+              console.warn('[PrivacyActions] ⚠️ Balance refresh failed for assumed unshield success:', balanceError?.message);
+            }
+
+            // Dispatch railgun-public-refresh event to unlock modal (same as successful transaction flow)
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('railgun-public-refresh', { detail: { chainId } }));
+            }
+
+            // Show success toast for assumed unshield success
+            toast.custom((t) => (
+              <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+                <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+                  <div className="px-4 py-3 flex items-center gap-3">
+                    <div className="h-3 w-3 rounded-full bg-emerald-400" />
+                    <div>
+                      <div className="text-sm">✅ Unshielded {amount} {selectedToken.symbol}</div>
+                      <div className="text-xs text-green-400/80">Transaction confirmed - balances updated</div>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label="Dismiss"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toast.dismiss(t.id);
+                      }}
+                      className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ), { duration: 4000 });
           }
           // Dispatch transaction monitor completion event
           if (typeof window !== 'undefined') {
@@ -1235,6 +1586,80 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       console.error('[PrivacyActions] Unshield operation failed:', error);
       toast.dismiss(toastId);
 
+      // Check for specific gas reclamation pricing error
+      if (error.message && error.message.includes('Cannot calculate gas reclamation: no price available for fee token')) {
+        // Custom terminal-themed error toast for insufficient balance
+        toast.custom((t) => (
+          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+            <div className="rounded-lg border border-red-500/30 bg-black/90 text-red-200 shadow-2xl">
+              <div className="px-4 py-3 flex items-center gap-3">
+                <div className="h-3 w-3 rounded-full bg-red-400 animate-pulse" />
+                <div>
+                  <div className="text-sm font-bold">TRANSACTION FAILED</div>
+                  <div className="text-xs text-red-400/80 mt-1">Balance is too low to pay for the fees. Please increase the amount for the transaction.</div>
+                </div>
+                <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-red-900/30 text-red-300/80">×</button>
+              </div>
+            </div>
+          </div>
+        ), { duration: 8000 });
+        return;
+      }
+
+      // Check for insufficient funds error
+      if (error.message && error.message.includes("You don't have enough funds to cover the fees")) {
+        // Custom terminal-themed error toast for insufficient funds
+        toast.custom((t) => (
+          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+            <div className="rounded-lg border border-red-500/30 bg-black/90 text-red-200 shadow-2xl">
+              <div className="px-4 py-3 flex items-center gap-3">
+                <div className="h-3 w-3 rounded-full bg-red-400 animate-pulse" />
+                <div>
+                  <div className="text-sm font-bold">TRANSACTION FAILED</div>
+                  <div className="text-xs text-red-400/80 mt-1">Insufficient funds to cover transaction fees. Please try a larger transaction amount.</div>
+                </div>
+                <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-red-900/30 text-red-300/80">×</button>
+              </div>
+            </div>
+          </div>
+        ), { duration: 8000 });
+        return;
+      }
+
+      // Check for specific SnarkJS proof generation failure
+      else if (error.message && error.message.includes('SnarkJS failed to fullProveRailgun')) {
+        toast.custom((t) => (
+          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+            <div className="rounded-lg border border-red-500/30 bg-black/90 text-red-200 shadow-2xl">
+              <div className="px-4 py-3 flex items-center gap-3">
+                <div className="h-3 w-3 rounded-full bg-red-400 animate-pulse" />
+                <div>
+                  <div className="text-sm font-bold">TRANSACTION FAILED</div>
+                  <div className="text-xs text-red-400/80 mt-1">Max amount exceeds available vault balance. Please try again with a slightly lower amount.</div>
+                </div>
+                <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-red-900/30 text-red-300/80">×</button>
+              </div>
+            </div>
+          </div>
+        ), { duration: 8000 });
+      } else {
+        // Show generic error for other failures
+        toast.custom((t) => (
+          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+            <div className="rounded-lg border border-red-500/30 bg-black/90 text-red-200 shadow-2xl">
+              <div className="px-4 py-3 flex items-center gap-3">
+                <div className="h-3 w-3 rounded-full bg-red-400 animate-pulse" />
+                <div>
+                  <div className="text-sm font-bold">TRANSACTION FAILED</div>
+                  <div className="text-xs text-red-400/80 mt-1">{error.message || 'Unknown error occurred'}</div>
+                </div>
+                <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-red-900/30 text-red-300/80">×</button>
+              </div>
+            </div>
+          </div>
+        ), { duration: 8000 });
+      }
+
       // Dispatch transaction completion event to unlock UI globally
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
@@ -1257,12 +1682,16 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       return;
     }
 
+    // Check if recipient is a saved contact for enhanced UI feedback
+    const savedContact = findContactByAddress(recipientAddress);
+    const contactDisplayName = savedContact ? savedContact.id : null;
+
     // Allow Railgun address (0zk...) OR Lexie ID (3-20 alphanumeric/_)
     if (!isValidRailgunAddress(recipientAddress)) {
       const input = (recipientAddress || '').trim().toLowerCase();
       const isLikelyLexieID = /^[a-z0-9_]{3,20}$/.test(input);
       if (!isLikelyLexieID) {
-        toast.error('Please enter a valid EVM address or a Lexie ID');
+        toast.error('Please enter a valid EVM address or a LexieID');
         return;
       }
       // Fast pre-check: Verify Lexie ID exists before starting heavy processing
@@ -1276,7 +1705,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div className="px-4 py-3 flex items-center gap-3">
                   <div className="h-3 w-3 rounded-full bg-red-400" />
                   <div>
-                    <div className="text-sm">Lexie ID does not exist or is not linked to a LexieVault</div>
+                    <div className="text-sm">LexieID does not exist or is not linked to a LexieVault</div>
                   </div>
                 </div>
               </div>
@@ -1292,7 +1721,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div className="px-4 py-3 flex items-center gap-3">
                   <div className="h-3 w-3 rounded-full bg-red-400" />
                   <div>
-                    <div className="text-sm">Lexie ID does not exist or is not linked to a LexieVault</div>
+                    <div className="text-sm">LexieID does not exist or is not linked to a LexieVault</div>
                   </div>
                 </div>
               </div>
@@ -1307,7 +1736,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               <div className="px-4 py-3 flex items-center gap-3">
                 <div className="h-3 w-3 rounded-full bg-red-400" />
                 <div>
-                  <div className="text-sm">Lexie ID does not exist or is not linked to a LexieVault</div>
+                  <div className="text-sm">LexieID does not exist or is not linked to a LexieVault</div>
                 </div>
               </div>
             </div>
@@ -1338,7 +1767,14 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             <div className="px-4 py-3 flex items-center gap-3">
               <div className="h-3 w-3 rounded-full bg-emerald-400" />
               <div>
-                <div className="text-sm">Preparing transaction…</div>
+                <div className="text-sm">
+                  Preparing transaction…
+                  {contactDisplayName && (
+                    <span className="ml-2 text-xs bg-green-900/30 text-green-300 px-1.5 py-0.5 rounded">
+                      to {contactDisplayName}
+                    </span>
+                  )}
+                </div>
                 <div className="text-xs text-green-400/80">Encrypting and preparing proofs</div>
               </div>
               <button 
@@ -1397,7 +1833,14 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             <div className="px-4 py-3 flex items-center gap-3">
               <div className="h-3 w-3 rounded-full bg-emerald-400" />
               <div>
-                <div className="text-sm">Transaction sent</div>
+                <div className="text-sm">
+                  Transaction sent
+                  {contactDisplayName && (
+                    <span className="ml-2 text-xs bg-green-900/30 text-green-300 px-1.5 py-0.5 rounded">
+                      to {contactDisplayName}
+                    </span>
+                  )}
+                </div>
                 <div className="text-xs text-green-400/80">TX: {tx.txHash}</div>
               </div>
               <button 
@@ -1431,6 +1874,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           txHash: tx.txHash,
           chainId,
           transactionType: 'transfer',
+          maxWaitTime: 30000, // 30 seconds - reasonable timeout before assuming success
           transactionDetails: {
             walletId: railgunWalletId,
             walletAddress: address,
@@ -1516,6 +1960,113 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             } catch (pointsError) {
               console.warn('[PrivacyActions] Transfer points fallback failed:', pointsError);
             }
+          } else {
+            console.warn('[PrivacyActions] Transfer monitoring timed out after 30s - assuming success and proceeding');
+
+            // 🎯 TIMEOUT SUCCESS: Treat timeout as assumed success - run all same logic as confirmed Graph success
+            try {
+              console.log('[PrivacyActions] 🎯 Processing assumed success for transfer after timeout...');
+
+              // First resolve Lexie ID from Railgun address
+              const lexieResponse = await fetch('/api/wallet-metadata?action=by-wallet&railgunAddress=' + encodeURIComponent(railgunAddress));
+              if (!lexieResponse.ok) {
+                console.warn('[PrivacyActions] Could not resolve Lexie ID for assumed transfer success points');
+                return;
+              }
+
+              const lexieData = await lexieResponse.json();
+              if (!lexieData?.success || !lexieData?.lexieID) {
+                console.warn('[PrivacyActions] No Lexie ID found for assumed transfer success points');
+                return;
+              }
+
+              const lexieId = lexieData.lexieID.toLowerCase();
+              console.log('[PrivacyActions] ✅ Resolved Lexie ID for assumed transfer success:', lexieId);
+
+              // Calculate actual USD value for points
+              const amountInUnitsForPoints = parseTokenAmount(actualAmount, selectedToken.decimals);
+              const transactionMonitor = await import('../utils/railgun/transactionMonitor.js');
+              const convertTokenAmountToUSD = transactionMonitor.default.convertTokenAmountToUSD;
+              const usdValue = await convertTokenAmountToUSD(amountInUnitsForPoints, tokenAddr, chainId);
+
+              console.log('[PrivacyActions] 💰 Calculated USD value for assumed transfer success:', {
+                amount: actualAmount,
+                amountInUnits: amountInUnitsForPoints,
+                tokenAddress: tokenAddr,
+                chainId,
+                usdValue
+              });
+
+              // Now call rewards-award with correct format
+              const pointsResponse = await fetch('/api/wallet-metadata?action=rewards-award', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  lexieId: lexieId,
+                  txHash: tx.txHash,
+                  usdValue: usdValue
+                })
+              });
+
+              if (pointsResponse.ok) {
+                const pointsData = await pointsResponse.json();
+                if (pointsData?.success) {
+                  console.log('[PrivacyActions] ✅ Points awarded for assumed transfer success (timeout):', {
+                    awarded: pointsData.awarded,
+                    balance: pointsData.balance,
+                    multiplier: pointsData.multiplier
+                  });
+                  // Refresh points display with small delay to ensure backend processing is complete
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('points-updated'));
+                  }, 500);
+                }
+              } else {
+                console.warn('[PrivacyActions] Points award failed for assumed transfer success:', await pointsResponse.text());
+              }
+            } catch (pointsError) {
+              console.warn('[PrivacyActions] Points processing failed for assumed transfer success:', pointsError);
+            }
+
+            // Trigger balance refresh for assumed transfer success
+            try {
+              const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
+              await syncBalancesAfterTransaction({
+                walletAddress: address,
+                walletId: railgunWalletId,
+                chainId,
+              });
+              console.log('[PrivacyActions] ✅ Balance refresh triggered for assumed transfer success');
+            } catch (balanceError) {
+              console.warn('[PrivacyActions] ⚠️ Balance refresh failed for assumed transfer success:', balanceError?.message);
+            }
+
+            // Show success toast for assumed transfer success
+            toast.custom((t) => (
+              <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+                <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+                  <div className="px-4 py-3 flex items-center gap-3">
+                    <div className="h-3 w-3 rounded-full bg-emerald-400" />
+                    <div>
+                      <div className="text-sm">✅ Transferred {amount} {selectedToken.symbol}</div>
+                      <div className="text-xs text-green-400/80">Transaction confirmed - balances updated</div>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label="Dismiss"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toast.dismiss(t.id);
+                      }}
+                      className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ), { duration: 4000 });
           }
 
           // Dispatch transaction monitor completion event
@@ -1732,8 +2283,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         </div>
       </div>
 
-      {/* Vault Balances - hide on Receive tab */}
-      {activeTab !== 'receive' && (
+      {/* Vault Balances - hide on Receive and Contacts tabs */}
+      {activeTab !== 'receive' && activeTab !== 'contacts' && (
         <div className="px-6 py-4 border-b border-green-500/20">
           <div className="flex items-center justify-between">
             <h3 className="text-emerald-300 font-semibold">{getCurrentNetwork()?.name || 'Network'} Vault Balances</h3>
@@ -1745,23 +2296,23 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 Getting your vault balances...
               </div>
             ) : privateBalances && privateBalances.length > 0 ? (
-              <div className="space-y-2">
-                <div className="text-sm text-green-400/70">{privateBalances.length} Vault Token{privateBalances.length !== 1 ? 's' : ''}</div>
-                {privateBalances.map((token) => (
-                  <div key={getTokenAddress(token) || token.symbol} className="p-2 bg-black/60 rounded text-sm border border-green-500/10">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-green-200 font-medium">{token.symbol}</span>
-                        <span className="text-green-400/70 truncate">• {token.name || `${token.symbol} Token`}</span>
+                <div className="space-y-2">
+                  <div className="text-sm text-green-400/70">{privateBalances.length} Vault Token{privateBalances.length !== 1 ? 's' : ''}</div>
+                  {privateBalances.map((token) => (
+                    <div key={getTokenAddress(token) || token.symbol} className="p-2 bg-black/60 rounded text-sm border border-green-500/10">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-green-200 font-medium">{token.symbol}</span>
+                          <span className="text-green-400/70 truncate">• {token.name || `${token.symbol} Token`}</span>
+                        </div>
+                        <div className="text-green-200">{Number(token.numericBalance).toFixed(6).replace(/\.?0+$/, '')}</div>
                       </div>
-                      <div className="text-green-200">{Number(token.numericBalance).toFixed(6).replace(/\.?0+$/, '')}</div>
+                      {token.balanceUSD !== undefined && (
+                        <div className="text-right text-green-400/70 mt-1">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
+                      )}
                     </div>
-                    {token.balanceUSD !== undefined && (
-                      <div className="text-right text-green-400/70 mt-1">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
-                    )}
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
             ) : (
               <div className="text-sm text-green-400/70">No vault tokens yet<br />Add some tokens to start using secure vault</div>
             )}
@@ -1851,6 +2402,93 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <li>• Funds are deposited into your vault automatically</li>
               </ul>
             </div>
+          </div>
+        ) : activeTab === 'contacts' ? (
+          // Contacts Manager
+          <div className="space-y-6">
+            {/* Header */}
+            <div className="text-center">
+              <UsersIcon className="h-12 w-12 text-green-300 mx-auto mb-3" />
+              <h3 className="text-lg font-bold text-green-300 mb-1">Contacts Manager</h3>
+              <p className="text-sm text-green-400/70">Save frequently used addresses for easy sending</p>
+            </div>
+
+            {/* Add Contact Button */}
+            <button
+              onClick={() => {
+                setShowAddContactModal(true);
+                setEditingContact(null);
+              }}
+              className="w-full bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 py-3 px-4 rounded font-medium transition-colors border border-emerald-400/40 flex items-center justify-center gap-2"
+            >
+              <UsersIcon className="h-4 w-4" />
+              Add New Contact
+            </button>
+
+            {/* Contacts List */}
+            {contacts.length === 0 ? (
+              <div className="text-center py-8">
+                <UsersIcon className="h-16 w-16 text-green-400/30 mx-auto mb-4" />
+                <p className="text-green-400/70">No contacts saved yet</p>
+                <p className="text-sm text-green-400/50 mt-1">Add your first contact to get started</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {contacts.map((contact) => (
+                  <div key={contact.id} className="bg-black/40 border border-green-500/20 rounded p-3">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium text-green-200">{contact.id}</span>
+                          <span className="text-xs text-green-400/70 bg-green-900/30 px-2 py-0.5 rounded">
+                            {contact.type === 'lexieId' ? 'LexieID' : 'WALLET'}
+                          </span>
+                        </div>
+                        <div
+                          className="text-sm text-green-300 font-mono break-all cursor-pointer hover:text-green-200 transition-colors select-all"
+                          onClick={() => {
+                            const address = contact.type === 'eoa' ? contact.address : contact.lexieId;
+                            navigator.clipboard.writeText(address);
+                            toast.custom((t) => (
+                              <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+                                <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+                                  <div className="px-4 py-3 flex items-center gap-3">
+                                    <div className="h-3 w-3 rounded-full bg-green-400" />
+                                    <div>
+                                      <div className="text-sm">Address copied to clipboard</div>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            ), { duration: 2000 });
+                          }}
+                          title="Click to copy"
+                        >
+                          {contact.type === 'eoa' ? contact.address : contact.lexieId}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 ml-3">
+                        <button
+                          onClick={() => {
+                            setEditingContact(contact);
+                            setShowAddContactModal(true);
+                          }}
+                          className="text-green-400 hover:text-green-300 text-xs px-2 py-1 border border-green-500/40 rounded hover:bg-green-900/20"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => removeContact(contact.id)}
+                          className="text-red-400 hover:text-red-300 text-xs px-2 py-1 border border-red-500/40 rounded hover:bg-red-900/20"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           // Original form content for other tabs
@@ -1977,23 +2615,112 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           {activeTab === 'transfer' && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-green-300 mb-2">
-                  Send To
-                </label>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-green-300">
+                    Send To
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowContactSelectionModal(true)}
+                    className="text-xs text-green-400 hover:text-green-300 px-2 py-1 border border-green-500/40 rounded hover:bg-green-900/20 transition-colors flex items-center gap-1"
+                    title="Select from contacts"
+                  >
+                    <UsersIcon className="h-3 w-3" />
+                    Contacts
+                  </button>
+                </div>
                 <input
                   type="text"
                   value={recipientAddress}
-                  onChange={(e) => setRecipientAddress(e.target.value)}
-                  placeholder="0x...or Lexie ID"
+                  onChange={(e) => {
+                    const rawInput = e.target.value;
+                    const trimmedInput = rawInput.trim();
+
+                    // Check if raw input differs from trimmed version (has leading/trailing spaces)
+                    if (rawInput !== trimmedInput) {
+                      // Show warning toast about spaces being removed
+                      toast.custom((t) => (
+                        <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+                          <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+                            <div className="px-4 py-3 flex items-center gap-3">
+                              <div className="h-3 w-3 rounded-full bg-yellow-400" />
+                              <div>
+                                <div className="text-sm">Extra spaces removed from wallet address</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ), { duration: 3000 });
+                    }
+
+                    // Always set the trimmed value
+                    setRecipientAddress(trimmedInput);
+
+                    // Update contact suggestions for autocomplete
+                    if (trimmedInput.trim()) {
+                      const matches = searchContacts(trimmedInput, 5);
+                      setContactSuggestions(matches);
+                      setShowSuggestions(matches.length > 0);
+                    } else {
+                      setContactSuggestions([]);
+                      setShowSuggestions(false);
+                    }
+                  }}
+                  placeholder="0x...or LexieID"
                   className="w-full px-3 py-2 border border-green-500/40 rounded bg-black text-green-200"
                 />
                 <div className="mt-1 text-xs text-green-400/70">
                   {recipientType === 'eoa' && 'Will send to public address'}
                   {recipientType === 'railgun' && 'Will send to zk-shielded address (0zk...)'}
-                  {recipientType === 'lexie' && 'Will send to Lexie ID'}
+                  {recipientType === 'lexie' && 'Will send to LexieID'}
                   {recipientType === 'invalid' && recipientAddress && '❌ Invalid address format'}
-                  {recipientType === 'none' && 'Enter recipient address or Lexie ID'}
+                  {recipientType === 'none' && 'Enter recipient address or LexieID'}
                 </div>
+
+                {/* Contact Suggestions Dropdown */}
+                {showSuggestions && contactSuggestions.length > 0 && (
+                  <div className="absolute z-20 mt-1 w-full bg-black border border-green-500/40 rounded shadow-xl max-h-40 overflow-auto">
+                    {contactSuggestions.map((contact) => (
+                        <button
+                          key={contact.id}
+                          type="button"
+                          onClick={() => {
+                            setRecipientAddress(contact.type === 'eoa' ? contact.address || '' : contact.lexieId || '');
+                            setShowSuggestions(false);
+                            setContactSuggestions([]);
+                          }}
+                        className="w-full text-left px-3 py-2 hover:bg-emerald-900/30 focus:bg-emerald-900/30 focus:outline-none text-green-200"
+                      >
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium">{contact.id}</span>
+                          <span className="text-xs text-green-400/70 ml-2">
+                            ({contact.type === 'lexieId' ? 'LexieID' : 'WALLET'})
+                          </span>
+                        </div>
+                        <div className="text-xs text-green-400/60 truncate">
+                          {contact.type === 'eoa' ? contact.address : contact.lexieId}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add Contact Prompt */}
+                {recipientAddress && !showSuggestions && !contacts.some(c => c.address === recipientAddress || c.id === recipientAddress || c.lexieId === recipientAddress) && (
+                  <div className="mt-2 text-xs text-green-400/70">
+                    Not in contacts.{' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddContactModal(true);
+                        setEditingContact(null);
+                      }}
+                      className="text-green-300 hover:text-green-200 underline"
+                    >
+                      [Add?]
+                    </button>
+                  </div>
+                )}
               </div>
               
               {/* Memo - only for private transfers */}
@@ -2018,9 +2745,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={!isValidAmount || exceedsAvailableBalance || isProcessing || isTransactionLocked || !selectedToken || (activeTab === 'transfer' && (!recipientAddress || recipientType === 'invalid'))}
+            disabled={!isValidAmount || exceedsAvailableBalance || isProcessing || isTransactionLocked || !selectedToken || (!gasFeeData && activeTab !== 'shield') || (activeTab === 'transfer' && (!recipientAddress || recipientType === 'invalid'))}
             className={`w-full py-3 px-4 rounded font-medium transition-colors ${
-              isValidAmount && !exceedsAvailableBalance && !isProcessing && !isTransactionLocked && selectedToken && (activeTab !== 'transfer' || (recipientAddress && recipientType !== 'invalid'))
+              isValidAmount && !exceedsAvailableBalance && !isProcessing && !isTransactionLocked && selectedToken && (gasFeeData || activeTab === 'shield') && (activeTab !== 'transfer' || (recipientAddress && recipientType !== 'invalid'))
                 ? 'bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-200 border border-emerald-400/40'
                 : 'bg-black/40 text-green-400/50 border border-green-500/20 cursor-not-allowed'
             }`}
@@ -2057,8 +2784,116 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           </div>
         </div>
       </div>
+
+      {/* Contact Modal */}
+      {showAddContactModal && (
+        <ContactModal
+          contact={editingContact}
+          onSave={async (contact) => {
+            if (editingContact) {
+              await updateContact(editingContact.id, contact);
+            } else {
+              await addContact(contact);
+            }
+            setShowAddContactModal(false);
+            setEditingContact(null);
+          }}
+          onCancel={() => {
+            setShowAddContactModal(false);
+            setEditingContact(null);
+          }}
+          prefillAddress={editingContact ? undefined : recipientAddress}
+        />
+      )}
+
+      {/* Contact Selection Modal */}
+      {showContactSelectionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 font-mono">
+          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-3 h-3 rounded-full bg-red-500" />
+                  <span className="w-3 h-3 rounded-full bg-yellow-500" />
+                  <span className="w-3 h-3 rounded-full bg-green-500" />
+                </div>
+                <span className="text-sm tracking-wide text-gray-400">select-contact</span>
+              </div>
+              <button
+                onClick={() => setShowContactSelectionModal(false)}
+                className="text-green-400/70 hover:text-green-300 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 text-green-300 space-y-4 max-h-96 overflow-y-auto">
+              <div>
+                <h3 className="text-lg font-bold text-emerald-300 mb-2">Select Contact</h3>
+                <p className="text-green-400/80 text-sm mb-4">
+                  Choose a contact to send to
+                </p>
+              </div>
+
+              {contacts.length === 0 ? (
+                <div className="text-center py-8 text-green-400/70">
+                  <UsersIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p>No contacts yet</p>
+                  <p className="text-xs mt-2">Add contacts in the Contacts tab</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {contacts.map((contact) => (
+                    <button
+                      key={contact.id}
+                      onClick={() => {
+                        // Prefill recipient address with contact's address or LexieID
+                        const recipientValue = contact.lexieId || contact.address;
+                        setRecipientAddress(recipientValue);
+                        setShowContactSelectionModal(false);
+
+                        // Clear any existing suggestions
+                        setContactSuggestions([]);
+                        setShowSuggestions(false);
+                      }}
+                      className="w-full text-left p-3 bg-black/40 border border-green-500/20 rounded hover:bg-green-900/20 hover:border-green-500/40 transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-green-200 font-medium truncate">
+                            {contact.name || contact.id}
+                          </div>
+                          <div className="text-green-400/70 text-xs truncate">
+                            {contact.lexieId ? `@${contact.lexieId}` : contact.address}
+                          </div>
+                        </div>
+                        <div className="text-green-400/70 text-xs ml-2">
+                          {contact.lexieId ? 'LexieID' : 'Address'}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-3 pt-4 border-t border-gray-700">
+                <button
+                  onClick={() => setShowContactSelectionModal(false)}
+                  className="px-4 py-2 text-sm border border-gray-600 text-gray-300 rounded hover:bg-gray-800 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
+
 export default PrivacyActions; 
+

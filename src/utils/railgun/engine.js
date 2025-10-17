@@ -44,7 +44,7 @@ import {
   ArtifactStore,
 } from '@railgun-community/shared-models';
 import { groth16 } from 'snarkjs';
-import LevelJS from 'level-js';
+// LevelJS removed - now using Redis-only adapter
 import { createEnhancedArtifactStore } from './artifactStore.js';
 
 // 🚀 ZERO-DELAY POI: Import contract address configuration
@@ -64,27 +64,34 @@ let enginePromise = null;
 /**
  * RPC Configuration via proxied endpoints
  * All RPC traffic goes through /api/rpc to avoid exposing API keys in the browser.
+ * TEMPORARY: Use production RPC URLs for staging until staging API keys are configured.
  */
+const getRpcUrl = (chainId, provider = 'auto') => {
+  // TEMPORARY: Always use production URLs until staging API keys are configured
+  const baseUrl = 'https://www.lexiecrypto.com';
+  return `${baseUrl}/api/rpc?chainId=${chainId}&provider=${provider}`;
+};
+
 const RPC_PROVIDERS = {
   [NetworkName.Ethereum]: {
     chainId: 1,
-    rpcUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=1&provider=auto',
-    ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=1&provider=ankr',
+    rpcUrl: getRpcUrl(1, 'auto'),
+    ankrUrl: getRpcUrl(1, 'ankr'),
   },
   [NetworkName.Arbitrum]: {
-    chainId: 42161, 
-    rpcUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=42161&provider=auto',
-    ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=42161&provider=ankr',
+    chainId: 42161,
+    rpcUrl: getRpcUrl(42161, 'auto'),
+    ankrUrl: getRpcUrl(42161, 'ankr'),
   },
   [NetworkName.Polygon]: {
     chainId: 137,
-    rpcUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=137&provider=auto',
-    ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=137&provider=ankr',
+    rpcUrl: getRpcUrl(137, 'auto'),
+    ankrUrl: getRpcUrl(137, 'ankr'),
   },
   [NetworkName.BNBChain]: {
     chainId: 56,
-    rpcUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=56&provider=auto',
-    ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=56&provider=ankr',
+    rpcUrl: getRpcUrl(56, 'auto'),
+    ankrUrl: getRpcUrl(56, 'ankr'),
   },
 };
 
@@ -254,7 +261,8 @@ const startEngine = async () => {
     }
 
     // Step 2: Create database
-    const db = new LevelJS('railgun-db');
+    const { createRedisOnlyAdapter } = await import('./redis-only-adapter.js');
+    const db = await createRedisOnlyAdapter('railgun-engine-redis');
     
     // Step 3: Set up logging
     setLoggers(

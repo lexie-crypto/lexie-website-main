@@ -31,7 +31,7 @@ const getRailgunNetworkName = (chainId) => {
 // Native gas token mapping by chain ID
 const NATIVE_GAS_TOKENS = {
   1: 'ETH',      // Ethereum
-  137: 'MATIC',  // Polygon
+  137: 'POL',    // Polygon (POL after rebrand)
   56: 'BNB',     // BSC
   42161: 'ETH',  // Arbitrum (uses ETH)
 };
@@ -55,17 +55,21 @@ export const getKnownTokenDecimals = (tokenAddress, chainId) => {
     1: {
       '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2': { decimals: 18, symbol: 'WETH' },
       '0xdac17f958d2ee523a2206206994597c13d831ec7': { decimals: 6, symbol: 'USDT' },
-      '0xa0b86a33e6416a86f2016c97db4ad0a23a5b7b73': { decimals: 6, symbol: 'USDC' },
+      '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48': { decimals: 6, symbol: 'USDC' },
       '0x6b175474e89094c44da98b954eedeac495271d0f': { decimals: 18, symbol: 'DAI' },
+      '0x2260fac5e5542a773aa44fbcfedf7c193bc2c599': { decimals: 8, symbol: 'WBTC' },
       '0x7d1afa7b718fb893db30a3abc0cfc608aacfebb0': { decimals: 18, symbol: 'MATIC' },
       '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': { decimals: 18, symbol: 'WBNB' },
     },
     // Polygon
     137: {
       '0x7ceb23fd6bc0add59e62ac25578270cff1b9f619': { decimals: 18, symbol: 'WETH' },
+      '0x4557328f4c0e5f986bc92c6a6f25b7e9c6e25b9e': { decimals: 18, symbol: 'POL' },
+      '0x6d1fdbb266fcc09a16a22016369210a15bb95761': { decimals: 18, symbol: 'WPOL' },
       '0xc2132d05d31c914a87c6611c10748aeb04b58e8f': { decimals: 6, symbol: 'USDT' },
       '0x3c499c542cef5e3811e1192ce70d8cc03d5c3359': { decimals: 6, symbol: 'USDC' },
       '0x8f3cf7ad23cd3cadbd9735aff958023239c6a063': { decimals: 18, symbol: 'DAI' },
+      '0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6': { decimals: 8, symbol: 'WBTC' },
       '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270': { decimals: 18, symbol: 'WMATIC' },
       '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': { decimals: 18, symbol: 'WBNB' },
     },
@@ -76,6 +80,7 @@ export const getKnownTokenDecimals = (tokenAddress, chainId) => {
       '0x55d398326f99059ff775485246999027b3197955': { decimals: 18, symbol: 'USDT' },
       '0x8ac76a51cc950d9822d68b83fe1ad97b32cd580d': { decimals: 18, symbol: 'USDC' },
       '0x1af3f329e8be154074d8769d1ffa4ee058b1dbc3': { decimals: 18, symbol: 'DAI' },
+      '0x0555e30da8f98308edb960aa94c0db47230d2b9c': { decimals: 8, symbol: 'WBTC' },
       '0xCC42724C6683B7E57334c4E856f4c9965ED682bD': { decimals: 18, symbol: 'MATIC' },
     },
     // Arbitrum
@@ -84,6 +89,7 @@ export const getKnownTokenDecimals = (tokenAddress, chainId) => {
       '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9': { decimals: 6, symbol: 'USDT' },
       '0xaf88d065e77c8cc2239327c5edb3a432268e5831': { decimals: 6, symbol: 'USDC' },
       '0xda10009cbd5d07dd0cecc66161fc93d7c9000da1': { decimals: 18, symbol: 'DAI' },
+      '0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f': { decimals: 8, symbol: 'WBTC' },
       '0x561877b6b3DD7651313794e5F2894B2F18bE0766': { decimals: 18, symbol: 'MATIC' },
       '0xbb4cdb9cbd36b01bd1cbaebf2de08d9173bc095c': { decimals: 18, symbol: 'WBNB' },
     },
@@ -163,6 +169,34 @@ export const refreshPrivateBalancesAndStore = async (walletID, chainId) => {
 };
 
 /**
+ * Round balance down to 8 decimal places to prevent precision issues
+ * @param {string} balanceWei - Balance in wei/base units
+ * @param {number} decimals - Token decimals
+ * @returns {string} Rounded balance in wei/base units
+ */
+export const roundBalanceTo8Decimals = (balanceWei, decimals) => {
+  try {
+    if (!balanceWei || balanceWei === '0' || decimals < 8) return balanceWei;
+
+    // Convert to BigInt
+    const balanceBigInt = BigInt(balanceWei);
+
+    // For 8 decimal places, we truncate at the 10^(decimals-8) level
+    // For 18 decimals, we truncate at 10^10 level
+    const truncateLevel = decimals - 8;
+    const divisor = BigInt(10) ** BigInt(truncateLevel);
+
+    // Truncate by dividing and multiplying back
+    const truncated = (balanceBigInt / divisor) * divisor;
+
+    return truncated.toString();
+  } catch (error) {
+    console.error('[RailgunBalances] Failed to round balance:', error);
+    return balanceWei;
+  }
+};
+
+/**
  * Parse token amount from decimal string to base units
  * @param {string} amount - Amount in decimal format
  * @param {number} decimals - Token decimals
@@ -179,7 +213,9 @@ export const parseTokenAmount = (amount, decimals) => {
 
     // Remove leading zeros and handle negative
     const cleanAmount = fullAmount.replace(/^0+/, '') || '0';
-    return cleanAmount;
+
+    // Apply 8 decimal place rounding to prevent precision issues
+    return roundBalanceTo8Decimals(cleanAmount, decimals);
   } catch (error) {
     console.error('[RailgunBalances] Failed to parse token amount:', error);
     return '0';

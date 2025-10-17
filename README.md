@@ -1,4 +1,4 @@
-# Lexie Website we made it 333 MILLIONNN babyyy!!! wooo
+# Lexie Website we made it $$$LEXIEEE 333 MILLIONNN babyyy!!! woooooooo
 
 Landing page for Lexie, an AI companion for the world of Web3.
 
