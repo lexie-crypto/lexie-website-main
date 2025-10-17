@@ -30,7 +30,6 @@ import useInjectedProviders from '../../hooks/useInjectedProviders';
 import PrivacyActions from '../PrivacyActions';
 import TransactionHistory from '../TransactionHistory';
 import InjectedProviderButtons from '../InjectedProviderButtons.jsx';
-import ChainSelector from '../ChainSelector.jsx';
 import {
   shieldTokens,
   parseTokenAmount,
@@ -1417,12 +1416,13 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   const [isChainMenuOpen, setIsChainMenuOpen] = useState(false);
   const [isMobileChainMenuOpen, setIsMobileChainMenuOpen] = useState(false);
+  const [isModalChainMenuOpen, setIsModalChainMenuOpen] = useState(false);
   const chainMenuRef = useRef(null);
   const mobileChainMenuRef = useRef(null);
 
   // Close custom chain menu on outside click or ESC
   useEffect(() => {
-    if (!isChainMenuOpen && !isMobileChainMenuOpen) return;
+    if (!isChainMenuOpen && !isMobileChainMenuOpen && !isModalChainMenuOpen) return;
     const onClickOutside = (e) => {
       if (chainMenuRef.current && !chainMenuRef.current.contains(e.target)) {
         setIsChainMenuOpen(false);
@@ -1431,10 +1431,11 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         setIsMobileChainMenuOpen(false);
       }
     };
-    const onKey = (e) => { 
+    const onKey = (e) => {
       if (e.key === 'Escape') {
         setIsChainMenuOpen(false);
         setIsMobileChainMenuOpen(false);
+        setIsModalChainMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', onClickOutside);
@@ -1443,7 +1444,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       document.removeEventListener('mousedown', onClickOutside);
       document.removeEventListener('keydown', onKey);
     };
-  }, [isChainMenuOpen, isMobileChainMenuOpen]);
+  }, [isChainMenuOpen, isMobileChainMenuOpen, isModalChainMenuOpen]);
 
   if (!isConnected || (isConnected && !isNetworkSupported) || walletConnectValidating) {
     return (
@@ -2406,22 +2407,56 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
               {/* Chain Selection */}
               <div className="space-y-2">
                 <div className="text-green-200 text-sm font-medium">Select Network:</div>
-                <ChainSelector
-                  selectedChainId={selectedChainId}
-                  onChainSelect={async (selectedChain) => {
-                    console.log(`[Signature Modal] User selected chain ${selectedChain}, current wallet chainId: ${walletChainId}`);
-                    setSelectedChainId(selectedChain);
-                    setInitializingChainId(selectedChain); // Track which chain we're initializing
-                    // Also switch the wallet to the selected network
-                    try {
-                      await switchNetwork(selectedChain);
-                      console.log(`[Signature Modal] Successfully switched wallet to chain ${selectedChain}, wallet should now be on chainId: ${selectedChain}`);
-                    } catch (error) {
-                      console.error(`[Signature Modal] Failed to switch wallet to chain ${selectedChain}:`, error);
-                    }
-                  }}
-                  disabled={false}
-                />
+                <div className="relative">
+                  <button
+                    onClick={() => setIsModalChainMenuOpen((v) => !v)}
+                    className="px-3 py-2 bg-black/60 border border-emerald-500/40 rounded-md text-emerald-200 font-mono text-sm flex items-center gap-2 hover:bg-black/80 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-400 transition-all duration-200"
+                    aria-haspopup="listbox"
+                    aria-expanded={isModalChainMenuOpen}
+                  >
+                    {supportedNetworks.find(n => n.id === selectedChainId)?.name || 'Choose Network'}
+                    <span className="ml-1">▾</span>
+                  </button>
+                  {isModalChainMenuOpen && (
+                    <>
+                      {/* Backdrop */}
+                      <div className="fixed inset-0 z-10" onClick={() => setIsModalChainMenuOpen(false)} />
+                      {/* Dropdown */}
+                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 z-20 mt-1 bg-black/95 border border-emerald-500/40 rounded-md shadow-2xl min-w-48">
+                        {supportedNetworks.map((network) => (
+                          <button
+                            key={network.id}
+                            type="button"
+                            onClick={async () => {
+                              console.log(`[Signature Modal] User selected chain ${network.id}, current wallet chainId: ${walletChainId}`);
+                              setSelectedChainId(network.id);
+                              setInitializingChainId(network.id); // Track which chain we're initializing
+                              setIsModalChainMenuOpen(false);
+                              // Also switch the wallet to the selected network
+                              try {
+                                await switchNetwork(network.id);
+                                console.log(`[Signature Modal] Successfully switched wallet to chain ${network.id}, wallet should now be on chainId: ${network.id}`);
+                              } catch (error) {
+                                console.error(`[Signature Modal] Failed to switch wallet to chain ${network.id}:`, error);
+                              }
+                            }}
+                            className={`w-full px-3 py-2 text-left flex items-center justify-between hover:bg-emerald-900/20 transition-colors duration-150 ${network.id === selectedChainId ? 'bg-emerald-900/30' : ''}`}
+                          >
+                            <div className="flex items-center gap-2">
+                              <div className="text-base">{network.logo}</div>
+                              <div>
+                                <div className="font-medium text-emerald-200 text-sm">{network.name}</div>
+                              </div>
+                            </div>
+                            {selectedChainId === network.id && (
+                              <span className="text-emerald-400">✓</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
 
               <div className="bg-black/40 border border-green-500/20 rounded p-3">
