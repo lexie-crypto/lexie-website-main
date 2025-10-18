@@ -1533,15 +1533,17 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   return (
     <div className="relative h-screen w-full bg-black text-white overflow-x-hidden">
-      {/* Logo in top left - redirects to main site */}
-      <div className="absolute md:top-6 md:left-5 -top-2 left-1 z-50 md:pl-6">
-        <a
-          href="https://www.lexiecrypto.com"
-          className="hover:opacity-80 transition-opacity"
-        >
-          <span className="text-4xl font-bold text-purple-300">LEXIEAI</span>
-        </a>
-      </div>
+      {/* Logo in top left - redirects to main site - Hidden on mobile since WalletPage shows it */}
+      {!mobileMode && (
+        <div className="absolute md:top-6 md:left-5 top-2 left-1 z-50 md:pl-6">
+          <a
+            href="https://www.lexiecrypto.com"
+            className="hover:opacity-80 transition-opacity"
+          >
+            <span className="text-4xl font-bold text-purple-300">LEXIEAI</span>
+          </a>
+        </div>
+      )}
       {/* Background overlays */}
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
@@ -1570,7 +1572,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         </div>
       </div>
 
-      <div className={`relative z-10 px-4 sm:px-6 lg:px-8 py-8 ${mobileMode ? 'pt-14' : ''}`}>
+      <div className="relative z-10 px-4 sm:px-6 lg:px-8 py-8">
         <WindowShell
           id="lexie-vault-terminal"
           title="lexie-vault"
@@ -1581,7 +1583,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
           variant="vault"
           fullscreen={mobileMode}
         >
-          <div className="font-mono text-green-300 space-y-4">
+          <div className={`font-mono text-green-300 space-y-4 ${mobileMode ? 'pt-16' : ''}`}>
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-green-500/20 pb-4 gap-2">
               <div>
