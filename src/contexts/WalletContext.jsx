@@ -344,6 +344,10 @@ const WalletContextProvider = ({ children }) => {
   const [signatureConfirmationPromise, setSignatureConfirmationPromise] = useState(null);
   const [pendingSignatureMessage, setPendingSignatureMessage] = useState('');
 
+  // Returning user chain selection modal
+  const [showReturningUserChainModal, setShowReturningUserChainModal] = useState(false);
+  const [returningUserChainPromise, setReturningUserChainPromise] = useState(null);
+
   // Wagmi hooks - ONLY for UI wallet connection
   const { address, isConnected, chainId, connector, status } = useAccount();
   const { connect, connectors, isPending: isConnecting } = useConnect();
@@ -1463,6 +1467,30 @@ const WalletContextProvider = ({ children }) => {
         } catch (masterError) {
           console.warn('⚠️ Master wallet export initialization failed for existing wallet:', masterError.message);
         }
+
+        // 🎯 FOR EXISTING WALLETS: Show chain selection modal before proceeding
+        console.log('[Railgun Init] 🎯 Existing wallet loaded - showing chain selection modal');
+        setShowReturningUserChainModal(true);
+
+        // Create promise that resolves when user makes chain choice (blocks until confirmed)
+        const chainChoicePromise = new Promise((resolve) => {
+          setReturningUserChainPromise({ resolve });
+        });
+
+        // Wait for user to select/confirm chain (no timeout - user must choose)
+        const chainConfirmed = await chainChoicePromise;
+
+        // Reset chain modal state
+        setShowReturningUserChainModal(false);
+        setReturningUserChainPromise(null);
+
+        if (!chainConfirmed) {
+          console.log('[Railgun Init] ❌ User cancelled chain selection for existing wallet');
+          setIsInitializing(false);
+          return;
+        }
+
+        console.log('[Railgun Init] ✅ User confirmed chain selection, proceeding with vault initialization');
 
         // 🔄 Run initial Merkle-tree scan and balance refresh for CURRENT chain only (prevent infinite polling)
         try {
@@ -2727,12 +2755,20 @@ const WalletContextProvider = ({ children }) => {
       }
     },
 
-    // Lexie ID linking completion
-    onLexieIdLinked: () => {
-      if (lexieIdLinkPromise) {
-        lexieIdLinkPromise.resolve();
-      }
-    },
+  // Lexie ID linking completion
+  onLexieIdLinked: () => {
+    if (lexieIdLinkPromise) {
+      lexieIdLinkPromise.resolve();
+    }
+  },
+
+  // Returning user chain selection modal control
+  showReturningUserChainModal,
+  handleReturningUserChainChoice: (confirmed) => {
+    if (returningUserChainPromise) {
+      returningUserChainPromise.resolve(confirmed);
+    }
+  },
 
     // Signature confirmation modal
     showSignatureConfirmation,

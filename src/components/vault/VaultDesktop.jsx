@@ -41,6 +41,7 @@ import LexieIdModal from './LexieIdModal';
 import CrossPlatformVerificationModal from './CrossPlatformVerificationModal';
 import SignRequestModal from './SignRequestModal';
 import SignatureConfirmationModal from './SignatureConfirmationModal';
+import ReturningUserChainSelectionModal from './ReturningUserChainSelectionModal';
 import { Navbar } from '../Navbar.jsx';
 
 // Titans Game component that loads the actual game from game.lexiecrypto.com
@@ -263,6 +264,8 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     confirmSignature,
     cancelSignature,
     switchNetwork,
+    showReturningUserChainModal,
+    handleReturningUserChainChoice,
   } = useWallet();
 
   // Handle LexieID linking and game opening
@@ -2030,6 +2033,18 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         pendingSignatureMessage={pendingSignatureMessage}
         onConfirm={confirmSignature}
         onCancel={cancelSignature}
+      />
+
+      <ReturningUserChainSelectionModal
+        isOpen={showReturningUserChainModal}
+        selectedChainId={selectedChainId}
+        setSelectedChainId={setSelectedChainId}
+        setInitializingChainId={setInitializingChainId}
+        supportedNetworks={supportedNetworks}
+        walletChainId={walletChainId}
+        switchNetwork={switchNetwork}
+        onConfirm={() => handleReturningUserChainChoice(true)}
+        onCancel={() => handleReturningUserChainChoice(false)}
       />
 
       {/* Taskbar for minimized windows - Hidden on mobile */}
