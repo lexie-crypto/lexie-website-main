@@ -36,6 +36,11 @@ import {
   isTokenSupportedByRailgun,
 } from '../../utils/railgun/actions';
 import { deriveEncryptionKey, clearAllWallets } from '../../utils/railgun/wallet';
+import LexieIdChoiceModal from './LexieIdChoiceModal';
+import LexieIdModal from './LexieIdModal';
+import CrossPlatformVerificationModal from './CrossPlatformVerificationModal';
+import SignRequestModal from './SignRequestModal';
+import SignatureConfirmationModal from './SignatureConfirmationModal';
 
 // Titans Game component that loads the actual game from game.lexiecrypto.com
 const TitansGame = ({ lexieId, walletAddress, embedded, theme, onLoad, onError, onClose }) => {
@@ -217,12 +222,32 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     }[Number(chainId)] || `Chain ${chainId}`;
   };
 
-  // Lexie ID linking state
-  const [lexieIdInput, setLexieIdInput] = useState('');
-  const [lexieLinking, setLexieLinking] = useState(false);
-  const [lexieCode, setLexieCode] = useState('');
-  const [lexieNeedsCode, setLexieNeedsCode] = useState(false);
-  const [lexieMessage, setLexieMessage] = useState('');
+  // Helper to persist metadata when modal unlocks
+  const handlePersistMetadata = async () => {
+    try {
+      console.log(`🔓 Modal unlocking - marking chain ${activeChainId} as scanned for wallet ${railgunWalletId}`);
+      const scanResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: address,
+          walletId: railgunWalletId,
+          railgunAddress: railgunAddress,
+          scannedChains: [activeChainId] // Mark this chain as scanned when modal unlocks
+        })
+      });
+
+      if (scanResp.ok) {
+        console.log(`✅ Modal unlocked - chain ${activeChainId} marked as scanned`);
+      } else {
+        console.warn(`⚠️ Failed to mark chain ${activeChainId} as scanned on modal unlock:`, await scanResp.text());
+      }
+    } catch (scanError) {
+      console.warn(`⚠️ Error marking chain ${activeChainId} as scanned on modal unlock:`, scanError);
+    }
+  };
+
+  // Lexie ID linking state - now managed by LexieIdModal component
   const [showLexieModal, setShowLexieModal] = useState(false);
   const [currentLexieId, setCurrentLexieId] = useState('');
   const [pointsBalance, setPointsBalance] = useState(null);
@@ -265,12 +290,8 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     }
   }, [address, onLexieIdLinked]);
 
-  // Cross-platform verification state
+  // Cross-platform verification state - now managed by CrossPlatformVerificationModal component
   const [showVerificationModal, setShowVerificationModal] = useState(false);
-  const [verificationCode, setVerificationCode] = useState('');
-  const [verificationLexieId, setVerificationLexieId] = useState('');
-  const [verificationExpiresAt, setVerificationExpiresAt] = useState(0);
-  const [verificationTimeLeft, setVerificationTimeLeft] = useState(0);
   
   // Local state to show a refreshing indicator for Vault Balances
   const [isRefreshingBalances, setIsRefreshingBalances] = useState(false);
@@ -931,26 +952,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   }, [currentLexieId]);
 
 
-  // Update countdown timer for verification code
-  useEffect(() => {
-    if (!showVerificationModal || verificationTimeLeft <= 0) return;
-
-    const interval = setInterval(() => {
-      setVerificationTimeLeft(prev => {
-        const newTime = prev - 1;
-        if (newTime <= 0) {
-          setShowVerificationModal(false);
-          setVerificationCode('');
-          setVerificationLexieId('');
-          setVerificationExpiresAt(0);
-          return 0;
-        }
-        return newTime;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [showVerificationModal, verificationTimeLeft]);
+  // Countdown timer for verification code - now handled by CrossPlatformVerificationModal component
 
   // Listen for signature request and init lifecycle events (like old WalletPage)
   useEffect(() => {
@@ -1969,556 +1971,56 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
       </div>
 
-      {/* Lexie ID Choice Modal */}
-      {showLexieIdChoiceModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center z-[100] p-4 font-mono">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-lg w-full overflow-hidden scrollbar-none">
-            {/* Modal Terminal Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
-              <div className="flex items-center gap-3">
-                <span className="text-sm tracking-wide text-gray-400">lexie-id</span>
-              </div>
-              <div className="text-green-400 text-xs">WAITING</div>
-            </div>
+      <LexieIdChoiceModal
+        isOpen={showLexieIdChoiceModal}
+        onChoice={handleLexieIdChoice}
+      />
 
-            {/* Modal Content */}
-            <div className="p-6 text-green-300 space-y-4">
-              <div className="space-y-2">
-                <h3 className="text-lg font-bold text-emerald-300">LEXIE ID SETUP</h3>
-                <p className="text-green-400/80 text-sm leading-5">
-                  Want a LexieID? Claim yours to unlock P2P transfers and play LexieTitans while your vault is being created.
-                </p>
-              </div>
-
-              {/* Terminal-style instructions */}
-              <div className="bg-black/40 border border-green-500/20 rounded p-3">
-                <div className="text-green-200 text-xs mb-2 font-medium">Benefits:</div>
-                <div className="text-green-300/80 text-xs space-y-1">
-                  <div>• Vault-to-Vault transfers</div>
-                  <div>• Access to LexieTitans game</div>
-                  <div>• Enhanced features</div>
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={() => handleLexieIdChoice(true)}
-                  className="flex-1 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-200 py-2.5 px-4 rounded border border-emerald-400/40 hover:border-emerald-400 transition-all duration-200 text-sm font-medium"
-                >
-                  Yes, claim LexieID
-                </button>
-                <button
-                  onClick={() => handleLexieIdChoice(false)}
-                  className="flex-1 bg-purple-700/30 hover:bg-purple-700/50 text-gray-300 py-2.5 px-4 rounded border border-purple-500/40 hover:border-purple-400 transition-all duration-200 text-sm font-medium"
-                >
-                  No, skip for now
-                </button>
-              </div>
-
-              {/* Footer info */}
-              <div className="text-center">
-                <div className="text-green-300/60 text-xs">
-                💡 Tip: You can always claim a LexieID later from the vault interface
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Lexie ID Modal */}
-      {showLexieModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[99] p-4 font-mono">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-4xl w-full overflow-hidden scrollbar-none">
-            {/* Modal Terminal Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
-              <div className="flex items-center gap-3">
-                <span className="text-sm tracking-wide text-gray-400">lexie-id-setup</span>
-              </div>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-6 text-green-300 space-y-4">
-              <div>
-                <h3 className="text-lg font-bold text-emerald-300 mb-2">Setup Your LexieID</h3>
-                <p className="text-green-400/80 text-sm">
-                 Grab a LexieID for easy P2P vault transfers and to be able to login to the LexieTitans game.
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                <div className="bg-black/40 border border-green-500/20 rounded p-3">
-                  <div className="text-green-400/80 text-xs mb-2">Create a new LexieID:</div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={lexieIdInput}
-                        onChange={(e) => setLexieIdInput(e.target.value)}
-                        placeholder="e.g. LexieLaine123"
-                        className="bg-black text-green-200 rounded px-2 py-1 text-sm border border-green-500/40 focus:border-emerald-400 focus:outline-none flex-1"
-                        disabled={lexieLinking}
-                      />
-                      {!lexieNeedsCode ? (
-                        <button
-                          onClick={async () => {
-                            try {
-                              setLexieMessage('');
-                              setLexieLinking(true);
-                              const chosen = (lexieIdInput || '').trim().toLowerCase();
-                              if (!chosen || chosen.length < 3 || chosen.length > 15) {
-                                setLexieMessage('Please enter a valid Lexie ID (3-15 chars).');
-                                setLexieLinking(false);
-                                return;
-                              }
-                              // Check status
-                              const statusResp = await fetch(`/api/wallet-metadata?action=lexie-status&lexieID=${encodeURIComponent(chosen)}`, { method: 'GET' });
-                              if (!statusResp.ok) { setLexieMessage('Failed to check Lexie ID status.'); setLexieLinking(false); return; }
-                              const statusJson = await statusResp.json();
-                              if (!statusJson.success) { setLexieMessage('Failed to check Lexie ID status.'); setLexieLinking(false); return; }
-                              const exists = !!statusJson.exists; const linked = !!statusJson.linked; const owner = statusJson.owner;
-
-                              if (exists && linked) {
-                                setLexieMessage('This Lexie ID is already taken. Please try another one.');
-                                setLexieLinking(false);
-                                return;
-                              }
-
-                              if (!exists) {
-                                // Lexie ID doesn't exist - claim it directly
-                                // First, get the railgunAddress from wallet metadata in Redis
-                                const walletMetadataResp = await fetch(`/api/wallet-metadata?walletAddress=${address}`);
-                                if (!walletMetadataResp.ok) {
-                                  setLexieMessage('Failed to fetch wallet metadata.');
-                                  setLexieLinking(false);
-                                  return;
-                                }
-                                const walletMetadata = await walletMetadataResp.json();
-                                if (!walletMetadata.success || !walletMetadata.keys || walletMetadata.keys.length === 0) {
-                                  setLexieMessage('No wallet metadata found.');
-                                  setLexieLinking(false);
-                                  return;
-                                }
-
-                                // Get the railgunAddress from the first (most recent) wallet metadata entry
-                                const railgunAddressFromMetadata = walletMetadata.keys[0].railgunAddress;
-                                if (!railgunAddressFromMetadata) {
-                                  setLexieMessage('Railgun address not found in wallet metadata.');
-                                  setLexieLinking(false);
-                                  return;
-                                }
-
-                                const claimResp = await fetch('/api/wallet-metadata?action=lexie-claim', {
-                                  method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ lexieID: chosen, eoaAddress: address, railgunAddress: railgunAddressFromMetadata })
-                                });
-                                const claimJson = await claimResp.json().catch(() => ({}));
-                                if (!claimResp.ok || !claimJson.success) {
-                                  setLexieMessage(claimJson.error || 'Failed to claim Lexie ID.');
-                                  setLexieLinking(false);
-                                  return;
-                                }
-                                setLexieNeedsCode(false); setLexieCode('');
-                                setLexieMessage('✅ Successfully claimed and linked your Lexie ID!');
-                                handleLexieIdLink(chosen, true); // Auto-open game for new LexieID choice
-                                setTimeout(() => {
+      <LexieIdModal
+        isOpen={showLexieModal}
+        address={address}
+        railgunAddress={railgunAddress}
+        onLexieIdLinked={handleLexieIdLink}
+        onClose={() => {
                                   setShowLexieModal(false);
                                   setLexieIdInput('');
                                   setLexieMessage('');
-                                }, 2000);
-                                setLexieLinking(false);
-                                return;
-                              }
+        }}
+      />
 
-                              // Lexie ID exists but is not linked - user can link it (proves ownership via Telegram code)
-                              const startResp = await fetch('/api/wallet-metadata?action=lexie-link-start', {
-                                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ lexieID: chosen, railgunAddress })
-                              });
-                              const startJson = await startResp.json().catch(() => ({}));
-                              if (startResp.status === 404) { setLexieMessage('Lexie ID not found.'); setLexieLinking(false); return; }
-                              if (!startResp.ok || !startJson.success) { setLexieMessage('Failed to start verification.'); setLexieLinking(false); return; }
-                              setLexieNeedsCode(true); setLexieMessage('We sent a 4‑digit code to your Telegram. Enter it below to confirm.');
-                            } catch (_) { setLexieMessage('Unexpected error starting Lexie link.'); } finally { setLexieLinking(false); }
-                          }}
-                          disabled={lexieLinking || !lexieIdInput}
-                          className="bg-emerald-600/30 hover:bg-emerald-600/50 disabled:bg-black/40 text-emerald-200 px-3 py-1 rounded text-sm border border-emerald-400/40"
-                        >
-                          {lexieLinking ? 'Working...' : 'Add'}
-                        </button>
-                      ) : (
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={lexieCode}
-                            onChange={(e) => setLexieCode(e.target.value)}
-                            placeholder="4-digit code"
-                            className="bg-black text-green-200 rounded px-2 py-1 text-sm border border-green-500/40 focus:border-emerald-400 focus:outline-none w-20"
-                            disabled={lexieLinking}
-                          />
-                          <button
-                            onClick={async () => {
-                              try {
-                                setLexieLinking(true); setLexieMessage('');
-                                const chosen = (lexieIdInput || '').trim().toLowerCase();
-                                const verifyResp = await fetch('/api/wallet-metadata?action=lexie-link-verify', {
-                                  method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ lexieID: chosen, code: (lexieCode || '').trim() })
-                                });
-                                const json = await verifyResp.json().catch(() => ({}));
-                                if (!verifyResp.ok || !json.success) { setLexieMessage('Verification failed. Check the code and try again.'); return; }
-                                setLexieNeedsCode(false); setLexieCode(''); setLexieMessage('✅ Linked successfully to your Railgun wallet.');
-                                handleLexieIdLink(chosen, true); // Auto-open game for LexieID choice
-                                setTimeout(() => {
-                                  setShowLexieModal(false);
-                                  setLexieIdInput('');
-                                  setLexieMessage('');
-                                }, 2000);
-                              } catch (_) { setLexieMessage('Unexpected verification error.'); } finally { setLexieLinking(false); }
-                            }}
-                            disabled={lexieLinking || !lexieCode}
-                            className="bg-green-600/30 hover:bg-green-600/50 disabled:bg-black/40 text-green-200 px-2 py-1 rounded text-sm border border-green-400/40"
-                          >
-                            Verify
-                          </button>
-                          <button
-                            onClick={() => { setLexieNeedsCode(false); setLexieCode(''); setLexieMessage(''); }}
-                            className="bg-gray-600/30 hover:bg-gray-500/30 text-gray-300 px-2 py-1 rounded text-sm border border-gray-500/40"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    {lexieMessage && <div className="mt-2 text-xs text-green-300/80">{lexieMessage}</div>}
-                  </div>
+      <CrossPlatformVerificationModal
+        isOpen={showVerificationModal}
+        onClose={() => setShowVerificationModal(false)}
+      />
 
-                  {/* Instructions */}
-                  <div className="bg-purple-900/20 border border-purple-500/40 rounded p-3">
-                    <div className="text-purple-300 text-xs font-medium mb-2">How it works:</div>
-                    <p className="text-purple-200/80 text-xs mb-3">
-                      Enter any available LexieID above and we'll claim it for you instantly. If it's already taken, try another one!
-                    </p>
-                    <div className="text-purple-300/60 text-xs">
-                    💡 Tip: Already have a LexieID? Enter it above to link it to your vault.
-                    </div>
-                  </div>
-                </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <SignRequestModal
+        isOpen={showSignRequestPopup}
+        isInitInProgress={isInitInProgress}
+        initProgress={initProgress}
+        initFailedMessage={initFailedMessage}
+        address={address}
+        getNetworkNameById={getNetworkNameById}
+        initializingChainId={initializingChainId}
+        activeChainId={activeChainId}
+        bootstrapProgress={bootstrapProgress}
+        railgunWalletId={railgunWalletId}
+        railgunAddress={railgunAddress}
+        onPersistMetadata={handlePersistMetadata}
+        onClose={() => setShowSignRequestPopup(false)}
+      />
 
-      {/* Cross-Platform Verification Modal */}
-      {showVerificationModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 font-mono">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden scrollbar-none">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
-              <div className="flex items-center gap-3">
-                <span className="text-sm tracking-wide text-gray-400">telegram-link</span>
-              </div>
-              <button
-                onClick={() => {
-                  setShowVerificationModal(false);
-                  setVerificationCode('');
-                  setVerificationLexieId('');
-                  setVerificationExpiresAt(0);
-                  setVerificationTimeLeft(0);
-                }}
-                className="text-green-400/70 hover:text-green-300 transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-6 text-green-300 space-y-4">
-              <div>
-                <h3 className="text-lg font-bold text-emerald-300 mb-2">Link to Telegram</h3>
-                <p className="text-green-400/80 text-sm">
-                  Your LexieID <span className="text-purple-300 font-mono">{verificationLexieId}</span> is being linked to Telegram.
-                </p>
-              </div>
-
-              <div className="bg-black/40 border border-purple-500/20 rounded p-4">
-                <div className="text-center space-y-3">
-                  <div className="text-purple-300 text-sm font-medium">Verification Code</div>
-                  <div className="text-3xl font-mono font-bold text-emerald-300 tracking-wider">
-                    {verificationCode}
-                  </div>
-                  <div className="text-purple-300/60 text-xs">
-                    Expires in {Math.floor(verificationTimeLeft / 60)}:{(verificationTimeLeft % 60).toString().padStart(2, '0')}
-                  </div>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(verificationCode);
-                      toast.success('Code copied to clipboard');
-                    }}
-                    className="bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 px-3 py-1 rounded text-sm border border-purple-400/40 transition-colors"
-                  >
-                    Copy Code
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-blue-900/20 border border-blue-500/40 rounded p-3">
-                <div className="text-blue-300 text-xs font-medium mb-1">Next Steps:</div>
-                <div className="text-blue-200/80 text-xs space-y-1">
-                  <div>1. Switch to Telegram</div>
-                  <div>2. Enter this code when prompted</div>
-                  <div>3. Your LexieID will be linked across both platforms</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Sign-in & Initialization Popup */}
-      {showSignRequestPopup && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center z-50 p-4 font-mono">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden scrollbar-none">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
-              <div className="flex items-center gap-3">
-                <span className="text-sm tracking-wide text-gray-400">vault-sign</span>
-              </div>
-              {isInitInProgress ? (
-                <div className="text-yellow-400 text-xs">LOCKED</div>
-              ) : null}
-            </div>
-            <div className="p-6 text-green-300 space-y-4">
-              {!isInitInProgress && initProgress.percent < 100 && !initFailedMessage ? (
-                <>
-                  <h3 className="text-lg font-bold text-emerald-300">Sign to Create Your LexieVault</h3>
-                  <p className="text-green-400/80 text-sm">
-                    A signature request was sent to your wallet. Please approve this message to begin creating your LexieVault.
-                  </p>
-                  <div className="bg-black/40 border border-green-500/20 rounded p-3 text-xs">
-                    <div>Message preview:</div>
-                    <pre className="mt-2 whitespace-pre-wrap text-green-200">LexieVault Creation Address: {address}. Sign this message to create your LexieVault.</pre>
-                  </div>
-                </>
-              ) : initFailedMessage ? (
-                <>
-                  <h3 className="text-lg font-bold text-red-300">Vault Initialization Failed</h3>
-                  <p className="text-red-300/80 text-sm">{initFailedMessage}</p>
-                </>
-              ) : (
-                <>
-                  <h3 className="text-lg font-bold text-emerald-300">Initializing Your LexieVault on {getNetworkNameById(initializingChainId || activeChainId)} Network</h3>
-                  <p className="text-green-400/80 text-sm">You only need to do this once. This may take a few minutes. Do not close this window.</p>
-                  <div className="bg-black/40 border border-green-500/20 rounded p-4 space-y-3">
-                    {bootstrapProgress.active && bootstrapProgress.percent > 0 ? (
-                      <>
-                        <div className="flex items-center justify-between text-xs text-green-400/80">
-                          <span>Loading blockchain data...</span>
-                          <span>{Math.min(bootstrapProgress.percent, isInitInProgress ? 99 : 100)}%</span>
-                        </div>
-                        <div className="w-full bg-gray-700 rounded-full h-2">
-                          <div
-                            className="bg-gradient-to-r from-emerald-400 to-green-400 h-2 rounded-full transition-all duration-300 ease-out"
-                            style={{ width: `${Math.min(bootstrapProgress.percent, isInitInProgress ? 99 : 100)}%` }}
-                          />
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <div className={`h-5 w-5 rounded-full border-2 ${isInitInProgress || bootstrapProgress.active ? 'border-emerald-400 border-t-transparent animate-spin' : 'border-emerald-400'}`} />
-                        <div className="text-xs text-green-400/80 truncate" title={bootstrapProgress.active ? 'Loading blockchain data...' : initProgress.message}>
-                          {bootstrapProgress.active ? 'Loading blockchain data...' : (initProgress.message || 'Scanning...')}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="mt-2">
-                    <div className="text-green-400/60 text-xs text-center">
-                      🔐 Your vault is being created securely using zero-knowledge cryptography.
-                    </div>
-                  </div>
-                </>
-              )}
-              <div className="flex items-center justify-end gap-2 pt-2">
-                {!isInitInProgress && initProgress.percent >= 100 && !initFailedMessage ? (
-                  <button
-                    onClick={async () => {
-                      // Mark chain as scanned when modal unlocks successfully
-                      try {
-                        console.log(`🔓 Modal unlocking - marking chain ${activeChainId} as scanned for wallet ${railgunWalletId}`);
-                        const scanResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({
-                            walletAddress: address,
-                            walletId: railgunWalletId,
-                            railgunAddress: railgunAddress,
-                            scannedChains: [activeChainId] // Mark this chain as scanned when modal unlocks
-                          })
-                        });
-
-                        if (scanResp.ok) {
-                          console.log(`✅ Modal unlocked - chain ${activeChainId} marked as scanned`);
-                        } else {
-                          console.warn(`⚠️ Failed to mark chain ${activeChainId} as scanned on modal unlock:`, await scanResp.text());
-                        }
-                      } catch (scanError) {
-                        console.warn(`⚠️ Error marking chain ${activeChainId} as scanned on modal unlock:`, scanError);
-                      }
-
-                      setShowSignRequestPopup(false);
-                    }}
-                    className="px-3 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 text-xs"
-                  >
-                    ×
-                  </button>
-                ) : initFailedMessage ? (
-                  <button
-                    onClick={() => setShowSignRequestPopup(false)}
-                    className="px-3 py-1 rounded border border-red-500/40 bg-black hover:bg-red-900/20 text-xs text-red-300"
-                  >
-                    Dismiss
-                  </button>
-                ) : (
-                  <button
-                    disabled
-                    className="px-3 py-1 rounded border border-green-500/40 bg-black/40 text-xs text-green-400/60 cursor-not-allowed"
-                  >
-                    Please wait…
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Signature Confirmation Modal */}
-      {showSignatureConfirmation && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center z-50 p-4 font-mono">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden scrollbar-none">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
-              <div className="flex items-center gap-3">
-                <span className="text-sm tracking-wide text-gray-400">vault-signature-confirm</span>
-              </div>
-              <button
-                onClick={cancelSignature}
-                className="text-green-400/70 hover:text-green-300 transition-colors text-lg"
-                title="Cancel"
-              >
-                ×
-              </button>
-            </div>
-            <div className="p-6 text-green-300 space-y-4">
-              <div>
-                <h3 className="text-lg font-bold text-emerald-300 mb-2">Create Your LexieVault</h3>
-                <p className="text-green-400/80 text-sm">
-                  Choose the blockchain network for your vault and confirm the signature to securely initialize your privacy wallet.
-                </p>
-              </div>
-
-              {/* Chain Selection */}
-              <div className="space-y-2">
-                <div className="text-green-200 text-sm font-medium">Select Network:</div>
-                <div className="relative">
-                  <button
-                    onClick={() => setIsModalChainMenuOpen((v) => !v)}
-                    className="px-3 py-2 bg-black/60 border border-emerald-500/40 rounded-md text-emerald-200 font-mono text-sm flex items-center gap-2 hover:bg-black/80 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-400 transition-all duration-200"
-                    aria-haspopup="listbox"
-                    aria-expanded={isModalChainMenuOpen}
-                  >
-                    {supportedNetworks.find(n => n.id === selectedChainId)?.name || 'Choose Network'}
-                    <span className="ml-1">▾</span>
-                  </button>
-                  {isModalChainMenuOpen && (
-                    <>
-                      {/* Backdrop */}
-                      <div className="fixed inset-0 z-10" onClick={() => setIsModalChainMenuOpen(false)} />
-                      {/* Dropdown */}
-                      <div className="absolute top-full left-1/2 transform -translate-x-1/2 z-20 mt-1 bg-black/95 border border-emerald-500/40 rounded-md shadow-2xl min-w-48">
-                        {supportedNetworks.map((network) => (
-                          <button
-                            key={network.id}
-                            type="button"
-                            onClick={async () => {
-                              console.log(`[Signature Modal] User selected chain ${network.id}, current wallet chainId: ${walletChainId}`);
-                              setSelectedChainId(network.id);
-                              setInitializingChainId(network.id); // Track which chain we're initializing
-                              setIsModalChainMenuOpen(false);
-                              // Also switch the wallet to the selected network
-                              try {
-                                await switchNetwork(network.id);
-                                console.log(`[Signature Modal] Successfully switched wallet to chain ${network.id}, wallet should now be on chainId: ${network.id}`);
-                              } catch (error) {
-                                console.error(`[Signature Modal] Failed to switch wallet to chain ${network.id}:`, error);
-                              }
-                            }}
-                            className={`w-full px-3 py-2 text-left flex items-center justify-between hover:bg-emerald-900/20 transition-colors duration-150 ${network.id === selectedChainId ? 'bg-emerald-900/30' : ''}`}
-                          >
-                            <div className="flex items-center gap-2">
-                              <div className="text-base">{network.logo}</div>
-                              <div>
-                                <div className="font-medium text-emerald-200 text-sm">{network.name}</div>
-                              </div>
-                            </div>
-                            {selectedChainId === network.id && (
-                              <span className="text-emerald-400">✓</span>
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-black/40 border border-green-500/20 rounded p-3">
-                <div className="text-green-200 text-xs mb-2 font-medium">Message to sign:</div>
-                <pre className="whitespace-pre-wrap text-green-300 text-xs font-mono bg-black/60 p-2 rounded border border-green-500/10">
-                  {pendingSignatureMessage}
-                </pre>
-              </div>
-
-              <div className="bg-blue-900/20 border border-blue-500/40 rounded p-3">
-                <div className="text-blue-300 text-xs font-medium mb-1">🔒 Security Note:</div>
-                <div className="text-blue-200/80 text-xs">
-                  This signature only creates your vault and never grants access to your funds. Your private keys remain secure in your wallet.
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={confirmSignature}
-                  disabled={!selectedChainId || walletChainId !== selectedChainId}
-                  className={`flex-1 py-2.5 px-4 rounded border transition-all duration-200 text-sm font-medium ${
-                    !selectedChainId || walletChainId !== selectedChainId
-                      ? 'bg-gray-700/30 text-gray-500 cursor-not-allowed border-gray-500/40'
-                      : 'bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-200 border-emerald-400/40 hover:border-emerald-400'
-                  }`}
-                >
-                  {!selectedChainId
-                    ? 'Select Network First'
-                    : walletChainId !== selectedChainId
-                    ? 'Switching Network...'
-                    : 'Create Vault'
-                  }
-                </button>
-                <button
-                  onClick={cancelSignature}
-                  className="flex-1 bg-gray-700/30 hover:bg-gray-700/50 text-gray-300 py-2.5 px-4 rounded border border-gray-500/40 hover:border-gray-400 transition-all duration-200 text-sm font-medium"
-                >
-                  Cancel
-                </button>
-              </div>
-
-              {(!selectedChainId || walletChainId !== selectedChainId) && (
-                <div className="text-center text-yellow-300/80 text-xs mt-2">
-                  {!selectedChainId
-                    ? 'Please select a network above to continue'
-                    : 'Waiting for wallet to switch networks...'
-                  }
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <SignatureConfirmationModal
+        isOpen={showSignatureConfirmation}
+        selectedChainId={selectedChainId}
+        setSelectedChainId={setSelectedChainId}
+        setInitializingChainId={setInitializingChainId}
+        supportedNetworks={supportedNetworks}
+        walletChainId={walletChainId}
+        switchNetwork={switchNetwork}
+        pendingSignatureMessage={pendingSignatureMessage}
+        onConfirm={confirmSignature}
+        onCancel={cancelSignature}
+      />
 
       {/* Taskbar for minimized windows - Hidden on mobile */}
       {!mobileMode && <Taskbar />}
