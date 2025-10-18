@@ -57,7 +57,7 @@ export function Navbar({ onLexieChatOpen }) {
 
         {/* Mobile Menu - FIXED: Now using absolute positioning */}
         {isMobileMenuOpen && (
-          <div className="absolute top-full left-0 right-0 md:hidden bg-black border-t border-purple-800 shadow-xl z-50">
+          <div className="absolute top-full right-0 w-64 md:hidden bg-black border-t border-l border-purple-800 shadow-xl z-50">
             <div className="px-6 py-4 space-y-4">
               <a href="https://staging.app.lexiecrypto.com/lexievault" className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors text-left" onClick={() => setIsMobileMenuOpen(false)}>
                 LexieVault
