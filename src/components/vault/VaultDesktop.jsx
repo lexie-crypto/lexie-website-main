@@ -259,6 +259,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   // Signature confirmation from WalletContext
   const {
     showSignatureConfirmation,
+    isNetworkSelectionOnly,
     pendingSignatureMessage,
     confirmSignature,
     cancelSignature,
@@ -2030,6 +2031,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         pendingSignatureMessage={pendingSignatureMessage}
         onConfirm={confirmSignature}
         onCancel={cancelSignature}
+        isNetworkSelectionOnly={isNetworkSelectionOnly}
       />
 
       {/* Taskbar for minimized windows - Hidden on mobile */}

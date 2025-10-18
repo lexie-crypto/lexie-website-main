@@ -341,6 +341,7 @@ const WalletContextProvider = ({ children }) => {
   const [lexieIdChoicePromise, setLexieIdChoicePromise] = useState(null);
   const [lexieIdLinkPromise, setLexieIdLinkPromise] = useState(null);
   const [showSignatureConfirmation, setShowSignatureConfirmation] = useState(false);
+  const [isNetworkSelectionOnly, setIsNetworkSelectionOnly] = useState(false);
   const [signatureConfirmationPromise, setSignatureConfirmationPromise] = useState(null);
   const [pendingSignatureMessage, setPendingSignatureMessage] = useState('');
 
@@ -389,9 +390,10 @@ const WalletContextProvider = ({ children }) => {
   }, [chainId]);
 
   // Signature confirmation
-  const requestSignatureConfirmation = useCallback((message) => {
+  const requestSignatureConfirmation = useCallback((message, networkSelectionOnly = false) => {
     return new Promise((resolve) => {
       setPendingSignatureMessage(message);
+      setIsNetworkSelectionOnly(networkSelectionOnly);
       setShowSignatureConfirmation(true);
       setSignatureConfirmationPromise({ resolve });
     });
@@ -422,6 +424,7 @@ const WalletContextProvider = ({ children }) => {
       signatureConfirmationPromise.resolve(true);
       setSignatureConfirmationPromise(null);
       setShowSignatureConfirmation(false);
+      setIsNetworkSelectionOnly(false);
       setPendingSignatureMessage('');
     }
   }, [signatureConfirmationPromise]);  // Remove chainId from dependencies
@@ -431,6 +434,7 @@ const WalletContextProvider = ({ children }) => {
       signatureConfirmationPromise.resolve(false);
       setSignatureConfirmationPromise(null);
       setShowSignatureConfirmation(false);
+      setIsNetworkSelectionOnly(false);
       setPendingSignatureMessage('');
     }
   }, [signatureConfirmationPromise]);
@@ -2154,7 +2158,7 @@ const WalletContextProvider = ({ children }) => {
   }, [chainId]);
 
   // Auto-initialize Railgun when wallet connects (only if not already initialized)
-  useEffect(() => {
+  useEffect(async () => {
     // 🛡️ Prevent force reinitialization if already initialized
     if (isRailgunInitialized) {
       console.log('✅ Railgun already initialized for:', address);
@@ -2188,20 +2192,19 @@ const WalletContextProvider = ({ children }) => {
     }
 
     if (isConnected && address && !isInitializing) {
-      // Final safety check: ensure we have a valid supported chainId before initializing Railgun
-      if (!chainId || chainId === 'NaN' || isNaN(chainId)) {
-        console.log('⏳ [Railgun Init] Chain ID not yet available, deferring initialization...');
-        return;
-      }
-
-      const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
-      if (!supportedNetworks[chainId]) {
-        console.log(`🚫 [Railgun Init] Refusing to initialize on unsupported network (chainId: ${chainId})`);
-        return;
-      }
-
-      console.log('🚀 Auto-initializing Railgun for connected wallet:', address);
+      // Always show network selection modal when wallet connects, regardless of existing vault status
+      console.log('🔗 Wallet connected, showing network selection modal for vault access');
       lastInitializedAddressRef.current = address;
+
+      // Show signature confirmation modal to let user choose network
+      const confirmed = await requestSignatureConfirmation('Select the blockchain network for your LexieVault access.', true);
+      if (!confirmed) {
+        console.log('❌ User cancelled network selection');
+        return;
+      }
+
+      // After network selection, proceed with vault initialization
+      console.log('✅ Network selected, proceeding with vault initialization');
       initializeRailgun().then(() => {
         // 🚀 BOOTSTRAP: After Railgun init, check if we need to load chain bootstrap
         setTimeout(async () => {
@@ -2736,6 +2739,7 @@ const WalletContextProvider = ({ children }) => {
 
     // Signature confirmation modal
     showSignatureConfirmation,
+    isNetworkSelectionOnly,
     pendingSignatureMessage,
     confirmSignature,
     cancelSignature,
