@@ -197,14 +197,18 @@ export function LexieChat() {
               <div className="pt-1 text-emerald-300">Ready for commands...</div>
             </div>
             {/* Mobile Controls Row */}
-            <div className="flex items-center justify-end mt-3">
-              <DegenModeButton />
-              <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="p-2 bg-gray-800 border border-green-500/30 rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                {isMobileMenuOpen ? <XIcon size={20} className="text-green-400" /> : <MenuIcon size={20} className="text-green-400" />}
-              </button>
+            <div className="flex items-center justify-between mt-3 w-full">
+              <div className="flex-shrink-0">
+                <DegenModeButton />
+              </div>
+              <div className="flex-shrink-0 ml-auto">
+                <button
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                  className="p-2 bg-gray-800 border border-green-500/30 rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  {isMobileMenuOpen ? <XIcon size={20} className="text-green-400" /> : <MenuIcon size={20} className="text-green-400" />}
+                </button>
+              </div>
             </div>
           </div>
         </div>
