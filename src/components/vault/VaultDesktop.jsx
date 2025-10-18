@@ -141,6 +141,23 @@ const TitansGameWindow = ({ lexieId, walletAddress, onClose }) => {
 };
 
 const VaultDesktopInner = ({ mobileMode = false }) => {
+  const [isMobile, setIsMobile] = React.useState(false);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia === 'undefined') {
+      return;
+    }
+    const mq = window.matchMedia('(max-width: 639px)');
+    const apply = () => { setIsMobile(mq.matches); };
+    apply();
+    if (mq.addEventListener) mq.addEventListener('change', apply);
+    else if (mq.addListener) mq.addListener(apply);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', apply);
+      else if (mq.removeListener) mq.removeListener(apply);
+    };
+  }, []);
+
   const {
     isConnected,
     isConnecting,
@@ -2129,15 +2146,17 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         </WindowShell>
       )}
 
-      {/* Logo in top left - redirects to main site */}
-      <div className="absolute md:top-6 md:left-5 -top-2 left-1 z-50 md:pl-6">
-        <a
-          href="https://www.lexiecrypto.com"
-          className="hover:opacity-80 transition-opacity"
-        >
-          <span className="text-4xl font-bold text-purple-300">LEXIEAI</span>
-        </a>
-      </div>
+      {/* Logo in top left - redirects to main site - only on desktop */}
+      {!isMobile && (
+        <div className="absolute md:top-6 md:left-5 -top-2 left-1 z-50 md:pl-6">
+          <a
+            href="https://www.lexiecrypto.com"
+            className="hover:opacity-80 transition-opacity"
+          >
+            <span className="text-4xl font-bold text-purple-300">LEXIEAI</span>
+          </a>
+        </div>
+      )}
 
       {/* Lexie Logo - Only show on desktop */}
       {!mobileMode && (
