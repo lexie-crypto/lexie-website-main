@@ -216,34 +216,6 @@ async function fetchCurrentBlockNumbers() {
   return blockNumbers;
 }
 
-/**
- * Trigger chain hydration for existing wallets after network selection
- */
-const triggerChainHydration = async (walletId, chainId, address) => {
-  try {
-    console.log(`[WalletContext] Triggering hydration for wallet ${walletId} on chain ${chainId}`);
-
-    const { loadChainBootstrap } = await import('../utils/sync/idb-sync/hydration.js');
-
-    await loadChainBootstrap(walletId, chainId, {
-      address, // Pass EOA address for Redis checks
-      onProgress: (progress, current, total) => {
-        console.log(`[WalletContext] Hydration progress: ${progress}% (${current}/${total})`);
-      },
-      onComplete: () => {
-        console.log(`[WalletContext] Hydration completed for chain ${chainId}`);
-      },
-      onError: (error) => {
-        console.error(`[WalletContext] Hydration failed for chain ${chainId}:`, error);
-      }
-    });
-
-  } catch (error) {
-    console.error(`[WalletContext] Failed to trigger hydration for chain ${chainId}:`, error);
-    // Don't throw - let the flow continue even if hydration fails
-  }
-};
-
 // Create a client for React Query
 const queryClient = new QueryClient();
 
@@ -368,8 +340,6 @@ const WalletContextProvider = ({ children }) => {
   const [showLexieIdChoiceModal, setShowLexieIdChoiceModal] = useState(false);
   const [lexieIdChoicePromise, setLexieIdChoicePromise] = useState(null);
   const [lexieIdLinkPromise, setLexieIdLinkPromise] = useState(null);
-  const [showNetworkSelectionModal, setShowNetworkSelectionModal] = useState(false);
-  const [networkSelectionPromise, setNetworkSelectionPromise] = useState(null);
   const [showSignatureConfirmation, setShowSignatureConfirmation] = useState(false);
   const [signatureConfirmationPromise, setSignatureConfirmationPromise] = useState(null);
   const [pendingSignatureMessage, setPendingSignatureMessage] = useState('');
@@ -1057,25 +1027,6 @@ const WalletContextProvider = ({ children }) => {
       }
     } catch {}
 
-    // 🔒 NETWORK SELECTION BLOCKING: Show network selection modal and wait for user choice
-    // This blocks ALL wallet operations until user selects a network
-    console.log('[Railgun Init] 🔒 Showing network selection modal (blocking operation)...');
-    setShowNetworkSelectionModal(true);
-
-    // Create promise that resolves when user selects network
-    const networkPromise = new Promise((resolve) => {
-      setNetworkSelectionPromise({ resolve });
-    });
-
-    // Wait for user network selection (blocks until network is chosen)
-    const selectedNetworkData = await networkPromise;
-
-    // Reset network selection modal state
-    setShowNetworkSelectionModal(false);
-    setNetworkSelectionPromise(null);
-
-    console.log('[Railgun Init] ✅ Network selected, proceeding with wallet initialization:', selectedNetworkData);
-
     setIsInitializing(true);
     setRailgunError(null);
     
@@ -1487,15 +1438,6 @@ const WalletContextProvider = ({ children }) => {
           walletID: railgunWalletInfo.id?.slice(0, 8) + '...',
           storage: 'Redis-only'
         });
-
-        // 🚨 Set global flag to block VaultDesktop operations for existing wallets
-        if (typeof window !== 'undefined') {
-          const networkSelectionCompleted = localStorage.getItem('lexie-network-selection-completed') === 'true';
-          if (!networkSelectionCompleted) {
-            console.log('🚨 Setting global block flag - existing wallet needs network selection');
-            window.__LEXIE_BLOCK_VAULT_OPERATIONS = true;
-          }
-        }
 
         // 🚀 Initialize master wallet exports if this is a master wallet (for existing wallets loaded from Redis)
         try {
@@ -1977,7 +1919,6 @@ const WalletContextProvider = ({ children }) => {
               });
               
               console.log('🎉 Wallet is now accessible from ANY device/browser!');
-
 
               // DIRECT FLAG: Set flag to show Lexie ID modal
               // NEW: Show Lexie ID choice modal instead of direct Lexie ID modal
@@ -2777,16 +2718,6 @@ const WalletContextProvider = ({ children }) => {
     // Lexie ID modal control
     shouldShowLexieIdModal,
     clearLexieIdModalFlag: () => setShouldShowLexieIdModal(false),
-
-    // Network selection modal control
-    showNetworkSelectionModal,
-    handleNetworkSelection: (selectedNetworkData) => {
-      if (networkSelectionPromise) {
-        // Mark network selection as completed
-        localStorage.setItem('lexie-network-selection-completed', 'true');
-        networkSelectionPromise.resolve(selectedNetworkData);
-      }
-    },
 
     // Lexie ID choice modal control
     showLexieIdChoiceModal,

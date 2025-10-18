@@ -41,7 +41,6 @@ import LexieIdModal from './LexieIdModal';
 import CrossPlatformVerificationModal from './CrossPlatformVerificationModal';
 import SignRequestModal from './SignRequestModal';
 import SignatureConfirmationModal from './SignatureConfirmationModal';
-import NetworkSelectionModal from './NetworkSelectionModal';
 import { Navbar } from '../Navbar.jsx';
 
 // Titans Game component that loads the actual game from game.lexiecrypto.com
@@ -164,8 +163,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     clearLexieIdModalFlag,
     showLexieIdChoiceModal,
     handleLexieIdChoice,
-    showNetworkSelectionModal,
-    handleNetworkSelection,
     onLexieIdLinked,
     ensureChainScanned,
   } = useWallet();
@@ -215,61 +212,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   // Track which chain is being initialized
   const [initializingChainId, setInitializingChainId] = useState(null);
-
-  // 🚫 BLOCKING: Check global flag first (simplest approach)
-  if (typeof window !== 'undefined' && window.__LEXIE_BLOCK_VAULT_OPERATIONS) {
-    return (
-      <div className="relative h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
-        {/* Background overlays */}
-        <div className="fixed inset-0 z-0">
-          <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60"></div>
-          <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-purple-900/40 via-purple-800/20 to-transparent"></div>
-          <div className="absolute inset-0 opacity-30">
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(147,51,234,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(147,51,234,0.2)_1px,transparent_1px)] bg-[size:40px_40px] animate-pulse"></div>
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.1)_1px,transparent_1px)] bg-[size:80px_80px] animate-pulse" style={{animationDelay: '1s'}}></div>
-          </div>
-          <div className="absolute inset-0 overflow-hidden scrollbar-terminal">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div
-                key={i}
-                className="absolute rounded-full animate-pulse"
-                style={{
-                  left: `${20 + i * 30}%`,
-                  top: `${20 + i * 20}%`,
-                  width: `${200 + i * 100}px`,
-                  height: `${200 + i * 100}px`,
-                  background: `radial-gradient(circle, rgba(147, 51, 234, 0.1) 0%, rgba(147, 51, 234, 0.05) 50%, transparent 100%)`,
-                  animationDelay: `${i * 2}s`,
-                  animationDuration: `${6 + i * 2}s`,
-                }}
-              />
-            ))}
-          </div>
-        </div>
-
-        <NetworkSelectionModal
-          isOpen={showNetworkSelectionModal}
-          selectedChainId={selectedChainId}
-          setSelectedChainId={setSelectedChainId}
-          supportedNetworks={supportedNetworks}
-          walletChainId={walletChainId}
-          switchNetwork={switchNetwork}
-          onConfirm={() => {
-            // Resolve the network selection promise with selected network data
-            handleNetworkSelection({
-              chainId: selectedChainId,
-              networkName: supportedNetworks.find(n => n.id === selectedChainId)?.name || 'Unknown'
-            });
-          }}
-          onCancel={() => {
-            // For now, just disconnect if user cancels network selection
-            disconnectWallet();
-          }}
-        />
-      </div>
-    );
-  }
 
   // Helper to get network name by chain ID
   const getNetworkNameById = (chainId) => {
@@ -505,6 +447,53 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     return networks[id] || `Chain ${id}`;
   };
 
+  // Check Redis on wallet connect - wait for Railgun initialization to complete first
+  useEffect(() => {
+    if (isConnected && address && railgunWalletId && activeChainId && isRailgunInitialized) {
+      console.log('[VaultDesktop] Wallet connected and Railgun initialized - checking Redis for scanned chains');
+      (async () => {
+        // Don't re-init if modal is already open
+        if (showSignRequestPopup) {
+          console.log('[VaultDesktop] Modal already open, skipping Redis check');
+          return;
+        }
+
+        // Retry Redis check with backoff to handle race with metadata writes
+        let scanned = null;
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          scanned = await checkRedisScannedChains();
+          if (scanned !== null) break; // Got a definitive answer
+          if (attempt < 3) {
+            console.log(`[VaultDesktop] Redis check attempt ${attempt} returned null, retrying in 300ms...`);
+            await new Promise(resolve => setTimeout(resolve, 300));
+          }
+        }
+
+        if (scanned === false || scanned === null) {
+          console.log('[VaultDesktop] Chain not scanned on connect - will show signature confirmation modal');
+
+          // Set which chain we're initializing
+          setInitializingChainId(activeChainId);
+
+          // The signature confirmation modal will handle chain selection
+          // Guard reset-to-0: only reset progress if not already at 100%
+          setShowSignRequestPopup(true);
+          setIsInitInProgress(true);
+          setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);
+          setScanComplete(false);
+
+          // Use activeChainId, not network.name
+          const networkName = getNetworkNameById(activeChainId);
+          setInitProgress({
+            percent: 0,
+            message: `Setting up your LexieVault on ${networkName} Network...`
+          });
+        } else {
+          console.log('[VaultDesktop] Chain already scanned on connect - no modal needed');
+        }
+      })();
+    }
+  }, [isConnected, address, railgunWalletId, activeChainId, isRailgunInitialized, checkRedisScannedChains, showSignRequestPopup, selectedChainId]);
 
   // Track when initial connection hydration is complete
   const initialConnectDoneRef = React.useRef(false);
@@ -588,13 +577,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       setIsInitInProgress(false);
       setInitFailedMessage('');
       setInitProgress({ percent: 0, message: '' });
-      setHasCompletedNetworkSelection(false);
-      try {
-        localStorage.removeItem('lexie-network-selection-completed');
-      } catch (error) {
-        console.warn('[VaultDesktop] Failed to remove network selection completion from localStorage:', error);
-      }
-
 
       // Dispatch transaction completion event to unlock UI globally (similar to txn cancellation)
       if (typeof window !== 'undefined') {
@@ -1485,7 +1467,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     };
   }, [isChainMenuOpen, isMobileChainMenuOpen, isModalChainMenuOpen]);
 
-
   if (!isConnected || (isConnected && !isNetworkSupported) || walletConnectValidating) {
     return (
       <div className="relative h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
@@ -1550,7 +1531,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       </div>
     );
   }
-
 
   return (
     <div className="relative h-screen w-full bg-black text-white overflow-x-hidden">
