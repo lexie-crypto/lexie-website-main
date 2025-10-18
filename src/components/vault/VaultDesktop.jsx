@@ -41,6 +41,7 @@ import LexieIdModal from './LexieIdModal';
 import CrossPlatformVerificationModal from './CrossPlatformVerificationModal';
 import SignRequestModal from './SignRequestModal';
 import SignatureConfirmationModal from './SignatureConfirmationModal';
+import { Navbar } from '../Navbar.jsx';
 
 // Titans Game component that loads the actual game from game.lexiecrypto.com
 const TitansGame = ({ lexieId, walletAddress, embedded, theme, onLoad, onError, onClose }) => {
@@ -1581,9 +1582,9 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
           statusTone={statusConfig.statusTone}
           footerLeft={footerContent}
           variant="vault"
-          fullscreen={mobileMode}
+          fullscreen={false}
         >
-          <div className={`font-mono text-green-300 space-y-4 ${mobileMode ? 'pt-16' : ''}`}>
+          <div className="font-mono text-green-300 space-y-4">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-green-500/20 pb-4 gap-2">
               <div>
@@ -2148,9 +2149,12 @@ const VaultDesktop = () => {
 
   if (isMobile) {
     return (
-      <WindowProvider>
-        <VaultDesktopInner mobileMode={true} />
-      </WindowProvider>
+      <div className="min-h-screen bg-black">
+        <Navbar />
+        <WindowProvider>
+          <VaultDesktopInner mobileMode={true} />
+        </WindowProvider>
+      </div>
     );
   }
 
