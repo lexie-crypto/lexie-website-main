@@ -301,7 +301,14 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     // Auto-open Titans game only when explicitly requested (when user chooses LexieID)
     if (lexieId && autoOpenGame) {
       setTimeout(() => {
-        setShowTitansGame(true);
+        if (isMobile) {
+          // Open LexieTitans game in new tab on mobile
+          const gameUrl = `https://game.lexiecrypto.com/?lexieId=${encodeURIComponent(lexieId)}&walletAddress=${encodeURIComponent(address || '')}&embedded=true&theme=terminal`;
+          window.open(gameUrl, '_blank');
+        } else {
+          // Open in window shell on desktop
+          setShowTitansGame(true);
+        }
         // Signal to WalletContext that Lexie ID linking is complete
         onLexieIdLinked();
       }, 1000); // Small delay to allow UI to settle
@@ -309,7 +316,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       // Signal completion without auto-opening game
       onLexieIdLinked();
     }
-  }, [address, onLexieIdLinked]);
+  }, [address, onLexieIdLinked, isMobile]);
 
   // Cross-platform verification state - now managed by CrossPlatformVerificationModal component
   const [showVerificationModal, setShowVerificationModal] = useState(false);
