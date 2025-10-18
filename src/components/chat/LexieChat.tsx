@@ -197,7 +197,7 @@ export function LexieChat() {
               <div className="pt-1 text-emerald-300">Ready for commands...</div>
             </div>
             {/* Mobile Degen Mode Button */}
-            <div className="flex justify-center mt-3">
+            <div className="flex justify-start mt-3">
               <DegenModeButton />
             </div>
           </div>
