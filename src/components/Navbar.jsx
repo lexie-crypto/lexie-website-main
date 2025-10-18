@@ -12,7 +12,8 @@ export function Navbar() {
   // Get lexieId from localStorage (same way as VaultDesktop)
   const currentLexieId = localStorage.getItem('linkedLexieId');
 
-  const baseClasses = "sticky top-0 z-40 w-full p-6 bg-black";
+  // FIXED: Changed from sticky to fixed and added left-0 right-0
+  const baseClasses = "fixed top-0 left-0 right-0 z-40 w-full p-6 bg-black";
   const containerClasses = "max-w-7xl mx-auto flex justify-between items-center";
 
   const toggleMobileMenu = () => {
@@ -21,7 +22,8 @@ export function Navbar() {
 
   return (
     <>
-      <nav className={baseClasses}>
+      {/* FIXED: Added relative positioning to navbar container */}
+      <nav className={`${baseClasses} relative`}>
         <div className={containerClasses}>
           {/* Logo - Far Left */}
           <a href="/" className="text-4xl font-bold text-purple-300 hover:text-white transition-colors flex-shrink-0">
@@ -53,9 +55,9 @@ export function Navbar() {
           </button>
         </div>
 
-        {/* Mobile Menu */}
+        {/* Mobile Menu - FIXED: Now using absolute positioning */}
         {isMobileMenuOpen && (
-          <div className="md:hidden bg-black border-t border-purple-800">
+          <div className="absolute top-full left-0 right-0 md:hidden bg-black border-t border-purple-800 shadow-xl z-50">
             <div className="px-6 py-4 space-y-4">
               <a href="https://staging.app.lexiecrypto.com/lexievault" className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors text-left" onClick={() => setIsMobileMenuOpen(false)}>
                 LexieVault
@@ -81,6 +83,9 @@ export function Navbar() {
           </div>
         )}
       </nav>
+
+      {/* IMPROVED: Mobile-only spacer */}
+      <div className="h-24 md:hidden" /> {/* Only show on mobile to prevent content from hiding under fixed navbar */}
 
       {/* Mobile Titans Game Modal */}
       <MobileTitansGame
