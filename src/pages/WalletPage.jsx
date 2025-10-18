@@ -11,7 +11,7 @@ const WalletPage = () => {
   return (
     <div className="relative min-h-screen w-full bg-black text-white overflow-x-hiddenscrollbar-terminal">
       {/* Logo in top left - redirects to main site */}
-      <div className="absolute top-6 left-5 z-50 pl-6">
+      <div className="absolute md:top-6 md:left-5 top-2 left-2 z-50 md:pl-6 pl-2">
         <a
           href="https://www.lexiecrypto.com"
           className="hover:opacity-80 transition-opacity"
