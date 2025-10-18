@@ -377,13 +377,15 @@ const WindowShell = ({
       >
         {/* Left Section - Traffic Lights + Title */}
         <div className="flex items-center gap-2" data-nodrag>
-          {/* Traffic Lights - Hidden on mobile */}
+          {/* Traffic Lights - Hidden on mobile except close button for game windows */}
+          {(!isMobile || (isMobile && appType === 'game')) && (
+            <TrafficLight
+              type="close"
+              onClick={handleClose}
+            />
+          )}
           {!isMobile && (
             <>
-              <TrafficLight
-                type="close"
-                onClick={handleClose}
-              />
               <TrafficLight
                 type="minimize"
                 onClick={handleMinimize}
