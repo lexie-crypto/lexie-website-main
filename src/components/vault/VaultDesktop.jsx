@@ -1517,8 +1517,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       <div className="absolute top-6 left-5 z-50 pl-6">
         <a
           href="https://www.lexiecrypto.com"
-          target="_blank"
-          rel="noopener noreferrer"
           className="hover:opacity-80 transition-opacity"
         >
           <span className="text-3xl font-bold text-purple-300">LEXIEAI</span>
