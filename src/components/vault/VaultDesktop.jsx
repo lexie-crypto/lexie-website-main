@@ -724,33 +724,50 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   const refreshBalances = useCallback(async (showToast = true) => {
     try {
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
-      console.log('[VaultDesktop] Full refresh — SDK refresh + Redis persist, then UI fetch...');
+      console.log('[VaultDesktop] Full refresh — checking scan status first...');
 
-      // Step 0: Ensure chain has been scanned for private transfers (critical for discovering transfers before first shield)
-      try {
-        if (canUseRailgun && railgunWalletId && address && activeChainId) {
-          console.log('[VaultDesktop] Ensuring chain is scanned before refresh...');
-          await ensureChainScanned(activeChainId);
-        }
-      } catch (scanErr) {
-        console.warn('[VaultDesktop] Chain scan check failed (continuing with refresh):', scanErr?.message);
-      }
-
-      // Step 1: Trigger SDK refresh + persist authoritative balances to Redis
+      // Check if chain is already scanned in Redis
+      let alreadyScanned = false;
       try {
         if (railgunWalletId && address && activeChainId) {
-          const { syncBalancesAfterTransaction } = await import('../../utils/railgun/syncBalances.js');
-          await syncBalancesAfterTransaction({
-            walletAddress: address,
-            walletId: railgunWalletId,
-            chainId: activeChainId,
-          });
+          alreadyScanned = await checkRedisScannedChains(activeChainId);
         }
-      } catch (sdkErr) {
-        console.warn('[VaultDesktop] SDK refresh + persist failed (continuing to UI refresh):', sdkErr?.message);
+      } catch (checkErr) {
+        console.warn('[VaultDesktop] Scan status check failed:', checkErr?.message);
       }
 
-      // Step 2: Refresh UI from sources of truth
+      // Only trigger SDK refresh if chain NOT already scanned
+      if (!alreadyScanned) {
+        console.log('[VaultDesktop] Chain not scanned - triggering SDK refresh...');
+
+        // Step 0: Ensure chain has been scanned for private transfers (critical for discovering transfers before first shield)
+        try {
+          if (canUseRailgun && railgunWalletId && address && activeChainId) {
+            console.log('[VaultDesktop] Ensuring chain is scanned before refresh...');
+            await ensureChainScanned(activeChainId);
+          }
+        } catch (scanErr) {
+          console.warn('[VaultDesktop] Chain scan check failed (continuing with refresh):', scanErr?.message);
+        }
+
+        // Step 1: Trigger SDK refresh + persist authoritative balances to Redis
+        try {
+          if (railgunWalletId && address && activeChainId) {
+            const { syncBalancesAfterTransaction } = await import('../../utils/railgun/syncBalances.js');
+            await syncBalancesAfterTransaction({
+              walletAddress: address,
+              walletId: railgunWalletId,
+              chainId: activeChainId,
+            });
+          }
+        } catch (sdkErr) {
+          console.warn('[VaultDesktop] SDK refresh + persist failed (continuing to UI refresh):', sdkErr?.message);
+        }
+      } else {
+        console.log('[VaultDesktop] Chain already scanned - skipping SDK refresh, loading from Redis...');
+      }
+
+      // Step 2: Always refresh UI from sources of truth (Redis + cache)
       await refreshAllBalances();
 
       if (showToast) {
@@ -790,7 +807,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     } finally {
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
     }
-  }, [refreshAllBalances, railgunWalletId, address, activeChainId]);
+  }, [refreshAllBalances, railgunWalletId, address, activeChainId, checkRedisScannedChains, ensureChainScanned, canUseRailgun]);
 
   // Auto-refresh balances when wallet connects and Railgun is ready (full refresh including private transfers)
   useEffect(() => {
