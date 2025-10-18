@@ -37,7 +37,7 @@ const ReturningUserChainSelectionModal = ({
           <div>
             <h3 className="text-lg font-bold text-emerald-300 mb-2">Welcome Back to LexieVault</h3>
             <p className="text-green-400/80 text-sm">
-              Your privacy wallet is ready. Choose the blockchain network to continue with your vault.
+              Choose a blockchain network to continue with your LexieVault.
             </p>
           </div>
 
@@ -99,7 +99,7 @@ const ReturningUserChainSelectionModal = ({
           <div className="bg-blue-900/20 border border-blue-500/40 rounded p-3">
             <div className="text-blue-300 text-xs font-medium mb-1">🔄 Network Selection:</div>
             <div className="text-blue-200/80 text-xs">
-              Choose your preferred network to access your vault balances and privacy features on that blockchain.
+              Choose your preferred network to access your vault on that blockchain.
             </div>
           </div>
 
