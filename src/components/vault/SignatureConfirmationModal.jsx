@@ -33,9 +33,9 @@ const SignatureConfirmationModal = ({
         </div>
         <div className="p-6 text-green-300 space-y-4">
           <div>
-            <h3 className="text-lg font-bold text-emerald-300 mb-2">Create Your LexieVault</h3>
+            <h3 className="text-lg font-bold text-emerald-300 mb-2">Initialize Your LexieVault</h3>
             <p className="text-green-400/80 text-sm">
-              Choose the blockchain network for your vault and confirm the signature to securely initialize your LexieVault.
+              Choose the blockchain network you want your LexieVault to initialize on.
             </p>
           </div>
 
