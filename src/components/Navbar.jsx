@@ -12,8 +12,8 @@ export function Navbar() {
   // Get lexieId from localStorage (same way as VaultDesktop)
   const currentLexieId = localStorage.getItem('linkedLexieId');
 
-  // FIXED: Changed from sticky to fixed and added left-0 right-0
-  const baseClasses = "fixed top-0 left-0 right-0 z-40 w-full p-6 bg-black";
+  // Mobile: sticky (scrolls with page), Desktop: fixed (stays at top)
+  const baseClasses = "sticky md:fixed top-0 md:left-0 md:right-0 z-40 w-full p-6 bg-black";
   const containerClasses = "max-w-7xl mx-auto flex justify-between items-center";
 
   const toggleMobileMenu = () => {
