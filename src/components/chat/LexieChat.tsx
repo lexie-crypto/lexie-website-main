@@ -185,11 +185,6 @@ export function LexieChat() {
   return (
     <div className="relative z-10 w-full md:max-w-screen-xl md:mx-auto md:px-4 md:sm:px-6 md:lg:px-8 md:py-8 min-h-screen min-w-0 mobile-app-wrapper scrollbar-terminal">
       <div className="font-mono text-green-300 space-y-1 min-h-[18.75rem] md:h-screen flex flex-col md:min-h-0 md:min-w-0 mobile-chat-layout md:px-8 md:pt-4 md:pb-6">
-        {/* Mobile Degen Mode Button */}
-        <div className="md:hidden flex justify-center mb-2 flex-shrink-0">
-          <DegenModeButton />
-        </div>
-
         {/* Mobile Menu Button */}
         <div className="md:hidden flex items-center justify-between -pb-6 -pt-9 flex-shrink-0">
           <div>
@@ -200,6 +195,10 @@ export function LexieChat() {
             <div className="text-xs text-green-400/60 tracking-wide mt-2">
               <div>✓ LexieAI online</div>
               <div className="pt-1 text-emerald-300">Ready for commands...</div>
+            </div>
+            {/* Mobile Degen Mode Button */}
+            <div className="flex justify-center mt-3">
+              <DegenModeButton />
             </div>
           </div>
           <div className="flex items-center gap-2">
