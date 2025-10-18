@@ -216,24 +216,8 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   // Track which chain is being initialized
   const [initializingChainId, setInitializingChainId] = useState(null);
 
-  // 🚫 BLOCKING: Check if operations should be blocked (use useMemo to avoid initialization issues)
-  const shouldBlockOperations = useMemo(() => {
-    // Check global flag first (set by WalletContext for existing wallets needing network selection)
-    if (typeof window !== 'undefined' && window.__LEXIE_BLOCK_VAULT_OPERATIONS) {
-      return true;
-    }
-
-    // Fallback: Check if existing wallet needs network selection
-    if (!isConnected || !railgunWalletId) return false;
-    try {
-      return localStorage.getItem('lexie-network-selection-completed') !== 'true';
-    } catch (error) {
-      return false;
-    }
-  }, [isConnected, railgunWalletId]);
-
-  // If operations should be blocked, show network selection modal
-  if (shouldBlockOperations) {
+  // 🚫 BLOCKING: Check global flag first (simplest approach)
+  if (typeof window !== 'undefined' && window.__LEXIE_BLOCK_VAULT_OPERATIONS) {
     return (
       <div className="relative h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
         {/* Background overlays */}
