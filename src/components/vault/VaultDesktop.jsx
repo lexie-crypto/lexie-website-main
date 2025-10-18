@@ -216,8 +216,28 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   // Track which chain is being initialized
   const [initializingChainId, setInitializingChainId] = useState(null);
 
-  // 🚫 BLOCKING: Check global flag first (simplest approach)
-  if (typeof window !== 'undefined' && window.__LEXIE_BLOCK_VAULT_OPERATIONS) {
+  // Track if operations are blocked
+  const [operationsBlocked, setOperationsBlocked] = useState(() =>
+    typeof window !== 'undefined' && window.__LEXIE_BLOCK_VAULT_OPERATIONS
+  );
+
+  // Check for blocking flag changes
+  useEffect(() => {
+    const checkBlockStatus = () => {
+      const isBlocked = typeof window !== 'undefined' && window.__LEXIE_BLOCK_VAULT_OPERATIONS;
+      setOperationsBlocked(isBlocked);
+    };
+
+    // Check immediately
+    checkBlockStatus();
+
+    // Also check when the global flag changes
+    const interval = setInterval(checkBlockStatus, 100);
+    return () => clearInterval(interval);
+  }, []);
+
+  // 🚫 BLOCKING: If operations are blocked, show network selection modal
+  if (operationsBlocked) {
     return (
       <div className="relative h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
         {/* Background overlays */}
