@@ -140,7 +140,7 @@ const TitansGameWindow = ({ lexieId, walletAddress, onClose }) => {
   );
 };
 
-const VaultDesktopInner = ({ mobileMode = false }) => {
+const VaultDesktopInner = ({ mobileMode = false, showNavbarLexieChat = false, onNavbarLexieChatClose = () => {} }) => {
   const [isMobile, setIsMobile] = React.useState(false);
 
   React.useEffect(() => {
@@ -273,6 +273,9 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   const [pointsBreakdown, setPointsBreakdown] = useState(null);
   const [showTitansGame, setShowTitansGame] = useState(false);
   const [showLexieChat, setShowLexieChat] = useState(false);
+
+  // Combine navbar chat state with local chat state
+  const isLexieChatVisible = showLexieChat || showNavbarLexieChat;
 
   // Signature confirmation from WalletContext
   const {
@@ -2124,7 +2127,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       )}
 
       {/* LexieAI Chat Window */}
-      {showLexieChat && (
+      {isLexieChatVisible && (
         <WindowShell
           id="lexie-chat-terminal"
           title="LexieAI-chat"
@@ -2135,7 +2138,10 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
           footerRight="Secure LexieAI Communication Channel"
           variant="vault"
           fullscreen={mobileMode}
-          onClose={() => setShowLexieChat(false)}
+          onClose={() => {
+            setShowLexieChat(false);
+            onNavbarLexieChatClose();
+          }}
           initialSize={{ width: 1000, height: 700 }}
           initialPosition={{ x: 200, y: 100 }}
           minSize={{ width: 800, height: 600 }}
@@ -2191,6 +2197,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 const VaultDesktop = () => {
   const [isMobile, setIsMobile] = React.useState(false);
   const [isReady, setIsReady] = React.useState(false);
+  const [showNavbarLexieChat, setShowNavbarLexieChat] = React.useState(false);
 
   React.useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia === 'undefined') {
@@ -2213,9 +2220,13 @@ const VaultDesktop = () => {
   if (isMobile) {
     return (
       <div className="min-h-screen bg-black">
-        <Navbar />
+        <Navbar onLexieChatOpen={() => setShowNavbarLexieChat(true)} />
         <WindowProvider>
-          <VaultDesktopInner mobileMode={true} />
+          <VaultDesktopInner
+            mobileMode={true}
+            showNavbarLexieChat={showNavbarLexieChat}
+            onNavbarLexieChatClose={() => setShowNavbarLexieChat(false)}
+          />
         </WindowProvider>
       </div>
     );

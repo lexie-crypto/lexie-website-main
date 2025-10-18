@@ -1,36 +1,16 @@
 import React, { useState } from 'react';
 import { useWallet } from '../contexts/WalletContext';
 import MobileTitansGame from './MobileTitansGame.jsx';
-import WindowShell from './window/WindowShell.jsx';
-import ChatPage from '../pages/ChatPage.tsx';
 
-export function Navbar() {
+export function Navbar({ onLexieChatOpen }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isTitansGameOpen, setIsTitansGameOpen] = useState(false);
-  const [isLexieChatOpen, setIsLexieChatOpen] = useState(false);
-  const [isMobile, setIsMobile] = React.useState(false);
 
   // Get wallet context for game data
   const { address } = useWallet();
 
   // Get lexieId from localStorage (same way as VaultDesktop)
   const currentLexieId = localStorage.getItem('linkedLexieId');
-
-  // Mobile detection for chat window
-  React.useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia === 'undefined') {
-      return;
-    }
-    const mq = window.matchMedia('(max-width: 639px)');
-    const apply = () => { setIsMobile(mq.matches); };
-    apply();
-    if (mq.addEventListener) mq.addEventListener('change', apply);
-    else if (mq.addListener) mq.addListener(apply);
-    return () => {
-      if (mq.removeEventListener) mq.removeEventListener('change', apply);
-      else if (mq.removeListener) mq.removeListener(apply);
-    };
-  }, []);
 
   // Mobile: sticky (scrolls with page), Desktop: fixed (stays at top)
   const baseClasses = "sticky md:fixed top-0 md:left-0 md:right-0 z-40 w-full p-6 bg-black";
@@ -86,7 +66,7 @@ export function Navbar() {
                 className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors text-left"
                 onClick={() => {
                   setIsMobileMenuOpen(false);
-                  setIsLexieChatOpen(true);
+                  onLexieChatOpen && onLexieChatOpen();
                 }}
               >
                 LexieChat
@@ -122,28 +102,6 @@ export function Navbar() {
         lexieId={currentLexieId}
         walletAddress={address}
       />
-
-      {/* LexieChat Window - Mobile friendly */}
-      {isLexieChatOpen && (
-        <WindowShell
-          id="lexie-chat-navbar-terminal"
-          title="LexieAI-chat"
-          appType="chat"
-          statusLabel="Enable Degen Mode"
-          statusTone="online"
-          footerLeft="LexieAI Chat Terminal"
-          footerRight="Secure LexieAI Communication Channel"
-          variant="vault"
-          fullscreen={isMobile}
-          onClose={() => setIsLexieChatOpen(false)}
-          initialSize={{ width: 1000, height: 700 }}
-          initialPosition={{ x: 200, y: 100 }}
-          minSize={{ width: 800, height: 600 }}
-          className="z-[98]"
-        >
-          <ChatPage />
-        </WindowShell>
-      )}
     </>
   );
 }
