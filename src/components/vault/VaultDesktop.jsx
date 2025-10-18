@@ -249,98 +249,22 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         </div>
 
         <NetworkSelectionModal
-          isOpen={true}
+          isOpen={showNetworkSelectionModal}
           selectedChainId={selectedChainId}
           setSelectedChainId={setSelectedChainId}
           supportedNetworks={supportedNetworks}
           walletChainId={walletChainId}
           switchNetwork={switchNetwork}
-          onConfirm={async () => {
-            // Mark network selection as completed
-            try {
-              localStorage.setItem('lexie-network-selection-completed', 'true');
-            } catch (error) {
-              console.warn('[VaultDesktop] Failed to save network selection completion to localStorage:', error);
-            }
-
-            console.log('✅ Network selection completed, checking Redis for scanned chains...');
-
-            // Check if selected chain is already scanned in Redis
-            const checkChainId = selectedChainId;
-            if (!checkChainId) {
-              console.log('[VaultDesktop] No chainId available for Redis check');
-            } else {
-              try {
-                console.log('[VaultDesktop] Checking Redis for chain:', checkChainId);
-
-                const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-
-                if (response.status === 404) {
-                  console.log('[VaultDesktop] No wallet metadata in Redis - needs scanning');
-                  // Chain not scanned - trigger hydration
-                  await triggerChainHydration(railgunWalletId, checkChainId, address);
-                } else if (response.ok) {
-                  const data = await response.json();
-                  const walletKeys = Array.isArray(data.keys) ? data.keys : [];
-                  const matchingKey = walletKeys.find(key => key.walletId === railgunWalletId) || null;
-
-                  if (!matchingKey) {
-                    console.log('[VaultDesktop] No matching wallet key found - needs scanning');
-                    // Trigger hydration since no key found
-                    await triggerChainHydration(railgunWalletId, checkChainId, address);
-                  } else {
-                    const scannedChains = Array.isArray(matchingKey?.scannedChains)
-                      ? matchingKey.scannedChains
-                      : (Array.isArray(matchingKey?.meta?.scannedChains) ? matchingKey.meta.scannedChains : []);
-
-                    const normalizedScannedChains = scannedChains
-                      .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
-                      .filter(n => Number.isFinite(n));
-
-                    const isChainScanned = normalizedScannedChains.includes(Number(checkChainId));
-
-                    if (isChainScanned) {
-                      console.log('[VaultDesktop] Chain already scanned - wallet ready');
-                    } else {
-                      console.log('[VaultDesktop] Chain not scanned - triggering hydration...');
-                      // Trigger hydration for the selected chain
-                      await triggerChainHydration(railgunWalletId, checkChainId, address);
-                    }
-                  }
-                } else {
-                  console.warn('[VaultDesktop] Redis check failed:', response.status);
-                  // Assume needs hydration on error
-                  await triggerChainHydration(railgunWalletId, checkChainId, address);
-                }
-              } catch (error) {
-                console.warn('[VaultDesktop] Failed to check Redis scanned chains:', error);
-                // Assume needs hydration on error
-                await triggerChainHydration(railgunWalletId, checkChainId, address);
-              }
-            }
-
-            // Clear the global block flag
-            if (typeof window !== 'undefined') {
-              console.log('🚨 Clearing global block flag - network selection completed');
-              window.__LEXIE_BLOCK_VAULT_OPERATIONS = false;
-            }
-
-            // Trigger network selection completion
-            handleNetworkSelection();
-
-            console.log('✅ Network selection and hydration complete - now proceeding with wallet operations');
+          onConfirm={() => {
+            // Resolve the network selection promise with selected network data
+            handleNetworkSelection({
+              chainId: selectedChainId,
+              networkName: supportedNetworks.find(n => n.id === selectedChainId)?.name || 'Unknown'
+            });
           }}
           onCancel={() => {
-            // Clear the global block flag
-            if (typeof window !== 'undefined') {
-              console.log('🚨 Clearing global block flag on cancel');
-              window.__LEXIE_BLOCK_VAULT_OPERATIONS = false;
-            }
-
-            // Disconnect wallet on cancel
-            if (typeof window !== 'undefined') {
-              window.location.reload();
-            }
+            // For now, just disconnect if user cancels network selection
+            disconnectWallet();
           }}
         />
       </div>

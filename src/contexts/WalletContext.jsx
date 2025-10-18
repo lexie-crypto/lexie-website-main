@@ -1057,6 +1057,25 @@ const WalletContextProvider = ({ children }) => {
       }
     } catch {}
 
+    // 🔒 NETWORK SELECTION BLOCKING: Show network selection modal and wait for user choice
+    // This blocks ALL wallet operations until user selects a network
+    console.log('[Railgun Init] 🔒 Showing network selection modal (blocking operation)...');
+    setShowNetworkSelectionModal(true);
+
+    // Create promise that resolves when user selects network
+    const networkPromise = new Promise((resolve) => {
+      setNetworkSelectionPromise({ resolve });
+    });
+
+    // Wait for user network selection (blocks until network is chosen)
+    const selectedNetworkData = await networkPromise;
+
+    // Reset network selection modal state
+    setShowNetworkSelectionModal(false);
+    setNetworkSelectionPromise(null);
+
+    console.log('[Railgun Init] ✅ Network selected, proceeding with wallet initialization:', selectedNetworkData);
+
     setIsInitializing(true);
     setRailgunError(null);
     
@@ -2761,11 +2780,11 @@ const WalletContextProvider = ({ children }) => {
 
     // Network selection modal control
     showNetworkSelectionModal,
-    handleNetworkSelection: () => {
+    handleNetworkSelection: (selectedNetworkData) => {
       if (networkSelectionPromise) {
         // Mark network selection as completed
         localStorage.setItem('lexie-network-selection-completed', 'true');
-        networkSelectionPromise.resolve();
+        networkSelectionPromise.resolve(selectedNetworkData);
       }
     },
 
