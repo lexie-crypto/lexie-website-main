@@ -90,8 +90,6 @@ export function Navbar({ onLexieChatOpen }) {
         )}
       </nav>
 
-      {/* IMPROVED: Mobile-only spacer */}
-      <div className="h-24 md:hidden" /> {/* Only show on mobile to prevent content from hiding under fixed navbar */}
 
       {/* Mobile Titans Game Modal */}
       <MobileTitansGame
