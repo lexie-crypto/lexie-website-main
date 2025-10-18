@@ -165,6 +165,8 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     handleLexieIdChoice,
     onLexieIdLinked,
     ensureChainScanned,
+    hasCompletedNetworkSelection,
+    setHasCompletedNetworkSelection,
   } = useWallet();
 
   // Window management hooks
@@ -256,15 +258,8 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   const [showTitansGame, setShowTitansGame] = useState(false);
   const [showLexieChat, setShowLexieChat] = useState(false);
 
-  // Signature confirmation from WalletContext
-  const {
-    showSignatureConfirmation,
-    isNetworkSelectionOnly,
-    pendingSignatureMessage,
-    confirmSignature,
-    cancelSignature,
-    switchNetwork,
-  } = useWallet();
+  // Network switching
+  const { switchNetwork } = useWallet();
 
   // Handle LexieID linking and game opening
   const handleLexieIdLink = useCallback((lexieId, autoOpenGame = false) => {
@@ -1468,7 +1463,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     };
   }, [isChainMenuOpen, isMobileChainMenuOpen, isModalChainMenuOpen]);
 
-  if (!isConnected || (isConnected && !isNetworkSupported) || walletConnectValidating) {
+  if (!isConnected || walletConnectValidating) {
     return (
       <div className="relative h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
         {/* Background overlays */}
@@ -1529,6 +1524,65 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
             </div>
           </TerminalWindow>
         </div>
+      </div>
+    );
+  }
+
+  // Show network selection modal if connected but hasn't completed network selection
+  if (isConnected && !hasCompletedNetworkSelection) {
+    return (
+      <div className="relative h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
+        {/* Background overlays - same as connection screen */}
+        <div className="fixed inset-0 z-0">
+          <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60"></div>
+          <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-purple-900/40 via-purple-800/20 to-transparent"></div>
+          <div className="absolute inset-0 opacity-30">
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(147,51,234,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(147,51,234,0.2)_1px,transparent_1px)] bg-[size:40px_40px] animate-pulse"></div>
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.1)_1px,transparent_1px)] bg-[size:80px_80px] animate-pulse" style={{animationDelay: '1s'}}></div>
+          </div>
+          <div className="absolute inset-0 overflow-hidden scrollbar-terminal">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={i}
+                className="absolute rounded-full animate-pulse"
+                style={{
+                  left: `${20 + i * 30}%`,
+                  top: `${20 + i * 20}%`,
+                  width: `${200 + i * 100}px`,
+                  height: `${200 + i * 100}px`,
+                  background: `radial-gradient(circle, rgba(147, 51, 234, 0.1) 0%, rgba(147, 51, 234, 0.05) 50%, transparent 100%)`,
+                  animationDelay: `${i * 2}s`,
+                  animationDuration: `${6 + i * 2}s`,
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
+        <SignatureConfirmationModal
+          isOpen={true}
+          selectedChainId={selectedChainId}
+          setSelectedChainId={setSelectedChainId}
+          setInitializingChainId={setInitializingChainId}
+          supportedNetworks={supportedNetworks}
+          walletChainId={walletChainId}
+          switchNetwork={switchNetwork}
+          pendingSignatureMessage="Welcome to LexieVault! Please select a network to continue."
+          onConfirm={() => {
+            // Mark network selection as completed
+            setHasCompletedNetworkSelection(true);
+            try {
+              localStorage.setItem('lexie-network-selection-completed', 'true');
+            } catch (error) {
+              console.warn('[VaultDesktop] Failed to save network selection completion to localStorage:', error);
+            }
+          }}
+          onCancel={() => {
+            // Disconnect wallet on cancel
+            disconnectWallet();
+          }}
+        />
       </div>
     );
   }
@@ -2020,19 +2074,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         onClose={() => setShowSignRequestPopup(false)}
       />
 
-      <SignatureConfirmationModal
-        isOpen={showSignatureConfirmation}
-        selectedChainId={selectedChainId}
-        setSelectedChainId={setSelectedChainId}
-        setInitializingChainId={setInitializingChainId}
-        supportedNetworks={supportedNetworks}
-        walletChainId={walletChainId}
-        switchNetwork={switchNetwork}
-        pendingSignatureMessage={pendingSignatureMessage}
-        onConfirm={confirmSignature}
-        onCancel={cancelSignature}
-        isNetworkSelectionOnly={isNetworkSelectionOnly}
-      />
 
       {/* Taskbar for minimized windows - Hidden on mobile */}
       {!mobileMode && <Taskbar />}

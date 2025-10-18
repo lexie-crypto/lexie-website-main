@@ -10,8 +10,7 @@ const SignatureConfirmationModal = ({
   switchNetwork,
   pendingSignatureMessage,
   onConfirm,
-  onCancel,
-  isNetworkSelectionOnly = false
+  onCancel
 }) => {
   const [isModalChainMenuOpen, setIsModalChainMenuOpen] = useState(false);
 
@@ -34,14 +33,9 @@ const SignatureConfirmationModal = ({
         </div>
         <div className="p-6 text-green-300 space-y-4">
           <div>
-            <h3 className="text-lg font-bold text-emerald-300 mb-2">
-              {isNetworkSelectionOnly ? 'Select Network for Vault Access' : 'Create Your LexieVault'}
-            </h3>
+            <h3 className="text-lg font-bold text-emerald-300 mb-2">Create Your LexieVault</h3>
             <p className="text-green-400/80 text-sm">
-              {isNetworkSelectionOnly
-                ? 'Choose the blockchain network where your existing LexieVault is located to access your funds.'
-                : 'Choose the blockchain network for your vault and confirm the signature to securely initialize your LexieVault.'
-              }
+              Choose the blockchain network for your vault and confirm the signature to securely initialize your LexieVault.
             </p>
           </div>
 
@@ -100,22 +94,17 @@ const SignatureConfirmationModal = ({
             </div>
           </div>
 
-          {!isNetworkSelectionOnly && (
-            <div className="bg-black/40 border border-green-500/20 rounded p-3">
-              <div className="text-green-200 text-xs mb-2 font-medium">Message to sign:</div>
-              <pre className="whitespace-pre-wrap text-green-300 text-xs font-mono bg-black/60 p-2 rounded border border-green-500/10">
-                {pendingSignatureMessage}
-              </pre>
-            </div>
-          )}
+          <div className="bg-black/40 border border-green-500/20 rounded p-3">
+            <div className="text-green-200 text-xs mb-2 font-medium">Message to sign:</div>
+            <pre className="whitespace-pre-wrap text-green-300 text-xs font-mono bg-black/60 p-2 rounded border border-green-500/10">
+              {pendingSignatureMessage}
+            </pre>
+          </div>
 
           <div className="bg-blue-900/20 border border-blue-500/40 rounded p-3">
             <div className="text-blue-300 text-xs font-medium mb-1">🔒 Security Note:</div>
             <div className="text-blue-200/80 text-xs">
-              {isNetworkSelectionOnly
-                ? 'Network selection only switches your wallet connection. No signatures are required for vault access.'
-                : 'This signature only initializes your vault and never grants access to your funds. Your private keys remain secure in your wallet.'
-              }
+              This signature only iniializes your vault and never grants access to your funds. Your private keys remain secure in your wallet.
             </div>
           </div>
 
@@ -133,7 +122,7 @@ const SignatureConfirmationModal = ({
                 ? 'Select Network First'
                 : walletChainId !== selectedChainId
                 ? 'Switching Network...'
-                : isNetworkSelectionOnly ? 'Access Vault' : 'Create Vault'
+                : 'Create Vault'
               }
             </button>
             <button

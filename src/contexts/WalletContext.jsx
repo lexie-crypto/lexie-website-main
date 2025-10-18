@@ -341,9 +341,15 @@ const WalletContextProvider = ({ children }) => {
   const [lexieIdChoicePromise, setLexieIdChoicePromise] = useState(null);
   const [lexieIdLinkPromise, setLexieIdLinkPromise] = useState(null);
   const [showSignatureConfirmation, setShowSignatureConfirmation] = useState(false);
-  const [isNetworkSelectionOnly, setIsNetworkSelectionOnly] = useState(false);
   const [signatureConfirmationPromise, setSignatureConfirmationPromise] = useState(null);
   const [pendingSignatureMessage, setPendingSignatureMessage] = useState('');
+  const [hasCompletedNetworkSelection, setHasCompletedNetworkSelection] = useState(() => {
+    try {
+      return localStorage.getItem('lexie-network-selection-completed') === 'true';
+    } catch (error) {
+      return false;
+    }
+  });
 
   // Wagmi hooks - ONLY for UI wallet connection
   const { address, isConnected, chainId, connector, status } = useAccount();
@@ -390,10 +396,9 @@ const WalletContextProvider = ({ children }) => {
   }, [chainId]);
 
   // Signature confirmation
-  const requestSignatureConfirmation = useCallback((message, networkSelectionOnly = false) => {
+  const requestSignatureConfirmation = useCallback((message) => {
     return new Promise((resolve) => {
       setPendingSignatureMessage(message);
-      setIsNetworkSelectionOnly(networkSelectionOnly);
       setShowSignatureConfirmation(true);
       setSignatureConfirmationPromise({ resolve });
     });
@@ -424,7 +429,6 @@ const WalletContextProvider = ({ children }) => {
       signatureConfirmationPromise.resolve(true);
       setSignatureConfirmationPromise(null);
       setShowSignatureConfirmation(false);
-      setIsNetworkSelectionOnly(false);
       setPendingSignatureMessage('');
     }
   }, [signatureConfirmationPromise]);  // Remove chainId from dependencies
@@ -434,7 +438,6 @@ const WalletContextProvider = ({ children }) => {
       signatureConfirmationPromise.resolve(false);
       setSignatureConfirmationPromise(null);
       setShowSignatureConfirmation(false);
-      setIsNetworkSelectionOnly(false);
       setPendingSignatureMessage('');
     }
   }, [signatureConfirmationPromise]);
@@ -914,6 +917,7 @@ const WalletContextProvider = ({ children }) => {
       setRailgunWalletID(null);
       setRailgunError(null);
       setIsInitializing(false);
+      setHasCompletedNetworkSelection(false);
       selectedInjectedProviderRef.current = null;
 
       // Best-effort: pause Railgun polling quickly
@@ -2159,55 +2163,54 @@ const WalletContextProvider = ({ children }) => {
 
   // Auto-initialize Railgun when wallet connects (only if not already initialized)
   useEffect(() => {
-    // Async function to handle network selection and initialization
-    const handleWalletConnection = async () => {
-      // 🛡️ Prevent force reinitialization if already initialized
-      if (isRailgunInitialized) {
-        console.log('✅ Railgun already initialized for:', address);
+    // 🛡️ Prevent force reinitialization if already initialized
+    if (isRailgunInitialized) {
+      console.log('✅ Railgun already initialized for:', address);
+      
+      // 🎯 FIXED: Don't auto-resume polling - let useBalances hook control when to poll
+      console.log('⏸️ Providers remain paused - will resume only when balance refresh needed');
+      return;
+    }
+    
+    // Respect suppression flag (PaymentPage and other pages that don't need wallet creation)
+    if (typeof window !== 'undefined' && (window.__LEXIE_SUPPRESS_RAILGUN_INIT || window.__LEXIE_PAYMENT_PAGE)) {
+      console.log('[Railgun Init] ⏭️ Suppressed auto-init due to page flag (__LEXIE_SUPPRESS_RAILGUN_INIT or __LEXIE_PAYMENT_PAGE)');
+      return;
+    }
 
-        // 🎯 FIXED: Don't auto-resume polling - let useBalances hook control when to poll
-        console.log('⏸️ Providers remain paused - will resume only when balance refresh needed');
+    // Bail if currently disconnecting to avoid race with stale wagmi state
+    if (disconnectingRef.current) {
+      console.log('[Railgun Init] ⏳ Skipping auto-init: disconnect in progress');
+      return;
+    }
+
+    // Require wagmi status to be fully connected, not just isConnected
+    if (status !== 'connected') {
+      return;
+    }
+
+    // Prevent same-address re-init immediately after disconnect; require explicit reconnect
+    if (lastInitializedAddressRef.current && lastInitializedAddressRef.current === address) {
+      console.log('[Railgun Init] ⏭️ Skipping auto-init for same address until explicit reconnect');
+      return;
+    }
+
+    if (isConnected && address && !isInitializing) {
+      // Final safety check: ensure we have a valid supported chainId before initializing Railgun
+      if (!chainId || chainId === 'NaN' || isNaN(chainId)) {
+        console.log('⏳ [Railgun Init] Chain ID not yet available, deferring initialization...');
         return;
       }
 
-      // Respect suppression flag (PaymentPage and other pages that don't need wallet creation)
-      if (typeof window !== 'undefined' && (window.__LEXIE_SUPPRESS_RAILGUN_INIT || window.__LEXIE_PAYMENT_PAGE)) {
-        console.log('[Railgun Init] ⏭️ Suppressed auto-init due to page flag (__LEXIE_SUPPRESS_RAILGUN_INIT or __LEXIE_PAYMENT_PAGE)');
+      const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
+      if (!supportedNetworks[chainId]) {
+        console.log(`🚫 [Railgun Init] Refusing to initialize on unsupported network (chainId: ${chainId})`);
         return;
       }
 
-      // Bail if currently disconnecting to avoid race with stale wagmi state
-      if (disconnectingRef.current) {
-        console.log('[Railgun Init] ⏳ Skipping auto-init: disconnect in progress');
-        return;
-      }
-
-      // Require wagmi status to be fully connected, not just isConnected
-      if (status !== 'connected') {
-        return;
-      }
-
-      // Prevent same-address re-init immediately after disconnect; require explicit reconnect
-      if (lastInitializedAddressRef.current && lastInitializedAddressRef.current === address) {
-        console.log('[Railgun Init] ⏭️ Skipping auto-init for same address until explicit reconnect');
-        return;
-      }
-
-      if (isConnected && address && !isInitializing) {
-        // Always show network selection modal when wallet connects, regardless of existing vault status
-        console.log('🔗 Wallet connected, showing network selection modal for vault access');
-        lastInitializedAddressRef.current = address;
-
-        // Show signature confirmation modal to let user choose network
-        const confirmed = await requestSignatureConfirmation('Select the blockchain network for your LexieVault access.', true);
-        if (!confirmed) {
-          console.log('❌ User cancelled network selection');
-          return;
-        }
-
-        // After network selection, proceed with vault initialization
-        console.log('✅ Network selected, proceeding with vault initialization');
-        initializeRailgun().then(() => {
+      console.log('🚀 Auto-initializing Railgun for connected wallet:', address);
+      lastInitializedAddressRef.current = address;
+      initializeRailgun().then(() => {
         // 🚀 BOOTSTRAP: After Railgun init, check if we need to load chain bootstrap
         setTimeout(async () => {
           try {
@@ -2297,10 +2300,6 @@ const WalletContextProvider = ({ children }) => {
         }, 2000); // Wait a bit for wallet to fully initialize
       });
     }
-
-    // Call the async function
-    handleWalletConnection();
-    };
   }, [isConnected, address, isRailgunInitialized, isInitializing, chainId, status]);
 
   // Update Railgun providers when chain or wallet changes - FIXED: Prevent infinite loops
@@ -2745,10 +2744,13 @@ const WalletContextProvider = ({ children }) => {
 
     // Signature confirmation modal
     showSignatureConfirmation,
-    isNetworkSelectionOnly,
     pendingSignatureMessage,
     confirmSignature,
     cancelSignature,
+
+    // Network selection
+    hasCompletedNetworkSelection,
+    setHasCompletedNetworkSelection,
 
     // Chain scanning
     ensureChainScanned,
