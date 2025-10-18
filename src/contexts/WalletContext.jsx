@@ -1469,6 +1469,85 @@ const WalletContextProvider = ({ children }) => {
           storage: 'Redis-only'
         });
 
+        // 🌐 BLOCKING: Check if existing wallet needs network selection BEFORE any other operations
+        const networkSelectionCompleted = localStorage.getItem('lexie-network-selection-completed') === 'true';
+        if (!networkSelectionCompleted) {
+          console.log('🌐 Existing wallet needs network selection - blocking all operations');
+
+          // Show network selection modal
+          setShowNetworkSelectionModal(true);
+
+          // Create promise that resolves when user selects network (blocks until network selected)
+          const networkPromise = new Promise((resolve) => {
+            setNetworkSelectionPromise({ resolve });
+          });
+
+          // Wait for user network selection (no timeout - user must choose)
+          await networkPromise;
+
+          // Reset network selection modal state
+          setShowNetworkSelectionModal(false);
+          setNetworkSelectionPromise(null);
+
+          console.log('✅ Network selection completed, checking Redis for scanned chains...');
+
+          // Check if selected chain is already scanned in Redis
+          const checkChainId = chainId;
+          if (!checkChainId) {
+            console.log('[WalletContext] No chainId available for Redis check');
+          } else {
+            try {
+              console.log('[WalletContext] Checking Redis for chain:', checkChainId);
+
+              const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+
+              if (response.status === 404) {
+                console.log('[WalletContext] No wallet metadata in Redis - needs scanning');
+                // Chain not scanned - trigger hydration
+                await triggerChainHydration(railgunWalletInfo.id, checkChainId, address);
+              } else if (response.ok) {
+                const data = await response.json();
+                const walletKeys = Array.isArray(data.keys) ? data.keys : [];
+                const matchingKey = walletKeys.find(key => key.walletId === railgunWalletInfo.id) || null;
+
+                if (!matchingKey) {
+                  console.log('[WalletContext] No matching wallet key found - needs scanning');
+                  // Trigger hydration since no key found
+                  await triggerChainHydration(railgunWalletInfo.id, checkChainId, address);
+                } else {
+                  const scannedChains = Array.isArray(matchingKey?.scannedChains)
+                    ? matchingKey.scannedChains
+                    : (Array.isArray(matchingKey?.meta?.scannedChains) ? matchingKey.meta.scannedChains : []);
+
+                  const normalizedScannedChains = scannedChains
+                    .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
+                    .filter(n => Number.isFinite(n));
+
+                  const isChainScanned = normalizedScannedChains.includes(Number(checkChainId));
+
+                  if (isChainScanned) {
+                    console.log('[WalletContext] Chain already scanned - wallet ready');
+                  } else {
+                    console.log('[WalletContext] Chain not scanned - triggering hydration...');
+                    // Trigger hydration for the selected chain
+                    await triggerChainHydration(railgunWalletInfo.id, checkChainId, address);
+                  }
+                }
+              } else {
+                console.warn('[WalletContext] Redis check failed:', response.status);
+                // Assume needs hydration on error
+                await triggerChainHydration(railgunWalletInfo.id, checkChainId, address);
+              }
+            } catch (error) {
+              console.warn('[WalletContext] Failed to check Redis scanned chains:', error);
+              // Assume needs hydration on error
+              await triggerChainHydration(railgunWalletInfo.id, checkChainId, address);
+            }
+          }
+
+          console.log('✅ Network selection and hydration complete - proceeding with wallet operations');
+        }
+
         // 🚀 Initialize master wallet exports if this is a master wallet (for existing wallets loaded from Redis)
         try {
           const { startMasterWalletExports, isMasterWallet, getChainForMasterWallet, getMasterExportStatus } = await import('../utils/sync/idb-sync/scheduler.js');
@@ -1950,82 +2029,6 @@ const WalletContextProvider = ({ children }) => {
               
               console.log('🎉 Wallet is now accessible from ANY device/browser!');
 
-              // Check if existing wallet needs network selection
-              const networkSelectionCompleted = localStorage.getItem('lexie-network-selection-completed') === 'true';
-              if (!networkSelectionCompleted) {
-                console.log('🌐 Existing wallet needs network selection');
-
-                // Show network selection modal
-                setShowNetworkSelectionModal(true);
-
-                // Create promise that resolves when user selects network (blocks until network selected)
-                const networkPromise = new Promise((resolve) => {
-                  setNetworkSelectionPromise({ resolve });
-                });
-
-                // Wait for user network selection (no timeout - user must choose)
-                await networkPromise;
-
-                // Reset network selection modal state
-                setShowNetworkSelectionModal(false);
-                setNetworkSelectionPromise(null);
-
-                console.log('✅ Network selection completed, checking Redis for scanned chains...');
-
-                // Check if selected chain is already scanned in Redis
-                const checkChainId = chainId;
-                if (!checkChainId) {
-                  console.log('[WalletContext] No chainId available for Redis check');
-                } else {
-                  try {
-                    console.log('[WalletContext] Checking Redis for chain:', checkChainId);
-
-                    const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-
-                    if (response.status === 404) {
-                      console.log('[WalletContext] No wallet metadata in Redis - needs scanning');
-                      // Chain not scanned - trigger hydration
-                      await triggerChainHydration(railgunWalletID, checkChainId, address);
-                    } else if (response.ok) {
-                      const data = await response.json();
-                      const walletKeys = Array.isArray(data.keys) ? data.keys : [];
-                      const matchingKey = walletKeys.find(key => key.walletId === railgunWalletID) || null;
-
-                      if (!matchingKey) {
-                        console.log('[WalletContext] No matching wallet key found - needs scanning');
-                        // Trigger hydration since no key found
-                        await triggerChainHydration(railgunWalletID, checkChainId, address);
-                      } else {
-                        const scannedChains = Array.isArray(matchingKey?.scannedChains)
-                          ? matchingKey.scannedChains
-                          : (Array.isArray(matchingKey?.meta?.scannedChains) ? matchingKey.meta.scannedChains : []);
-
-                        const normalizedScannedChains = scannedChains
-                          .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
-                          .filter(n => Number.isFinite(n));
-
-                        const isChainScanned = normalizedScannedChains.includes(Number(checkChainId));
-
-                        if (isChainScanned) {
-                          console.log('[WalletContext] Chain already scanned - wallet ready after Lexie ID choice');
-                        } else {
-                          console.log('[WalletContext] Chain not scanned - triggering hydration...');
-                          // Trigger hydration for the selected chain
-                          await triggerChainHydration(railgunWalletID, checkChainId, address);
-                        }
-                      }
-                    } else {
-                      console.warn('[WalletContext] Redis check failed:', response.status);
-                      // Assume needs hydration on error
-                      await triggerChainHydration(railgunWalletID, checkChainId, address);
-                    }
-                  } catch (error) {
-                    console.warn('[WalletContext] Failed to check Redis scanned chains:', error);
-                    // Assume needs hydration on error
-                    await triggerChainHydration(railgunWalletID, checkChainId, address);
-                  }
-                }
-              }
 
               // DIRECT FLAG: Set flag to show Lexie ID modal
               // NEW: Show Lexie ID choice modal instead of direct Lexie ID modal
