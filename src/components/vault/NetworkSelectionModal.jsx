@@ -1,14 +1,12 @@
 import React, { useState } from 'react';
 
-const SignatureConfirmationModal = ({
+const NetworkSelectionModal = ({
   isOpen,
   selectedChainId,
   setSelectedChainId,
-  setInitializingChainId,
   supportedNetworks,
   walletChainId,
   switchNetwork,
-  pendingSignatureMessage,
   onConfirm,
   onCancel
 }) => {
@@ -21,7 +19,7 @@ const SignatureConfirmationModal = ({
       <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden scrollbar-none">
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
           <div className="flex items-center gap-3">
-            <span className="text-sm tracking-wide text-gray-400">vault-signature-confirm</span>
+            <span className="text-sm tracking-wide text-gray-400">network-selection</span>
           </div>
           <button
             onClick={onCancel}
@@ -33,9 +31,9 @@ const SignatureConfirmationModal = ({
         </div>
         <div className="p-6 text-green-300 space-y-4">
           <div>
-            <h3 className="text-lg font-bold text-emerald-300 mb-2">Initialize Your LexieVault</h3>
+            <h3 className="text-lg font-bold text-emerald-300 mb-2">Welcome Back to LexieVault</h3>
             <p className="text-green-400/80 text-sm">
-              Choose the blockchain network you want your LexieVault to initialize on.
+              Choose the blockchain network for your vault operations.
             </p>
           </div>
 
@@ -63,16 +61,15 @@ const SignatureConfirmationModal = ({
                         key={network.id}
                         type="button"
                         onClick={async () => {
-                          console.log(`[Signature Modal] User selected chain ${network.id}, current wallet chainId: ${walletChainId}`);
+                          console.log(`[Network Selection] User selected chain ${network.id}, current wallet chainId: ${walletChainId}`);
                           setSelectedChainId(network.id);
-                          setInitializingChainId(network.id); // Track which chain we're initializing
                           setIsModalChainMenuOpen(false);
                           // Also switch the wallet to the selected network
                           try {
                             await switchNetwork(network.id);
-                            console.log(`[Signature Modal] Successfully switched wallet to chain ${network.id}, wallet should now be on chainId: ${network.id}`);
+                            console.log(`[Network Selection] Successfully switched wallet to chain ${network.id}, wallet should now be on chainId: ${network.id}`);
                           } catch (error) {
-                            console.error(`[Signature Modal] Failed to switch wallet to chain ${network.id}:`, error);
+                            console.error(`[Network Selection] Failed to switch wallet to chain ${network.id}:`, error);
                           }
                         }}
                         className={`w-full px-3 py-2 text-left flex items-center justify-between hover:bg-emerald-900/20 transition-colors duration-150 ${network.id === selectedChainId ? 'bg-emerald-900/30' : ''}`}
@@ -94,17 +91,10 @@ const SignatureConfirmationModal = ({
             </div>
           </div>
 
-          <div className="bg-black/40 border border-green-500/20 rounded p-3">
-            <div className="text-green-200 text-xs mb-2 font-medium">Message to sign:</div>
-            <pre className="whitespace-pre-wrap text-green-300 text-xs font-mono bg-black/60 p-2 rounded border border-green-500/10">
-              {pendingSignatureMessage}
-            </pre>
-          </div>
-
           <div className="bg-blue-900/20 border border-blue-500/40 rounded p-3">
-            <div className="text-blue-300 text-xs font-medium mb-1">🔒 Security Note:</div>
+            <div className="text-blue-300 text-xs font-medium mb-1">🔗 Network Selection:</div>
             <div className="text-blue-200/80 text-xs">
-              This signature only iniializes your vault and never grants access to your funds. Your private keys remain secure in your wallet.
+              Choose your preferred network for vault operations. You can switch networks later from the vault interface.
             </div>
           </div>
 
@@ -122,14 +112,14 @@ const SignatureConfirmationModal = ({
                 ? 'Select Network First'
                 : walletChainId !== selectedChainId
                 ? 'Switching Network...'
-                : 'Initialize Vault'
+                : 'Continue to Vault'
               }
             </button>
             <button
               onClick={onCancel}
               className="flex-1 bg-gray-700/30 hover:bg-gray-700/50 text-gray-300 py-2.5 px-4 rounded border border-gray-500/40 hover:border-gray-400 transition-all duration-200 text-sm font-medium"
             >
-              Cancel
+              Disconnect
             </button>
           </div>
 
@@ -147,4 +137,4 @@ const SignatureConfirmationModal = ({
   );
 };
 
-export default SignatureConfirmationModal;
+export default NetworkSelectionModal;

@@ -343,13 +343,6 @@ const WalletContextProvider = ({ children }) => {
   const [showSignatureConfirmation, setShowSignatureConfirmation] = useState(false);
   const [signatureConfirmationPromise, setSignatureConfirmationPromise] = useState(null);
   const [pendingSignatureMessage, setPendingSignatureMessage] = useState('');
-  const [hasCompletedNetworkSelection, setHasCompletedNetworkSelection] = useState(() => {
-    try {
-      return localStorage.getItem('lexie-network-selection-completed') === 'true';
-    } catch (error) {
-      return false;
-    }
-  });
 
   // Wagmi hooks - ONLY for UI wallet connection
   const { address, isConnected, chainId, connector, status } = useAccount();
@@ -917,7 +910,6 @@ const WalletContextProvider = ({ children }) => {
       setRailgunWalletID(null);
       setRailgunError(null);
       setIsInitializing(false);
-      setHasCompletedNetworkSelection(false);
       selectedInjectedProviderRef.current = null;
 
       // Best-effort: pause Railgun polling quickly
@@ -2747,10 +2739,6 @@ const WalletContextProvider = ({ children }) => {
     pendingSignatureMessage,
     confirmSignature,
     cancelSignature,
-
-    // Network selection
-    hasCompletedNetworkSelection,
-    setHasCompletedNetworkSelection,
 
     // Chain scanning
     ensureChainScanned,
