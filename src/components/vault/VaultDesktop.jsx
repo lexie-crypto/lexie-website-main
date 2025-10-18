@@ -1570,7 +1570,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         </div>
       </div>
 
-      <div className="relative z-10 px-4 sm:px-6 lg:px-8 py-8">
+      <div className={`relative z-10 px-4 sm:px-6 lg:px-8 py-8 ${mobileMode ? 'pt-16' : ''}`}>
         <WindowShell
           id="lexie-vault-terminal"
           title="lexie-vault"
