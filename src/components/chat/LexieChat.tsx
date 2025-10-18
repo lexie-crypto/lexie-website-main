@@ -78,7 +78,7 @@ const DegenModeButton = () => {
   );
 };
 
-export function LexieChat({ hideMobileHeader = false }) {
+export function LexieChat() {
   const { darkMode, createConversation } = useChatStore();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -185,29 +185,32 @@ export function LexieChat({ hideMobileHeader = false }) {
   return (
     <div className="relative z-10 w-full md:max-w-screen-xl md:mx-auto md:px-4 md:sm:px-6 md:lg:px-8 md:py-8 min-h-screen min-w-0 mobile-app-wrapper scrollbar-terminal">
       <div className="font-mono text-green-300 space-y-1 min-h-[18.75rem] md:h-screen flex flex-col md:min-h-0 md:min-w-0 mobile-chat-layout md:px-8 md:pt-4 md:pb-6">
-        {/* Mobile Menu Button - Hidden when header is hidden */}
-        {!hideMobileHeader && (
-          <div className="md:hidden flex items-center justify-between -pb-6 flex-shrink-0">
-            <div>
-              <h1 className="text-xl font-bold text-emerald-300">LexieAI Chat Terminal</h1>
-              <div className="flex items-center pt-1space-x-2 text-sm">
-                <span className="text-green-400/80">Secure LexieAI Communication Channel</span>
-              </div>
-              <div className="text-xs text-green-400/60 tracking-wide mt-2">
-                <div>✓ LexieAI online</div>
-                <div className="pt-1 text-emerald-300">Ready for commands...</div>
-              </div>
+        {/* Mobile Degen Mode Button */}
+        <div className="md:hidden flex justify-center mb-2 flex-shrink-0">
+          <DegenModeButton />
+        </div>
+
+        {/* Mobile Menu Button */}
+        <div className="md:hidden flex items-center justify-between -pb-6 flex-shrink-0">
+          <div>
+            <h1 className="text-xl font-bold text-emerald-300">LexieAI Chat Terminal</h1>
+            <div className="flex items-center pt-1space-x-2 text-sm">
+              <span className="text-green-400/80">Secure LexieAI Communication Channel</span>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="p-2 bg-gray-800 border border-green-500/30 rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                {isMobileMenuOpen ? <XIcon size={20} className="text-green-400" /> : <MenuIcon size={20} className="text-green-400" />}
-              </button>
+            <div className="text-xs text-green-400/60 tracking-wide mt-2">
+              <div>✓ LexieAI online</div>
+              <div className="pt-1 text-emerald-300">Ready for commands...</div>
             </div>
           </div>
-        )}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="p-2 bg-gray-800 border border-green-500/30 rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              {isMobileMenuOpen ? <XIcon size={20} className="text-green-400" /> : <MenuIcon size={20} className="text-green-400" />}
+            </button>
+          </div>
+        </div>
 
         {/* Desktop Header */}
         <div className="hidden md:flex items-center justify-between border-b scrollbar-terminal border-green-500/20 pb-4 flex-shrink-0">
@@ -231,8 +234,8 @@ export function LexieChat({ hideMobileHeader = false }) {
           </div>
         </div>
 
-        {/* Divider - Hidden on mobile when header is hidden */}
-        {!hideMobileHeader && <div className="border-t border-teal-500/10 my-6"></div>}
+        {/* Divider */}
+        <div className="border-t border-teal-500/10 my-6"></div>
 
         {/* Chat Interface */}
         <div className="flex h-full bg-background text-foreground relative md:flex-row flex-col md:min-h-0 md:min-w-0 mobile-chat-container scrollbar-terminal">

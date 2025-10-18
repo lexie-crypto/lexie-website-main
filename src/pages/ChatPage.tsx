@@ -28,8 +28,8 @@ const ChatPage = () => {
   return (
     <div className={`${isInIframe ? 'h-screen' : 'min-h-screen'} bg-black text-white ${isInIframe ? '' : 'scrollbar-terminal'}`}>
       {!isInIframe && isMobile && <Navbar onLexieChatOpen={() => {}} />}
-      <div className={`${!isInIframe && isMobile ? 'mt-0' : ''}`}>
-        <LexieChat hideMobileHeader={isMobile} />
+      <div className={`${!isInIframe && isMobile ? '-mt-12' : ''}`}>
+        <LexieChat />
       </div>
     </div>
   );
