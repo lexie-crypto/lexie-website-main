@@ -123,9 +123,9 @@ export function LexieChat() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="p-2 bg-gray-800 border border-green-500/30 rounded-lg hover:bg-gray-700 transition-colors"
+                className="px-3 py-1 bg-gray-800 border border-green-500/30 rounded-lg hover:bg-gray-700 transition-colors text-green-400 text-sm font-medium"
               >
-                {isMobileMenuOpen ? <XIcon size={20} className="text-green-400" /> : <MenuIcon size={20} className="text-green-400" />}
+                {isMobileMenuOpen ? 'Close' : 'History'}
               </button>
             </div>
           </div>
@@ -197,14 +197,14 @@ export function LexieChat() {
               <div className="pt-1 text-emerald-300">Ready for commands...</div>
             </div>
             {/* Mobile Controls Row */}
-            <div className="flex items-center justify-between mt-3 w-full gap-2">
+            <div className="flex items-center justify-between mt-3 w-full gap-4">
                 <DegenModeButton />
-                <button
-                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                  className="p-2 bg-gray-800 border border-green-500/30 rounded-lg hover:bg-gray-700 transition-colors"
-                >
-                  {isMobileMenuOpen ? <XIcon size={20} className="text-green-400" /> : <MenuIcon size={20} className="text-green-400" />}
-                </button>
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="px-3 py-1 bg-gray-800 border border-green-500/30 rounded-lg hover:bg-gray-700 transition-colors text-green-400 text-sm font-medium"
+            >
+              {isMobileMenuOpen ? 'Close' : 'History'}
+            </button>
             </div>
           </div>
         </div>
