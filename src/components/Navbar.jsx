@@ -70,7 +70,9 @@ export function Navbar() {
                 onClick={() => {
                   setIsMobileMenuOpen(false);
                   if (currentLexieId) {
-                    setIsTitansGameOpen(true);
+                    // Open LexieTitans game in new tab on mobile
+                    const gameUrl = `https://game.lexiecrypto.com/?lexieId=${encodeURIComponent(currentLexieId)}&walletAddress=${encodeURIComponent(address || '')}&embedded=true&theme=terminal`;
+                    window.open(gameUrl, '_blank');
                   } else {
                     // If no Lexie ID, show alert or handle gracefully
                     alert('Please get a Lexie ID first to play LexieTitans!');
