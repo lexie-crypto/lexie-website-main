@@ -191,7 +191,7 @@ export function LexieChat() {
         </div>
 
         {/* Mobile Menu Button */}
-        <div className="md:hidden flex items-center justify-between -pb-6 -pt-4 flex-shrink-0">
+        <div className="md:hidden flex items-center justify-between -pb-6 -pt-9 flex-shrink-0">
           <div>
             <h1 className="text-xl font-bold text-emerald-300">LexieAI Chat Terminal</h1>
             <div className="flex items-center pt-1space-x-2 text-sm">
