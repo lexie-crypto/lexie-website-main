@@ -340,6 +340,8 @@ const WalletContextProvider = ({ children }) => {
   const [showLexieIdChoiceModal, setShowLexieIdChoiceModal] = useState(false);
   const [lexieIdChoicePromise, setLexieIdChoicePromise] = useState(null);
   const [lexieIdLinkPromise, setLexieIdLinkPromise] = useState(null);
+  const [showNetworkSelectionModal, setShowNetworkSelectionModal] = useState(false);
+  const [networkSelectionPromise, setNetworkSelectionPromise] = useState(null);
   const [showSignatureConfirmation, setShowSignatureConfirmation] = useState(false);
   const [signatureConfirmationPromise, setSignatureConfirmationPromise] = useState(null);
   const [pendingSignatureMessage, setPendingSignatureMessage] = useState('');
@@ -1920,6 +1922,29 @@ const WalletContextProvider = ({ children }) => {
               
               console.log('🎉 Wallet is now accessible from ANY device/browser!');
 
+              // Check if existing wallet needs network selection
+              const networkSelectionCompleted = localStorage.getItem('lexie-network-selection-completed') === 'true';
+              if (!networkSelectionCompleted) {
+                console.log('🌐 Existing wallet needs network selection');
+
+                // Show network selection modal
+                setShowNetworkSelectionModal(true);
+
+                // Create promise that resolves when user selects network (blocks until network selected)
+                const networkPromise = new Promise((resolve) => {
+                  setNetworkSelectionPromise({ resolve });
+                });
+
+                // Wait for user network selection (no timeout - user must choose)
+                await networkPromise;
+
+                // Reset network selection modal state
+                setShowNetworkSelectionModal(false);
+                setNetworkSelectionPromise(null);
+
+                console.log('✅ Network selection completed, proceeding...');
+              }
+
               // DIRECT FLAG: Set flag to show Lexie ID modal
               // NEW: Show Lexie ID choice modal instead of direct Lexie ID modal
               setShowLexieIdChoiceModal(true);
@@ -2718,6 +2743,16 @@ const WalletContextProvider = ({ children }) => {
     // Lexie ID modal control
     shouldShowLexieIdModal,
     clearLexieIdModalFlag: () => setShouldShowLexieIdModal(false),
+
+    // Network selection modal control
+    showNetworkSelectionModal,
+    handleNetworkSelection: () => {
+      if (networkSelectionPromise) {
+        // Mark network selection as completed
+        localStorage.setItem('lexie-network-selection-completed', 'true');
+        networkSelectionPromise.resolve();
+      }
+    },
 
     // Lexie ID choice modal control
     showLexieIdChoiceModal,
