@@ -1942,7 +1942,52 @@ const WalletContextProvider = ({ children }) => {
                 setShowNetworkSelectionModal(false);
                 setNetworkSelectionPromise(null);
 
-                console.log('✅ Network selection completed, proceeding...');
+                console.log('✅ Network selection completed, checking Redis for scanned chains...');
+
+                // Check if selected chain is already scanned in Redis
+                try {
+                  const checkChainId = chainId;
+                  if (!checkChainId) {
+                    console.log('[WalletContext] No chainId available for Redis check');
+                  } else {
+                    console.log('[WalletContext] Checking Redis for chain:', checkChainId);
+
+                    const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+
+                    if (response.status === 404) {
+                      console.log('[WalletContext] No wallet metadata in Redis - needs scanning');
+                      // Chain not scanned
+                    } else if (response.ok) {
+                      const data = await response.json();
+                      const walletKeys = Array.isArray(data.keys) ? data.keys : [];
+                      const matchingKey = walletKeys.find(key => key.walletId === railgunWalletID) || null;
+
+                      if (!matchingKey) {
+                        console.log('[WalletContext] No matching wallet key found - needs scanning');
+                      } else {
+                        const scannedChains = Array.isArray(matchingKey?.scannedChains)
+                          ? matchingKey.scannedChains
+                          : (Array.isArray(matchingKey?.meta?.scannedChains) ? matchingKey.meta.scannedChains : []);
+
+                        const normalizedScannedChains = scannedChains
+                          .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
+                          .filter(n => Number.isFinite(n));
+
+                        const isChainScanned = normalizedScannedChains.includes(Number(checkChainId));
+
+                        if (isChainScanned) {
+                          console.log('[WalletContext] Chain already scanned - wallet ready after Lexie ID choice');
+                        } else {
+                          console.log('[WalletContext] Chain not scanned - will trigger scanning after Lexie ID choice');
+                        }
+                      }
+                    } else {
+                      console.warn('[WalletContext] Redis check failed:', response.status);
+                    }
+                  }
+                } catch (error) {
+                  console.warn('[WalletContext] Failed to check Redis scanned chains:', error);
+                }
               }
 
               // DIRECT FLAG: Set flag to show Lexie ID modal
