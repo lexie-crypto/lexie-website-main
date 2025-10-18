@@ -43,6 +43,7 @@ import SignRequestModal from './SignRequestModal';
 import SignatureConfirmationModal from './SignatureConfirmationModal';
 import ReturningUserChainSelectionModal from './ReturningUserChainSelectionModal';
 import { Navbar } from '../Navbar.jsx';
+import ChatPage from '../../pages/ChatPage.tsx';
 
 // Titans Game component that loads the actual game from game.lexiecrypto.com
 const TitansGame = ({ lexieId, walletAddress, embedded, theme, onLoad, onError, onClose }) => {
@@ -2126,8 +2127,8 @@ const VaultDesktopInner = ({ mobileMode = false, showNavbarLexieChat = false, on
         </WindowShell>
       )}
 
-      {/* LexieAI Chat Window */}
-      {isLexieChatVisible && (
+      {/* LexieAI Chat Window - Desktop */}
+      {isLexieChatVisible && !isMobile && (
         <WindowShell
           id="lexie-chat-terminal"
           title="LexieAI-chat"
@@ -2147,16 +2148,15 @@ const VaultDesktopInner = ({ mobileMode = false, showNavbarLexieChat = false, on
           minSize={{ width: 800, height: 600 }}
           className="z-[98]"
         >
-          <div className="h-full w-full bg-black relative">
-            <iframe
-              src={currentLexieId ? `/chat?lexieId=${encodeURIComponent(currentLexieId)}` : "/chat"}
-              className="w-full h-full border-0"
-              title="LexieAI Chat"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-presentation"
-            />
-          </div>
+          <ChatPage />
         </WindowShell>
+      )}
+
+      {/* Mobile LexieChat - Direct render without outer window */}
+      {isLexieChatVisible && isMobile && (
+        <div className="fixed inset-0 z-[98] bg-black">
+          <ChatPage />
+        </div>
       )}
 
       {/* Logo in top left - redirects to main site - only on desktop */}
