@@ -139,7 +139,7 @@ const TitansGameWindow = ({ lexieId, walletAddress, onClose }) => {
   );
 };
 
-const VaultDesktopInner = ({ mobileMode = false, registerTitansCallback }) => {
+const VaultDesktopInner = ({ mobileMode = false }) => {
   const {
     isConnected,
     isConnecting,
@@ -290,23 +290,6 @@ const VaultDesktopInner = ({ mobileMode = false, registerTitansCallback }) => {
       onLexieIdLinked();
     }
   }, [address, onLexieIdLinked]);
-
-  // Handle Titans game opening from navbar (mobile)
-  const handleTitansGameOpen = useCallback(() => {
-    if (currentLexieId) {
-      setShowTitansGame(true);
-    } else {
-      // If no Lexie ID, prompt to get one first
-      setShowLexieModal(true);
-    }
-  }, [currentLexieId]);
-
-  // Register Titans game callback with parent
-  useEffect(() => {
-    if (registerTitansCallback) {
-      registerTitansCallback(handleTitansGameOpen);
-    }
-  }, [registerTitansCallback, handleTitansGameOpen]);
 
   // Cross-platform verification state - now managed by CrossPlatformVerificationModal component
   const [showVerificationModal, setShowVerificationModal] = useState(false);
@@ -2134,7 +2117,6 @@ const VaultDesktopInner = ({ mobileMode = false, registerTitansCallback }) => {
 const VaultDesktop = () => {
   const [isMobile, setIsMobile] = React.useState(false);
   const [isReady, setIsReady] = React.useState(false);
-  const [titansGameCallback, setTitansGameCallback] = React.useState(null);
 
   React.useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia === 'undefined') {
@@ -2157,12 +2139,9 @@ const VaultDesktop = () => {
   if (isMobile) {
     return (
       <div className="min-h-screen bg-black">
-        <Navbar onTitansClick={titansGameCallback} />
+        <Navbar />
         <WindowProvider>
-          <VaultDesktopInner
-            mobileMode={true}
-            registerTitansCallback={setTitansGameCallback}
-          />
+          <VaultDesktopInner mobileMode={true} />
         </WindowProvider>
       </div>
     );
@@ -2176,6 +2155,5 @@ const VaultDesktop = () => {
 };
 
 export default VaultDesktop;
-
 
 
