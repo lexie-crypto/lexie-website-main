@@ -1571,15 +1571,16 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       </div>
 
       <div className="relative z-10 px-4 sm:px-6 lg:px-8 py-8">
-        <WindowShell
-          id="lexie-vault-terminal"
-          title="lexie-vault"
-          appType="vault"
-          statusLabel={statusConfig.statusLabel}
-          statusTone={statusConfig.statusTone}
-          footerLeft={footerContent}
-          variant="vault"
-        >
+        {!mobileMode && (
+          <WindowShell
+            id="lexie-vault-terminal"
+            title="lexie-vault"
+            appType="vault"
+            statusLabel={statusConfig.statusLabel}
+            statusTone={statusConfig.statusTone}
+            footerLeft={footerContent}
+            variant="vault"
+          >
           <div className="font-mono text-green-300 space-y-4">
             {/* Header */}
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-green-500/20 pb-4 gap-2">
@@ -1977,7 +1978,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
           </div>
         </WindowShell>
-
+        )}
 
         {/* Error Messages */}
         {balanceErrors && (
