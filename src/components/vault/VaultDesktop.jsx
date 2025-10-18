@@ -2137,7 +2137,7 @@ const VaultDesktopInner = ({ mobileMode = false, showNavbarLexieChat = false, on
           footerLeft="LexieAI Chat Terminal"
           footerRight="Secure LexieAI Communication Channel"
           variant="vault"
-          fullscreen={mobileMode}
+          fullscreen={false}
           onClose={() => {
             setShowLexieChat(false);
             onNavbarLexieChatClose();
