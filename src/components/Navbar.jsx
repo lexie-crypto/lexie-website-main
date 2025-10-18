@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useWallet } from '../contexts/WalletContext';
 import MobileTitansGame from './MobileTitansGame.jsx';
+import MobileChat from './MobileChat.jsx';
 
 export function Navbar({ onLexieChatOpen }) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isTitansGameOpen, setIsTitansGameOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   // Get wallet context for game data
   const { address } = useWallet();
@@ -66,7 +68,7 @@ export function Navbar({ onLexieChatOpen }) {
                 className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors text-left"
                 onClick={() => {
                   setIsMobileMenuOpen(false);
-                  onLexieChatOpen && onLexieChatOpen();
+                  setIsChatOpen(true);
                 }}
               >
                 LexieChat
@@ -99,6 +101,14 @@ export function Navbar({ onLexieChatOpen }) {
       <MobileTitansGame
         isOpen={isTitansGameOpen}
         onClose={() => setIsTitansGameOpen(false)}
+        lexieId={currentLexieId}
+        walletAddress={address}
+      />
+
+      {/* Mobile Chat Modal */}
+      <MobileChat
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
         lexieId={currentLexieId}
         walletAddress={address}
       />

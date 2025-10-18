@@ -43,7 +43,6 @@ import SignRequestModal from './SignRequestModal';
 import SignatureConfirmationModal from './SignatureConfirmationModal';
 import ReturningUserChainSelectionModal from './ReturningUserChainSelectionModal';
 import { Navbar } from '../Navbar.jsx';
-import ChatPage from '../../pages/ChatPage.tsx';
 
 // Titans Game component that loads the actual game from game.lexiecrypto.com
 const TitansGame = ({ lexieId, walletAddress, embedded, theme, onLoad, onError, onClose }) => {
@@ -141,7 +140,7 @@ const TitansGameWindow = ({ lexieId, walletAddress, onClose }) => {
   );
 };
 
-const VaultDesktopInner = ({ mobileMode = false, showNavbarLexieChat = false, onNavbarLexieChatClose = () => {} }) => {
+const VaultDesktopInner = ({ mobileMode = false }) => {
   const [isMobile, setIsMobile] = React.useState(false);
 
   React.useEffect(() => {
@@ -275,8 +274,8 @@ const VaultDesktopInner = ({ mobileMode = false, showNavbarLexieChat = false, on
   const [showTitansGame, setShowTitansGame] = useState(false);
   const [showLexieChat, setShowLexieChat] = useState(false);
 
-  // Combine navbar chat state with local chat state
-  const isLexieChatVisible = showLexieChat || showNavbarLexieChat;
+  // Chat visibility for desktop WindowShell
+  const isLexieChatVisible = showLexieChat;
 
   // Signature confirmation from WalletContext
   const {
@@ -2139,10 +2138,7 @@ const VaultDesktopInner = ({ mobileMode = false, showNavbarLexieChat = false, on
           footerRight="Secure LexieAI Communication Channel"
           variant="vault"
           fullscreen={false}
-          onClose={() => {
-            setShowLexieChat(false);
-            onNavbarLexieChatClose();
-          }}
+          onClose={() => setShowLexieChat(false)}
           initialSize={{ width: 1000, height: 700 }}
           initialPosition={{ x: 200, y: 100 }}
           minSize={{ width: 800, height: 600 }}
@@ -2152,12 +2148,6 @@ const VaultDesktopInner = ({ mobileMode = false, showNavbarLexieChat = false, on
         </WindowShell>
       )}
 
-      {/* Mobile LexieChat - Direct render without outer window */}
-      {isLexieChatVisible && isMobile && (
-        <div className="fixed inset-0 z-[98] bg-black">
-          <ChatPage />
-        </div>
-      )}
 
       {/* Logo in top left - redirects to main site - only on desktop */}
       {!isMobile && (
@@ -2197,7 +2187,6 @@ const VaultDesktopInner = ({ mobileMode = false, showNavbarLexieChat = false, on
 const VaultDesktop = () => {
   const [isMobile, setIsMobile] = React.useState(false);
   const [isReady, setIsReady] = React.useState(false);
-  const [showNavbarLexieChat, setShowNavbarLexieChat] = React.useState(false);
 
   React.useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia === 'undefined') {
@@ -2220,13 +2209,9 @@ const VaultDesktop = () => {
   if (isMobile) {
     return (
       <div className="min-h-screen bg-black">
-        <Navbar onLexieChatOpen={() => setShowNavbarLexieChat(true)} />
+        <Navbar />
         <WindowProvider>
-          <VaultDesktopInner
-            mobileMode={true}
-            showNavbarLexieChat={showNavbarLexieChat}
-            onNavbarLexieChatClose={() => setShowNavbarLexieChat(false)}
-          />
+          <VaultDesktopInner mobileMode={true} />
         </WindowProvider>
       </div>
     );
