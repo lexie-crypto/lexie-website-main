@@ -7,6 +7,12 @@ import { NETWORK_CONFIG } from '@railgun-community/shared-models';
 import { getWalletMetadata, storeWalletMetadata, fetchCurrentBlockNumbers } from '../wallet/metadata.js';
 import { waitForRailgunReady } from './engine.js';
 import { loadProvider } from '@railgun-community/wallet';
+import { clearAllWallets } from './wallet.js';
+import { createEnhancedArtifactStore } from './artifactStore.js';
+import { isMasterWallet, startMasterWalletExports, getChainForMasterWallet, getMasterExportStatus } from '../sync/idb-sync/scheduler.js';
+import { isChainHydrating, checkChainBootstrapAvailable, loadChainBootstrap } from '../sync/idb-sync/hydration.js';
+import { isLevelDBDataMissingError, attemptWalletRecovery, backupEssentialWalletData } from './wallet-backup.js';
+import { initializeSyncSystem } from '../sync/idb-sync/index.js';
 
 export const initializeRailgun = async ({
   isConnected,
@@ -44,7 +50,6 @@ export const initializeRailgun = async ({
   // Defensive unload: if this is a fresh init start, clear any lingering SDK wallet state
   try {
     if (!isRailgunInitialized) {
-      const { clearAllWallets } = await import('../utils/railgun/wallet');
       await clearAllWallets();
       console.log('[Railgun Init] 🧹 Cleared any lingering wallets before hydration');
     }
@@ -207,7 +212,6 @@ export const initializeRailgun = async ({
         const LevelJS = (await import('level-js')).default;
         const db = new LevelJS('railgun-engine-db');
 
-        const { createEnhancedArtifactStore } = await import('../utils/railgun/artifactStore.js');
         const artifactManager = await createEnhancedArtifactStore(false);
 
         setLoggers(
@@ -402,13 +406,10 @@ export const initializeRailgun = async ({
       // Notify UI that wallet metadata is ready for polling (after confirmation)
       try { window.dispatchEvent(new CustomEvent('railgun-wallet-metadata-ready', { detail: { address, walletId: railgunWalletInfo.id } })); } catch {}
 
-      // 🚰 HYDRATION: Check if we need to hydrate IDB with Redis data for this wallet (AFTER modal confirmation)
-      try {
-        // Skip hydration for master wallet - it's the data source, not consumer
-        const { isMasterWallet } = await import('../utils/sync/idb-sync/scheduler.js');
-        const { isChainHydrating } = await import('../utils/sync/idb-sync/hydration.js');
-
-        if (isMasterWallet(railgunWalletInfo.id)) {
+        // 🚰 HYDRATION: Check if we need to hydrate IDB with Redis data for this wallet (AFTER modal confirmation)
+        try {
+          // Skip hydration for master wallet - it's the data source, not consumer
+          if (isMasterWallet(railgunWalletInfo.id)) {
           console.log('👑 Master wallet detected - skipping hydration for existing wallet (master wallet is the data source)');
         } else {
           // ✅ FIX: Check if chain is already SCANNED first (not just hydrated)
@@ -449,8 +450,7 @@ export const initializeRailgun = async ({
           } else {
             console.log('🚀 Checking for chain bootstrap data for existing wallet...');
 
-            // For existing wallets, try to load chain-specific bootstrap data
-            const { checkChainBootstrapAvailable, loadChainBootstrap } = await import('../utils/sync/idb-sync/hydration.js');
+              // For existing wallets, try to load chain-specific bootstrap data
 
             const hasBootstrap = await checkChainBootstrapAvailable(chainIdRef.current); // ✅ Use ref
             if (hasBootstrap) {
@@ -522,7 +522,6 @@ export const initializeRailgun = async ({
 
       // 🚀 Initialize master wallet exports if this is the master wallet (for existing wallets loaded from Redis)
       try {
-        const { startMasterWalletExports, isMasterWallet, getChainForMasterWallet, getMasterExportStatus } = await import('../utils/sync/idb-sync/scheduler.js');
 
         console.log(`🔍 Checking if loaded wallet is a master wallet (ID: ${railgunWalletInfo.id?.substring(0, 16) || 'undefined'}...)`);
 
@@ -641,7 +640,6 @@ export const initializeRailgun = async ({
     const db = new LevelJS('railgun-engine-db');
 
     // Use existing artifact store
-    const { createEnhancedArtifactStore } = await import('../utils/railgun/artifactStore.js');
     const artifactManager = await createEnhancedArtifactStore(false);
 
     // Set up official SDK logging
@@ -872,7 +870,6 @@ export const initializeRailgun = async ({
         console.warn('⚠️ Failed to load existing wallet - checking for recovery options:', loadError);
 
         // 🚨 Check if this is a LevelDB data missing error (browser storage cleared)
-        const { isLevelDBDataMissingError, attemptWalletRecovery } = await import('../utils/railgun/wallet-backup.js');
 
         if (isLevelDBDataMissingError(loadError)) {
           console.log('🚨 LevelDB data missing - attempting wallet recovery from backup...');
@@ -1029,7 +1026,6 @@ export const initializeRailgun = async ({
 
             // 🔄 Create essential backup for wallet recovery protection
             try {
-              const { backupEssentialWalletData } = await import('../utils/railgun/wallet-backup.js');
               await backupEssentialWalletData(railgunWalletInfo.id, encryptionKey, address);
               console.log('✅ Essential wallet backup created for recovery protection');
             } catch (backupError) {
@@ -1094,8 +1090,7 @@ export const initializeRailgun = async ({
 
         // 🚰 HYDRATION: Check if newly created wallet needs hydration (edge case)
         // Skip hydration for master wallet - it's the data source, not consumer
-        const { isMasterWallet } = await import('../utils/sync/idb-sync/scheduler.js');
-        const { isChainHydrating } = await import('../utils/sync/idb-sync/hydration.js');
+        
 
         if (isMasterWallet(railgunWalletInfo.id)) {
           console.log('👑 Master wallet detected - skipping hydration for new wallet (master wallet is the data source)');
@@ -1176,7 +1171,6 @@ export const initializeRailgun = async ({
         console.log('🔄 Initializing IDB sync system before scanning begins...');
 
         // Import the sync module
-        const { initializeSyncSystem } = await import('../utils/sync/idb-sync/index.js');
 
         if (walletId) {
           await initializeSyncSystem(walletId);
@@ -1192,7 +1186,6 @@ export const initializeRailgun = async ({
 
       // 🚀 Initialize master wallet exports if this is the master wallet
       try {
-        const { startMasterWalletExports, isMasterWallet, getChainForMasterWallet, getMasterExportStatus } = await import('../utils/sync/idb-sync/scheduler.js');
 
         console.log(`🔍 Checking if this is master wallet (ID: ${walletId?.substring(0, 16) || 'undefined'}...)`);
 
