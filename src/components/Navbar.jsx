@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export function Navbar() {
+export function Navbar({ onTitansClick } = {}) {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const baseClasses = "sticky top-0 z-40 w-full p-6 bg-black";
@@ -47,15 +47,21 @@ export function Navbar() {
       {isMobileMenuOpen && (
         <div className="md:hidden bg-black border-t border-purple-800">
           <div className="px-6 py-4 space-y-4">
-            <a href="https://lexie-crypto.gitbook.io/lexie-crypto/" className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors" onClick={() => setIsMobileMenuOpen(false)}>
-              Docs
+            <a href="https://staging.app.lexiecrypto.com/lexievault" className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors text-left" onClick={() => setIsMobileMenuOpen(false)}>
+              LexieVault
             </a>
-            <a
-              href="https://staging.app.lexiecrypto.com/lexievault"
-              className="inline-flex items-center px-6 py-2 bg-purple-300 text-black font-bold rounded-lg shadow-lg hover:bg-purple-400 transition-all duration-300"
+            <button className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors text-left" onClick={() => setIsMobileMenuOpen(false)}>
+              LexieChat
+            </button>
+            <button
+              className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors text-left"
+              onClick={() => {
+                setIsMobileMenuOpen(false);
+                onTitansClick?.();
+              }}
             >
-              Launch App →
-            </a>
+              LexieTitans
+            </button>
           </div>
         </div>
       )}
