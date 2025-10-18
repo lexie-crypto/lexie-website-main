@@ -122,7 +122,7 @@ const SignatureConfirmationModal = ({
                 ? 'Select Network First'
                 : walletChainId !== selectedChainId
                 ? 'Switching Network...'
-                : 'Create Vault'
+                : 'Initialize Vault'
               }
             </button>
             <button
