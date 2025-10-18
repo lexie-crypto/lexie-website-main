@@ -1684,7 +1684,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                       <span className="ml-1">▾</span>
                     </button>
                     {isMobileChainMenuOpen && (
-                      <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden scrollbar-none z-50">
+                      <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden scrollbar-none z-[2000]">
                         {supportedNetworks.map((net) => (
                           <button
                             key={net.id}
