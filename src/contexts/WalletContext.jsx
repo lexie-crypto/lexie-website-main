@@ -1389,6 +1389,24 @@ const WalletContextProvider = ({ children }) => {
           if (isMasterWallet(railgunWalletInfo.id)) {
             console.log('👑 Master wallet detected - skipping hydration (master wallet is the data source)');
           } else {
+            // ✅ FIX: Check if chain is already SCANNED first (not just hydrated)
+            let alreadyScanned = false;
+            try {
+              const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+              if (resp.ok) {
+                const json = await resp.json();
+                const metaKey = json?.keys?.find((k) => k.walletId === railgunWalletInfo.id) || null;
+                const scannedChains = metaKey?.scannedChains || [];
+                alreadyScanned = scannedChains.includes(chainIdRef.current); // ✅ Use ref
+              }
+            } catch {}
+
+            // If already scanned, skip bootstrap entirely (bootstrap is only for initial scan speedup)
+            if (alreadyScanned) {
+              console.log(`🚀 Skipping chain bootstrap - chain ${chainIdRef.current} already scanned via Railgun SDK (fast path)`); // ✅ Use ref
+              return; // Exit early - no need to check hydration
+            }
+
             // Check hydration guard: hydratedChains + hydration lock
             const isHydrating = isChainHydrating(railgunWalletInfo.id, chainIdRef.current); // ✅ Use ref
 
@@ -2297,6 +2315,24 @@ const WalletContextProvider = ({ children }) => {
 
               // Only load bootstrap for regular wallets
               if (!isMasterWallet(railgunWalletID)) {
+                // ✅ FIX: Check if chain is already SCANNED first (not just hydrated)
+                let alreadyScanned = false;
+                try {
+                  const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+                  if (resp.ok) {
+                    const json = await resp.json();
+                    const metaKey = json?.keys?.find((k) => k.walletId === railgunWalletID) || null;
+                    const scannedChains = metaKey?.scannedChains || [];
+                    alreadyScanned = scannedChains.includes(chainId);
+                  }
+                } catch {}
+
+                // If already scanned, skip bootstrap entirely (bootstrap is only for initial scan speedup)
+                if (alreadyScanned) {
+                  console.log(`🚀 Skipping chain bootstrap - chain ${chainId} already scanned via Railgun SDK`);
+                  return;
+                }
+
                 // Check hydration guard: hydratedChains + hydration lock
                 const isHydrating = isChainHydrating(railgunWalletID, chainId);
                 let alreadyHydrated = false;
