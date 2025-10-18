@@ -2036,7 +2036,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
           footerLeft="Process: titans-game"
           footerRight={`@lex:${currentLexieId}`}
           variant="game"
-          fullscreen={isMobile}
+          fullscreen={mobileMode}
           onClose={() => setShowTitansGame(false)}
           initialSize={{ width: 1000, height: 700 }}
           initialPosition={{ x: 50, y: 50 }}
@@ -2062,7 +2062,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
           footerLeft="LexieAI Chat Terminal"
           footerRight="Secure LexieAI Communication Channel"
           variant="vault"
-          fullscreen={isMobile}
+          fullscreen={mobileMode}
           onClose={() => setShowLexieChat(false)}
           initialSize={{ width: 1000, height: 700 }}
           initialPosition={{ x: 200, y: 100 }}
