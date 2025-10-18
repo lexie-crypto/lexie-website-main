@@ -2145,7 +2145,11 @@ const VaultDesktop = () => {
   if (!isReady) return null;
 
   if (isMobile) {
-    return <VaultDesktopInner mobileMode={true} />;
+    return (
+      <WindowProvider>
+        <VaultDesktopInner mobileMode={true} />
+      </WindowProvider>
+    );
   }
 
   return (
