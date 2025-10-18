@@ -936,59 +936,13 @@ export function useBalances() {
     // Clear immediately to avoid showing previous-chain balances
     setPrivateBalances([]);
 
-    // Load for the active chain - check hydration status first, then SDK refresh if needed
+    // Load for the active chain - chains should already be scanned/hydrated by modal flow
     (async () => {
       try {
-        // Check if chain is already fully hydrated (skip expensive operations)
-        let needsHydration = true;
-        try {
-          if (railgunWalletId && address && chainId) {
-            const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-
-            if (response.ok) {
-              const data = await response.json();
-              const walletKeys = Array.isArray(data.keys) ? data.keys : [];
-              const matchingKey = walletKeys.find(key => key.walletId === railgunWalletId) || null;
-
-              if (matchingKey) {
-                const hydratedChains = Array.isArray(matchingKey?.hydratedChains)
-                  ? matchingKey.hydratedChains
-                  : (Array.isArray(matchingKey?.meta?.hydratedChains) ? matchingKey.meta.hydratedChains : []);
-
-                const normalizedHydratedChains = hydratedChains
-                  .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
-                  .filter(n => Number.isFinite(n));
-
-                if (normalizedHydratedChains.includes(Number(chainId))) {
-                  needsHydration = false;
-                  console.log('[useBalances] Chain already hydrated - skipping SDK refresh for chain:', chainId);
-                }
-              }
-            }
-          }
-        } catch (checkErr) {
-          console.warn('[useBalances] Hydration check failed:', checkErr?.message);
-        }
-
-        // Only trigger expensive operations if hydration is needed
-        if (needsHydration) {
-          // Ensure chain has been scanned for private transfers
-          console.log('[useBalances] Ensuring chain is scanned on chain switch...');
-          await ensureChainScanned(chainId);
-
-          // If Railgun is initialized, do a full SDK refresh for this chain
-          if (isRailgunInitialized) {
-            console.log('[useBalances] Chain switch - triggering SDK refresh for chain:', chainId);
-            const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
-            await syncBalancesAfterTransaction({
-              walletAddress: address,
-              walletId: railgunWalletId,
-              chainId,
-            });
-          }
-        }
-
-        // Always load balances from Redis (fresh data should be available)
+        // Chain switching should only happen after modal confirmation,
+        // so chains should already be scanned and hydrated.
+        // Just refresh balances from Redis without triggering expensive operations.
+        console.log('[useBalances] Loading balances for chain (should already be ready):', chainId);
         await loadPrivateBalancesFromMetadata(address, railgunWalletId);
       } catch (error) {
         console.warn('[useBalances] Error during chain switch balance refresh:', error);
@@ -999,7 +953,7 @@ export function useBalances() {
         try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
       }
     })();
-  }, [chainId, address, railgunWalletId, isRailgunInitialized, ensureChainScanned]);
+  }, [chainId, address, railgunWalletId]);
 
   // Load private balances using SDK refresh when Railgun wallet is ready (same as refresh button)
   useEffect(() => {
