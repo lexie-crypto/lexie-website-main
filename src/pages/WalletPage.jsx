@@ -11,7 +11,7 @@ const WalletPage = () => {
   return (
     <div className="relative min-h-screen w-full bg-black text-white overflow-x-hiddenscrollbar-terminal">
       {/* Logo in top left - redirects to main site */}
-      <div className="absolute top-6 left-5 z-50 pl-4">
+      <div className="absolute top-6 left-5 z-50 pl-6">
         <a
           href="https://www.lexiecrypto.com"
           target="_blank"
