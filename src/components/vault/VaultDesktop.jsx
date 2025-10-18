@@ -326,7 +326,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   // Supported networks array
   const supportedNetworks = [
     { id: 1, name: 'Ethereum', symbol: 'ETH' },
-    { id: 137, name: 'Polygon', symbol: 'MATIC' },
+    { id: 137, name: 'Polygon', symbol: 'POL' },
     { id: 42161, name: 'Arbitrum', symbol: 'ETH'},
     { id: 56, name: 'BNB Chain', symbol: 'BNB' },
   ];
@@ -679,6 +679,24 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       }
     };
   }, [currentLexieId]);
+
+  // Auto-unlock transaction lock after 30 seconds as safety fallback
+  useEffect(() => {
+    if (!isTransactionLocked) return;
+
+    console.log('[VaultDesktop] ⏰ Starting 30-second safety timeout for transaction lock');
+
+    const timeoutId = setTimeout(() => {
+      console.log('[VaultDesktop] ⏰ Safety timeout reached - auto-unlocking transaction UI');
+      setIsTransactionLocked(false);
+      setActiveTransactionMonitors(0);
+    }, 30000); // 30 seconds
+
+    return () => {
+      console.log('[VaultDesktop] ⏰ Clearing safety timeout (transaction completed normally)');
+      clearTimeout(timeoutId);
+    };
+  }, [isTransactionLocked]);
 
   // Event listeners for vault balance refresh state
   useEffect(() => {
