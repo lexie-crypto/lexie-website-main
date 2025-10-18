@@ -197,7 +197,7 @@ export function LexieChat() {
               <div className="pt-1 text-emerald-300">Ready for commands...</div>
             </div>
             {/* Mobile Controls Row */}
-            <div className="flex items-center justify-between mt-3">
+            <div className="flex items-center justify-end mt-3">
               <DegenModeButton />
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
