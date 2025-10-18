@@ -2158,54 +2158,56 @@ const WalletContextProvider = ({ children }) => {
   }, [chainId]);
 
   // Auto-initialize Railgun when wallet connects (only if not already initialized)
-  useEffect(async () => {
-    // 🛡️ Prevent force reinitialization if already initialized
-    if (isRailgunInitialized) {
-      console.log('✅ Railgun already initialized for:', address);
-      
-      // 🎯 FIXED: Don't auto-resume polling - let useBalances hook control when to poll
-      console.log('⏸️ Providers remain paused - will resume only when balance refresh needed');
-      return;
-    }
-    
-    // Respect suppression flag (PaymentPage and other pages that don't need wallet creation)
-    if (typeof window !== 'undefined' && (window.__LEXIE_SUPPRESS_RAILGUN_INIT || window.__LEXIE_PAYMENT_PAGE)) {
-      console.log('[Railgun Init] ⏭️ Suppressed auto-init due to page flag (__LEXIE_SUPPRESS_RAILGUN_INIT or __LEXIE_PAYMENT_PAGE)');
-      return;
-    }
+  useEffect(() => {
+    // Async function to handle network selection and initialization
+    const handleWalletConnection = async () => {
+      // 🛡️ Prevent force reinitialization if already initialized
+      if (isRailgunInitialized) {
+        console.log('✅ Railgun already initialized for:', address);
 
-    // Bail if currently disconnecting to avoid race with stale wagmi state
-    if (disconnectingRef.current) {
-      console.log('[Railgun Init] ⏳ Skipping auto-init: disconnect in progress');
-      return;
-    }
-
-    // Require wagmi status to be fully connected, not just isConnected
-    if (status !== 'connected') {
-      return;
-    }
-
-    // Prevent same-address re-init immediately after disconnect; require explicit reconnect
-    if (lastInitializedAddressRef.current && lastInitializedAddressRef.current === address) {
-      console.log('[Railgun Init] ⏭️ Skipping auto-init for same address until explicit reconnect');
-      return;
-    }
-
-    if (isConnected && address && !isInitializing) {
-      // Always show network selection modal when wallet connects, regardless of existing vault status
-      console.log('🔗 Wallet connected, showing network selection modal for vault access');
-      lastInitializedAddressRef.current = address;
-
-      // Show signature confirmation modal to let user choose network
-      const confirmed = await requestSignatureConfirmation('Select the blockchain network for your LexieVault access.', true);
-      if (!confirmed) {
-        console.log('❌ User cancelled network selection');
+        // 🎯 FIXED: Don't auto-resume polling - let useBalances hook control when to poll
+        console.log('⏸️ Providers remain paused - will resume only when balance refresh needed');
         return;
       }
 
-      // After network selection, proceed with vault initialization
-      console.log('✅ Network selected, proceeding with vault initialization');
-      initializeRailgun().then(() => {
+      // Respect suppression flag (PaymentPage and other pages that don't need wallet creation)
+      if (typeof window !== 'undefined' && (window.__LEXIE_SUPPRESS_RAILGUN_INIT || window.__LEXIE_PAYMENT_PAGE)) {
+        console.log('[Railgun Init] ⏭️ Suppressed auto-init due to page flag (__LEXIE_SUPPRESS_RAILGUN_INIT or __LEXIE_PAYMENT_PAGE)');
+        return;
+      }
+
+      // Bail if currently disconnecting to avoid race with stale wagmi state
+      if (disconnectingRef.current) {
+        console.log('[Railgun Init] ⏳ Skipping auto-init: disconnect in progress');
+        return;
+      }
+
+      // Require wagmi status to be fully connected, not just isConnected
+      if (status !== 'connected') {
+        return;
+      }
+
+      // Prevent same-address re-init immediately after disconnect; require explicit reconnect
+      if (lastInitializedAddressRef.current && lastInitializedAddressRef.current === address) {
+        console.log('[Railgun Init] ⏭️ Skipping auto-init for same address until explicit reconnect');
+        return;
+      }
+
+      if (isConnected && address && !isInitializing) {
+        // Always show network selection modal when wallet connects, regardless of existing vault status
+        console.log('🔗 Wallet connected, showing network selection modal for vault access');
+        lastInitializedAddressRef.current = address;
+
+        // Show signature confirmation modal to let user choose network
+        const confirmed = await requestSignatureConfirmation('Select the blockchain network for your LexieVault access.', true);
+        if (!confirmed) {
+          console.log('❌ User cancelled network selection');
+          return;
+        }
+
+        // After network selection, proceed with vault initialization
+        console.log('✅ Network selected, proceeding with vault initialization');
+        initializeRailgun().then(() => {
         // 🚀 BOOTSTRAP: After Railgun init, check if we need to load chain bootstrap
         setTimeout(async () => {
           try {
@@ -2295,6 +2297,10 @@ const WalletContextProvider = ({ children }) => {
         }, 2000); // Wait a bit for wallet to fully initialize
       });
     }
+
+    // Call the async function
+    handleWalletConnection();
+    };
   }, [isConnected, address, isRailgunInitialized, isInitializing, chainId, status]);
 
   // Update Railgun providers when chain or wallet changes - FIXED: Prevent infinite loops
