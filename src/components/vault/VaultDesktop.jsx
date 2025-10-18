@@ -217,7 +217,15 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   // Track if existing wallet has completed network selection
   const [hasCompletedNetworkSelection, setHasCompletedNetworkSelection] = useState(() => {
     try {
-      return localStorage.getItem('lexie-network-selection-completed') === 'true';
+      const completed = localStorage.getItem('lexie-network-selection-completed') === 'true';
+
+      // Set global flag to block Railgun initialization for existing wallets
+      if (isConnected && railgunWalletId && !completed && typeof window !== 'undefined') {
+        console.log('[VaultDesktop] Setting network selection wait flag for existing wallet');
+        window.__LEXIE_WAITING_FOR_NETWORK_SELECTION = true;
+      }
+
+      return completed;
     } catch (error) {
       return false;
     }
@@ -592,6 +600,12 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         localStorage.removeItem('lexie-network-selection-completed');
       } catch (error) {
         console.warn('[VaultDesktop] Failed to remove network selection completion from localStorage:', error);
+      }
+
+      // Clear the global flag
+      if (typeof window !== 'undefined') {
+        console.log('[VaultDesktop] Clearing network selection wait flag on disconnect');
+        window.__LEXIE_WAITING_FOR_NETWORK_SELECTION = false;
       }
 
       // Dispatch transaction completion event to unlock UI globally (similar to txn cancellation)
@@ -1551,6 +1565,11 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   // Show network selection modal for existing wallets that haven't completed network selection
   // Check this BEFORE any Railgun initialization happens
   if (isConnected && railgunWalletId && !hasCompletedNetworkSelection) {
+    // Ensure the global flag is set to block Railgun initialization
+    if (typeof window !== 'undefined' && !window.__LEXIE_WAITING_FOR_NETWORK_SELECTION) {
+      console.log('[VaultDesktop] Setting network selection wait flag for modal display');
+      window.__LEXIE_WAITING_FOR_NETWORK_SELECTION = true;
+    }
     return (
       <div className="relative h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
         {/* Background overlays */}
@@ -1596,6 +1615,13 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
             } catch (error) {
               console.warn('[VaultDesktop] Failed to save network selection completion to localStorage:', error);
             }
+
+            // Clear the global flag to allow Railgun initialization
+            if (typeof window !== 'undefined') {
+              console.log('[VaultDesktop] Clearing network selection wait flag');
+              window.__LEXIE_WAITING_FOR_NETWORK_SELECTION = false;
+            }
+
             // Now that network selection is complete, trigger Railgun initialization
             setTimeout(() => {
               console.log('[VaultDesktop] Network selection completed, triggering Railgun initialization...');

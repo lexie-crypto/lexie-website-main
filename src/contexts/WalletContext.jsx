@@ -2170,6 +2170,12 @@ const WalletContextProvider = ({ children }) => {
       return;
     }
 
+    // Block Railgun initialization for existing wallets until network selection is complete
+    if (typeof window !== 'undefined' && window.__LEXIE_WAITING_FOR_NETWORK_SELECTION) {
+      console.log('[Railgun Init] ⏳ Blocking Railgun initialization - waiting for network selection');
+      return;
+    }
+
     // For existing wallets, check if network selection is completed
     if (railgunWalletID && typeof window !== 'undefined') {
       const networkSelectionCompleted = localStorage.getItem('lexie-network-selection-completed') === 'true';
