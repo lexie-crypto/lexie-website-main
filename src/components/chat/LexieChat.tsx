@@ -196,15 +196,15 @@ export function LexieChat() {
               <div>✓ LexieAI online</div>
               <div className="pt-1 text-emerald-300">Ready for commands...</div>
             </div>
-            {/* Mobile Controls Row */}
-            <div className="flex items-center justify-between mt-3 w-full gap-4">
-                <DegenModeButton />
-            <button
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-              className="px-3 py-1 bg-gray-800 border border-green-500/30 rounded-lg hover:bg-gray-700 transition-colors text-green-400 text-sm font-medium"
-            >
-              {isMobileMenuOpen ? 'Close' : 'History'}
-            </button>
+            {/* Mobile Controls - Vertical Stack */}
+            <div className="flex flex-col items-start mt-3 gap-2">
+              <DegenModeButton />
+              <button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="px-3 py-1 bg-gray-800 border border-green-500/30 rounded-lg hover:bg-gray-700 transition-colors text-green-400 text-sm font-medium"
+              >
+                {isMobileMenuOpen ? 'Close' : 'History'}
+              </button>
             </div>
           </div>
         </div>
