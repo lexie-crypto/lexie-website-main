@@ -1534,17 +1534,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   return (
     <div className="relative h-screen w-full bg-black text-white overflow-x-hidden">
-      {/* Logo in top left - redirects to main site - Hidden on mobile since WalletPage shows it */}
-      {!mobileMode && (
-        <div className="absolute md:top-6 md:left-5 top-2 left-1 z-50 md:pl-6">
-          <a
-            href="https://www.lexiecrypto.com"
-            className="hover:opacity-80 transition-opacity"
-          >
-            <span className="text-4xl font-bold text-purple-300">LEXIEAI</span>
-          </a>
-        </div>
-      )}
       {/* Background overlays */}
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
