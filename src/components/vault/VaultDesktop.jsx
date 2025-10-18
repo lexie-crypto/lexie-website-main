@@ -216,6 +216,152 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   // Track which chain is being initialized
   const [initializingChainId, setInitializingChainId] = useState(null);
 
+  // 🚫 BLOCKING: Check if operations should be blocked BEFORE any operations
+  const shouldBlockOperations = (() => {
+    // Check global flag first (set by WalletContext for existing wallets needing network selection)
+    if (typeof window !== 'undefined' && window.__LEXIE_BLOCK_VAULT_OPERATIONS) {
+      return true;
+    }
+
+    // Fallback: Check if existing wallet needs network selection
+    if (!isConnected || !railgunWalletId) return false;
+    try {
+      return localStorage.getItem('lexie-network-selection-completed') !== 'true';
+    } catch (error) {
+      return false;
+    }
+  })();
+
+  // If operations should be blocked, show network selection modal
+  if (shouldBlockOperations) {
+    return (
+      <div className="relative h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
+        {/* Background overlays */}
+        <div className="fixed inset-0 z-0">
+          <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60"></div>
+          <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-purple-900/40 via-purple-800/20 to-transparent"></div>
+          <div className="absolute inset-0 opacity-30">
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(147,51,234,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(147,51,234,0.2)_1px,transparent_1px)] bg-[size:40px_40px] animate-pulse"></div>
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.1)_1px,transparent_1px)] bg-[size:80px_80px] animate-pulse" style={{animationDelay: '1s'}}></div>
+          </div>
+          <div className="absolute inset-0 overflow-hidden scrollbar-terminal">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={i}
+                className="absolute rounded-full animate-pulse"
+                style={{
+                  left: `${20 + i * 30}%`,
+                  top: `${20 + i * 20}%`,
+                  width: `${200 + i * 100}px`,
+                  height: `${200 + i * 100}px`,
+                  background: `radial-gradient(circle, rgba(147, 51, 234, 0.1) 0%, rgba(147, 51, 234, 0.05) 50%, transparent 100%)`,
+                  animationDelay: `${i * 2}s`,
+                  animationDuration: `${6 + i * 2}s`,
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
+        <NetworkSelectionModal
+          isOpen={true}
+          selectedChainId={selectedChainId}
+          setSelectedChainId={setSelectedChainId}
+          supportedNetworks={supportedNetworks}
+          walletChainId={walletChainId}
+          switchNetwork={switchNetwork}
+          onConfirm={async () => {
+            // Mark network selection as completed
+            try {
+              localStorage.setItem('lexie-network-selection-completed', 'true');
+            } catch (error) {
+              console.warn('[VaultDesktop] Failed to save network selection completion to localStorage:', error);
+            }
+
+            console.log('✅ Network selection completed, checking Redis for scanned chains...');
+
+            // Check if selected chain is already scanned in Redis
+            const checkChainId = selectedChainId;
+            if (!checkChainId) {
+              console.log('[VaultDesktop] No chainId available for Redis check');
+            } else {
+              try {
+                console.log('[VaultDesktop] Checking Redis for chain:', checkChainId);
+
+                const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+
+                if (response.status === 404) {
+                  console.log('[VaultDesktop] No wallet metadata in Redis - needs scanning');
+                  // Chain not scanned - trigger hydration
+                  await triggerChainHydration(railgunWalletId, checkChainId, address);
+                } else if (response.ok) {
+                  const data = await response.json();
+                  const walletKeys = Array.isArray(data.keys) ? data.keys : [];
+                  const matchingKey = walletKeys.find(key => key.walletId === railgunWalletId) || null;
+
+                  if (!matchingKey) {
+                    console.log('[VaultDesktop] No matching wallet key found - needs scanning');
+                    // Trigger hydration since no key found
+                    await triggerChainHydration(railgunWalletId, checkChainId, address);
+                  } else {
+                    const scannedChains = Array.isArray(matchingKey?.scannedChains)
+                      ? matchingKey.scannedChains
+                      : (Array.isArray(matchingKey?.meta?.scannedChains) ? matchingKey.meta.scannedChains : []);
+
+                    const normalizedScannedChains = scannedChains
+                      .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
+                      .filter(n => Number.isFinite(n));
+
+                    const isChainScanned = normalizedScannedChains.includes(Number(checkChainId));
+
+                    if (isChainScanned) {
+                      console.log('[VaultDesktop] Chain already scanned - wallet ready');
+                    } else {
+                      console.log('[VaultDesktop] Chain not scanned - triggering hydration...');
+                      // Trigger hydration for the selected chain
+                      await triggerChainHydration(railgunWalletId, checkChainId, address);
+                    }
+                  }
+                } else {
+                  console.warn('[VaultDesktop] Redis check failed:', response.status);
+                  // Assume needs hydration on error
+                  await triggerChainHydration(railgunWalletId, checkChainId, address);
+                }
+              } catch (error) {
+                console.warn('[VaultDesktop] Failed to check Redis scanned chains:', error);
+                // Assume needs hydration on error
+                await triggerChainHydration(railgunWalletId, checkChainId, address);
+              }
+            }
+
+            // Clear the global block flag
+            if (typeof window !== 'undefined') {
+              console.log('🚨 Clearing global block flag - network selection completed');
+              window.__LEXIE_BLOCK_VAULT_OPERATIONS = false;
+            }
+
+            // Trigger network selection completion
+            handleNetworkSelection();
+
+            console.log('✅ Network selection and hydration complete - now proceeding with wallet operations');
+          }}
+          onCancel={() => {
+            // Clear the global block flag
+            if (typeof window !== 'undefined') {
+              console.log('🚨 Clearing global block flag on cancel');
+              window.__LEXIE_BLOCK_VAULT_OPERATIONS = false;
+            }
+
+            // Disconnect wallet on cancel
+            if (typeof window !== 'undefined') {
+              window.location.reload();
+            }
+          }}
+        />
+      </div>
+    );
+  }
 
   // Helper to get network name by chain ID
   const getNetworkNameById = (chainId) => {
@@ -1431,56 +1577,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     };
   }, [isChainMenuOpen, isMobileChainMenuOpen, isModalChainMenuOpen]);
 
-  // Show network selection modal even during connection if needed
-  if (showNetworkSelectionModal) {
-    return (
-      <div className="relative h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
-        {/* Background overlays */}
-        <div className="fixed inset-0 z-0">
-          <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60"></div>
-          <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-purple-900/40 via-purple-800/20 to-transparent"></div>
-          <div className="absolute inset-0 opacity-30">
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(147,51,234,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(147,51,234,0.2)_1px,transparent_1px)] bg-[size:40px_40px] animate-pulse"></div>
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.1)_1px,transparent_1px)] bg-[size:80px_80px] animate-pulse" style={{animationDelay: '1s'}}></div>
-          </div>
-          <div className="absolute inset-0 overflow-hidden scrollbar-terminal">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div
-                key={i}
-                className="absolute rounded-full animate-pulse"
-                style={{
-                  left: `${20 + i * 30}%`,
-                  top: `${20 + i * 20}%`,
-                  width: `${200 + i * 100}px`,
-                  height: `${200 + i * 100}px`,
-                  background: `radial-gradient(circle, rgba(147, 51, 234, 0.1) 0%, rgba(147, 51, 234, 0.05) 50%, transparent 100%)`,
-                  animationDelay: `${i * 2}s`,
-                  animationDuration: `${6 + i * 2}s`,
-                }}
-              />
-            ))}
-          </div>
-        </div>
-
-        <NetworkSelectionModal
-          isOpen={showNetworkSelectionModal}
-          selectedChainId={selectedChainId}
-          setSelectedChainId={setSelectedChainId}
-          supportedNetworks={supportedNetworks}
-          walletChainId={walletChainId}
-          switchNetwork={switchNetwork}
-          onConfirm={handleNetworkSelection}
-          onCancel={() => {
-            // Disconnect wallet on cancel
-            if (typeof window !== 'undefined') {
-              window.location.reload();
-            }
-          }}
-        />
-      </div>
-    );
-  }
 
   if (!isConnected || (isConnected && !isNetworkSupported) || walletConnectValidating) {
     return (
