@@ -201,7 +201,7 @@ export function LexieChat() {
               <div className="flex-shrink-0">
                 <DegenModeButton />
               </div>
-              <div className="flex-shrink-0 ml-auto">
+              <div className="flex-shrink-0 ml-6">
                 <button
                   onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
                   className="p-2 bg-gray-800 border border-green-500/30 rounded-lg hover:bg-gray-700 transition-colors"
