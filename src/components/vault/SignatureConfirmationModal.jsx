@@ -35,7 +35,7 @@ const SignatureConfirmationModal = ({
         <div className="p-6 text-green-300 space-y-4">
           <div>
             <h3 className="text-lg font-bold text-emerald-300 mb-2">
-              {showNetworkSelection ? 'Initialize Your LexieVault' : 'Confirm Signature'}
+              {showNetworkSelection ? 'Initialize Your LexieVault' : 'Create Your LexieVault'}
             </h3>
             <p className="text-green-400/80 text-sm">
               {showNetworkSelection
@@ -133,7 +133,7 @@ const SignatureConfirmationModal = ({
                   ? 'Switching Network...'
                   : 'Create Vault'
               ) : (
-                'Confirm Signature'
+                'Create Vault'
               )}
             </button>
             <button
