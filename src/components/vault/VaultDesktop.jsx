@@ -1549,6 +1549,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   }
 
   // Show network selection modal for existing wallets that haven't completed network selection
+  // Check this BEFORE any Railgun initialization happens
   if (isConnected && railgunWalletId && !hasCompletedNetworkSelection) {
     return (
       <div className="relative h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
@@ -1595,6 +1596,11 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
             } catch (error) {
               console.warn('[VaultDesktop] Failed to save network selection completion to localStorage:', error);
             }
+            // Now that network selection is complete, trigger Railgun initialization
+            setTimeout(() => {
+              console.log('[VaultDesktop] Network selection completed, triggering Railgun initialization...');
+              initializeRailgun();
+            }, 500); // Small delay to ensure chain switch completes
           }}
           onCancel={() => {
             // Disconnect wallet on cancel

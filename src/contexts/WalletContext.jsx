@@ -2170,6 +2170,15 @@ const WalletContextProvider = ({ children }) => {
       return;
     }
 
+    // For existing wallets, check if network selection is completed
+    if (railgunWalletID && typeof window !== 'undefined') {
+      const networkSelectionCompleted = localStorage.getItem('lexie-network-selection-completed') === 'true';
+      if (!networkSelectionCompleted) {
+        console.log('[Railgun Init] ⏳ Waiting for network selection before initializing existing wallet:', railgunWalletID);
+        return;
+      }
+    }
+
     // Bail if currently disconnecting to avoid race with stale wagmi state
     if (disconnectingRef.current) {
       console.log('[Railgun Init] ⏳ Skipping auto-init: disconnect in progress');
