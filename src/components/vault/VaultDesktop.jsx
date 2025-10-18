@@ -1948,7 +1948,18 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
       <NetworkSelectionModal
         isOpen={showNetworkSelectionModal}
+        selectedChainId={selectedChainId}
+        setSelectedChainId={setSelectedChainId}
+        supportedNetworks={supportedNetworks}
+        walletChainId={walletChainId}
+        switchNetwork={switchNetwork}
         onConfirm={handleNetworkSelection}
+        onCancel={() => {
+          // Disconnect wallet on cancel
+          if (typeof window !== 'undefined') {
+            window.location.reload();
+          }
+        }}
       />
 
       <LexieIdChoiceModal
