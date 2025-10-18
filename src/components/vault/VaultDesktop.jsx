@@ -1514,7 +1514,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   return (
     <div className="relative h-screen w-full bg-black text-white overflow-x-hidden">
       {/* Logo in top left - redirects to main site */}
-      <div className="absolute md:top-6 md:left-5 top-0 left-1 z-50 md:pl-6">
+      <div className="absolute md:top-6 md:left-5 -top-2 left-1 z-50 md:pl-6">
         <a
           href="https://www.lexiecrypto.com"
           className="hover:opacity-80 transition-opacity"
