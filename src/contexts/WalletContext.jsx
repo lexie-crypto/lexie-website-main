@@ -1896,7 +1896,7 @@ const WalletContextProvider = ({ children }) => {
 
                   // Set initialization complete
                   setIsInitializing(false);
-                  setWalletInitialized(true);
+                  setIsRailgunInitialized(true); // Wallet is now successfully loaded
 
                   // Show success message
                   console.log('🎉 Wallet recovered from backup! Chains will be rescanned.');
