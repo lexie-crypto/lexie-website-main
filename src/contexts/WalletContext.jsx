@@ -1891,8 +1891,9 @@ const WalletContextProvider = ({ children }) => {
                   // Update wallet state
                   setRailgunWalletID(savedWalletID);
                   setRailgunAddress(railgunWalletInfo.railgunAddress);
-                  setWalletMnemonic(mnemonic || null);
-                  setWalletSignature(signature || null);
+                  // For backup restoration, mnemonic/signature come from Redis, not local variables
+                  setWalletMnemonic(null); // Will be loaded from Redis when needed
+                  setWalletSignature(null); // Will be loaded from Redis when needed
 
                   // Set initialization complete
                   setIsInitializing(false);
