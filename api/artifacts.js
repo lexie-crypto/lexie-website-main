@@ -154,7 +154,8 @@ export default async function handler(req, res) {
       } else if (parsedAction === 'idb-wallet-backup-upload') {
         backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet/sync/idb-wallet-backup-upload`;
       } else if (parsedAction === 'idb-wallet-backup-download') {
-        const backupKey = actionParams.backupKey;
+        // For backup download, backupKey comes as a separate query parameter, not embedded in action
+        const backupKey = url.searchParams.get('backupKey');
         if (!backupKey) {
           return res.status(400).json({ error: 'Missing required parameter: backupKey', requestId });
         }
