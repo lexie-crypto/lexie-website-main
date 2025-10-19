@@ -50,13 +50,7 @@ export default defineConfig({
       'localforage',
       'snarkjs'
     ],
-    exclude: [
-      '@railgun-community/wallet/dist/cjs',
-      'src/utils/railgun/wallet.js',
-      'src/utils/railgun/wallet-backup.js',
-      'src/utils/railgun/initializeRailgun.js',
-      'src/utils/railgun/artifactStore.js'
-    ]
+    exclude: ['@railgun-community/wallet/dist/cjs']
   },
   define: {
     global: 'globalThis',
