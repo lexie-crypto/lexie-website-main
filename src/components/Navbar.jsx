@@ -69,6 +69,13 @@ export function Navbar({ onLexieChatOpen }) {
               >
                 LexieChat
               </a>
+              <a
+                href="https://lexie-crypto.gitbook.io/lexie-crypto/"
+                className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors text-left"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                Documentation
+              </a>
               <button
                 className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors text-left"
                 onClick={() => {
