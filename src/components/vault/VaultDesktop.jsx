@@ -722,7 +722,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       console.log('[VaultDesktop] ⏰ Safety timeout reached - auto-unlocking transaction UI');
       setIsTransactionLocked(false);
       setActiveTransactionMonitors(0);
-    }, 30000); // 30 seconds
+    }, 60000); // 60 seconds
 
     return () => {
       console.log('[VaultDesktop] ⏰ Clearing safety timeout (transaction completed normally)');
