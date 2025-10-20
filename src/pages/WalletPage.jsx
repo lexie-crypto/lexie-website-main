@@ -6,6 +6,7 @@ import React from 'react';
 import AccessCodeGate from '../components/AccessCodeGate.jsx';
 import VaultDesktop from '../components/vault/VaultDesktop.jsx';
 import WindowShell from '../components/window/WindowShell.jsx';
+import { WindowProvider } from '../contexts/windowStore.jsx';
 import { WalletIcon } from '@heroicons/react/24/outline';
 import InjectedProviderButtons from '../components/InjectedProviderButtons.jsx';
 import { useWallet } from '../contexts/WalletContext';
@@ -126,7 +127,9 @@ const WalletPage = () => {
         {isConnected ? (
           <VaultDesktop />
         ) : (
-          <WalletConnectWindow isMobile={isMobile} />
+          <WindowProvider>
+            <WalletConnectWindow isMobile={isMobile} />
+          </WindowProvider>
         )}
       </AccessCodeGate>
     </div>
