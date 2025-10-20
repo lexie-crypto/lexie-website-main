@@ -1604,6 +1604,10 @@ ${JSON.stringify(tx, null, 2)}
                         <span className="text-gray-400">Volume (24h):</span>
                         <span className="text-purple-300 font-medium">{analyticsData.volume24h ? `$${analyticsData.volume24h.toLocaleString(undefined, {maximumFractionDigits: 2})}` : 'N/A'}</span>
                       </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Total Fees Collected:</span>
+                        <span className="text-orange-300 font-medium">{analyticsData.totalFeesCollected ? `${analyticsData.totalFeesCollected} wei` : 'N/A'}</span>
+                      </div>
                     </div>
                   </div>
 

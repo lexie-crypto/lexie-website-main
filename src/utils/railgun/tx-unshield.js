@@ -804,7 +804,8 @@ export const unshieldTokens = async ({
         method: 'base-token',
         privacy: privacyLevel,
         usedRelayer,
-        combinedRelayerFee: combinedRelayerFee?.toString() || '0'
+        combinedRelayerFee: combinedRelayerFee?.toString() || '0',
+        feeToken: selectedRelayer?.feeToken || tokenAddress
       };
     }
 
@@ -1860,6 +1861,8 @@ export const unshieldTokens = async ({
       transactionHash,
       usedRelayer,
       privacyLevel,
+      combinedRelayerFee: '0', // No fees for self-signed/gas-relayer transactions
+      feeToken: null
     };
 
   } catch (error) {
@@ -2644,7 +2647,18 @@ export const privateTransferWithRelayer = async ({
 
     // Transaction monitoring removed - SDK handles balance updates
 
-    return { transactionHash: relayed.transactionHash, relayed: true };
+    // For transfers, extract fee information from the relayer/broadcaster fee
+    // This is more complex as transfers can have multiple recipients and fees are embedded
+    // For now, we'll track a simplified fee amount - can be enhanced later
+    const transferFee = combinedRelayerFee || relayerFeeBn || 0n;
+    const transferFeeToken = selectedRelayer?.feeToken || null;
+
+    return {
+      transactionHash: relayed.transactionHash,
+      relayed: true,
+      combinedRelayerFee: transferFee.toString(),
+      feeToken: transferFeeToken
+    };
   } catch (e) {
     throw e;
   }

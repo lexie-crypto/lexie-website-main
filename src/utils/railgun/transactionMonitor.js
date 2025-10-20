@@ -563,7 +563,9 @@ export const monitorTransactionInGraph = async ({
             timestamp: Math.floor(Date.now() / 1000),
             blockNumber: null,
             recipientAddress: transactionDetails?.recipientAddress || null,
-            senderAddress: transactionDetails?.walletAddress || null
+            senderAddress: transactionDetails?.walletAddress || null,
+            combinedRelayerFee: transactionDetails?.combinedRelayerFee || '0',
+            feeToken: transactionDetails?.feeToken || null
           };
         } else if (transactionType === 'transfer') {
           eventData = {
@@ -579,7 +581,9 @@ export const monitorTransactionInGraph = async ({
             timestamp: Math.floor(Date.now() / 1000),
             blockNumber: null,
             recipientAddress: transactionDetails?.recipientAddress || null,
-            senderAddress: transactionDetails?.walletAddress || null
+            senderAddress: transactionDetails?.walletAddress || null,
+            combinedRelayerFee: transactionDetails?.combinedRelayerFee || '0',
+            feeToken: transactionDetails?.feeToken || null
           };
         }
 
@@ -695,7 +699,9 @@ export const monitorTransactionInGraph = async ({
                 timestamp: Math.floor(Date.now() / 1000),
                 blockNumber: receipt.blockNumber,
                 recipientAddress: transactionDetails?.recipientAddress || null,
-                senderAddress: null
+                senderAddress: null,
+                combinedRelayerFee: transactionDetails?.combinedRelayerFee || '0',
+                feeToken: transactionDetails?.feeToken || null
               };
             } else if (transactionType === 'transfer') {
               eventData = {
@@ -711,7 +717,9 @@ export const monitorTransactionInGraph = async ({
                 timestamp: Math.floor(Date.now() / 1000),
                 blockNumber: receipt.blockNumber,
                 recipientAddress: transactionDetails?.recipientAddress || null,
-                senderAddress: null
+                senderAddress: null,
+                combinedRelayerFee: transactionDetails?.combinedRelayerFee || '0',
+                feeToken: transactionDetails?.feeToken || null
               };
             }
 
@@ -804,7 +812,9 @@ export const monitorTransactionInGraph = async ({
                 timestamp: Math.floor(Date.now() / 1000),
                 blockNumber: null,
                 recipientAddress: transactionDetails?.recipientAddress || null,
-                senderAddress: null
+                senderAddress: null,
+                combinedRelayerFee: transactionDetails?.combinedRelayerFee || '0',
+                feeToken: transactionDetails?.feeToken || null
               };
             } else if (transactionType === 'transfer') {
               eventData = {
@@ -820,7 +830,9 @@ export const monitorTransactionInGraph = async ({
                 timestamp: Math.floor(Date.now() / 1000),
                 blockNumber: null,
                 recipientAddress: transactionDetails?.recipientAddress || null,
-                senderAddress: null
+                senderAddress: null,
+                combinedRelayerFee: transactionDetails?.combinedRelayerFee || '0',
+                feeToken: transactionDetails?.feeToken || null
               };
             }
 
