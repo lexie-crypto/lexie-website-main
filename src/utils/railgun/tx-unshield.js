@@ -1002,18 +1002,24 @@ export const unshieldTokens = async ({
 
         // Get current token prices for accurate USD conversion
         const nativeGasToken = getNativeGasToken(chainId);
-        const feeTokenSymbol = tokenInfo?.symbol || selectedRelayer.feeToken;
+        // Use getTokenSymbol to resolve the fee token symbol from contract address
+        const { getTokenSymbol } = await import('./transactionHistory.js');
+        const feeTokenSymbol = getTokenSymbol(selectedRelayer.feeToken, chainId);
         const priceKeys = [nativeGasToken, feeTokenSymbol];
 
-        console.log('💰 [FEE-CALC] Fetching prices for tokens:', priceKeys, 'feeToken:', selectedRelayer.feeToken, 'symbol:', feeTokenSymbol);
+        console.log('💰 [FEE-CALC] Fetching prices for tokens:', priceKeys, 'feeTokenAddress:', selectedRelayer.feeToken, 'resolvedSymbol:', feeTokenSymbol);
 
         const currentPrices = await fetchTokenPrices(priceKeys);
 
         console.log('💰 [FEE-CALC] Retrieved prices:', currentPrices);
 
-        // Calculate USD values using actual token prices
-        const relayerFeeUSD = parseFloat(relayerFeeBn.toString()) / Math.pow(10, feeTokenDecimals) * (currentPrices[feeTokenSymbol] || 1); // Default to $1 if no price
-        const gasFeeUSD = parseFloat(gasFeeDeducted.toString()) / Math.pow(10, 18) * (currentPrices[nativeGasToken] || 2000); // Default to $2000 for gas tokens
+        // Calculate USD values using actual token prices with fallbacks
+        const relayerPrice = currentPrices[feeTokenSymbol] ||
+                           (feeTokenSymbol.includes('USD') ? 1.0 : 2000); // $1 for USD-pegged, $2000 fallback
+        const gasPrice = currentPrices[nativeGasToken] || 2000; // $2000 fallback for gas tokens
+
+        const relayerFeeUSD = parseFloat(relayerFeeBn.toString()) / Math.pow(10, feeTokenDecimals) * relayerPrice;
+        const gasFeeUSD = parseFloat(gasFeeDeducted.toString()) / Math.pow(10, 18) * gasPrice;
         const combinedFeeUSD = relayerFeeUSD + gasFeeUSD;
 
         console.log('💰 [FEE-CALC] Raw calculations:', {
@@ -2755,10 +2761,16 @@ export const privateTransferWithRelayer = async ({
       const traceId = `transfer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
       // For transfers, we don't have detailed fee breakdown, so use simplified USD calculation
-      // Assume transfer fees are in the same token as the transfer and use conservative pricing
-      const feeTokenSymbol = transferFeeToken || 'ETH';
-      const conservativePrice = feeTokenSymbol.includes('USD') ? 1.0 : 2000; // $1 for USD-pegged, $2000 for ETH
-      const transferFeeUSD = parseFloat(transferFee.toString()) / Math.pow(10, 18) * conservativePrice;
+      // Use getTokenSymbol to resolve the fee token symbol from contract address
+      const { getTokenSymbol } = await import('./transactionHistory.js');
+      const feeTokenSymbol = getTokenSymbol(transferFeeToken, chainId) || 'ETH';
+
+      // Try to get real price, fallback to conservative estimate
+      const priceKeys = [feeTokenSymbol];
+      const currentPrices = await fetchTokenPrices(priceKeys);
+      const tokenPrice = currentPrices[feeTokenSymbol] || (feeTokenSymbol.includes('USD') ? 1.0 : 2000);
+
+      const transferFeeUSD = parseFloat(transferFee.toString()) / Math.pow(10, 18) * tokenPrice;
 
       console.log('💰 [FEE-STORE] Storing transfer fee data:', {
         traceId,
