@@ -154,8 +154,8 @@ const WalletPage = () => {
   return (
     <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
 
-      {/* Logo in top left - redirects to main site - only on desktop when connected */}
-      {isConnected && !isMobile && (
+      {/* Logo in top left - redirects to main site - only on desktop */}
+      {!isMobile && (
         <div className="absolute md:top-6 md:left-5 -top-2 left-1 z-50 md:pl-6">
           <a
             href="https://www.lexiecrypto.com"
