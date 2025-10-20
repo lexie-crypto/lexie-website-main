@@ -25,6 +25,48 @@ const WalletConnectWindow = ({ isMobile, onWalletConnected }) => {
     return null;
   }
 
+  // Mobile version - simple layout without WindowShell
+  if (isMobile) {
+    return (
+      <div className="min-h-screen bg-black">
+        {/* Logo in top left - redirects to main site */}
+        <div className="absolute top-4 left-4 z-50">
+          <a
+            href="https://www.lexiecrypto.com"
+            className="hover:opacity-80 transition-opacity"
+          >
+            <span className="text-2xl font-bold text-purple-300">LEXIEAI</span>
+          </a>
+        </div>
+
+        <div className="flex flex-col items-center justify-center min-h-screen px-6 py-20">
+          <div className="text-center space-y-6 max-w-md mx-auto">
+            <WalletIcon className="h-16 w-16 text-emerald-300 mx-auto" />
+            <div className="space-y-2">
+              <h2 className="text-2xl font-semibold text-emerald-300 tracking-tight">Connect Wallet</h2>
+              <p className="text-emerald-300/80 text-sm leading-6">
+                {wasDisconnectedForUnsupportedNetwork
+                  ? "Your wallet was disconnected because it's connected to an unsupported network. Please switch to Ethereum, Arbitrum, Polygon, or BNB Chain and try again."
+                  : "Connect your wallet to gain access to the LexieVault features."
+                }
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <InjectedProviderButtons disabled={isConnecting} />
+            </div>
+
+            <div className="text-sm text-green-400/70 text-center">
+              <p>Choose your preferred wallet to connect</p>
+              <p className="mt-1 text-xs">Connection is zk-secured and encrypted</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Desktop version - with WindowShell
   return (
     <div className="relative h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
       {/* Background overlays */}
@@ -112,8 +154,8 @@ const WalletPage = () => {
   return (
     <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
 
-      {/* Logo in top left - redirects to main site - only on desktop */}
-      {!isMobile && (
+      {/* Logo in top left - redirects to main site - only on desktop when connected */}
+      {isConnected && !isMobile && (
         <div className="absolute md:top-6 md:left-5 -top-2 left-1 z-50 md:pl-6">
           <a
             href="https://www.lexiecrypto.com"
@@ -127,11 +169,13 @@ const WalletPage = () => {
       <AccessCodeGate>
         {isConnected ? (
           <VaultDesktop />
+        ) : isMobile ? (
+          <WalletConnectWindow isMobile={isMobile} />
         ) : (
           <WindowProvider>
             <WalletConnectWindow isMobile={isMobile} />
             {/* Taskbar for minimized windows - Hidden on mobile */}
-            {!isMobile && <Taskbar />}
+            <Taskbar />
           </WindowProvider>
         )}
       </AccessCodeGate>
