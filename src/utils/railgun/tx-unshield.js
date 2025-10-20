@@ -996,13 +996,37 @@ export const unshieldTokens = async ({
       });
 
       // Store fee data directly in Redis when calculated
+      // Use USD values directly instead of wei amounts for accurate pricing
       try {
         const traceId = `unshield-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+        // Get current token prices for accurate USD conversion
+        const nativeGasToken = getNativeGasToken(chainId);
+        const feeTokenSymbol = tokenInfo?.symbol || selectedRelayer.feeToken;
+        const priceKeys = [nativeGasToken, feeTokenSymbol];
+        const currentPrices = await fetchTokenPrices(priceKeys);
+
+        // Calculate USD values using actual token prices
+        const relayerFeeUSD = parseFloat(relayerFeeBn.toString()) / Math.pow(10, feeTokenDecimals) * (currentPrices[feeTokenSymbol] || 0);
+        const gasFeeUSD = parseFloat(gasFeeDeducted.toString()) / Math.pow(10, 18) * (currentPrices[nativeGasToken] || 0); // Gas tokens are 18 decimals
+        const combinedFeeUSD = relayerFeeUSD + gasFeeUSD;
+
+        console.log('💰 [FEE-STORE] Storing fee data with accurate USD values:', {
+          traceId,
+          relayerFeeUSD: relayerFeeUSD.toFixed(4),
+          gasFeeUSD: gasFeeUSD.toFixed(4),
+          combinedFeeUSD: combinedFeeUSD.toFixed(4),
+          relayerToken: feeTokenSymbol,
+          gasToken: nativeGasToken,
+          prices: currentPrices
+        });
+
         await storeFeeDataDirectly(traceId, {
-          combinedRelayerFee: combinedRelayerFee.toString(),
-          relayerFee: relayerFeeBn.toString(),
-          gasFee: gasFeeDeducted.toString(),
-          feeToken: selectedRelayer.feeToken,
+          combinedRelayerFeeUSD: combinedFeeUSD.toFixed(4),
+          relayerFeeUSD: relayerFeeUSD.toFixed(4),
+          gasFeeUSD: gasFeeUSD.toFixed(4),
+          relayerToken: feeTokenSymbol,
+          gasToken: nativeGasToken,
           calculatedAt: Date.now(),
           transactionType: 'unshield',
           userAmount: userAmountGross.toString()
@@ -2708,11 +2732,25 @@ export const privateTransferWithRelayer = async ({
     // Store fee data directly in Redis when calculated
     try {
       const traceId = `transfer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+      // For transfers, we don't have detailed fee breakdown, so use simplified USD calculation
+      // Assume transfer fees are in the same token as the transfer and use conservative pricing
+      const feeTokenSymbol = transferFeeToken || 'ETH';
+      const conservativePrice = feeTokenSymbol.includes('USD') ? 1.0 : 2000; // $1 for USD-pegged, $2000 for ETH
+      const transferFeeUSD = parseFloat(transferFee.toString()) / Math.pow(10, 18) * conservativePrice;
+
+      console.log('💰 [FEE-STORE] Storing transfer fee data:', {
+        traceId,
+        transferFeeUSD: transferFeeUSD.toFixed(4),
+        feeToken: feeTokenSymbol
+      });
+
       await storeFeeDataDirectly(traceId, {
-        combinedRelayerFee: transferFee.toString(),
-        relayerFee: transferFee.toString(), // For transfers, we track the combined fee as relayer fee
-        gasFee: '0', // Transfers don't have separate gas reclamation
-        feeToken: transferFeeToken,
+        combinedRelayerFeeUSD: transferFeeUSD.toFixed(4),
+        relayerFeeUSD: transferFeeUSD.toFixed(4), // Combined fee as relayer fee
+        gasFeeUSD: '0.0000', // Transfers don't have gas reclamation
+        relayerToken: feeTokenSymbol,
+        gasToken: null,
         calculatedAt: Date.now(),
         transactionType: 'transfer',
         userAmount: erc20AmountRecipients.reduce((sum, r) => sum + BigInt(r.amount), 0n).toString()
