@@ -2,7 +2,7 @@
  * Wallet Page Wrapper - gates access with access codes before loading wallet logic
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import AccessCodeGate from '../components/AccessCodeGate.jsx';
 import VaultDesktop from '../components/vault/VaultDesktop.jsx';
 import WindowShell from '../components/window/WindowShell.jsx';
@@ -12,6 +12,7 @@ import { Navbar } from '../components/Navbar.jsx';
 import { WalletIcon } from '@heroicons/react/24/outline';
 import InjectedProviderButtons from '../components/InjectedProviderButtons.jsx';
 import { useWallet } from '../contexts/WalletContext';
+import ChatPage from './ChatPage.tsx';
 
 const WalletConnectWindow = ({ isMobile, onWalletConnected }) => {
   const { isConnected, isConnecting, wasDisconnectedForUnsupportedNetwork, walletConnectValidating } = useWallet();
@@ -174,6 +175,7 @@ const WalletConnectWindow = ({ isMobile, onWalletConnected }) => {
 const WalletPage = () => {
   const { isConnected, isConnecting, wasDisconnectedForUnsupportedNetwork, walletConnectValidating } = useWallet();
   const [isMobile, setIsMobile] = React.useState(false);
+  const [showLexieChat, setShowLexieChat] = useState(false);
 
   React.useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia === 'undefined') {
@@ -212,6 +214,41 @@ const WalletPage = () => {
           <WalletConnectWindow isMobile={isMobile} />
         )}
       </AccessCodeGate>
+
+      {/* Lexie Logo - Only show on desktop */}
+      {!isMobile && (
+        <div className="fixed bottom-2 right-1 z-10">
+          <img
+            src="/lexie.png"
+            alt="Lexie"
+            className="w-[320px] h-[320px] opacity-80 hover:opacity-80 transition-opacity cursor-pointer"
+            title="Click here to open up LexieChat"
+            onClick={() => setShowLexieChat(true)}
+          />
+        </div>
+      )}
+
+      {/* LexieAI Chat Window - Desktop */}
+      {showLexieChat && !isMobile && (
+        <WindowShell
+          id="lexie-chat-terminal"
+          title="LexieAI-chat"
+          appType="chat"
+          statusLabel="Enable Degen Mode"
+          statusTone="online"
+          footerLeft="LexieAI Chat Terminal"
+          footerRight="Secure LexieAI Communication Channel"
+          variant="vault"
+          fullscreen={false}
+          onClose={() => setShowLexieChat(false)}
+          initialSize={{ width: 1000, height: 700 }}
+          initialPosition={{ x: 200, y: 100 }}
+          minSize={{ width: 800, height: 600 }}
+          className="z-[98]"
+        >
+          <ChatPage />
+        </WindowShell>
+      )}
     </div>
   );
 };
