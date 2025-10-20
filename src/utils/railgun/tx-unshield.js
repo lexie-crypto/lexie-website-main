@@ -805,6 +805,8 @@ export const unshieldTokens = async ({
         privacy: privacyLevel,
         usedRelayer,
         combinedRelayerFee: combinedRelayerFee?.toString() || '0',
+        relayerFee: relayerFeeBn?.toString() || '0',
+        gasFee: gasFeeDeducted?.toString() || '0',
         feeToken: selectedRelayer?.feeToken || tokenAddress
       };
     }
@@ -1862,6 +1864,8 @@ export const unshieldTokens = async ({
       usedRelayer,
       privacyLevel,
       combinedRelayerFee: '0', // No fees for self-signed/gas-relayer transactions
+      relayerFee: '0',
+      gasFee: '0',
       feeToken: null
     };
 
@@ -2657,6 +2661,8 @@ export const privateTransferWithRelayer = async ({
       transactionHash: relayed.transactionHash,
       relayed: true,
       combinedRelayerFee: transferFee.toString(),
+      relayerFee: transferFee.toString(), // For transfers, we track the combined fee as relayer fee
+      gasFee: '0', // Transfers don't have separate gas reclamation
       feeToken: transferFeeToken
     };
   } catch (e) {

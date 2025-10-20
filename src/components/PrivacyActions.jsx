@@ -1356,6 +1356,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             railgunAddress: railgunAddress,
             tokenSymbol: selectedToken.symbol,
             combinedRelayerFee: result.combinedRelayerFee,
+            relayerFee: result.relayerFee,
+            gasFee: result.gasFee,
             feeToken: result.feeToken,
             tokenAddress: tokenAddr,
             decimals: selectedToken.decimals,
@@ -1888,6 +1890,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             displayAmount: actualAmount,
             recipientAddress: timelineRecipientAddress, // Use resolved Railgun address
             combinedRelayerFee: tx.combinedRelayerFee,
+            relayerFee: tx.relayerFee,
+            gasFee: tx.gasFee,
             feeToken: tx.feeToken,
             memoText: memoText, // Add memo text
           },

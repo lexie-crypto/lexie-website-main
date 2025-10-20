@@ -1606,7 +1606,30 @@ ${JSON.stringify(tx, null, 2)}
                       </div>
                       <div className="flex justify-between items-center">
                         <span className="text-gray-400">Total Fees Collected:</span>
-                        <span className="text-orange-300 font-medium">{analyticsData.totalFeesCollected ? `${analyticsData.totalFeesCollected} wei` : 'N/A'}</span>
+                        <span className="text-orange-300 font-medium">
+                          {analyticsData.totalFeesCollectedUSD && analyticsData.totalFeesCollectedUSD > 0
+                            ? `$${analyticsData.totalFeesCollectedUSD.toFixed(2)}`
+                            : '$0.00'
+                          }
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Relayer Fees:</span>
+                        <span className="text-blue-300 font-medium">
+                          {analyticsData.totalRelayerFeesUSD && analyticsData.totalRelayerFeesUSD > 0
+                            ? `$${analyticsData.totalRelayerFeesUSD.toFixed(2)}`
+                            : '$0.00'
+                          }
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Gas Reclamation Fees:</span>
+                        <span className="text-green-300 font-medium">
+                          {analyticsData.totalGasFeesUSD && analyticsData.totalGasFeesUSD > 0
+                            ? `$${analyticsData.totalGasFeesUSD.toFixed(2)}`
+                            : '$0.00'
+                          }
+                        </span>
                       </div>
                     </div>
                   </div>

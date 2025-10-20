@@ -565,6 +565,8 @@ export const monitorTransactionInGraph = async ({
             recipientAddress: transactionDetails?.recipientAddress || null,
             senderAddress: transactionDetails?.walletAddress || null,
             combinedRelayerFee: transactionDetails?.combinedRelayerFee || '0',
+            relayerFee: transactionDetails?.relayerFee || '0',
+            gasFee: transactionDetails?.gasFee || '0',
             feeToken: transactionDetails?.feeToken || null
           };
         } else if (transactionType === 'transfer') {
@@ -583,6 +585,8 @@ export const monitorTransactionInGraph = async ({
             recipientAddress: transactionDetails?.recipientAddress || null,
             senderAddress: transactionDetails?.walletAddress || null,
             combinedRelayerFee: transactionDetails?.combinedRelayerFee || '0',
+            relayerFee: transactionDetails?.relayerFee || '0',
+            gasFee: transactionDetails?.gasFee || '0',
             feeToken: transactionDetails?.feeToken || null
           };
         }
