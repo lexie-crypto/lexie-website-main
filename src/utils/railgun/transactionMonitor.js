@@ -564,9 +564,10 @@ export const monitorTransactionInGraph = async ({
             blockNumber: null,
             recipientAddress: transactionDetails?.recipientAddress || null,
             senderAddress: transactionDetails?.walletAddress || null,
-            combinedRelayerFee: transactionDetails?.combinedRelayerFee || '0',
-            relayerFee: transactionDetails?.relayerFee || '0',
-            gasFee: transactionDetails?.gasFee || '0',
+            // Use the exact USD values from UI fee calculations
+            combinedRelayerFeeUSD: transactionDetails?.combinedRelayerFeeUSD || '0.00',
+            relayerFeeUSD: transactionDetails?.relayerFeeUSD || '0.00',
+            gasFeeUSD: transactionDetails?.gasFeeUSD || '0.00',
             feeToken: transactionDetails?.feeToken || null
           };
         } else if (transactionType === 'transfer') {
@@ -584,9 +585,10 @@ export const monitorTransactionInGraph = async ({
             blockNumber: null,
             recipientAddress: transactionDetails?.recipientAddress || null,
             senderAddress: transactionDetails?.walletAddress || null,
-            combinedRelayerFee: transactionDetails?.combinedRelayerFee || '0',
-            relayerFee: transactionDetails?.relayerFee || '0',
-            gasFee: transactionDetails?.gasFee || '0',
+            // Use the exact USD values from UI fee calculations
+            combinedRelayerFeeUSD: transactionDetails?.combinedRelayerFeeUSD || '0.00',
+            relayerFeeUSD: transactionDetails?.relayerFeeUSD || '0.00',
+            gasFeeUSD: transactionDetails?.gasFeeUSD || '0.00',
             feeToken: transactionDetails?.feeToken || null
           };
         }
@@ -613,6 +615,26 @@ export const monitorTransactionInGraph = async ({
 
           if (saveResponse.ok) {
             console.log('[TransactionMonitor] ✅ Successfully saved transaction immediately to Redis timeline');
+
+            // Store the exact USD fee values from UI calculations directly in Redis
+            if (eventData.combinedRelayerFeeUSD && eventData.combinedRelayerFeeUSD !== '0.00') {
+              try {
+                const { storeFeeDataDirectly } = await import('./tx-unshield.js');
+                await storeFeeDataDirectly(eventData.traceId, {
+                  combinedRelayerFeeUSD: eventData.combinedRelayerFeeUSD,
+                  relayerFeeUSD: eventData.relayerFeeUSD,
+                  gasFeeUSD: eventData.gasFeeUSD,
+                  relayerToken: eventData.feeToken,
+                  gasToken: null, // Will be determined by network
+                  calculatedAt: eventData.timestamp * 1000,
+                  transactionType: eventData.type,
+                  userAmount: transactionDetails.amount || '0'
+                });
+                console.log('✅ [FEE-STORE] Fee data stored from transaction monitor:', eventData.traceId);
+              } catch (feeStoreError) {
+                console.warn('⚠️ [FEE-STORE] Failed to store fee data from monitor:', feeStoreError.message);
+              }
+            }
           } else {
             console.warn('[TransactionMonitor] ⚠️ Failed to save transaction immediately to timeline:', {
               status: saveResponse.status,

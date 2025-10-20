@@ -1355,9 +1355,10 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             walletId: railgunWalletId,
             railgunAddress: railgunAddress,
             tokenSymbol: selectedToken.symbol,
-            combinedRelayerFee: result.combinedRelayerFee,
-            relayerFee: result.relayerFee,
-            gasFee: result.gasFee,
+            // Pass the exact USD fee estimates from UI calculations
+            combinedRelayerFeeUSD: feeInfo ? (parseFloat(feeInfo.feeUSD) + parseFloat(feeInfo.gasFeeUSD || '0')).toFixed(2) : '0.00',
+            relayerFeeUSD: feeInfo?.feeUSD || '0.00',
+            gasFeeUSD: feeInfo?.gasFeeUSD || '0.00',
             feeToken: result.feeToken,
             tokenAddress: tokenAddr,
             decimals: selectedToken.decimals,
@@ -1889,9 +1890,10 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             amount: amountInUnits,
             displayAmount: actualAmount,
             recipientAddress: timelineRecipientAddress, // Use resolved Railgun address
-            combinedRelayerFee: tx.combinedRelayerFee,
-            relayerFee: tx.relayerFee,
-            gasFee: tx.gasFee,
+            // Pass the exact USD fee estimates from UI calculations
+            combinedRelayerFeeUSD: feeInfo ? (parseFloat(feeInfo.feeUSD) + parseFloat(feeInfo.gasFeeUSD || '0')).toFixed(2) : '0.00',
+            relayerFeeUSD: feeInfo?.feeUSD || '0.00',
+            gasFeeUSD: feeInfo?.gasFeeUSD || '0.00',
             feeToken: tx.feeToken,
             memoText: memoText, // Add memo text
           },
