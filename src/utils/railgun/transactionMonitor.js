@@ -615,26 +615,6 @@ export const monitorTransactionInGraph = async ({
 
           if (saveResponse.ok) {
             console.log('[TransactionMonitor] ✅ Successfully saved transaction immediately to Redis timeline');
-
-            // Store the exact USD fee values from UI calculations directly in Redis
-            if (eventData.combinedRelayerFeeUSD && eventData.combinedRelayerFeeUSD !== '0.00') {
-              try {
-                const { storeFeeDataDirectly } = await import('./tx-unshield.js');
-                await storeFeeDataDirectly(eventData.traceId, {
-                  combinedRelayerFeeUSD: eventData.combinedRelayerFeeUSD,
-                  relayerFeeUSD: eventData.relayerFeeUSD,
-                  gasFeeUSD: eventData.gasFeeUSD,
-                  relayerToken: eventData.feeToken,
-                  gasToken: null, // Will be determined by network
-                  calculatedAt: eventData.timestamp * 1000,
-                  transactionType: eventData.type,
-                  userAmount: transactionDetails.amount || '0'
-                });
-                console.log('✅ [FEE-STORE] Fee data stored from transaction monitor:', eventData.traceId);
-              } catch (feeStoreError) {
-                console.warn('⚠️ [FEE-STORE] Failed to store fee data from monitor:', feeStoreError.message);
-              }
-            }
           } else {
             console.warn('[TransactionMonitor] ⚠️ Failed to save transaction immediately to timeline:', {
               status: saveResponse.status,
