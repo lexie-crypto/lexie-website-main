@@ -87,6 +87,8 @@ export function Navbar({ onLexieChatOpen }) {
               </button>
               <a
                 href="https://lexie-crypto.gitbook.io/lexie-crypto/"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors text-left"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
