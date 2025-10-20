@@ -1343,36 +1343,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       try {
         const { monitorTransactionInGraph } = await import('../utils/railgun/transactionMonitor.js');
         
-        // Save fees directly to Redis immediately after calculation
-        if (feeInfo && (feeInfo.feeUSD !== 'N/A' || feeInfo.gasFeeUSD)) {
-          try {
-            const traceId = `unshield-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-            const feeData = {
-              combinedRelayerFeeUSD: (parseFloat(feeInfo.feeUSD === 'N/A' ? '0' : feeInfo.feeUSD) + parseFloat(feeInfo.gasFeeUSD || '0')).toFixed(2),
-              relayerFeeUSD: feeInfo.feeUSD === 'N/A' ? '0.00' : feeInfo.feeUSD,
-              gasFeeUSD: feeInfo.gasFeeUSD || '0.00',
-              relayerToken: selectedToken.symbol,
-              gasToken: feeInfo.nativeGasToken || null,
-              calculatedAt: Date.now(),
-              transactionType: 'unshield',
-              userAmount: amount
-            };
-
-            console.log('💰 [FEE-STORE] Saving unshield fees directly:', feeData);
-
-            // Save via API proxy
-            await fetch('/api/wallet-metadata?action=store-fee-data', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ traceId, feeData })
-            });
-
-            console.log('✅ [FEE-STORE] Unshield fees saved:', traceId);
-          } catch (feeError) {
-            console.warn('⚠️ [FEE-STORE] Failed to save unshield fees:', feeError.message);
-          }
-        }
-
         // Start monitoring with new API specification
         monitorTransactionInGraph({
           txHash: result.transactionHash,
@@ -1385,10 +1355,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             walletId: railgunWalletId,
             railgunAddress: railgunAddress,
             tokenSymbol: selectedToken.symbol,
-            // Pass the exact USD fee estimates from UI calculations
-            combinedRelayerFeeUSD: feeInfo ? (parseFloat(feeInfo.feeUSD) + parseFloat(feeInfo.gasFeeUSD || '0')).toFixed(2) : '0.00',
-            relayerFeeUSD: feeInfo?.feeUSD || '0.00',
-            gasFeeUSD: feeInfo?.gasFeeUSD || '0.00',
+            combinedRelayerFee: result.combinedRelayerFee,
+            relayerFee: result.relayerFee,
+            gasFee: result.gasFee,
             feeToken: result.feeToken,
             tokenAddress: tokenAddr,
             decimals: selectedToken.decimals,
@@ -1902,36 +1871,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         window.dispatchEvent(new CustomEvent('transaction-history-refresh'));
       }, 3000); // Wait 3 seconds for transaction to be mined and indexed
 
-      // Save fees directly to Redis immediately after calculation
-      if (feeInfo && (feeInfo.feeUSD !== 'N/A' || feeInfo.gasFeeUSD)) {
-        try {
-          const traceId = `transfer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-          const feeData = {
-            combinedRelayerFeeUSD: (parseFloat(feeInfo.feeUSD === 'N/A' ? '0' : feeInfo.feeUSD) + parseFloat(feeInfo.gasFeeUSD || '0')).toFixed(2),
-            relayerFeeUSD: feeInfo.feeUSD === 'N/A' ? '0.00' : feeInfo.feeUSD,
-            gasFeeUSD: feeInfo.gasFeeUSD || '0.00',
-            relayerToken: selectedToken.symbol,
-            gasToken: feeInfo.nativeGasToken || null,
-            calculatedAt: Date.now(),
-            transactionType: 'transfer',
-            userAmount: amountInUnits
-          };
-
-          console.log('💰 [FEE-STORE] Saving transfer fees directly:', feeData);
-
-          // Save via API proxy
-          await fetch('/api/wallet-metadata?action=store-fee-data', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ traceId, feeData })
-          });
-
-          console.log('✅ [FEE-STORE] Transfer fees saved:', traceId);
-        } catch (feeError) {
-          console.warn('⚠️ [FEE-STORE] Failed to save transfer fees:', feeError.message);
-        }
-      }
-
       // Optional: Graph monitoring (transfer)
       try {
         const { monitorTransactionInGraph } = await import('../utils/railgun/transactionMonitor.js');
@@ -1950,10 +1889,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             amount: amountInUnits,
             displayAmount: actualAmount,
             recipientAddress: timelineRecipientAddress, // Use resolved Railgun address
-            // Pass the exact USD fee estimates from UI calculations
-            combinedRelayerFeeUSD: feeInfo ? (parseFloat(feeInfo.feeUSD) + parseFloat(feeInfo.gasFeeUSD || '0')).toFixed(2) : '0.00',
-            relayerFeeUSD: feeInfo?.feeUSD || '0.00',
-            gasFeeUSD: feeInfo?.gasFeeUSD || '0.00',
+            combinedRelayerFee: tx.combinedRelayerFee,
+            relayerFee: tx.relayerFee,
+            gasFee: tx.gasFee,
             feeToken: tx.feeToken,
             memoText: memoText, // Add memo text
           },

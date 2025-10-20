@@ -564,10 +564,9 @@ export const monitorTransactionInGraph = async ({
             blockNumber: null,
             recipientAddress: transactionDetails?.recipientAddress || null,
             senderAddress: transactionDetails?.walletAddress || null,
-            // Use the exact USD values from UI fee calculations
-            combinedRelayerFeeUSD: transactionDetails?.combinedRelayerFeeUSD || '0.00',
-            relayerFeeUSD: transactionDetails?.relayerFeeUSD || '0.00',
-            gasFeeUSD: transactionDetails?.gasFeeUSD || '0.00',
+            combinedRelayerFee: transactionDetails?.combinedRelayerFee || '0',
+            relayerFee: transactionDetails?.relayerFee || '0',
+            gasFee: transactionDetails?.gasFee || '0',
             feeToken: transactionDetails?.feeToken || null
           };
         } else if (transactionType === 'transfer') {
@@ -585,10 +584,9 @@ export const monitorTransactionInGraph = async ({
             blockNumber: null,
             recipientAddress: transactionDetails?.recipientAddress || null,
             senderAddress: transactionDetails?.walletAddress || null,
-            // Use the exact USD values from UI fee calculations
-            combinedRelayerFeeUSD: transactionDetails?.combinedRelayerFeeUSD || '0.00',
-            relayerFeeUSD: transactionDetails?.relayerFeeUSD || '0.00',
-            gasFeeUSD: transactionDetails?.gasFeeUSD || '0.00',
+            combinedRelayerFee: transactionDetails?.combinedRelayerFee || '0',
+            relayerFee: transactionDetails?.relayerFee || '0',
+            gasFee: transactionDetails?.gasFee || '0',
             feeToken: transactionDetails?.feeToken || null
           };
         }

@@ -541,6 +541,39 @@ export const unshieldTokens = async ({
         // PREFLIGHT GUARD: Prevent combined fees from exceeding user amount
         validateCombinedFee(combinedRelayerFee, userAmountGross, 'Base token');
 
+        // Store fee data directly in Redis - convert to USD using native token price
+        try {
+          const traceId = `unshield-base-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+          const nativeGasToken = getNativeGasToken(chain.id);
+          const currentPrices = await fetchTokenPrices([nativeGasToken]);
+
+          // Base tokens are native tokens (ETH, BNB, MATIC, etc.)
+          const relayerFeeUSD = parseFloat(relayerFeeBn.toString()) / Math.pow(10, 18) * (currentPrices[nativeGasToken] || 0);
+          const gasFeeUSD = parseFloat(gasFeeDeducted.toString()) / Math.pow(10, 18) * (currentPrices[nativeGasToken] || 0);
+          const combinedFeeUSD = relayerFeeUSD + gasFeeUSD;
+
+          console.log('💰 [FEE-STORE] Storing base token unshield fees:', {
+            traceId,
+            relayerFeeUSD: relayerFeeUSD.toFixed(4),
+            gasFeeUSD: gasFeeUSD.toFixed(4),
+            combinedFeeUSD: combinedFeeUSD.toFixed(4),
+            nativeToken: nativeGasToken
+          });
+
+          await storeFeeDataDirectly(traceId, {
+            combinedRelayerFeeUSD: combinedFeeUSD.toFixed(4),
+            relayerFeeUSD: relayerFeeUSD.toFixed(4),
+            gasFeeUSD: gasFeeUSD.toFixed(4),
+            relayerToken: nativeGasToken,
+            gasToken: nativeGasToken,
+            calculatedAt: Date.now(),
+            transactionType: 'unshield',
+            userAmount: userAmountGross.toString()
+          });
+        } catch (feeStoreError) {
+          console.warn('⚠️ [FEE-STORE] Failed to store base token fee data:', feeStoreError.message);
+        }
+
         console.log('🔍 [UNSHIELD] CRITICAL - Base token broadcaster fee updated with combined fee:', {
           relayerFeeBn: relayerFeeBn.toString(),
           gasFeeDeducted: gasFeeDeducted.toString(),
@@ -951,6 +984,43 @@ export const unshieldTokens = async ({
 
       // PREFLIGHT GUARD: Prevent combined fees from exceeding user amount
       validateCombinedFee(combinedRelayerFee, userAmountGross, 'ERC-20');
+
+      // Store fee data directly in Redis - convert to USD using already fetched tokenPrices
+      try {
+        const traceId = `unshield-erc20-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+        // Get fee token info for USD conversion
+        const tokenInfo = getKnownTokenDecimals(selectedRelayer.feeToken, chain.id);
+        const feeTokenSymbol = tokenInfo?.symbol || selectedRelayer.feeToken;
+        const feeTokenDecimals = tokenInfo?.decimals || 18;
+
+        // Convert wei amounts to USD using the prices already fetched for gas calculation
+        const relayerFeeUSD = parseFloat(relayerFeeBn.toString()) / Math.pow(10, feeTokenDecimals) * (tokenPrices[feeTokenSymbol] || 0);
+        const gasFeeUSD = parseFloat(gasFeeDeducted.toString()) / Math.pow(10, feeTokenDecimals) * (tokenPrices[feeTokenSymbol] || 0);
+        const combinedFeeUSD = relayerFeeUSD + gasFeeUSD;
+
+        console.log('💰 [FEE-STORE] Storing ERC20 unshield fees:', {
+          traceId,
+          relayerFeeUSD: relayerFeeUSD.toFixed(4),
+          gasFeeUSD: gasFeeUSD.toFixed(4),
+          combinedFeeUSD: combinedFeeUSD.toFixed(4),
+          feeToken: feeTokenSymbol,
+          decimals: feeTokenDecimals
+        });
+
+        await storeFeeDataDirectly(traceId, {
+          combinedRelayerFeeUSD: combinedFeeUSD.toFixed(4),
+          relayerFeeUSD: relayerFeeUSD.toFixed(4),
+          gasFeeUSD: gasFeeUSD.toFixed(4),
+          relayerToken: feeTokenSymbol,
+          gasToken: nativeGasToken,
+          calculatedAt: Date.now(),
+          transactionType: 'unshield',
+          userAmount: userAmountGross.toString()
+        });
+      } catch (feeStoreError) {
+        console.warn('⚠️ [FEE-STORE] Failed to store ERC20 fee data:', feeStoreError.message);
+      }
 
       // CREATE SINGLE BROADCASTER FEE OBJECT: Used for proof generation
       // This includes the ESTIMATED gas reclamation that gets baked into the proof
@@ -2741,19 +2811,21 @@ export const privateTransferWithRelayer = async ({
 
       console.log('💰 [FEE-STORE] Storing transfer fee data:', {
         traceId,
-        transferFeeUSD: transferFeeUSD.toFixed(4),
-        feeToken: feeTokenSymbol
+        relayerFeeUSD: relayerFeeUSD.toFixed(4),
+        feeToken: feeTokenSymbol,
+        decimals: feeTokenDecimals,
+        price: currentPrices[feeTokenSymbol]
       });
 
       await storeFeeDataDirectly(traceId, {
-        combinedRelayerFeeUSD: transferFeeUSD.toFixed(4),
-        relayerFeeUSD: transferFeeUSD.toFixed(4), // Combined fee as relayer fee
+        combinedRelayerFeeUSD: relayerFeeUSD.toFixed(4),
+        relayerFeeUSD: relayerFeeUSD.toFixed(4),
         gasFeeUSD: '0.0000', // Transfers don't have gas reclamation
         relayerToken: feeTokenSymbol,
         gasToken: null,
         calculatedAt: Date.now(),
         transactionType: 'transfer',
-        userAmount: erc20AmountRecipients.reduce((sum, r) => sum + BigInt(r.amount), 0n).toString()
+        userAmount: originalAmountBn.toString()
       });
       console.log('✅ [FEE-STORE] Transfer fee data stored:', traceId);
     } catch (feeStoreError) {
