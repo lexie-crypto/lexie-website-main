@@ -29,7 +29,7 @@ const GameOnboardingModal = ({ isOpen, onChoice, lexieId }) => {
             <div className="text-green-300/80 text-xs space-y-1">
               <div>• Your vault continues initializing</div>
               <div>• Earn points and rewards</div>
-              <div>• Game loads in a separate window</div>
+              <div>• Game opens in a new tab/window</div>
             </div>
           </div>
 
