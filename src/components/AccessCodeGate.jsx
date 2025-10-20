@@ -75,8 +75,6 @@ const AccessCodeGate = ({ children }) => {
   // Access code authentication screen
   return (
     <div className="relative h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
-      {/* Navigation */}
-      <Navbar />
 
       {/* Background overlays */}
       <div className="fixed inset-0 z-0">
@@ -187,6 +185,5 @@ const AccessCodeGate = ({ children }) => {
 
 // Import required components
 import TerminalWindow from './ui/TerminalWindow.jsx';
-import { Navbar } from './Navbar';
 
 export default AccessCodeGate;
