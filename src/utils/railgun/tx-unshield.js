@@ -1004,12 +1004,28 @@ export const unshieldTokens = async ({
         const nativeGasToken = getNativeGasToken(chainId);
         const feeTokenSymbol = tokenInfo?.symbol || selectedRelayer.feeToken;
         const priceKeys = [nativeGasToken, feeTokenSymbol];
+
+        console.log('💰 [FEE-CALC] Fetching prices for tokens:', priceKeys, 'feeToken:', selectedRelayer.feeToken, 'symbol:', feeTokenSymbol);
+
         const currentPrices = await fetchTokenPrices(priceKeys);
 
+        console.log('💰 [FEE-CALC] Retrieved prices:', currentPrices);
+
         // Calculate USD values using actual token prices
-        const relayerFeeUSD = parseFloat(relayerFeeBn.toString()) / Math.pow(10, feeTokenDecimals) * (currentPrices[feeTokenSymbol] || 0);
-        const gasFeeUSD = parseFloat(gasFeeDeducted.toString()) / Math.pow(10, 18) * (currentPrices[nativeGasToken] || 0); // Gas tokens are 18 decimals
+        const relayerFeeUSD = parseFloat(relayerFeeBn.toString()) / Math.pow(10, feeTokenDecimals) * (currentPrices[feeTokenSymbol] || 1); // Default to $1 if no price
+        const gasFeeUSD = parseFloat(gasFeeDeducted.toString()) / Math.pow(10, 18) * (currentPrices[nativeGasToken] || 2000); // Default to $2000 for gas tokens
         const combinedFeeUSD = relayerFeeUSD + gasFeeUSD;
+
+        console.log('💰 [FEE-CALC] Raw calculations:', {
+          relayerFeeBn: relayerFeeBn.toString(),
+          gasFeeDeducted: gasFeeDeducted.toString(),
+          feeTokenDecimals,
+          relayerTokenPrice: currentPrices[feeTokenSymbol] || 1,
+          gasTokenPrice: currentPrices[nativeGasToken] || 2000,
+          relayerFeeUSD,
+          gasFeeUSD,
+          combinedFeeUSD
+        });
 
         console.log('💰 [FEE-STORE] Storing fee data with accurate USD values:', {
           traceId,
@@ -1021,17 +1037,22 @@ export const unshieldTokens = async ({
           prices: currentPrices
         });
 
-        await storeFeeDataDirectly(traceId, {
-          combinedRelayerFeeUSD: combinedFeeUSD.toFixed(4),
-          relayerFeeUSD: relayerFeeUSD.toFixed(4),
-          gasFeeUSD: gasFeeUSD.toFixed(4),
-          relayerToken: feeTokenSymbol,
-          gasToken: nativeGasToken,
-          calculatedAt: Date.now(),
-          transactionType: 'unshield',
-          userAmount: userAmountGross.toString()
-        });
-        console.log('✅ [FEE-STORE] Fee data stored directly:', traceId);
+        try {
+          await storeFeeDataDirectly(traceId, {
+            combinedRelayerFeeUSD: combinedFeeUSD.toFixed(4),
+            relayerFeeUSD: relayerFeeUSD.toFixed(4),
+            gasFeeUSD: gasFeeUSD.toFixed(4),
+            relayerToken: feeTokenSymbol,
+            gasToken: nativeGasToken,
+            calculatedAt: Date.now(),
+            transactionType: 'unshield',
+            userAmount: userAmountGross.toString()
+          });
+          console.log('✅ [FEE-STORE] Fee data stored directly:', traceId);
+        } catch (storeError) {
+          console.error('❌ [FEE-STORE] Failed to store fee data:', storeError);
+          // Continue with transaction even if fee storage fails
+        }
       } catch (feeStoreError) {
         console.warn('⚠️ [FEE-STORE] Failed to store fee data:', feeStoreError.message);
       }
