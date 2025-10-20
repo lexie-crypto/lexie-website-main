@@ -2185,7 +2185,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   );
 };
 
-const VaultDesktop = () => {
+const VaultDesktop = ({ externalWindowProvider = false }) => {
   const [isMobile, setIsMobile] = React.useState(false);
   const [isReady, setIsReady] = React.useState(false);
 
@@ -2216,6 +2216,11 @@ const VaultDesktop = () => {
         </WindowProvider>
       </div>
     );
+  }
+
+  // If external WindowProvider is provided (like in WalletPage), don't wrap with our own
+  if (externalWindowProvider) {
+    return <VaultDesktopInner />;
   }
 
   return (

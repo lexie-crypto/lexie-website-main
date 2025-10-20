@@ -6,7 +6,7 @@ import React, { useState } from 'react';
 import AccessCodeGate from '../components/AccessCodeGate.jsx';
 import VaultDesktop from '../components/vault/VaultDesktop.jsx';
 import WindowShell from '../components/window/WindowShell.jsx';
-import { WindowProvider } from '../contexts/windowStore.jsx';
+import { WindowProvider, useWindowStore } from '../contexts/windowStore.jsx';
 import Taskbar from '../components/window/Taskbar.jsx';
 import { Navbar } from '../components/Navbar.jsx';
 import { WalletIcon } from '@heroicons/react/24/outline';
@@ -172,10 +172,12 @@ const WalletConnectWindow = ({ isMobile, onWalletConnected }) => {
   );
 };
 
-const WalletPage = () => {
+// Inner component that uses window store hooks
+const WalletPageInner = () => {
   const { isConnected, isConnecting, wasDisconnectedForUnsupportedNetwork, walletConnectValidating } = useWallet();
   const [isMobile, setIsMobile] = React.useState(false);
   const [showLexieChat, setShowLexieChat] = useState(false);
+  const { getWindowState, reopenWindow } = useWindowStore();
 
   React.useEffect(() => {
     if (typeof window === 'undefined' || typeof window.matchMedia === 'undefined') {
@@ -194,7 +196,6 @@ const WalletPage = () => {
 
   return (
     <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
-
       {/* Logo in top left - redirects to main site - only on desktop */}
       {!isMobile && (
         <div className="absolute md:top-6 md:left-5 -top-2 left-1 z-50 md:pl-6">
@@ -209,7 +210,7 @@ const WalletPage = () => {
 
       <AccessCodeGate>
         {isConnected ? (
-          <VaultDesktop />
+          <VaultDesktop externalWindowProvider={true} />
         ) : (
           <WalletConnectWindow isMobile={isMobile} />
         )}
@@ -223,7 +224,14 @@ const WalletPage = () => {
             alt="Lexie"
             className="w-[320px] h-[320px] opacity-80 hover:opacity-80 transition-opacity cursor-pointer"
             title="Click here to open up LexieChat"
-            onClick={() => setShowLexieChat(true)}
+            onClick={() => {
+              const windowState = getWindowState('lexie-chat-terminal');
+              // If window exists and is closed, reopen it first
+              if (windowState && windowState.isClosed) {
+                reopenWindow('lexie-chat-terminal');
+              }
+              setShowLexieChat(true);
+            }}
           />
         </div>
       )}
@@ -250,6 +258,14 @@ const WalletPage = () => {
         </WindowShell>
       )}
     </div>
+  );
+};
+
+const WalletPage = () => {
+  return (
+    <WindowProvider>
+      <WalletPageInner />
+    </WindowProvider>
   );
 };
 
