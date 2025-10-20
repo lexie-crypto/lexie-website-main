@@ -7,6 +7,7 @@ import AccessCodeGate from '../components/AccessCodeGate.jsx';
 import VaultDesktop from '../components/vault/VaultDesktop.jsx';
 import WindowShell from '../components/window/WindowShell.jsx';
 import { WindowProvider } from '../contexts/windowStore.jsx';
+import Taskbar from '../components/window/Taskbar.jsx';
 import { WalletIcon } from '@heroicons/react/24/outline';
 import InjectedProviderButtons from '../components/InjectedProviderButtons.jsx';
 import { useWallet } from '../contexts/WalletContext';
@@ -129,6 +130,8 @@ const WalletPage = () => {
         ) : (
           <WindowProvider>
             <WalletConnectWindow isMobile={isMobile} />
+            {/* Taskbar for minimized windows - Hidden on mobile */}
+            {!isMobile && <Taskbar />}
           </WindowProvider>
         )}
       </AccessCodeGate>
