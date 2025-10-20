@@ -257,6 +257,9 @@ const WalletPageInner = () => {
           <ChatPage />
         </WindowShell>
       )}
+
+      {/* Taskbar for minimized windows - Desktop only */}
+      {!isMobile && <Taskbar />}
     </div>
   );
 };
