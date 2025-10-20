@@ -472,6 +472,48 @@ export default async function handler(req, res) {
     }
   }
 
+  // Handle fee data storage from frontend (direct fee calculation)
+  if (req.method === 'POST' && action === 'store-fee-data') {
+    try {
+      const body = req.body || {};
+      const { traceId, feeData } = body;
+
+      if (!traceId || !feeData) {
+        return res.status(400).json({ success: false, error: 'Missing traceId or feeData' });
+      }
+
+      console.log(`💰 [FEE-STORE-PROXY-${requestId}] Storing fee data for traceId: ${traceId}`);
+
+      // Forward to backend fee storage endpoint
+      const backendPath = '/api/wallet-metadata/store-fee-data';
+      const backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+
+      const signature = generateHmacSignature('POST', backendPath, timestamp, hmacSecret);
+      const headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Lexie-Timestamp': timestamp,
+        'X-Lexie-Signature': signature,
+        'Origin': 'https://staging.app.lexiecrypto.com',
+        'User-Agent': 'Lexie-Fee-Store-Proxy/1.0',
+      };
+
+      const backendResp = await fetch(backendUrl, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ traceId, feeData }),
+        signal: AbortSignal.timeout(30000),
+      });
+
+      const result = await backendResp.json();
+      console.log(`✅ [FEE-STORE-PROXY-${requestId}] Fee storage result:`, result);
+      return res.status(backendResp.status).json(result);
+    } catch (err) {
+      console.error('❌ [FEE-STORE-PROXY] Error storing fee data:', err);
+      return res.status(500).json({ success: false, error: 'fee-store proxy error' });
+    }
+  }
+
   // Handle analytics endpoint
   if (action === 'get-analytics') {
     console.log(`✅ [ANALYTICS-PROXY-${requestId}] Analytics endpoint detected`);

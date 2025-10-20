@@ -41,6 +41,37 @@ import {
 } from './fee-calculator.js';
 
 /**
+ * Store fee data directly in Redis when calculated
+ */
+const storeFeeDataDirectly = async (traceId, feeData) => {
+  try {
+    // Call backend API directly to store fee data
+    const response = await fetch('/api/wallet-metadata?action=store-fee-data', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        traceId,
+        feeData
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const result = await response.json();
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to store fee data');
+    }
+
+    return result;
+  } catch (error) {
+    console.error('[FEE-STORE] Error storing fee data:', error);
+    throw error;
+  }
+};
+
+/**
  * Terminal-themed toast helper (no JSX; compatible with .js files)
  */
 const showTerminalToast = (type, title, subtitle = '', opts = {}) => {
@@ -963,6 +994,23 @@ export const unshieldTokens = async ({
         assertion: 'SDK receives full amount, deducts fees internally',
         balanceCheck: `recipient (${recipientBn.toString()}) + broadcaster (${combinedRelayerFee.toString()}) ≤ userGross (${userAmountGross.toString()})`
       });
+
+      // Store fee data directly in Redis when calculated
+      try {
+        const traceId = `unshield-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        await storeFeeDataDirectly(traceId, {
+          combinedRelayerFee: combinedRelayerFee.toString(),
+          relayerFee: relayerFeeBn.toString(),
+          gasFee: gasFeeDeducted.toString(),
+          feeToken: selectedRelayer.feeToken,
+          calculatedAt: Date.now(),
+          transactionType: 'unshield',
+          userAmount: userAmountGross.toString()
+        });
+        console.log('✅ [FEE-STORE] Fee data stored directly:', traceId);
+      } catch (feeStoreError) {
+        console.warn('⚠️ [FEE-STORE] Failed to store fee data:', feeStoreError.message);
+      }
       
       // Assertions (before proof/populate)
       if (recipientBn <= 0n) {
@@ -2656,6 +2704,23 @@ export const privateTransferWithRelayer = async ({
     // For now, we'll track a simplified fee amount - can be enhanced later
     const transferFee = combinedRelayerFee || relayerFeeBn || 0n;
     const transferFeeToken = selectedRelayer?.feeToken || null;
+
+    // Store fee data directly in Redis when calculated
+    try {
+      const traceId = `transfer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      await storeFeeDataDirectly(traceId, {
+        combinedRelayerFee: transferFee.toString(),
+        relayerFee: transferFee.toString(), // For transfers, we track the combined fee as relayer fee
+        gasFee: '0', // Transfers don't have separate gas reclamation
+        feeToken: transferFeeToken,
+        calculatedAt: Date.now(),
+        transactionType: 'transfer',
+        userAmount: erc20AmountRecipients.reduce((sum, r) => sum + BigInt(r.amount), 0n).toString()
+      });
+      console.log('✅ [FEE-STORE] Transfer fee data stored:', traceId);
+    } catch (feeStoreError) {
+      console.warn('⚠️ [FEE-STORE] Failed to store transfer fee data:', feeStoreError.message);
+    }
 
     return {
       transactionHash: relayed.transactionHash,
