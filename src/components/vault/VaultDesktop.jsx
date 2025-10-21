@@ -1831,6 +1831,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                   onClick={refreshBalances}
                   disabled={isLoading || !isConnected || isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-emerald-400/40 bg-emerald-900/20 hover:bg-emerald-900/40 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                  title="Refresh all wallet balances"
                 >
                   refresh
                 </button>
@@ -1838,6 +1839,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                   onClick={() => setSelectedView('balances')}
                   disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
+                  title="View all wallet balances"
                 >
                   balances
                 </button>
@@ -1848,6 +1850,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                   }}
                   disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-pink-400/40 bg-pink-900/20 hover:bg-pink-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
+                  title="Manage your contacts"
                 >
                   contacts
                 </button>
@@ -1858,6 +1861,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                   }}
                   disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-purple-300/50 bg-purple-300/10 hover:bg-purple-300/20 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
+                  title="Add tokens to your vault from your connected wallet"
                 >
                   add
                 </button>
@@ -1868,6 +1872,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                   }}
                   disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
+                  title="Receive tokens to your vault from any address"
                 >
                   receive
                 </button>
@@ -1878,6 +1883,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                   }}
                   disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-cyan-400/40 bg-cyan-900/20 hover:bg-cyan-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
+                  title="Send tokens from your vault to any address"
                 >
                   send
                 </button>
@@ -1888,6 +1894,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                   }}
                   disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-amber-400/40 bg-amber-900/20 hover:bg-amber-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
+                  title="Remove tokens from your vault to your connected wallet"
                 >
                   remove
                 </button>
@@ -1895,6 +1902,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                   onClick={() => setSelectedView('history')}
                   disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-purple-400/40 bg-purple-900/20 hover:bg-purple-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
+                  title="View your transaction history"
                 >
                   history
                 </button>
