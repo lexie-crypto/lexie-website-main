@@ -14,6 +14,7 @@ import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/enviro
 import { NetworkName } from '@railgun-community/shared-models';
 import { initializeSyncSystem } from '../utils/sync/idb-sync/index.js';
 import { createWalletBackup } from '../utils/sync/idb-sync/backup.js';
+import { clearLevelDB } from '../utils/sync/idb-sync/exporter.js';
 
 // Inline wallet metadata API functions
 async function getWalletMetadata(walletAddress) {
@@ -1951,12 +1952,22 @@ const WalletContextProvider = ({ children }) => {
         }
         
         // 🆕 Only create new wallet if we truly don't have one
-        console.log('🔑 Creating NEW Railgun wallet (none exists for this EOA)...', { 
+        console.log('🔑 Creating NEW Railgun wallet (none exists for this EOA)...', {
           userAddress: address,
           reason: !savedWalletID ? 'No stored walletID' : 'Failed to load existing wallet',
           hasStoredData: { signature: !!existingSignature, mnemonic: !!existingMnemonic }
         });
-        
+
+        // 🧹 CRITICAL: Clear IndexedDB before creating new wallet to ensure clean state
+        console.log('🧹 Clearing IndexedDB before creating new wallet...');
+        try {
+          await clearLevelDB();
+          console.log('✅ IndexedDB cleared successfully before wallet creation');
+        } catch (clearError) {
+          console.warn('⚠️ Failed to clear IndexedDB before wallet creation:', clearError);
+          // Don't fail wallet creation if clear fails, but log it
+        }
+
         // 🔄 Check for existing encrypted mnemonic from Redis
         let mnemonic = null;
         const savedEncryptedMnemonic = existingMnemonic; // From Redis only

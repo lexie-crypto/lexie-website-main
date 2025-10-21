@@ -3,7 +3,7 @@
  * Creates and restores complete LevelDB snapshots for guaranteed wallet recovery
  */
 
-import { exportWalletSnapshot, clearLevelDB } from './exporter.js';
+import { exportWalletSnapshot } from './exporter.js';
 import { uploadWalletBackup, downloadWalletBackup } from './api.js';
 import { writeBackupToIDB } from './hydration.js';
 
@@ -20,17 +20,7 @@ export const createWalletBackup = async (walletId, eoa) => {
       eoa: eoa?.slice(0, 8) + '...'
     });
 
-    // 🧹 CRITICAL: Clear LevelDB before creating backup to ensure clean state
-    console.log('[Wallet-Backup] 🧹 Clearing LevelDB before backup creation...');
-    try {
-      await clearLevelDB();
-      console.log('[Wallet-Backup] ✅ LevelDB cleared successfully');
-    } catch (clearError) {
-      console.warn('[Wallet-Backup] ⚠️ Failed to clear LevelDB, proceeding with backup anyway:', clearError);
-      // Don't fail the entire backup if clear fails
-    }
-
-    // Export complete LevelDB snapshot (should be minimal at wallet creation time)
+    // Export complete LevelDB snapshot (IndexedDB should already be clean from wallet creation)
     const snapshotData = await exportWalletSnapshot(walletId);
 
     if (!snapshotData) {
