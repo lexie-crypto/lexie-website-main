@@ -20,7 +20,7 @@ const PaymentRedirect = () => {
   React.useEffect(() => {
     // Get current URL parameters
     const urlParams = new URLSearchParams(window.location.search);
-    const subdomainUrl = `https://staging.pay.lexiecrypto.com/pay?${urlParams.toString()}`;
+    const subdomainUrl = `https://pay.lexiecrypto.com/pay?${urlParams.toString()}`;
 
     console.log('[PaymentRedirect] Attempting redirect to:', subdomainUrl);
 
@@ -63,7 +63,7 @@ const PaymentRedirect = () => {
   }, [redirectAttempted]);
 
   const urlParams = new URLSearchParams(window.location.search);
-  const subdomainUrl = `https://staging.pay.lexiecrypto.com/pay?${urlParams.toString()}`;
+  const subdomainUrl = `https://pay.lexiecrypto.com/pay?${urlParams.toString()}`;
 
   return (
     <div className="h-screen bg-black text-white flex items-center justify-center">
@@ -103,7 +103,7 @@ function App() {
 
   // Check if we're on the payment subdomain
   const isPaymentSubdomain = typeof window !== 'undefined' &&
-    window.location.hostname === 'staging.pay.lexiecrypto.com';
+    window.location.hostname === 'pay.lexiecrypto.com';
 
   // Detect mobile and initialize Eruda
   useEffect(() => {

@@ -15,7 +15,7 @@ async function getMemoryContext(lexieId, limit = 10, hmacSecret) {
   console.log(`📚 [MEMORY] Retrieving context for LexieID: ${lexieId}, limit: ${limit}`);
 
   // Target backend
-  const targets = ['https://staging.api.lexiecrypto.com/api/lexie/memory'];
+  const targets = ['https://api.lexiecrypto.com/api/lexie/memory'];
 
   // Generate HMAC headers
   const method = 'GET';
@@ -27,7 +27,7 @@ async function getMemoryContext(lexieId, limit = 10, hmacSecret) {
     'Accept': 'application/json',
     'X-Lexie-Timestamp': timestamp,
     'X-Lexie-Signature': signature,
-    'Origin': 'https://staging.app.lexiecrypto.com',
+    'Origin': 'https://app.lexiecrypto.com',
     'User-Agent': 'Lexie-Memory-Proxy/1.0',
   };
 
@@ -78,7 +78,7 @@ async function storeChatMemory(lexieId, userMessage, assistantMessage, personali
   console.log(`💾 [MEMORY] Storing chat memory for LexieID: ${lexieId}`);
 
   // Target backend
-  const targets = ['https://staging.api.lexiecrypto.com/api/lexie/memory'];
+  const targets = ['https://api.lexiecrypto.com/api/lexie/memory'];
 
   // Generate HMAC headers
   const method = 'POST';
@@ -91,7 +91,7 @@ async function storeChatMemory(lexieId, userMessage, assistantMessage, personali
     'Accept': 'application/json',
     'X-Lexie-Timestamp': timestamp,
     'X-Lexie-Signature': signature,
-    'Origin': 'https://staging.app.lexiecrypto.com',
+    'Origin': 'https://app.lexiecrypto.com',
     'User-Agent': 'Lexie-Memory-Proxy/1.0',
   };
 
@@ -179,9 +179,9 @@ export default async function handler(req, res) {
     'http://localhost:3000',
     'http://localhost:3001',
     'http://localhost:5173',
-    'https://staging.lexiecrypto.com',
-    'https://staging.app.lexiecrypto.com',
-    'https://staging.chatroom.lexiecrypto.com',
+    'https://lexiecrypto.com',
+    'https://app.lexiecrypto.com',
+    'https://chatroom.lexiecrypto.com',
     'https://chatroom.lexiecrypto.com',
   ];
   const isOriginAllowed = origin && (allowedOrigins.includes(origin) ||
@@ -274,7 +274,7 @@ export default async function handler(req, res) {
       ...(internalKey ? { 'LEXIE_INTERNAL_KEY': internalKey } : {}),
       ...(signature ? { 'X-Lexie-Timestamp': timestamp, 'X-Lexie-Signature': signature } : {}),
       // Keep canonical frontend origin
-      'Origin': 'https://staging.app.lexiecrypto.com',
+      'Origin': 'https://app.lexiecrypto.com',
       'User-Agent': 'Lexie-Chat-Proxy/1.0',
     };
 
@@ -291,9 +291,9 @@ export default async function handler(req, res) {
     const isLocalClient = /^(http:\/\/localhost|http:\/\/127\.0\.0\.1)/.test(clientOrigin);
     const isDevEnv = process.env.NODE_ENV !== 'production';
 
-    let targets = ['https://staging.api.lexiecrypto.com/api/lexie/chat'];
+    let targets = ['https://api.lexiecrypto.com/api/lexie/chat'];
     if (isLocalClient || isDevEnv) {
-      targets = ['http://localhost:3000/api/lexie/chat', 'https://staging.api.lexiecrypto.com/api/lexie/chat'];
+      targets = ['http://localhost:3000/api/lexie/chat', 'https://api.lexiecrypto.com/api/lexie/chat'];
     }
     console.log(`📡 [CHAT-PROXY-${requestId}] Client origin: ${clientOrigin}, isLocalClient: ${isLocalClient}, isDevEnv: ${isDevEnv}`);
     console.log(`📡 [CHAT-PROXY-${requestId}] Target sequence:`, targets);

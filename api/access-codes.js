@@ -43,9 +43,9 @@ export default async function handler(req, res) {
     'http://localhost:3000',
     'http://localhost:3001',
     'http://localhost:5173',
-    'https://staging.lexiecrypto.com',
-    'https://staging.app.lexiecrypto.com',
-    'https://staging.chatroom.lexiecrypto.com',
+    'https://lexiecrypto.com',
+    'https://app.lexiecrypto.com',
+    'https://chatroom.lexiecrypto.com',
     'https://chatroom.lexiecrypto.com',
   ];
   const isOriginAllowed = origin && allowedOrigins.includes(origin);
@@ -92,7 +92,7 @@ export default async function handler(req, res) {
       }
 
       backendPath = '/api/access-codes/verify';
-      backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+      backendUrl = `https://api.lexiecrypto.com${backendPath}`;
 
     } else if (req.method === 'POST' && action === 'create-access-code') {
       console.log(`✅ [ACCESS-CODES-PROXY-${requestId}] Create access code`);
@@ -106,13 +106,13 @@ export default async function handler(req, res) {
       }
 
       backendPath = '/api/access-codes/create';
-      backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+      backendUrl = `https://api.lexiecrypto.com${backendPath}`;
 
     } else if (req.method === 'GET' && action === 'list-access-codes') {
       console.log(`✅ [ACCESS-CODES-PROXY-${requestId}] List access codes`);
 
       backendPath = '/api/access-codes/list';
-      backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+      backendUrl = `https://api.lexiecrypto.com${backendPath}`;
 
     } else if (req.method === 'DELETE' && action === 'deactivate-access-code') {
       console.log(`✅ [ACCESS-CODES-PROXY-${requestId}] Deactivate access code`);
@@ -126,13 +126,13 @@ export default async function handler(req, res) {
       }
 
       backendPath = `/api/access-codes/deactivate/${codeId}`;
-      backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+      backendUrl = `https://api.lexiecrypto.com${backendPath}`;
 
     } else if (req.method === 'GET' && action === 'get-access-code-stats') {
       console.log(`✅ [ACCESS-CODES-PROXY-${requestId}] Get access code stats`);
 
       backendPath = '/api/access-codes/stats';
-      backendUrl = `https://staging.api.lexiecrypto.com${backendPath}`;
+      backendUrl = `https://api.lexiecrypto.com${backendPath}`;
 
     } else {
       console.log(`❌ [ACCESS-CODES-PROXY-${requestId}] Unknown action: ${action}`);
@@ -149,7 +149,7 @@ export default async function handler(req, res) {
       'Accept': 'application/json',
       'X-Lexie-Timestamp': timestamp,
       'X-Lexie-Signature': signature,
-      'Origin': 'https://staging.app.lexiecrypto.com',
+      'Origin': 'https://app.lexiecrypto.com',
       'User-Agent': 'Lexie-Access-Codes-Proxy/1.0',
     };
 

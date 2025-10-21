@@ -36,7 +36,7 @@ export function Navbar({ onLexieChatOpen }) {
               Documentation
             </a>
             <a
-              href="https://staging.app.lexiecrypto.com/lexievault"
+              href="https://app.lexiecrypto.com/lexievault"
               className="inline-flex items-center px-6 py-2 bg-purple-300 text-black font-bold rounded-lg shadow-lg hover:bg-purple-300 transition-all duration-300 transform hover:scale-105"
             >
               Launch App →
@@ -59,7 +59,7 @@ export function Navbar({ onLexieChatOpen }) {
         {isMobileMenuOpen && (
           <div className="absolute top-full right-0 w-64 md:hidden bg-black border-t border-l border-purple-800 shadow-xl z-50">
             <div className="px-6 py-4 space-y-4">
-              <a href="https://staging.app.lexiecrypto.com/lexievault" className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors text-left" onClick={() => setIsMobileMenuOpen(false)}>
+              <a href="https://app.lexiecrypto.com/lexievault" className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors text-left" onClick={() => setIsMobileMenuOpen(false)}>
                 LexieVault
               </a>
               <a
