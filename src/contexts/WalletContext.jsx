@@ -15,6 +15,7 @@ import { NetworkName } from '@railgun-community/shared-models';
 import { initializeSyncSystem } from '../utils/sync/idb-sync/index.js';
 import { createWalletBackup } from '../utils/sync/idb-sync/backup.js';
 import { markVaultCreated } from '../utils/sync/idb-sync/exporter.js';
+import { toast } from 'react-hot-toast';
 
 // Inline wallet metadata API functions
 async function getWalletMetadata(walletAddress) {
@@ -2034,13 +2035,13 @@ const WalletContextProvider = ({ children }) => {
             );
 
             if (storeSuccess) {
-              // 🏷️ Mark that a vault has been created in this browser (prevents multiple vaults)
+              // Mark vault as created in LevelDB (before backup to prevent multiple vaults)
               try {
                 await markVaultCreated();
-                console.log('🏷️ Vault creation flag set in LevelDB');
-              } catch (flagError) {
-                console.warn('⚠️ Failed to set vault creation flag:', flagError);
-                // Don't fail wallet creation if flag setting fails
+                console.log('✅ Vault marked as created in LevelDB');
+              } catch (markError) {
+                console.warn('⚠️ Failed to mark vault creation in LevelDB:', markError);
+                // Continue anyway - backup will still work
               }
 
               // 🛡️ CRITICAL: Create LevelDB snapshot backup AT THE SAME TIME as Redis persistence
@@ -2053,7 +2054,21 @@ const WalletContextProvider = ({ children }) => {
                   console.warn('⚠️ LevelDB snapshot backup failed - wallet will still work but recovery may not be available');
                 }
               } catch (backupError) {
-                console.warn('⚠️ LevelDB snapshot backup creation failed:', backupError);
+                if (backupError.code === 'BACKUP_TOO_LARGE') {
+                  // Show user warning about vault limit
+                  console.warn('🚨 Multiple vault attempt detected - backup cancelled');
+                  console.warn('Details:', backupError.details);
+
+                  // Show UI notification to user
+                  toast.error(backupError.message, {
+                    duration: 6000, // Show for 6 seconds
+                    position: 'top-right',
+                  });
+
+                  console.log('✅ Wallet created successfully despite backup cancellation');
+                } else {
+                  console.warn('⚠️ LevelDB snapshot backup creation failed:', backupError);
+                }
                 // Don't fail wallet creation if backup fails
               }
 

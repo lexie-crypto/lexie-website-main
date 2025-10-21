@@ -17,9 +17,6 @@ const getStateModule = async () => {
 // HTTP payload limit: ~2-3MB compressed to avoid 413 errors
 const CHUNK_TARGET_BYTES = Math.floor(2.5 * 1024 * 1024 * 0.8); // ~2MB uncompressed
 
-// Vault creation flag key
-const VAULT_CREATED_FLAG_KEY = 'lexie:vault:created';
-
 /**
  * Open LevelJS-backed IndexedDB database
  */
@@ -37,77 +34,73 @@ const openLevelJSDB = async () => {
 };
 
 /**
- * Check if a vault has already been created in this browser
- * @returns {Promise<boolean>} True if vault creation flag exists
+ * Check if a vault has already been created in this LevelDB
+ * @returns {Promise<boolean>} True if vault already exists
  */
-const hasVaultBeenCreated = async () => {
+const checkVaultExists = async () => {
   try {
-    console.log('[Vault-Flag] Checking if vault has already been created...');
+    console.log('[IDB-Vault-Check] Checking if vault already exists...');
 
     const db = await openLevelJSDB();
     const transaction = db.transaction(['railgun-engine-db'], 'readonly');
     const store = transaction.objectStore('railgun-engine-db');
 
     return new Promise((resolve, reject) => {
-      const request = store.get(VAULT_CREATED_FLAG_KEY);
+      const request = store.get('lexie:vault:created');
 
-      request.onsuccess = (event) => {
-        const result = event.target.result;
-        const exists = result !== undefined;
-        console.log(`[Vault-Flag] Vault creation flag ${exists ? 'found' : 'not found'}`);
+      request.onsuccess = () => {
         db.close();
+        const exists = request.result !== undefined;
+        console.log(`[IDB-Vault-Check] Vault ${exists ? 'already exists' : 'does not exist'} in this browser`);
         resolve(exists);
       };
 
       request.onerror = () => {
-        console.error('[Vault-Flag] Error checking vault flag:', request.error);
+        console.error('[IDB-Vault-Check] Vault check failed:', request.error);
         db.close();
         reject(request.error);
       };
     });
 
   } catch (error) {
-    console.error('[Vault-Flag] Failed to check vault flag:', error);
+    console.error('[IDB-Vault-Check] Vault check failed:', error);
     throw error;
   }
 };
 
 /**
- * Mark that a vault has been created in this browser
+ * Mark that a vault has been created in this LevelDB
  * @returns {Promise<void>}
  */
 const markVaultCreated = async () => {
   try {
-    console.log('[Vault-Flag] Marking vault as created...');
+    console.log('[IDB-Vault-Mark] Marking vault as created...');
 
     const db = await openLevelJSDB();
     const transaction = db.transaction(['railgun-engine-db'], 'readwrite');
     const store = transaction.objectStore('railgun-engine-db');
 
-    const flagData = {
-      created: true,
-      timestamp: Date.now(),
-      version: '1.0'
-    };
-
     return new Promise((resolve, reject) => {
-      const request = store.put(flagData, VAULT_CREATED_FLAG_KEY);
+      const request = store.put({
+        created: true,
+        timestamp: Date.now()
+      }, 'lexie:vault:created');
 
       request.onsuccess = () => {
-        console.log('[Vault-Flag] Vault creation flag set successfully');
         db.close();
+        console.log('[IDB-Vault-Mark] Vault creation marked successfully');
         resolve();
       };
 
       request.onerror = () => {
-        console.error('[Vault-Flag] Error setting vault flag:', request.error);
+        console.error('[IDB-Vault-Mark] Failed to mark vault creation:', request.error);
         db.close();
         reject(request.error);
       };
     });
 
   } catch (error) {
-    console.error('[Vault-Flag] Failed to mark vault as created:', error);
+    console.error('[IDB-Vault-Mark] Failed to mark vault creation:', error);
     throw error;
   }
 };
@@ -463,7 +456,7 @@ export const restoreFullSnapshot = async (walletId, timestamp, signal) => {
  * @param {string} walletId - Wallet ID to export data for
  * @returns {Promise<Object|null>} Complete LevelDB snapshot or null if no data
  */
-export const exportWalletSnapshot = async (walletId) => {
+const exportWalletSnapshot = async (walletId) => {
   try {
     console.log('[IDB-Snapshot-Export] Creating complete LevelDB snapshot for backup...');
 
@@ -545,4 +538,4 @@ export const exportWalletSnapshot = async (walletId) => {
 };
 
 // Export functions for use in backup module
-export { hasVaultBeenCreated, markVaultCreated };
+export { exportWalletSnapshot, checkVaultExists, markVaultCreated };
