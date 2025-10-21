@@ -660,14 +660,29 @@ export default function LandingPage() {
           <div className="text-center mb-20">
             <h2 className="text-5xl lg:text-7xl font-bold text-white mb-6">
               <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
-                TACTICAL
+                LEXIE PLATFORM
               </span>
-              <br />
-              <span className="text-white">AI ARSENAL</span>
             </h2>
-            <p className="text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
-              Deploy advanced AI protocols for Web3 domination. Each module engineered for maximum efficiency and stealth operations.
-            </p>
+            <div className="text-xl text-gray-300 max-w-4xl mx-auto leading-relaxed space-y-6">
+              <div className="flex items-start space-x-4">
+                <span className="text-purple-400 font-bold text-2xl">1)</span>
+                <div>
+                  <span className="text-white font-semibold">LexieVault</span> - zk-secured, non-custodial vault for shielding, sending, and receiving assets with gasless transactions and full on-chain confidentiality.
+                </div>
+              </div>
+              <div className="flex items-start space-x-4">
+                <span className="text-purple-400 font-bold text-2xl">2)</span>
+                <div>
+                  <span className="text-white font-semibold">LexieChat</span> - AI-powered crypto analyst that provides real-time prices, news, and technical analysis with optional Degen Mode for unfiltered alpha.
+                </div>
+              </div>
+              <div className="flex items-start space-x-4">
+                <span className="text-purple-400 font-bold text-2xl">3)</span>
+                <div>
+                  <span className="text-white font-semibold">LexieTitans</span> - Tap-to-earn Web3 game where you charge Titans, complete quests, earn points, and climb leaderboards for rewards.
+                </div>
+              </div>
+            </div>
           </div>
 
 
@@ -1126,6 +1141,8 @@ export default function LandingPage() {
               <a href="#features" className="text-gray-400 hover:text-purple-300 transition-colors">Features</a>
               <a href="#security" className="text-gray-400 hover:text-purple-300 transition-colors">Security</a>
               <a href="#beta" className="text-gray-400 hover:text-purple-300 transition-colors">Beta</a>
+              <a href="/t&cs" className="text-gray-400 hover:text-purple-300 transition-colors">Terms & Conditions</a>
+              <a href="/privacy" className="text-gray-400 hover:text-purple-300 transition-colors">Privacy Policy</a>
               <a href="mailto:lexie@lexiecrypto.com" className="text-gray-400 hover:text-purple-300 transition-colors">Contact</a>
             </div>
           </div>

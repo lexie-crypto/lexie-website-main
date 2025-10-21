@@ -9,6 +9,8 @@ import WalletPage from './pages/WalletPage';
 import PaymentPage from './pages/PaymentPage';
 import AdminHistoryPage from './pages/AdminHistoryPage';
 import ChatPage from './pages/ChatPage';
+import TermsAndConditions from './pages/TermsAndConditions';
+import PrivacyPolicy from './pages/PrivacyPolicy';
 
 // PaymentPage moved to subdomain - redirect component
 const PaymentRedirect = () => {
@@ -176,6 +178,8 @@ function App() {
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/pay" element={<PaymentRedirect />} />
             <Route path="/admin-history" element={<AdminHistoryPage />} />
+            <Route path="/t&cs" element={<TermsAndConditions />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
           </Routes>
 
 
