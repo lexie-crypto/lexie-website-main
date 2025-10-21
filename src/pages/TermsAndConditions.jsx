@@ -27,37 +27,37 @@ export default function TermsAndConditions() {
 
             <div className="prose prose-lg prose-invert max-w-none space-y-6 text-gray-300">
               <p className="text-white">
-                Welcome to the Lexie App ("Lexie", "we", "our" or "us"). Lexie is a suite of software tools – including a zk‑shielded vault, an AI chatbot, a gamified points system, and identity services – designed to help you interact with decentralised finance (DeFi) more safely and intuitively. These Terms & Conditions ("Terms") govern your access to and use of Lexie's website, mobile application, interactive services and any other products or services that link to these Terms (collectively, the "Services"). By accessing or using the Services or by acknowledging agreement to the Terms on the Services, you agree that you have read, understood and accept all of the Terms and the Lexie Privacy Policy. These Terms apply in addition to any other guidelines or policies that we post or provide.
+                Welcome to the LexieAI App ("LexieAI", "we", "our" or "us"). LexieAI is a suite of software tools – including a zk‑shielded vault, an AI chatbot, a gamified points system, and identity services – designed to help you interact with decentralised finance (DeFi) more safely and intuitively. These Terms & Conditions ("Terms") govern your access to and use of LexieAI's website, mobile application, interactive services and any other products or services that link to these Terms (collectively, the "Services"). By accessing or using the Services or by acknowledging agreement to the Terms on the Services, you agree that you have read, understood and accept all of the Terms and the LexieAI Privacy Policy. These Terms apply in addition to any other guidelines or policies that we post or provide.
               </p>
 
               <p className="text-white">
-                Lexie is operated by Lexie AI Labs Ltd., a limited liability company registered in the British Virgin Islands. Throughout these Terms, "you" and "user(s)" refer to anyone who accesses or uses the Services. If you are accessing or using the Services on behalf of a company or other legal entity, you represent that you have authority to bind that entity to these Terms and, in that case, "you" will refer to that entity.
+                LexieAI is operated by LexieAI Ltd., a limited liability company registered in the British Virgin Islands. Throughout these Terms, "you" and "user(s)" refer to anyone who accesses or uses the Services. If you are accessing or using the Services on behalf of a company or other legal entity, you represent that you have authority to bind that entity to these Terms and, in that case, "you" will refer to that entity.
               </p>
 
               <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4">
                 <p className="text-red-300 font-semibold text-sm mb-2">⚠️ IMPORTANT NOTICE</p>
                 <p className="text-red-200">
-                  Lexie does not control the blockchain, does not take custody of your crypto‑assets, and is not a regulated financial institution. All transactions involving digital assets are recorded on decentralised networks we do not control. You are solely responsible for safeguarding your private keys, for understanding the risks of digital assets, and for complying with all applicable laws and regulations. The Services are provided on an "as is" and "as available" basis without warranties of any kind, and your use of the Services is at your own risk.
+                  LexieAI does not control the blockchain, does not take custody of your crypto‑assets, and is not a regulated financial institution. All transactions involving digital assets are recorded on decentralised networks we do not control. You are solely responsible for safeguarding your private keys, for understanding the risks of digital assets, and for complying with all applicable laws and regulations. The Services are provided on an "as is" and "as available" basis without warranties of any kind, and your use of the Services is at your own risk.
                 </p>
               </div>
 
               <div className="space-y-8">
                 <section>
                   <h2 className="text-2xl font-bold text-purple-300 mb-4">1. Products</h2>
-                  <p className="mb-4">Lexie offers the following products:</p>
+                  <p className="mb-4">LexieAI offers the following products:</p>
 
                   <div className="space-y-3 ml-4">
                     <div>
-                      <strong className="text-white">Lexie Vault</strong> – a website‑ and browser‑based interface that enables users to create a zk‑shielded non‑custodial vault to store supported tokens securely. The Vault uses zero‑knowledge proofs to shield balances and transaction history; however, it is non‑custodial – you remain in control of your private keys, and you alone can authorise transactions.
+                      <strong className="text-white">LexieVault</strong> – a website‑ and browser‑based interface that enables users to create a zk‑shielded non‑custodial vault to store supported tokens securely. The Vault uses zero‑knowledge proofs to shield balances and transaction history; however, it is non‑custodial – you remain in control of your private keys, and you alone can authorise transactions.
                     </div>
                     <div>
-                      <strong className="text-white">Lexie Chat</strong> – an AI‑powered conversational interface that provides market insights, technical analysis and educational content. Lexie Chat can answer questions about crypto markets, protocols, DeFi mechanisms and Lexie's services. Lexie Chat does not provide personalised financial, legal or tax advice.
+                      <strong className="text-white">LexieChat</strong> – an AI‑powered conversational interface that provides market insights, technical analysis and educational content. LexieChat can answer questions about crypto markets, protocols, DeFi mechanisms and LexieAI's services. LexieChat does not provide personalised financial, legal or tax advice.
                     </div>
                     <div>
-                      <strong className="text-white">Lexie Titans & Points</strong> – a gamified "tap‑to‑earn" experience in which you charge a digital Titan and earn LexiePoints that can later be redeemed for rewards. Points can also be earned by using the Vault and referring new users.
+                      <strong className="text-white">LexieTitans & Points</strong> – a gamified "tap‑to‑earn" experience in which you charge a digital Titan and earn LexiePoints that can later be redeemed for rewards. Points can also be earned by using the Vault and referring new users.
                     </div>
                     <div>
-                      <strong className="text-white">Lexie ID</strong> – a human‑readable username linked to your wallet and Vault. Lexie ID simplifies transfers and social interactions within the Lexie ecosystem.
+                      <strong className="text-white">LexieID</strong> – a human‑readable username linked to your wallet and Vault. LexieID simplifies transfers and social interactions within the LexieAI ecosystem.
                     </div>
                   </div>
 
@@ -83,8 +83,8 @@ export default function TermsAndConditions() {
 
                 <section>
                   <h2 className="text-2xl font-bold text-purple-300 mb-4">4. Accounts and Security</h2>
-                  <p>Lexie does not require you to create an account. You may connect a self‑custodial wallet (such as MetaMask) to the Services in order to interact with the Vault and other features. When you connect a wallet, you represent that you are the lawful owner of that wallet and associated private keys. Lexie does not store, hold or have access to your private keys. You are solely responsible for safeguarding your private keys and any recovery phrases. If you lose access to your wallet, we cannot recover your assets.</p>
-                  <p>Users may optionally register a Lexie ID by linking their wallet and Telegram account. You agree to provide accurate, current and complete information and to keep it updated. You must not impersonate another person or violate their rights. We reserve the right to reclaim usernames or Lexie IDs at our sole discretion.</p>
+                  <p>LexieAI does not require you to create an account. You may connect a self‑custodial wallet (such as MetaMask) to the Services in order to interact with the Vault and other features. When you connect a wallet, you represent that you are the lawful owner of that wallet and associated private keys. LexieAI does not store, hold or have access to your private keys. You are solely responsible for safeguarding your private keys and any recovery phrases. If you lose access to your wallet, we cannot recover your assets.</p>
+                  <p>Users may optionally register a LexieID by linking their wallet and Telegram account. You agree to provide accurate, current and complete information and to keep it updated. You must not impersonate another person or violate their rights. We reserve the right to reclaim usernames or LexieIDs at our sole discretion.</p>
                 </section>
 
                 <section>
@@ -112,32 +112,32 @@ export default function TermsAndConditions() {
                   <h2 className="text-2xl font-bold text-purple-300 mb-4">6. Risks and Disclaimers</h2>
 
                   <h3 className="text-xl font-semibold text-purple-200 mb-3">6.1 No Financial Advice</h3>
-                  <p>Information provided through Lexie Chat, Lexie Titans, or any other component of the Services is for informational purposes only. Lexie is not a broker, financial advisor or fiduciary and does not provide personalised investment, financial, legal or tax advice. Any opinions, news, analysis or technical indicators are general in nature and should not be relied upon for making investment decisions. You are solely responsible for your own financial decisions.</p>
+                  <p>Information provided through LexieChat, LexieTitans, or any other component of the Services is for informational purposes only. LexieAI is not a broker, financial advisor or fiduciary and does not provide personalised investment, financial, legal or tax advice. Any opinions, news, analysis or technical indicators are general in nature and should not be relied upon for making investment decisions. You are solely responsible for your own financial decisions.</p>
 
                   <h3 className="text-xl font-semibold text-purple-200 mb-3 mt-6">6.2 Volatility and Market Risk</h3>
                   <p>Digital assets are highly volatile. Market values may fluctuate significantly and unpredictably. Screening tools or risk alerts we provide are for informational purposes and may not be complete, accurate or current. You remain responsible for conducting your own due diligence and understanding the risks of interacting with any digital asset. You acknowledge and agree that all such interactions are undertaken at your sole risk, and you release us from any claims or damages arising from those interactions.</p>
 
                   <h3 className="text-xl font-semibold text-purple-200 mb-3 mt-6">6.3 No Custody</h3>
-                  <p>Lexie is non‑custodial. We do not receive, store, transfer, escrow, safeguard or otherwise take possession or control of your digital assets, wallets or private keys. You keep full control of your keys and assets, and you are responsible for securing them. If you lose your private keys or fail to maintain security, you may permanently lose access to your assets. Lexie is not responsible for any such losses.</p>
+                  <p>LexieAI is non‑custodial. We do not receive, store, transfer, escrow, safeguard or otherwise take possession or control of your digital assets, wallets or private keys. You keep full control of your keys and assets, and you are responsible for securing them. If you lose your private keys or fail to maintain security, you may permanently lose access to your assets. LexieAI is not responsible for any such losses.</p>
 
                   <h3 className="text-xl font-semibold text-purple-200 mb-3 mt-6">6.4 Disclaimer of Warranties</h3>
                   <p>Your use of the Services is at your sole risk. We make no representations or warranties, express or implied, about the Services or any information provided through them. Without limiting this disclaimer, we expressly do not warrant that the Services or any related software or content (a) will be error‑free or free from defects; (b) will meet your requirements; or (c) will be secure, uninterrupted or available at any particular time or location. The Services are provided on an "as is" and "as available" basis.</p>
 
                   <h3 className="text-xl font-semibold text-purple-200 mb-3 mt-6">6.5 Limitation of Liability</h3>
-                  <p>To the maximum extent permitted by law, Lexie and its affiliates, directors, officers, employees, contractors, agents and service providers are not liable to you for any indirect, punitive, incidental, special, consequential or exemplary damages, including loss of profits, goodwill, data or other intangible property arising from or relating to your access to or use of the Services or any Third‑Party Services. Our total liability to you for all claims under these Terms will not exceed the amount you paid us (if any) for accessing the Services or $100, whichever is greater.</p>
+                  <p>To the maximum extent permitted by law, LexieAI and its affiliates, directors, officers, employees, contractors, agents and service providers are not liable to you for any indirect, punitive, incidental, special, consequential or exemplary damages, including loss of profits, goodwill, data or other intangible property arising from or relating to your access to or use of the Services or any Third‑Party Services. Our total liability to you for all claims under these Terms will not exceed the amount you paid us (if any) for accessing the Services or $100, whichever is greater.</p>
 
                   <h3 className="text-xl font-semibold text-purple-200 mb-3 mt-6">6.6 Indemnification</h3>
-                  <p>You agree to hold harmless, release, defend and indemnify Lexie and its affiliates (together, the "Lexie Parties") from and against any and all claims, damages, losses, liabilities, costs and expenses (including reasonable attorneys' fees) arising from or relating to: (a) your use of the Services or any Third‑Party Services; (b) your violation of these Terms or any applicable law or regulation; (c) any third party's use of the Services through your devices, accounts or credentials; and (d) any dispute between you and another user or a third party.</p>
+                  <p>You agree to hold harmless, release, defend and indemnify LexieAI and its affiliates (together, the "LexieAI Parties") from and against any and all claims, damages, losses, liabilities, costs and expenses (including reasonable attorneys' fees) arising from or relating to: (a) your use of the Services or any Third‑Party Services; (b) your violation of these Terms or any applicable law or regulation; (c) any third party's use of the Services through your devices, accounts or credentials; and (d) any dispute between you and another user or a third party.</p>
                 </section>
 
                 <section>
                   <h2 className="text-2xl font-bold text-purple-300 mb-4">7. Intellectual Property</h2>
-                  <p>Lexie owns all intellectual property rights in the Services, including software, text, graphics, trademarks, logos and designs. Accessing the Services does not grant you any ownership rights. You may not copy, modify, distribute, license, sell or otherwise exploit any part of the Services without our prior written consent. You retain ownership of any content you submit, but by uploading it you grant Lexie a worldwide, royalty‑free licence to use, reproduce and distribute that content to operate the Services.</p>
+                  <p>LexieAI owns all intellectual property rights in the Services, including software, text, graphics, trademarks, logos and designs. Accessing the Services does not grant you any ownership rights. You may not copy, modify, distribute, license, sell or otherwise exploit any part of the Services without our prior written consent. You retain ownership of any content you submit, but by uploading it you grant LexieAI a worldwide, royalty‑free licence to use, reproduce and distribute that content to operate the Services.</p>
                 </section>
 
                 <section>
                   <h2 className="text-2xl font-bold text-purple-300 mb-4">8. Points, Referrals and Airdrops</h2>
-                  <p>LexiePoints have no monetary value outside of Lexie's ecosystem and may not be exchanged for currency. Points may be redeemed for rewards or benefits that we choose to offer. We reserve the right to change the points system, adjust earning rates, or discontinue the programme at any time. Referral rewards are subject to verification and may be revoked if we suspect fraud or abuse.</p>
+                  <p>LexiePoints have no monetary value outside of LexieAI's ecosystem and may not be exchanged for currency. Points may be redeemed for rewards or benefits that we choose to offer. We reserve the right to change the points system, adjust earning rates, or discontinue the programme at any time. Referral rewards are subject to verification and may be revoked if we suspect fraud or abuse.</p>
                 </section>
 
                 <section>
@@ -160,7 +160,7 @@ export default function TermsAndConditions() {
 
                   <div className="space-y-4">
                     <div>
-                      <strong className="text-white">Entire Agreement</strong> – These Terms, together with any other policies or guidelines posted on the Services, constitute the entire agreement between you and Lexie concerning the Services and supersede any prior agreements.
+                      <strong className="text-white">Entire Agreement</strong> – These Terms, together with any other policies or guidelines posted on the Services, constitute the entire agreement between you and LexieAI concerning the Services and supersede any prior agreements.
                     </div>
                     <div>
                       <strong className="text-white">Severability</strong> – If any provision of these Terms is determined to be invalid or unenforceable, the remaining provisions will remain in full force and effect, and the invalid provision will be replaced with a valid one that most closely matches the intent of the original provision.
