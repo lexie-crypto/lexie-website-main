@@ -450,7 +450,7 @@ export const restoreFullSnapshot = async (walletId, timestamp, signal) => {
  * @param {string} walletId - Wallet ID to export data for
  * @returns {Promise<Object|null>} Complete LevelDB snapshot or null if no data
  */
-export const exportWalletSnapshot = async (walletId) => {
+const exportWalletSnapshot = async (walletId) => {
   try {
     console.log('[IDB-Snapshot-Export] Creating complete LevelDB snapshot for backup...');
 
@@ -532,7 +532,4 @@ export const exportWalletSnapshot = async (walletId) => {
 };
 
 // Export functions for use in backup module
-module.exports = {
-  exportWalletSnapshot,
-  estimateLevelDBSize
-};
+export { exportWalletSnapshot, estimateLevelDBSize };
