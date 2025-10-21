@@ -473,7 +473,14 @@ const checkVaultCreationFlag = async () => {
   try {
     console.log('[Vault-Flag-Check] Checking for existing vault creation flag...');
 
-    const db = await openLevelJSDB();
+    let db;
+    try {
+      db = await openLevelJSDB();
+    } catch (dbError) {
+      console.warn('[Vault-Flag-Check] Could not open LevelDB database:', dbError.message);
+      return false; // If database can't be opened, allow backup
+    }
+
     const transaction = db.transaction(['railgun-engine-db'], 'readonly');
     const store = transaction.objectStore('railgun-engine-db');
 
@@ -489,7 +496,11 @@ const checkVaultCreationFlag = async () => {
 
       request.onerror = () => {
         console.log('[Vault-Flag-Check] Error checking flag, assuming no flag exists');
-        db.close();
+        try {
+          db.close();
+        } catch (closeError) {
+          // Ignore close errors
+        }
         resolve(false);
       };
     });
@@ -510,7 +521,14 @@ const writeVaultCreationFlag = async (walletId, address) => {
   try {
     console.log('[Vault-Flag-Write] Writing vault creation flag to LevelDB...');
 
-    const db = await openLevelJSDB();
+    let db;
+    try {
+      db = await openLevelJSDB();
+    } catch (dbError) {
+      console.warn('[Vault-Flag-Write] Could not open LevelDB database for flag write:', dbError.message);
+      return; // Silently fail - don't break wallet creation
+    }
+
     const transaction = db.transaction(['railgun-engine-db'], 'readwrite');
     const store = transaction.objectStore('railgun-engine-db');
 
@@ -521,7 +539,7 @@ const writeVaultCreationFlag = async (walletId, address) => {
       address: address
     };
 
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       const request = store.put(flagData, 'lexie:vault:created');
 
       request.onsuccess = () => {
@@ -531,15 +549,19 @@ const writeVaultCreationFlag = async (walletId, address) => {
       };
 
       request.onerror = () => {
-        console.error('[Vault-Flag-Write] Failed to write vault creation flag:', request.error);
-        db.close();
-        reject(request.error);
+        console.warn('[Vault-Flag-Write] Failed to write vault creation flag, continuing anyway:', request.error);
+        try {
+          db.close();
+        } catch (closeError) {
+          // Ignore close errors
+        }
+        resolve(); // Resolve anyway - don't break wallet creation
       };
     });
 
   } catch (error) {
-    console.error('[Vault-Flag-Write] Flag write failed:', error);
-    throw error;
+    console.warn('[Vault-Flag-Write] Flag write failed, continuing anyway:', error);
+    // Don't throw - flag writing failure shouldn't break wallet creation
   }
 };
 
