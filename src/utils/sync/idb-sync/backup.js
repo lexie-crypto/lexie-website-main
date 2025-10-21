@@ -3,7 +3,7 @@
  * Creates and restores complete LevelDB snapshots for guaranteed wallet recovery
  */
 
-import { exportWalletSnapshot } from './exporter.js';
+import { exportWalletSnapshot, estimateLevelDBSize } from './exporter.js';
 import { uploadWalletBackup, downloadWalletBackup } from './api.js';
 import { writeBackupToIDB } from './hydration.js';
 
@@ -19,6 +19,26 @@ export const createWalletBackup = async (walletId, eoa) => {
       walletId: walletId?.slice(0, 8) + '...',
       eoa: eoa?.slice(0, 8) + '...'
     });
+
+    // Check LevelDB size before creating backup
+    console.log('[Wallet-Backup] 🔍 Checking LevelDB size before backup...');
+    const sizeAnalysis = await estimateLevelDBSize();
+
+    if (sizeAnalysis.isTooLarge) {
+      console.error('[Wallet-Backup] ❌ LevelDB backup too large - aborting backup process', {
+        totalMB: sizeAnalysis.totalMB,
+        recordCount: sizeAnalysis.recordCount,
+        maxAllowedMB: sizeAnalysis.maxAllowedMB
+      });
+
+      // Create a user-friendly error that can be caught and displayed
+      const error = new Error(`Only one vault is possible per browser, please use your existing vault to continue or use a new browser`);
+      error.code = 'BACKUP_TOO_LARGE';
+      error.details = sizeAnalysis;
+      throw error;
+    }
+
+    console.log('[Wallet-Backup] ✅ LevelDB size check passed, proceeding with backup...');
 
     // Export complete LevelDB snapshot (should be minimal at wallet creation time)
     const snapshotData = await exportWalletSnapshot(walletId);

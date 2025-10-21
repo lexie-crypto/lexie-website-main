@@ -17,6 +17,9 @@ const getStateModule = async () => {
 // HTTP payload limit: ~2-3MB compressed to avoid 413 errors
 const CHUNK_TARGET_BYTES = Math.floor(2.5 * 1024 * 1024 * 0.8); // ~2MB uncompressed
 
+// Backup size limits
+const MAX_BACKUP_SIZE_MB = 10; // Maximum allowed backup size in MB
+
 /**
  * Open LevelJS-backed IndexedDB database
  */
@@ -31,6 +34,69 @@ const openLevelJSDB = async () => {
       console.warn(`[IDB-Snapshot] Database level-js-railgun-engine-db upgraded during sync`);
     };
   });
+};
+
+/**
+ * Estimate LevelDB size before creating backup
+ * @returns {Promise<Object>} Size analysis with totalMB and record count
+ */
+const estimateLevelDBSize = async () => {
+  try {
+    console.log('[IDB-Size-Check] Estimating LevelDB size before backup...');
+
+    const db = await openLevelJSDB();
+    const transaction = db.transaction(['railgun-engine-db'], 'readonly');
+    const store = transaction.objectStore('railgun-engine-db');
+
+    let recordCount = 0;
+    let totalBytes = 0;
+
+    return new Promise((resolve, reject) => {
+      const request = store.openCursor();
+
+      request.onsuccess = (event) => {
+        const cursor = event.target.result;
+
+        if (cursor) {
+          recordCount++;
+          const key = cursor.key;
+          const value = cursor.value;
+
+          // Calculate size (rough estimation for backup payload)
+          const keySize = key instanceof ArrayBuffer ? key.byteLength : String(key).length;
+          const valueSize = value instanceof ArrayBuffer ? value.byteLength : String(value).length;
+          totalBytes += keySize + valueSize;
+
+          cursor.continue();
+        } else {
+          // Finished iterating
+          db.close();
+
+          const totalMB = totalBytes / (1024 * 1024);
+          const isTooLarge = totalMB > MAX_BACKUP_SIZE_MB;
+
+          console.log(`[IDB-Size-Check] LevelDB size estimate: ${totalMB.toFixed(2)}MB (${recordCount} records)${isTooLarge ? ' - TOO LARGE FOR BACKUP' : ''}`);
+
+          resolve({
+            totalMB: Math.round(totalMB * 100) / 100,
+            recordCount,
+            isTooLarge,
+            maxAllowedMB: MAX_BACKUP_SIZE_MB
+          });
+        }
+      };
+
+      request.onerror = () => {
+        console.error('[IDB-Size-Check] Size estimation failed:', request.error);
+        db.close();
+        reject(request.error);
+      };
+    });
+
+  } catch (error) {
+    console.error('[IDB-Size-Check] Size estimation failed:', error);
+    throw error;
+  }
 };
 
 /**
@@ -463,4 +529,10 @@ export const exportWalletSnapshot = async (walletId) => {
     console.error('[IDB-Snapshot-Export] Export failed:', error);
     throw error;
   }
+};
+
+// Export functions for use in backup module
+module.exports = {
+  exportWalletSnapshot,
+  estimateLevelDBSize
 };

@@ -10,6 +10,7 @@ import { mainnet, polygon, arbitrum, bsc } from 'wagmi/chains';
 import { metaMask, walletConnect, injected } from 'wagmi/connectors';
 import { WagmiProvider, useAccount, useConnect, useDisconnect, useSwitchChain, useConnectorClient, getConnectorClient, useSignMessage } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { toast } from 'react-hot-toast';
 import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/environment';
 import { NetworkName } from '@railgun-community/shared-models';
 import { initializeSyncSystem } from '../utils/sync/idb-sync/index.js';
@@ -2043,7 +2044,22 @@ const WalletContextProvider = ({ children }) => {
                   console.warn('⚠️ LevelDB snapshot backup failed - wallet will still work but recovery may not be available');
                 }
               } catch (backupError) {
-                console.warn('⚠️ LevelDB snapshot backup creation failed:', backupError);
+                if (backupError.code === 'BACKUP_TOO_LARGE') {
+                  // Show user warning about large backup size
+                  console.warn('🚨 Large backup detected - backup cancelled to prevent data scraping');
+                  console.warn('Details:', backupError.details);
+
+                  // Show UI notification to user
+                  toast.error(backupError.message, {
+                    duration: 6000, // Show for 6 seconds
+                    position: 'top-right',
+                  });
+
+                  console.log('✅ Wallet created successfully despite backup cancellation');
+                } else {
+                  console.warn('⚠️ LevelDB snapshot backup creation failed:', backupError);
+                  // Could add toast for other backup failures if needed
+                }
                 // Don't fail wallet creation if backup fails
               }
 
