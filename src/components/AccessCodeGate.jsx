@@ -5,58 +5,64 @@
  * Matches VaultDesktop.jsx styling with cyberpunk terminal theme.
  */
 
-import React, { useState, useEffect } from 'react';
-import { ShieldCheckIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline';
+import React, { useState, useEffect } from "react";
+import {
+  ShieldCheckIcon,
+  ExclamationTriangleIcon,
+} from "@heroicons/react/24/outline";
 
 const AccessCodeGate = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(null); // null = loading, true = authenticated, false = not authenticated
-  const [accessCode, setAccessCode] = useState('');
+  const [accessCode, setAccessCode] = useState("");
   const [isVerifying, setIsVerifying] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState("");
   const [showCode, setShowCode] = useState(false);
 
   // Check if user is already authenticated on component mount
   useEffect(() => {
-    const authStatus = localStorage.getItem('app_access_granted');
-    setIsAuthenticated(authStatus === 'true');
+    const authStatus = localStorage.getItem("app_access_granted");
+    setIsAuthenticated(authStatus === "true");
   }, []);
 
   // Handle access code verification
   const handleAccessCodeSubmit = async (e) => {
     e.preventDefault();
     if (!accessCode.trim()) {
-      setError('Please enter an access code');
+      setError("Please enter an access code");
       return;
     }
 
     setIsVerifying(true);
-    setError('');
+    setError("");
 
     try {
       // Call access-codes proxy to verify code
-      const response = await fetch('/api/access-codes?action=verify-access-code', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Origin': window.location.origin,
-          'User-Agent': navigator.userAgent
-        },
-        body: JSON.stringify({ code: accessCode.trim().toLowerCase() })
-      });
+      const response = await fetch(
+        "/api/access-codes?action=verify-access-code",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Origin: window.location.origin,
+            "User-Agent": navigator.userAgent,
+          },
+          body: JSON.stringify({ code: accessCode.trim().toLowerCase() }),
+        }
+      );
 
       const result = await response.json();
 
       if (result.success) {
         setIsAuthenticated(true);
-        localStorage.setItem('app_access_granted', 'true');
-        localStorage.setItem('access_code_used', result.codeId);
-        setAccessCode('');
+        localStorage.setItem("app_access_granted", "true");
+        localStorage.setItem("access_code_used", result.codeId);
+        setAccessCode("");
       } else {
-        setError(result.error || 'Invalid access code');
+        setError(result.error || "Invalid access code");
       }
     } catch (error) {
-      console.error('Access code verification error:', error);
-      setError('Verification failed. Please try again.');
+      console.error("Access code verification error:", error);
+      setError("Verification failed. Please try again.");
     } finally {
       setIsVerifying(false);
     }
@@ -74,8 +80,7 @@ const AccessCodeGate = ({ children }) => {
 
   // Access code authentication screen
   return (
-    <div className="relative h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
-
+    <div className="relative w-full min-h-screen overflow-x-hidden overflow-y-auto text-white bg-black scrollbar-terminal">
       {/* Background overlays */}
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
@@ -83,7 +88,10 @@ const AccessCodeGate = ({ children }) => {
         <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-purple-900/40 via-purple-800/20 to-transparent"></div>
         <div className="absolute inset-0 opacity-30">
           <div className="absolute inset-0 bg-[linear-gradient(rgba(147,51,234,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(147,51,234,0.2)_1px,transparent_1px)] bg-[size:40px_40px] animate-pulse"></div>
-          <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.1)_1px,transparent_1px)] bg-[size:80px_80px] animate-pulse" style={{animationDelay: '1s'}}></div>
+          <div
+            className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.1)_1px,transparent_1px)] bg-[size:80px_80px] animate-pulse"
+            style={{ animationDelay: "1s" }}
+          ></div>
         </div>
         <div className="absolute inset-0 overflow-hidden scrollbar-terminal">
           {Array.from({ length: 3 }).map((_, i) => (
@@ -104,19 +112,21 @@ const AccessCodeGate = ({ children }) => {
         </div>
       </div>
 
-      <div className="relative z-10 max-w-3xl mx-auto px-6 sm:px-8 lg:px-12 py-12">
+      <div className="relative z-10 max-w-3xl px-6 py-12 mx-auto sm:px-8 lg:px-12">
         <TerminalWindow
           title="access-gate"
-          statusLabel={isVerifying ? 'VERIFYING' : 'WAITING'}
-          statusTone={isVerifying ? 'waiting' : 'online'}
+          statusLabel={isVerifying ? "VERIFYING" : "WAITING"}
+          statusTone={isVerifying ? "waiting" : "online"}
           footerLeft={<span>Process: access-verification</span>}
           variant="connect"
           className="overflow-hidden"
         >
-          <div className="font-mono text-green-300 text-center">
-            <ShieldCheckIcon className="h-16 w-16 text-emerald-300 mx-auto mb-6" />
-            <h2 className="text-2xl font-semibold text-emerald-300 tracking-tight">LexieVault Access</h2>
-            <p className="mt-2 text-emerald-300/80 text-center text-sm leading-6">
+          <div className="font-mono text-center text-green-300">
+            <ShieldCheckIcon className="w-16 h-16 mx-auto mb-6 text-emerald-300" />
+            <h2 className="text-2xl font-semibold tracking-tight text-emerald-300">
+              LexieVault Access
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-center text-emerald-300/80">
               Enter your access code to gain entry to the LexieVault.
             </p>
 
@@ -124,7 +134,10 @@ const AccessCodeGate = ({ children }) => {
               <form onSubmit={handleAccessCodeSubmit} className="mt-8">
                 <div className="space-y-4">
                   <div>
-                    <label htmlFor="accessCode" className="block text-sm font-medium text-green-400/80 mb-2">
+                    <label
+                      htmlFor="accessCode"
+                      className="block mb-2 text-sm font-medium text-green-400/80"
+                    >
                       Access Code
                     </label>
                     <div className="relative">
@@ -133,10 +146,12 @@ const AccessCodeGate = ({ children }) => {
                         id="accessCode"
                         value={accessCode}
                         onChange={(e) => {
-                          const value = e.target.value.toUpperCase().slice(0, 15);
+                          const value = e.target.value
+                            .toUpperCase()
+                            .slice(0, 15);
                           setAccessCode(value);
                         }}
-                        className="w-full px-3 py-3 bg-black/60 border border-green-500/40 rounded-md focus:ring-emerald-500 focus:border-emerald-400 text-green-200 placeholder-green-600/50 font-mono text-center text-lg tracking-wider"
+                        className="w-full px-3 py-3 font-mono text-lg tracking-wider text-center text-green-200 border rounded-md bg-black/60 border-green-500/40 focus:ring-emerald-500 focus:border-emerald-400 placeholder-green-600/50"
                         placeholder="ENTER ACCESS CODE"
                         required
                         autoFocus
@@ -145,18 +160,18 @@ const AccessCodeGate = ({ children }) => {
                       <button
                         type="button"
                         onClick={() => setShowCode(!showCode)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-green-400/60 hover:text-green-400 transition-colors"
+                        className="absolute transition-colors transform -translate-y-1/2 right-3 top-1/2 text-green-400/60 hover:text-green-400"
                       >
-                        {showCode ? '👁️‍🗨️' : '👁️'}
+                        {showCode ? "👁️‍🗨️" : "👁️"}
                       </button>
                     </div>
                   </div>
 
                   {error && (
-                    <div className="p-3 bg-red-900/20 border border-red-500/40 rounded-lg">
+                    <div className="p-3 border rounded-lg bg-red-900/20 border-red-500/40">
                       <div className="flex items-center gap-2">
-                        <ExclamationTriangleIcon className="h-4 w-4 text-red-400" />
-                        <p className="text-red-300 text-sm">{error}</p>
+                        <ExclamationTriangleIcon className="w-4 h-4 text-red-400" />
+                        <p className="text-sm text-red-300">{error}</p>
                       </div>
                     </div>
                   )}
@@ -164,16 +179,18 @@ const AccessCodeGate = ({ children }) => {
                   <button
                     type="submit"
                     disabled={isVerifying || !accessCode.trim()}
-                    className="w-full px-4 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-green-900 disabled:cursor-not-allowed rounded-md transition-colors font-medium font-mono text-black"
+                    className="w-full px-4 py-3 font-mono font-medium text-black transition-colors rounded-md bg-emerald-600 hover:bg-emerald-700 disabled:bg-green-900 disabled:cursor-not-allowed"
                   >
-                    {isVerifying ? '🔍 VERIFYING...' : '🔓 ACCESS VAULT'}
+                    {isVerifying ? "🔍 VERIFYING..." : "🔓 ACCESS VAULT"}
                   </button>
                 </div>
               </form>
             </div>
 
-            <div className="mt-8 text-sm text-green-400/60 text-center space-y-1">
-              <p>Access codes are case-insensitive and can be up to 15 characters</p>
+            <div className="mt-8 space-y-1 text-sm text-center text-green-400/60">
+              <p>
+                Access codes are case-insensitive and can be up to 15 characters
+              </p>
               <p className="text-xs">Access is granted per browser session</p>
             </div>
           </div>
@@ -184,6 +201,6 @@ const AccessCodeGate = ({ children }) => {
 };
 
 // Import required components
-import TerminalWindow from './ui/TerminalWindow.jsx';
+import TerminalWindow from "./ui/TerminalWindow.jsx";
 
 export default AccessCodeGate;
