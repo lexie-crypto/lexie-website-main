@@ -816,6 +816,350 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Tokenomics Section */}
+      <section className="relative z-30 py-20 bg-gradient-to-b from-black via-purple-900/10 to-black">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl lg:text-6xl font-bold text-white mb-6">
+              <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
+                $LEXIE Tokenomics
+              </span>
+            </h2>
+            <p className="text-xl text-gray-300 max-w-3xl mx-auto">
+              Strategic token allocation designed for long-term sustainability and community growth
+            </p>
+          </div>
+
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            {/* Cyberpunk Pie Chart */}
+            <div className="relative">
+              <div className="relative w-full max-w-md mx-auto">
+                <svg viewBox="0 0 400 400" className="w-full h-full drop-shadow-2xl">
+                  {/* Background glow */}
+                  <defs>
+                    {/* Gradients for each slice */}
+                    <radialGradient id="seedGradient" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stopColor="#ff6b6b" />
+                      <stop offset="100%" stopColor="#ee5a52" />
+                    </radialGradient>
+                    <radialGradient id="strategicGradient" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stopColor="#4ecdc4" />
+                      <stop offset="100%" stopColor="#44a08d" />
+                    </radialGradient>
+                    <radialGradient id="publicGradient" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stopColor="#45b7d1" />
+                      <stop offset="100%" stopColor="#96ceb4" />
+                    </radialGradient>
+                    <radialGradient id="kolGradient" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stopColor="#feca57" />
+                      <stop offset="100%" stopColor="#ff9ff3" />
+                    </radialGradient>
+                    <radialGradient id="partnersGradient" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stopColor="#ff9ff3" />
+                      <stop offset="100%" stopColor="#f368e0" />
+                    </radialGradient>
+                    <radialGradient id="teamGradient" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stopColor="#54a0ff" />
+                      <stop offset="100%" stopColor="#5f27cd" />
+                    </radialGradient>
+                    <radialGradient id="stakingGradient" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stopColor="#00d2d3" />
+                      <stop offset="100%" stopColor="#54a0ff" />
+                    </radialGradient>
+                    <radialGradient id="exchangeGradient" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stopColor="#ff9f43" />
+                      <stop offset="100%" stopColor="#ee5a24" />
+                    </radialGradient>
+                    <radialGradient id="treasuryGradient" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stopColor="#00d2d3" />
+                      <stop offset="100%" stopColor="#3c40c6" />
+                    </radialGradient>
+                    <radialGradient id="marketingGradient" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stopColor="#fd79a8" />
+                      <stop offset="100%" stopColor="#e84393" />
+                    </radialGradient>
+                    <radialGradient id="liquidityGradient" cx="50%" cy="50%" r="50%">
+                      <stop offset="0%" stopColor="#a29bfe" />
+                      <stop offset="100%" stopColor="#6c5ce7" />
+                    </radialGradient>
+
+                    {/* Glow filters */}
+                    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+                      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                      <feMerge>
+                        <feMergeNode in="coloredBlur"/>
+                        <feMergeNode in="SourceGraphic"/>
+                      </feMerge>
+                    </filter>
+                  </defs>
+
+                  {/* Pie slices with cyberpunk styling */}
+                  <g transform="translate(200,200)">
+                    {/* Seed - 6.10% */}
+                    <path
+                      d="M 0,0 L 150,0 A 150,150 0 0,1 147.9,-26.1 z"
+                      fill="url(#seedGradient)"
+                      filter="url(#glow)"
+                      className="hover:opacity-80 transition-opacity duration-300 cursor-pointer"
+                    />
+
+                    {/* Strategic - 5.61% */}
+                    <path
+                      d="M 147.9,-26.1 A 150,150 0 0,1 139.7,-58.7 z"
+                      fill="url(#strategicGradient)"
+                      filter="url(#glow)"
+                      className="hover:opacity-80 transition-opacity duration-300 cursor-pointer"
+                    />
+
+                    {/* Public - 10.00% */}
+                    <path
+                      d="M 139.7,-58.7 A 150,150 0 0,1 112.5,-112.5 z"
+                      fill="url(#publicGradient)"
+                      filter="url(#glow)"
+                      className="hover:opacity-80 transition-opacity duration-300 cursor-pointer"
+                    />
+
+                    {/* KOL - 3.00% */}
+                    <path
+                      d="M 112.5,-112.5 A 150,150 0 0,1 93.3,-129.9 z"
+                      fill="url(#kolGradient)"
+                      filter="url(#glow)"
+                      className="hover:opacity-80 transition-opacity duration-300 cursor-pointer"
+                    />
+
+                    {/* Partners & Advisors - 4.00% */}
+                    <path
+                      d="M 93.3,-129.9 A 150,150 0 0,1 56.7,-143.3 z"
+                      fill="url(#partnersGradient)"
+                      filter="url(#glow)"
+                      className="hover:opacity-80 transition-opacity duration-300 cursor-pointer"
+                    />
+
+                    {/* Team - 10.00% */}
+                    <path
+                      d="M 56.7,-143.3 A 150,150 0 0,1 -56.7,-143.3 z"
+                      fill="url(#teamGradient)"
+                      filter="url(#glow)"
+                      className="hover:opacity-80 transition-opacity duration-300 cursor-pointer"
+                    />
+
+                    {/* Staking - 3.00% */}
+                    <path
+                      d="M -56.7,-143.3 A 150,150 0 0,1 -93.3,-129.9 z"
+                      fill="url(#stakingGradient)"
+                      filter="url(#glow)"
+                      className="hover:opacity-80 transition-opacity duration-300 cursor-pointer"
+                    />
+
+                    {/* Exchange Listings - 3.00% */}
+                    <path
+                      d="M -93.3,-129.9 A 150,150 0 0,1 -112.5,-112.5 z"
+                      fill="url(#exchangeGradient)"
+                      filter="url(#glow)"
+                      className="hover:opacity-80 transition-opacity duration-300 cursor-pointer"
+                    />
+
+                    {/* Treasury - 16.29% */}
+                    <path
+                      d="M -112.5,-112.5 A 150,150 0 0,1 -150,0 z"
+                      fill="url(#treasuryGradient)"
+                      filter="url(#glow)"
+                      className="hover:opacity-80 transition-opacity duration-300 cursor-pointer"
+                    />
+
+                    {/* Marketing - 19.00% */}
+                    <path
+                      d="M -150,0 A 150,150 0 0,1 -139.7,58.7 z"
+                      fill="url(#marketingGradient)"
+                      filter="url(#glow)"
+                      className="hover:opacity-80 transition-opacity duration-300 cursor-pointer"
+                    />
+
+                    {/* Liquidity - 20.0% */}
+                    <path
+                      d="M -139.7,58.7 A 150,150 0 0,1 150,0 z"
+                      fill="url(#liquidityGradient)"
+                      filter="url(#glow)"
+                      className="hover:opacity-80 transition-opacity duration-300 cursor-pointer"
+                    />
+
+                    {/* Center circle with glow */}
+                    <circle cx="0" cy="0" r="60" fill="black" stroke="rgba(147,51,234,0.3)" strokeWidth="2"/>
+                    <circle cx="0" cy="0" r="50" fill="url(#liquidityGradient)" filter="url(#glow)"/>
+                    <text x="0" y="-5" textAnchor="middle" fill="white" fontSize="14" fontWeight="bold" className="font-mono">$LEXIE</text>
+                    <text x="0" y="10" textAnchor="middle" fill="rgba(255,255,255,0.8)" fontSize="10" className="font-mono">TOTAL</text>
+                    <text x="0" y="22" textAnchor="middle" fill="white" fontSize="12" fontWeight="bold" className="font-mono">350M</text>
+                  </g>
+
+                  {/* Animated scanning lines */}
+                  <g className="animate-pulse">
+                    <line x1="50" y1="200" x2="350" y2="200" stroke="rgba(147,51,234,0.3)" strokeWidth="1" opacity="0.5"/>
+                    <line x1="200" y1="50" x2="200" y2="350" stroke="rgba(59,130,246,0.3)" strokeWidth="1" opacity="0.5"/>
+                  </g>
+                </svg>
+
+                {/* Legend */}
+                <div className="mt-8 space-y-2">
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-gradient-to-r from-red-400 to-red-600"></div>
+                      <span className="text-gray-300 font-mono">Seed (6.10%)</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-gradient-to-r from-teal-400 to-teal-600"></div>
+                      <span className="text-gray-300 font-mono">Strategic (5.61%)</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-gradient-to-r from-blue-400 to-green-400"></div>
+                      <span className="text-gray-300 font-mono">Public (10.00%)</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-gradient-to-r from-yellow-400 to-pink-400"></div>
+                      <span className="text-gray-300 font-mono">KOL (3.00%)</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-gradient-to-r from-pink-400 to-purple-500"></div>
+                      <span className="text-gray-300 font-mono">Partners (4.00%)</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-gradient-to-r from-blue-400 to-purple-600"></div>
+                      <span className="text-gray-300 font-mono">Team (10.00%)</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-gradient-to-r from-cyan-400 to-blue-400"></div>
+                      <span className="text-gray-300 font-mono">Staking (3.00%)</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-gradient-to-r from-orange-400 to-red-500"></div>
+                      <span className="text-gray-300 font-mono">Exchange (3.00%)</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-gradient-to-r from-cyan-400 to-blue-600"></div>
+                      <span className="text-gray-300 font-mono">Treasury (16.29%)</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-3 h-3 rounded-full bg-gradient-to-r from-pink-400 to-red-500"></div>
+                      <span className="text-gray-300 font-mono">Marketing (19.00%)</span>
+                    </div>
+                    <div className="flex items-center space-x-2 col-span-2 justify-center">
+                      <div className="w-3 h-3 rounded-full bg-gradient-to-r from-purple-400 to-purple-600"></div>
+                      <span className="text-gray-300 font-mono">Liquidity (20.00%)</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Tokenomics Table */}
+            <div className="space-y-6">
+              <div className="bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6">
+                <h3 className="text-xl font-semibold text-white mb-4 text-center">Token Allocation Details</h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-purple-500/30">
+                        <th className="text-left py-2 px-3 text-purple-300 font-mono">Allocation</th>
+                        <th className="text-center py-2 px-3 text-purple-300 font-mono">% of Supply</th>
+                        <th className="text-right py-2 px-3 text-purple-300 font-mono">Tokens</th>
+                        <th className="text-center py-2 px-3 text-purple-300 font-mono">TGE %</th>
+                      </tr>
+                    </thead>
+                    <tbody className="text-gray-300">
+                      <tr className="border-b border-gray-800/50 hover:bg-purple-500/10 transition-colors">
+                        <td className="py-2 px-3 font-mono">Seed</td>
+                        <td className="text-center py-2 px-3 font-mono">6.10%</td>
+                        <td className="text-right py-2 px-3 font-mono">21,363,636</td>
+                        <td className="text-center py-2 px-3 font-mono text-green-400">4.0%</td>
+                      </tr>
+                      <tr className="border-b border-gray-800/50 hover:bg-purple-500/10 transition-colors">
+                        <td className="py-2 px-3 font-mono">Strategic</td>
+                        <td className="text-center py-2 px-3 font-mono">5.61%</td>
+                        <td className="text-right py-2 px-3 font-mono">19,642,850</td>
+                        <td className="text-center py-2 px-3 font-mono text-green-400">10.0%</td>
+                      </tr>
+                      <tr className="border-b border-gray-800/50 hover:bg-purple-500/10 transition-colors">
+                        <td className="py-2 px-3 font-mono">Public</td>
+                        <td className="text-center py-2 px-3 font-mono">10.00%</td>
+                        <td className="text-right py-2 px-3 font-mono">35,000,000</td>
+                        <td className="text-center py-2 px-3 font-mono text-green-400">25.0%</td>
+                      </tr>
+                      <tr className="border-b border-gray-800/50 hover:bg-purple-500/10 transition-colors">
+                        <td className="py-2 px-3 font-mono">KOL</td>
+                        <td className="text-center py-2 px-3 font-mono">3.00%</td>
+                        <td className="text-right py-2 px-3 font-mono">10,500,000</td>
+                        <td className="text-center py-2 px-3 font-mono text-green-400">50.0%</td>
+                      </tr>
+                      <tr className="border-b border-gray-800/50 hover:bg-purple-500/10 transition-colors">
+                        <td className="py-2 px-3 font-mono">Partners & Advisors</td>
+                        <td className="text-center py-2 px-3 font-mono">4.00%</td>
+                        <td className="text-right py-2 px-3 font-mono">21,000,000</td>
+                        <td className="text-center py-2 px-3 font-mono text-red-400">0.0%</td>
+                      </tr>
+                      <tr className="border-b border-gray-800/50 hover:bg-purple-500/10 transition-colors">
+                        <td className="py-2 px-3 font-mono">Team</td>
+                        <td className="text-center py-2 px-3 font-mono">10.00%</td>
+                        <td className="text-right py-2 px-3 font-mono">35,000,000</td>
+                        <td className="text-center py-2 px-3 font-mono text-red-400">0.0%</td>
+                      </tr>
+                      <tr className="border-b border-gray-800/50 hover:bg-purple-500/10 transition-colors">
+                        <td className="py-2 px-3 font-mono">Staking</td>
+                        <td className="text-center py-2 px-3 font-mono">3.00%</td>
+                        <td className="text-right py-2 px-3 font-mono">10,500,000</td>
+                        <td className="text-center py-2 px-3 font-mono text-red-400">0.0%</td>
+                      </tr>
+                      <tr className="border-b border-gray-800/50 hover:bg-purple-500/10 transition-colors">
+                        <td className="py-2 px-3 font-mono">Exchange Listings</td>
+                        <td className="text-center py-2 px-3 font-mono">3.00%</td>
+                        <td className="text-right py-2 px-3 font-mono">10,500,000</td>
+                        <td className="text-center py-2 px-3 font-mono text-red-400">0.0%</td>
+                      </tr>
+                      <tr className="border-b border-gray-800/50 hover:bg-purple-500/10 transition-colors">
+                        <td className="py-2 px-3 font-mono">Treasury</td>
+                        <td className="text-center py-2 px-3 font-mono">16.29%</td>
+                        <td className="text-right py-2 px-3 font-mono">50,000,000</td>
+                        <td className="text-center py-2 px-3 font-mono text-red-400">0.0%</td>
+                      </tr>
+                      <tr className="border-b border-gray-800/50 hover:bg-purple-500/10 transition-colors">
+                        <td className="py-2 px-3 font-mono">Marketing</td>
+                        <td className="text-center py-2 px-3 font-mono">19.00%</td>
+                        <td className="text-right py-2 px-3 font-mono">66,493,514</td>
+                        <td className="text-center py-2 px-3 font-mono text-red-400">0.0%</td>
+                      </tr>
+                      <tr className="hover:bg-purple-500/10 transition-colors">
+                        <td className="py-2 px-3 font-mono font-bold text-purple-300">Liquidity</td>
+                        <td className="text-center py-2 px-3 font-mono font-bold text-purple-300">20.00%</td>
+                        <td className="text-right py-2 px-3 font-mono font-bold text-purple-300">70,000,000</td>
+                        <td className="text-center py-2 px-3 font-mono font-bold text-green-400">20.0%</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Token Info Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-4">
+                  <div className="text-center">
+                    <div className="text-2xl mb-2">💰</div>
+                    <h4 className="font-semibold text-white mb-2">Total Supply</h4>
+                    <div className="text-2xl font-bold text-purple-400">350,000,000</div>
+                    <div className="text-sm text-gray-400">$LEXIE Tokens</div>
+                  </div>
+                </div>
+                <div className="bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-4">
+                  <div className="text-center">
+                    <div className="text-2xl mb-2">🚀</div>
+                    <h4 className="font-semibold text-white mb-2">TGE Unlock</h4>
+                    <div className="text-2xl font-bold text-green-400">22.1%</div>
+                    <div className="text-sm text-gray-400">Available at Launch</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Why Lexie Section */}
       <section className="relative z-30 py-20 bg-gradient-to-r from-purple-900/20 to-blue-900/20">
         <div className="max-w-7xl mx-auto px-6">
