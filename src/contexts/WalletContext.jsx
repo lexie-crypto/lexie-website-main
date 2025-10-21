@@ -10,7 +10,6 @@ import { mainnet, polygon, arbitrum, bsc } from 'wagmi/chains';
 import { metaMask, walletConnect, injected } from 'wagmi/connectors';
 import { WagmiProvider, useAccount, useConnect, useDisconnect, useSwitchChain, useConnectorClient, getConnectorClient, useSignMessage } from 'wagmi';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { toast } from 'react-hot-toast';
 import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/environment';
 import { NetworkName } from '@railgun-community/shared-models';
 import { initializeSyncSystem } from '../utils/sync/idb-sync/index.js';
@@ -2044,41 +2043,8 @@ const WalletContextProvider = ({ children }) => {
                   console.warn('⚠️ LevelDB snapshot backup failed - wallet will still work but recovery may not be available');
                 }
               } catch (backupError) {
-                if (backupError.message && backupError.message.includes('timed out after 5 seconds')) {
-                  // CRITICAL: Timeout indicates excessive data from previous wallets - disconnect immediately
-                  console.error('🚨 Backup operation timed out - excessive data detected, disconnecting wallet');
-
-                  // Show error toast
-                  toast.error(backupError.message, {
-                    duration: 8000,
-                    position: 'top-right',
-                  });
-
-                  // Disconnect immediately - don't wait
-                  try {
-                    console.log('🔌 Disconnecting wallet due to backup timeout...');
-                    await disconnectWallet(); // Use the context's disconnectWallet function
-                    console.log('✅ Wallet disconnected due to backup timeout');
-
-                    // Stop the initialization process
-                    setIsInitializing(false);
-                    setIsRailgunInitialized(false);
-                    setRailgunAddress(null);
-                    setRailgunWalletID(null);
-
-                    return; // Exit early to prevent wallet creation from continuing
-                  } catch (disconnectError) {
-                    console.error('❌ Failed to disconnect wallet:', disconnectError);
-                  }
-                } else {
-                  console.warn('⚠️ LevelDB snapshot backup creation failed:', backupError);
-                }
-                // Only continue wallet creation for non-timeout errors
-                if (!backupError.message?.includes('timed out')) {
-                  // Allow wallet creation to continue for other errors
-                } else {
-                  throw backupError; // Rethrow timeout errors to stop wallet creation
-                }
+                console.warn('⚠️ LevelDB snapshot backup creation failed:', backupError);
+                // Don't fail wallet creation if backup fails
               }
 
               console.log('✅ Stored COMPLETE wallet data to Redis for true cross-device access:', {

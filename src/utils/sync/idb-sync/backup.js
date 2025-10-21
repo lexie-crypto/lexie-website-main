@@ -3,7 +3,7 @@
  * Creates and restores complete LevelDB snapshots for guaranteed wallet recovery
  */
 
-import { exportWalletSnapshot } from './exporter.js';
+import { exportWalletSnapshot, clearLevelDB } from './exporter.js';
 import { uploadWalletBackup, downloadWalletBackup } from './api.js';
 import { writeBackupToIDB } from './hydration.js';
 
@@ -20,16 +20,18 @@ export const createWalletBackup = async (walletId, eoa) => {
       eoa: eoa?.slice(0, 8) + '...'
     });
 
-    // Create a timeout promise that rejects after 5 seconds
-    const timeoutPromise = new Promise((_, reject) => {
-      setTimeout(() => {
-        reject(new Error('Backup operation timed out after 5 seconds. This usually indicates excessive data from previous wallets. Please use a clean browser session for new wallets.'));
-      }, 5000);
-    });
+    // 🧹 CRITICAL: Clear LevelDB before creating backup to ensure clean state
+    console.log('[Wallet-Backup] 🧹 Clearing LevelDB before backup creation...');
+    try {
+      await clearLevelDB();
+      console.log('[Wallet-Backup] ✅ LevelDB cleared successfully');
+    } catch (clearError) {
+      console.warn('[Wallet-Backup] ⚠️ Failed to clear LevelDB, proceeding with backup anyway:', clearError);
+      // Don't fail the entire backup if clear fails
+    }
 
-    // Race the backup operation against the timeout
-    const backupPromise = exportWalletSnapshot(walletId);
-    const snapshotData = await Promise.race([backupPromise, timeoutPromise]);
+    // Export complete LevelDB snapshot (should be minimal at wallet creation time)
+    const snapshotData = await exportWalletSnapshot(walletId);
 
     if (!snapshotData) {
       console.warn('[Wallet-Backup] ⚠️ No data found in LevelDB for wallet:', walletId?.slice(0, 8));
