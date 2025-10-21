@@ -306,13 +306,20 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       localStorage.removeItem("linkedLexieId");
     }
 
-    // For new users, show game onboarding modal instead of auto-opening game
-    if (lexieId && autoOpenGame) {
+    // For new users on desktop, show game onboarding modal instead of auto-opening game
+    if (lexieId && autoOpenGame && !isMobile) {
       setPendingLexieId(lexieId);
       setShowGameOnboardingModal(true);
       // Don't signal completion yet - wait for game onboarding choice
+    } else if (lexieId && autoOpenGame && isMobile) {
+      // On mobile, still auto-open the game for now (could be changed later)
+      setTimeout(() => {
+        const gameUrl = `https://game.lexiecrypto.com/?lexieId=${encodeURIComponent(lexieId)}&walletAddress=${encodeURIComponent(address || '')}&embedded=true&theme=terminal`;
+        window.open(gameUrl, '_blank');
+        onLexieIdLinked();
+      }, 1000);
     } else {
-      // Signal completion without opening game
+      // Signal completion without opening game (mobile or no auto-open)
       onLexieIdLinked();
     }
   }, [address, onLexieIdLinked, isMobile]);
@@ -321,25 +328,17 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   const handleGameOnboardingChoice = useCallback((wantsToPlay) => {
     setShowGameOnboardingModal(false);
 
-    if (wantsToPlay && pendingLexieId) {
-      if (isMobile) {
-        // Open LexieTitans game in new tab on mobile
-        setTimeout(() => {
-          const gameUrl = `https://game.lexiecrypto.com/?lexieId=${encodeURIComponent(pendingLexieId)}&walletAddress=${encodeURIComponent(address || '')}&embedded=true&theme=terminal`;
-          window.open(gameUrl, '_blank');
-        }, 500); // Small delay to allow modal to close
-      } else {
-        // Open in window shell on desktop
-        setTimeout(() => {
-          setShowTitansGame(true);
-        }, 500); // Small delay to allow modal to close
-      }
+    if (wantsToPlay && pendingLexieId && !isMobile) {
+      // Open the game only on desktop
+      setTimeout(() => {
+        setShowTitansGame(true);
+      }, 500); // Small delay to allow modal to close
     }
 
     // Always signal completion
     onLexieIdLinked();
     setPendingLexieId('');
-  }, [pendingLexieId, isMobile, address, onLexieIdLinked]);
+  }, [pendingLexieId, isMobile, onLexieIdLinked]);
 
   // Cross-platform verification state - now managed by CrossPlatformVerificationModal component
   const [showVerificationModal, setShowVerificationModal] = useState(false);
@@ -2256,5 +2255,4 @@ const VaultDesktop = ({ externalWindowProvider = false }) => {
 };
 
 export default VaultDesktop;
-
 
