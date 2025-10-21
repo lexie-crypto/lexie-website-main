@@ -813,29 +813,6 @@ export default function LandingPage() {
               />
             ))}
           </div>
-
-          {/* Command Console */}
-          <div className="mt-16 bg-black/80 border border-purple-500/40 rounded-lg p-6 font-mono text-sm">
-            <div className="flex items-center space-x-2 mb-4">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-green-400">LEXIE.AI_CONSOLE</span>
-              <span className="text-gray-500">// TACTICAL_OVERVIEW</span>
-            </div>
-            <div className="grid md:grid-cols-3 gap-6 text-center">
-              <div>
-                <div className="text-2xl font-bold text-purple-400 mb-1">3</div>
-                <div className="text-gray-400">Active Modules</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-cyan-400 mb-1">$2.4M+</div>
-                <div className="text-gray-400">Protected Assets</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-green-400 mb-1">96.7%</div>
-                <div className="text-gray-400">Success Rate</div>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
