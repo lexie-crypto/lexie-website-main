@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { Analytics } from "@vercel/analytics/react";
@@ -98,43 +98,9 @@ const PaymentRedirect = () => {
 };
 
 function App() {
-  const [showMobileDebug, setShowMobileDebug] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
-
   // Check if we're on the payment subdomain
   const isPaymentSubdomain = typeof window !== 'undefined' &&
     window.location.hostname === 'pay.lexiecrypto.com';
-
-  // Detect mobile and initialize Eruda
-  useEffect(() => {
-    const checkMobile = () => {
-      const mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      setIsMobile(mobile);
-
-      // Auto-initialize Eruda on mobile devices
-      if (mobile && typeof window !== 'undefined') {
-        // Small delay to ensure DOM is ready
-        setTimeout(async () => {
-          try {
-            const eruda = await import('eruda');
-            eruda.default.init({
-              defaults: {
-                displaySize: 50,
-                transparency: 0.9,
-                theme: 'Monokai Pro'
-              }
-            });
-            setShowMobileDebug(true);
-            console.log('🛠️ Eruda mobile debugging initialized');
-          } catch (error) {
-            console.error('Failed to initialize Eruda:', error);
-          }
-        }, 1000);
-      }
-    };
-
-    checkMobile();
-  }, []);
 
   // If on payment subdomain, serve PaymentPage directly
   if (isPaymentSubdomain) {
@@ -182,7 +148,6 @@ function App() {
             <Route path="/privacy" element={<PrivacyPolicy />} />
           </Routes>
 
-
           {/* Toast notifications */}
           <Toaster
             position="top-right"
@@ -215,4 +180,4 @@ function App() {
   );
 }
 
-export default App; 
+export default App;
