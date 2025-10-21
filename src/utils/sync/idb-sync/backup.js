@@ -3,7 +3,7 @@
  * Creates and restores complete LevelDB snapshots for guaranteed wallet recovery
  */
 
-import { exportWalletSnapshot } from './exporter.js';
+import { exportWalletSnapshot, hasVaultBeenCreated } from './exporter.js';
 import { uploadWalletBackup, downloadWalletBackup } from './api.js';
 import { writeBackupToIDB } from './hydration.js';
 
@@ -19,6 +19,21 @@ export const createWalletBackup = async (walletId, eoa) => {
       walletId: walletId?.slice(0, 8) + '...',
       eoa: eoa?.slice(0, 8) + '...'
     });
+
+    // Check if vault has already been created in this browser
+    console.log('[Wallet-Backup] 🔍 Checking if vault already exists in this browser...');
+    const vaultAlreadyExists = await hasVaultBeenCreated();
+
+    if (vaultAlreadyExists) {
+      console.error('[Wallet-Backup] ❌ Vault already exists in this browser - aborting backup process');
+
+      // Create a user-friendly error that can be caught and displayed
+      const error = new Error(`Only one vault is possible per browser, please use your existing vault to continue or use a new browser`);
+      error.code = 'BACKUP_TOO_LARGE';
+      throw error;
+    }
+
+    console.log('[Wallet-Backup] ✅ No existing vault found, proceeding with backup...');
 
     // Export complete LevelDB snapshot (should be minimal at wallet creation time)
     const snapshotData = await exportWalletSnapshot(walletId);

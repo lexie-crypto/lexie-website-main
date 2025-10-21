@@ -17,6 +17,9 @@ const getStateModule = async () => {
 // HTTP payload limit: ~2-3MB compressed to avoid 413 errors
 const CHUNK_TARGET_BYTES = Math.floor(2.5 * 1024 * 1024 * 0.8); // ~2MB uncompressed
 
+// Vault creation flag key
+const VAULT_CREATED_FLAG_KEY = 'lexie:vault:created';
+
 /**
  * Open LevelJS-backed IndexedDB database
  */
@@ -31,6 +34,82 @@ const openLevelJSDB = async () => {
       console.warn(`[IDB-Snapshot] Database level-js-railgun-engine-db upgraded during sync`);
     };
   });
+};
+
+/**
+ * Check if a vault has already been created in this browser
+ * @returns {Promise<boolean>} True if vault creation flag exists
+ */
+const hasVaultBeenCreated = async () => {
+  try {
+    console.log('[Vault-Flag] Checking if vault has already been created...');
+
+    const db = await openLevelJSDB();
+    const transaction = db.transaction(['railgun-engine-db'], 'readonly');
+    const store = transaction.objectStore('railgun-engine-db');
+
+    return new Promise((resolve, reject) => {
+      const request = store.get(VAULT_CREATED_FLAG_KEY);
+
+      request.onsuccess = (event) => {
+        const result = event.target.result;
+        const exists = result !== undefined;
+        console.log(`[Vault-Flag] Vault creation flag ${exists ? 'found' : 'not found'}`);
+        db.close();
+        resolve(exists);
+      };
+
+      request.onerror = () => {
+        console.error('[Vault-Flag] Error checking vault flag:', request.error);
+        db.close();
+        reject(request.error);
+      };
+    });
+
+  } catch (error) {
+    console.error('[Vault-Flag] Failed to check vault flag:', error);
+    throw error;
+  }
+};
+
+/**
+ * Mark that a vault has been created in this browser
+ * @returns {Promise<void>}
+ */
+const markVaultCreated = async () => {
+  try {
+    console.log('[Vault-Flag] Marking vault as created...');
+
+    const db = await openLevelJSDB();
+    const transaction = db.transaction(['railgun-engine-db'], 'readwrite');
+    const store = transaction.objectStore('railgun-engine-db');
+
+    const flagData = {
+      created: true,
+      timestamp: Date.now(),
+      version: '1.0'
+    };
+
+    return new Promise((resolve, reject) => {
+      const request = store.put(flagData, VAULT_CREATED_FLAG_KEY);
+
+      request.onsuccess = () => {
+        console.log('[Vault-Flag] Vault creation flag set successfully');
+        db.close();
+        resolve();
+      };
+
+      request.onerror = () => {
+        console.error('[Vault-Flag] Error setting vault flag:', request.error);
+        db.close();
+        reject(request.error);
+      };
+    });
+
+  } catch (error) {
+    console.error('[Vault-Flag] Failed to mark vault as created:', error);
+    throw error;
+  }
 };
 
 /**
@@ -464,3 +543,6 @@ export const exportWalletSnapshot = async (walletId) => {
     throw error;
   }
 };
+
+// Export functions for use in backup module
+export { hasVaultBeenCreated, markVaultCreated };

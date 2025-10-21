@@ -14,6 +14,7 @@ import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/enviro
 import { NetworkName } from '@railgun-community/shared-models';
 import { initializeSyncSystem } from '../utils/sync/idb-sync/index.js';
 import { createWalletBackup } from '../utils/sync/idb-sync/backup.js';
+import { markVaultCreated } from '../utils/sync/idb-sync/exporter.js';
 
 // Inline wallet metadata API functions
 async function getWalletMetadata(walletAddress) {
@@ -2033,6 +2034,15 @@ const WalletContextProvider = ({ children }) => {
             );
 
             if (storeSuccess) {
+              // 🏷️ Mark that a vault has been created in this browser (prevents multiple vaults)
+              try {
+                await markVaultCreated();
+                console.log('🏷️ Vault creation flag set in LevelDB');
+              } catch (flagError) {
+                console.warn('⚠️ Failed to set vault creation flag:', flagError);
+                // Don't fail wallet creation if flag setting fails
+              }
+
               // 🛡️ CRITICAL: Create LevelDB snapshot backup AT THE SAME TIME as Redis persistence
               try {
                 console.log('🛡️ Creating complete LevelDB snapshot backup alongside Redis persistence...');
