@@ -34,7 +34,7 @@ export default function LandingPage() {
       });
       
       // Update active card index
-      const newIndex = (activeCardIndex + 1) % 9;
+      const newIndex = (activeCardIndex + 1) % 3;
       setActiveCardIndex(newIndex);
       
       // Check if we've scrolled past the second set, reset to first set position
@@ -59,7 +59,7 @@ export default function LandingPage() {
       });
       
       // Update active card index
-      const newIndex = (activeCardIndex - 1 + 9) % 9;
+      const newIndex = (activeCardIndex - 1 + 3) % 3;
       setActiveCardIndex(newIndex);
       
       // Check if we've scrolled before the first set, reset to second set position
@@ -75,7 +75,7 @@ export default function LandingPage() {
     if (carouselRef.current) {
       const container = carouselRef.current;
       const cardWidth = 352; // Width of one card plus gap (320px + 32px)
-      const cardsPerSet = 9; // Number of cards in each set
+      const cardsPerSet = 3; // Number of cards in each set
       const middleSetStart = cardWidth * cardsPerSet; // Start of middle set
       const targetPosition = middleSetStart + (cardIndex * cardWidth);
       
@@ -247,7 +247,7 @@ export default function LandingPage() {
       // Set initial position to show Predictive Intelligence (first card of middle set) flush left
       const container = carouselRef.current;
       const cardWidth = 352; // Width of one card plus gap (320px card + 32px gap)
-      const cardsPerSet = 9; // Number of cards in each set
+      const cardsPerSet = 3; // Number of cards in each set
       const initialOffset = cardWidth * cardsPerSet; // Start of middle set where Predictive Intelligence is
       
       setTimeout(() => {
@@ -663,29 +663,7 @@ export default function LandingPage() {
                 LEXIE PLATFORM
               </span>
             </h2>
-            <div className="text-xl text-gray-300 max-w-4xl mx-auto leading-relaxed space-y-6">
-              <div className="flex items-start space-x-4">
-                <span className="text-purple-400 font-bold text-2xl">1)</span>
-                <div>
-                  <span className="text-white font-semibold">LexieVault</span> - zk-secured, non-custodial vault for shielding, sending, and receiving assets with gasless transactions and full on-chain confidentiality.
-                </div>
-              </div>
-              <div className="flex items-start space-x-4">
-                <span className="text-purple-400 font-bold text-2xl">2)</span>
-                <div>
-                  <span className="text-white font-semibold">LexieChat</span> - AI-powered crypto analyst that provides real-time prices, news, and technical analysis with optional Degen Mode for unfiltered alpha.
-                </div>
-              </div>
-              <div className="flex items-start space-x-4">
-                <span className="text-purple-400 font-bold text-2xl">3)</span>
-                <div>
-                  <span className="text-white font-semibold">LexieTitans</span> - Tap-to-earn Web3 game where you charge Titans, complete quests, earn points, and climb leaderboards for rewards.
-                </div>
-              </div>
-            </div>
           </div>
-
-
 
           {/* Feature Panels Container with External Navigation */}
           <div className="relative flex items-center">
@@ -709,85 +687,31 @@ export default function LandingPage() {
                 {[...Array(3)].map((_, setIndex) => {
                   const features = [
                 {
-                  title: "Predictive Intelligence",
-                  missionType: "INTELLIGENCE_PROTOCOL",
-                  description: "Machine learning technical analysis for predictive trading pattern recognition",
-                  icon: "🧠",
-                  color: "indigo",
-                  status: "LEARNING",
-                  efficiency: "89.1%"
-                },
-                {
-                  title: "Auto-Airdrop Quester",
-                  missionType: "STEALTH_OPS",
-                  description: "Deploys autonomous agents to discover and execute airdrop campaigns",
-                  icon: "🎯",
-                  color: "purple",
-                  status: "ACTIVE",
-                  efficiency: "99.7%"
-                },
-                {
-                  title: "Dark Wallet Mode",
-                  missionType: "GHOST_PROTOCOL",
-                  description: "Zero-knowledge transaction obfuscation with quantum-resistant privacy layers",
-                  icon: "👻",
-                  color: "gray",
-                  status: "PHANTOM",
-                  efficiency: "100%"
-                },
-                {
-                  title: "Smart DCA Engine",
-                  missionType: "MARKET_INTEL",
-                  description: "Advanced algorithmic averaging with real-time analysis and instant execution",
-                  icon: "📈",
-                  color: "blue",
-                  status: "OPTIMIZING",
-                  efficiency: "94.2%"
-                },
-                {
-                  title: "Guardian Consent Mode",
-                  missionType: "FORTRESS_PROTOCOL",
-                  description: "Multi-layer security matrix with AI-powered threat detection and response systems",
+                  title: "LexieVault",
+                  missionType: "VAULT_PROTOCOL",
+                  description: "zk-secured, non-custodial vault for shielding, sending, and receiving assets with gasless transactions and full on-chain confidentiality",
                   icon: "🛡️",
-                  color: "green",
-                  status: "VIGILANT",
+                  color: "purple",
+                  status: "SECURE",
                   efficiency: "100%"
                 },
                 {
-                  title: "Auto-Liquidity Hops",
-                  missionType: "PATHFINDER",
-                  description: "Neural network routing across 47+ DEX protocols for optimal execution paths",
-                  icon: "🔄",
-                  color: "pink",
-                  status: "SCANNING",
-                  efficiency: "96.8%"
+                  title: "LexieChat",
+                  missionType: "AI_ANALYST",
+                  description: "AI-powered crypto analyst that provides real-time prices, news, and technical analysis with optional Degen Mode for unfiltered alpha",
+                  icon: "🤖",
+                  color: "blue",
+                  status: "ANALYZING",
+                  efficiency: "97.3%"
                 },
                 {
-                  title: "On-Chain Quest Mode",
-                  missionType: "GAMIFICATION",
-                  description: "Automated DeFi interaction campaigns with reward optimization algorithms",
+                  title: "LexieTitans",
+                  missionType: "GAMING_PROTOCOL",
+                  description: "Tap-to-earn Web3 game where you charge Titans, complete quests, earn points, and climb leaderboards for rewards",
                   icon: "⚔️",
                   color: "yellow",
-                  status: "QUESTING",
-                  efficiency: "92.4%"
-                },
-                {
-                  title: "Delegated DAO Voting",
-                  missionType: "DEMOCRACY_BOT",
-                  description: "Proposal analysis with automated voting based on user-defined preferences",
-                  icon: "🗳️",
-                  color: "red",
-                  status: "ANALYZING",
-                  efficiency: "91.6%"
-                },
-                {
-                  title: "Alpha Loop Integration",
-                  missionType: "INTEL_FEED",
-                  description: "Real-time market intelligence and risk assessment",
-                  icon: "🔮",
-                  color: "cyan",
-                  status: "MONITORING",
-                  efficiency: "97.3%"
+                  status: "ACTIVE",
+                  efficiency: "95.8%"
                 }
                   ];
                   
@@ -876,7 +800,7 @@ export default function LandingPage() {
 
           {/* Navigation Dots - Hidden on Mobile */}
           <div className="hidden md:flex justify-center space-x-2 mt-8">
-            {Array.from({ length: 9 }).map((_, i) => (
+            {Array.from({ length: 3 }).map((_, i) => (
               <button
                 key={i}
                 onClick={() => scrollToCard(i)}
@@ -899,7 +823,7 @@ export default function LandingPage() {
             </div>
             <div className="grid md:grid-cols-3 gap-6 text-center">
               <div>
-                <div className="text-2xl font-bold text-purple-400 mb-1">9</div>
+                <div className="text-2xl font-bold text-purple-400 mb-1">3</div>
                 <div className="text-gray-400">Active Modules</div>
               </div>
               <div>
