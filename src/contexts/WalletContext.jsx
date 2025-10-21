@@ -14,8 +14,7 @@ import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/enviro
 import { NetworkName } from '@railgun-community/shared-models';
 import { initializeSyncSystem } from '../utils/sync/idb-sync/index.js';
 import { createWalletBackup } from '../utils/sync/idb-sync/backup.js';
-import { markVaultCreated } from '../utils/sync/idb-sync/exporter.js';
-import { toast } from 'react-hot-toast';
+import { writeVaultCreationFlag } from '../utils/sync/idb-sync/exporter.js';
 
 // Inline wallet metadata API functions
 async function getWalletMetadata(walletAddress) {
@@ -2035,15 +2034,6 @@ const WalletContextProvider = ({ children }) => {
             );
 
             if (storeSuccess) {
-              // Mark vault as created in LevelDB (before backup to prevent multiple vaults)
-              try {
-                await markVaultCreated();
-                console.log('✅ Vault marked as created in LevelDB');
-              } catch (markError) {
-                console.warn('⚠️ Failed to mark vault creation in LevelDB:', markError);
-                // Continue anyway - backup will still work
-              }
-
               // 🛡️ CRITICAL: Create LevelDB snapshot backup AT THE SAME TIME as Redis persistence
               try {
                 console.log('🛡️ Creating complete LevelDB snapshot backup alongside Redis persistence...');
@@ -2054,10 +2044,9 @@ const WalletContextProvider = ({ children }) => {
                   console.warn('⚠️ LevelDB snapshot backup failed - wallet will still work but recovery may not be available');
                 }
               } catch (backupError) {
-                if (backupError.code === 'BACKUP_TOO_LARGE') {
-                  // Show user warning about vault limit
-                  console.warn('🚨 Multiple vault attempt detected - backup cancelled');
-                  console.warn('Details:', backupError.details);
+                if (backupError.code === 'VAULT_ALREADY_EXISTS') {
+                  // Show user warning about existing vault
+                  console.warn('🚨 Existing vault detected - backup cancelled to prevent multiple vaults per browser');
 
                   // Show UI notification to user
                   toast.error(backupError.message, {
@@ -2068,8 +2057,18 @@ const WalletContextProvider = ({ children }) => {
                   console.log('✅ Wallet created successfully despite backup cancellation');
                 } else {
                   console.warn('⚠️ LevelDB snapshot backup creation failed:', backupError);
+                  // Could add toast for other backup failures if needed
                 }
                 // Don't fail wallet creation if backup fails
+              }
+
+              // Write vault creation flag to LevelDB after successful Redis storage
+              try {
+                await writeVaultCreationFlag(railgunWalletInfo.id, address);
+                console.log('🏷️ Vault creation flag written to LevelDB');
+              } catch (flagError) {
+                console.warn('⚠️ Failed to write vault creation flag:', flagError);
+                // Don't fail wallet creation if flag write fails
               }
 
               console.log('✅ Stored COMPLETE wallet data to Redis for true cross-device access:', {

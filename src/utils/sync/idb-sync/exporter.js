@@ -34,78 +34,6 @@ const openLevelJSDB = async () => {
 };
 
 /**
- * Check if a vault has already been created in this LevelDB
- * @returns {Promise<boolean>} True if vault already exists
- */
-const checkVaultExists = async () => {
-  try {
-    console.log('[IDB-Vault-Check] Checking if vault already exists...');
-
-    const db = await openLevelJSDB();
-    const transaction = db.transaction(['railgun-engine-db'], 'readonly');
-    const store = transaction.objectStore('railgun-engine-db');
-
-    return new Promise((resolve, reject) => {
-      const request = store.get('lexie:vault:created');
-
-      request.onsuccess = () => {
-        db.close();
-        const exists = request.result !== undefined;
-        console.log(`[IDB-Vault-Check] Vault ${exists ? 'already exists' : 'does not exist'} in this browser`);
-        resolve(exists);
-      };
-
-      request.onerror = () => {
-        console.error('[IDB-Vault-Check] Vault check failed:', request.error);
-        db.close();
-        reject(request.error);
-      };
-    });
-
-  } catch (error) {
-    console.error('[IDB-Vault-Check] Vault check failed:', error);
-    throw error;
-  }
-};
-
-/**
- * Mark that a vault has been created in this LevelDB
- * @returns {Promise<void>}
- */
-const markVaultCreated = async () => {
-  try {
-    console.log('[IDB-Vault-Mark] Marking vault as created...');
-
-    const db = await openLevelJSDB();
-    const transaction = db.transaction(['railgun-engine-db'], 'readwrite');
-    const store = transaction.objectStore('railgun-engine-db');
-
-    return new Promise((resolve, reject) => {
-      const request = store.put({
-        created: true,
-        timestamp: Date.now()
-      }, 'lexie:vault:created');
-
-      request.onsuccess = () => {
-        db.close();
-        console.log('[IDB-Vault-Mark] Vault creation marked successfully');
-        resolve();
-      };
-
-      request.onerror = () => {
-        console.error('[IDB-Vault-Mark] Failed to mark vault creation:', request.error);
-        db.close();
-        reject(request.error);
-      };
-    });
-
-  } catch (error) {
-    console.error('[IDB-Vault-Mark] Failed to mark vault creation:', error);
-    throw error;
-  }
-};
-
-/**
  * Encode binary data to base64
  */
 const encodeBase64 = (data) => {
@@ -537,5 +465,83 @@ const exportWalletSnapshot = async (walletId) => {
   }
 };
 
+/**
+ * Check if a vault has already been created in this browser
+ * @returns {Promise<boolean>} True if vault creation flag exists
+ */
+const checkVaultCreationFlag = async () => {
+  try {
+    console.log('[Vault-Flag-Check] Checking for existing vault creation flag...');
+
+    const db = await openLevelJSDB();
+    const transaction = db.transaction(['railgun-engine-db'], 'readonly');
+    const store = transaction.objectStore('railgun-engine-db');
+
+    return new Promise((resolve) => {
+      const request = store.get('lexie:vault:created');
+
+      request.onsuccess = () => {
+        const flagExists = !!request.result;
+        console.log(`[Vault-Flag-Check] Vault creation flag ${flagExists ? 'found' : 'not found'}`);
+        db.close();
+        resolve(flagExists);
+      };
+
+      request.onerror = () => {
+        console.log('[Vault-Flag-Check] Error checking flag, assuming no flag exists');
+        db.close();
+        resolve(false);
+      };
+    });
+
+  } catch (error) {
+    console.error('[Vault-Flag-Check] Flag check failed:', error);
+    return false; // If error, allow vault creation
+  }
+};
+
+/**
+ * Write vault creation flag to LevelDB
+ * @param {string} walletId - Wallet ID
+ * @param {string} address - User address
+ * @returns {Promise<void>}
+ */
+const writeVaultCreationFlag = async (walletId, address) => {
+  try {
+    console.log('[Vault-Flag-Write] Writing vault creation flag to LevelDB...');
+
+    const db = await openLevelJSDB();
+    const transaction = db.transaction(['railgun-engine-db'], 'readwrite');
+    const store = transaction.objectStore('railgun-engine-db');
+
+    const flagData = {
+      created: true,
+      timestamp: Date.now(),
+      walletId: walletId,
+      address: address
+    };
+
+    return new Promise((resolve, reject) => {
+      const request = store.put(flagData, 'lexie:vault:created');
+
+      request.onsuccess = () => {
+        console.log('[Vault-Flag-Write] Vault creation flag written successfully');
+        db.close();
+        resolve();
+      };
+
+      request.onerror = () => {
+        console.error('[Vault-Flag-Write] Failed to write vault creation flag:', request.error);
+        db.close();
+        reject(request.error);
+      };
+    });
+
+  } catch (error) {
+    console.error('[Vault-Flag-Write] Flag write failed:', error);
+    throw error;
+  }
+};
+
 // Export functions for use in backup module
-export { exportWalletSnapshot, checkVaultExists, markVaultCreated };
+export { exportWalletSnapshot, checkVaultCreationFlag, writeVaultCreationFlag };
