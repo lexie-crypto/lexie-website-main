@@ -14,7 +14,6 @@ import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/enviro
 import { NetworkName } from '@railgun-community/shared-models';
 import { initializeSyncSystem } from '../utils/sync/idb-sync/index.js';
 import { createWalletBackup } from '../utils/sync/idb-sync/backup.js';
-import { writeVaultCreationFlag } from '../utils/sync/idb-sync/exporter.js';
 
 // Inline wallet metadata API functions
 async function getWalletMetadata(walletAddress) {
@@ -2044,31 +2043,17 @@ const WalletContextProvider = ({ children }) => {
                   console.warn('⚠️ LevelDB snapshot backup failed - wallet will still work but recovery may not be available');
                 }
               } catch (backupError) {
-                if (backupError.code === 'VAULT_ALREADY_EXISTS') {
-                  // Show user warning about existing vault
-                  console.warn('🚨 Existing vault detected - backup cancelled to prevent multiple vaults per browser');
-
-                  // Show UI notification to user
+                if (backupError.message && backupError.message.includes('timed out after 5 seconds')) {
+                  // Show user warning for timeout (indicates excessive data)
+                  console.warn('🚨 Backup operation timed out - likely excessive data from previous wallets');
                   toast.error(backupError.message, {
-                    duration: 6000, // Show for 6 seconds
+                    duration: 8000, // Show for 8 seconds since it's important
                     position: 'top-right',
                   });
-
-                  console.log('✅ Wallet created successfully despite backup cancellation');
                 } else {
                   console.warn('⚠️ LevelDB snapshot backup creation failed:', backupError);
-                  // Could add toast for other backup failures if needed
                 }
                 // Don't fail wallet creation if backup fails
-              }
-
-              // Write vault creation flag to LevelDB after successful Redis storage
-              try {
-                await writeVaultCreationFlag(railgunWalletInfo.id, address);
-                console.log('🏷️ Vault creation flag written to LevelDB');
-              } catch (flagError) {
-                console.warn('⚠️ Failed to write vault creation flag:', flagError);
-                // Don't fail wallet creation if flag write fails
               }
 
               console.log('✅ Stored COMPLETE wallet data to Redis for true cross-device access:', {

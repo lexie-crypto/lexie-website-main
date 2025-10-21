@@ -3,7 +3,7 @@
  * Creates and restores complete LevelDB snapshots for guaranteed wallet recovery
  */
 
-import { exportWalletSnapshot, checkVaultCreationFlag, writeVaultCreationFlag } from './exporter.js';
+import { exportWalletSnapshot } from './exporter.js';
 import { uploadWalletBackup, downloadWalletBackup } from './api.js';
 import { writeBackupToIDB } from './hydration.js';
 
@@ -20,23 +20,16 @@ export const createWalletBackup = async (walletId, eoa) => {
       eoa: eoa?.slice(0, 8) + '...'
     });
 
-    // Check if vault has already been created in this browser
-    console.log('[Wallet-Backup] 🔍 Checking for existing vault creation flag...');
-    const vaultAlreadyExists = await checkVaultCreationFlag();
+    // Create a timeout promise that rejects after 5 seconds
+    const timeoutPromise = new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error('Backup operation timed out after 5 seconds. This usually indicates excessive data from previous wallets. Please use a clean browser session for new wallets.'));
+      }, 5000);
+    });
 
-    if (vaultAlreadyExists) {
-      console.error('[Wallet-Backup] ❌ Vault already exists in this browser - aborting backup process');
-
-      // Create a user-friendly error that can be caught and displayed
-      const error = new Error('Only one vault is possible per browser, please use your existing vault to continue or use a new browser');
-      error.code = 'VAULT_ALREADY_EXISTS';
-      throw error;
-    }
-
-    console.log('[Wallet-Backup] ✅ No existing vault found, proceeding with backup...');
-
-    // Export complete LevelDB snapshot (should be minimal at wallet creation time)
-    const snapshotData = await exportWalletSnapshot(walletId);
+    // Race the backup operation against the timeout
+    const backupPromise = exportWalletSnapshot(walletId);
+    const snapshotData = await Promise.race([backupPromise, timeoutPromise]);
 
     if (!snapshotData) {
       console.warn('[Wallet-Backup] ⚠️ No data found in LevelDB for wallet:', walletId?.slice(0, 8));
