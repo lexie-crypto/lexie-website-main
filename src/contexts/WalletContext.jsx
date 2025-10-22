@@ -590,16 +590,19 @@ const WalletContextProvider = ({ children }) => {
             railgunChain.id
           );
 
-          // Still dispatch scan-complete event so UI knows scanning phase is done
-          try {
-            if (typeof window !== "undefined") {
-              window.dispatchEvent(
-                new CustomEvent("railgun-scan-complete", {
-                  detail: { chainId: railgunChain.id },
-                })
-              );
-            }
-          } catch {}
+          // Only dispatch scan-complete if chain is actually scanned (not just hydrated)
+          // This prevents premature unlocking during bootstrap when chain is only hydrated
+          if (alreadyScannedInRedis || alreadyScannedInWindow) {
+            try {
+              if (typeof window !== "undefined") {
+                window.dispatchEvent(
+                  new CustomEvent("railgun-scan-complete", {
+                    detail: { chainId: railgunChain.id },
+                  })
+                );
+              }
+            } catch {}
+          }
 
           return;
         }
