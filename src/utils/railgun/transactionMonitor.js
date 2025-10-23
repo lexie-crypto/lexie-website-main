@@ -1555,13 +1555,16 @@ export const monitorTransactionInGraph = async ({
             // If we found the recipient's wallet ID, save transfer_receive event
             if (recipientWalletId) {
               const recipientDisplayAmount = transactionDetails?.displayAmount?.toString() || transactionDetails?.amount?.toString() || '0';
+              const senderRailgunAddress = transactionDetails?.railgunAddress;
+              const senderWalletAddress = transactionDetails?.walletAddress;
 
               console.log('[TransactionMonitor] 📥 Saving recipient timeline event:', {
                 recipientWalletId: recipientWalletId.slice(0, 10) + '...',
                 txHash: txHash.slice(0, 10) + '...',
                 tokenSymbol: transactionDetails?.tokenSymbol,
                 displayAmount: recipientDisplayAmount,
-                rawAmount: transactionDetails?.amount?.toString(),
+                senderRailgunAddress: senderRailgunAddress?.slice(0, 10) + '...',
+                senderWalletAddress: senderWalletAddress?.slice(0, 10) + '...',
                 memoText: transactionDetails?.memoText
               });
 
@@ -1578,7 +1581,7 @@ export const monitorTransactionInGraph = async ({
                 timestamp: Math.floor(Date.now() / 1000),
                 blockNumber: blockNumber,
                 recipientAddress: eventDetail?.recipientAddress || null, // Recipient is themselves
-                senderAddress: transactionDetails?.railgunAddress || transactionDetails?.walletAddress || null // Original sender's Railgun address
+                senderAddress: senderRailgunAddress || null // Only use Railgun address for Lexie ID lookup, never EOA
               };
 
               const recipientTlBody = {
