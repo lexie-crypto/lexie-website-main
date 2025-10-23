@@ -572,7 +572,7 @@ export const monitorTransactionInGraph = async ({
         } else if (transactionType === 'transfer') {
           eventData = {
             traceId: txHash,
-            type: 'TransferSendERC20s', // Use RAILGUN SDK category format
+            type: 'transfer_send', // Keep original type for compatibility
             txHash: txHash,
             status: 'confirmed',
             token: transactionDetails?.tokenSymbol || 'UNKNOWN',
@@ -710,7 +710,7 @@ export const monitorTransactionInGraph = async ({
             } else if (transactionType === 'transfer') {
               eventData = {
                 traceId: txHash,
-                type: 'TransferSendERC20s', // Use RAILGUN SDK category format
+                type: 'transfer_send', // Keep original type for compatibility
                 txHash: txHash,
                 status: transactionStatus,
                 token: transactionDetails?.tokenSymbol || 'UNKNOWN',
@@ -823,7 +823,7 @@ export const monitorTransactionInGraph = async ({
             } else if (transactionType === 'transfer') {
               eventData = {
                 traceId: txHash,
-                type: 'TransferSendERC20s', // Use RAILGUN SDK category format
+                type: 'transfer_send', // Keep original type for compatibility
                 txHash: txHash,
                 status: 'pending',
                 token: transactionDetails?.tokenSymbol || 'UNKNOWN',
@@ -1480,7 +1480,7 @@ export const monitorTransactionInGraph = async ({
           } else           if (transactionType === 'transfer') {
             updatedEventData = {
               traceId: txHash, // Same traceId to update existing record
-              type: 'TransferSendERC20s', // Use RAILGUN SDK category format
+              type: 'transfer_send', // Keep original type for compatibility
               txHash: txHash,
               status: 'confirmed', // Update status to confirmed
               token: transactionDetails?.tokenSymbol || 'UNKNOWN', // Use sender's token symbol
@@ -1556,7 +1556,7 @@ export const monitorTransactionInGraph = async ({
             if (recipientWalletId) {
               const recipientEventData = {
                 traceId: txHash, // Same traceId for linking
-                type: 'TransferReceiveERC20s', // Use RAILGUN SDK category format
+                type: 'transfer_receive', // Keep original type for compatibility
                 txHash: txHash,
                 status: 'confirmed',
                 token: transactionDetails?.tokenSymbol || 'UNKNOWN', // Use sender's token symbol
