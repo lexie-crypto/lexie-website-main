@@ -378,7 +378,15 @@ const TransactionHistory = () => {
                 {/* Recipient/Sender Address for Private Transfers */}
                 {tx.isPrivateTransfer && (tx.recipientAddress || tx.senderAddress) && (
                   <div className="mt-1 text-blue-300 break-words">
-                    {tx.recipientAddress ? (
+                    {tx.transactionType === 'Receive Transaction' && tx.senderAddress ? (
+                      <div>
+                        <span className="text-blue-400/80">From LexieID: </span>
+                        <LexieIdOrAddress
+                          railgunAddress={tx.senderAddress}
+                          fallbackDisplay={`${tx.senderAddress.slice(0, 8)}...${tx.senderAddress.slice(-6)}`}
+                        />
+                      </div>
+                    ) : tx.transactionType === 'Send Transaction' && tx.recipientAddress ? (
                       <div>
                         <span className="text-blue-400/80">To LexieID: </span>
                         <LexieIdOrAddress
@@ -388,10 +396,18 @@ const TransactionHistory = () => {
                       </div>
                     ) : tx.senderAddress ? (
                       <div>
-                        <span className="text-blue-400/80">Sender: </span>
+                        <span className="text-blue-400/80">From: </span>
                         <LexieIdOrAddress
                           railgunAddress={tx.senderAddress}
                           fallbackDisplay={`${tx.senderAddress.slice(0, 8)}...${tx.senderAddress.slice(-6)}`}
+                        />
+                      </div>
+                    ) : tx.recipientAddress ? (
+                      <div>
+                        <span className="text-blue-400/80">To: </span>
+                        <LexieIdOrAddress
+                          railgunAddress={tx.recipientAddress}
+                          fallbackDisplay={`${tx.recipientAddress.slice(0, 8)}...${tx.recipientAddress.slice(-6)}`}
                         />
                       </div>
                     ) : null}
