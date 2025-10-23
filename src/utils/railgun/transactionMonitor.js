@@ -1578,7 +1578,7 @@ export const monitorTransactionInGraph = async ({
                 timestamp: Math.floor(Date.now() / 1000),
                 blockNumber: blockNumber,
                 recipientAddress: eventDetail?.recipientAddress || null, // Recipient is themselves
-                senderAddress: transactionDetails?.walletAddress || null // Original sender
+                senderAddress: transactionDetails?.railgunAddress || transactionDetails?.walletAddress || null // Original sender's Railgun address
               };
 
               const recipientTlBody = {

@@ -20,10 +20,35 @@ const LexieIdOrAddress = ({ railgunAddress, fallbackDisplay }) => {
 
       setLoading(true);
       try {
-        const id = await lookupLexieId(railgunAddress);
+        // Try Railgun address lookup (works for 0zk addresses)
+        let id = null;
+
+        if (railgunAddress.startsWith('0zk')) {
+          // This is a Railgun address, look it up directly
+          id = await lookupLexieId(railgunAddress);
+        } else if (railgunAddress.startsWith('0x') && railgunAddress.length === 42) {
+          // This is an EOA address, try to resolve it
+          console.log('🔄 [LEXIE_LOOKUP] EOA address detected, attempting resolution:', railgunAddress.slice(0, 10) + '...');
+          try {
+            // First get the wallet ID for this EOA
+            const resolveResponse = await fetch(`/api/wallet-metadata?action=resolve-wallet-id&type=by-eoa&identifier=${encodeURIComponent(railgunAddress)}`);
+            if (resolveResponse.ok) {
+              const resolveData = await resolveResponse.json();
+              if (resolveData.success && resolveData.walletId) {
+                // Now we have the wallet ID, but we need to get the associated data
+                // For now, we'll just show the EOA address since we don't have a direct EOA->LexieID endpoint
+                console.log('ℹ️ [LEXIE_LOOKUP] Resolved EOA to wallet ID, but no direct Lexie ID lookup available:', resolveData.walletId);
+              }
+            }
+          } catch (resolveError) {
+            console.warn('⚠️ [LEXIE_LOOKUP] EOA resolution failed:', resolveError.message);
+          }
+        }
+
         setLexieId(id);
       } catch (error) {
         console.error('Failed to lookup Lexie ID:', error);
+        setLexieId(null);
       } finally {
         setLoading(false);
       }
@@ -36,16 +61,22 @@ const LexieIdOrAddress = ({ railgunAddress, fallbackDisplay }) => {
     return <span className="text-gray-400">Loading...</span>;
   }
 
+  // For EOA addresses that couldn't be resolved, show a cleaner format
+  const displayText = lexieId ? `@${lexieId}` :
+    (railgunAddress.startsWith('0x') && railgunAddress.length === 42) ?
+      `${railgunAddress.slice(0, 6)}...${railgunAddress.slice(-4)}` :
+      fallbackDisplay;
+
   return (
     <span
       onClick={() => navigator.clipboard.writeText(lexieId || railgunAddress)}
       className="cursor-pointer hover:text-blue-200 transition-colors select-all"
-      title={`Click to copy ${lexieId ? 'Lexie ID' : 'Railgun address'}`}
+      title={`Click to copy ${lexieId ? 'Lexie ID' : 'address'}`}
     >
       {lexieId ? (
-        <span className="text-emerald-300 font-medium">@{lexieId}</span>
+        <span className="text-emerald-300 font-medium">{displayText}</span>
       ) : (
-        fallbackDisplay
+        <span className="text-gray-300">{displayText}</span>
       )}
     </span>
   );
