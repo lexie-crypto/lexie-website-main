@@ -386,7 +386,12 @@ export const privateTransfer = async ({
 
     // Use our relayer path for private transfers
     console.log('🚀 [PRIVATE_TRANSFER] Calling privateTransferWithRelayer...');
-    const { transactionHash } = await privateTransferWithRelayer({
+    const {
+      transactionHash,
+      combinedRelayerFee,
+      relayerFee,
+      gasFee
+    } = await privateTransferWithRelayer({
       railgunWalletID,
       encryptionKey,
       erc20AmountRecipients,
@@ -398,13 +403,20 @@ export const privateTransfer = async ({
       transactionHash,
       recipientAddress: resolvedRecipient,
       amount: amount.toString(),
-      networkName
+      networkName,
+      combinedRelayerFee,
+      relayerFee,
+      gasFee
     });
 
     return {
       txHash: transactionHash,
       resolvedRecipientAddress: resolvedRecipient, // Add resolved recipient for timeline
-      originalRecipientInput: recipientRailgunAddress // Keep original input for reference
+      originalRecipientInput: recipientRailgunAddress, // Keep original input for reference
+      combinedRelayerFee,
+      relayerFee,
+      gasFee,
+      feeToken: 'USDC' // Default fee token for transfers (could be made configurable)
     };
   } catch (error) {
     console.error('[RailgunActions] Private transfer failed:', error);
@@ -624,4 +636,5 @@ export default {
   // Transaction types
   TransactionType,
 };
+
 

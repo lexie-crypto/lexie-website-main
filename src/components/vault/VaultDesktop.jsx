@@ -2249,3 +2249,4 @@ const VaultDesktop = ({ externalWindowProvider = false }) => {
 
 export default VaultDesktop;
 
+

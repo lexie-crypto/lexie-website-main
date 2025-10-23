@@ -2793,11 +2793,10 @@ export const privateTransferWithRelayer = async ({
 
     // Transaction monitoring removed - SDK handles balance updates
 
-    // For transfers, extract fee information from the relayer/broadcaster fee
-    // This is more complex as transfers can have multiple recipients and fees are embedded
-    // For now, we'll track a simplified fee amount - can be enhanced later
-    const transferFee = combinedRelayerFee || relayerFeeBn || 0n;
-    const transferFeeToken = selectedRelayer?.feeToken || null;
+    // For transfers, use the calculated relayer fee amount
+    // This is simpler than unshield since we deduct fees upfront like unshield does
+    const transferFee = relayerFeeAmount;
+    const transferFeeToken = tokenAddress; // Fee is deducted in the same token as the transfer
 
     // Store fee data directly in Redis when calculated
     try {
@@ -2846,5 +2845,7 @@ export const privateTransferWithRelayer = async ({
 };
 
 export { getRailgunNetworkName };
+
+
 
 
