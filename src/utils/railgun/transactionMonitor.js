@@ -1483,11 +1483,11 @@ export const monitorTransactionInGraph = async ({
               type: 'TransferSendERC20s', // Use RAILGUN SDK category format
               txHash: txHash,
               status: 'confirmed', // Update status to confirmed
-              token: eventDetail?.tokenSymbol || transactionDetails?.tokenSymbol || 'UNKNOWN',
-              amount: eventDetail?.amount?.toString() || transactionDetails?.amount?.toString() || '0',
+              token: transactionDetails?.tokenSymbol || 'UNKNOWN', // Use sender's token symbol
+              amount: transactionDetails?.displayAmount?.toString() || transactionDetails?.amount?.toString() || '0', // Use display amount
               zkAddr: transactionDetails?.walletAddress || 'unknown',
               nullifiers: events?.map(e => e.nullifier) || [], // Add nullifiers from Graph
-              memo: eventDetail?.memoText || transactionDetails?.memoText || null,
+              memo: transactionDetails?.memoText || null, // Use sender's memo
               timestamp: Math.floor(Date.now() / 1000), // Keep original timestamp
               blockNumber: blockNumber, // Add block number from Graph API
               recipientAddress: eventDetail?.recipientAddress || transactionDetails?.recipientAddress || null,
@@ -1559,11 +1559,11 @@ export const monitorTransactionInGraph = async ({
                 type: 'TransferReceiveERC20s', // Use RAILGUN SDK category format
                 txHash: txHash,
                 status: 'confirmed',
-                token: eventDetail?.tokenSymbol || transactionDetails?.tokenSymbol || 'UNKNOWN',
-                amount: eventDetail?.amount?.toString() || transactionDetails?.amount?.toString() || '0',
+                token: transactionDetails?.tokenSymbol || 'UNKNOWN', // Use sender's token symbol
+                amount: transactionDetails?.displayAmount?.toString() || transactionDetails?.amount?.toString() || '0', // Use display amount
                 zkAddr: eventDetail?.recipientAddress || 'unknown', // Recipient's address
                 nullifiers: [], // Recipients don't have nullifiers for received transfers
-                memo: eventDetail?.memoText || transactionDetails?.memoText || null,
+                memo: transactionDetails?.memoText || null, // Use sender's memo
                 timestamp: Math.floor(Date.now() / 1000),
                 blockNumber: blockNumber,
                 recipientAddress: eventDetail?.recipientAddress || null, // Recipient is themselves
