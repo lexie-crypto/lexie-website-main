@@ -1554,13 +1554,24 @@ export const monitorTransactionInGraph = async ({
 
             // If we found the recipient's wallet ID, save transfer_receive event
             if (recipientWalletId) {
+              const recipientDisplayAmount = transactionDetails?.displayAmount?.toString() || transactionDetails?.amount?.toString() || '0';
+
+              console.log('[TransactionMonitor] 📥 Saving recipient timeline event:', {
+                recipientWalletId: recipientWalletId.slice(0, 10) + '...',
+                txHash: txHash.slice(0, 10) + '...',
+                tokenSymbol: transactionDetails?.tokenSymbol,
+                displayAmount: recipientDisplayAmount,
+                rawAmount: transactionDetails?.amount?.toString(),
+                memoText: transactionDetails?.memoText
+              });
+
               const recipientEventData = {
                 traceId: txHash, // Same traceId for linking
                 type: 'transfer_receive', // Keep original type for compatibility
                 txHash: txHash,
                 status: 'confirmed',
                 token: transactionDetails?.tokenSymbol || 'UNKNOWN', // Use sender's token symbol
-                amount: transactionDetails?.displayAmount?.toString() || transactionDetails?.amount?.toString() || '0', // Use display amount
+                amount: recipientDisplayAmount, // Use display amount
                 zkAddr: eventDetail?.recipientAddress || 'unknown', // Recipient's address
                 nullifiers: [], // Recipients don't have nullifiers for received transfers
                 memo: transactionDetails?.memoText || null, // Use sender's memo

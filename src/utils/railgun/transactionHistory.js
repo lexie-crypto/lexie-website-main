@@ -247,22 +247,52 @@ export const formatTransactionHistoryItem = async (historyItem, chainId, current
   });
 
   // For private transfers, use timeline data if available (better token/amount info)
-  if (isPrivateTransfer && tokenAmounts.length > 0) {
-    // Check if timeline data has better information
+  // Special handling for recipients who may not have SDK data
+  if (isPrivateTransfer) {
     const timelineToken = historyItem.token || historyItem.tokenSymbol;
     const timelineAmount = historyItem.amount;
 
-    if (timelineToken && timelineToken !== 'UNKNOWN' && timelineToken !== 'Unknown') {
-      console.log('💰 [TRANSACTION_HISTORY] Using token from timeline data:', timelineToken);
-      tokenAmounts[0].symbol = timelineToken;
-    }
+    console.log('💰 [TRANSACTION_HISTORY] Processing private transfer token amounts:', {
+      txid: txid?.substring(0, 10) + '...',
+      effectiveCategory,
+      hasSDKData: tokenAmounts.length > 0,
+      timelineToken,
+      timelineAmount,
+      primaryAmountsLength: primaryAmounts.length
+    });
 
-    if (timelineAmount && typeof timelineAmount === 'string' && timelineAmount !== '0') {
-      console.log('💰 [TRANSACTION_HISTORY] Using amount from timeline data:', timelineAmount);
-      tokenAmounts[0].amount = timelineAmount;
-      tokenAmounts[0].formattedAmount = timelineAmount; // Display amount is already formatted
+    if (timelineToken && timelineAmount) {
+      // Create token amount from timeline data if SDK data is missing or incomplete
+      if (tokenAmounts.length === 0) {
+        console.log('💰 [TRANSACTION_HISTORY] Creating token amount from timeline data (no SDK data):', {
+          timelineToken,
+          timelineAmount
+        });
+        tokenAmounts = [{
+          tokenAddress: null, // Will be resolved from symbol if needed
+          amount: timelineAmount,
+          symbol: timelineToken,
+          decimals: 18, // Default, will be overridden if we can determine
+          formattedAmount: timelineAmount // Already formatted
+        }];
+      } else {
+        // Update existing token amounts with timeline data
+        if (timelineToken && timelineToken !== 'UNKNOWN' && timelineToken !== 'Unknown') {
+          console.log('💰 [TRANSACTION_HISTORY] Using token from timeline data:', timelineToken);
+          tokenAmounts[0].symbol = timelineToken;
+        }
+
+        if (timelineAmount && typeof timelineAmount === 'string' && timelineAmount !== '0') {
+          console.log('💰 [TRANSACTION_HISTORY] Using amount from timeline data:', timelineAmount);
+          tokenAmounts[0].amount = timelineAmount;
+          tokenAmounts[0].formattedAmount = timelineAmount; // Display amount is already formatted
+        }
+      }
+    } else if (tokenAmounts.length === 0) {
+      console.log('💰 [TRANSACTION_HISTORY] No timeline or SDK data available for token amounts');
     }
   }
+
 
   // Determine if this is a private transfer (send or receive)
   const isPrivateTransfer = effectiveCategory === TransactionCategory.TRANSFER_SEND || effectiveCategory === TransactionCategory.TRANSFER_RECEIVE;
