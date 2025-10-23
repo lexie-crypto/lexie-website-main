@@ -572,7 +572,7 @@ export const monitorTransactionInGraph = async ({
         } else if (transactionType === 'transfer') {
           eventData = {
             traceId: txHash,
-            type: 'transfer_send',
+            type: 'TransferSendERC20s', // Use RAILGUN SDK category format
             txHash: txHash,
             status: 'confirmed',
             token: transactionDetails?.tokenSymbol || 'UNKNOWN',
@@ -710,7 +710,7 @@ export const monitorTransactionInGraph = async ({
             } else if (transactionType === 'transfer') {
               eventData = {
                 traceId: txHash,
-                type: 'transfer_send',
+                type: 'TransferSendERC20s', // Use RAILGUN SDK category format
                 txHash: txHash,
                 status: transactionStatus,
                 token: transactionDetails?.tokenSymbol || 'UNKNOWN',
@@ -823,7 +823,7 @@ export const monitorTransactionInGraph = async ({
             } else if (transactionType === 'transfer') {
               eventData = {
                 traceId: txHash,
-                type: 'transfer_send',
+                type: 'TransferSendERC20s', // Use RAILGUN SDK category format
                 txHash: txHash,
                 status: 'pending',
                 token: transactionDetails?.tokenSymbol || 'UNKNOWN',
@@ -1477,10 +1477,10 @@ export const monitorTransactionInGraph = async ({
               recipientAddress: eventDetail?.recipientAddress || transactionDetails?.recipientAddress || null,
               senderAddress: transactionDetails?.walletAddress || null
             };
-          } else if (transactionType === 'transfer') {
+          } else           if (transactionType === 'transfer') {
             updatedEventData = {
               traceId: txHash, // Same traceId to update existing record
-              type: 'transfer_send',
+              type: 'TransferSendERC20s', // Use RAILGUN SDK category format
               txHash: txHash,
               status: 'confirmed', // Update status to confirmed
               token: eventDetail?.tokenSymbol || transactionDetails?.tokenSymbol || 'UNKNOWN',
@@ -1527,6 +1527,81 @@ export const monitorTransactionInGraph = async ({
         } catch (amendError) {
           console.warn('[TransactionMonitor] ⚠️ Error amending transaction (non-critical):', amendError?.message);
           // Don't throw - amending is not critical to transaction processing
+        }
+
+        // 🎯 RECIPIENT TIMELINE: For transfers, also save to recipient's timeline
+        if (transactionType === 'transfer' && eventDetail?.recipientAddress) {
+          try {
+            console.log('[TransactionMonitor] 📥 Processing recipient timeline for transfer:', {
+              recipientAddress: eventDetail.recipientAddress.slice(0, 20) + '...',
+              txHash: txHash.slice(0, 10) + '...'
+            });
+
+            // Resolve recipient's Railgun address to wallet ID
+            let recipientWalletId = null;
+            try {
+              const resolveResponse = await fetch('/api/wallet-metadata?action=resolve-wallet-id&type=by-railgun&identifier=' + encodeURIComponent(eventDetail.recipientAddress));
+              if (resolveResponse.ok) {
+                const resolveData = await resolveResponse.json();
+                if (resolveData.success && resolveData.walletId) {
+                  recipientWalletId = resolveData.walletId;
+                  console.log('[TransactionMonitor] ✅ Resolved recipient wallet ID:', recipientWalletId.slice(0, 10) + '...');
+                }
+              }
+            } catch (resolveError) {
+              console.warn('[TransactionMonitor] ⚠️ Failed to resolve recipient wallet ID:', resolveError?.message);
+            }
+
+            // If we found the recipient's wallet ID, save transfer_receive event
+            if (recipientWalletId) {
+              const recipientEventData = {
+                traceId: txHash, // Same traceId for linking
+                type: 'TransferReceiveERC20s', // Use RAILGUN SDK category format
+                txHash: txHash,
+                status: 'confirmed',
+                token: eventDetail?.tokenSymbol || transactionDetails?.tokenSymbol || 'UNKNOWN',
+                amount: eventDetail?.amount?.toString() || transactionDetails?.amount?.toString() || '0',
+                zkAddr: eventDetail?.recipientAddress || 'unknown', // Recipient's address
+                nullifiers: [], // Recipients don't have nullifiers for received transfers
+                memo: eventDetail?.memoText || transactionDetails?.memoText || null,
+                timestamp: Math.floor(Date.now() / 1000),
+                blockNumber: blockNumber,
+                recipientAddress: eventDetail?.recipientAddress || null, // Recipient is themselves
+                senderAddress: transactionDetails?.walletAddress || null // Original sender
+              };
+
+              const recipientTlBody = {
+                walletId: recipientWalletId,
+                event: recipientEventData
+              };
+
+              console.log('[TransactionMonitor] 📡 Saving transfer_receive to recipient timeline:', {
+                recipientWalletId: recipientWalletId.slice(0, 10) + '...',
+                type: 'transfer_receive',
+                txHash: txHash.slice(0, 10) + '...'
+              });
+
+              const recipientSaveResponse = await fetch('/api/wallet-metadata?action=timeline-append', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(recipientTlBody)
+              });
+
+              if (recipientSaveResponse.ok) {
+                console.log('[TransactionMonitor] ✅ Successfully saved transfer_receive to recipient timeline');
+              } else {
+                console.warn('[TransactionMonitor] ⚠️ Failed to save transfer_receive to recipient timeline:', {
+                  status: recipientSaveResponse.status,
+                  txHash: txHash.slice(0, 10) + '...'
+                });
+              }
+            } else {
+              console.log('[TransactionMonitor] ℹ️ Recipient wallet ID not found, skipping recipient timeline update');
+            }
+          } catch (recipientError) {
+            console.warn('[TransactionMonitor] ⚠️ Error saving to recipient timeline (non-critical):', recipientError?.message);
+            // Don't throw - recipient timeline saving is not critical to transaction processing
+          }
         }
 
         console.log('[TransactionMonitor] 🔍 Checking points award conditions:', {
