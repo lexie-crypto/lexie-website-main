@@ -283,35 +283,45 @@ const TransactionHistory = () => {
 
               {/* Token Amounts */}
               <div className="mb-3">
-                {tx.tokenAmounts && tx.tokenAmounts.length > 0 ? (
-                  tx.tokenAmounts.map((token, index) => (
-                    <div key={index} className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-1 gap-1">
+                {(() => {
+                  console.log('💰 [TransactionHistory] Token amount debug for tx:', {
+                    txid: tx.txid?.substring(0, 10) + '...',
+                    hasTokenAmounts: !!tx.tokenAmounts,
+                    tokenAmountsLength: tx.tokenAmounts?.length || 0,
+                    firstTokenAmount: tx.tokenAmounts?.[0],
+                    hasToken: !!tx.token,
+                    amount: tx.amount,
+                    amountType: typeof tx.amount,
+                    isPrivateTransfer: tx.isPrivateTransfer
+                  });
+
+                  // Use the same logic as AdminHistoryPage - display amount directly if available
+                  return tx.amount !== undefined && tx.amount !== null ? (
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-1 gap-1">
                       <div className="flex items-center space-x-2 min-w-0">
-                        <span className="text-green-200 font-medium">{token.symbol}</span>
-                        {/* Token address hidden for cleaner display */}
+                        <span className="text-green-200 font-medium">{tx.token || 'USDC'}</span>
                       </div>
                       <div className="text-green-200 font-medium text-right">
-                        {token.formattedAmount}
+                        {typeof tx.amount === 'string' ? tx.amount : tx.amount.toString()}
                       </div>
                     </div>
-                  ))
-                ) : tx.token && tx.amount !== undefined && tx.amount !== null ? (
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-1 gap-1">
-                    <div className="flex items-center space-x-2 min-w-0">
-                      <span className="text-green-200 font-medium">{tx.token}</span>
+                  ) : tx.tokenAmounts && tx.tokenAmounts.length > 0 ? (
+                    tx.tokenAmounts.map((token, index) => (
+                      <div key={index} className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-1 gap-1">
+                        <div className="flex items-center space-x-2 min-w-0">
+                          <span className="text-green-200 font-medium">{token.symbol}</span>
+                        </div>
+                        <div className="text-green-200 font-medium text-right">
+                          {token.formattedAmount}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-green-400/70 text-sm italic">
+                      No token amounts available
                     </div>
-                    <div className="text-green-200 font-medium text-right">
-                      {tx.isPrivateTransfer ?
-                        formatTokenAmount(tx.amount.toString(), getTokenDecimals(tx.tokenAddress || tx.token, chainId)) :
-                        tx.amount
-                      }
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-green-400/70 text-sm italic">
-                    No token amounts available
-                  </div>
-                )}
+                  );
+                })()}
               </div>
 
               {/* Description + Memo */}
