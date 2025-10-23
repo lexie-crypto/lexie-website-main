@@ -227,7 +227,7 @@ export const formatTransactionHistoryItem = async (historyItem, chainId, current
   }
 
   // Format token amounts for display
-  const tokenAmounts = primaryAmounts.map(amount => {
+  let tokenAmounts = primaryAmounts.map(amount => {
     const tokenAddress = amount.tokenAddress || amount.address;
     const rawAmount = amount.amount || amount.value || '0';
 
@@ -239,6 +239,24 @@ export const formatTransactionHistoryItem = async (historyItem, chainId, current
       formattedAmount: formatTokenAmount(rawAmount?.toString() || '0', getTokenDecimals(tokenAddress, chainId))
     };
   });
+
+  // For private transfers, use timeline data if available (better token/amount info)
+  if (isPrivateTransfer && tokenAmounts.length > 0) {
+    // Check if timeline data has better information
+    const timelineToken = historyItem.token || historyItem.tokenSymbol;
+    const timelineAmount = historyItem.amount;
+
+    if (timelineToken && timelineToken !== 'UNKNOWN' && timelineToken !== 'Unknown') {
+      console.log('💰 [TRANSACTION_HISTORY] Using token from timeline data:', timelineToken);
+      tokenAmounts[0].symbol = timelineToken;
+    }
+
+    if (timelineAmount && typeof timelineAmount === 'string' && timelineAmount !== '0') {
+      console.log('💰 [TRANSACTION_HISTORY] Using amount from timeline data:', timelineAmount);
+      tokenAmounts[0].amount = timelineAmount;
+      tokenAmounts[0].formattedAmount = timelineAmount; // Display amount is already formatted
+    }
+  }
 
   // Determine if this is a private transfer (send or receive)
   const isPrivateTransfer = category === TransactionCategory.TRANSFER_SEND || category === TransactionCategory.TRANSFER_RECEIVE;
@@ -282,6 +300,18 @@ export const formatTransactionHistoryItem = async (historyItem, chainId, current
         // Look up Lexie ID for recipient (this will be awaited later)
         recipientLexieId = await lookupLexieId(transferRecipient);
       }
+
+      // Fallback: Check timeline data if SDK data doesn't have addresses
+      if (!recipientAddress && historyItem.recipientAddress) {
+        recipientAddress = historyItem.recipientAddress;
+        console.log('📧 [TRANSACTION_HISTORY] Using recipient address from timeline data:', recipientAddress);
+        recipientLexieId = await lookupLexieId(recipientAddress);
+      }
+
+      if (!memoText && historyItem.memo) {
+        memoText = historyItem.memo;
+        console.log('📝 [TRANSACTION_HISTORY] Using memo from timeline data:', memoText);
+      }
     }
     // For receive transactions, memo and sender address are in the first receiveERC20Amounts item
     else if (category === TransactionCategory.TRANSFER_RECEIVE && receiveERC20Amounts?.length > 0) {
@@ -299,6 +329,18 @@ export const formatTransactionHistoryItem = async (historyItem, chainId, current
 
         // Look up Lexie ID for sender (this will be awaited later)
         senderLexieId = await lookupLexieId(receiveSender);
+      }
+
+      // Fallback: Check timeline data if SDK data doesn't have addresses
+      if (!senderAddress && historyItem.senderAddress) {
+        senderAddress = historyItem.senderAddress;
+        console.log('📧 [TRANSACTION_HISTORY] Using sender address from timeline data:', senderAddress);
+        senderLexieId = await lookupLexieId(senderAddress);
+      }
+
+      if (!memoText && historyItem.memo) {
+        memoText = historyItem.memo;
+        console.log('📝 [TRANSACTION_HISTORY] Using memo from timeline data:', memoText);
       }
     }
 
