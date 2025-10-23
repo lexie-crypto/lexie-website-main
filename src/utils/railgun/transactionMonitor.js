@@ -1555,8 +1555,32 @@ export const monitorTransactionInGraph = async ({
             // If we found the recipient's wallet ID, save transfer_receive event
             if (recipientWalletId) {
               const recipientDisplayAmount = transactionDetails?.displayAmount?.toString() || transactionDetails?.amount?.toString() || '0';
-              const senderRailgunAddress = transactionDetails?.railgunAddress;
+              let senderRailgunAddress = transactionDetails?.railgunAddress;
               const senderWalletAddress = transactionDetails?.walletAddress;
+
+              // If we don't have the sender's Railgun address, look it up from their EOA
+              if (!senderRailgunAddress && senderWalletAddress) {
+                try {
+                  console.log('[TransactionMonitor] 🔍 Looking up sender Railgun address from EOA:', senderWalletAddress.slice(0, 10) + '...');
+                  const walletResp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(senderWalletAddress)}`);
+                  if (walletResp.ok) {
+                    const walletData = await walletResp.json();
+                    if (walletData.success && walletData.keys && walletData.keys.length > 0) {
+                      // Find the key that matches our walletId if available, otherwise use the first one
+                      const matchingKey = transactionDetails?.walletId
+                        ? walletData.keys.find(k => k.walletId === transactionDetails.walletId)
+                        : walletData.keys[0];
+
+                      if (matchingKey && matchingKey.railgunAddress) {
+                        senderRailgunAddress = matchingKey.railgunAddress;
+                        console.log('[TransactionMonitor] ✅ Found sender Railgun address:', senderRailgunAddress.slice(0, 10) + '...');
+                      }
+                    }
+                  }
+                } catch (lookupError) {
+                  console.warn('[TransactionMonitor] ⚠️ Failed to lookup sender Railgun address:', lookupError.message);
+                }
+              }
 
               console.log('[TransactionMonitor] 📥 Saving recipient timeline event:', {
                 recipientWalletId: recipientWalletId.slice(0, 10) + '...',
@@ -1581,7 +1605,7 @@ export const monitorTransactionInGraph = async ({
                 timestamp: Math.floor(Date.now() / 1000),
                 blockNumber: blockNumber,
                 recipientAddress: eventDetail?.recipientAddress || null, // Recipient is themselves
-                senderAddress: senderRailgunAddress || null // Only use Railgun address for Lexie ID lookup, never EOA
+                senderAddress: senderRailgunAddress // Use looked-up Railgun address for Lexie ID lookup
               };
 
               const recipientTlBody = {
