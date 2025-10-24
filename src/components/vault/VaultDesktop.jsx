@@ -30,6 +30,7 @@ import useBalances from '../../hooks/useBalances';
 import useInjectedProviders from '../../hooks/useInjectedProviders';
 import PrivacyActions from '../PrivacyActions';
 import TransactionHistory from '../TransactionHistory';
+import VaultInfoModal from './VaultInfoModal';
 import InjectedProviderButtons from '../InjectedProviderButtons.jsx';
 import {
   shieldTokens,
@@ -277,6 +278,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   const [showTitansGame, setShowTitansGame] = useState(false);
   const [showLexieChat, setShowLexieChat] = useState(false);
   const [showGameOnboardingModal, setShowGameOnboardingModal] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
   const [pendingLexieId, setPendingLexieId] = useState('');
 
   // Chat visibility for desktop WindowShell
@@ -849,9 +851,8 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   }, [refreshBalances]);
 
   const handleInfoClick = useCallback(() => {
-    // Placeholder: implement info functionality
     console.log('[VaultDesktop] Info clicked');
-    // TODO: Show info modal or navigate to help
+    setShowInfoModal(true);
   }, []);
 
   // Auto-refresh balances when wallet connects and Railgun is ready (full refresh including private transfers)
@@ -2098,6 +2099,11 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       <CrossPlatformVerificationModal
         isOpen={showVerificationModal}
         onClose={() => setShowVerificationModal(false)}
+      />
+
+      <VaultInfoModal
+        isOpen={showInfoModal}
+        onClose={() => setShowInfoModal(false)}
       />
 
       <SignRequestModal
