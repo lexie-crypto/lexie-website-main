@@ -86,7 +86,7 @@ const VaultInfoModal = ({ isOpen, onClose }) => {
 
               <div className="bg-purple-300/10 border border-purple-300/50 rounded p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-purple-300 font-medium text-sm">ADD</span>
+                  <span className="text-orange-300 font-medium text-sm">ADD</span>
                   <span className="text-green-400/60 text-xs">→ Adds tokens to your vault</span>
                 </div>
                 <p className="text-green-400/80 text-xs leading-5">
