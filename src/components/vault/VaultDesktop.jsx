@@ -1903,6 +1903,14 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
                 {/* Right-aligned icon buttons */}
                 <div className="flex gap-2">
+                <button
+                    onClick={handleInfoClick}
+                    className="p-1.5 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40 transition-all duration-200 hover:shadow-lg hover:shadow-blue-400/20"
+                    title="Information"
+                    aria-label="Info"
+                  >
+                    <Info className="w-4 h-4" />
+                  </button>
                   <button
                     onClick={handleRefresh}
                     disabled={isLoading || !isConnected || isTransactionLocked || !canUseRailgun || !railgunWalletId}
@@ -1911,14 +1919,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                     aria-label="Refresh"
                   >
                     <RefreshCw className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={handleInfoClick}
-                    className="p-1.5 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40 transition-all duration-200 hover:shadow-lg hover:shadow-blue-400/20"
-                    title="Information"
-                    aria-label="Info"
-                  >
-                    <Info className="w-4 h-4" />
                   </button>
                 </div>
               </div>
