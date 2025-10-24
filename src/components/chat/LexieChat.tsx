@@ -152,7 +152,7 @@ export function LexieChat() {
           </div>
 
           {/* Divider */}
-          <div className="border-t border-teal-500/10 my-6"></div>
+          <div className="border-t border-teal-500/10 my-6 pb-6"></div>
 
           {/* Chat Interface */}
           <div className="flex h-full bg-background scrollbar-terminal text-foreground relative md:flex-row flex-col md:min-h-0 md:min-w-0">
@@ -230,7 +230,7 @@ export function LexieChat() {
         </div>
 
         {/* Divider */}
-        <div className="border-t border-teal-500/10 my-6"></div>
+        <div className="border-t border-teal-500/10 my-6 pb-6"></div>
 
         {/* Chat Interface */}
         <div className="flex h-full bg-background text-foreground relative md:flex-row flex-col md:min-h-0 md:min-w-0 mobile-chat-container scrollbar-terminal">
