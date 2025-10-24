@@ -38,16 +38,16 @@ const VaultInfoModal = ({ isOpen, onClose }) => {
         <div className="p-6 text-green-300 space-y-6 overflow-y-auto max-h-[calc(90vh-80px)]">
 
           {/* What is LexieVault */}
-          <div className="space-y-3">
-            <h3 className="text-lg font-bold text-emerald-300">What is LexieVault?</h3>
-            <div className="bg-black/40 border border-green-500/20 rounded p-4">
-              <p className="text-green-400/80 text-sm leading-6">
-                LexieVault is your incognito, secure DeFi vault powered by the Railgun Protocol.
-                It provides confidentiality-focused DeFi tools while maintaining the security and
-                functionality of traditional DeFi platforms.
-              </p>
-            </div>
-          </div>
+          {/* <div className="space-y-3"> */}
+            {/* <h3 className="text-lg font-bold text-emerald-300">What is LexieVault?</h3> */}
+            {/* <div className="bg-black/40 border border-green-500/20 rounded p-4"> */}
+              {/* <p className="text-green-400/80 text-sm leading-6"> */}
+                {/* LexieVault is your incognito, secure DeFi vault powered by the Railgun Protocol. */}
+                {/* It provides confidentiality-focused DeFi tools while maintaining the security and */}
+                {/* functionality of traditional DeFi platforms. */}
+              {/* </p> */}
+            {/* </div> */}
+          {/* </div> */}
 
           {/* Window Controls */}
           <div className="space-y-3">
@@ -95,10 +95,10 @@ const VaultInfoModal = ({ isOpen, onClose }) => {
                 </p>
               </div>
 
-              <div className="bg-black/40 border border-blue-500/20 rounded p-4">
+              <div className="bg-blue-900/20 border border-blue-500/20 rounded p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-blue-300 font-medium text-sm">RECEIVE</span>
-                  <span className="text-green-400/60 text-xs">→ Use the link or QR code for others to send funds to your vault</span>
+                  <span className="text-green-300 font-medium text-sm">RECEIVE</span>
+                  <span className="text-green-300/80 text-xs">→ Use the link or QR code for others to send funds to your vault</span>
                 </div>
                 <p className="text-green-400/80 text-xs leading-5">
                   Creates a shareable link and QR code that others can use to send tokens
@@ -106,10 +106,10 @@ const VaultInfoModal = ({ isOpen, onClose }) => {
                 </p>
               </div>
 
-              <div className="bg-black/40 border border-cyan-500/20 rounded p-4">
+              <div className="bg-cyan-900/20 border border-cyan-500/20 rounded p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-cyan-300 font-medium text-sm">SEND</span>
-                  <span className="text-green-400/60 text-xs">→ Send tokens from your vault to any address</span>
+                  <span className="text-green-300 font-medium text-sm">SEND</span>
+                  <span className="text-green-300/80 text-xs">→ Send tokens from your vault to any address</span>
                 </div>
                 <p className="text-green-400/80 text-xs leading-5">
                   Send tokens from your vault to any address. You can send to public addresses
@@ -117,10 +117,10 @@ const VaultInfoModal = ({ isOpen, onClose }) => {
                 </p>
               </div>
 
-              <div className="bg-black/40 border border-amber-500/20 rounded p-4">
+              <div className="bg-amber-900/20 border border-amber-500/20 rounded p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-amber-300 font-medium text-sm">REMOVE</span>
-                  <span className="text-green-400/60 text-xs">→ Remove tokens from your vault to your connected wallet</span>
+                  <span className="text-green-300 font-medium text-sm">REMOVE</span>
+                  <span className="text-green-300/80 text-xs">→ Remove tokens from your vault to your connected wallet</span>
                 </div>
                 <p className="text-green-400/80 text-xs leading-5">
                   Move tokens out of the LexieVault back to your connected public wallet.
