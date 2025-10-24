@@ -74,7 +74,7 @@ const VaultInfoModal = ({ isOpen, onClose }) => {
             <h3 className="text-lg font-bold text-emerald-300">Command Functions</h3>
             <div className="grid gap-3">
 
-              <div className="bg-purple-500/10 border border-purple-500/20 rounded p-4">
+              <div className="bg-purple-300/10 border border-purple-300/50 rounded p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-green-300 font-medium text-sm">ADD</span>
                   <span className="text-green-400/60 text-xs">→ Adds tokens to your vault</span>
@@ -85,7 +85,7 @@ const VaultInfoModal = ({ isOpen, onClose }) => {
                 </p>
               </div>
 
-              <div className="bg-blue-500/10 border border-blue-500/20 rounded p-4">
+              <div className="bg-blue-900/20 border border-blue-400/40 rounded p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-green-300 font-medium text-sm">RECEIVE</span>
                   <span className="text-green-400/60 text-xs">→ Use the link or QR code for others to send funds to your vault</span>
@@ -96,7 +96,7 @@ const VaultInfoModal = ({ isOpen, onClose }) => {
                 </p>
               </div>
 
-              <div className="bg-cyan-500/10 border border-cyan-500/20 rounded p-4">
+              <div className="bg-cyan-900/20 border border-cyan-400/40 rounded p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-green-300 font-medium text-sm">SEND</span>
                   <span className="text-green-400/60 text-xs">→ Send tokens from your vault to any address</span>
@@ -107,7 +107,7 @@ const VaultInfoModal = ({ isOpen, onClose }) => {
                 </p>
               </div>
 
-              <div className="bg-amber-500/10 border border-amber-500/20 rounded p-4">
+              <div className="bg-amber-900/20 border border-amber-400/40 rounded p-4">
                 <div className="flex items-center gap-2 mb-2">
                   <span className="text-green-300 font-medium text-sm">REMOVE</span>
                   <span className="text-green-400/60 text-xs">→ Remove tokens from your vault to your connected wallet</span>
