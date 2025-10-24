@@ -767,19 +767,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     };
   }, []);
 
-  // Placeholder functions for command bar icons
-  const handleRefresh = useCallback(async () => {
-    // Placeholder: implement refresh functionality
-    console.log('[VaultDesktop] Refresh clicked');
-    await refreshBalances();
-  }, [refreshBalances]);
-
-  const handleInfoClick = useCallback(() => {
-    // Placeholder: implement info functionality
-    console.log('[VaultDesktop] Info clicked');
-    // TODO: Show info modal or navigate to help
-  }, []);
-
   // Full refresh: SDK refresh + Redis persist, then UI reload
   const refreshBalances = useCallback(async (showToast = true) => {
     try {
@@ -853,6 +840,19 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
     }
   }, [refreshAllBalances, railgunWalletId, address, activeChainId, ensureChainScanned, canUseRailgun]);
+
+  // Placeholder functions for command bar icons
+  const handleRefresh = useCallback(async () => {
+    // Placeholder: implement refresh functionality
+    console.log('[VaultDesktop] Refresh clicked');
+    await refreshBalances();
+  }, [refreshBalances]);
+
+  const handleInfoClick = useCallback(() => {
+    // Placeholder: implement info functionality
+    console.log('[VaultDesktop] Info clicked');
+    // TODO: Show info modal or navigate to help
+  }, []);
 
   // Auto-refresh balances when wallet connects and Railgun is ready (full refresh including private transfers)
   useEffect(() => {
