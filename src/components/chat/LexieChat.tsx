@@ -148,7 +148,6 @@ export function LexieChat() {
               <div>✓ Chat with Lexie as your personal crypto analyst</div>
               <div>✓ Ask her for technical analysis on any Coinmarketcap listed token</div>
               <div>✓ Use her to help manage your portfolio and make decisions</div>
-              <div className="pt-1 text-emerald-300">Ready for commands...</div>
             </div>
           </div>
 
@@ -227,7 +226,6 @@ export function LexieChat() {
             <div>✓ Chat with Lexie as your personal crypto analyst</div>
             <div>✓ Ask her for technical analysis on any Coinmarketcap listed token</div>
             <div>✓ Use her to help manage your portfolio and make decisions</div>
-            <div className="pt-1 text-emerald-300">Ready for commands...</div>
           </div>
         </div>
 
