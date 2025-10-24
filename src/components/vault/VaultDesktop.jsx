@@ -1809,10 +1809,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
               <div className="space-y-1 text-green-300/80 text-xs leading-5 font-mono">
                 <div>✓ Vault interface loaded</div>
                 <div>✓ Network: {network?.name || 'Unknown'}</div>
-                <div>✓ Public balances: {Array.isArray(publicBalances) ? publicBalances.filter(token => {
-                  const usdValue = parseFloat(token.balanceUSD || '0');
-                  return usdValue >= 0.01 && token.chainId === walletChainId;
-                }).length : 0}</div>
                 <div>✓ Vault balances: {Array.isArray(privateBalances) ? privateBalances.length : 0}</div>
                 <div>{canUseRailgun ? '✓ Secure vault online' : '… Initializing secure vault'}</div>
                 <div className="pt-1 text-emerald-300">Ready for commands...</div>
