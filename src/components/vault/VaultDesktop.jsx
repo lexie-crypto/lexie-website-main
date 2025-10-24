@@ -2180,7 +2180,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       {isLexieChatVisible && !isMobile && (
         <WindowShell
           id="lexie-chat-terminal"
-          title="LexieAI-chat"
+          title="lexie-chat"
           appType="chat"
           statusLabel="Enable Degen Mode"
           statusTone="online"
