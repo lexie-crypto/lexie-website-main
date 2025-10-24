@@ -145,9 +145,9 @@ export function LexieChat() {
           <div className="hidden md:block mb-6">
             <div className="text-xs text-green-400/60 tracking-wide mb-3">LEXIEAI SYSTEM BOOT v2.1.3</div>
             <div className="space-y-1 text-green-300/80 text-xs leading-5 font-mono">
-              <div>✓ Chat interface loaded</div>
-              <div>✓ Secure connection established</div>
-              <div>✓ LexieAI online</div>
+              <div>✓ Chat with Lexie as your personal crypto analyst</div>
+              <div>✓ Ask her for technical analysis on any Coinmarketcap listed token</div>
+              <div>✓ Use her to help manage your portfolio and make decisions</div>
               <div className="pt-1 text-emerald-300">Ready for commands...</div>
             </div>
           </div>
