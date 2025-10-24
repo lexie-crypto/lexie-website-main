@@ -34,8 +34,7 @@ const VaultInfoModal = ({ isOpen, onClose }) => {
               <p className="text-green-400/80 text-sm leading-6">
                 LexieVault is your incognito, secure DeFi vault powered by the Railgun Protocol.
                 It provides confidentiality-focused DeFi tools while maintaining the security and
-                functionality of traditional DeFi platforms. Your funds are encrypted using zero-knowledge
-                proofs, ensuring complete confidentiality for your transactions.
+                functionality of traditional DeFi platforms.
               </p>
             </div>
           </div>
@@ -75,45 +74,45 @@ const VaultInfoModal = ({ isOpen, onClose }) => {
             <h3 className="text-lg font-bold text-emerald-300">Command Functions</h3>
             <div className="grid gap-3">
 
-              <div className="bg-black/40 border border-purple-500/20 rounded p-4">
+              <div className="bg-purple-500/10 border border-purple-500/20 rounded p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-purple-300 font-medium text-sm">ADD</span>
-                  <span className="text-purple-400/60 text-xs">→ Adds tokens to your vault</span>
+                  <span className="text-green-300 font-medium text-sm">ADD</span>
+                  <span className="text-green-400/60 text-xs">→ Adds tokens to your vault</span>
                 </div>
-                <p className="text-purple-200/80 text-xs leading-5">
+                <p className="text-green-400/80 text-xs leading-5">
                   Move tokens from your connected wallet into the LexieVault. These tokens become
                   encrypted and their transaction history is hidden for maximum confidentiality.
                 </p>
               </div>
 
-              <div className="bg-black/40 border border-blue-500/20 rounded p-4">
+              <div className="bg-blue-500/10 border border-blue-500/20 rounded p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-blue-300 font-medium text-sm">RECEIVE</span>
-                  <span className="text-blue-400/60 text-xs">→ Use the link or QR code for others to send funds to your vault</span>
+                  <span className="text-green-300 font-medium text-sm">RECEIVE</span>
+                  <span className="text-green-400/60 text-xs">→ Use the link or QR code for others to send funds to your vault</span>
                 </div>
-                <p className="text-blue-200/80 text-xs leading-5">
+                <p className="text-green-400/80 text-xs leading-5">
                   Creates a shareable link and QR code that others can use to send tokens
                   directly to your vault. Share these with anyone you want to receive funds from.
                 </p>
               </div>
 
-              <div className="bg-black/40 border border-cyan-500/20 rounded p-4">
+              <div className="bg-cyan-500/10 border border-cyan-500/20 rounded p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-cyan-300 font-medium text-sm">SEND</span>
-                  <span className="text-cyan-400/60 text-xs">→ Send tokens from your vault to any address</span>
+                  <span className="text-green-300 font-medium text-sm">SEND</span>
+                  <span className="text-green-400/60 text-xs">→ Send tokens from your vault to any address</span>
                 </div>
-                <p className="text-cyan-200/80 text-xs leading-5">
+                <p className="text-green-400/80 text-xs leading-5">
                   Send tokens from your vault to any address. You can send to public addresses
                   or other LexieVaults. All transactions maintain confidentiality through zero-knowledge proofs.
                 </p>
               </div>
 
-              <div className="bg-black/40 border border-amber-500/20 rounded p-4">
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded p-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-amber-300 font-medium text-sm">REMOVE</span>
-                  <span className="text-amber-400/60 text-xs">→ Remove tokens from your vault to your connected wallet</span>
+                  <span className="text-green-300 font-medium text-sm">REMOVE</span>
+                  <span className="text-green-400/60 text-xs">→ Remove tokens from your vault to your connected wallet</span>
                 </div>
-                <p className="text-amber-200/80 text-xs leading-5">
+                <p className="text-green-400/80 text-xs leading-5">
                   Move tokens out of the LexieVault back to your connected public wallet.
                   This makes the tokens visible on the public blockchain again.
                 </p>
