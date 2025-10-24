@@ -18,7 +18,6 @@ import {
   CurrencyDollarIcon,
   ClipboardDocumentIcon,
 } from '@heroicons/react/24/outline';
-import { RefreshCw, Info } from 'lucide-react';
 
 import { useWallet } from '../../contexts/WalletContext';
 import { useWindowStore, WindowProvider } from '../../contexts/windowStore.jsx';
@@ -582,17 +581,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     })();
     return () => { mounted = false; };
   }, [canUseRailgun, railgunWalletId, address, activeChainId, checkChainReady]);
-
-  // Placeholder functions for command bar icons
-  const handleRefresh = useCallback(() => {
-    // Placeholder - refresh functionality already exists in refreshBalances
-    refreshBalances();
-  }, [refreshBalances]);
-
-  const handleInfoClick = useCallback(() => {
-    // Placeholder - info functionality to be implemented
-    console.log('Info button clicked');
-  }, []);
 
   // Disconnect handler
   const handleDisconnect = useCallback(async () => {
@@ -1823,102 +1811,86 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
             {/* Command Panel */}
             <div className="mb-6">
               <div className="text-xs text-green-400/60 mb-3 font-mono">LEXIE TERMINAL • commands</div>
-              <div className="flex justify-between items-start gap-2 mb-2">
-                {/* Left-aligned text buttons */}
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => setSelectedView('balances')}
-                    disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                    className="px-2 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
-                    title="View all wallet balances"
-                  >
-                    balances
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveAction('contacts');
-                      setSelectedView('privacy');
-                    }}
-                    disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                    className="px-2 py-1 rounded border border-pink-400/40 bg-pink-900/20 hover:bg-pink-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
-                    title="Manage your contacts"
-                  >
-                    contacts
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveAction('shield');
-                      setSelectedView('privacy');
-                    }}
-                    disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                    className="px-2 py-1 rounded border border-purple-300/50 bg-purple-300/10 hover:bg-purple-300/20 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
-                    title="Add tokens to your vault from your connected wallet"
-                  >
-                    add
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveAction('receive');
-                      setSelectedView('privacy');
-                    }}
-                    disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                    className="px-2 py-1 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
-                    title="Receive tokens to your vault from any address"
-                  >
-                    receive
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveAction('transfer');
-                      setSelectedView('privacy');
-                    }}
-                    disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                    className="px-2 py-1 rounded border border-cyan-400/40 bg-cyan-900/20 hover:bg-cyan-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
-                    title="Send tokens from your vault to any address"
-                  >
-                    send
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveAction('unshield');
-                      setSelectedView('privacy');
-                    }}
-                    disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                    className="px-2 py-1 rounded border border-amber-400/40 bg-amber-900/20 hover:bg-amber-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
-                    title="Remove tokens from your vault to your connected wallet"
-                  >
-                    remove
-                  </button>
-                  <button
-                    onClick={() => setSelectedView('history')}
-                    disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                    className="px-2 py-1 rounded border border-purple-400/40 bg-purple-900/20 hover:bg-purple-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
-                    title="View your transaction history"
-                  >
-                    history
-                  </button>
-                </div>
-
-                {/* Right-aligned icon buttons */}
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleRefresh}
-                    disabled={isLoading || !isConnected || isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                    className="p-1 rounded border border-emerald-400/40 bg-emerald-900/20 hover:bg-emerald-900/40 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Refresh all wallet balances"
-                    aria-label="Refresh"
-                  >
-                    <RefreshCw className="h-4 w-4 text-green-300" />
-                  </button>
-                  <button
-                    onClick={handleInfoClick}
-                    className="p-1 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40"
-                    title="Information"
-                    aria-label="Info"
-                  >
-                    <Info className="h-4 w-4 text-blue-300" />
-                  </button>
-                </div>
+              <div className="flex flex-wrap gap-2 mb-2">
+                <button
+                  onClick={refreshBalances}
+                  disabled={isLoading || !isConnected || isTransactionLocked || !canUseRailgun || !railgunWalletId}
+                  className="px-2 py-1 rounded border border-emerald-400/40 bg-emerald-900/20 hover:bg-emerald-900/40 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                  title="Refresh all wallet balances"
+                >
+                  refresh
+                </button>
+                <button
+                  onClick={() => setSelectedView('balances')}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
+                  className="px-2 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
+                  title="View all wallet balances"
+                >
+                  balances
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveAction('contacts');
+                    setSelectedView('privacy');
+                  }}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
+                  className="px-2 py-1 rounded border border-pink-400/40 bg-pink-900/20 hover:bg-pink-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
+                  title="Manage your contacts"
+                >
+                  contacts
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveAction('shield');
+                    setSelectedView('privacy');
+                  }}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
+                  className="px-2 py-1 rounded border border-purple-300/50 bg-purple-300/10 hover:bg-purple-300/20 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
+                  title="Add tokens to your vault from your connected wallet"
+                >
+                  add
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveAction('receive');
+                    setSelectedView('privacy');
+                  }}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
+                  className="px-2 py-1 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
+                  title="Receive tokens to your vault from any address"
+                >
+                  receive
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveAction('transfer');
+                    setSelectedView('privacy');
+                  }}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
+                  className="px-2 py-1 rounded border border-cyan-400/40 bg-cyan-900/20 hover:bg-cyan-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
+                  title="Send tokens from your vault to any address"
+                >
+                  send
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveAction('unshield');
+                    setSelectedView('privacy');
+                  }}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
+                  className="px-2 py-1 rounded border border-amber-400/40 bg-amber-900/20 hover:bg-amber-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
+                  title="Remove tokens from your vault to your connected wallet"
+                >
+                  remove
+                </button>
+                <button
+                  onClick={() => setSelectedView('history')}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
+                  className="px-2 py-1 rounded border border-purple-400/40 bg-purple-900/20 hover:bg-purple-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
+                  title="View your transaction history"
+                >
+                  history
+                </button>
               </div>
             </div>
 
