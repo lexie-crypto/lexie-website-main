@@ -1898,8 +1898,8 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                   </button>
                 </div>
 
-                {/* Right-aligned icon buttons */}
-                <div className="flex gap-2">
+                {/* Right-aligned icon buttons - Hidden on mobile */}
+                <div className="hidden md:flex gap-2">
                 <button
                     onClick={handleInfoClick}
                     className="p-1.5 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40 transition-all duration-200 hover:shadow-lg hover:shadow-blue-400/20"
@@ -1936,14 +1936,34 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                         <button
                           onClick={() => setShowPrivateBalances(!showPrivateBalances)}
                           className={`px-2 py-0.5 rounded text-xs border ${
-                            showPrivateBalances 
-                              ? 'bg-emerald-600/30 text-emerald-200 border-emerald-400/40' 
+                            showPrivateBalances
+                              ? 'bg-emerald-600/30 text-emerald-200 border-emerald-400/40'
                               : 'bg-black text-green-300 hover:bg-green-900/20 border-green-500/40'
                           }`}
                         >
                           {showPrivateBalances ? 'Hide' : 'Show'}
                         </button>
                       )}
+                      {/* Mobile-only refresh and info buttons */}
+                      <div className="flex md:hidden gap-1 ml-2">
+                        <button
+                          onClick={handleRefresh}
+                          disabled={isLoading || !isConnected || isTransactionLocked || !canUseRailgun || !railgunWalletId}
+                          className="p-1 rounded border border-emerald-400/40 bg-emerald-900/20 hover:bg-emerald-900/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-lg hover:shadow-emerald-400/20"
+                          title="Refresh all wallet balances"
+                          aria-label="Refresh"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                        </button>
+                        <button
+                          onClick={handleInfoClick}
+                          className="p-1 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40 transition-all duration-200 hover:shadow-lg hover:shadow-blue-400/20"
+                          title="Information"
+                          aria-label="Info"
+                        >
+                          <Info className="w-3 h-3" />
+                        </button>
+                      </div>
                     </div>
                   </div>
 
