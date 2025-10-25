@@ -96,6 +96,8 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
   const [isTransactionLocked, setIsTransactionLocked] = useState(false);
   const [activeTransactionMonitors, setActiveTransactionMonitors] = useState(0);
   const tokenMenuRef = useRef(null);
+  // Track transaction failure status to prevent success toasts after failure
+  const transactionFailedRef = useRef(false);
   // Receive tab state
   const [paymentLink, setPaymentLink] = useState('');
   // Current user's Lexie ID (if linked)
@@ -645,8 +647,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           });
 
           if (receipt.status === 0) {
-            // Transaction failed on-chain
+            // Transaction failed on-chain - set failure flag to prevent success toasts
             console.error('[ShieldMonitor] Transaction failed on-chain');
+            transactionFailedRef.current = true;
             toast.custom((t) => (
               <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
                 <div className="rounded-lg border border-red-500/30 bg-black/90 text-red-200 shadow-2xl">
@@ -761,6 +764,9 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     if (!selectedToken || !amount || !isValidAmount || !railgunAddress) {
       return;
     }
+
+    // Reset transaction failure flag for new transaction
+    transactionFailedRef.current = false;
 
     setIsProcessing(true);
     setIsTransactionLocked(true); // Lock all transaction actions
@@ -966,6 +972,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         })
         .then(async (result) => {
           if (result.found) {
+            // Check if transaction was already marked as failed by on-chain monitoring
+            if (transactionFailedRef.current) {
+              console.warn('[PrivacyActions] Transaction was marked as failed by on-chain monitoring, skipping Graph found success logic');
+              return;
+            }
+
             console.log(`[PrivacyActions] Shield monitoring completed in ${result.elapsedTime/1000}s`);
 
             // 🎯 FALLBACK: Directly award points if transaction monitor didn't
@@ -1038,6 +1050,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             }
 
           } else {
+            // Check if transaction was already marked as failed by on-chain monitoring
+            if (transactionFailedRef.current) {
+              console.warn('[PrivacyActions] Transaction was marked as failed by on-chain monitoring, skipping timeout success logic');
+              return;
+            }
+
             console.warn('[PrivacyActions] Shield monitoring timed out after 30s - assuming success and proceeding');
 
             // 🎯 TIMEOUT SUCCESS: Treat timeout as assumed success - run all same logic as confirmed Graph success
