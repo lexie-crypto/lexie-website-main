@@ -1946,22 +1946,22 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                       )}
                       {/* Mobile-only refresh and info buttons */}
                       <div className="flex md:hidden gap-1 ml-2">
-                        <button
-                          onClick={handleRefresh}
-                          disabled={isLoading || !isConnected || isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                          className="p-1 rounded border border-emerald-400/40 bg-emerald-900/20 hover:bg-emerald-900/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-lg hover:shadow-emerald-400/20"
-                          title="Refresh all wallet balances"
-                          aria-label="Refresh"
-                        >
-                          <RefreshCw className="w-3 h-3" />
-                        </button>
-                        <button
+                      <button
                           onClick={handleInfoClick}
-                          className="p-1 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40 transition-all duration-200 hover:shadow-lg hover:shadow-blue-400/20"
+                          className="p-1.5 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40 transition-all duration-200 hover:shadow-lg hover:shadow-blue-400/20"
                           title="Information"
                           aria-label="Info"
                         >
-                          <Info className="w-3 h-3" />
+                          <Info className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={handleRefresh}
+                          disabled={isLoading || !isConnected || isTransactionLocked || !canUseRailgun || !railgunWalletId}
+                          className="p-1.5 rounded border border-emerald-400/40 bg-emerald-900/20 hover:bg-emerald-900/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-lg hover:shadow-emerald-400/20"
+                          title="Refresh all wallet balances"
+                          aria-label="Refresh"
+                        >
+                          <RefreshCw className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
