@@ -191,7 +191,18 @@ const AccessCodeGate = ({ children }) => {
               <p>
                 Access codes are case-insensitive and can be up to 15 characters
               </p>
-              <p className="text-xs">Access is granted per browser session</p>
+              <p className="text-xs">
+                Need a code?{' '}
+                <a
+                  href="https://t.me/lexieAI"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-green-300 hover:text-green-200 underline decoration-green-500/30 hover:decoration-green-400/50 transition-colors"
+                >
+                  Join our Telegram
+                </a>{' '}
+                to get the code
+              </p>
             </div>
           </div>
         </TerminalWindow>
