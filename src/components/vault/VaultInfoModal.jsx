@@ -153,6 +153,16 @@ const VaultInfoModal = ({ isOpen, onClose }) => {
             </div>
           </div>
 
+          {/* Okay Button */}
+          <div className="flex justify-center pt-4">
+            <button
+              onClick={onClose}
+              className="px-6 py-2 bg-green-900/20 border border-green-500/50 text-green-300 font-medium text-sm rounded hover:bg-green-900/30 hover:border-green-500/70 transition-all duration-200 hover:shadow-lg hover:shadow-green-500/20"
+            >
+              Okay!
+            </button>
+          </div>
+
         </div>
       </div>
     </div>
