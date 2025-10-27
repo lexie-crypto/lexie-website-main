@@ -734,17 +734,17 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     };
   }, [currentLexieId]);
 
-  // Auto-unlock transaction lock after 30 seconds as safety fallback
+  // Auto-unlock transaction lock after 1 minute as safety fallback
   useEffect(() => {
     if (!isTransactionLocked) return;
 
-    console.log('[VaultDesktop] ⏰ Starting 30-second safety timeout for transaction lock');
+    console.log('[VaultDesktop] ⏰ Starting 2-minute safety timeout for transaction lock');
 
     const timeoutId = setTimeout(() => {
       console.log('[VaultDesktop] ⏰ Safety timeout reached - auto-unlocking transaction UI');
       setIsTransactionLocked(false);
       setActiveTransactionMonitors(0);
-    }, 60000); // 60 seconds
+    }, 120000); // 60 seconds
 
     return () => {
       console.log('[VaultDesktop] ⏰ Clearing safety timeout (transaction completed normally)');
