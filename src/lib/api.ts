@@ -1,6 +1,6 @@
 // API configuration - using proxy endpoints for security
 export const API_ENDPOINTS = {
-  chat: '/api/chat',      // Proxied chat endpoint with server-side HMAC auth
+  chat: "/api/chat", // Proxied chat endpoint with server-side HMAC auth
 };
 
 // API response types
@@ -16,33 +16,36 @@ export interface ApiError {
 
 // Chat API service using secure proxy endpoints
 export class ChatService {
-  static async sendMessage(message: string, options?: { funMode?: boolean; lexieId?: string }): Promise<ChatResponse> {
+  static async sendMessage(
+    message: string,
+    options?: { funMode?: boolean; lexieId?: string }
+  ): Promise<ChatResponse> {
     try {
       const apiUrl = API_ENDPOINTS.chat;
       const headers = {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
+        "Content-Type": "application/json",
+        Accept: "application/json",
       };
 
       const body = JSON.stringify({
         message,
         ...(options || {}),
         // Provide explicit personality mode for the proxy/backend
-        personalityMode: options?.funMode ? 'degen' : 'normal',
+        personalityMode: options?.funMode ? "degen" : "normal",
         // Include LexieID for memory functionality
         ...(options?.lexieId && { lexieId: options.lexieId }),
       });
 
       console.log(`[ChatService] Sending message to proxy endpoint:`, {
         url: apiUrl,
-        method: 'POST',
+        method: "POST",
         messageLength: message.length,
         funMode: options?.funMode,
         hasLexieId: !!options?.lexieId,
       });
 
       const response = await fetch(apiUrl, {
-        method: 'POST',
+        method: "POST",
         headers,
         body,
         // Align with proxy/server timeout to avoid premature client aborts
@@ -50,26 +53,32 @@ export class ChatService {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        const errorData = await response
+          .json()
+          .catch(() => ({ error: "Unknown error" }));
         console.error(`[ChatService] API error:`, {
           status: response.status,
           statusText: response.statusText,
-          errorData
+          errorData,
         });
-        throw new Error(`${errorData.error || `HTTP ${response.status}: ${response.statusText}`}`);
+        throw new Error(
+          `${
+            errorData.error || `HTTP ${response.status}: ${response.statusText}`
+          }`
+        );
       }
 
       const data = await response.json();
       console.log(`[ChatService] Success response:`, {
         messageLength: data.message?.length || 0,
-        hasAction: !!data.action
+        hasAction: !!data.action,
       });
 
       return data as ChatResponse;
     } catch (error) {
       console.error(`Chat API error:`, error);
       if (error instanceof Error) {
-        if (error.name === 'TimeoutError') {
+        if (error.name === "TimeoutError") {
           throw new Error(`Request timeout - the API took too long to respond`);
         }
       }
