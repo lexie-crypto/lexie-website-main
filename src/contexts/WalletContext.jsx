@@ -498,9 +498,10 @@ const WalletContextProvider = ({ children }) => {
       }
 
       chainsScanningRef.current.add(railgunChain.id);
-      console.log('[Railgun Init] 🔄 Performing initial full scan for chain', railgunChain.id);
+      console.log('[Railgun Init] 🔄 Preparing initial scan for chain', railgunChain.id);
 
       // FIRST: Load chain bootstrap data from Redis to seed local LevelDB (if available)
+      let bootstrapCompleted = false;
       try {
         const { isMasterWallet } = await import('../utils/sync/idb-sync/scheduler.js');
         const { isChainHydrating } = await import('../utils/sync/idb-sync/hydration.js');
@@ -514,16 +515,16 @@ const WalletContextProvider = ({ children }) => {
           const isHydrating = isChainHydrating(railgunWalletID, targetChainId);
           if (alreadyHydratedInRedis || isHydrating) {
             console.log(`[Railgun Init] ⏭️ Chain ${targetChainId} already ${alreadyHydratedInRedis ? 'hydrated' : 'hydrating'}, skipping bootstrap`);
-            return;
-          }
-
-          if (!isScanning) {
+            bootstrapCompleted = true; // Consider already hydrated as "completed"
+          } else if (!isScanning) {
             console.log(`[Railgun Init] 🚀 Checking for chain ${railgunChain.id} bootstrap data...`);
             const { checkChainBootstrapAvailable, loadChainBootstrap } = await import('../utils/sync/idb-sync/hydration.js');
 
             const hasBootstrap = await checkChainBootstrapAvailable(targetChainId);
             if (hasBootstrap) {
               console.log(`[Railgun Init] 🚀 Loading chain ${railgunChain.id} bootstrap to seed LevelDB...`);
+
+              // CRITICAL: Await the bootstrap completion before proceeding with scan
               await loadChainBootstrap(railgunWalletID, targetChainId, {
                 address, // Pass EOA address for Redis scannedChains check
                 onProgress: (progress) => {
@@ -536,6 +537,7 @@ const WalletContextProvider = ({ children }) => {
                 },
                 onComplete: async () => {
                   console.log(`[Railgun Init] 🚀 Chain ${railgunChain.id} bootstrap loaded successfully`);
+                  bootstrapCompleted = true;
 
                   // Mark chain as hydrated in Redis metadata since we loaded bootstrap data
                   // Note: scannedChains will only be marked when modal unlocks to prevent premature marking
@@ -561,23 +563,51 @@ const WalletContextProvider = ({ children }) => {
                 },
                 onError: (error) => {
                   console.warn(`[Railgun Init] 🚀 Chain ${railgunChain.id} bootstrap failed:`, error.message);
+                  bootstrapCompleted = true; // Even on error, consider bootstrap "done" so scan can proceed
                   // Continue with normal scan even if bootstrap fails
                 }
               });
+
+              console.log(`[Railgun Init] ✅ Bootstrap loading initiated for chain ${railgunChain.id}, waiting for completion...`);
             } else {
               console.log(`[Railgun Init] 🚀 No bootstrap data available for chain ${railgunChain.id}`);
+              bootstrapCompleted = true; // No bootstrap needed
             }
           } else {
             console.log(`[Railgun Init] 🚀 Skipping chain bootstrap - wallet currently scanning/transacting`);
+            bootstrapCompleted = true; // Skipping counts as completed
           }
+        } else {
+          console.log(`[Railgun Init] 👑 Master wallet detected - skipping bootstrap (master is data source)`);
+          bootstrapCompleted = true; // Master wallets don't need bootstrap
         }
       } catch (bootstrapError) {
         console.warn('[Railgun Init] 🚀 Bootstrap loading failed:', bootstrapError.message);
+        bootstrapCompleted = true; // On error, proceed with scan anyway
         // Continue with normal scan even if bootstrap fails
       }
 
+      // WAIT FOR BOOTSTRAP TO COMPLETE BEFORE STARTING SCAN
+      if (!bootstrapCompleted) {
+        console.log(`[Railgun Init] ⏳ Bootstrap in progress for chain ${railgunChain.id}, waiting...`);
+        // Bootstrap is still running, wait a bit more
+        let waitAttempts = 0;
+        while (!bootstrapCompleted && waitAttempts < 9000) { // Max 15 minutes (900 seconds)
+          await new Promise(resolve => setTimeout(resolve, 100));
+          waitAttempts++;
+        }
+
+        if (!bootstrapCompleted) {
+          console.warn(`[Railgun Init] ⚠️ Bootstrap timeout for chain ${railgunChain.id}, proceeding with scan anyway`);
+        } else {
+          console.log(`[Railgun Init] ✅ Bootstrap confirmed complete for chain ${railgunChain.id}, starting scan`);
+        }
+      }
+
+      // NOW SAFE TO START THE SCAN - Bootstrap is complete
+      console.log('[Railgun Init] 🔄 Starting initial balance refresh for chain', railgunChain.id);
       const { refreshBalances } = await import('@railgun-community/wallet');
-            await refreshBalances(railgunChain, [railgunWalletID]);
+      await refreshBalances(railgunChain, [railgunWalletID]);
 
       // Mark as scanned in memory and Redis metadata
       if (typeof window !== 'undefined') {
