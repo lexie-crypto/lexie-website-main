@@ -1874,6 +1874,15 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       // Optional: Graph monitoring (transfer)
       try {
         const { monitorTransactionInGraph } = await import('../utils/railgun/transactionMonitor.js');
+        console.log('[PrivacyActions] 🚀 Starting transfer transaction monitoring:', {
+          txHash: tx.txHash?.slice(0, 10) + '...',
+          senderRailgunAddress: railgunAddress?.slice(0, 10) + '...',
+          senderWalletAddress: address?.slice(0, 10) + '...',
+          recipientAddress: timelineRecipientAddress?.slice(0, 10) + '...',
+          tokenSymbol: selectedToken.symbol,
+          displayAmount: actualAmount
+        });
+
         monitorTransactionInGraph({
           txHash: tx.txHash,
           chainId,
