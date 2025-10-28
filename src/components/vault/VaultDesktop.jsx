@@ -18,7 +18,6 @@ import {
   CurrencyDollarIcon,
   ClipboardDocumentIcon,
 } from '@heroicons/react/24/outline';
-import { RefreshCw, Info } from 'lucide-react';
 
 import { useWallet } from '../../contexts/WalletContext';
 import { useWindowStore, WindowProvider } from '../../contexts/windowStore.jsx';
@@ -30,7 +29,6 @@ import useBalances from '../../hooks/useBalances';
 import useInjectedProviders from '../../hooks/useInjectedProviders';
 import PrivacyActions from '../PrivacyActions';
 import TransactionHistory from '../TransactionHistory';
-import VaultInfoModal from './VaultInfoModal';
 import InjectedProviderButtons from '../InjectedProviderButtons.jsx';
 import {
   shieldTokens,
@@ -278,7 +276,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   const [showTitansGame, setShowTitansGame] = useState(false);
   const [showLexieChat, setShowLexieChat] = useState(false);
   const [showGameOnboardingModal, setShowGameOnboardingModal] = useState(false);
-  const [showInfoModal, setShowInfoModal] = useState(false);
   const [pendingLexieId, setPendingLexieId] = useState('');
 
   // Chat visibility for desktop WindowShell
@@ -309,13 +306,20 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       localStorage.removeItem("linkedLexieId");
     }
 
-    // For new users, show game onboarding modal to ask if they want to play
-    if (lexieId && autoOpenGame) {
+    // For new users on desktop, show game onboarding modal instead of auto-opening game
+    if (lexieId && autoOpenGame && !isMobile) {
       setPendingLexieId(lexieId);
       setShowGameOnboardingModal(true);
       // Don't signal completion yet - wait for game onboarding choice
+    } else if (lexieId && autoOpenGame && isMobile) {
+      // On mobile, still auto-open the game for now (could be changed later)
+      setTimeout(() => {
+        const gameUrl = `https://game.lexiecrypto.com/?lexieId=${encodeURIComponent(lexieId)}&walletAddress=${encodeURIComponent(address || '')}&embedded=true&theme=terminal`;
+        window.open(gameUrl, '_blank');
+        onLexieIdLinked();
+      }, 1000);
     } else {
-      // Signal completion without opening game
+      // Signal completion without opening game (mobile or no auto-open)
       onLexieIdLinked();
     }
   }, [address, onLexieIdLinked, isMobile]);
@@ -324,25 +328,17 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   const handleGameOnboardingChoice = useCallback((wantsToPlay) => {
     setShowGameOnboardingModal(false);
 
-    if (wantsToPlay && pendingLexieId) {
-      if (isMobile) {
-        // Open game in new tab on mobile
-        setTimeout(() => {
-          const gameUrl = `https://game.lexiecrypto.com/?lexieId=${encodeURIComponent(pendingLexieId)}&walletAddress=${encodeURIComponent(address || '')}&embedded=true&theme=terminal`;
-          window.open(gameUrl, '_blank');
-        }, 500); // Small delay to allow modal to close
-      } else {
-        // Open embedded game on desktop
-        setTimeout(() => {
-          setShowTitansGame(true);
-        }, 500); // Small delay to allow modal to close
-      }
+    if (wantsToPlay && pendingLexieId && !isMobile) {
+      // Open the game only on desktop
+      setTimeout(() => {
+        setShowTitansGame(true);
+      }, 500); // Small delay to allow modal to close
     }
 
     // Always signal completion
     onLexieIdLinked();
     setPendingLexieId('');
-  }, [pendingLexieId, isMobile, onLexieIdLinked, address]);
+  }, [pendingLexieId, isMobile, onLexieIdLinked]);
 
   // Cross-platform verification state - now managed by CrossPlatformVerificationModal component
   const [showVerificationModal, setShowVerificationModal] = useState(false);
@@ -734,17 +730,17 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     };
   }, [currentLexieId]);
 
-  // Auto-unlock transaction lock after 1 minute as safety fallback
+  // Auto-unlock transaction lock after 30 seconds as safety fallback
   useEffect(() => {
     if (!isTransactionLocked) return;
 
-    console.log('[VaultDesktop] ⏰ Starting 2-minute safety timeout for transaction lock');
+    console.log('[VaultDesktop] ⏰ Starting 30-second safety timeout for transaction lock');
 
     const timeoutId = setTimeout(() => {
       console.log('[VaultDesktop] ⏰ Safety timeout reached - auto-unlocking transaction UI');
       setIsTransactionLocked(false);
       setActiveTransactionMonitors(0);
-    }, 120000); // 60 seconds
+    }, 60000); // 60 seconds
 
     return () => {
       console.log('[VaultDesktop] ⏰ Clearing safety timeout (transaction completed normally)');
@@ -774,32 +770,47 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   const refreshBalances = useCallback(async (showToast = true) => {
     try {
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
-      console.log('[VaultDesktop] Full refresh — ensuring chain scanned and refreshing balances...');
+      console.log('[VaultDesktop] Full refresh — checking scan status first...');
 
-      // Step 0: Ensure chain has been scanned for private transfers (critical for discovering transfers before first shield)
-      try {
-        if (canUseRailgun && railgunWalletId && address && activeChainId) {
-          console.log('[VaultDesktop] Ensuring chain is scanned before refresh...');
-          await ensureChainScanned(activeChainId);
-        }
-      } catch (scanErr) {
-        console.warn('[VaultDesktop] Chain scan check failed (continuing with refresh):', scanErr?.message);
-      }
-
-      // Step 1: ALWAYS trigger SDK refresh + persist authoritative balances to Redis
-      // (Balances can change even if chain was previously scanned)
-      console.log('[VaultDesktop] Triggering SDK balance refresh...');
+      // Check if chain is already scanned in Redis
+      let alreadyScanned = false;
       try {
         if (railgunWalletId && address && activeChainId) {
-          const { syncBalancesAfterTransaction } = await import('../../utils/railgun/syncBalances.js');
-          await syncBalancesAfterTransaction({
-            walletAddress: address,
-            walletId: railgunWalletId,
-            chainId: activeChainId,
-          });
+          alreadyScanned = await checkRedisScannedChains(activeChainId);
         }
-      } catch (sdkErr) {
-        console.warn('[VaultDesktop] SDK refresh + persist failed (continuing to UI refresh):', sdkErr?.message);
+      } catch (checkErr) {
+        console.warn('[VaultDesktop] Scan status check failed:', checkErr?.message);
+      }
+
+      // Only trigger SDK refresh if chain NOT already scanned
+      if (!alreadyScanned) {
+        console.log('[VaultDesktop] Chain not scanned - triggering SDK refresh...');
+
+        // Step 0: Ensure chain has been scanned for private transfers (critical for discovering transfers before first shield)
+        try {
+          if (canUseRailgun && railgunWalletId && address && activeChainId) {
+            console.log('[VaultDesktop] Ensuring chain is scanned before refresh...');
+            await ensureChainScanned(activeChainId);
+          }
+        } catch (scanErr) {
+          console.warn('[VaultDesktop] Chain scan check failed (continuing with refresh):', scanErr?.message);
+        }
+
+        // Step 1: Trigger SDK refresh + persist authoritative balances to Redis
+        try {
+          if (railgunWalletId && address && activeChainId) {
+            const { syncBalancesAfterTransaction } = await import('../../utils/railgun/syncBalances.js');
+            await syncBalancesAfterTransaction({
+              walletAddress: address,
+              walletId: railgunWalletId,
+              chainId: activeChainId,
+            });
+          }
+        } catch (sdkErr) {
+          console.warn('[VaultDesktop] SDK refresh + persist failed (continuing to UI refresh):', sdkErr?.message);
+        }
+      } else {
+        console.log('[VaultDesktop] Chain already scanned - skipping SDK refresh, loading from Redis...');
       }
 
       // Step 2: Always refresh UI from sources of truth (Redis + cache)
@@ -842,19 +853,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     } finally {
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
     }
-  }, [refreshAllBalances, railgunWalletId, address, activeChainId, ensureChainScanned, canUseRailgun]);
-
-  // Placeholder functions for command bar icons
-  const handleRefresh = useCallback(async () => {
-    // Placeholder: implement refresh functionality
-    console.log('[VaultDesktop] Refresh clicked');
-    await refreshBalances();
-  }, [refreshBalances]);
-
-  const handleInfoClick = useCallback(() => {
-    console.log('[VaultDesktop] Info clicked');
-    setShowInfoModal(true);
-  }, []);
+  }, [refreshAllBalances, railgunWalletId, address, activeChainId, checkRedisScannedChains, ensureChainScanned, canUseRailgun]);
 
   // Auto-refresh balances when wallet connects and Railgun is ready (full refresh including private transfers)
   useEffect(() => {
@@ -1811,6 +1810,10 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
               <div className="space-y-1 text-green-300/80 text-xs leading-5 font-mono">
                 <div>✓ Vault interface loaded</div>
                 <div>✓ Network: {network?.name || 'Unknown'}</div>
+                <div>✓ Public balances: {Array.isArray(publicBalances) ? publicBalances.filter(token => {
+                  const usdValue = parseFloat(token.balanceUSD || '0');
+                  return usdValue >= 0.01 && token.chainId === walletChainId;
+                }).length : 0}</div>
                 <div>✓ Vault balances: {Array.isArray(privateBalances) ? privateBalances.length : 0}</div>
                 <div>{canUseRailgun ? '✓ Secure vault online' : '… Initializing secure vault'}</div>
                 <div className="pt-1 text-emerald-300">Ready for commands...</div>
@@ -1823,102 +1826,86 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
             {/* Command Panel */}
             <div className="mb-6">
               <div className="text-xs text-green-400/60 mb-3 font-mono">LEXIE TERMINAL • commands</div>
-              <div className="flex justify-between items-center mb-2">
-                {/* Left-aligned command buttons */}
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => setSelectedView('balances')}
-                    disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                    className="px-2 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
-                    title="View all wallet balances"
-                  >
-                    balances
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveAction('contacts');
-                      setSelectedView('privacy');
-                    }}
-                    disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                    className="px-2 py-1 rounded border border-pink-400/40 bg-pink-900/20 hover:bg-pink-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
-                    title="Manage your contacts"
-                  >
-                    contacts
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveAction('shield');
-                      setSelectedView('privacy');
-                    }}
-                    disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                    className="px-2 py-1 rounded border border-purple-300/50 bg-purple-300/10 hover:bg-purple-300/20 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
-                    title="Add tokens to your vault from your connected wallet"
-                  >
-                    add
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveAction('receive');
-                      setSelectedView('privacy');
-                    }}
-                    disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                    className="px-2 py-1 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
-                    title="Receive tokens to your vault from any address"
-                  >
-                    receive
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveAction('transfer');
-                      setSelectedView('privacy');
-                    }}
-                    disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                    className="px-2 py-1 rounded border border-cyan-400/40 bg-cyan-900/20 hover:bg-cyan-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
-                    title="Send tokens from your vault to any address"
-                  >
-                    send
-                  </button>
-                  <button
-                    onClick={() => {
-                      setActiveAction('unshield');
-                      setSelectedView('privacy');
-                    }}
-                    disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                    className="px-2 py-1 rounded border border-amber-400/40 bg-amber-900/20 hover:bg-amber-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
-                    title="Remove tokens from your vault to your connected wallet"
-                  >
-                    remove
-                  </button>
-                  <button
-                    onClick={() => setSelectedView('history')}
-                    disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                    className="px-2 py-1 rounded border border-purple-400/40 bg-purple-900/20 hover:bg-purple-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
-                    title="View your transaction history"
-                  >
-                    history
-                  </button>
-                </div>
-
-                {/* Right-aligned icon buttons - Hidden on mobile */}
-                <div className="hidden md:flex gap-2">
+              <div className="flex flex-wrap gap-2 mb-2">
                 <button
-                    onClick={handleInfoClick}
-                    className="p-1.5 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40 transition-all duration-200 hover:shadow-lg hover:shadow-blue-400/20"
-                    title="Information"
-                    aria-label="Info"
-                  >
-                    <Info className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={handleRefresh}
-                    disabled={isLoading || !isConnected || isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                    className="p-1.5 rounded border border-emerald-400/40 bg-emerald-900/20 hover:bg-emerald-900/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-lg hover:shadow-emerald-400/20"
-                    title="Refresh all wallet balances"
-                    aria-label="Refresh"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                  </button>
-                </div>
+                  onClick={refreshBalances}
+                  disabled={isLoading || !isConnected || isTransactionLocked || !canUseRailgun || !railgunWalletId}
+                  className="px-2 py-1 rounded border border-emerald-400/40 bg-emerald-900/20 hover:bg-emerald-900/40 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                  title="Refresh all wallet balances"
+                >
+                  refresh
+                </button>
+                <button
+                  onClick={() => setSelectedView('balances')}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
+                  className="px-2 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
+                  title="View all wallet balances"
+                >
+                  balances
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveAction('contacts');
+                    setSelectedView('privacy');
+                  }}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
+                  className="px-2 py-1 rounded border border-pink-400/40 bg-pink-900/20 hover:bg-pink-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
+                  title="Manage your contacts"
+                >
+                  contacts
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveAction('shield');
+                    setSelectedView('privacy');
+                  }}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
+                  className="px-2 py-1 rounded border border-purple-300/50 bg-purple-300/10 hover:bg-purple-300/20 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
+                  title="Add tokens to your vault from your connected wallet"
+                >
+                  add
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveAction('receive');
+                    setSelectedView('privacy');
+                  }}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
+                  className="px-2 py-1 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
+                  title="Receive tokens to your vault from any address"
+                >
+                  receive
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveAction('transfer');
+                    setSelectedView('privacy');
+                  }}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
+                  className="px-2 py-1 rounded border border-cyan-400/40 bg-cyan-900/20 hover:bg-cyan-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
+                  title="Send tokens from your vault to any address"
+                >
+                  send
+                </button>
+                <button
+                  onClick={() => {
+                    setActiveAction('unshield');
+                    setSelectedView('privacy');
+                  }}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
+                  className="px-2 py-1 rounded border border-amber-400/40 bg-amber-900/20 hover:bg-amber-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
+                  title="Remove tokens from your vault to your connected wallet"
+                >
+                  remove
+                </button>
+                <button
+                  onClick={() => setSelectedView('history')}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
+                  className="px-2 py-1 rounded border border-purple-400/40 bg-purple-900/20 hover:bg-purple-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
+                  title="View your transaction history"
+                >
+                  history
+                </button>
               </div>
             </div>
 
@@ -1937,34 +1924,14 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                         <button
                           onClick={() => setShowPrivateBalances(!showPrivateBalances)}
                           className={`px-2 py-0.5 rounded text-xs border ${
-                            showPrivateBalances
-                              ? 'bg-emerald-600/30 text-emerald-200 border-emerald-400/40'
+                            showPrivateBalances 
+                              ? 'bg-emerald-600/30 text-emerald-200 border-emerald-400/40' 
                               : 'bg-black text-green-300 hover:bg-green-900/20 border-green-500/40'
                           }`}
                         >
                           {showPrivateBalances ? 'Hide' : 'Show'}
                         </button>
                       )}
-                      {/* Mobile-only refresh and info buttons */}
-                      <div className="flex md:hidden gap-1 ml-2">
-                      <button
-                          onClick={handleInfoClick}
-                          className="p-1.5 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40 transition-all duration-200 hover:shadow-lg hover:shadow-blue-400/20"
-                          title="Information"
-                          aria-label="Info"
-                        >
-                          <Info className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={handleRefresh}
-                          disabled={isLoading || !isConnected || isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                          className="p-1.5 rounded border border-emerald-400/40 bg-emerald-900/20 hover:bg-emerald-900/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-lg hover:shadow-emerald-400/20"
-                          title="Refresh all wallet balances"
-                          aria-label="Refresh"
-                        >
-                          <RefreshCw className="w-4 h-4" />
-                        </button>
-                      </div>
                     </div>
                   </div>
 
@@ -2122,11 +2089,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         onClose={() => setShowVerificationModal(false)}
       />
 
-      <VaultInfoModal
-        isOpen={showInfoModal}
-        onClose={() => setShowInfoModal(false)}
-      />
-
       <SignRequestModal
         isOpen={showSignRequestPopup}
         isInitInProgress={isInitInProgress}
@@ -2201,7 +2163,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       {isLexieChatVisible && !isMobile && (
         <WindowShell
           id="lexie-chat-terminal"
-          title="lexie-chat"
+          title="LexieAI-chat"
           appType="chat"
           statusLabel="Enable Degen Mode"
           statusTone="online"

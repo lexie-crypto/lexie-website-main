@@ -572,7 +572,7 @@ export const monitorTransactionInGraph = async ({
         } else if (transactionType === 'transfer') {
           eventData = {
             traceId: txHash,
-            type: 'transfer_send', // Keep original type for compatibility
+            type: 'transfer_send',
             txHash: txHash,
             status: 'confirmed',
             token: transactionDetails?.tokenSymbol || 'UNKNOWN',
@@ -710,7 +710,7 @@ export const monitorTransactionInGraph = async ({
             } else if (transactionType === 'transfer') {
               eventData = {
                 traceId: txHash,
-                type: 'transfer_send', // Keep original type for compatibility
+                type: 'transfer_send',
                 txHash: txHash,
                 status: transactionStatus,
                 token: transactionDetails?.tokenSymbol || 'UNKNOWN',
@@ -823,7 +823,7 @@ export const monitorTransactionInGraph = async ({
             } else if (transactionType === 'transfer') {
               eventData = {
                 traceId: txHash,
-                type: 'transfer_send', // Keep original type for compatibility
+                type: 'transfer_send',
                 txHash: txHash,
                 status: 'pending',
                 token: transactionDetails?.tokenSymbol || 'UNKNOWN',
@@ -1477,17 +1477,17 @@ export const monitorTransactionInGraph = async ({
               recipientAddress: eventDetail?.recipientAddress || transactionDetails?.recipientAddress || null,
               senderAddress: transactionDetails?.walletAddress || null
             };
-          } else           if (transactionType === 'transfer') {
+          } else if (transactionType === 'transfer') {
             updatedEventData = {
               traceId: txHash, // Same traceId to update existing record
-              type: 'transfer_send', // Keep original type for compatibility
+              type: 'transfer_send',
               txHash: txHash,
               status: 'confirmed', // Update status to confirmed
-              token: transactionDetails?.tokenSymbol || 'UNKNOWN', // Use sender's token symbol
-              amount: transactionDetails?.displayAmount?.toString() || transactionDetails?.amount?.toString() || '0', // Use display amount
+              token: eventDetail?.tokenSymbol || transactionDetails?.tokenSymbol || 'UNKNOWN',
+              amount: eventDetail?.amount?.toString() || transactionDetails?.amount?.toString() || '0',
               zkAddr: transactionDetails?.walletAddress || 'unknown',
               nullifiers: events?.map(e => e.nullifier) || [], // Add nullifiers from Graph
-              memo: transactionDetails?.memoText || null, // Use sender's memo
+              memo: eventDetail?.memoText || transactionDetails?.memoText || null,
               timestamp: Math.floor(Date.now() / 1000), // Keep original timestamp
               blockNumber: blockNumber, // Add block number from Graph API
               recipientAddress: eventDetail?.recipientAddress || transactionDetails?.recipientAddress || null,
@@ -1527,119 +1527,6 @@ export const monitorTransactionInGraph = async ({
         } catch (amendError) {
           console.warn('[TransactionMonitor] ⚠️ Error amending transaction (non-critical):', amendError?.message);
           // Don't throw - amending is not critical to transaction processing
-        }
-
-        // 🎯 RECIPIENT TIMELINE: For transfers, also save to recipient's timeline
-        if (transactionType === 'transfer' && eventDetail?.recipientAddress) {
-          try {
-            console.log('[TransactionMonitor] 📥 Processing recipient timeline for transfer:', {
-              recipientAddress: eventDetail.recipientAddress.slice(0, 20) + '...',
-              txHash: txHash.slice(0, 10) + '...'
-            });
-
-            // Resolve recipient's Railgun address to wallet ID
-            let recipientWalletId = null;
-            try {
-              const resolveResponse = await fetch('/api/wallet-metadata?action=resolve-wallet-id&type=by-railgun&identifier=' + encodeURIComponent(eventDetail.recipientAddress));
-              if (resolveResponse.ok) {
-                const resolveData = await resolveResponse.json();
-                if (resolveData.success && resolveData.walletId) {
-                  recipientWalletId = resolveData.walletId;
-                  console.log('[TransactionMonitor] ✅ Resolved recipient wallet ID:', recipientWalletId.slice(0, 10) + '...');
-                }
-              }
-            } catch (resolveError) {
-              console.warn('[TransactionMonitor] ⚠️ Failed to resolve recipient wallet ID:', resolveError?.message);
-            }
-
-            // If we found the recipient's wallet ID, save transfer_receive event
-            if (recipientWalletId) {
-              const recipientDisplayAmount = transactionDetails?.displayAmount?.toString() || transactionDetails?.amount?.toString() || '0';
-              let senderRailgunAddress = transactionDetails?.railgunAddress;
-              const senderWalletAddress = transactionDetails?.walletAddress;
-
-              // If we don't have the sender's Railgun address, look it up from their EOA
-              if (!senderRailgunAddress && senderWalletAddress) {
-                try {
-                  console.log('[TransactionMonitor] 🔍 Looking up sender Railgun address from EOA:', senderWalletAddress.slice(0, 10) + '...');
-                  const walletResp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(senderWalletAddress)}`);
-                  if (walletResp.ok) {
-                    const walletData = await walletResp.json();
-                    if (walletData.success && walletData.keys && walletData.keys.length > 0) {
-                      // Find the key that matches our walletId if available, otherwise use the first one
-                      const matchingKey = transactionDetails?.walletId
-                        ? walletData.keys.find(k => k.walletId === transactionDetails.walletId)
-                        : walletData.keys[0];
-
-                      if (matchingKey && matchingKey.railgunAddress) {
-                        senderRailgunAddress = matchingKey.railgunAddress;
-                        console.log('[TransactionMonitor] ✅ Found sender Railgun address:', senderRailgunAddress.slice(0, 10) + '...');
-                      }
-                    }
-                  }
-                } catch (lookupError) {
-                  console.warn('[TransactionMonitor] ⚠️ Failed to lookup sender Railgun address:', lookupError.message);
-                }
-              }
-
-              console.log('[TransactionMonitor] 📥 Saving recipient timeline event:', {
-                recipientWalletId: recipientWalletId.slice(0, 10) + '...',
-                txHash: txHash.slice(0, 10) + '...',
-                tokenSymbol: transactionDetails?.tokenSymbol,
-                displayAmount: recipientDisplayAmount,
-                senderRailgunAddress: senderRailgunAddress?.slice(0, 10) + '...',
-                senderWalletAddress: senderWalletAddress?.slice(0, 10) + '...',
-                memoText: transactionDetails?.memoText
-              });
-
-              const recipientEventData = {
-                traceId: txHash, // Same traceId for linking
-                type: 'transfer_receive', // Keep original type for compatibility
-                txHash: txHash,
-                status: 'confirmed',
-                token: transactionDetails?.tokenSymbol || 'UNKNOWN', // Use sender's token symbol
-                amount: recipientDisplayAmount, // Use display amount
-                zkAddr: eventDetail?.recipientAddress || 'unknown', // Recipient's address
-                nullifiers: [], // Recipients don't have nullifiers for received transfers
-                memo: transactionDetails?.memoText || null, // Use sender's memo
-                timestamp: Math.floor(Date.now() / 1000),
-                blockNumber: blockNumber,
-                recipientAddress: eventDetail?.recipientAddress || null, // Recipient is themselves
-                senderAddress: senderRailgunAddress // Use looked-up Railgun address for Lexie ID lookup
-              };
-
-              const recipientTlBody = {
-                walletId: recipientWalletId,
-                event: recipientEventData
-              };
-
-              console.log('[TransactionMonitor] 📡 Saving transfer_receive to recipient timeline:', {
-                recipientWalletId: recipientWalletId.slice(0, 10) + '...',
-                type: 'transfer_receive',
-                txHash: txHash.slice(0, 10) + '...'
-              });
-
-              const recipientSaveResponse = await fetch('/api/wallet-metadata?action=timeline-append', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(recipientTlBody)
-              });
-
-              if (recipientSaveResponse.ok) {
-                console.log('[TransactionMonitor] ✅ Successfully saved transfer_receive to recipient timeline');
-              } else {
-                console.warn('[TransactionMonitor] ⚠️ Failed to save transfer_receive to recipient timeline:', {
-                  status: recipientSaveResponse.status,
-                  txHash: txHash.slice(0, 10) + '...'
-                });
-              }
-            } else {
-              console.log('[TransactionMonitor] ℹ️ Recipient wallet ID not found, skipping recipient timeline update');
-            }
-          } catch (recipientError) {
-            console.warn('[TransactionMonitor] ⚠️ Error saving to recipient timeline (non-critical):', recipientError?.message);
-            // Don't throw - recipient timeline saving is not critical to transaction processing
-          }
         }
 
         console.log('[TransactionMonitor] 🔍 Checking points award conditions:', {

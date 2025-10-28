@@ -383,7 +383,7 @@ export default function LandingPage() {
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-4">
                 <a
-                  href="https://t.me/lexieAI"
+                  href="https://t.me/lexie_crypto_bot"
               target="_blank"
               rel="noopener noreferrer"
                   className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-300 shadow-lg hover:shadow-purple-500/25 hover:scale-105 text-center"
@@ -391,20 +391,20 @@ export default function LandingPage() {
                   Join Telegram
             </a>
             <a
-                  href="https://x.com/0xLexieAI"
+                  href="https://forms.gle/sbTJFRccd14qJLPEA"
               target="_blank"
               rel="noopener noreferrer"
                   className="px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-cyan-700 transition-all duration-300 shadow-lg hover:shadow-blue-500/25 hover:scale-105 text-center"
             >
-                  Join Twitter
+                  Join Beta
             </a>
             <a
-                    href="https://app.lexiecrypto.com/lexievault"
+                    href="https://x.com/0xLexieAI"
               target="_blank"
               rel="noopener noreferrer"
                     className="px-8 py-4 border-2 border-purple-500 text-purple-300 font-semibold rounded-lg hover:bg-purple-500 hover:text-white transition-all duration-300 hover:scale-105 text-center animate-twitter-flicker"
             >
-                    Launch Beta
+                    Join Twitter
             </a>
           </div>
         </div>
