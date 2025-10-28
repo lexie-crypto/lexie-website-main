@@ -23,3 +23,5 @@ yarn-debug.log*
 yarn-error.log* 
 my-public-key.asc
 *.asc
+
+pnpm-lock.yaml
