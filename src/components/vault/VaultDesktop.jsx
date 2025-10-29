@@ -511,6 +511,12 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
           return;
         }
 
+        // Don't re-init if we've already completed initialization for this chain
+        if (initProgress.percent >= 100 || scanComplete) {
+          console.log('[VaultDesktop] Initialization already complete, skipping Redis check');
+          return;
+        }
+
         // Retry Redis check with backoff to handle race with metadata writes
         let scanned = null;
         for (let attempt = 1; attempt <= 3; attempt++) {
