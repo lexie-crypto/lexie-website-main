@@ -573,6 +573,17 @@ export const initializeRailgunWallet = async ({
                 window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
                 window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id] = true;
               }
+              // Dispatch scan complete event to unlock modal
+              console.log('[Railgun Init] ✅ Dispatching railgun-scan-complete event for chain:', railgunChain.id);
+              try {
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('railgun-scan-complete', {
+                    detail: { chainId: railgunChain.id }
+                  }));
+                }
+              } catch (eventError) {
+                console.warn('[Railgun Init] ⚠️ Failed to dispatch scan complete event:', eventError);
+              }
               // Note: scannedChains will only be marked when modal unlocks to prevent premature marking
               console.log('[Railgun Init] ✅ Initial scan complete for chain (scannedChains will be marked on modal unlock)', railgunChain.id);
             }
@@ -1390,6 +1401,17 @@ export const initializeRailgunWallet = async ({
             window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
             window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id] = true;
             try { localStorage.setItem(scanKey, '1'); } catch {}
+          }
+          // Dispatch scan complete event to unlock modal
+          console.log('[Railgun Init] ✅ Dispatching railgun-scan-complete event for chain:', railgunChain.id);
+          try {
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('railgun-scan-complete', {
+                detail: { chainId: railgunChain.id }
+              }));
+            }
+          } catch (eventError) {
+            console.warn('[Railgun Init] ⚠️ Failed to dispatch scan complete event:', eventError);
           }
           // Note: scannedChains will only be marked when modal unlocks to prevent premature marking
           console.log('[Railgun Init] ✅ Initial scan complete for chain (scannedChains will be marked on modal unlock)', railgunChain.id);
