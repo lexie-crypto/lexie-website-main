@@ -1102,7 +1102,13 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     const onPollStart = async (e) => {
       // Do not show init modal on initial connect fast-path; only after initial connect
       if (!initialConnectDoneRef.current) return;
-      
+
+      // Do not reset progress if we're already complete (scan finished successfully)
+      if (initProgress.percent >= 100 || scanComplete) {
+        console.log('[VaultDesktop] Poll start ignored - initialization already complete');
+        return;
+      }
+
       try {
         const ready = await checkChainReady();
         if (!ready) onInitStarted(e);
