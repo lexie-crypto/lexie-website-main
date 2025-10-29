@@ -1408,6 +1408,62 @@ const WalletContextProvider = ({ children }) => {
       console.log(`[Chain Switch] 🔄 Chain changed to ${chainId}, ensuring ready...`);
 
       try {
+        // Check if chain needs hydration (without forcing provider reload)
+        const { isChainHydrating } = await import('../utils/sync/idb-sync/hydration.js');
+
+        let alreadyHydrated = false;
+        try {
+          const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+          if (resp.ok) {
+            const json = await resp.json();
+            const metaKey = json?.keys?.find((k) => k.walletId === railgunWalletID) || null;
+            const hydratedChains = metaKey?.hydratedChains || [];
+            alreadyHydrated = hydratedChains.includes(chainId);
+          }
+        } catch {}
+
+        const isHydrating = isChainHydrating(railgunWalletID, chainId);
+
+        // Also check Redis for hydratedChains to avoid duplicate hydration
+        let alreadyHydratedInRedis = false;
+        try {
+          const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+          if (resp.ok) {
+            const json = await resp.json();
+            const metaKey = json?.keys?.find((k) => k.walletId === railgunWalletID) || null;
+            const hydratedChains = metaKey?.hydratedChains || [];
+            alreadyHydratedInRedis = hydratedChains.includes(chainId);
+          }
+        } catch {}
+
+        if (alreadyHydrated || isHydrating || alreadyHydratedInRedis) {
+          console.log(`[Chain Switch] ⏭️ Chain ${chainId} already ${alreadyHydrated ? 'hydrated locally' : alreadyHydratedInRedis ? 'hydrated in Redis' : 'hydrating'}`);
+        } else {
+          // Load bootstrap for this chain if needed
+          console.log(`[Chain Switch] 🚀 Loading bootstrap for chain ${chainId}...`);
+          const { checkChainBootstrapAvailable, loadChainBootstrap } = await import('../utils/sync/idb-sync/hydration.js');
+
+          const hasBootstrap = await checkChainBootstrapAvailable(chainId);
+          if (hasBootstrap) {
+            await new Promise((resolve, reject) => {
+              loadChainBootstrap(railgunWalletID, chainId, {
+                address,
+                onProgress: (progress) => {
+                  console.log(`[Chain Switch] 🚀 Chain ${chainId} bootstrap: ${progress}%`);
+                },
+                onComplete: () => {
+                  console.log(`[Chain Switch] ✅ Chain ${chainId} bootstrap complete`);
+                  resolve();
+                },
+                onError: (error) => {
+                  console.warn(`[Chain Switch] ⚠️ Chain ${chainId} bootstrap failed:`, error.message);
+                  resolve(); // Continue even if bootstrap fails
+                }
+              });
+            });
+          }
+        }
+
         // Ensure chain is scanned (this will check Redis and only scan if needed)
         console.log(`[Chain Switch] 🔍 Ensuring chain ${chainId} is scanned...`);
         await ensureChainScanned(chainId);
