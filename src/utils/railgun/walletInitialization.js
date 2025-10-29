@@ -1290,11 +1290,26 @@ export const initializeRailgunWallet = async ({
         const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
         if (resp.ok) {
           const json = await resp.json();
-          const metaKey = json?.keys?.find((k) => k.walletId === railgunWalletInfo.id) || null;
-          const hydratedChains = metaKey?.hydratedChains || [];
-          alreadyHydrated = hydratedChains.includes(currentChainId);
+          // For the new v3.0 format, hydratedChains is stored directly on the wallet metadata
+          if (json.success && json.keys && json.keys.length > 0) {
+            // Look for the metadata key that contains hydratedChains
+            const metaKey = json.keys.find(key =>
+              key.key?.includes(':meta') ||
+              key.hydratedChains ||
+              (key.format === 'new-structure' && key.hydratedChains)
+            );
+            if (metaKey) {
+              const hydratedChains = metaKey.hydratedChains || [];
+              alreadyHydrated = hydratedChains.includes(currentChainId);
+              console.log(`[Railgun Init] Found hydratedChains in Redis key:`, hydratedChains);
+            } else {
+              console.log(`[Railgun Init] No metadata key found with hydratedChains`);
+            }
+          }
         }
-      } catch {}
+      } catch (error) {
+        console.warn(`[Railgun Init] Failed to check Redis hydration status:`, error.message);
+      }
 
       // ✅ ADD THIS: Check if hydration is already in progress
       const isHydrating = isChainHydrating(railgunWalletInfo.id, currentChainId);
