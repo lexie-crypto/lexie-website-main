@@ -26,13 +26,18 @@ export const checkChainHydratedInRedis = async (address, walletId, chainId) => {
     const data = await response.json();
 
     if (data.success && data.keys && data.keys.length > 0) {
+      console.log(`[Hydration-Check] 🔍 Searching through ${data.keys.length} keys for wallet ${walletId} metadata key`);
+
       // 🎯 CRITICAL FIX: Look specifically for the meta key matching this walletId
       const metaKey = data.keys.find(key => {
         // Check if this is the correct meta key for this wallet
         const isMetaKey = key.key?.includes(':meta') || key.format === 'new-structure';
         const isCorrectWallet = key.walletId === walletId; // ✅ CRITICAL FIX
 
-        return isMetaKey && isCorrectWallet;
+        const matches = isMetaKey && isCorrectWallet;
+        console.log(`[Hydration-Check] 📋 Checking key: ${key.key || 'no-key'} | walletId: ${key.walletId?.slice(0,8)}... | format: ${key.format} | isMetaKey: ${isMetaKey} | isCorrectWallet: ${isCorrectWallet} | MATCH: ${matches}`);
+
+        return matches;
       });
 
       if (metaKey) {
@@ -101,13 +106,18 @@ export const checkChainScannedInRedis = async (address, walletId, chainId) => {
     const data = await response.json();
 
     if (data.success && data.keys && data.keys.length > 0) {
+      console.log(`[Scan-Check] 🔍 Searching through ${data.keys.length} keys for wallet ${walletId} metadata key`);
+
       // 🎯 CRITICAL FIX: Look specifically for the meta key matching this walletId
       const metaKey = data.keys.find(key => {
         // Check if this is the correct meta key for this wallet
         const isMetaKey = key.key?.includes(':meta') || key.format === 'new-structure';
         const isCorrectWallet = key.walletId === walletId; // ✅ CRITICAL FIX
 
-        return isMetaKey && isCorrectWallet;
+        const matches = isMetaKey && isCorrectWallet;
+        console.log(`[Scan-Check] 📋 Checking key: ${key.key || 'no-key'} | walletId: ${key.walletId?.slice(0,8)}... | format: ${key.format} | isMetaKey: ${isMetaKey} | isCorrectWallet: ${isCorrectWallet} | MATCH: ${matches}`);
+
+        return matches;
       });
 
       if (metaKey) {
