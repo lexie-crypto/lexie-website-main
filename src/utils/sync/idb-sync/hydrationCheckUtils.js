@@ -24,6 +24,7 @@ export const checkChainHydratedInRedis = async (address, walletId, chainId) => {
     }
 
     const data = await response.json();
+    console.log(`[Hydration-Check] Full API response:`, data);
 
     if (data.success && data.keys && data.keys.length > 0) {
       console.log(`[Hydration-Check] 🔍 Searching through ${data.keys.length} keys for wallet ${walletId} metadata key`);
@@ -41,6 +42,8 @@ export const checkChainHydratedInRedis = async (address, walletId, chainId) => {
       });
 
       if (metaKey) {
+        console.log(`[Hydration-Check] Raw metaKey object:`, metaKey);
+
         const hydratedChains = metaKey.hydratedChains || [];
 
         // Log the actual Redis key being checked
@@ -104,6 +107,7 @@ export const checkChainScannedInRedis = async (address, walletId, chainId) => {
     }
 
     const data = await response.json();
+    console.log(`[Scan-Check] Full API response:`, data);
 
     if (data.success && data.keys && data.keys.length > 0) {
       console.log(`[Scan-Check] 🔍 Searching through ${data.keys.length} keys for wallet ${walletId} metadata key`);
@@ -121,6 +125,8 @@ export const checkChainScannedInRedis = async (address, walletId, chainId) => {
       });
 
       if (metaKey) {
+        console.log(`[Scan-Check] Raw metaKey object:`, metaKey);
+
         const scannedChains = metaKey.scannedChains || [];
 
         // Log the actual Redis key being checked
