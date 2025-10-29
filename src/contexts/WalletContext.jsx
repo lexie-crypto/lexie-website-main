@@ -1076,6 +1076,7 @@ const WalletContextProvider = ({ children }) => {
       setShowLexieIdChoiceModal,
       setLexieIdChoicePromise,
       setLexieIdLinkPromise,
+      setShowReturningUserChainModal,
       selectedInjectedProviderRef,
       connector,
       getWalletSigner,
