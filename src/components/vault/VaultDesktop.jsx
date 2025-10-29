@@ -888,8 +888,8 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     const onScanComplete = () => {
       console.log('[VaultDesktop] Chain scanning completed - unlocking modal');
       setScanComplete(true);
-      setIsInitInProgress(false); // Unlock modal now that scanning is complete
-      setInitProgress({ percent: 100, message: 'Vault ready - initialization complete!' });
+      setInitProgress({ percent: 100, message: 'Vault ready - initialization complete!' }); // Set progress first
+      setIsInitInProgress(false); // Then unlock modal
       setIsChainReady(false);
       checkChainReady().then((ready) => setIsChainReady(!!ready)).catch(() => setIsChainReady(false));
     };
