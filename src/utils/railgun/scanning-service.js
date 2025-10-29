@@ -188,7 +188,7 @@ export const performFullRescan = async (railgunWalletIDs = []) => {
     console.log('[ScanningService] Full rescan completed');
     
     // Dispatch completion event
-    window.dispatchEvent(new CustomEvent('railgun-scan-complete', {
+    window.dispatchEvent(new CustomEvent('railgun-scan-completed', {
       detail: { type: 'full', walletIDs: railgunWalletIDs }
     }));
     
@@ -258,7 +258,7 @@ export const performNetworkRescan = async (networkName, railgunWalletIDs = []) =
     console.log(`[ScanningService] Network rescan completed for ${networkName}`);
     
     // Dispatch completion event
-    window.dispatchEvent(new CustomEvent('railgun-scan-complete', {
+    window.dispatchEvent(new CustomEvent('railgun-scan-completed', {
       detail: { type: 'network', networkName, walletIDs: railgunWalletIDs }
     }));
     
