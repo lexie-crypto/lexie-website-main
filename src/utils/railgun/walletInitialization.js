@@ -39,68 +39,7 @@ export const initializeRailgunWallet = async ({
     return;
   }
 
-  // 🚀 CRITICAL FIX: Check if hydration is needed for current chain BEFORE initializing SDK
-  // The SDK needs hydrated data to scan properly, so hydration must complete first
-  try {
-    const { checkChainBootstrapAvailable, loadChainBootstrap, isChainHydrating } = await import('../sync/idb-sync/hydration.js');
-    const { isMasterWallet } = await import('../sync/idb-sync/scheduler.js');
-
-    // Only check hydration for regular wallets (not master wallets)
-    if (lastInitializedAddressRef.current && !isMasterWallet(lastInitializedAddressRef.current)) {
-      console.log('[Railgun Init] 🔍 Checking if hydration needed for current chain before SDK init...');
-
-      // Check if chain is already hydrated or hydrating
-      const isHydrating = isChainHydrating(lastInitializedAddressRef.current, chainId);
-      let alreadyHydrated = false;
-
-      try {
-        const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-        if (resp.ok) {
-          const json = await resp.json();
-          const metaKey = json?.keys?.find((k) => k.walletId === lastInitializedAddressRef.current) || null;
-          const hydratedChains = metaKey?.hydratedChains || [];
-          alreadyHydrated = hydratedChains.includes(chainId);
-        }
-      } catch (metadataError) {
-        console.warn('[Railgun Init] Could not check hydrated chains metadata:', metadataError.message);
-      }
-
-      if (!alreadyHydrated && !isHydrating) {
-        // Check if bootstrap data is available
-        const hasBootstrap = await checkChainBootstrapAvailable(chainId);
-        if (hasBootstrap) {
-          console.log(`[Railgun Init] 🚀 Loading chain ${chainId} bootstrap BEFORE SDK initialization...`);
-
-          // Wrap bootstrap in a promise that resolves when onComplete fires
-          await new Promise((resolve, reject) => {
-            loadChainBootstrap(lastInitializedAddressRef.current, chainId, {
-              address, // Pass EOA address for Redis scannedChains check
-              onProgress: (progress) => {
-                console.log(`[Railgun Init] 🚀 Pre-init bootstrap progress: ${progress}%`);
-              },
-              onComplete: async () => {
-                console.log(`[Railgun Init] 🚀 Pre-init bootstrap completed for chain ${chainId}`);
-                resolve(); // ✅ Signal completion
-              },
-              onError: (error) => {
-                console.error(`[Railgun Init] 🚀 Pre-init bootstrap failed for chain ${chainId}:`, error.message);
-                reject(error); // ✅ Signal failure
-              }
-            });
-          });
-
-          console.log(`[Railgun Init] ✅ Hydration completed for chain ${chainId} - now safe to initialize SDK`);
-        } else {
-          console.log(`[Railgun Init] ℹ️ No bootstrap available for chain ${chainId} - proceeding with SDK init`);
-        }
-      } else {
-        console.log(`[Railgun Init] ⏭️ Chain ${chainId} already ${alreadyHydrated ? 'hydrated' : 'hydrating'} - safe to initialize SDK`);
-      }
-    }
-  } catch (hydrationError) {
-    console.warn('[Railgun Init] ⚠️ Pre-init hydration check failed, proceeding with SDK init:', hydrationError.message);
-    // Continue with SDK init even if hydration check fails
-  }
+  // Note: Early hydration removed - hydration happens after wallet creation
 
   // Defensive unload: if this is a fresh init start, clear any lingering SDK wallet state
   try {
@@ -303,25 +242,25 @@ export const initializeRailgunWallet = async ({
         const networkConfigs = [
           {
             networkName: NetworkName.Ethereum,
-            rpcUrl: 'https://eth.llamarpc.com',
+            rpcUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=1&provider=alchemy',
             ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=1&provider=ankr',
             chainId: 1
           },
           {
             networkName: NetworkName.Polygon,
-            rpcUrl: 'https://polygon.llamarpc.com',
+            rpcUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=137&provider=alchemy',
             ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=137&provider=ankr',
             chainId: 137
           },
           {
             networkName: NetworkName.Arbitrum,
-            rpcUrl: 'https://arbitrum.llamarpc.com',
+            rpcUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=42161&provider=alchemy',
             ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=42161&provider=ankr',
             chainId: 42161
           },
           {
             networkName: NetworkName.BNBChain,
-            rpcUrl: 'https://binance.llamarpc.com',
+            rpcUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=56&provider=alchemy',
             ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=56&provider=ankr',
             chainId: 56
           },
@@ -743,25 +682,25 @@ export const initializeRailgunWallet = async ({
     const networkConfigs = [
       {
         networkName: NetworkName.Ethereum,
-        rpcUrl: 'https://eth.llamarpc.com',
+        rpcUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=1&provider=alchemy',
         ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=1&provider=ankr',
         chainId: 1
       },
       {
         networkName: NetworkName.Polygon,
-        rpcUrl: 'https://polygon.llamarpc.com',
+        rpcUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=137&provider=alchemy',
         ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=137&provider=ankr',
         chainId: 137
       },
       {
         networkName: NetworkName.Arbitrum,
-        rpcUrl: 'https://arbitrum.llamarpc.com',
+        rpcUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=42161&provider=alchemy',
         ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=42161&provider=ankr',
         chainId: 42161
       },
       {
         networkName: NetworkName.BNBChain,
-        rpcUrl: 'https://binance.llamarpc.com',
+        rpcUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=56&provider=alchemy',
         ankrUrl: (typeof window !== 'undefined' ? window.location.origin : '') + '/api/rpc?chainId=56&provider=ankr',
         chainId: 56
       },
