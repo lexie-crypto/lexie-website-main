@@ -1110,24 +1110,35 @@ export const loadChainBootstrap = async (walletId, chainId, options = {}) => {
 
         if (response.ok) {
           const data = await response.json();
-          const walletKeys = Array.isArray(data.keys) ? data.keys : [];
-          const matchingKey = walletKeys.find(key => key.walletId === walletId) || null;
 
-          if (matchingKey) {
-            const hydratedChains = Array.isArray(matchingKey?.hydratedChains)
-              ? matchingKey.hydratedChains
-              : (Array.isArray(matchingKey?.meta?.hydratedChains) ? matchingKey.meta.hydratedChains : []);
+          // For the new v3.0 format, hydratedChains is stored directly on the wallet metadata
+          if (data.success && data.keys && data.keys.length > 0) {
+            // Look for the metadata key that contains hydratedChains
+            const metaKey = data.keys.find(key =>
+              key.key?.includes(':meta') ||
+              key.hydratedChains ||
+              (key.format === 'new-structure' && key.hydratedChains)
+            );
 
-            const normalizedHydratedChains = hydratedChains
-              .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
-              .filter(n => Number.isFinite(n));
+            if (metaKey) {
+              const hydratedChains = metaKey.hydratedChains || [];
 
-            const isChainHydrated = normalizedHydratedChains.includes(Number(chainId));
+              const normalizedHydratedChains = hydratedChains
+                .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
+                .filter(n => Number.isFinite(n));
 
-            if (isChainHydrated) {
-              console.log(`[IDB-Hydration] Chain ${chainId} already hydrated in Redis for wallet ${walletId}, skipping hydration`);
-              if (onComplete) onComplete();
-              return;
+              const isChainHydrated = normalizedHydratedChains.includes(Number(chainId));
+
+              console.log(`[IDB-Hydration] Found hydratedChains in Redis key:`, hydratedChains);
+              console.log(`[IDB-Hydration] Chain ${chainId} hydrated status:`, isChainHydrated);
+
+              if (isChainHydrated) {
+                console.log(`[IDB-Hydration] Chain ${chainId} already hydrated in Redis for wallet ${walletId}, skipping hydration`);
+                if (onComplete) onComplete();
+                return;
+              }
+            } else {
+              console.log(`[IDB-Hydration] No metadata key found with hydratedChains for wallet ${walletId}`);
             }
           }
         }
