@@ -274,6 +274,18 @@ export const onTXIDMerkletreeScanCallback = (scanData) => {
   const progressPercent = Math.round((scanData.progress || 0) * 100);
   if (progressPercent === 100 || scanData.scanStatus === 'Complete') {
     console.log('[SDK Callbacks] 🎯 TXID Merkletree scan reached 100% - transaction data fully processed');
+
+    // Dispatch scan complete event immediately when scan finishes
+    console.log('[SDK Callbacks] ✅ Dispatching railgun-scan-complete event for chain scan completion');
+    try {
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('railgun-scan-complete', {
+          detail: { chainId: scanData.chainId || scanData.networkId }
+        }));
+      }
+    } catch (eventError) {
+      console.warn('[SDK Callbacks] ⚠️ Failed to dispatch scan complete event:', eventError);
+    }
   } else if (progressPercent % 25 === 0 && progressPercent > 0) {
     console.log(`[SDK Callbacks] 📈 TXID scan milestone: ${progressPercent}% complete`);
   }
