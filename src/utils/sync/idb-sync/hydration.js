@@ -1102,6 +1102,41 @@ export const loadChainBootstrap = async (walletId, chainId, options = {}) => {
   try {
     console.log(`[IDB-Hydration] Starting chain ${chainId} bootstrap for wallet ${walletId}`);
 
+    // First check if chain has already been hydrated in Redis
+    if (!force && address) {
+      try {
+        console.log(`[IDB-Hydration] Checking if chain ${chainId} already hydrated in Redis for address ${address}...`);
+        const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+
+        if (response.ok) {
+          const data = await response.json();
+          const walletKeys = Array.isArray(data.keys) ? data.keys : [];
+          const matchingKey = walletKeys.find(key => key.walletId === walletId) || null;
+
+          if (matchingKey) {
+            const hydratedChains = Array.isArray(matchingKey?.hydratedChains)
+              ? matchingKey.hydratedChains
+              : (Array.isArray(matchingKey?.meta?.hydratedChains) ? matchingKey.meta.hydratedChains : []);
+
+            const normalizedHydratedChains = hydratedChains
+              .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
+              .filter(n => Number.isFinite(n));
+
+            const isChainHydrated = normalizedHydratedChains.includes(Number(chainId));
+
+            if (isChainHydrated) {
+              console.log(`[IDB-Hydration] Chain ${chainId} already hydrated in Redis for wallet ${walletId}, skipping hydration`);
+              if (onComplete) onComplete();
+              return;
+            }
+          }
+        }
+      } catch (redisError) {
+        console.warn(`[IDB-Hydration] Failed to check Redis hydration status:`, redisError.message);
+        // Continue with hydration if Redis check fails
+      }
+    }
+
     // Per-wallet:chain session lock: bail if already hydrating this wallet:chain
     if (isChainHydrating(walletId, chainId)) {
       console.log(`[IDB-Hydration] Wallet ${walletId} chain ${chainId} already being hydrated, skipping`);

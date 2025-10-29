@@ -1407,8 +1407,20 @@ const WalletContextProvider = ({ children }) => {
 
         const isHydrating = isChainHydrating(railgunWalletID, chainId);
 
-        if (alreadyHydrated || isHydrating) {
-          console.log(`[Chain Switch] ⏭️ Chain ${chainId} already ${alreadyHydrated ? 'hydrated' : 'hydrating'}`);
+        // Also check Redis for hydratedChains to avoid duplicate hydration
+        let alreadyHydratedInRedis = false;
+        try {
+          const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+          if (resp.ok) {
+            const json = await resp.json();
+            const metaKey = json?.keys?.find((k) => k.walletId === railgunWalletID) || null;
+            const hydratedChains = metaKey?.hydratedChains || [];
+            alreadyHydratedInRedis = hydratedChains.includes(chainId);
+          }
+        } catch {}
+
+        if (alreadyHydrated || isHydrating || alreadyHydratedInRedis) {
+          console.log(`[Chain Switch] ⏭️ Chain ${chainId} already ${alreadyHydrated ? 'hydrated locally' : alreadyHydratedInRedis ? 'hydrated in Redis' : 'hydrating'}`);
         } else {
           // Load bootstrap for this chain if needed
           console.log(`[Chain Switch] 🚀 Loading bootstrap for chain ${chainId}...`);
