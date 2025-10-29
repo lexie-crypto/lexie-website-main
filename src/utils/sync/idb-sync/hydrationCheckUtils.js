@@ -44,7 +44,19 @@ export const checkChainHydratedInRedis = async (address, walletId, chainId) => {
       if (metaKey) {
         console.log(`[Hydration-Check] Raw metaKey object:`, metaKey);
 
-        const hydratedChains = metaKey.hydratedChains || [];
+        let hydratedChains = metaKey.hydratedChains || [];
+
+        // Fallback: if hydratedChains is missing from response, parse from value field
+        if (!hydratedChains || hydratedChains.length === 0) {
+          try {
+            const parsedValue = JSON.parse(metaKey.value || '{}');
+            hydratedChains = parsedValue.hydratedChains || [];
+            console.log(`[Hydration-Check] Using fallback hydratedChains from value:`, hydratedChains);
+          } catch (parseError) {
+            console.warn(`[Hydration-Check] Failed to parse hydratedChains from value:`, parseError);
+            hydratedChains = [];
+          }
+        }
 
         // Log the actual Redis key being checked
         const redisKey = metaKey.key || `railgun:${address}:${walletId}:meta`;
@@ -127,7 +139,19 @@ export const checkChainScannedInRedis = async (address, walletId, chainId) => {
       if (metaKey) {
         console.log(`[Scan-Check] Raw metaKey object:`, metaKey);
 
-        const scannedChains = metaKey.scannedChains || [];
+        let scannedChains = metaKey.scannedChains || [];
+
+        // Fallback: if scannedChains is missing from response, parse from value field
+        if (!scannedChains || scannedChains.length === 0) {
+          try {
+            const parsedValue = JSON.parse(metaKey.value || '{}');
+            scannedChains = parsedValue.scannedChains || [];
+            console.log(`[Scan-Check] Using fallback scannedChains from value:`, scannedChains);
+          } catch (parseError) {
+            console.warn(`[Scan-Check] Failed to parse scannedChains from value:`, parseError);
+            scannedChains = [];
+          }
+        }
 
         // Log the actual Redis key being checked
         const redisKey = metaKey.key || `railgun:${address}:${walletId}:meta`;
