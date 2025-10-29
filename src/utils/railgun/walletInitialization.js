@@ -1274,68 +1274,10 @@ export const initializeRailgunWallet = async ({
     setIsRailgunInitialized(true);
     console.log('[Railgun Init] ✅ Wallet initialized after chain confirmation');
 
-    // 🚀 CRITICAL: Await hydration for ALL chains before wallet is truly ready
-    // This prevents race conditions and double namespace clearing
-    try {
-      console.log('[Railgun Init] 🚀 Starting complete hydration for all chains...');
-      const { checkChainBootstrapAvailable, loadChainBootstrap, isChainHydrating } = await import('../sync/idb-sync/hydration.js');
-
-      // Hydrate the current chain first (most important)
-      const currentChainId = chainIdRef.current || 1; // Default to Ethereum if no chain set
-      console.log(`[Railgun Init] 🎯 Prioritizing hydration for current chain: ${currentChainId}`);
-
-      // Check if current chain needs hydration
-      let alreadyHydrated = false;
-      try {
-        const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-        if (resp.ok) {
-          const json = await resp.json();
-          const metaKey = json?.keys?.find((k) => k.walletId === railgunWalletInfo.id) || null;
-          const hydratedChains = metaKey?.hydratedChains || [];
-          alreadyHydrated = hydratedChains.includes(currentChainId);
-        }
-      } catch {}
-
-      // ✅ ADD THIS: Check if hydration is already in progress
-      const isHydrating = isChainHydrating(railgunWalletInfo.id, currentChainId);
-
-      // ✅ UPDATED CONDITION: Check both hydrated AND hydrating
-      if (!alreadyHydrated && !isHydrating) {
-        console.log(`[Railgun Init] 📦 Loading bootstrap for current chain ${currentChainId}...`);
-        const hasBootstrap = await checkChainBootstrapAvailable(currentChainId);
-        if (hasBootstrap) {
-          await new Promise((resolve, reject) => {
-            loadChainBootstrap(railgunWalletInfo.id, currentChainId, {
-              address,
-              onProgress: (progress) => {
-                console.log(`[Railgun Init] 🚀 Current chain ${currentChainId} bootstrap: ${progress}%`);
-              },
-              onComplete: () => {
-                console.log(`[Railgun Init] ✅ Current chain ${currentChainId} hydration complete`);
-                resolve();
-              },
-              onError: (error) => {
-                console.warn(`[Railgun Init] ⚠️ Current chain ${currentChainId} hydration failed:`, error.message);
-                resolve(); // Continue even if hydration fails
-              }
-            });
-          });
-        }
-      } else {
-        console.log(`[Railgun Init] ⏭️ Current chain ${currentChainId} already ${alreadyHydrated ? 'hydrated' : 'hydrating'}`);
-      }
-
-      console.log('[Railgun Init] ✅ Critical hydration complete - wallet is now truly ready');
-
-    } catch (hydrationError) {
-      console.warn('[Railgun Init] ⚠️ Hydration failed during initialization:', hydrationError.message);
-      // Continue - hydration failure shouldn't block wallet initialization
-    }
-
-    // Notify UI that metadata is persisted AND hydration is complete; polling may begin
+    // Notify UI that metadata is persisted; polling may begin
     try { window.dispatchEvent(new CustomEvent('railgun-wallet-metadata-ready', { detail: { address, walletId: railgunWalletInfo.id } })); } catch {}
 
-    // 🎯 Initialize IDB sync system AFTER hydration is complete
+    // 🎯 Initialize IDB sync system
     setTimeout(async () => {
       // Use the actual wallet ID that was just created
       const walletId = railgunWalletInfo.id;
