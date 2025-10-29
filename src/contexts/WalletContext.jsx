@@ -546,6 +546,23 @@ const WalletContextProvider = ({ children }) => {
                   // Mark chain as hydrated in Redis metadata since we loaded bootstrap data
                   // Note: scannedChains will only be marked when modal unlocks to prevent premature marking
                   try {
+                    // First fetch existing metadata to get current hydratedChains
+                    const getResp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+                    let existingHydratedChains = [];
+
+                    if (getResp.ok) {
+                      const existingData = await getResp.json();
+                      const metaKey = existingData?.keys?.find((k) => k.walletId === railgunWalletID);
+                      if (metaKey?.hydratedChains) {
+                        existingHydratedChains = Array.isArray(metaKey.hydratedChains)
+                          ? metaKey.hydratedChains
+                          : [];
+                      }
+                    }
+
+                    // Merge with new chain (avoid duplicates)
+                    const updatedHydratedChains = [...new Set([...existingHydratedChains, railgunChain.id])];
+
                     const resp = await fetch('/api/wallet-metadata?action=persist-metadata', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
@@ -553,11 +570,11 @@ const WalletContextProvider = ({ children }) => {
                         walletAddress: address,
                         walletId: railgunWalletID,
                         railgunAddress: railgunAddress,
-                        hydratedChains: [railgunChain.id] // Mark this chain as hydrated only
+                        hydratedChains: updatedHydratedChains
                       })
                     });
                     if (resp.ok) {
-                      console.log(`[Railgun Init] ✅ Marked hydratedChains += ${railgunChain.id} (scannedChains will be marked on modal unlock)`);
+                      console.log(`[Railgun Init] ✅ Marked hydratedChains += ${railgunChain.id} (merged with existing: ${existingHydratedChains.join(',')}) (scannedChains will be marked on modal unlock)`);
                     } else {
                       console.error(`[Railgun Init] ❌ Failed to mark hydratedChains += ${railgunChain.id}:`, await resp.text());
                     }

@@ -458,6 +458,23 @@ export const initializeRailgunWallet = async ({
                     // Mark chain as hydrated in Redis metadata since we loaded bootstrap data
                     // Note: scannedChains will only be marked when modal unlocks to prevent premature marking
                     try {
+                      // First fetch existing metadata to get current hydratedChains
+                      const getResp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+                      let existingHydratedChains = [];
+
+                      if (getResp.ok) {
+                        const existingData = await getResp.json();
+                        const metaKey = existingData?.keys?.find((k) => k.walletId === railgunWalletInfo.id);
+                        if (metaKey?.hydratedChains) {
+                          existingHydratedChains = Array.isArray(metaKey.hydratedChains)
+                            ? metaKey.hydratedChains
+                            : [];
+                        }
+                      }
+
+                      // Merge with new chain (avoid duplicates)
+                      const updatedHydratedChains = [...new Set([...existingHydratedChains, chainIdRef.current])];
+
                       const persistResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -465,12 +482,12 @@ export const initializeRailgunWallet = async ({
                           walletAddress: address,
                           walletId: railgunWalletInfo.id,
                           railgunAddress: existingRailgunAddress,
-                          hydratedChains: [chainIdRef.current]
+                          hydratedChains: updatedHydratedChains
                         })
                       });
 
                       if (persistResp.ok) {
-                        console.log(`✅ Marked hydratedChains += ${chainIdRef.current} after bootstrap loading (scannedChains will be marked on modal unlock)`);
+                        console.log(`✅ Marked hydratedChains += ${chainIdRef.current} (merged with existing: ${existingHydratedChains.join(',')}) after bootstrap loading (scannedChains will be marked on modal unlock)`);
 
                         // Only emit completion event after successful persistence
                         try {
@@ -1157,8 +1174,25 @@ export const initializeRailgunWallet = async ({
                   onComplete: async () => {
                     console.log(`🚀 Chain ${chainIdRef.current} bootstrap completed for new wallet`);
 
-                    // Mark as hydrated in Redis
+                    // Mark as hydrated in Redis - fetch existing data first to merge properly
                     try {
+                      // First fetch existing metadata to get current hydratedChains
+                      const getResp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+                      let existingHydratedChains = [];
+
+                      if (getResp.ok) {
+                        const existingData = await getResp.json();
+                        const metaKey = existingData?.keys?.find((k) => k.walletId === railgunWalletInfo.id);
+                        if (metaKey?.hydratedChains) {
+                          existingHydratedChains = Array.isArray(metaKey.hydratedChains)
+                            ? metaKey.hydratedChains
+                            : [];
+                        }
+                      }
+
+                      // Merge with new chain (avoid duplicates)
+                      const updatedHydratedChains = [...new Set([...existingHydratedChains, chainIdRef.current])];
+
                       const persistResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -1166,11 +1200,11 @@ export const initializeRailgunWallet = async ({
                           walletAddress: address,
                           walletId: railgunWalletInfo.id,
                           railgunAddress: railgunWalletInfo.railgunAddress,
-                          hydratedChains: [chainIdRef.current]
+                          hydratedChains: updatedHydratedChains
                         })
                       });
                       if (persistResp.ok) {
-                        console.log(`✅ Marked hydratedChains += ${chainIdRef.current}`);
+                        console.log(`✅ Marked hydratedChains += ${chainIdRef.current} (merged with existing: ${existingHydratedChains.join(',')})`);
                       }
                     } catch (persistError) {
                       console.warn('⚠️ Failed to mark chain as hydrated:', persistError);
@@ -1262,7 +1296,11 @@ export const initializeRailgunWallet = async ({
         }
       } catch {}
 
-      if (!alreadyHydrated) {
+      // ✅ ADD THIS: Check if hydration is already in progress
+      const isHydrating = isChainHydrating(railgunWalletInfo.id, currentChainId);
+
+      // ✅ UPDATED CONDITION: Check both hydrated AND hydrating
+      if (!alreadyHydrated && !isHydrating) {
         console.log(`[Railgun Init] 📦 Loading bootstrap for current chain ${currentChainId}...`);
         const hasBootstrap = await checkChainBootstrapAvailable(currentChainId);
         if (hasBootstrap) {
@@ -1284,7 +1322,7 @@ export const initializeRailgunWallet = async ({
           });
         }
       } else {
-        console.log(`[Railgun Init] ⏭️ Current chain ${currentChainId} already hydrated`);
+        console.log(`[Railgun Init] ⏭️ Current chain ${currentChainId} already ${alreadyHydrated ? 'hydrated' : 'hydrating'}`);
       }
 
       console.log('[Railgun Init] ✅ Critical hydration complete - wallet is now truly ready');
