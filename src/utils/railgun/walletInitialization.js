@@ -1143,21 +1143,7 @@ export const initializeRailgunWallet = async ({
           } catch {}
 
           if (alreadyHydrated || isHydrating) {
-            console.log(`🚀 Skipping chain bootstrap - chain ${chainIdRef.current} already ${alreadyHydrated ? 'hydrated' : 'hydrating'}`);
-
-            // ✅ CRITICAL FIX: If already hydrated, immediately complete initialization
-            if (alreadyHydrated) {
-              console.log(`✅ Chain ${chainIdRef.current} already hydrated - completing initialization immediately`);
-              try {
-                // Dispatch completion event to unlock modal
-                window.dispatchEvent(new CustomEvent('railgun-scan-complete', {
-                  detail: { walletId: railgunWalletInfo.id, chainId: chainIdRef.current }
-                }));
-                console.log(`✅ Dispatched railgun-scan-complete event for already hydrated chain ${chainIdRef.current}`);
-              } catch (eventError) {
-                console.warn(`⚠️ Failed to dispatch completion event for hydrated chain:`, eventError);
-              }
-            }
+            console.log(`🚀 Skipping chain bootstrap - chain ${chainIdRef.current} already hydrated`);
           } else {
             // ✅ ADD THIS: Actually load the bootstrap when needed!
             console.log('🚀 Checking for chain bootstrap data for newly created wallet...');
