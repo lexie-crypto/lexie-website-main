@@ -468,19 +468,9 @@ const WalletContextProvider = ({ children }) => {
       }
 
       // Check Redis state via wallet metadata proxy
-      let alreadyScannedInRedis = false;
-      let alreadyHydratedInRedis = false;
-      try {
-        const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-        if (resp.ok) {
-          const json = await resp.json();
-          const metaKey = json?.keys?.find((k) => k.walletId === railgunWalletID) || null;
-          const scannedChains = metaKey?.scannedChains || [];
-          const hydratedChains = metaKey?.hydratedChains || [];
-          alreadyScannedInRedis = scannedChains.includes(railgunChain.id);
-          alreadyHydratedInRedis = hydratedChains.includes(railgunChain.id);
-        }
-      } catch {}
+      const { checkChainHydratedInRedis, checkChainScannedInRedis } = await import('../utils/sync/idb-sync/hydrationCheckUtils.js');
+      const { isHydrated: alreadyHydratedInRedis } = await checkChainHydratedInRedis(address, railgunWalletID, railgunChain.id);
+      const { isScanned: alreadyScannedInRedis } = await checkChainScannedInRedis(address, railgunWalletID, railgunChain.id);
 
       const alreadyScannedInWindow = (typeof window !== 'undefined') && window.__RAILGUN_INITIAL_SCAN_DONE && window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id];
       const isAlreadyScanning = chainsScanningRef.current.has(railgunChain.id);
@@ -1410,33 +1400,10 @@ const WalletContextProvider = ({ children }) => {
       try {
         // Check if chain needs hydration (without forcing provider reload)
         const { isChainHydrating } = await import('../utils/sync/idb-sync/hydration.js');
+        const { checkChainHydratedInRedis } = await import('../utils/sync/idb-sync/hydrationCheckUtils.js');
 
         // Check if chain is already hydrated in Redis
-        let alreadyHydrated = false;
-        try {
-          const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-          if (resp.ok) {
-            const json = await resp.json();
-            // For the new v3.0 format, hydratedChains is stored directly on the wallet metadata
-            if (json.success && json.keys && json.keys.length > 0) {
-              // Look for the metadata key that contains hydratedChains
-              const metaKey = json.keys.find(key =>
-                key.key?.includes(':meta') ||
-                key.hydratedChains ||
-                (key.format === 'new-structure' && key.hydratedChains)
-              );
-              if (metaKey) {
-                const hydratedChains = metaKey.hydratedChains || [];
-                alreadyHydrated = hydratedChains.includes(chainId);
-                console.log(`[Chain Switch] Found hydratedChains in Redis key:`, hydratedChains);
-              } else {
-                console.log(`[Chain Switch] No metadata key found with hydratedChains`);
-              }
-            }
-          }
-        } catch (error) {
-          console.warn(`[Chain Switch] Failed to check Redis hydration status:`, error.message);
-        }
+        const { isHydrated: alreadyHydrated, hydratedChains } = await checkChainHydratedInRedis(address, railgunWalletID, chainId);
 
         const isHydrating = isChainHydrating(railgunWalletID, chainId);
 
