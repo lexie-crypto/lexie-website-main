@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 const SignRequestModal = ({
   isOpen,
@@ -15,6 +15,49 @@ const SignRequestModal = ({
   onPersistMetadata,
   onClose
 }) => {
+  const [scanCompleteReceived, setScanCompleteReceived] = useState(false);
+  const [redisScannedChains, setRedisScannedChains] = useState([]);
+
+  // Check Redis for scanned chains on mount
+  useEffect(() => {
+    const checkRedisScannedChains = async () => {
+      if (!address || !railgunWalletId || !activeChainId) return;
+
+      try {
+        const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.keys && result.keys.length > 0) {
+            const metadata = result.keys.find(k => k.walletId === railgunWalletId);
+            if (metadata && Array.isArray(metadata.scannedChains)) {
+              setRedisScannedChains(metadata.scannedChains);
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('[SignRequestModal] Failed to check Redis scanned chains:', error);
+      }
+    };
+
+    if (isOpen) {
+      checkRedisScannedChains();
+    }
+  }, [isOpen, address, railgunWalletId, activeChainId]);
+
+  // Listen for SCAN_COMPLETE events
+  useEffect(() => {
+    const handleScanComplete = (event) => {
+      const { chainId } = event.detail;
+      if (chainId === activeChainId) {
+        console.log('[SignRequestModal] 🎉 SCAN_COMPLETE event received for chain:', chainId);
+        setScanCompleteReceived(true);
+      }
+    };
+
+    window.addEventListener('SCAN_COMPLETE', handleScanComplete);
+    return () => window.removeEventListener('SCAN_COMPLETE', handleScanComplete);
+  }, [activeChainId]);
+
   if (!isOpen) return null;
 
   return (
@@ -80,7 +123,7 @@ const SignRequestModal = ({
             </>
           )}
           <div className="flex items-center justify-end gap-2 pt-2">
-            {!isInitInProgress && initProgress.percent >= 100 && !initFailedMessage ? (
+            {!isInitInProgress && initProgress.percent >= 100 && !initFailedMessage && (scanCompleteReceived || redisScannedChains.includes(activeChainId)) ? (
               <button
                 onClick={async () => {
                   // Mark chain as scanned when modal unlocks successfully
