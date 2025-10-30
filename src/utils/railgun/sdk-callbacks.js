@@ -7,6 +7,9 @@
 const spendableNotesState = new Map(); // walletId -> { tokenAddress -> { isSpendable: bool, amount: bigint, lastUpdate: timestamp } }
 const merkleTreeScanState = new Map(); // walletId -> { utxoProgress: number, txidProgress: number, isComplete: bool }
 
+// Track scan completions to prevent duplicate processing
+const scanCompletionTracker = new Map(); // walletId+chainId -> boolean
+
 /**
  * Track spendable note state for proof generation blocking
  * @param {string} walletId - Railgun wallet ID
@@ -226,6 +229,118 @@ export const waitForMerkleScansComplete = (walletId, timeoutMs = 30000) => {
 };
 
 /**
+ * Handle scan completion - persist to Redis and unlock modal
+ * @param {number} chainId - Chain ID that completed scanning
+ */
+const onScanComplete = async (chainId) => {
+  try {
+    // Get current wallet context - we need to get this from somewhere
+    // This might need to be passed in or accessed via global state
+    const currentWalletId = window.__CURRENT_RAILGUN_WALLET_ID;
+    const currentAddress = window.__CURRENT_WALLET_ADDRESS;
+
+    if (!currentWalletId || !currentAddress) {
+      console.warn('[SDK Callbacks] ⚠️ Cannot complete scan - missing wallet context');
+      return;
+    }
+
+    const trackerKey = `${currentWalletId}-${chainId}`;
+
+    // Prevent duplicate processing
+    if (scanCompletionTracker.get(trackerKey)) {
+      console.log('[SDK Callbacks] ⏭️ Scan already completed for this wallet+chain, skipping');
+      return;
+    }
+
+    console.log('[SDK Callbacks] 🔄 Processing scan completion:', {
+      walletId: currentWalletId?.slice(0, 8) + '...',
+      chainId,
+      trackerKey
+    });
+
+    // Read wallet metadata
+    const getResponse = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(currentAddress)}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    let scannedChains = [];
+    if (getResponse.ok) {
+      const result = await getResponse.json();
+      if (result.success && result.keys && result.keys.length > 0) {
+        const metadata = result.keys.find(k => k.walletId === currentWalletId);
+        if (metadata) {
+          scannedChains = Array.isArray(metadata.scannedChains) ? metadata.scannedChains : [];
+        }
+      }
+    }
+
+    // Check if chainId is already present
+    const normalizedChainId = Number(chainId);
+    if (!scannedChains.includes(normalizedChainId)) {
+      // Append chainId and save back
+      scannedChains.push(normalizedChainId);
+
+      const persistResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: currentAddress,
+          walletId: currentWalletId,
+          scannedChains: scannedChains
+        })
+      });
+
+      if (persistResp.ok) {
+        console.log('[SDK Callbacks] ✅ Persisted scan completion to Redis');
+      } else {
+        console.warn('[SDK Callbacks] ⚠️ Failed to persist scan completion to Redis, but continuing with unlock');
+      }
+    } else {
+      console.log('[SDK Callbacks] ℹ️ Chain already marked as scanned in Redis');
+    }
+
+    // Mark as processed to prevent duplicates
+    scanCompletionTracker.set(trackerKey, true);
+
+    // Log via elizaLogger (if available) or console
+    const logger = window.elizaLogger || console;
+    logger.info('Scan completed and persisted', {
+      walletId: currentWalletId,
+      chainId: normalizedChainId,
+      scannedChains
+    });
+
+    // Emit SCAN_COMPLETE event to unlock modal immediately
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('SCAN_COMPLETE', {
+        detail: {
+          walletId: currentWalletId,
+          chainId: normalizedChainId,
+          scannedChains,
+          timestamp: new Date().toISOString()
+        }
+      }));
+    }
+
+    console.log('[SDK Callbacks] 🎉 Scan completion processed and modal unlocked');
+
+  } catch (error) {
+    console.error('[SDK Callbacks] ❌ Error in onScanComplete:', error);
+    // Even on error, emit the event to unlock modal as fallback
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('SCAN_COMPLETE', {
+        detail: {
+          chainId: Number(chainId),
+          error: error.message,
+          timestamp: new Date().toISOString()
+        }
+      }));
+    }
+  }
+};
+
+/**
  * Enhanced UTXO Merkletree scan callback with detailed progress tracking
  * @param {Object} scanData - Scan progress data from SDK
  */
@@ -262,23 +377,29 @@ export const onTXIDMerkletreeScanCallback = async (scanData) => {
     scanStatus: scanData.scanStatus,
     timestamp: new Date().toISOString()
   });
-  
+
   // Dispatch event for UI components
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('railgun-txid-scan', {
       detail: scanData
     }));
   }
-  
-  // Log scan milestones
+
+  // Check for scan completion - TXID scan reached 100%
   const progressPercent = Math.round((scanData.progress || 0) * 100);
-  if (progressPercent === 100 || scanData.scanStatus === 'Complete') {
+  const isComplete = progressPercent === 100 || scanData.scanStatus === 'Complete';
+
+  if (isComplete) {
     console.log('[SDK Callbacks] 🎯 TXID Merkletree scan reached 100% - transaction data fully processed');
 
-    // Use centralized unlock utility to ensure only one unlock per chain
-    const { unlockModalOnce } = await import('./modalUnlock.js');
-    const chainId = scanData.chainId || scanData.networkId;
-    unlockModalOnce(chainId, 'TXID scan 100% complete');
+    // Get chain ID from scan data
+    const chainId = scanData.chain?.id;
+    if (chainId) {
+      // Run onScanComplete for this chain
+      await onScanComplete(chainId);
+    } else {
+      console.warn('[SDK Callbacks] ⚠️ No chain ID in TXID scan completion data');
+    }
   } else if (progressPercent % 25 === 0 && progressPercent > 0) {
     console.log(`[SDK Callbacks] 📈 TXID scan milestone: ${progressPercent}% complete`);
   }
