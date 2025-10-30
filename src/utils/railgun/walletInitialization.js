@@ -1197,6 +1197,12 @@ export const initializeRailgunWallet = async ({
     setRailgunWalletID(railgunWalletInfo.id);
     lastInitializedAddressRef.current = railgunWalletInfo.id;
 
+      // Set global context for SDK callbacks
+      if (typeof window !== 'undefined') {
+        window.__CURRENT_RAILGUN_WALLET_ID = railgunWalletInfo.id;
+        window.__CURRENT_WALLET_ADDRESS = address;
+      }
+
     console.log('✅ Wallet state updated - all data persisted in Redis for cross-device access');
 
     // 🎯 FOR RETURNING USERS (FULL PATH): Show chain selection modal BEFORE setting initialized
