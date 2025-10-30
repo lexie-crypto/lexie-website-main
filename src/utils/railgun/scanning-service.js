@@ -20,6 +20,7 @@ import {
   setOnTXIDMerkletreeScanCallback,
 } from '@railgun-community/wallet';
 import { waitForRailgunReady } from './engine.js';
+import { unlockModalOnce } from './modalUnlock.js';
 // Balance update callbacks are handled centrally in sdk-callbacks.js
 
 /**
@@ -366,6 +367,88 @@ export const getScanningSummary = () => {
 };
 
 /**
+ * Check if a chain has been marked as scanned in Redis, and mark it if not
+ * @param {number} chainId - Chain ID to check and mark
+ * @param {string} networkName - Network name for logging
+ * @returns {Promise<void>}
+ */
+const checkAndMarkChainScanned = async (chainId, networkName) => {
+  try {
+    // Get current wallet info from global context
+    const walletAddress = window.__LEXIE_WALLET_ADDRESS;
+    const walletId = window.__LEXIE_WALLET_ID;
+    const railgunAddress = window.__LEXIE_RAILGUN_ADDRESS;
+
+    if (!walletAddress || !walletId || !railgunAddress) {
+      console.warn('[ScanningService] ⚠️ Wallet info not available for Redis check, skipping scan marking');
+      // Still unlock modal as scan completed
+      unlockModalOnce(chainId, 'scan complete (wallet info unavailable)');
+      return;
+    }
+
+    console.log(`[ScanningService] 🔍 Checking if chain ${chainId} (${networkName}) has been marked as scanned in Redis...`);
+
+    // First, try to get current wallet metadata to check scannedChains
+    try {
+      const metadataResp = await fetch(`/api/wallet-metadata?action=get-wallet-metadata&walletAddress=${encodeURIComponent(walletAddress)}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (metadataResp.ok) {
+        const metadata = await metadataResp.json();
+        const scannedChains = metadata?.scannedChains || [];
+
+        console.log(`[ScanningService] 📊 Current scannedChains from Redis:`, scannedChains);
+
+        // Check if chain is already marked as scanned
+        if (scannedChains.includes(chainId)) {
+          console.log(`[ScanningService] ✅ Chain ${chainId} (${networkName}) already marked as scanned, unlocking modal`);
+          unlockModalOnce(chainId, 'scan complete (already marked)');
+          return;
+        }
+
+        console.log(`[ScanningService] 📝 Chain ${chainId} (${networkName}) not yet marked as scanned, marking now...`);
+      } else {
+        console.warn(`[ScanningService] ⚠️ Failed to get wallet metadata (${metadataResp.status}), proceeding with marking`);
+      }
+    } catch (metadataError) {
+      console.warn('[ScanningService] ⚠️ Error fetching wallet metadata:', metadataError.message);
+      console.log('[ScanningService] 📝 Proceeding with marking chain as scanned despite metadata fetch error');
+    }
+
+    // Mark chain as scanned in Redis
+    console.log(`[ScanningService] 💾 Marking chain ${chainId} (${networkName}) as scanned in Redis...`);
+
+    const scanResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        walletAddress,
+        walletId,
+        railgunAddress,
+        scannedChains: [chainId] // Mark this chain as scanned
+      })
+    });
+
+    if (scanResp.ok) {
+      console.log(`[ScanningService] ✅ Successfully marked chain ${chainId} (${networkName}) as scanned in Redis`);
+    } else {
+      console.warn(`[ScanningService] ⚠️ Failed to mark chain ${chainId} as scanned (${scanResp.status}):`, await scanResp.text());
+    }
+
+    // Always unlock the modal after scan completion
+    console.log(`[ScanningService] 🔓 Unlocking modal for chain ${chainId} (${networkName})`);
+    unlockModalOnce(chainId, 'scan complete');
+
+  } catch (error) {
+    console.error(`[ScanningService] ❌ Error in checkAndMarkChainScanned for chain ${chainId}:`, error);
+    // Still unlock modal on error to prevent stuck state
+    unlockModalOnce(chainId, 'scan complete (error recovery)');
+  }
+};
+
+/**
  * Setup official Railgun SDK callbacks for balance updates and Merkle tree scan progress
  * ⚠️ IMPORTANT: Call this once during app startup after initializeEngine()
  * This ensures the SDK emits RailgunBalancesEvent and MerkletreeScanUpdateEvent directly into our app
@@ -430,22 +513,21 @@ export const setupScanningCallbacks = () => {
         scanStatus.set(networkName, ScanStatus.COMPLETE);
         lastScanTime.set(networkName, Date.now());
 
-          // Set the global flag that WalletContext monitors for Redis persistence and modal unlocking
-          if (typeof window !== 'undefined') {
-            window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
-            window.__RAILGUN_INITIAL_SCAN_DONE[event.chain.id] = true;
+        // 🔓 Check Redis to see if chain has been marked as scanned, if not mark it and unlock modal
+        if (event.chain?.id) {
+          console.log(`[ScanningService] 🎯 TXID scan complete for chain ${event.chain.id}, checking Redis scan status`);
 
-            // Dispatch event to notify WalletContext immediately
-            window.dispatchEvent(new CustomEvent('railgun-txid-scan-complete', {
-              detail: { chainId: event.chain.id, networkName }
-            }));
-          }
+          // Run async check and marking in background (don't block the scan callback)
+          checkAndMarkChainScanned(event.chain.id, networkName).catch(error => {
+            console.error('[ScanningService] ❌ Error checking/marking chain as scanned:', error);
+          });
+        }
       }
     }
 
     // Dispatch custom event for UI compatibility
     window.dispatchEvent(new CustomEvent('railgun-txid-scan', {
-      detail: { networkName: event.chain?.name, scanData: event },
+      detail: { networkName, scanData: event },
     }));
   });
   
