@@ -398,6 +398,75 @@ const WalletContextProvider = ({ children }) => {
     chainIdRef.current = chainId;
   }, [chainId]);
 
+  // Listen for TXID scan completion events from scanning service
+  useEffect(() => {
+    const handleTXIDScanComplete = async (event) => {
+      const { chainId: scannedChainId } = event.detail;
+      console.log(`[WalletContext] 📡 Received TXID scan complete for chain ${scannedChainId}`);
+
+      // Check if we have all required context
+      if (!address || !railgunWalletID || !isRailgunInitialized) {
+        console.log('[WalletContext] ⏸️ Missing wallet context, skipping Redis persistence');
+        return;
+      }
+
+      try {
+        // Persist scanned chain to Redis by updating wallet metadata
+        // Fetch existing metadata first to preserve fields
+        const getResp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+        let existing = {};
+        if (getResp.ok) {
+          const data = await getResp.json();
+          const metaKey = data?.keys?.find((k) => k.walletId === railgunWalletID);
+          if (metaKey) {
+            existing = {
+              railgunAddress: metaKey.railgunAddress,
+              signature: metaKey.signature,
+              encryptedMnemonic: metaKey.encryptedMnemonic,
+              privateBalances: metaKey.privateBalances,
+              scannedChains: Array.from(new Set([...(metaKey.scannedChains || []), scannedChainId]))
+            };
+          }
+        }
+
+        // Post updated metadata back via existing endpoint
+        const persistResp = await fetch('/api/wallet-metadata', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            walletAddress: address,
+            walletId: railgunWalletID,
+            ...existing,
+            scannedChains: Array.from(new Set([...(existing.scannedChains || []), scannedChainId]))
+          })
+        });
+
+        if (persistResp.ok) {
+          console.log('[WalletContext] 💾 Persisted scannedChains to Redis:', {
+            chainId: scannedChainId,
+            walletId: railgunWalletID?.slice(0,8) + '...'
+          });
+
+          // Notify UI to re-check readiness and unlock modal
+          try {
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('railgun-scan-complete', { detail: { chainId: scannedChainId } }));
+            }
+          } catch {}
+        } else {
+          console.warn('[WalletContext] ⚠️ Failed to persist scannedChains to Redis:', await persistResp.text());
+        }
+      } catch (error) {
+        console.warn('[WalletContext] ⚠️ Error persisting scanned chain to Redis:', error);
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('railgun-txid-scan-complete', handleTXIDScanComplete);
+      return () => window.removeEventListener('railgun-txid-scan-complete', handleTXIDScanComplete);
+    }
+  }, [address, railgunWalletID, isRailgunInitialized]);
+
   // Signature confirmation
   const requestSignatureConfirmation = useCallback((message) => {
     return new Promise((resolve) => {

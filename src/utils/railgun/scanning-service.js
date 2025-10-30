@@ -429,6 +429,22 @@ export const setupScanningCallbacks = () => {
       if (event.scanStatus === 'Complete') {
         scanStatus.set(networkName, ScanStatus.COMPLETE);
         lastScanTime.set(networkName, Date.now());
+
+        // 🔓 Notify WalletContext that scan is complete for this chain
+        if (progressPercent === 100 && event.chain?.id) {
+          console.log(`[ScanningService] 🎯 TXID scan complete for chain ${event.chain.id}, notifying WalletContext`);
+
+          // Set the global flag that WalletContext monitors for Redis persistence and modal unlocking
+          if (typeof window !== 'undefined') {
+            window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
+            window.__RAILGUN_INITIAL_SCAN_DONE[event.chain.id] = true;
+
+            // Dispatch event to notify WalletContext immediately
+            window.dispatchEvent(new CustomEvent('railgun-txid-scan-complete', {
+              detail: { chainId: event.chain.id, networkName }
+            }));
+          }
+        }
       }
     }
 
