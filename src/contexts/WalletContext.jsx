@@ -665,15 +665,9 @@ const WalletContextProvider = ({ children }) => {
           console.warn('[Railgun Init] ⚠️ Failed to persist scannedChains to Redis:', await persistResp.text());
         }
 
-        // Always dispatch completion event since scan succeeded (persistence is nice-to-have)
-        console.log('[Railgun Init] ✅ Dispatching railgun-scan-complete event for chain:', railgunChain.id);
-        try {
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('railgun-scan-complete', { detail: { chainId: railgunChain.id } }));
-          }
-        } catch (eventError) {
-          console.warn('[Railgun Init] ⚠️ Failed to dispatch scan complete event:', eventError);
-        }
+        // Use centralized unlock utility
+        const { unlockModalOnce } = await import('../utils/railgun/modalUnlock.js');
+        unlockModalOnce(railgunChain.id, 'ensureChainScanned scan complete');
       } catch {}
 
       console.log('[Railgun Init] ✅ Initial scan complete for chain', railgunChain.id);

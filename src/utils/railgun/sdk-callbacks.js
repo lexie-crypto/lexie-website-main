@@ -256,7 +256,7 @@ export const onUTXOMerkletreeScanCallback = (scanData) => {
  * Enhanced TXID Merkletree scan callback with detailed progress tracking
  * @param {Object} scanData - Scan progress data from SDK
  */
-export const onTXIDMerkletreeScanCallback = (scanData) => {
+export const onTXIDMerkletreeScanCallback = async (scanData) => {
   console.log('[SDK Callbacks] 📊 TXID Merkletree scan update:', {
     progress: `${Math.round((scanData.progress || 0) * 100)}%`,
     scanStatus: scanData.scanStatus,
@@ -275,17 +275,10 @@ export const onTXIDMerkletreeScanCallback = (scanData) => {
   if (progressPercent === 100 || scanData.scanStatus === 'Complete') {
     console.log('[SDK Callbacks] 🎯 TXID Merkletree scan reached 100% - transaction data fully processed');
 
-    // Dispatch scan complete event immediately when scan finishes
-    console.log('[SDK Callbacks] ✅ Dispatching railgun-scan-complete event for chain scan completion');
-    try {
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('railgun-scan-complete', {
-          detail: { chainId: scanData.chainId || scanData.networkId }
-        }));
-      }
-    } catch (eventError) {
-      console.warn('[SDK Callbacks] ⚠️ Failed to dispatch scan complete event:', eventError);
-    }
+    // Use centralized unlock utility to ensure only one unlock per chain
+    const { unlockModalOnce } = await import('./modalUnlock.js');
+    const chainId = scanData.chainId || scanData.networkId;
+    unlockModalOnce(chainId, 'TXID scan 100% complete');
   } else if (progressPercent % 25 === 0 && progressPercent > 0) {
     console.log(`[SDK Callbacks] 📈 TXID scan milestone: ${progressPercent}% complete`);
   }
