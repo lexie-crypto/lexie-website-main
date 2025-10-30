@@ -575,9 +575,12 @@ export const initializeRailgunWallet = async ({
                 window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
                 window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id] = true;
               }
-              // Use centralized unlock utility
-              const { unlockModalOnce } = await import('./modalUnlock.js');
-              unlockModalOnce(railgunChain.id, 'fast path scan complete');
+              // Notify UI to re-check readiness
+              try {
+                if (typeof window !== 'undefined') {
+                  window.dispatchEvent(new CustomEvent('railgun-scan-complete', { detail: { chainId: railgunChain.id } }));
+                }
+              } catch {}
               // Note: scannedChains will only be marked when modal unlocks to prevent premature marking
               console.log('[Railgun Init] ✅ Initial scan complete for chain (scannedChains will be marked on modal unlock)', railgunChain.id);
             }
@@ -1396,9 +1399,12 @@ export const initializeRailgunWallet = async ({
             window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id] = true;
             try { localStorage.setItem(scanKey, '1'); } catch {}
           }
-          // Use centralized unlock utility
-          const { unlockModalOnce } = await import('./modalUnlock.js');
-          unlockModalOnce(railgunChain.id, 'full init scan complete');
+          // Notify UI to re-check readiness
+          try {
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('railgun-scan-complete', { detail: { chainId: railgunChain.id } }));
+            }
+          } catch {}
           // Note: scannedChains will only be marked when modal unlocks to prevent premature marking
           console.log('[Railgun Init] ✅ Initial scan complete for chain (scannedChains will be marked on modal unlock)', railgunChain.id);
         } else {
@@ -1419,15 +1425,6 @@ export const initializeRailgunWallet = async ({
       crossDevice: true
     });
 
-    // 🚀 CRITICAL: Mark current chain as scanned after wallet initialization
-    console.log('[Railgun Init] 🔄 Ensuring current chain is scanned after wallet initialization...');
-    try {
-      await ensureChainScanned(chainIdRef.current);
-      console.log('[Railgun Init] ✅ Chain scanning initiated for:', chainIdRef.current);
-    } catch (scanError) {
-      console.warn('[Railgun Init] ⚠️ Failed to initiate chain scanning:', scanError?.message);
-      // Don't fail wallet init if scanning fails - continue
-    }
 
     // Force unlock modal when Railgun initialization completes
     if (typeof window !== 'undefined') {
