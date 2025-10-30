@@ -899,6 +899,11 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       setIsInitInProgress(false); // Then unlock modal
       setIsChainReady(false);
       checkChainReady().then((ready) => setIsChainReady(!!ready)).catch(() => setIsChainReady(false));
+
+      // Close modal after a brief delay to show completion message
+      setTimeout(() => {
+        setShowSignRequestPopup(false);
+      }, 1500);
     };
     window.addEventListener('railgun-scan-complete', onScanComplete);
     return () => window.removeEventListener('railgun-scan-complete', onScanComplete);
@@ -1219,7 +1224,15 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     };
   }, [address, activeChainId, railgunWalletId, network, checkChainReady, showSignRequestPopup]);
 
-  // Modal unlock is handled by the onScanComplete event handler
+  // Unlock modal using the same readiness flag as old WalletPage
+  useEffect(() => {
+    if (showSignRequestPopup && isInitInProgress && scanComplete && isChainReady) {
+      setInitProgress({ percent: 100, message: 'Initialization complete' });
+      setIsInitInProgress(false);
+      setShowSignRequestPopup(false); // Close modal when initialization is complete
+      // Keep progress bar at 100% until modal closes, will reset when modal opens again
+    }
+  }, [scanComplete, isChainReady, isInitInProgress, showSignRequestPopup]);
 
   // Reset bootstrap progress when modal closes
   useEffect(() => {
