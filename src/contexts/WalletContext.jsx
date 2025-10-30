@@ -665,9 +665,12 @@ const WalletContextProvider = ({ children }) => {
           console.warn('[Railgun Init] ⚠️ Failed to persist scannedChains to Redis:', await persistResp.text());
         }
 
-        // Use centralized unlock utility
-        const { unlockModalOnce } = await import('../utils/railgun/modalUnlock.js');
-        unlockModalOnce(railgunChain.id, 'ensureChainScanned scan complete');
+        // Notify UI to re-check readiness
+        try {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('railgun-scan-complete', { detail: { chainId: railgunChain.id } }));
+          }
+        } catch {}
       } catch {}
 
       console.log('[Railgun Init] ✅ Initial scan complete for chain', railgunChain.id);
@@ -1071,6 +1074,7 @@ const WalletContextProvider = ({ children }) => {
       setLexieIdChoicePromise,
       setLexieIdLinkPromise,
       setShowReturningUserChainModal,
+      setReturningUserChainPromise,
       selectedInjectedProviderRef,
       connector,
       getWalletSigner,
