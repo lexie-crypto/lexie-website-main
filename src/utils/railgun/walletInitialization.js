@@ -30,8 +30,6 @@ export const initializeRailgunWallet = async ({
   withRPCRetryLimit,
   rpcLimiter,
   resetRPCLimiter,
-  ensureChainScanned,
-  chainsScanningRef,
   lastInitializedAddressRef,
   targetChainIdRef,
   chainIdRef

@@ -87,7 +87,7 @@ const CHAIN_RPC_MAPPING = {
 };
 
 export function useBalances() {
-  const { address, chainId, railgunWalletId, isRailgunInitialized, ensureChainScanned } = useWallet();
+  const { address, chainId, railgunWalletId, isRailgunInitialized } = useWallet();
 
   // State
   const [publicBalances, setPublicBalances] = useState([]);
@@ -955,41 +955,6 @@ export function useBalances() {
     })();
   }, [chainId, address, railgunWalletId]);
 
-  // Load private balances using SDK refresh when Railgun wallet is ready (same as refresh button)
-  useEffect(() => {
-    if (railgunWalletId && address && isRailgunInitialized && bootstrappedChains.has(chainId)) {
-      console.log('[useBalances] 🛡️ Railgun wallet ready - triggering SDK balance refresh (like refresh button)...');
-      setIsPrivateBalancesLoading(true);
-      try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
-
-      // Use the same SDK refresh + persist logic as the refresh button
-      (async () => {
-        try {
-          // Step 0: Ensure chain has been scanned for private transfers (critical for discovering transfers before first shield)
-          console.log('[useBalances] Ensuring chain is scanned before initial SDK refresh...');
-          await ensureChainScanned(chainId);
-
-          const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
-          await syncBalancesAfterTransaction({
-            walletAddress: address,
-            walletId: railgunWalletId,
-            chainId,
-          });
-          console.log('[useBalances] ✅ SDK balance refresh completed on wallet connect');
-
-          // Modal unlock is now handled by centralized unlock utility during scan completion
-          // The scan should have already unlocked the modal
-          console.log('[useBalances] Modal unlock handled by scan completion event');
-
-        } catch (error) {
-          console.error('[useBalances] ❌ SDK balance refresh failed on wallet connect:', error.message);
-        } finally {
-          setIsPrivateBalancesLoading(false);
-          try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
-        }
-      })();
-    }
-  }, [railgunWalletId, address, isRailgunInitialized, chainId, bootstrappedChains, ensureChainScanned]);
 
   // Listen for chain bootstrap completion to sequence balance refresh
   useEffect(() => {
