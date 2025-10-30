@@ -378,18 +378,29 @@ export const setupScanningCallbacks = () => {
 
   // ✅ Official UTXO Merkle tree scan progress callback from Railgun SDK
   setOnUTXOMerkletreeScanCallback((event) => {
-    console.log(`[ScanningService] 📊 UTXO scan progress: ${event.progress * 100}%`);
-    
+    // Handle completion status - treat 'Complete' as 100% progress
+    const progressPercent = event.scanStatus === 'Complete'
+      ? 100
+      : (event.progress * 100 || 0);
+
+    console.log(`[ScanningService] 📊 UTXO scan progress: ${progressPercent}%`);
+
     // Update internal progress tracking
     const networkName = event.chain?.name;
     if (networkName) {
       const currentProgress = getScanProgress(networkName);
       scanProgress.set(networkName, {
         ...currentProgress,
-        utxo: event.progress * 100 || 0,
+        utxo: progressPercent,
       });
+
+      // Update overall scan status if complete
+      if (event.scanStatus === 'Complete') {
+        scanStatus.set(networkName, ScanStatus.COMPLETE);
+        lastScanTime.set(networkName, Date.now());
+      }
     }
-    
+
     // Dispatch custom event for UI compatibility
     window.dispatchEvent(new CustomEvent('railgun-utxo-scan', {
       detail: { networkName: event.chain?.name, scanData: event },
@@ -398,18 +409,29 @@ export const setupScanningCallbacks = () => {
 
   // ✅ Official TXID Merkle tree scan progress callback from Railgun SDK
   setOnTXIDMerkletreeScanCallback((event) => {
-    console.log(`[ScanningService] 📊 TXID scan progress: ${event.progress * 100}%`);
-    
+    // Handle completion status - treat 'Complete' as 100% progress
+    const progressPercent = event.scanStatus === 'Complete'
+      ? 100
+      : (event.progress * 100 || 0);
+
+    console.log(`[ScanningService] 📊 TXID scan progress: ${progressPercent}%`);
+
     // Update internal progress tracking
     const networkName = event.chain?.name;
     if (networkName) {
       const currentProgress = getScanProgress(networkName);
       scanProgress.set(networkName, {
         ...currentProgress,
-        txid: event.progress * 100 || 0,
+        txid: progressPercent,
       });
+
+      // Update overall scan status if complete
+      if (event.scanStatus === 'Complete') {
+        scanStatus.set(networkName, ScanStatus.COMPLETE);
+        lastScanTime.set(networkName, Date.now());
+      }
     }
-    
+
     // Dispatch custom event for UI compatibility
     window.dispatchEvent(new CustomEvent('railgun-txid-scan', {
       detail: { networkName: event.chain?.name, scanData: event },
