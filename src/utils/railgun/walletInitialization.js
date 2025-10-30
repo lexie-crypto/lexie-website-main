@@ -23,6 +23,7 @@ export const initializeRailgunWallet = async ({
   setLexieIdChoicePromise,
   setLexieIdLinkPromise,
   setShowReturningUserChainModal,
+  setReturningUserChainPromise,
   selectedInjectedProviderRef,
   connector,
   getWalletSigner,
