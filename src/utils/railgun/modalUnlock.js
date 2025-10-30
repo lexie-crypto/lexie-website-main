@@ -46,11 +46,45 @@ export const resetAllUnlocks = () => {
 
 /**
  * Attempt to unlock the modal for a chain (only once)
- * @param {number} chainId - The chain ID
+ * @param {number} chainId - The chain ID (optional - will get from context if not provided)
  * @param {string} reason - Reason for the unlock attempt (for logging)
  * @returns {boolean} Whether the unlock was performed (false if already unlocked)
  */
 export const unlockModalOnce = (chainId, reason = 'scan complete') => {
+  let originalChainId = chainId;
+
+  // If chainId not provided, try to get it from current context
+  if (chainId === undefined || chainId === null) {
+    try {
+      // Try to get from global context first (set by VaultDesktop)
+      if (typeof window !== 'undefined' && window.__LEXIE_ACTIVE_CHAIN_ID) {
+        chainId = window.__LEXIE_ACTIVE_CHAIN_ID;
+        console.log('[ModalUnlock] 📍 Got chainId from global context:', chainId);
+      } else {
+        // Fallback to localStorage
+        const storedChain = localStorage.getItem('lexie-selected-chain');
+        if (storedChain) {
+          chainId = parseInt(storedChain, 10);
+          console.log('[ModalUnlock] 📍 Got chainId from localStorage:', chainId);
+        }
+      }
+    } catch (error) {
+      console.warn('[ModalUnlock] ⚠️ Could not get chainId:', error);
+    }
+
+    // Last resort fallback - assume BNB chain (56)
+    if (chainId === undefined || chainId === null) {
+      console.warn('[ModalUnlock] ⚠️ Using fallback chainId 56 (BNB)');
+      chainId = 56;
+    }
+  }
+
+  // Validate chainId
+  if (typeof chainId !== 'number' || isNaN(chainId)) {
+    console.error('[ModalUnlock] ❌ Invalid chainId:', chainId);
+    return false;
+  }
+
   // Check if already unlocked
   if (isChainUnlocked(chainId)) {
     console.log('[ModalUnlock] ⏭️ Skipping unlock - chain already unlocked:', {

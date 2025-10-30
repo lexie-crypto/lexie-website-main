@@ -377,6 +377,13 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     ? { id: selectedChainId, name: {1: 'Ethereum', 137: 'Polygon', 42161: 'Arbitrum', 56: 'BNB Chain'}[selectedChainId] || `Chain ${selectedChainId}` }
     : getCurrentNetwork();
 
+  // Set global variable for modal unlock utility to access current chain
+  React.useEffect(() => {
+    if (typeof window !== 'undefined' && activeChainId) {
+      window.__LEXIE_ACTIVE_CHAIN_ID = activeChainId;
+    }
+  }, [activeChainId]);
+
   // Supported networks array
   const supportedNetworks = [
     { id: 1, name: 'Ethereum', symbol: 'ETH' },
