@@ -7,8 +7,6 @@
 const spendableNotesState = new Map(); // walletId -> { tokenAddress -> { isSpendable: bool, amount: bigint, lastUpdate: timestamp } }
 const merkleTreeScanState = new Map(); // walletId -> { utxoProgress: number, txidProgress: number, isComplete: bool }
 
-// Balance update callbacks are handled centrally in sdk-callbacks.js
-
 /**
  * Track spendable note state for proof generation blocking
  * @param {string} walletId - Railgun wallet ID
@@ -227,7 +225,6 @@ export const waitForMerkleScansComplete = (walletId, timeoutMs = 30000) => {
   });
 };
 
-
 /**
  * Enhanced UTXO Merkletree scan callback with detailed progress tracking
  * @param {Object} scanData - Scan progress data from SDK
@@ -265,18 +262,23 @@ export const onTXIDMerkletreeScanCallback = async (scanData) => {
     scanStatus: scanData.scanStatus,
     timestamp: new Date().toISOString()
   });
-
+  
   // Dispatch event for UI components
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('railgun-txid-scan', {
       detail: scanData
     }));
   }
-
+  
   // Log scan milestones
   const progressPercent = Math.round((scanData.progress || 0) * 100);
   if (progressPercent === 100 || scanData.scanStatus === 'Complete') {
     console.log('[SDK Callbacks] 🎯 TXID Merkletree scan reached 100% - transaction data fully processed');
+
+    // Use centralized unlock utility to ensure only one unlock per chain
+    const { unlockModalOnce } = await import('./modalUnlock.js');
+    const chainId = scanData.chainId || scanData.networkId;
+    unlockModalOnce(chainId, 'TXID scan 100% complete');
   } else if (progressPercent % 25 === 0 && progressPercent > 0) {
     console.log(`[SDK Callbacks] 📈 TXID scan milestone: ${progressPercent}% complete`);
   }

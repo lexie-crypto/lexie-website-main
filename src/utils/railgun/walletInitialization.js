@@ -30,6 +30,8 @@ export const initializeRailgunWallet = async ({
   withRPCRetryLimit,
   rpcLimiter,
   resetRPCLimiter,
+  ensureChainScanned,
+  chainsScanningRef,
   lastInitializedAddressRef,
   targetChainIdRef,
   chainIdRef
@@ -548,6 +550,47 @@ export const initializeRailgunWallet = async ({
         console.warn('⚠️ Master wallet export initialization failed for existing wallet:', masterError.message);
       }
 
+      // 🔄 Run initial Merkle-tree scan and balance refresh for CURRENT chain only (prevent infinite polling)
+      try {
+        const { refreshBalances } = await import('@railgun-community/wallet');
+        const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
+        let railgunChain = null;
+        for (const [, cfg] of Object.entries(NETWORK_CONFIG)) {
+          if (cfg.chain.id === chainIdRef.current) { railgunChain = cfg.chain; break; }
+        }
+        if (railgunChain) {
+          // Strictly check Redis first to decide whether to scan
+          try {
+            const { checkChainScannedInRedis } = await import('../sync/idb-sync/hydrationCheckUtils.js');
+            const { isScanned: redisHasChain } = await checkChainScannedInRedis(address, railgunWalletInfo.id, railgunChain.id);
+            if (redisHasChain) {
+              console.log('[Railgun Init] ⏭️ Skipping initial scan (found in Redis) for chain', railgunChain.id);
+            } else {
+              console.log('[Railgun Init] 🔄 Performing initial balance refresh for chain', railgunChain.id);
+              // Start UI polling exactly when refresh begins
+              try { window.dispatchEvent(new CustomEvent('vault-poll-start', { detail: { address, walletId: railgunWalletInfo.id, chainId: railgunChain.id } })); } catch {}
+              await refreshBalances(railgunChain, [railgunWalletInfo.id]);
+              try { window.dispatchEvent(new CustomEvent('vault-poll-complete', { detail: { address, walletId: railgunWalletInfo.id, chainId: railgunChain.id } })); } catch {}
+              if (typeof window !== 'undefined') {
+                window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
+                window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id] = true;
+              }
+              // Use centralized unlock utility
+              const { unlockModalOnce } = await import('./modalUnlock.js');
+              unlockModalOnce(railgunChain.id, 'fast path scan complete');
+              // Note: scannedChains will only be marked when modal unlocks to prevent premature marking
+              console.log('[Railgun Init] ✅ Initial scan complete for chain (scannedChains will be marked on modal unlock)', railgunChain.id);
+            }
+          } catch (e) {
+            console.warn('[Railgun Init] ⚠️ Failed to read scannedChains from Redis, proceeding with scan:', e?.message);
+            await refreshBalances(railgunChain, [railgunWalletInfo.id]);
+          }
+        } else {
+          console.warn('[Railgun Init] ⚠️ Unable to resolve Railgun chain for initial scan; chainId:', chainId);
+        }
+      } catch (scanError) {
+        console.warn('[Railgun Init] ⚠️ Initial balance refresh failed (continuing):', scanError?.message);
+      }
 
       setIsInitializing(false);
       return;
@@ -1190,10 +1233,10 @@ export const initializeRailgunWallet = async ({
     // 🎯 Check if this is a returning user (existing wallet loaded, not created)
     const isReturningUser = savedWalletID && existingRailgunAddress;
 
-      // Store wallet info but DON'T set initialized state yet
-      setRailgunAddress(railgunWalletInfo.railgunAddress);
-      setRailgunWalletID(railgunWalletInfo.id);
-      lastInitializedAddressRef.current = railgunWalletInfo.id;
+    // Store wallet info but DON'T set initialized state yet
+    setRailgunAddress(railgunWalletInfo.railgunAddress);
+    setRailgunWalletID(railgunWalletInfo.id);
+    lastInitializedAddressRef.current = railgunWalletInfo.id;
 
     console.log('✅ Wallet state updated - all data persisted in Redis for cross-device access');
 
@@ -1331,6 +1374,42 @@ export const initializeRailgunWallet = async ({
       }
     }, 1000); // Short delay to ensure everything is stable
 
+    // 🔄 Run initial Merkle-tree scan and balance refresh for CURRENT chain only (prevent infinite polling)
+    try {
+      const { refreshBalances } = await import('@railgun-community/wallet');
+      const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
+      let railgunChain = null;
+      for (const [, cfg] of Object.entries(NETWORK_CONFIG)) {
+        if (cfg.chain.id === chainIdRef.current) { railgunChain = cfg.chain; break; }
+      }
+      if (railgunChain) {
+        const scanKey = `railgun-initial-scan:${address?.toLowerCase()}:${railgunWalletInfo.id}:${railgunChain.id}`;
+        const alreadyScanned = typeof window !== 'undefined' && (window.__RAILGUN_INITIAL_SCAN_DONE?.[railgunChain.id] || localStorage.getItem(scanKey) === '1');
+        if (!alreadyScanned) {
+          console.log('[Railgun Init] 🔄 Performing initial balance refresh for chain', railgunChain.id);
+          // Start UI polling exactly when refresh begins
+          try { window.dispatchEvent(new CustomEvent('vault-poll-start', { detail: { address, walletId: railgunWalletInfo.id, chainId: railgunChain.id } })); } catch {}
+          await refreshBalances(railgunChain, [railgunWalletInfo.id]);
+          try { window.dispatchEvent(new CustomEvent('vault-poll-complete', { detail: { address, walletId: railgunWalletInfo.id, chainId: railgunChain.id } })); } catch {}
+          if (typeof window !== 'undefined') {
+            window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
+            window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id] = true;
+            try { localStorage.setItem(scanKey, '1'); } catch {}
+          }
+          // Use centralized unlock utility
+          const { unlockModalOnce } = await import('./modalUnlock.js');
+          unlockModalOnce(railgunChain.id, 'full init scan complete');
+          // Note: scannedChains will only be marked when modal unlocks to prevent premature marking
+          console.log('[Railgun Init] ✅ Initial scan complete for chain (scannedChains will be marked on modal unlock)', railgunChain.id);
+        } else {
+          console.log('[Railgun Init] ⏭️ Skipping initial scan (already completed) for chain', railgunChain.id);
+        }
+      } else {
+        console.warn('[Railgun Init] ⚠️ Unable to resolve Railgun chain for initial scan; chainId:', chainIdRef.current);
+      }
+    } catch (scanError) {
+      console.warn('[Railgun Init] ⚠️ Initial balance refresh failed (continuing):', scanError?.message);
+    }
 
     console.log('🎉 Railgun initialization completed with official SDK:', {
       userAddress: address,
@@ -1340,6 +1419,15 @@ export const initializeRailgunWallet = async ({
       crossDevice: true
     });
 
+    // 🚀 CRITICAL: Mark current chain as scanned after wallet initialization
+    console.log('[Railgun Init] 🔄 Ensuring current chain is scanned after wallet initialization...');
+    try {
+      await ensureChainScanned(chainIdRef.current);
+      console.log('[Railgun Init] ✅ Chain scanning initiated for:', chainIdRef.current);
+    } catch (scanError) {
+      console.warn('[Railgun Init] ⚠️ Failed to initiate chain scanning:', scanError?.message);
+      // Don't fail wallet init if scanning fails - continue
+    }
 
     // Force unlock modal when Railgun initialization completes
     if (typeof window !== 'undefined') {
