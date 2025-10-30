@@ -661,16 +661,15 @@ const WalletContextProvider = ({ children }) => {
             chainId: railgunChain.id,
             walletId: railgunWalletID?.slice(0,8) + '...'
           });
+          // Notify UI to re-check readiness
+          try {
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('railgun-scan-complete', { detail: { chainId: railgunChain.id } }));
+            }
+          } catch {}
         } else {
           console.warn('[Railgun Init] ⚠️ Failed to persist scannedChains to Redis:', await persistResp.text());
         }
-
-        // Notify UI to re-check readiness
-        try {
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('railgun-scan-complete', { detail: { chainId: railgunChain.id } }));
-          }
-        } catch {}
       } catch {}
 
       console.log('[Railgun Init] ✅ Initial scan complete for chain', railgunChain.id);

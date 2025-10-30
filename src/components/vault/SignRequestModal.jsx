@@ -15,8 +15,8 @@ const SignRequestModal = ({
   onPersistMetadata,
   onClose
 }) => {
-  const [scanCompleteReceived, setScanCompleteReceived] = useState(false);
   const [redisScannedChains, setRedisScannedChains] = useState([]);
+  const [scanCompleteReceived, setScanCompleteReceived] = useState(false);
 
   // Check Redis for scanned chains on mount
   useEffect(() => {
@@ -44,18 +44,18 @@ const SignRequestModal = ({
     }
   }, [isOpen, address, railgunWalletId, activeChainId]);
 
-  // Listen for SCAN_COMPLETE events
+  // Listen for railgun-scan-complete events
   useEffect(() => {
     const handleScanComplete = (event) => {
       const { chainId } = event.detail;
       if (chainId === activeChainId) {
-        console.log('[SignRequestModal] 🎉 SCAN_COMPLETE event received for chain:', chainId);
+        console.log('[SignRequestModal] 🎉 railgun-scan-complete event received for chain:', chainId);
         setScanCompleteReceived(true);
       }
     };
 
-    window.addEventListener('SCAN_COMPLETE', handleScanComplete);
-    return () => window.removeEventListener('SCAN_COMPLETE', handleScanComplete);
+    window.addEventListener('railgun-scan-complete', handleScanComplete);
+    return () => window.removeEventListener('railgun-scan-complete', handleScanComplete);
   }, [activeChainId]);
 
   if (!isOpen) return null;

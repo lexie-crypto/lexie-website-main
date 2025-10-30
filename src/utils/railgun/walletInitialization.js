@@ -1192,16 +1192,10 @@ export const initializeRailgunWallet = async ({
     // 🎯 Check if this is a returning user (existing wallet loaded, not created)
     const isReturningUser = savedWalletID && existingRailgunAddress;
 
-    // Store wallet info but DON'T set initialized state yet
-    setRailgunAddress(railgunWalletInfo.railgunAddress);
-    setRailgunWalletID(railgunWalletInfo.id);
-    lastInitializedAddressRef.current = railgunWalletInfo.id;
-
-      // Set global context for SDK callbacks
-      if (typeof window !== 'undefined') {
-        window.__CURRENT_RAILGUN_WALLET_ID = railgunWalletInfo.id;
-        window.__CURRENT_WALLET_ADDRESS = address;
-      }
+      // Store wallet info but DON'T set initialized state yet
+      setRailgunAddress(railgunWalletInfo.railgunAddress);
+      setRailgunWalletID(railgunWalletInfo.id);
+      lastInitializedAddressRef.current = railgunWalletInfo.id;
 
     console.log('✅ Wallet state updated - all data persisted in Redis for cross-device access');
 
