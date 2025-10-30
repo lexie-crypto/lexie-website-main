@@ -1,4 +1,4 @@
-# Lexie Website
+# Lexie Website!
 
 Landing page for Lexie, an AI companion for the world of Web3.
 
