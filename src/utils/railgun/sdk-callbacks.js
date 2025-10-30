@@ -275,10 +275,7 @@ export const onTXIDMerkletreeScanCallback = async (scanData) => {
   if (progressPercent === 100 || scanData.scanStatus === 'Complete') {
     console.log('[SDK Callbacks] 🎯 TXID Merkletree scan reached 100% - transaction data fully processed');
 
-    // Use centralized unlock utility to ensure only one unlock per chain
-    const { unlockModalOnce } = await import('./modalUnlock.js');
-    const chainId = scanData.chainId || scanData.networkId;
-    unlockModalOnce(chainId, 'TXID scan 100% complete');
+    // Modal unlock removed
   } else if (progressPercent % 25 === 0 && progressPercent > 0) {
     console.log(`[SDK Callbacks] 📈 TXID scan milestone: ${progressPercent}% complete`);
   }
