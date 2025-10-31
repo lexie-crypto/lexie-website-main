@@ -35,132 +35,116 @@ export const useRailgunModal = ({
     bootstrapLockedRef.current = false;
   }, []);
 
-  // Event handlers - defined inline to avoid dependency issues
-  const getEventHandlers = useCallback(() => {
-    const onSignRequest = () => {
-      setShowSignRequestPopup(true);
-      setIsInitInProgress(false);
-      setInitProgress({ percent: 0, message: '' });
-      setInitFailedMessage('');
-      console.log('[RailgunModal] Signature requested - showing modal');
-    };
+  // Event handlers - simplified to avoid initialization issues
+  const eventHandlersRef = useRef({});
 
-    const onInitStarted = (e) => {
-      // Open modal when init/scan starts
-      setShowSignRequestPopup(true);
-      setScanComplete(false);
-      setIsInitInProgress(true);
-      // Guard reset-to-0: don't reset progress if already at 100%
-      setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);
-      setInitFailedMessage('');
+  // Initialize event handlers only once
+  if (!eventHandlersRef.current.onSignRequest) {
+    eventHandlersRef.current = {
+      onSignRequest: () => {
+        setShowSignRequestPopup(true);
+        setIsInitInProgress(false);
+        setInitProgress({ percent: 0, message: '' });
+        setInitFailedMessage('');
+        console.log('[RailgunModal] Signature requested - showing modal');
+      },
 
-      // Use eventChainId if available, otherwise use initializingChainId or activeChainId
-      const chainToInit = e?.detail?.chainId || initializingChainId || activeChainId;
-      setInitializingChainId(chainToInit);
+      onInitStarted: (e) => {
+        setShowSignRequestPopup(true);
+        setScanComplete(false);
+        setIsInitInProgress(true);
+        setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);
+        setInitFailedMessage('');
 
-      const chainLabel = getNetworkNameById(chainToInit);
-      setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
-      console.log('[RailgunModal] Initialization started');
-    };
+        const chainToInit = e?.detail?.chainId || activeChainId;
+        setInitializingChainId(chainToInit);
 
-    const onScanStarted = async (e) => {
-      // Same guard: avoid modal during initial connect
-      if (!initialConnectDoneRef.current) return;
+        const chainLabel = getNetworkNameById ? getNetworkNameById(chainToInit) : `Chain ${chainToInit}`;
+        setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
+        console.log('[RailgunModal] Initialization started');
+      },
 
-      try {
-        const ready = await checkChainReady();
-        if (!ready) onInitStarted(e);
-      } catch {
-        onInitStarted(e);
-      }
-    };
+      onScanStarted: async (e) => {
+        if (!initialConnectDoneRef.current) return;
 
-    const onInitProgress = () => {
-      const chainLabel = network?.name || (activeChainId ? `Chain ${activeChainId}` : 'network');
-      setInitProgress((prev) => ({
-        percent: prev.percent,
-        message: prev.message || `Setting up your LexieVault on ${chainLabel}...`,
-      }));
-    };
+        try {
+          if (checkChainReady) {
+            const ready = await checkChainReady();
+            if (!ready) eventHandlersRef.current.onInitStarted(e);
+          } else {
+            eventHandlersRef.current.onInitStarted(e);
+          }
+        } catch {
+          eventHandlersRef.current.onInitStarted(e);
+        }
+      },
 
-    const onInitCompleted = () => {
-      // Do not set to 100% here; wait for checkChainReady to confirm
-      console.log('[RailgunModal] SDK reported completed; awaiting confirmation');
-      setInitProgress((prev) => ({ ...prev, message: prev.message || 'Finalizing...' }));
-    };
-
-    const onInitFailed = (e) => {
-      const msg = e?.detail?.error || 'Initialization failed';
-      setInitFailedMessage(msg);
-      setIsInitInProgress(false);
-      console.warn('[RailgunModal] Initialization failed:', msg);
-    };
-
-    const onVaultInitComplete = () => {
-      console.log('[RailgunModal] Force unlocking initialization modal');
-      setIsInitInProgress(false);
-      setInitProgress({ percent: 100, message: 'Initialization complete' });
-      // Don't reset bootstrap progress - let it stay at 100% until modal closes
-    };
-
-    const onRailgunInitForceUnlock = () => {
-      console.log('[RailgunModal] Railgun initialization completed - modal will unlock when scanning completes');
-      // Don't set isInitInProgress=false here - wait for scanning to complete
-      // Don't set scanComplete=true here - let actual scanning completion do that
-      setInitProgress({ percent: 95, message: 'Railgun ready - completing chain scan...' });
-    };
-
-    const onBootstrapProgress = (e) => {
-      const { chainId: eventChainId, progress } = e.detail;
-
-      // Update which chain we're initializing
-      setInitializingChainId(eventChainId);
-
-      const bootstrapNetworkName = getNetworkNameById(eventChainId);
-
-      console.log('[RailgunModal] Bootstrap progress event:', {
-        eventChainId,
-        progress,
-        currentChainId: activeChainId,
-        networkName: bootstrapNetworkName
-      });
-
-      // Always update progress bar during bootstrap (only one chain at a time)
-      const newPercent = Math.round(progress * 100) / 100;
-      console.log('[RailgunModal] Updating progress bar for chain', eventChainId, 'progress:', progress, '->', newPercent + '%');
-
-      // Lock at 100% once reached - don't allow it to go below 100% until modal closes
-      setBootstrapProgress(prev => {
-        const finalPercent = bootstrapLockedRef.current && newPercent < prev.percent ? prev.percent : newPercent;
-        return { percent: finalPercent, active: true };
-      });
-
-      // When bootstrap reaches 100%, lock it and change message to "Creating..."
-      if (newPercent >= 100 && !bootstrapLockedRef.current) {
-        bootstrapLockedRef.current = true;
-        setInitProgress(prev => ({
-          ...prev,
-          message: `Creating your LexieVault on ${bootstrapNetworkName} Network...`
+      onInitProgress: () => {
+        const chainLabel = network?.name || (activeChainId ? `Chain ${activeChainId}` : 'network');
+        setInitProgress((prev) => ({
+          percent: prev.percent,
+          message: prev.message || `Setting up your LexieVault on ${chainLabel}...`,
         }));
+      },
+
+      onInitCompleted: () => {
+        console.log('[RailgunModal] SDK reported completed; awaiting confirmation');
+        setInitProgress((prev) => ({ ...prev, message: prev.message || 'Finalizing...' }));
+      },
+
+      onInitFailed: (e) => {
+        const msg = e?.detail?.error || 'Initialization failed';
+        setInitFailedMessage(msg);
+        setIsInitInProgress(false);
+        console.warn('[RailgunModal] Initialization failed:', msg);
+      },
+
+      onVaultInitComplete: () => {
+        console.log('[RailgunModal] Force unlocking initialization modal');
+        setIsInitInProgress(false);
+        setInitProgress({ percent: 100, message: 'Initialization complete' });
+      },
+
+      onRailgunInitForceUnlock: () => {
+        console.log('[RailgunModal] Railgun initialization completed - modal will unlock when scanning completes');
+        setInitProgress({ percent: 95, message: 'Railgun ready - completing chain scan...' });
+      },
+
+      onBootstrapProgress: (e) => {
+        const { chainId: eventChainId, progress } = e.detail;
+        setInitializingChainId(eventChainId);
+
+        const bootstrapNetworkName = getNetworkNameById ? getNetworkNameById(eventChainId) : `Chain ${eventChainId}`;
+
+        console.log('[RailgunModal] Bootstrap progress event:', {
+          eventChainId,
+          progress,
+          currentChainId: activeChainId,
+          networkName: bootstrapNetworkName
+        });
+
+        const newPercent = Math.round(progress * 100) / 100;
+        console.log('[RailgunModal] Updating progress bar for chain', eventChainId, 'progress:', progress, '->', newPercent + '%');
+
+        setBootstrapProgress(prev => {
+          const finalPercent = bootstrapLockedRef.current && newPercent < prev.percent ? prev.percent : newPercent;
+          return { percent: finalPercent, active: true };
+        });
+
+        if (newPercent >= 100 && !bootstrapLockedRef.current) {
+          bootstrapLockedRef.current = true;
+          setInitProgress(prev => ({
+            ...prev,
+            message: `Creating your LexieVault on ${bootstrapNetworkName} Network...`
+          }));
+        }
       }
     };
-
-    return {
-      onSignRequest,
-      onInitStarted,
-      onScanStarted,
-      onInitProgress,
-      onInitCompleted,
-      onInitFailed,
-      onVaultInitComplete,
-      onRailgunInitForceUnlock,
-      onBootstrapProgress
-    };
-  }, [activeChainId, network, checkChainReady, getNetworkNameById]);
+  }
 
   // Set up event listeners
   useEffect(() => {
-    const handlers = getEventHandlers();
+    const handlers = eventHandlersRef.current;
 
     if (typeof window !== 'undefined') {
       window.addEventListener('railgun-signature-requested', handlers.onSignRequest);
@@ -187,7 +171,7 @@ export const useRailgunModal = ({
         window.removeEventListener('chain-bootstrap-progress', handlers.onBootstrapProgress);
       }
     };
-  }, [getEventHandlers]);
+  }, []); // Empty dependency array since handlers are stable
 
   // Mark initial connect as done once wallet metadata is ready or init completes
   useEffect(() => {
