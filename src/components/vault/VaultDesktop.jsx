@@ -788,11 +788,11 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       return;
     }
 
-    if (isConnected && address && activeChainId && canUseRailgun && railgunWalletId) {
+    if (isConnected && address && canUseRailgun && railgunWalletId) {
       console.log('[VaultDesktop] Wallet connected and Railgun ready - auto-refreshing balances...');
       refreshBalances(false); // Full refresh but no toast notification
     }
-  }, [isConnected, address, activeChainId, canUseRailgun, railgunWalletId, refreshBalances, showReturningUserChainModal]);
+  }, [isConnected, address, canUseRailgun, railgunWalletId, refreshBalances, showReturningUserChainModal]);
 
   // Auto-switch to privacy view when Railgun is ready
   useEffect(() => {
