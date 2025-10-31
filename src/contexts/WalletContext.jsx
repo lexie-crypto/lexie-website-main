@@ -387,9 +387,6 @@ const WalletContextProvider = ({ children }) => {
   // Track when chain switching is in progress to prevent double hydration
   const chainSwitchInProgressRef = useRef(new Set());
 
-  // Centralized initialization coordinator to prevent duplicate chain initialization
-  const initializationInProgressRef = useRef(new Set());
-
   // Update target chain ref when user selects chain in modal
   useEffect(() => {
     try {
@@ -521,55 +518,36 @@ const WalletContextProvider = ({ children }) => {
     }
   }, [signatureConfirmationPromise]);
 
-  // Centralized initialization coordinator to prevent duplicate chain initialization
-  const ensureChainInitialized = useCallback(async (targetChainId) => {
-    const key = `${address}-${railgunWalletID}-${targetChainId}`;
-
-    // Prevent duplicate initialization
-    if (initializationInProgressRef.current.has(key)) {
-      console.log(`[Init] Already initializing chain ${targetChainId}, skipping`);
+  // Ensure initial full scan is completed for a given chain before user transacts
+  const ensureChainScanned = useCallback(async (targetChainId) => {
+    // 🛡️ CRITICAL: Don't run scans if returning user modal is open
+    if (showReturningUserChainModal) {
+      console.log('[Railgun Init] ⏸️ Waiting for returning user to select chain before scanning');
       return;
     }
 
-    initializationInProgressRef.current.add(key);
+    if (!isConnected || !address || !railgunWalletID) return;
 
-    try {
-      // 🛡️ CRITICAL: Don't run initialization if returning user modal is open
-      if (showReturningUserChainModal) {
-        console.log('[Railgun Init] ⏸️ Waiting for returning user to select chain before initializing');
-        return;
+    // Use the centralized chain switch utility
+    const success = await switchToChain({
+      address,
+      railgunWalletID,
+      targetChainId,
+      onProgress: (progress) => {
+        console.log(`[Railgun Init] Progress: ${progress.phase}`, progress);
+      },
+      onError: (error) => {
+        console.warn(`[Railgun Init] Error for chain ${targetChainId}:`, error);
+      },
+      onComplete: (result) => {
+        console.log(`[Railgun Init] ✅ Chain ${targetChainId} scan completed:`, result);
       }
+    });
 
-      if (!isConnected || !address || !railgunWalletID) return;
-
-      // Use the centralized chain switch utility
-      const success = await switchToChain({
-        address,
-        railgunWalletID,
-        targetChainId,
-        onProgress: (progress) => {
-          console.log(`[Railgun Init] Progress: ${progress.phase}`, progress);
-        },
-        onError: (error) => {
-          console.warn(`[Railgun Init] Error for chain ${targetChainId}:`, error);
-        },
-        onComplete: (result) => {
-          console.log(`[Railgun Init] ✅ Chain ${targetChainId} initialization completed:`, result);
-        }
-      });
-
-      if (!success) {
-        console.warn(`[Railgun Init] ⚠️ Chain initialization failed for ${targetChainId}`);
-      }
-    } finally {
-      initializationInProgressRef.current.delete(key);
+    if (!success) {
+      console.warn(`[Railgun Init] ⚠️ Chain scan failed for ${targetChainId}`);
     }
   }, [isConnected, address, railgunWalletID, showReturningUserChainModal]);
-
-  // Legacy function for backward compatibility - now delegates to centralized coordinator
-  const ensureChainScanned = useCallback(async (targetChainId) => {
-    return ensureChainInitialized(targetChainId);
-  }, [ensureChainInitialized]);
 
   // Reset rate limiter only on wallet disconnect/connect
   const resetRPCLimiter = () => {
@@ -1078,9 +1056,78 @@ const WalletContextProvider = ({ children }) => {
                   return;
                 }
 
-                // Use centralized initialization coordinator
-                console.log(`🚀 Using centralized initialization coordinator for chain ${chainId} after auto-init...`);
-                await ensureChainInitialized(chainId);
+                // Check hydration guard: hydratedChains + hydration lock + chain switch in progress
+                const isHydrating = isChainHydrating(railgunWalletID, chainId);
+                const isChainSwitching = chainSwitchInProgressRef.current.has(chainId);
+                let alreadyHydrated = false;
+                try {
+                  const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+                  if (resp.ok) {
+                    const json = await resp.json();
+                    const metaKey = json?.keys?.find((k) => k.walletId === railgunWalletID) || null;
+                    const hydratedChains = metaKey?.hydratedChains || [];
+                    alreadyHydrated = hydratedChains.includes(chainId);
+                  }
+                } catch {}
+
+                if (alreadyHydrated || isHydrating || isChainSwitching) {
+                  console.log(`🚀 Skipping chain bootstrap - chain ${chainId} already ${alreadyHydrated ? 'hydrated' : isChainSwitching ? 'being switched' : 'hydrating'}`);
+                  return;
+                }
+
+                // Skip bootstrap if wallet is currently scanning/transacting to avoid conflicts
+                const isScanning = (typeof window !== 'undefined') &&
+                  (window.__RAILGUN_SCANNING_IN_PROGRESS || window.__RAILGUN_TRANSACTION_IN_PROGRESS);
+                if (isScanning) {
+                  console.log('🚀 Skipping chain bootstrap - wallet currently scanning/transacting');
+                  return;
+                }
+
+                const hasBootstrap = await checkChainBootstrapAvailable(chainId);
+                if (hasBootstrap) {
+                  console.log(`🚀 Loading chain ${chainId} bootstrap after auto-init...`);
+                  await loadChainBootstrap(railgunWalletID, chainId, {
+                    address, // Pass EOA address for Redis scannedChains check
+                    onProgress: (progress) => {
+                      console.log(`🚀 Auto-bootstrap progress: ${progress}%`);
+                      try {
+                        window.dispatchEvent(new CustomEvent('chain-bootstrap-progress', {
+                          detail: { walletId: railgunWalletID, chainId, progress }
+                        }));
+                      } catch {}
+                    },
+                    onComplete: async () => {
+                      console.log('🚀 Auto-bootstrap completed');
+
+                      // Mark chain as hydrated in Redis metadata since we loaded bootstrap data
+                      try {
+                        const persistResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            walletAddress: address,
+                            walletId: railgunWalletID,
+                            railgunAddress: railgunAddress,
+                            hydratedChains: [chainId] // Mark this chain as hydrated
+                          })
+                        });
+
+                        if (persistResp.ok) {
+                          console.log(`✅ Marked hydratedChains += ${chainId} after auto-bootstrap`);
+                        } else {
+                          console.error(`❌ Failed to mark hydratedChains += ${chainId} after auto-bootstrap:`, await persistResp.text());
+                        }
+                      } catch (persistError) {
+                        console.warn(`⚠️ Error marking chain ${chainId} as hydrated:`, persistError);
+                      }
+                    },
+                    onError: (error) => {
+                      console.error('🚀 Auto-bootstrap failed:', error);
+                    }
+                  });
+                } else {
+                  console.log(`ℹ️ No chain ${chainId} bootstrap available after auto-init`);
+                }
               }
             }
           } catch (hydrationError) {
@@ -1220,10 +1267,27 @@ const WalletContextProvider = ({ children }) => {
       chainSwitchInProgressRef.current.add(chainId);
 
       try {
-        console.log(`[Chain Switch] 🔄 Chain changed to ${chainId}, using centralized initialization coordinator...`);
+        console.log(`[Chain Switch] 🔄 Chain changed to ${chainId}, using chain switch utility...`);
 
-        // Use the centralized initialization coordinator
-        await ensureChainInitialized(chainId);
+        // Use the centralized chain switch utility
+        const success = await switchToChain({
+          address,
+          railgunWalletID,
+          targetChainId: chainId,
+          onProgress: (progress) => {
+            console.log(`[Chain Switch] Progress: ${progress.phase}`, progress);
+          },
+          onError: (error) => {
+            console.warn(`[Chain Switch] Error for chain ${chainId}:`, error);
+          },
+          onComplete: (result) => {
+            console.log(`[Chain Switch] ✅ Chain ${chainId} switch completed:`, result);
+          }
+        });
+
+        if (!success) {
+          console.warn(`[Chain Switch] ⚠️ Chain switch failed for ${chainId}`);
+        }
       } finally {
         // Remove from in-progress set when done
         chainSwitchInProgressRef.current.delete(chainId);
@@ -1580,7 +1644,6 @@ const WalletContextProvider = ({ children }) => {
 
     // Chain scanning
     ensureChainScanned,
-    ensureChainInitialized,
   };
 
   return (

@@ -187,7 +187,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     handleLexieIdChoice,
     onLexieIdLinked,
     ensureChainScanned,
-    ensureChainInitialized,
   } = useWallet();
 
   // Window management hooks
@@ -794,7 +793,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       try {
         if (canUseRailgun && railgunWalletId && address && activeChainId) {
           console.log('[VaultDesktop] Ensuring chain is scanned before refresh...');
-          await ensureChainInitialized(activeChainId);
+          await ensureChainScanned(activeChainId);
         }
       } catch (scanErr) {
         console.warn('[VaultDesktop] Chain scan check failed (continuing with refresh):', scanErr?.message);
@@ -856,7 +855,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     } finally {
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
     }
-  }, [refreshAllBalances, railgunWalletId, address, activeChainId, ensureChainInitialized, canUseRailgun]);
+  }, [refreshAllBalances, railgunWalletId, address, activeChainId, ensureChainScanned, canUseRailgun]);
 
   // Placeholder functions for command bar icons
   const handleRefresh = useCallback(async () => {
