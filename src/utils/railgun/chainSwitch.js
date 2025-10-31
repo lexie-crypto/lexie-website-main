@@ -41,6 +41,15 @@ export async function switchToChain({
 
     onProgress({ phase: 'checking-scan-status', chainId: targetChainId });
 
+    // Dispatch event to show modal in UI
+    try {
+      window.dispatchEvent(new CustomEvent('railgun-init-started', {
+        detail: { chainId: targetChainId, context: 'chain-switch' }
+      }));
+    } catch (eventError) {
+      console.warn('[ChainSwitch] Failed to dispatch init started event:', eventError);
+    }
+
     // Step 1: Check if chain is already scanned
     const scanStatus = await checkChainScanStatus(address, railgunWalletID, targetChainId);
 
@@ -59,6 +68,16 @@ export async function switchToChain({
 
     // Step 3: Scan chain for balances
     onProgress({ phase: 'scanning-chain', chainId: targetChainId });
+
+    // Dispatch scan started event
+    try {
+      window.dispatchEvent(new CustomEvent('railgun-scan-started', {
+        detail: { chainId: targetChainId, context: 'chain-switch' }
+      }));
+    } catch (eventError) {
+      console.warn('[ChainSwitch] Failed to dispatch scan started event:', eventError);
+    }
+
     const scanResult = await scanChainForBalances(railgunWalletID, targetChainId);
 
     // Step 4: Mark as scanned in Redis
