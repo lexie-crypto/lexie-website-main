@@ -74,15 +74,6 @@ export const useChainSwitchModal = () => {
     setScanComplete(true);
     setIsInitInProgress(false);
     setInitProgress({ percent: 100, message: 'Chain switch complete!' });
-
-    // Dispatch custom event for balance refresh
-    try {
-      window.dispatchEvent(new CustomEvent('chain-switch-complete', {
-        detail: { chainId: initializingChainId }
-      }));
-    } catch (e) {
-      console.warn('[ChainSwitchModal] Failed to dispatch chain-switch-complete event:', e);
-    }
   };
 
   // Fail chain switch

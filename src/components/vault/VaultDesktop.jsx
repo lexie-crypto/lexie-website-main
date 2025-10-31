@@ -694,13 +694,30 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       console.log('[VaultDesktop] Private balances refresh completed - hiding spinner');
       setIsRefreshingBalances(false);
     };
+
+    const onScanComplete = (event) => {
+      const { chainId } = event.detail || {};
+      if (chainId && chainId === activeChainId) {
+        console.log(`[VaultDesktop] Chain ${chainId} scan completed, triggering balance refresh`);
+        // Small delay to ensure chain switch is fully complete
+        setTimeout(() => {
+          if (isConnected && address && canUseRailgun && railgunWalletId) {
+            refreshBalances(false);
+          }
+        }, 500);
+      }
+    };
+
     window.addEventListener('vault-private-refresh-start', onPrivateStart);
     window.addEventListener('vault-private-refresh-complete', onPrivateComplete);
+    window.addEventListener('railgun-scan-complete', onScanComplete);
+
     return () => {
       window.removeEventListener('vault-private-refresh-start', onPrivateStart);
       window.removeEventListener('vault-private-refresh-complete', onPrivateComplete);
+      window.removeEventListener('railgun-scan-complete', onScanComplete);
     };
-  }, []);
+  }, [activeChainId, isConnected, address, canUseRailgun, railgunWalletId, refreshBalances]);
 
   // Full refresh: SDK refresh + Redis persist, then UI reload
   const refreshBalances = useCallback(async (showToast = true) => {
@@ -789,22 +806,20 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     }
 
     if (isConnected && address && activeChainId && canUseRailgun && railgunWalletId) {
-      console.log('[VaultDesktop] Wallet connected and Railgun ready - checking chain readiness before auto-refreshing balances...');
+      console.log('[VaultDesktop] Wallet connected and Railgun ready - auto-refreshing balances...');
 
-      // Check if chain is ready before refreshing balances
-      (async () => {
-        try {
-          const chainReady = await checkChainReady();
-          if (chainReady) {
-            console.log('[VaultDesktop] Chain is ready - auto-refreshing balances...');
-            refreshBalances(false); // Full refresh but no toast notification
-          } else {
-            console.log('[VaultDesktop] Chain not ready yet - skipping balance refresh (hydration in progress)');
-          }
-        } catch (error) {
-          console.warn('[VaultDesktop] Error checking chain readiness:', error);
+      // Check if chain is ready before refreshing
+      checkChainReady().then((isReady) => {
+        if (isReady) {
+          console.log('[VaultDesktop] Chain is ready, proceeding with balance refresh');
+          refreshBalances(false); // Full refresh but no toast notification
+        } else {
+          console.log('[VaultDesktop] Chain not ready yet, skipping balance refresh until chain switch completes');
         }
-      })();
+      }).catch((error) => {
+        console.warn('[VaultDesktop] Failed to check chain readiness, proceeding with refresh anyway:', error);
+        refreshBalances(false); // Full refresh but no toast notification
+      });
     }
   }, [isConnected, address, activeChainId, canUseRailgun, railgunWalletId, refreshBalances, showReturningUserChainModal, checkChainReady]);
 
@@ -814,17 +829,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       setShowPrivateMode(true);
     }
   }, [canUseRailgun, railgunWalletId]);
-
-  // Refresh balances after chain switch completes
-  useEffect(() => {
-    const onChainSwitchComplete = () => {
-      console.log('[VaultDesktop] Chain switch completed - refreshing balances...');
-      refreshBalances(false); // Refresh balances after chain switch completes
-    };
-
-    window.addEventListener('chain-switch-complete', onChainSwitchComplete);
-    return () => window.removeEventListener('chain-switch-complete', onChainSwitchComplete);
-  }, [refreshBalances]);
 
 
   // Fetch initial points when Lexie ID is available
