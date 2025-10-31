@@ -172,15 +172,6 @@ export async function loadChainBootstrapIfAvailable(railgunWalletID, targetChain
 
     console.log(`[ChainSwitch] Loading bootstrap data for chain ${targetChainId}...`);
 
-    // Dispatch event to show modal immediately when hydration starts
-    try {
-      window.dispatchEvent(new CustomEvent('railgun-scan-started', {
-        detail: { chainId: targetChainId }
-      }));
-    } catch (e) {
-      console.warn('[ChainSwitch] Failed to dispatch scan-started event:', e);
-    }
-
     // Load the bootstrap data
     await new Promise((resolve, reject) => {
       loadChainBootstrap(railgunWalletID, targetChainId, {
