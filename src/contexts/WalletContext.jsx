@@ -516,14 +516,16 @@ const WalletContextProvider = ({ children }) => {
 
   // Ensure initial full scan is completed for a given chain before user transacts
   const ensureChainScanned = useCallback(async (targetChainId) => {
+    let scanningPerformed = false;
+
     try {
       // 🛡️ CRITICAL: Don't run scans if returning user modal is open
       if (showReturningUserChainModal) {
         console.log('[Railgun Init] ⏸️ Waiting for returning user to select chain before scanning');
-        return;
+        return false;
       }
 
-      if (!isConnected || !address || !railgunWalletID) return;
+      if (!isConnected || !address || !railgunWalletID) return false;
 
       // Resolve Railgun chain config by chainId
       const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
@@ -546,18 +548,18 @@ const WalletContextProvider = ({ children }) => {
 
       if (alreadyHydratedInRedis || alreadyScannedInRedis || alreadyScannedInWindow) {
         console.log(`[Railgun Init] ⏭️ Chain already ${alreadyHydratedInRedis ? 'hydrated' : 'scanned'}, skipping:`, railgunChain.id);
-        return;
+        return false;
       }
       if (isAlreadyScanning) {
         console.log('[Railgun Init] ⏳ Initial scan already in progress for chain:', railgunChain.id);
-        return;
+        return false;
       }
 
       // Respect RPC limiter
       resetRPCLimiter();
       if (rpcLimiter.current.isBlocked) {
         console.warn('[Railgun Init] 🚫 RPC limited, skipping initial scan for chain:', railgunChain.id);
-        return;
+        return false;
       }
 
       chainsScanningRef.current.add(railgunChain.id);
@@ -686,8 +688,30 @@ const WalletContextProvider = ({ children }) => {
 
       // NOW SAFE TO START THE SCAN - Bootstrap is complete
       console.log('[Railgun Init] 🔄 Starting initial balance refresh for chain', railgunChain.id);
+      scanningPerformed = true; // Mark that we're performing scanning
       const { refreshBalances } = await import('@railgun-community/wallet');
-            await refreshBalances(railgunChain, [railgunWalletID]);
+      await refreshBalances(railgunChain, [railgunWalletID]);
+
+      // WAIT FOR SCAN TO COMPLETE before marking as scanned
+      console.log('[Railgun Init] ⏳ Waiting for TXID scan to complete for chain', railgunChain.id);
+      await new Promise((resolve) => {
+        const handleScanComplete = (event) => {
+          const { chainId: scannedChainId } = event.detail;
+          if (scannedChainId === railgunChain.id) {
+            window.removeEventListener('railgun-txid-scan-complete', handleScanComplete);
+            console.log('[Railgun Init] ✅ TXID scan completed for chain', railgunChain.id);
+            resolve();
+          }
+        };
+        window.addEventListener('railgun-txid-scan-complete', handleScanComplete);
+
+        // Timeout after 5 minutes
+        setTimeout(() => {
+          window.removeEventListener('railgun-txid-scan-complete', handleScanComplete);
+          console.warn('[Railgun Init] ⚠️ Timeout waiting for TXID scan completion, proceeding anyway');
+          resolve();
+        }, 300000); // 5 minutes
+      });
 
       // Mark as scanned in memory and Redis metadata
       if (typeof window !== 'undefined') {
@@ -743,8 +767,10 @@ const WalletContextProvider = ({ children }) => {
       } catch {}
 
       console.log('[Railgun Init] ✅ Initial scan complete for chain', railgunChain.id);
+      return scanningPerformed;
     } catch (error) {
       console.warn('[Railgun Init] ⚠️ Initial scan failed:', error?.message);
+      return false;
     } finally {
       try {
         const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
