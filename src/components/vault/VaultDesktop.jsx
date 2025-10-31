@@ -238,6 +238,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     scanComplete,
     handlePersistMetadata,
     resetModal,
+    setInitializingChainId,
     getNetworkNameById: modalGetNetworkNameById
   } = useChainSwitchModal();
 
@@ -488,59 +489,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     return networks[id] || `Chain ${id}`;
   };
 
-  // Check Redis on wallet connect - wait for Railgun initialization to complete first
-  useEffect(() => {
-    if (isConnected && address && railgunWalletId && activeChainId && isRailgunInitialized) {
-      console.log('[VaultDesktop] Wallet connected and Railgun initialized - checking Redis for scanned chains');
-      (async () => {
-        // Don't re-init if modal is already open
-        if (showSignRequestPopup) {
-          console.log('[VaultDesktop] Modal already open, skipping Redis check');
-          return;
-        }
-
-        // Don't re-init if we've already completed initialization for this chain
-        if (initProgress.percent >= 100 || scanComplete) {
-          console.log('[VaultDesktop] Initialization already complete, skipping Redis check');
-          return;
-        }
-
-        // Retry Redis check with backoff to handle race with metadata writes
-        let scanned = null;
-        for (let attempt = 1; attempt <= 3; attempt++) {
-          scanned = await checkRedisScannedChains();
-          if (scanned !== null) break; // Got a definitive answer
-          if (attempt < 3) {
-            console.log(`[VaultDesktop] Redis check attempt ${attempt} returned null, retrying in 300ms...`);
-            await new Promise(resolve => setTimeout(resolve, 300));
-          }
-        }
-
-        if (scanned === false || scanned === null) {
-          console.log('[VaultDesktop] Chain not scanned on connect - will show signature confirmation modal');
-
-          // Set which chain we're initializing
-          setInitializingChainId(activeChainId);
-
-          // The signature confirmation modal will handle chain selection
-          // Guard reset-to-0: only reset progress if not already at 100%
-          setShowSignRequestPopup(true);
-          setIsInitInProgress(true);
-          setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);
-          setScanComplete(false);
-
-          // Use activeChainId, not network.name
-          const networkName = getNetworkNameById(activeChainId);
-          setInitProgress({
-            percent: 0,
-            message: `Setting up your LexieVault on ${networkName} Network...`
-          });
-        } else {
-          console.log('[VaultDesktop] Chain already scanned on connect - no modal needed');
-        }
-      })();
-    }
-  }, [isConnected, address, railgunWalletId, activeChainId, isRailgunInitialized, checkRedisScannedChains, showSignRequestPopup, selectedChainId, showReturningUserChainModal]);
 
 
 

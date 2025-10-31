@@ -175,6 +175,7 @@ export const useChainSwitchModal = () => {
     failChainSwitch,
     resetModal,
     handlePersistMetadata,
+    setInitializingChainId,
 
     // Helpers
     getNetworkNameById
