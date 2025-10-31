@@ -44,7 +44,7 @@ import CrossPlatformVerificationModal from './CrossPlatformVerificationModal';
 import GameOnboardingModal from './GameOnboardingModal';
 import SignRequestModal from './SignRequestModal';
 import { useChainSwitchModal } from '../../hooks/useChainSwitchModal';
-import { useBalanceRefresh } from '../../utils/balanceRefresh.js';
+import { useBalanceRefresh } from '../../utils/balanceRefresh.jsx';
 import SignatureConfirmationModal from './SignatureConfirmationModal';
 import ReturningUserChainSelectionModal from './ReturningUserChainSelectionModal';
 import { Navbar } from '../Navbar.jsx';

@@ -278,7 +278,7 @@ export async function scanChainForBalances(railgunWalletID, targetChainId, walle
     }
 
     // Use the centralized balance refresh utility
-    const { refreshBalances } = await import('../balanceRefresh.js');
+    const { refreshBalances } = await import('../balanceRefresh.jsx');
 
     // Simulate progress during scanning (SDK doesn't provide progress callbacks)
     const progressInterval = setInterval(() => {

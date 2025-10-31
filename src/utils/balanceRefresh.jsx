@@ -1,5 +1,5 @@
 /**
- * balanceRefresh.js
+ * balanceRefresh.jsx
  * Centralized balance refresh utility
  *
  * Handles SDK refresh + Redis persist + UI updates
