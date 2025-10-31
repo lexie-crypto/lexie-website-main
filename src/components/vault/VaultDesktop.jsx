@@ -1475,14 +1475,10 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         return;
       }
       
-      // Update our selected chain state (this will persist to localStorage via ChainSelector)
-      console.log('[VaultDesktop] Updating selected chain to', targetChainId);
+      // Just validation and network switch - let WalletContext handle hydration
       setSelectedChainId(targetChainId);
-
-      // Switch network immediately for snappy UX
-      console.log('[VaultDesktop] Switching wallet network to', targetChainId);
       await switchNetwork(targetChainId);
-      
+
       const targetNetwork = supportedNetworks.find(net => net.id === targetChainId);
       toast.custom((t) => (
         <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
@@ -1497,23 +1493,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
           </div>
         </div>
       ), { duration: 2000 });
-
-      // After switch: check Redis for target chain
-      const scanned = await checkRedisScannedChains(targetChainId);
-      if (scanned === false || scanned === null) {
-        console.log('[VaultDesktop] Target chain not scanned - showing modal');
-
-        setInitializingChainId(targetChainId); // Track which chain we're initializing
-        setShowSignRequestPopup(true);
-        setIsInitInProgress(true);
-        // Guard reset-to-0: don't reset progress if already at 100%
-        setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);
-
-        const chainLabel = getNetworkNameById(targetChainId);
-        setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
-      } else {
-        console.log('[VaultDesktop] Target chain already scanned - no modal needed');
-      }
     } catch (error) {
       console.error('[VaultDesktop] Error in handleNetworkSwitch:', error);
       toast.error(`Failed to switch network: ${error.message}`);
