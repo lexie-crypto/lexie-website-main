@@ -352,13 +352,13 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   // Chain readiness state
   const [isChainReady, setIsChainReady] = useState(false);
 
-  // Supported networks array
-  const supportedNetworks = [
+  // Supported networks array - memoized to prevent recreation
+  const supportedNetworks = useMemo(() => [
     { id: 1, name: 'Ethereum', symbol: 'ETH' },
     { id: 137, name: 'Polygon', symbol: 'POL' },
     { id: 42161, name: 'Arbitrum', symbol: 'ETH'},
     { id: 56, name: 'BNB Chain', symbol: 'BNB' },
-  ];
+  ], []);
 
   // Use selectedChainId as the PRIMARY chain for all vault operations
   // Fall back to wallet's chainId if no selection made
