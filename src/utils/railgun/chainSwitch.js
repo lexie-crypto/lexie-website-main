@@ -45,14 +45,8 @@ export async function switchToChain({
     const scanStatus = await checkChainScanStatus(address, railgunWalletID, targetChainId);
 
     if (scanStatus.isScanned) {
-      console.log(`[ChainSwitch] Chain ${targetChainId} already scanned, doing balance refresh`);
-
-      // Step 2: Do balance refresh for scanned chains
-      onProgress({ phase: 'refreshing-balances', chainId: targetChainId });
-      const refreshResult = await scanChainForBalances(railgunWalletID, targetChainId, address);
-    } else {
-      console.log(`[ChainSwitch] Chain ${targetChainId} not scanned, skipping refresh process`);
-      onComplete({ chainId: targetChainId, skipped: true });
+      console.log(`[ChainSwitch] Chain ${targetChainId} already scanned, chain switch complete`);
+      onComplete({ chainId: targetChainId, alreadyScanned: true });
       return true;
     }
 
