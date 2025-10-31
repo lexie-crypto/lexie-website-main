@@ -686,9 +686,14 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   // Placeholder functions for command bar icons
   const handleRefresh = useCallback(async () => {
-    // Placeholder: implement refresh functionality
     console.log('[VaultDesktop] Refresh clicked');
-  }, []);
+    try {
+      await refreshAllBalances();
+      console.log('[VaultDesktop] Balance refresh completed');
+    } catch (error) {
+      console.error('[VaultDesktop] Balance refresh failed:', error);
+    }
+  }, [refreshAllBalances]);
 
   const handleInfoClick = useCallback(() => {
     console.log('[VaultDesktop] Info clicked');
