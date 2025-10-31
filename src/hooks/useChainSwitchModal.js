@@ -11,6 +11,7 @@ export const useChainSwitchModal = () => {
 
   const bootstrapLockedRef = useRef(false);
   const initialConnectDoneRef = useRef(false);
+  const modalStartedRef = useRef(false);
 
   // Helper to get network name by chain ID
   const getNetworkNameById = (chainId) => {
@@ -91,6 +92,7 @@ export const useChainSwitchModal = () => {
     setBootstrapProgress({ percent: 0, active: false });
     setScanComplete(false);
     bootstrapLockedRef.current = false;
+    modalStartedRef.current = false;
   };
 
   // Listen for chain switch events
@@ -110,6 +112,15 @@ export const useChainSwitchModal = () => {
 
     const onBootstrapProgress = (e) => {
       const { chainId, progress } = e.detail;
+
+      // Start modal if it hasn't been started yet (first bootstrap progress event)
+      if (!modalStartedRef.current) {
+        console.log('[ChainSwitchModal] Bootstrap started, showing modal for chain', chainId);
+        modalStartedRef.current = true;
+        const networkName = getNetworkNameById(chainId);
+        startChainSwitch(chainId, networkName);
+      }
+
       updateBootstrapProgress(chainId, progress);
     };
 
