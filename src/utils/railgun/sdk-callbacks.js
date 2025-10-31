@@ -185,18 +185,21 @@ export const waitForMerkleScansComplete = (walletId, timeoutMs = 30000) => {
     
     const handleTXIDScan = (event) => {
       const scanData = event.detail;
-      
-      // Update scan state
+
+      // Normalize progress: convert 'Complete' status to 1.0, matching the callback logic
+      const normalizedProgress = scanData.scanStatus === 'Complete' ? 1.0 : (scanData.progress || 0);
+
+      // Update scan state with normalized progress
       let walletScanState = merkleTreeScanState.get(walletId) || { utxoProgress: 0, txidProgress: 0 };
-      walletScanState.txidProgress = scanData.progress || 0;
+      walletScanState.txidProgress = normalizedProgress;
       merkleTreeScanState.set(walletId, walletScanState);
-      
+
       console.log('[SDK Callbacks] 📊 TXID scan progress:', {
         walletId: walletId?.slice(0, 8) + '...',
-        progress: `${Math.round(scanData.progress * 100)}%`,
+        progress: `${Math.round(normalizedProgress * 100)}%`,
         status: scanData.scanStatus
       });
-      
+
       // Check if both scans are complete
       if (areMerkleScansComplete(walletId)) {
         console.log('[SDK Callbacks] 🎉 All Merkle scans completed!');
@@ -257,21 +260,24 @@ export const onUTXOMerkletreeScanCallback = (scanData) => {
  * @param {Object} scanData - Scan progress data from SDK
  */
 export const onTXIDMerkletreeScanCallback = async (scanData) => {
+  // Normalize progress: convert 'Complete' status to 1.0, just like scanning-service.js
+  const normalizedProgress = scanData.scanStatus === 'Complete' ? 1.0 : (scanData.progress || 0);
+
   console.log('[SDK Callbacks] 📊 TXID Merkletree scan update:', {
-    progress: `${Math.round((scanData.progress || 0) * 100)}%`,
+    progress: `${Math.round(normalizedProgress * 100)}%`,
     scanStatus: scanData.scanStatus,
     timestamp: new Date().toISOString()
   });
-  
+
   // Dispatch event for UI components
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new CustomEvent('railgun-txid-scan', {
       detail: scanData
     }));
   }
-  
+
   // Log scan milestones
-  const progressPercent = Math.round((scanData.progress || 0) * 100);
+  const progressPercent = Math.round(normalizedProgress * 100);
   if (progressPercent === 100 || scanData.scanStatus === 'Complete') {
     console.log('[SDK Callbacks] 🎯 TXID Merkletree scan reached 100% - transaction data fully processed');
 
