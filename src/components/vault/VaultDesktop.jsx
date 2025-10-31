@@ -352,6 +352,14 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   // Chain readiness state
   const [isChainReady, setIsChainReady] = useState(false);
 
+  // Supported networks array
+  const supportedNetworks = [
+    { id: 1, name: 'Ethereum', symbol: 'ETH' },
+    { id: 137, name: 'Polygon', symbol: 'POL' },
+    { id: 42161, name: 'Arbitrum', symbol: 'ETH'},
+    { id: 56, name: 'BNB Chain', symbol: 'BNB' },
+  ];
+
   // Use selectedChainId as the PRIMARY chain for all vault operations
   // Fall back to wallet's chainId if no selection made
   const activeChainId = selectedChainId || walletChainId;
@@ -375,14 +383,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       window.__LEXIE_ACTIVE_CHAIN_ID = activeChainId;
     }
   }, [activeChainId]);
-
-  // Supported networks array
-  const supportedNetworks = [
-    { id: 1, name: 'Ethereum', symbol: 'ETH' },
-    { id: 137, name: 'Polygon', symbol: 'POL' },
-    { id: 42161, name: 'Arbitrum', symbol: 'ETH'},
-    { id: 56, name: 'BNB Chain', symbol: 'BNB' },
-  ];
 
   // Check if current network is supported
   const isNetworkSupported = walletChainId && supportedNetworks.some(net => net.id === walletChainId);
