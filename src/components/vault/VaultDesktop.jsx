@@ -352,13 +352,13 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   // Chain readiness state
   const [isChainReady, setIsChainReady] = useState(false);
 
-  // Supported networks array
-  const supportedNetworks = [
+  // Supported networks array - memoized to prevent recreation
+  const supportedNetworks = useMemo(() => [
     { id: 1, name: 'Ethereum', symbol: 'ETH' },
     { id: 137, name: 'Polygon', symbol: 'POL' },
     { id: 42161, name: 'Arbitrum', symbol: 'ETH'},
     { id: 56, name: 'BNB Chain', symbol: 'BNB' },
-  ];
+  ], []);
 
   // Use selectedChainId as the PRIMARY chain for all vault operations
   // Fall back to wallet's chainId if no selection made
@@ -684,24 +684,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     };
   }, [isTransactionLocked]);
 
-  // Event listeners for vault balance refresh state
-  useEffect(() => {
-    const onPrivateStart = () => {
-      console.log('[VaultDesktop] Private balances refresh started - showing spinner');
-      setIsRefreshingBalances(true);
-    };
-    const onPrivateComplete = () => {
-      console.log('[VaultDesktop] Private balances refresh completed - hiding spinner');
-      setIsRefreshingBalances(false);
-    };
-    window.addEventListener('vault-private-refresh-start', onPrivateStart);
-    window.addEventListener('vault-private-refresh-complete', onPrivateComplete);
-    return () => {
-      window.removeEventListener('vault-private-refresh-start', onPrivateStart);
-      window.removeEventListener('vault-private-refresh-complete', onPrivateComplete);
-    };
-  }, []);
-
   // Full refresh: SDK refresh + Redis persist, then UI reload
   const refreshBalances = useCallback(async (showToast = true) => {
     try {
@@ -768,6 +750,49 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     }
   }, [refreshAllBalances, railgunWalletId, address, activeChainId, canUseRailgun]);
 
+  // Use ref to break circular dependency with refreshBalances
+  const refreshBalancesRef = useRef(refreshBalances);
+
+  // Update ref when refreshBalances changes
+  useEffect(() => {
+    refreshBalancesRef.current = refreshBalances;
+  }, [refreshBalances]);
+
+  // Event listeners for vault balance refresh state
+  useEffect(() => {
+    const onPrivateStart = () => {
+      console.log('[VaultDesktop] Private balances refresh started - showing spinner');
+      setIsRefreshingBalances(true);
+    };
+    const onPrivateComplete = () => {
+      console.log('[VaultDesktop] Private balances refresh completed - hiding spinner');
+      setIsRefreshingBalances(false);
+    };
+
+    const onScanComplete = (event) => {
+      const { chainId } = event.detail || {};
+      if (chainId && chainId === activeChainId) {
+        console.log(`[VaultDesktop] Chain ${chainId} scan completed, triggering balance refresh`);
+        // Small delay to ensure chain switch is fully complete
+        setTimeout(() => {
+          if (isConnected && address && canUseRailgun && railgunWalletId) {
+            refreshBalancesRef.current(false);
+          }
+        }, 500);
+      }
+    };
+
+    window.addEventListener('vault-private-refresh-start', onPrivateStart);
+    window.addEventListener('vault-private-refresh-complete', onPrivateComplete);
+    window.addEventListener('railgun-scan-complete', onScanComplete);
+
+    return () => {
+      window.removeEventListener('vault-private-refresh-start', onPrivateStart);
+      window.removeEventListener('vault-private-refresh-complete', onPrivateComplete);
+      window.removeEventListener('railgun-scan-complete', onScanComplete);
+    };
+  }, [activeChainId, isConnected, address, canUseRailgun, railgunWalletId]);
+
   // Placeholder functions for command bar icons
   const handleRefresh = useCallback(async () => {
     // Placeholder: implement refresh functionality
@@ -790,9 +815,21 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
     if (isConnected && address && activeChainId && canUseRailgun && railgunWalletId) {
       console.log('[VaultDesktop] Wallet connected and Railgun ready - auto-refreshing balances...');
-      refreshBalances(false); // Full refresh but no toast notification
+
+      // Check if chain is ready before refreshing
+      checkChainReady().then((isReady) => {
+        if (isReady) {
+          console.log('[VaultDesktop] Chain is ready, proceeding with balance refresh');
+          refreshBalancesRef.current(false); // Use ref to break circular dependency
+        } else {
+          console.log('[VaultDesktop] Chain not ready yet, skipping balance refresh until chain switch completes');
+        }
+      }).catch((error) => {
+        console.warn('[VaultDesktop] Failed to check chain readiness, proceeding with refresh anyway:', error);
+        refreshBalancesRef.current(false); // Use ref to break circular dependency
+      });
     }
-  }, [isConnected, address, activeChainId, canUseRailgun, railgunWalletId, refreshBalances, showReturningUserChainModal]);
+  }, [isConnected, address, activeChainId, canUseRailgun, railgunWalletId, showReturningUserChainModal, checkChainReady]);
 
   // Auto-switch to privacy view when Railgun is ready
   useEffect(() => {

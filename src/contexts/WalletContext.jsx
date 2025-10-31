@@ -549,7 +549,22 @@ const WalletContextProvider = ({ children }) => {
     }
   }, [isConnected, address, railgunWalletID, showReturningUserChainModal]);
 
-  // Reset rate limiter only on wallet disconnect/connect
+  // Check if a chain has been scanned and is ready for transactions
+  const checkChainReady = useCallback(async () => {
+    try {
+      if (!address || !railgunWalletID || !chainId) return false;
+      const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+      if (!resp.ok) return false;
+      const data = await resp.json();
+      const meta = data?.keys?.find((k) => k.walletId === railgunWalletID);
+      const scannedChains = meta?.scannedChains || [];
+      return Array.isArray(scannedChains) && scannedChains.includes(chainId);
+    } catch {
+      return false;
+    }
+  }, [address, railgunWalletID, chainId]);
+
+    // Reset rate limiter only on wallet disconnect/connect
   const resetRPCLimiter = () => {
     // Only reset if this is a different wallet session or user disconnected
     const currentSession = isConnected ? address : null;
@@ -1470,19 +1485,7 @@ const WalletContextProvider = ({ children }) => {
       const networkNames = { 1: 'Ethereum', 137: 'Polygon', 42161: 'Arbitrum', 56: 'BNB Chain' };
       return { id: chainId, name: networkNames[chainId] || `Chain ${chainId}` };
     },
-    checkChainReady: async () => {
-      try {
-        if (!address || !railgunWalletID || !chainId) return false;
-        const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-        if (!resp.ok) return false;
-        const data = await resp.json();
-        const meta = data?.keys?.find((k) => k.walletId === railgunWalletID);
-        const scannedChains = meta?.scannedChains || [];
-        return Array.isArray(scannedChains) && scannedChains.includes(chainId);
-      } catch {
-        return false;
-      }
-    },
+    checkChainReady,
     
     supportedNetworks: { 1: true, 137: true, 42161: true, 56: true },
     walletProviders: { METAMASK: 'metamask', WALLETCONNECT: 'walletconnect' },
