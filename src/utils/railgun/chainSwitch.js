@@ -179,18 +179,16 @@ export async function loadChainBootstrapIfAvailable(railgunWalletID, targetChain
         onProgress: (progress) => {
           console.log(`[ChainSwitch] Bootstrap progress: ${progress}%`);
 
-          // Dispatch UI progress event for chain switching (reuse railgun-init-progress for UI compatibility)
+          // Dispatch bootstrap progress event that VaultDesktop is listening for
           try {
-            window.dispatchEvent(new CustomEvent('railgun-init-progress', {
+            window.dispatchEvent(new CustomEvent('chain-bootstrap-progress', {
               detail: {
-                current: progress,
-                total: 100,
-                percent: progress,
-                message: `Loading blockchain data for chain ${targetChainId}...`
+                chainId: targetChainId,
+                progress: progress // Progress is already a percentage (0-100) from hydration system
               }
             }));
           } catch (eventError) {
-            console.warn('[ChainSwitch] Failed to dispatch progress event:', eventError);
+            console.warn('[ChainSwitch] Failed to dispatch bootstrap progress event:', eventError);
           }
 
           options.onProgress?.(progress);
