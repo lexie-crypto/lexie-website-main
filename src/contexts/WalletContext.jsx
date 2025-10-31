@@ -622,22 +622,6 @@ const WalletContextProvider = ({ children }) => {
                     // Merge with new chain (avoid duplicates)
                     const updatedHydratedChains = [...new Set([...existingHydratedChains, railgunChain.id])];
 
-                    // First fetch existing metadata to get current scannedChains
-                    const getResp2 = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-                    let existingScannedChains = [];
-                    if (getResp2.ok) {
-                      const existingData2 = await getResp2.json();
-                      const metaKey2 = existingData2?.keys?.find((k) => k.walletId === railgunWalletID);
-                      if (metaKey2?.scannedChains) {
-                        existingScannedChains = Array.isArray(metaKey2.scannedChains)
-                          ? metaKey2.scannedChains
-                          : [];
-                      }
-                    }
-
-                    // Merge with new chain for scannedChains too
-                    const updatedScannedChains = [...new Set([...existingScannedChains, railgunChain.id])];
-
                     const resp = await fetch('/api/wallet-metadata?action=persist-metadata', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
@@ -645,20 +629,11 @@ const WalletContextProvider = ({ children }) => {
                         walletAddress: address,
                         walletId: railgunWalletID,
                         railgunAddress: railgunAddress,
-                        hydratedChains: updatedHydratedChains,
-                        scannedChains: updatedScannedChains // Also mark as scanned when hydrated
+                        hydratedChains: updatedHydratedChains
                       })
                     });
                     if (resp.ok) {
-                      console.log(`[Railgun Init] ✅ Marked hydratedChains += ${railgunChain.id} AND scannedChains += ${railgunChain.id} (merged hydrated: ${existingHydratedChains.join(',')}, scanned: ${existingScannedChains.join(',')})`);
-
-                      // Force modal unlock immediately since chain is now scanned
-                      console.log(`[Railgun Init] 🔓 Forcing modal unlock for chain ${railgunChain.id} after hydration`);
-                      try {
-                        window.dispatchEvent(new CustomEvent('railgun-scan-complete', { detail: { chainId: railgunChain.id } }));
-                      } catch (unlockError) {
-                        console.warn('[Railgun Init] ⚠️ Error forcing modal unlock:', unlockError);
-                      }
+                      console.log(`[Railgun Init] ✅ Marked hydratedChains += ${railgunChain.id} (merged with existing: ${existingHydratedChains.join(',')}) (scannedChains will be marked on modal unlock)`);
                     } else {
                       console.error(`[Railgun Init] ❌ Failed to mark hydratedChains += ${railgunChain.id}:`, await resp.text());
                     }
@@ -1328,24 +1303,8 @@ const WalletContextProvider = ({ children }) => {
                     onComplete: async () => {
                       console.log('🚀 Auto-bootstrap completed');
 
-                      // Mark chain as hydrated AND scanned in Redis metadata since we loaded bootstrap data
+                      // Mark chain as hydrated in Redis metadata since we loaded bootstrap data
                       try {
-                        // First fetch existing metadata to get current scannedChains
-                        const getResp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
-                        let existingScannedChains = [];
-                        if (getResp.ok) {
-                          const existingData = await getResp.json();
-                          const metaKey = existingData?.keys?.find((k) => k.walletId === railgunWalletID);
-                          if (metaKey?.scannedChains) {
-                            existingScannedChains = Array.isArray(metaKey.scannedChains)
-                              ? metaKey.scannedChains
-                              : [];
-                          }
-                        }
-
-                        // Merge with new chain for scannedChains
-                        const updatedScannedChains = [...new Set([...existingScannedChains, chainId])];
-
                         const persistResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
@@ -1353,21 +1312,12 @@ const WalletContextProvider = ({ children }) => {
                             walletAddress: address,
                             walletId: railgunWalletID,
                             railgunAddress: railgunAddress,
-                            hydratedChains: [chainId], // Mark this chain as hydrated
-                            scannedChains: updatedScannedChains // Also mark as scanned when hydrated
+                            hydratedChains: [chainId] // Mark this chain as hydrated
                           })
                         });
 
                         if (persistResp.ok) {
-                          console.log(`✅ Marked hydratedChains += ${chainId} AND scannedChains += ${chainId} after auto-bootstrap`);
-
-                          // Force modal unlock immediately since chain is now scanned
-                          console.log(`🔓 Forcing modal unlock for chain ${chainId} after auto-bootstrap hydration`);
-                          try {
-                            window.dispatchEvent(new CustomEvent('railgun-scan-complete', { detail: { chainId } }));
-                          } catch (unlockError) {
-                            console.warn('⚠️ Error forcing modal unlock after auto-bootstrap:', unlockError);
-                          }
+                          console.log(`✅ Marked hydratedChains += ${chainId} after auto-bootstrap`);
                         } else {
                           console.error(`❌ Failed to mark hydratedChains += ${chainId} after auto-bootstrap:`, await persistResp.text());
                         }

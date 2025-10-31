@@ -281,7 +281,17 @@ export const onTXIDMerkletreeScanCallback = async (scanData) => {
   if (progressPercent === 100 || scanData.scanStatus === 'Complete') {
     console.log('[SDK Callbacks] 🎯 TXID Merkletree scan reached 100% - transaction data fully processed');
 
-    // Modal unlock removed
+    // 🔓 Mark chain as scanned and unlock modal
+    if (scanData.chain?.id) {
+      console.log(`[SDK Callbacks] 🎯 TXID scan complete for chain ${scanData.chain.id}, marking as scanned and unlocking modal`);
+
+      // Dispatch event to notify WalletContext to persist to Redis and unlock modal
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('railgun-txid-scan-complete', {
+          detail: { chainId: scanData.chain.id, networkName: scanData.chain.name }
+        }));
+      }
+    }
   } else if (progressPercent % 25 === 0 && progressPercent > 0) {
     console.log(`[SDK Callbacks] 📈 TXID scan milestone: ${progressPercent}% complete`);
   }
