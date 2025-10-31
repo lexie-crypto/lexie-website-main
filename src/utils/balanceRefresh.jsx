@@ -6,6 +6,7 @@
  * Prevents unplanned refreshes by isolating refresh logic
  */
 
+import { useCallback } from 'react';
 import { syncBalancesAfterTransaction } from './railgun/syncBalances.js';
 import { toast } from 'react-hot-toast';
 
@@ -113,16 +114,18 @@ export const refreshBalances = async ({
  * Provides stable refresh functions that don't cause unplanned re-renders
  */
 export const useBalanceRefresh = ({ refreshAllBalances }) => {
+  const refreshBalancesFn = useCallback(async (walletAddress, walletId, chainId, showToast = true) => {
+    return await refreshBalances({
+      walletAddress,
+      walletId,
+      chainId,
+      refreshAllBalances,
+      showToast
+    });
+  }, [refreshAllBalances]);
+
   return {
-    refreshBalances: async (walletAddress, walletId, chainId, showToast = true) => {
-      return await refreshBalances({
-        walletAddress,
-        walletId,
-        chainId,
-        refreshAllBalances,
-        showToast
-      });
-    }
+    refreshBalances: refreshBalancesFn
   };
 };
 
