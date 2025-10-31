@@ -790,32 +790,26 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       console.log('[VaultDesktop] Full refresh — ensuring chain scanned and refreshing balances...');
 
       // Step 0: Ensure chain has been scanned for private transfers (critical for discovering transfers before first shield)
-      let chainWasScanned = false;
       try {
         if (canUseRailgun && railgunWalletId && address && activeChainId) {
           console.log('[VaultDesktop] Ensuring chain is scanned before refresh...');
-          chainWasScanned = await ensureChainScanned(activeChainId) || false;
-          console.log(`[VaultDesktop] Chain scanning result: ${chainWasScanned ? 'performed' : 'skipped'}`);
+          await ensureChainScanned(activeChainId);
         }
       } catch (scanErr) {
         console.warn('[VaultDesktop] Chain scan check failed (continuing with refresh):', scanErr?.message);
       }
 
-      // Step 1: Trigger SDK refresh + persist authoritative balances to Redis
-      // (Balances can change even if chain was previously scanned, but skip if we just did initial scanning)
+      // Step 1: ALWAYS trigger SDK refresh + persist authoritative balances to Redis
+      // (Balances can change even if chain was previously scanned)
       console.log('[VaultDesktop] Triggering SDK balance refresh...');
       try {
-        if (railgunWalletId && address && activeChainId && !chainWasScanned) {
-          // Only refresh balances if we didn't just perform initial scanning
-          // Initial scanning already includes balance refresh
+        if (railgunWalletId && address && activeChainId) {
           const { syncBalancesAfterTransaction } = await import('../../utils/railgun/syncBalances.js');
           await syncBalancesAfterTransaction({
             walletAddress: address,
             walletId: railgunWalletId,
             chainId: activeChainId,
           });
-        } else if (chainWasScanned) {
-          console.log('[VaultDesktop] Skipping SDK balance refresh - initial scanning already includes balance refresh');
         }
       } catch (sdkErr) {
         console.warn('[VaultDesktop] SDK refresh + persist failed (continuing to UI refresh):', sdkErr?.message);
