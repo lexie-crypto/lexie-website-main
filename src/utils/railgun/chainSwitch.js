@@ -45,21 +45,16 @@ export async function switchToChain({
     const scanStatus = await checkChainScanStatus(address, railgunWalletID, targetChainId);
 
     if (scanStatus.isScanned) {
-      console.log(`[ChainSwitch] Chain ${targetChainId} already scanned, skipping switch process`);
+      console.log(`[ChainSwitch] Chain ${targetChainId} already scanned, doing balance refresh`);
+
+      // Step 2: Do balance refresh for scanned chains
+      onProgress({ phase: 'refreshing-balances', chainId: targetChainId });
+      const refreshResult = await scanChainForBalances(railgunWalletID, targetChainId, address);
+    } else {
+      console.log(`[ChainSwitch] Chain ${targetChainId} not scanned, skipping refresh process`);
       onComplete({ chainId: targetChainId, skipped: true });
       return true;
     }
-
-    // Step 2: Load bootstrap data if available
-    onProgress({ phase: 'loading-bootstrap', chainId: targetChainId });
-    const bootstrapResult = await loadChainBootstrapIfAvailable(railgunWalletID, targetChainId, {
-      address,
-      onProgress: (progress) => onProgress({ phase: 'bootstrap-progress', progress, chainId: targetChainId })
-    });
-
-    // Step 3: Scan chain for balances
-    onProgress({ phase: 'scanning-chain', chainId: targetChainId });
-    const scanResult = await scanChainForBalances(railgunWalletID, targetChainId);
 
     // Step 4: Mark as scanned in Redis
     onProgress({ phase: 'persisting-results', chainId: targetChainId });
@@ -261,24 +256,11 @@ async function waitForHydrationCompletion(railgunWalletID, targetChainId) {
  * Scan a chain for Railgun wallet balances
  * @param {string} railgunWalletID - Railgun wallet ID
  * @param {number} targetChainId - Chain ID to scan
+ * @param {string} walletAddress - User's EOA address (for balanceRefresh utility)
  * @returns {Promise<{success: boolean, error?: string}>}
  */
-export async function scanChainForBalances(railgunWalletID, targetChainId) {
+export async function scanChainForBalances(railgunWalletID, targetChainId, walletAddress) {
   try {
-    // Resolve Railgun chain config
-    const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
-    let railgunChain = null;
-    for (const [, cfg] of Object.entries(NETWORK_CONFIG)) {
-      if (cfg.chain.id === targetChainId) {
-        railgunChain = cfg.chain;
-        break;
-      }
-    }
-
-    if (!railgunChain) {
-      throw new Error(`No Railgun chain config found for chainId: ${targetChainId}`);
-    }
-
     console.log(`[ChainSwitch] Starting balance refresh for chain ${targetChainId}...`);
 
     // Dispatch initial scanning progress event
@@ -295,11 +277,8 @@ export async function scanChainForBalances(railgunWalletID, targetChainId) {
       console.warn('[ChainSwitch] Failed to dispatch scanning progress event:', eventError);
     }
 
-    // Call SDK to refresh balances
-    const { refreshBalances } = await import('@railgun-community/wallet');
-
-    // Wrap the balance refresh to provide progress updates
-    const balanceRefreshPromise = refreshBalances(railgunChain, [railgunWalletID]);
+    // Use the centralized balance refresh utility
+    const { refreshBalances } = await import('../balanceRefresh.js');
 
     // Simulate progress during scanning (SDK doesn't provide progress callbacks)
     const progressInterval = setInterval(() => {
@@ -318,7 +297,19 @@ export async function scanChainForBalances(railgunWalletID, targetChainId) {
     }, 1000);
 
     try {
-      await balanceRefreshPromise;
+      // Use balance refresh utility with skipUIUpdate=true (no UI updates/toasts during chain switch)
+      const success = await refreshBalances({
+        walletAddress,
+        walletId: railgunWalletID,
+        chainId: targetChainId,
+        refreshAllBalances: () => Promise.resolve(), // No-op since we're skipping UI updates
+        showToast: false,
+        skipUIUpdate: true
+      });
+
+      if (!success) {
+        throw new Error('Balance refresh failed');
+      }
 
       // Dispatch completion progress event
       try {

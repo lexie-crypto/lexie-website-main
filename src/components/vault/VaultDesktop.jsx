@@ -44,6 +44,7 @@ import CrossPlatformVerificationModal from './CrossPlatformVerificationModal';
 import GameOnboardingModal from './GameOnboardingModal';
 import SignRequestModal from './SignRequestModal';
 import { useChainSwitchModal } from '../../hooks/useChainSwitchModal';
+import { useBalanceRefresh } from '../../utils/balanceRefresh.js';
 import SignatureConfirmationModal from './SignatureConfirmationModal';
 import ReturningUserChainSelectionModal from './ReturningUserChainSelectionModal';
 import { Navbar } from '../Navbar.jsx';
@@ -241,6 +242,9 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     setInitializingChainId,
     getNetworkNameById: modalGetNetworkNameById
   } = useChainSwitchModal();
+
+  // Use the balance refresh utility hook
+  const { refreshBalances } = useBalanceRefresh({ refreshAllBalances });
 
   // Helper to get network name by chain ID
   const getNetworkNameById = (chainId) => {
@@ -702,78 +706,13 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     };
   }, []);
 
-  // Full refresh: SDK refresh + Redis persist, then UI reload
-  const refreshBalances = useCallback(async (showToast = true) => {
-    try {
-      try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
-      console.log('[VaultDesktop] Full refresh — ensuring chain scanned and refreshing balances...');
-
-      // Chain should already be hydrated from WalletContext chain switching
-
-      // Step 1: ALWAYS trigger SDK refresh + persist authoritative balances to Redis
-      // (Balances can change even if chain was previously scanned)
-      console.log('[VaultDesktop] Triggering SDK balance refresh...');
-      try {
-        if (railgunWalletId && address && activeChainId) {
-          const { syncBalancesAfterTransaction } = await import('../../utils/railgun/syncBalances.js');
-          await syncBalancesAfterTransaction({
-            walletAddress: address,
-            walletId: railgunWalletId,
-            chainId: activeChainId,
-          });
-        }
-      } catch (sdkErr) {
-        console.warn('[VaultDesktop] SDK refresh + persist failed (continuing to UI refresh):', sdkErr?.message);
-      }
-
-      // Step 2: Always refresh UI from sources of truth (Redis + cache)
-      await refreshAllBalances();
-
-      if (showToast) {
-        toast.custom((t) => (
-          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-            <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
-              <div className="px-4 py-3 flex items-center gap-3">
-                <div className="h-3 w-3 rounded-full bg-emerald-400" />
-                <div>
-                  <div className="text-sm">Balances refreshed</div>
-                  <div className="text-xs text-green-400/80">Public and vault balances updated</div>
-                </div>
-                <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
-              </div>
-            </div>
-          </div>
-        ), { duration: 2500 });
-      }
-    } catch (error) {
-      console.error('[VaultDesktop] Full refresh failed:', error);
-      if (showToast) {
-        toast.custom((t) => (
-          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-            <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
-              <div className="px-4 py-3 flex items-center gap-3">
-                <div className="h-3 w-3 rounded-full bg-red-400" />
-                <div>
-                  <div className="text-sm">Failed to refresh balances</div>
-                  <div className="text-xs text-green-400/80">Please try again</div>
-                </div>
-                <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
-              </div>
-            </div>
-          </div>
-        ), { duration: 3500 });
-      }
-    } finally {
-      try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
-    }
-  }, [refreshAllBalances, railgunWalletId, address, activeChainId, canUseRailgun]);
 
   // Placeholder functions for command bar icons
   const handleRefresh = useCallback(async () => {
     // Placeholder: implement refresh functionality
     console.log('[VaultDesktop] Refresh clicked');
-    await refreshBalances();
-  }, [refreshBalances]);
+    await refreshBalances(address, railgunWalletId, activeChainId, true);
+  }, [refreshBalances, address, railgunWalletId, activeChainId]);
 
   const handleInfoClick = useCallback(() => {
     console.log('[VaultDesktop] Info clicked');
@@ -790,7 +729,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
     if (isConnected && address && canUseRailgun && railgunWalletId) {
       console.log('[VaultDesktop] Wallet connected and Railgun ready - auto-refreshing balances...');
-      refreshBalances(false); // Full refresh but no toast notification
+      refreshBalances(address, railgunWalletId, activeChainId, false); // Full refresh but no toast notification
     }
   }, [isConnected, address, canUseRailgun, railgunWalletId, refreshBalances, showReturningUserChainModal]);
 
