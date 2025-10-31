@@ -684,41 +684,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     };
   }, [isTransactionLocked]);
 
-  // Event listeners for vault balance refresh state
-  useEffect(() => {
-    const onPrivateStart = () => {
-      console.log('[VaultDesktop] Private balances refresh started - showing spinner');
-      setIsRefreshingBalances(true);
-    };
-    const onPrivateComplete = () => {
-      console.log('[VaultDesktop] Private balances refresh completed - hiding spinner');
-      setIsRefreshingBalances(false);
-    };
-
-    const onScanComplete = (event) => {
-      const { chainId } = event.detail || {};
-      if (chainId && chainId === activeChainId) {
-        console.log(`[VaultDesktop] Chain ${chainId} scan completed, triggering balance refresh`);
-        // Small delay to ensure chain switch is fully complete
-        setTimeout(() => {
-          if (isConnected && address && canUseRailgun && railgunWalletId) {
-            refreshBalances(false);
-          }
-        }, 500);
-      }
-    };
-
-    window.addEventListener('vault-private-refresh-start', onPrivateStart);
-    window.addEventListener('vault-private-refresh-complete', onPrivateComplete);
-    window.addEventListener('railgun-scan-complete', onScanComplete);
-
-    return () => {
-      window.removeEventListener('vault-private-refresh-start', onPrivateStart);
-      window.removeEventListener('vault-private-refresh-complete', onPrivateComplete);
-      window.removeEventListener('railgun-scan-complete', onScanComplete);
-    };
-  }, [activeChainId, isConnected, address, canUseRailgun, railgunWalletId, refreshBalances]);
-
   // Full refresh: SDK refresh + Redis persist, then UI reload
   const refreshBalances = useCallback(async (showToast = true) => {
     try {
@@ -784,6 +749,41 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
     }
   }, [refreshAllBalances, railgunWalletId, address, activeChainId, canUseRailgun]);
+
+  // Event listeners for vault balance refresh state
+  useEffect(() => {
+    const onPrivateStart = () => {
+      console.log('[VaultDesktop] Private balances refresh started - showing spinner');
+      setIsRefreshingBalances(true);
+    };
+    const onPrivateComplete = () => {
+      console.log('[VaultDesktop] Private balances refresh completed - hiding spinner');
+      setIsRefreshingBalances(false);
+    };
+
+    const onScanComplete = (event) => {
+      const { chainId } = event.detail || {};
+      if (chainId && chainId === activeChainId) {
+        console.log(`[VaultDesktop] Chain ${chainId} scan completed, triggering balance refresh`);
+        // Small delay to ensure chain switch is fully complete
+        setTimeout(() => {
+          if (isConnected && address && canUseRailgun && railgunWalletId) {
+            refreshBalances(false);
+          }
+        }, 500);
+      }
+    };
+
+    window.addEventListener('vault-private-refresh-start', onPrivateStart);
+    window.addEventListener('vault-private-refresh-complete', onPrivateComplete);
+    window.addEventListener('railgun-scan-complete', onScanComplete);
+
+    return () => {
+      window.removeEventListener('vault-private-refresh-start', onPrivateStart);
+      window.removeEventListener('vault-private-refresh-complete', onPrivateComplete);
+      window.removeEventListener('railgun-scan-complete', onScanComplete);
+    };
+  }, [activeChainId, isConnected, address, canUseRailgun, railgunWalletId, refreshBalances]);
 
   // Placeholder functions for command bar icons
   const handleRefresh = useCallback(async () => {
