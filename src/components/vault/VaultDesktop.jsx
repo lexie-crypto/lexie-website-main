@@ -789,15 +789,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
       console.log('[VaultDesktop] Full refresh — ensuring chain scanned and refreshing balances...');
 
-      // Step 0: Ensure chain has been scanned for private transfers (critical for discovering transfers before first shield)
-      try {
-        if (canUseRailgun && railgunWalletId && address && activeChainId) {
-          console.log('[VaultDesktop] Ensuring chain is scanned before refresh...');
-          await ensureChainScanned(activeChainId);
-        }
-      } catch (scanErr) {
-        console.warn('[VaultDesktop] Chain scan check failed (continuing with refresh):', scanErr?.message);
-      }
+      // Chain should already be hydrated from WalletContext chain switching
 
       // Step 1: ALWAYS trigger SDK refresh + persist authoritative balances to Redis
       // (Balances can change even if chain was previously scanned)
@@ -855,7 +847,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     } finally {
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
     }
-  }, [refreshAllBalances, railgunWalletId, address, activeChainId, ensureChainScanned, canUseRailgun]);
+  }, [refreshAllBalances, railgunWalletId, address, activeChainId, canUseRailgun]);
 
   // Placeholder functions for command bar icons
   const handleRefresh = useCallback(async () => {
@@ -1451,53 +1443,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     }
   }, [canUseRailgun, railgunWalletId, address, activeChainId, network, shieldAmounts, refreshBalancesAfterTransaction, getEncryptionKey, walletProvider]);
 
-  // Handle network switch
-  const handleNetworkSwitch = async (targetChainId) => {
-    console.log('[VaultDesktop] handleNetworkSwitch called with targetChainId=', targetChainId);
-    try {
-      // Block chain switching until secure vault engine is initialized
-      if (!canUseRailgun || !railgunWalletId) {
-        console.log('[VaultDesktop] Blocking switch: canUseRailgun=', canUseRailgun, 'railgunWalletId=', railgunWalletId);
-        toast.custom((t) => (
-          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-            <div className="rounded-lg border border-yellow-500/30 bg-black/90 text-yellow-200 shadow-2xl">
-              <div className="px-4 py-3 flex items-center gap-3">
-                <div className="h-3 w-3 rounded-full bg-yellow-400" />
-                <div>
-                  <div className="text-sm">Vault engine is starting…</div>
-                  <div className="text-xs text-yellow-400/80">Please wait for initialization to complete before switching networks.</div>
-                </div>
-                <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-yellow-900/30 text-yellow-300/80">×</button>
-              </div>
-            </div>
-          </div>
-        ), { duration: 2500 });
-        return;
-      }
-      
-      // Just validation and network switch - let WalletContext handle hydration
-      setSelectedChainId(targetChainId);
-      await switchNetwork(targetChainId);
-
-      const targetNetwork = supportedNetworks.find(net => net.id === targetChainId);
-      toast.custom((t) => (
-        <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-          <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
-            <div className="px-4 py-3 flex items-center gap-3">
-              <div className="h-3 w-3 rounded-full bg-emerald-400" />
-              <div>
-                <div className="text-sm">Network switched</div>
-                <div className="text-xs text-green-400/80">{targetNetwork?.name || `Chain ${targetChainId}`}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      ), { duration: 2000 });
-    } catch (error) {
-      console.error('[VaultDesktop] Error in handleNetworkSwitch:', error);
-      toast.error(`Failed to switch network: ${error.message}`);
-    }
-  };
 
   const [isChainMenuOpen, setIsChainMenuOpen] = useState(false);
   const [isMobileChainMenuOpen, setIsMobileChainMenuOpen] = useState(false);
@@ -1709,7 +1654,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                         {supportedNetworks.map((net) => (
                           <button
                             key={net.id}
-                            onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsMobileChainMenuOpen(false); handleNetworkSwitch(net.id); }}
+                            onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsMobileChainMenuOpen(false); switchNetwork(net.id); }}
                             className={`w-full text-left px-3 py-2 ${(!canUseRailgun || !railgunWalletId) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-900/30 focus:bg-emerald-900/30'} focus:outline-none`}
                             title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : `Switch to ${net.name}`}
                             aria-disabled={!canUseRailgun || !railgunWalletId}
@@ -1762,7 +1707,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                       {supportedNetworks.map((net) => (
                         <button
                           key={net.id}
-                          onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsChainMenuOpen(false); handleNetworkSwitch(net.id); }}
+                          onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsChainMenuOpen(false); switchNetwork(net.id); }}
                           className={`w-full text-left px-3 py-2 ${(!canUseRailgun || !railgunWalletId) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-900/30 focus:bg-emerald-900/30'} focus:outline-none`}
                           title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : `Switch to ${net.name}`}
                           aria-disabled={!canUseRailgun || !railgunWalletId}
