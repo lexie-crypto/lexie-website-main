@@ -47,21 +47,6 @@ export const getRailgunNetworkName = (chainId) => {
 };
 
 /**
- * Get human-readable network name for chain ID (like WalletContext)
- * @param {number} chainId - Chain ID
- * @returns {string} Human-readable network name
- */
-export const getHumanNetworkName = (chainId) => {
-  const networkNames = {
-    1: 'Ethereum',
-    137: 'Polygon',
-    42161: 'Arbitrum',
-    56: 'BNB Chain'
-  };
-  return networkNames[chainId] || `Chain ${chainId}`;
-};
-
-/**
  * Scan status enum
  */
 export const ScanStatus = {
@@ -389,9 +374,6 @@ export const getScanningSummary = () => {
  */
 const checkAndMarkChainScanned = async (chainId, networkName) => {
   try {
-    // Get human-readable network name for logging (like WalletContext)
-    const humanNetworkName = getHumanNetworkName(chainId);
-
     // Get current wallet info from global context
     const walletAddress = window.__LEXIE_WALLET_ADDRESS;
     const walletId = window.__LEXIE_WALLET_ID;
@@ -404,7 +386,7 @@ const checkAndMarkChainScanned = async (chainId, networkName) => {
       return;
     }
 
-    console.log(`[ScanningService] 🔍 Checking if chain ${chainId} (${humanNetworkName}) has been marked as scanned in Redis...`);
+    console.log(`[ScanningService] 🔍 Checking if chain ${chainId} (${networkName}) has been marked as scanned in Redis...`);
 
     // First, try to get current wallet metadata to check scannedChains
     try {
@@ -421,12 +403,12 @@ const checkAndMarkChainScanned = async (chainId, networkName) => {
 
         // Check if chain is already marked as scanned
         if (scannedChains.includes(chainId)) {
-          console.log(`[ScanningService] ✅ Chain ${chainId} (${humanNetworkName}) already marked as scanned, unlocking modal`);
+          console.log(`[ScanningService] ✅ Chain ${chainId} (${networkName}) already marked as scanned, unlocking modal`);
           unlockModalOnce(chainId, 'scan complete (already marked)');
           return;
         }
 
-        console.log(`[ScanningService] 📝 Chain ${chainId} (${humanNetworkName}) not yet marked as scanned, marking now...`);
+        console.log(`[ScanningService] 📝 Chain ${chainId} (${networkName}) not yet marked as scanned, marking now...`);
       } else {
         console.warn(`[ScanningService] ⚠️ Failed to get wallet metadata (${metadataResp.status}), proceeding with marking`);
       }
@@ -436,7 +418,7 @@ const checkAndMarkChainScanned = async (chainId, networkName) => {
     }
 
     // Mark chain as scanned in Redis
-    console.log(`[ScanningService] 💾 Marking chain ${chainId} (${humanNetworkName}) as scanned in Redis...`);
+    console.log(`[ScanningService] 💾 Marking chain ${chainId} (${networkName}) as scanned in Redis...`);
 
     const scanResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
       method: 'POST',
@@ -450,13 +432,13 @@ const checkAndMarkChainScanned = async (chainId, networkName) => {
     });
 
     if (scanResp.ok) {
-      console.log(`[ScanningService] ✅ Successfully marked chain ${chainId} (${humanNetworkName}) as scanned in Redis`);
+      console.log(`[ScanningService] ✅ Successfully marked chain ${chainId} (${networkName}) as scanned in Redis`);
     } else {
       console.warn(`[ScanningService] ⚠️ Failed to mark chain ${chainId} as scanned (${scanResp.status}):`, await scanResp.text());
     }
 
     // Always unlock the modal after scan completion
-    console.log(`[ScanningService] 🔓 Unlocking modal for chain ${chainId} (${humanNetworkName})`);
+    console.log(`[ScanningService] 🔓 Unlocking modal for chain ${chainId} (${networkName})`);
     unlockModalOnce(chainId, 'scan complete');
 
   } catch (error) {
@@ -486,10 +468,8 @@ export const setupScanningCallbacks = () => {
 
     console.log(`[ScanningService] 📊 UTXO scan progress: ${progressPercent}%`);
 
-    // Update internal progress tracking - use chain.id and map to network name like WalletContext
-    const chainId = event.chain?.id;
-    const networkName = chainId ? getRailgunNetworkName(chainId) : null;
-
+    // Update internal progress tracking
+    const networkName = event.chain?.name;
     if (networkName) {
       const currentProgress = getScanProgress(networkName);
       scanProgress.set(networkName, {
@@ -501,20 +481,12 @@ export const setupScanningCallbacks = () => {
       if (event.scanStatus === 'Complete') {
         scanStatus.set(networkName, ScanStatus.COMPLETE);
         lastScanTime.set(networkName, Date.now());
-
-        // 🔓 Check Redis to see if chain has been marked as scanned, if not mark it and unlock modal
-        console.log(`[ScanningService] 🎯 UTXO scan complete for chain ${chainId}, checking Redis scan status`);
-
-        // Run async check and marking in background (don't block the scan callback)
-        checkAndMarkChainScanned(chainId, networkName).catch(error => {
-          console.error('[ScanningService] ❌ Error checking/marking chain as scanned:', error);
-        });
       }
     }
 
     // Dispatch custom event for UI compatibility
     window.dispatchEvent(new CustomEvent('railgun-utxo-scan', {
-      detail: { networkName, chainId, scanData: event },
+      detail: { networkName: event.chain?.name, scanData: event },
     }));
   });
 
@@ -527,10 +499,8 @@ export const setupScanningCallbacks = () => {
 
     console.log(`[ScanningService] 📊 TXID scan progress: ${progressPercent}%`);
 
-    // Update internal progress tracking - use chain.id and map to network name like WalletContext
-    const chainId = event.chain?.id;
-    const networkName = chainId ? getRailgunNetworkName(chainId) : null;
-
+    // Update internal progress tracking
+    const networkName = event.chain?.name;
     if (networkName) {
       const currentProgress = getScanProgress(networkName);
       scanProgress.set(networkName, {
@@ -544,18 +514,20 @@ export const setupScanningCallbacks = () => {
         lastScanTime.set(networkName, Date.now());
 
         // 🔓 Check Redis to see if chain has been marked as scanned, if not mark it and unlock modal
-        console.log(`[ScanningService] 🎯 TXID scan complete for chain ${chainId}, checking Redis scan status`);
+        if (event.chain?.id) {
+          console.log(`[ScanningService] 🎯 TXID scan complete for chain ${event.chain.id}, checking Redis scan status`);
 
-        // Run async check and marking in background (don't block the scan callback)
-        checkAndMarkChainScanned(chainId, networkName).catch(error => {
-          console.error('[ScanningService] ❌ Error checking/marking chain as scanned:', error);
-        });
+          // Run async check and marking in background (don't block the scan callback)
+          checkAndMarkChainScanned(event.chain.id, networkName).catch(error => {
+            console.error('[ScanningService] ❌ Error checking/marking chain as scanned:', error);
+          });
+        }
       }
     }
 
     // Dispatch custom event for UI compatibility
     window.dispatchEvent(new CustomEvent('railgun-txid-scan', {
-      detail: { networkName, chainId, scanData: event },
+      detail: { networkName, scanData: event },
     }));
   });
   
@@ -588,7 +560,6 @@ export const resetAllScanStatus = () => {
 export default {
   ScanStatus,
   getRailgunNetworkName,
-  getHumanNetworkName,
   getScanStatus,
   getScanProgress,
   getLastScanTime,
