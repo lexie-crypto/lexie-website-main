@@ -815,15 +815,15 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     }
   }, [canUseRailgun, railgunWalletId]);
 
-  // Refresh balances after chain scan completes
+  // Refresh balances after chain switch completes
   useEffect(() => {
-    const onScanComplete = () => {
-      console.log('[VaultDesktop] Chain scanning completed - refreshing balances...');
-      refreshBalances(false); // Refresh balances after scan completes
+    const onChainSwitchComplete = () => {
+      console.log('[VaultDesktop] Chain switch completed - refreshing balances...');
+      refreshBalances(false); // Refresh balances after chain switch completes
     };
 
-    window.addEventListener('railgun-scan-complete', onScanComplete);
-    return () => window.removeEventListener('railgun-scan-complete', onScanComplete);
+    window.addEventListener('chain-switch-complete', onChainSwitchComplete);
+    return () => window.removeEventListener('chain-switch-complete', onChainSwitchComplete);
   }, [refreshBalances]);
 
 
