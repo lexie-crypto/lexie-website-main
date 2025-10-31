@@ -50,34 +50,29 @@ export async function switchToChain({
       return true;
     }
 
-    // Step 2: Check if we need to load bootstrap or scan (only if not already scanned)
-    const needsBootstrapOrScan = !scanStatus.isScanned;
+    // Step 2: Load bootstrap data if available
+    onProgress({ phase: 'loading-bootstrap', chainId: targetChainId });
+    const bootstrapResult = await loadChainBootstrapIfAvailable(railgunWalletID, targetChainId, {
+      address,
+      onProgress: (progress) => onProgress({ phase: 'bootstrap-progress', chainId: targetChainId, progress })
+    });
 
-    if (needsBootstrapOrScan) {
-      // Step 2a: Load bootstrap data if available
-      onProgress({ phase: 'loading-bootstrap', chainId: targetChainId });
-      const bootstrapResult = await loadChainBootstrapIfAvailable(railgunWalletID, targetChainId, {
-        address,
-        onProgress: (progress) => onProgress({ phase: 'bootstrap-progress', chainId: targetChainId, progress })
-      });
-
-      if (!bootstrapResult.loaded) {
-        console.warn(`[ChainSwitch] Bootstrap loading failed or not available for chain ${targetChainId}`);
-        // Continue with scanning anyway - some chains might not have bootstrap data
-      }
-
-      // Step 2b: Scan chain for balances
-      onProgress({ phase: 'scanning-balances', chainId: targetChainId });
-      const scanResult = await scanChainForBalances(railgunWalletID, targetChainId, address);
-
-      if (!scanResult.success) {
-        throw new Error(`Balance scanning failed: ${scanResult.error}`);
-      }
-
-      // Step 2c: Mark as scanned in Redis
-      onProgress({ phase: 'persisting-results', chainId: targetChainId });
-      await persistScanResults(address, railgunWalletID, targetChainId);
+    if (!bootstrapResult.loaded) {
+      console.warn(`[ChainSwitch] Bootstrap loading failed or not available for chain ${targetChainId}`);
+      // Continue with scanning anyway - some chains might not have bootstrap data
     }
+
+    // Step 3: Scan chain for balances
+    onProgress({ phase: 'scanning-balances', chainId: targetChainId });
+    const scanResult = await scanChainForBalances(railgunWalletID, targetChainId, address);
+
+    if (!scanResult.success) {
+      throw new Error(`Balance scanning failed: ${scanResult.error}`);
+    }
+
+    // Step 4: Mark as scanned in Redis
+    onProgress({ phase: 'persisting-results', chainId: targetChainId });
+    await persistScanResults(address, railgunWalletID, targetChainId);
 
     console.log(`[ChainSwitch] Chain switch to ${targetChainId} completed successfully`);
 
@@ -165,6 +160,13 @@ export async function loadChainBootstrapIfAvailable(railgunWalletID, targetChain
     if (isMasterWallet(railgunWalletID)) {
       console.log(`[ChainSwitch] Master wallet detected - skipping bootstrap for chain ${targetChainId}`);
       return { loaded: true, skipped: true };
+    }
+
+    // Check if chain is already scanned - if so, skip entirely
+    const scanStatus = await checkChainScanStatus(options.address, railgunWalletID, targetChainId);
+    if (scanStatus.isScanned) {
+      console.log(`[ChainSwitch] Chain ${targetChainId} already scanned, skipping bootstrap entirely`);
+      return { loaded: true, alreadyScanned: true };
     }
 
     // Check if chain is already hydrating

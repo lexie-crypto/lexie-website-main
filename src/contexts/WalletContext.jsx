@@ -1052,9 +1052,16 @@ const WalletContextProvider = ({ children }) => {
       }
 
       try {
-        // Immediately notify UI that a scan/refresh will begin for this chain
-        try { window.dispatchEvent(new CustomEvent('railgun-scan-started', { detail: { chainId } })); } catch {}
-        console.log('🔄 Updating Railgun providers for chain change...', { chainId });
+        // Check if chain is already scanned before showing modal
+        const { checkChainScanStatus } = await import('../utils/railgun/chainSwitch');
+        const scanStatus = await checkChainScanStatus(address, railgunWalletId, chainId);
+
+        if (!scanStatus.isScanned) {
+          // Only notify UI that a scan will begin if chain is not already scanned
+          try { window.dispatchEvent(new CustomEvent('railgun-scan-started', { detail: { chainId } })); } catch {}
+        }
+
+        console.log('🔄 Updating Railgun providers for chain change...', { chainId, alreadyScanned: scanStatus.isScanned });
         
         const { loadProvider } = await import('@railgun-community/wallet');
         
