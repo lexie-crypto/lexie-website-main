@@ -750,6 +750,14 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     }
   }, [refreshAllBalances, railgunWalletId, address, activeChainId, canUseRailgun]);
 
+  // Use ref to break circular dependency with refreshBalances
+  const refreshBalancesRef = useRef(refreshBalances);
+
+  // Update ref when refreshBalances changes
+  useEffect(() => {
+    refreshBalancesRef.current = refreshBalances;
+  }, [refreshBalances]);
+
   // Event listeners for vault balance refresh state
   useEffect(() => {
     const onPrivateStart = () => {
@@ -768,7 +776,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         // Small delay to ensure chain switch is fully complete
         setTimeout(() => {
           if (isConnected && address && canUseRailgun && railgunWalletId) {
-            refreshBalances(false);
+            refreshBalancesRef.current(false);
           }
         }, 500);
       }
@@ -783,7 +791,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       window.removeEventListener('vault-private-refresh-complete', onPrivateComplete);
       window.removeEventListener('railgun-scan-complete', onScanComplete);
     };
-  }, [activeChainId, isConnected, address, canUseRailgun, railgunWalletId, refreshBalances]);
+  }, [activeChainId, isConnected, address, canUseRailgun, railgunWalletId]);
 
   // Placeholder functions for command bar icons
   const handleRefresh = useCallback(async () => {
@@ -812,16 +820,16 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       checkChainReady().then((isReady) => {
         if (isReady) {
           console.log('[VaultDesktop] Chain is ready, proceeding with balance refresh');
-          refreshBalances(false); // Full refresh but no toast notification
+          refreshBalancesRef.current(false); // Use ref to break circular dependency
         } else {
           console.log('[VaultDesktop] Chain not ready yet, skipping balance refresh until chain switch completes');
         }
       }).catch((error) => {
         console.warn('[VaultDesktop] Failed to check chain readiness, proceeding with refresh anyway:', error);
-        refreshBalances(false); // Full refresh but no toast notification
+        refreshBalancesRef.current(false); // Use ref to break circular dependency
       });
     }
-  }, [isConnected, address, activeChainId, canUseRailgun, railgunWalletId, refreshBalances, showReturningUserChainModal, checkChainReady]);
+  }, [isConnected, address, activeChainId, canUseRailgun, railgunWalletId, showReturningUserChainModal, checkChainReady]);
 
   // Auto-switch to privacy view when Railgun is ready
   useEffect(() => {
