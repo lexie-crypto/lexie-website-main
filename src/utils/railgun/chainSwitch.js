@@ -50,12 +50,19 @@ export async function switchToChain({
       return true;
     }
 
-    // Step 2: Load bootstrap data if available
+    // Step 2: Load bootstrap data if available and wait for FULL hydration
     onProgress({ phase: 'loading-bootstrap', chainId: targetChainId });
     const bootstrapResult = await loadChainBootstrapIfAvailable(railgunWalletID, targetChainId, {
       address,
       onProgress: (progress) => onProgress({ phase: 'bootstrap-progress', progress, chainId: targetChainId })
     });
+
+    // CRITICAL: Wait for hydration to be fully complete before scanning
+    if (bootstrapResult.loaded) {
+      console.log(`[ChainSwitch] Bootstrap loaded, ensuring hydration is fully complete before scanning...`);
+      await waitForHydrationCompletion(railgunWalletID, targetChainId);
+      console.log(`[ChainSwitch] ✅ Hydration fully complete, safe to scan chain ${targetChainId}`);
+    }
 
     // Step 3: Scan chain for balances
     onProgress({ phase: 'scanning-chain', chainId: targetChainId });
@@ -172,7 +179,9 @@ export async function loadChainBootstrapIfAvailable(railgunWalletID, targetChain
 
     console.log(`[ChainSwitch] Loading bootstrap data for chain ${targetChainId}...`);
 
-    // Load the bootstrap data
+    // Load the bootstrap data and wait for FULL hydration completion
+    let bootstrapCompleted = false;
+
     await new Promise((resolve, reject) => {
       loadChainBootstrap(railgunWalletID, targetChainId, {
         address: options.address,
@@ -204,8 +213,9 @@ export async function loadChainBootstrapIfAvailable(railgunWalletID, targetChain
           options.onProgress?.(progress);
         },
         onComplete: () => {
-          console.log(`[ChainSwitch] Bootstrap loaded successfully for chain ${targetChainId}`);
-          resolve();
+          console.log(`[ChainSwitch] Bootstrap data loaded successfully for chain ${targetChainId}`);
+          // Mark bootstrap as completed, but hydration may still be ongoing
+          bootstrapCompleted = true;
         },
         onError: (error) => {
           console.warn(`[ChainSwitch] Bootstrap failed for chain ${targetChainId}:`, error.message);
@@ -213,6 +223,23 @@ export async function loadChainBootstrapIfAvailable(railgunWalletID, targetChain
         }
       });
     });
+
+    // WAIT FOR FULL HYDRATION TO COMPLETE BEFORE PROCEEDING
+    if (!bootstrapCompleted) {
+      console.log(`[ChainSwitch] ⏳ Bootstrap in progress for chain ${targetChainId}, waiting...`);
+      // Bootstrap is still running, wait a bit more
+      let waitAttempts = 0;
+      while (!bootstrapCompleted && waitAttempts < 9000) { // Max 15 minutes (900 seconds)
+        await new Promise(resolve => setTimeout(resolve, 100));
+        waitAttempts++;
+      }
+
+      if (!bootstrapCompleted) {
+        console.warn(`[ChainSwitch] ⚠️ Bootstrap timeout for chain ${targetChainId}, proceeding with scan anyway`);
+      } else {
+        console.log(`[ChainSwitch] ✅ Bootstrap confirmed complete for chain ${targetChainId}, safe to scan`);
+      }
+    }
 
     return { loaded: true };
 
