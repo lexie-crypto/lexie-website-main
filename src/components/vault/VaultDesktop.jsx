@@ -226,22 +226,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   const [activeTransactionMonitors, setActiveTransactionMonitors] = useState(0);
   const [shieldingTokens, setShieldingTokens] = useState(new Set());
   const [shieldAmounts, setShieldAmounts] = useState({});
-  // Use the modal hook for Railgun initialization modal management
-  const {
-    showSignRequestPopup,
-    initProgress,
-    isInitInProgress,
-    initFailedMessage,
-    bootstrapProgress,
-    initializingChainId,
-    scanComplete,
-    resetModalState
-  } = useRailgunModal({
-    activeChainId,
-    network,
-    checkChainReady,
-    getNetworkNameById
-  });
 
   // Helper to get network name by chain ID
   const getNetworkNameById = (chainId) => {
@@ -302,6 +286,23 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     showReturningUserChainModal,
     handleReturningUserChainChoice,
   } = useWallet();
+
+  // Use the modal hook for Railgun initialization modal management
+  const {
+    showSignRequestPopup,
+    initProgress,
+    isInitInProgress,
+    initFailedMessage,
+    bootstrapProgress,
+    initializingChainId,
+    scanComplete,
+    resetModalState
+  } = useRailgunModal({
+    activeChainId,
+    network,
+    checkChainReady,
+    getNetworkNameById
+  });
 
   // Handle LexieID linking and game opening
   const handleLexieIdLink = useCallback((lexieId, autoOpenGame = false) => {

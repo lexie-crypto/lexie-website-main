@@ -35,8 +35,8 @@ export const useRailgunModal = ({
     bootstrapLockedRef.current = false;
   }, []);
 
-  // Event handlers
-  const eventHandlers = useCallback(() => {
+  // Event handlers - defined inline to avoid dependency issues
+  const getEventHandlers = useCallback(() => {
     const onSignRequest = () => {
       setShowSignRequestPopup(true);
       setIsInitInProgress(false);
@@ -47,9 +47,7 @@ export const useRailgunModal = ({
 
     const onInitStarted = (e) => {
       // Open modal when init/scan starts
-      if (!showSignRequestPopup) {
-        setShowSignRequestPopup(true);
-      }
+      setShowSignRequestPopup(true);
       setScanComplete(false);
       setIsInitInProgress(true);
       // Guard reset-to-0: don't reset progress if already at 100%
@@ -158,11 +156,11 @@ export const useRailgunModal = ({
       onRailgunInitForceUnlock,
       onBootstrapProgress
     };
-  }, [showSignRequestPopup, initializingChainId, activeChainId, network, checkChainReady, getNetworkNameById]);
+  }, [activeChainId, network, checkChainReady, getNetworkNameById]);
 
   // Set up event listeners
   useEffect(() => {
-    const handlers = eventHandlers();
+    const handlers = getEventHandlers();
 
     if (typeof window !== 'undefined') {
       window.addEventListener('railgun-signature-requested', handlers.onSignRequest);
@@ -189,7 +187,7 @@ export const useRailgunModal = ({
         window.removeEventListener('chain-bootstrap-progress', handlers.onBootstrapProgress);
       }
     };
-  }, [eventHandlers]);
+  }, [getEventHandlers]);
 
   // Mark initial connect as done once wallet metadata is ready or init completes
   useEffect(() => {
