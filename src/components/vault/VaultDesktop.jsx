@@ -789,10 +789,24 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     }
 
     if (isConnected && address && activeChainId && canUseRailgun && railgunWalletId) {
-      console.log('[VaultDesktop] Wallet connected and Railgun ready - auto-refreshing balances...');
-      refreshBalances(false); // Full refresh but no toast notification
+      console.log('[VaultDesktop] Wallet connected and Railgun ready - checking chain readiness before auto-refreshing balances...');
+
+      // Check if chain is ready before refreshing balances
+      (async () => {
+        try {
+          const chainReady = await checkChainReady();
+          if (chainReady) {
+            console.log('[VaultDesktop] Chain is ready - auto-refreshing balances...');
+            refreshBalances(false); // Full refresh but no toast notification
+          } else {
+            console.log('[VaultDesktop] Chain not ready yet - skipping balance refresh (hydration in progress)');
+          }
+        } catch (error) {
+          console.warn('[VaultDesktop] Error checking chain readiness:', error);
+        }
+      })();
     }
-  }, [isConnected, address, activeChainId, canUseRailgun, railgunWalletId, refreshBalances, showReturningUserChainModal]);
+  }, [isConnected, address, activeChainId, canUseRailgun, railgunWalletId, refreshBalances, showReturningUserChainModal, checkChainReady]);
 
   // Auto-switch to privacy view when Railgun is ready
   useEffect(() => {
@@ -800,6 +814,17 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       setShowPrivateMode(true);
     }
   }, [canUseRailgun, railgunWalletId]);
+
+  // Refresh balances after chain scan completes
+  useEffect(() => {
+    const onScanComplete = () => {
+      console.log('[VaultDesktop] Chain scanning completed - refreshing balances...');
+      refreshBalances(false); // Refresh balances after scan completes
+    };
+
+    window.addEventListener('railgun-scan-complete', onScanComplete);
+    return () => window.removeEventListener('railgun-scan-complete', onScanComplete);
+  }, [refreshBalances]);
 
 
   // Fetch initial points when Lexie ID is available
