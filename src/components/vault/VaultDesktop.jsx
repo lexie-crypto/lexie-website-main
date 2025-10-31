@@ -28,7 +28,6 @@ import WindowShell from '../window/WindowShell.jsx';
 import Taskbar from '../window/Taskbar.jsx';
 import useBalances from '../../hooks/useBalances';
 import useInjectedProviders from '../../hooks/useInjectedProviders';
-import { useRailgunModal } from '../../hooks/useRailgunModal';
 import PrivacyActions from '../PrivacyActions';
 import TransactionHistory from '../TransactionHistory';
 import VaultInfoModal from './VaultInfoModal';
@@ -44,6 +43,7 @@ import LexieIdModal from './LexieIdModal';
 import CrossPlatformVerificationModal from './CrossPlatformVerificationModal';
 import GameOnboardingModal from './GameOnboardingModal';
 import SignRequestModal from './SignRequestModal';
+import { useChainSwitchModal } from '../../hooks/useChainSwitchModal';
 import SignatureConfirmationModal from './SignatureConfirmationModal';
 import ReturningUserChainSelectionModal from './ReturningUserChainSelectionModal';
 import { Navbar } from '../Navbar.jsx';
@@ -227,6 +227,20 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   const [shieldingTokens, setShieldingTokens] = useState(new Set());
   const [shieldAmounts, setShieldAmounts] = useState({});
 
+  // Use the chain switch modal hook
+  const {
+    showSignRequestPopup,
+    initProgress,
+    isInitInProgress,
+    initFailedMessage,
+    bootstrapProgress,
+    initializingChainId,
+    scanComplete,
+    handlePersistMetadata,
+    resetModal,
+    getNetworkNameById: modalGetNetworkNameById
+  } = useChainSwitchModal();
+
   // Helper to get network name by chain ID
   const getNetworkNameById = (chainId) => {
     return {
@@ -237,30 +251,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     }[Number(chainId)] || `Chain ${chainId}`;
   };
 
-  // Helper to persist metadata when modal unlocks
-  const handlePersistMetadata = async () => {
-    try {
-      console.log(`🔓 Modal unlocking - marking chain ${activeChainId} as scanned for wallet ${railgunWalletId}`);
-      const scanResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress: address,
-          walletId: railgunWalletId,
-          railgunAddress: railgunAddress,
-          scannedChains: [activeChainId] // Mark this chain as scanned when modal unlocks
-        })
-      });
-
-      if (scanResp.ok) {
-        console.log(`✅ Modal unlocked - chain ${activeChainId} marked as scanned`);
-      } else {
-        console.warn(`⚠️ Failed to mark chain ${activeChainId} as scanned on modal unlock:`, await scanResp.text());
-      }
-    } catch (scanError) {
-      console.warn(`⚠️ Error marking chain ${activeChainId} as scanned on modal unlock:`, scanError);
-    }
-  };
 
   // Lexie ID linking state - now managed by LexieIdModal component
   const [showLexieModal, setShowLexieModal] = useState(false);
@@ -286,23 +276,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     showReturningUserChainModal,
     handleReturningUserChainChoice,
   } = useWallet();
-
-  // Use the modal hook for Railgun initialization modal management
-  const {
-    showSignRequestPopup,
-    initProgress,
-    isInitInProgress,
-    initFailedMessage,
-    bootstrapProgress,
-    initializingChainId,
-    scanComplete,
-    resetModalState
-  } = useRailgunModal({
-    activeChainId,
-    network,
-    checkChainReady,
-    getNetworkNameById
-  });
 
   // Handle LexieID linking and game opening
   const handleLexieIdLink = useCallback((lexieId, autoOpenGame = false) => {
@@ -569,12 +542,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     }
   }, [isConnected, address, railgunWalletId, activeChainId, isRailgunInitialized, checkRedisScannedChains, showSignRequestPopup, selectedChainId, showReturningUserChainModal]);
 
-  // Initial connection tracking is now handled by useRailgunModal hook
 
-  // Reset modal state when address changes
-  useEffect(() => {
-    resetModalState();
-  }, [address, resetModalState]);
 
   // Update chain readiness
   useEffect(() => {
@@ -875,19 +843,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     }
   }, [canUseRailgun, railgunWalletId]);
 
-  // Re-check readiness immediately after scan completes
-  useEffect(() => {
-    const onScanComplete = () => {
-      console.log('[VaultDesktop] Chain scanning completed - unlocking modal');
-      setScanComplete(true);
-      setInitProgress({ percent: 100, message: 'Vault ready - initialization complete!' }); // Set progress first
-      setIsInitInProgress(false); // Then unlock modal
-      setIsChainReady(false);
-      checkChainReady().then((ready) => setIsChainReady(!!ready)).catch(() => setIsChainReady(false));
-    };
-    window.addEventListener('railgun-scan-complete', onScanComplete);
-    return () => window.removeEventListener('railgun-scan-complete', onScanComplete);
-  }, [checkChainReady]);
 
   // Fetch initial points when Lexie ID is available
   useEffect(() => {
@@ -1040,6 +995,10 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       }
     };
   }, [currentLexieId]);
+
+
+  // Countdown timer for verification code - now handled by CrossPlatformVerificationModal component
+
 
   // Auto-open Lexie ID modal for new wallet creation
   useEffect(() => {
@@ -1896,7 +1855,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         railgunWalletId={railgunWalletId}
         railgunAddress={railgunAddress}
         onPersistMetadata={handlePersistMetadata}
-        onClose={() => setShowSignRequestPopup(false)}
+        onClose={resetModal}
       />
 
       <SignatureConfirmationModal
