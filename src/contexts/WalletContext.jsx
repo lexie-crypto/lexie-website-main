@@ -480,9 +480,9 @@ const WalletContextProvider = ({ children }) => {
     });
   }, []);
 
-  const confirmSignature = useCallback(async () => {
+  const confirmSignature = useCallback(async (selectedChainId) => {
     if (signatureConfirmationPromise) {
-      const selectedChain = targetChainIdRef.current || parseInt(localStorage.getItem('lexie-selected-chain'), 10);
+      const selectedChain = selectedChainId || targetChainIdRef.current || parseInt(localStorage.getItem('lexie-selected-chain'), 10);
 
       if (selectedChain && selectedChain !== chainIdRef.current) {  // Use ref for initial check
         console.log(`[Signature Confirm] Waiting for chain switch: ${chainIdRef.current} → ${selectedChain}`);

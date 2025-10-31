@@ -1721,7 +1721,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         walletChainId={walletChainId}
         switchNetwork={switchNetwork}
         pendingSignatureMessage={pendingSignatureMessage}
-        onConfirm={confirmSignature}
+        onConfirm={() => confirmSignature(selectedChainId)}
         onCancel={cancelSignature}
       />
 
