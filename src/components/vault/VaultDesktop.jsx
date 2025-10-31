@@ -359,6 +359,16 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     ? { id: selectedChainId, name: {1: 'Ethereum', 137: 'Polygon', 42161: 'Arbitrum', 56: 'BNB Chain'}[selectedChainId] || `Chain ${selectedChainId}` }
     : getCurrentNetwork();
 
+  // Update selectedChainId when wallet chain changes (for chain switches)
+  useEffect(() => {
+    if (walletChainId && supportedNetworks.some(net => net.id === walletChainId)) {
+      console.log('[VaultDesktop] Wallet chain changed, updating selectedChainId:', walletChainId);
+      setSelectedChainId(walletChainId);
+      // Persist to localStorage
+      localStorage.setItem('lexie-selected-chain', walletChainId.toString());
+    }
+  }, [walletChainId, supportedNetworks]);
+
   // Set global variable for modal unlock utility to access current chain
   React.useEffect(() => {
     if (typeof window !== 'undefined' && activeChainId) {
