@@ -66,6 +66,16 @@ export async function switchToChain({
     await persistScanResults(address, railgunWalletID, targetChainId);
 
     console.log(`[ChainSwitch] Chain switch to ${targetChainId} completed successfully`);
+
+    // Dispatch final completion event for UI
+    try {
+      window.dispatchEvent(new CustomEvent('railgun-init-completed', {
+        detail: { address, chainId: targetChainId }
+      }));
+    } catch (eventError) {
+      console.warn('[ChainSwitch] Failed to dispatch completion event:', eventError);
+    }
+
     onComplete({
       chainId: targetChainId,
       scanned: true,
@@ -168,6 +178,21 @@ export async function loadChainBootstrapIfAvailable(railgunWalletID, targetChain
         address: options.address,
         onProgress: (progress) => {
           console.log(`[ChainSwitch] Bootstrap progress: ${progress}%`);
+
+          // Dispatch UI progress event for chain switching (reuse railgun-init-progress for UI compatibility)
+          try {
+            window.dispatchEvent(new CustomEvent('railgun-init-progress', {
+              detail: {
+                current: progress,
+                total: 100,
+                percent: progress,
+                message: `Loading blockchain data for chain ${targetChainId}...`
+              }
+            }));
+          } catch (eventError) {
+            console.warn('[ChainSwitch] Failed to dispatch progress event:', eventError);
+          }
+
           options.onProgress?.(progress);
         },
         onComplete: () => {
@@ -239,9 +264,62 @@ export async function scanChainForBalances(railgunWalletID, targetChainId) {
 
     console.log(`[ChainSwitch] Starting balance refresh for chain ${targetChainId}...`);
 
+    // Dispatch initial scanning progress event
+    try {
+      window.dispatchEvent(new CustomEvent('railgun-init-progress', {
+        detail: {
+          current: 0,
+          total: 100,
+          percent: 0,
+          message: `Scanning blockchain for balances on chain ${targetChainId}...`
+        }
+      }));
+    } catch (eventError) {
+      console.warn('[ChainSwitch] Failed to dispatch scanning progress event:', eventError);
+    }
+
     // Call SDK to refresh balances
     const { refreshBalances } = await import('@railgun-community/wallet');
-    await refreshBalances(railgunChain, [railgunWalletID]);
+
+    // Wrap the balance refresh to provide progress updates
+    const balanceRefreshPromise = refreshBalances(railgunChain, [railgunWalletID]);
+
+    // Simulate progress during scanning (SDK doesn't provide progress callbacks)
+    const progressInterval = setInterval(() => {
+      try {
+        window.dispatchEvent(new CustomEvent('railgun-init-progress', {
+          detail: {
+            current: Math.min(90, Math.random() * 50 + 10), // Random progress between 10-90%
+            total: 100,
+            percent: Math.min(90, Math.random() * 50 + 10),
+            message: `Scanning blockchain for balances on chain ${targetChainId}...`
+          }
+        }));
+      } catch (eventError) {
+        console.warn('[ChainSwitch] Failed to dispatch scanning progress update:', eventError);
+      }
+    }, 1000);
+
+    try {
+      await balanceRefreshPromise;
+
+      // Dispatch completion progress event
+      try {
+        window.dispatchEvent(new CustomEvent('railgun-init-progress', {
+          detail: {
+            current: 100,
+            total: 100,
+            percent: 100,
+            message: `Balance scan completed for chain ${targetChainId}`
+          }
+        }));
+      } catch (eventError) {
+        console.warn('[ChainSwitch] Failed to dispatch scan completion event:', eventError);
+      }
+
+    } finally {
+      clearInterval(progressInterval);
+    }
 
     // Mark as scanned in memory
     if (typeof window !== 'undefined') {
