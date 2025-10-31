@@ -384,6 +384,9 @@ const WalletContextProvider = ({ children }) => {
   // Track target chain for signature confirmation
   const targetChainIdRef = useRef(null);
 
+  // Track when chain switching is in progress to prevent double hydration
+  const chainSwitchInProgressRef = useRef(new Set());
+
   // Update target chain ref when user selects chain in modal
   useEffect(() => {
     try {
@@ -1053,8 +1056,9 @@ const WalletContextProvider = ({ children }) => {
                   return;
                 }
 
-                // Check hydration guard: hydratedChains + hydration lock
+                // Check hydration guard: hydratedChains + hydration lock + chain switch in progress
                 const isHydrating = isChainHydrating(railgunWalletID, chainId);
+                const isChainSwitching = chainSwitchInProgressRef.current.has(chainId);
                 let alreadyHydrated = false;
                 try {
                   const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
@@ -1066,8 +1070,8 @@ const WalletContextProvider = ({ children }) => {
                   }
                 } catch {}
 
-                if (alreadyHydrated || isHydrating) {
-                  console.log(`🚀 Skipping chain bootstrap - chain ${chainId} already ${alreadyHydrated ? 'hydrated' : 'hydrating'}`);
+                if (alreadyHydrated || isHydrating || isChainSwitching) {
+                  console.log(`🚀 Skipping chain bootstrap - chain ${chainId} already ${alreadyHydrated ? 'hydrated' : isChainSwitching ? 'being switched' : 'hydrating'}`);
                   return;
                 }
 
@@ -1259,26 +1263,34 @@ const WalletContextProvider = ({ children }) => {
         return;
       }
 
-      console.log(`[Chain Switch] 🔄 Chain changed to ${chainId}, using chain switch utility...`);
+      // Mark chain switch as in progress to prevent auto-init from duplicating work
+      chainSwitchInProgressRef.current.add(chainId);
 
-      // Use the centralized chain switch utility
-      const success = await switchToChain({
-        address,
-        railgunWalletID,
-        targetChainId: chainId,
-        onProgress: (progress) => {
-          console.log(`[Chain Switch] Progress: ${progress.phase}`, progress);
-        },
-        onError: (error) => {
-          console.warn(`[Chain Switch] Error for chain ${chainId}:`, error);
-        },
-        onComplete: (result) => {
-          console.log(`[Chain Switch] ✅ Chain ${chainId} switch completed:`, result);
+      try {
+        console.log(`[Chain Switch] 🔄 Chain changed to ${chainId}, using chain switch utility...`);
+
+        // Use the centralized chain switch utility
+        const success = await switchToChain({
+          address,
+          railgunWalletID,
+          targetChainId: chainId,
+          onProgress: (progress) => {
+            console.log(`[Chain Switch] Progress: ${progress.phase}`, progress);
+          },
+          onError: (error) => {
+            console.warn(`[Chain Switch] Error for chain ${chainId}:`, error);
+          },
+          onComplete: (result) => {
+            console.log(`[Chain Switch] ✅ Chain ${chainId} switch completed:`, result);
+          }
+        });
+
+        if (!success) {
+          console.warn(`[Chain Switch] ⚠️ Chain switch failed for ${chainId}`);
         }
-      });
-
-      if (!success) {
-        console.warn(`[Chain Switch] ⚠️ Chain switch failed for ${chainId}`);
+      } finally {
+        // Remove from in-progress set when done
+        chainSwitchInProgressRef.current.delete(chainId);
       }
     };
 
