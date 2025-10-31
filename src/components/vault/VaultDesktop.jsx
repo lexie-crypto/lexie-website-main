@@ -44,7 +44,6 @@ import CrossPlatformVerificationModal from './CrossPlatformVerificationModal';
 import GameOnboardingModal from './GameOnboardingModal';
 import SignRequestModal from './SignRequestModal';
 import { useChainSwitchModal } from '../../hooks/useChainSwitchModal';
-import { useBalanceRefresh } from '../../utils/balanceRefresh.jsx';
 import SignatureConfirmationModal from './SignatureConfirmationModal';
 import ReturningUserChainSelectionModal from './ReturningUserChainSelectionModal';
 import { Navbar } from '../Navbar.jsx';
@@ -243,8 +242,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     getNetworkNameById: modalGetNetworkNameById
   } = useChainSwitchModal();
 
-  // Use the balance refresh utility hook
-  const { refreshBalances } = useBalanceRefresh({ refreshAllBalances });
 
   // Helper to get network name by chain ID
   const getNetworkNameById = (chainId) => {
@@ -333,9 +330,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   // Cross-platform verification state - now managed by CrossPlatformVerificationModal component
   const [showVerificationModal, setShowVerificationModal] = useState(false);
-  
-  // Local state to show a refreshing indicator for Vault Balances
-  const [isRefreshingBalances, setIsRefreshingBalances] = useState(false);
 
   // Selected chain state - load from localStorage, no default
   const [selectedChainId, setSelectedChainId] = useState(() => {
@@ -688,50 +682,19 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     };
   }, [isTransactionLocked]);
 
-  // Event listeners for vault balance refresh state
-  useEffect(() => {
-    const onPrivateStart = () => {
-      console.log('[VaultDesktop] Private balances refresh started - showing spinner');
-      setIsRefreshingBalances(true);
-    };
-    const onPrivateComplete = () => {
-      console.log('[VaultDesktop] Private balances refresh completed - hiding spinner');
-      setIsRefreshingBalances(false);
-    };
-    window.addEventListener('vault-private-refresh-start', onPrivateStart);
-    window.addEventListener('vault-private-refresh-complete', onPrivateComplete);
-    return () => {
-      window.removeEventListener('vault-private-refresh-start', onPrivateStart);
-      window.removeEventListener('vault-private-refresh-complete', onPrivateComplete);
-    };
-  }, []);
 
 
   // Placeholder functions for command bar icons
   const handleRefresh = useCallback(async () => {
     // Placeholder: implement refresh functionality
     console.log('[VaultDesktop] Refresh clicked');
-    await refreshBalances(address, railgunWalletId, activeChainId, true);
-  }, [refreshBalances, address, railgunWalletId, activeChainId]);
+  }, []);
 
   const handleInfoClick = useCallback(() => {
     console.log('[VaultDesktop] Info clicked');
     setShowInfoModal(true);
   }, []);
 
-  // Auto-refresh balances when wallet connects and Railgun is ready (full refresh including private transfers)
-  useEffect(() => {
-    // 🛡️ CRITICAL: Don't auto-refresh if returning user modal is open
-    if (showReturningUserChainModal) {
-      console.log('[VaultDesktop] ⏸️ Waiting for returning user to select chain before auto-refreshing');
-      return;
-    }
-
-    if (isConnected && address && canUseRailgun && railgunWalletId) {
-      console.log('[VaultDesktop] Wallet connected and Railgun ready - auto-refreshing balances...');
-      refreshBalances(address, railgunWalletId, activeChainId, false); // Full refresh but no toast notification
-    }
-  }, [isConnected, address, canUseRailgun, railgunWalletId, refreshBalances, showReturningUserChainModal]);
 
   // Auto-switch to privacy view when Railgun is ready
   useEffect(() => {
@@ -1580,12 +1543,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                     </div>
                   </div>
 
-                  {isRefreshingBalances && (
-                    <div className="mb-3 flex items-center gap-2 text-sm text-green-300">
-                      <div className="h-4 w-4 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
-                      Getting your vault balances...
-                    </div>
-                  )}
 
                   {!canUseRailgun ? (
                     <div className="text-center py-4 text-green-400/70 text-xs">
@@ -1682,7 +1639,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
             {/* Privacy Actions */}
             {selectedView === 'privacy' && (
-              <PrivacyActions activeAction={activeAction} isRefreshingBalances={isRefreshingBalances} />
+              <PrivacyActions activeAction={activeAction} />
             )}
 
             {/* Transaction History */}
