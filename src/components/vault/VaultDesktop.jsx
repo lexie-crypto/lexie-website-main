@@ -690,12 +690,12 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     console.log('[VaultDesktop] Refresh clicked');
     try {
       // Trigger full SDK balance refresh to discover new private transfers
-      if (canUseRailgun && railgunWalletId && address && chainId) {
+      if (canUseRailgun && railgunWalletId && address && walletChainId) {
         console.log('[VaultDesktop] Triggering SDK balance refresh for private transfers...');
         await syncBalancesAfterTransaction({
           walletAddress: address,
           walletId: railgunWalletId,
-          chainId: chainId,
+          chainId: walletChainId,
         });
         console.log('[VaultDesktop] SDK balance refresh completed');
       }
@@ -706,11 +706,11 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     } catch (error) {
       console.error('[VaultDesktop] Balance refresh failed:', error);
     }
-  }, [refreshAllBalances, canUseRailgun, railgunWalletId, address, chainId]);
+  }, [refreshAllBalances, canUseRailgun, railgunWalletId, address, walletChainId]);
 
   const handleInfoClick = useCallback(() => {
-    console.log('[VaultDesktop] Info clicked');
-    setShowInfoModal(true);
+    console.log('[VaultDesktop] Info clicked - opening documentation');
+    window.open('https://lexie-crypto.gitbook.io/lexie-crypto/', '_blank');
   }, []);
 
 
