@@ -38,6 +38,7 @@ import {
   isTokenSupportedByRailgun,
 } from '../../utils/railgun/actions';
 import { deriveEncryptionKey, clearAllWallets } from '../../utils/railgun/wallet';
+import { syncBalancesAfterTransaction } from '../../utils/railgun/syncBalances';
 import LexieIdChoiceModal from './LexieIdChoiceModal';
 import LexieIdModal from './LexieIdModal';
 import CrossPlatformVerificationModal from './CrossPlatformVerificationModal';
@@ -688,12 +689,24 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   const handleRefresh = useCallback(async () => {
     console.log('[VaultDesktop] Refresh clicked');
     try {
+      // Trigger full SDK balance refresh to discover new private transfers
+      if (canUseRailgun && railgunWalletId && address && chainId) {
+        console.log('[VaultDesktop] Triggering SDK balance refresh for private transfers...');
+        await syncBalancesAfterTransaction({
+          walletAddress: address,
+          walletId: railgunWalletId,
+          chainId: chainId,
+        });
+        console.log('[VaultDesktop] SDK balance refresh completed');
+      }
+
+      // Then refresh from Redis (which should now have updated balances)
       await refreshAllBalances();
       console.log('[VaultDesktop] Balance refresh completed');
     } catch (error) {
       console.error('[VaultDesktop] Balance refresh failed:', error);
     }
-  }, [refreshAllBalances]);
+  }, [refreshAllBalances, canUseRailgun, railgunWalletId, address, chainId]);
 
   const handleInfoClick = useCallback(() => {
     console.log('[VaultDesktop] Info clicked');
