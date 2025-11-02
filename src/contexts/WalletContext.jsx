@@ -1369,8 +1369,21 @@ const WalletContextProvider = ({ children }) => {
 
       try {
         // Validate all required parameters before chain scan status check
-        if (!address || !railgunWalletID || !chainId || typeof chainId !== 'number') {
-          console.warn('[Railgun Providers] Skipping chain scan check - missing required parameters:', { address: !!address, railgunWalletID: !!railgunWalletID, chainId, chainIdType: typeof chainId });
+        if (
+          !address ||
+          !railgunWalletID ||
+          !chainId ||
+          typeof chainId !== "number"
+        ) {
+          console.warn(
+            "[Railgun Providers] Skipping chain scan check - missing required parameters:",
+            {
+              address: !!address,
+              railgunWalletID: !!railgunWalletID,
+              chainId,
+              chainIdType: typeof chainId,
+            }
+          );
           return;
         }
 
