@@ -1204,14 +1204,15 @@ const WalletContextProvider = ({ children }) => {
   }, [chainId]);
 
   // Auto-initialize Railgun when wallet connects (only if not already initialized)
-  useEffect(async () => {
-    // 🛡️ CRITICAL: Don't auto-initialize if returning user modal is open
-    if (showReturningUserChainModal) {
-      console.log(
-        "[Railgun Init] ⏸️ Waiting for returning user to select chain before auto-initializing"
-      );
-      return;
-    }
+  useEffect(() => {
+    const handleAutoInitialization = async () => {
+      // 🛡️ CRITICAL: Don't auto-initialize if returning user modal is open
+      if (showReturningUserChainModal) {
+        console.log(
+          "[Railgun Init] ⏸️ Waiting for returning user to select chain before auto-initializing"
+        );
+        return;
+      }
 
     // 🛡️ Prevent force reinitialization if already initialized
     if (isRailgunInitialized) {
@@ -1332,7 +1333,9 @@ const WalletContextProvider = ({ children }) => {
       );
       lastInitializedAddressRef.current = address;
       initializeRailgun();
-    }
+    };
+
+    handleAutoInitialization();
   }, [
     isConnected,
     address,
