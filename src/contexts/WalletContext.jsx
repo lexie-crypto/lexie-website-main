@@ -1368,6 +1368,12 @@ const WalletContextProvider = ({ children }) => {
       }
 
       try {
+        // Validate all required parameters before chain scan status check
+        if (!address || !railgunWalletID || !chainId || typeof chainId !== 'number') {
+          console.warn('[Railgun Providers] Skipping chain scan check - missing required parameters:', { address: !!address, railgunWalletID: !!railgunWalletID, chainId, chainIdType: typeof chainId });
+          return;
+        }
+
         // Check if chain is already scanned before showing modal
         const { checkChainScanStatus } = await import(
           "../utils/railgun/chainSwitch"
@@ -1489,14 +1495,7 @@ const WalletContextProvider = ({ children }) => {
     // Run immediately on chain change to eliminate delay before vault creation/scan
     updateRailgunProviders();
     return undefined;
-  }, [
-    isRailgunInitialized,
-    showReturningUserChainModal,
-    chainId,
-    connector,
-    address,
-    railgunWalletID,
-  ]); // FIXED: Added missing dependencies for chainId and other variables used in closure
+  }, [isRailgunInitialized, showReturningUserChainModal]); // REVERTED: Removed chainId dependencies to prevent constant re-initialization causing LevelDB corruption
 
   // Handle chain switches - use centralized chain switch utility
   useEffect(() => {
