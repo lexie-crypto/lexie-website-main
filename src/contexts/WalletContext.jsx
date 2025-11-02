@@ -4,64 +4,92 @@
  * No custom connector hacks - just clean UI layer over official SDK
  */
 
-import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
-import { createConfig, custom } from 'wagmi';
-import { mainnet, polygon, arbitrum, bsc } from 'wagmi/chains';
-import { metaMask, walletConnect, injected } from 'wagmi/connectors';
-import { WagmiProvider, useAccount, useConnect, useDisconnect, useSwitchChain, useConnectorClient, getConnectorClient, useSignMessage } from 'wagmi';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { RPC_URLS, WALLETCONNECT_CONFIG, RAILGUN_CONFIG } from '../config/environment';
-import { NetworkName } from '@railgun-community/shared-models';
-import { initializeSyncSystem } from '../utils/sync/idb-sync/index.js';
-import { createWalletBackup } from '../utils/sync/idb-sync/backup.js';
-import { clearLevelDB } from '../utils/sync/idb-sync/exporter.js';
-import { initializeRailgunWallet } from '../utils/railgun/walletInitialization.js';
-import { switchToChain } from '../utils/railgun/chainSwitch.js';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+} from "react";
+import { createConfig, custom } from "wagmi";
+import { mainnet, polygon, arbitrum, bsc } from "wagmi/chains";
+import { metaMask, walletConnect, injected } from "wagmi/connectors";
+import {
+  WagmiProvider,
+  useAccount,
+  useConnect,
+  useDisconnect,
+  useSwitchChain,
+  useConnectorClient,
+  getConnectorClient,
+  useSignMessage,
+} from "wagmi";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  RPC_URLS,
+  WALLETCONNECT_CONFIG,
+  RAILGUN_CONFIG,
+} from "../config/environment";
+import { NetworkName } from "@railgun-community/shared-models";
+import { initializeSyncSystem } from "../utils/sync/idb-sync/index.js";
+import { createWalletBackup } from "../utils/sync/idb-sync/backup.js";
+import { clearLevelDB } from "../utils/sync/idb-sync/exporter.js";
+import { initializeRailgunWallet } from "../utils/railgun/walletInitialization.js";
+import { switchToChain } from "../utils/railgun/chainSwitch.js";
 
 // Inline wallet metadata API functions
 async function getWalletMetadata(walletAddress) {
-  console.log('🔍 [GET-WALLET-METADATA] Starting API call', {
+  console.log("🔍 [GET-WALLET-METADATA] Starting API call", {
     walletAddress: walletAddress,
-    walletAddressPreview: walletAddress?.slice(0, 8) + '...',
+    walletAddressPreview: walletAddress?.slice(0, 8) + "...",
     url: `/api/wallet-metadata?walletAddress=${walletAddress}`,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
-  
+
   try {
-    const response = await fetch(`/api/wallet-metadata?walletAddress=${walletAddress}`, {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-      },
-    });
-    
+    const response = await fetch(
+      `/api/wallet-metadata?walletAddress=${walletAddress}`,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+      }
+    );
+
     if (response.status === 404) {
       return null;
     }
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
-    
+
     const result = await response.json();
-    
+
     // Parse Redis response: { success: true, walletAddress: "0x...", totalKeys: 1, keys: [...] }
     if (result.success && result.keys && result.keys.length > 0) {
       // NEW FORMAT: Look for the new structure with :meta and :balances keys first
-      const metaKey = result.keys.find(keyObj => keyObj.format === 'new-structure');
-      
+      const metaKey = result.keys.find(
+        (keyObj) => keyObj.format === "new-structure"
+      );
+
       if (metaKey) {
         // NEW FORMAT: Use the parsed data from backend
-        console.log('🔍 [GET-WALLET-METADATA] Found NEW format wallet data (v3.0+)', {
-          walletId: metaKey.walletId?.slice(0, 8) + '...',
-          hasRailgunAddress: !!metaKey.railgunAddress,
-          hasSignature: !!metaKey.signature,
-          hasEncryptedMnemonic: !!metaKey.hasEncryptedMnemonic,
-          crossDeviceReady: metaKey.notesSupported,
-          privateBalanceCount: metaKey.privateBalanceCount || 0,
-          version: metaKey.version
-        });
-        
+        console.log(
+          "🔍 [GET-WALLET-METADATA] Found NEW format wallet data (v3.0+)",
+          {
+            walletId: metaKey.walletId?.slice(0, 8) + "...",
+            hasRailgunAddress: !!metaKey.railgunAddress,
+            hasSignature: !!metaKey.signature,
+            hasEncryptedMnemonic: !!metaKey.hasEncryptedMnemonic,
+            crossDeviceReady: metaKey.notesSupported,
+            privateBalanceCount: metaKey.privateBalanceCount || 0,
+            version: metaKey.version,
+          }
+        );
+
         return {
           walletId: metaKey.walletId,
           railgunAddress: metaKey.railgunAddress,
@@ -69,69 +97,87 @@ async function getWalletMetadata(walletAddress) {
           encryptedMnemonic: metaKey.encryptedMnemonic,
           version: metaKey.version,
           walletAddress: result.walletAddress,
-          source: 'Redis',
-          crossDeviceReady: metaKey.notesSupported && !!metaKey.signature && !!metaKey.encryptedMnemonic,
+          source: "Redis",
+          crossDeviceReady:
+            metaKey.notesSupported &&
+            !!metaKey.signature &&
+            !!metaKey.encryptedMnemonic,
           totalKeys: result.totalKeys,
           allKeys: result.keys,
           privateBalances: metaKey.privateBalances || [],
           lastBalanceUpdate: metaKey.lastBalanceUpdate,
-          scannedChains: metaKey.scannedChains || []
+          scannedChains: metaKey.scannedChains || [],
         };
       }
-      
+
       // FALLBACK: Handle old format for backward compatibility
       const firstKey = result.keys[0];
-      if (firstKey && firstKey.format !== 'new-structure') {
-        console.log('🔍 [GET-WALLET-METADATA] Found legacy format wallet data', {
-          format: firstKey.format,
-          hasRailgunAddress: !!firstKey.railgunAddress,
-          hasSignature: !!firstKey.signature,
-          version: firstKey.version
-        });
-        
+      if (firstKey && firstKey.format !== "new-structure") {
+        console.log(
+          "🔍 [GET-WALLET-METADATA] Found legacy format wallet data",
+          {
+            format: firstKey.format,
+            hasRailgunAddress: !!firstKey.railgunAddress,
+            hasSignature: !!firstKey.signature,
+            version: firstKey.version,
+          }
+        );
+
         return {
           walletId: firstKey.walletId,
           railgunAddress: firstKey.railgunAddress,
           signature: firstKey.signature,
           encryptedMnemonic: firstKey.encryptedMnemonic,
-          version: firstKey.version || '1.0',
+          version: firstKey.version || "1.0",
           walletAddress: result.walletAddress,
-          source: 'Redis',
-          crossDeviceReady: !!(firstKey.signature && firstKey.encryptedMnemonic),
+          source: "Redis",
+          crossDeviceReady: !!(
+            firstKey.signature && firstKey.encryptedMnemonic
+          ),
           totalKeys: result.totalKeys,
           allKeys: result.keys,
           privateBalances: firstKey.privateBalances || [],
           lastBalanceUpdate: firstKey.lastBalanceUpdate,
-          scannedChains: firstKey.scannedChains || []
+          scannedChains: firstKey.scannedChains || [],
         };
       }
     }
-    
+
     return null;
   } catch (error) {
-    console.error('Failed to get wallet metadata:', error);
+    console.error("Failed to get wallet metadata:", error);
     return null;
   }
 }
 
-async function storeWalletMetadata(walletAddress, walletId, railgunAddress, signature = null, encryptedMnemonic = null, creationBlockNumbers = null) {
-  console.log('💾 [STORE-WALLET-METADATA] Starting API call - COMPLETE REDIS STORAGE', {
-    walletAddress: walletAddress?.slice(0, 8) + '...',
-    walletId: walletId?.slice(0, 8) + '...',
-    railgunAddress: railgunAddress?.slice(0, 8) + '...',
-    hasSignature: !!signature,
-    hasEncryptedMnemonic: !!encryptedMnemonic,
-    hasCreationBlockNumbers: !!creationBlockNumbers,
-    signaturePreview: signature?.slice(0, 10) + '...' || 'none',
-    storageType: 'Redis-only (no localStorage)'
-  });
-  
+async function storeWalletMetadata(
+  walletAddress,
+  walletId,
+  railgunAddress,
+  signature = null,
+  encryptedMnemonic = null,
+  creationBlockNumbers = null
+) {
+  console.log(
+    "💾 [STORE-WALLET-METADATA] Starting API call - COMPLETE REDIS STORAGE",
+    {
+      walletAddress: walletAddress?.slice(0, 8) + "...",
+      walletId: walletId?.slice(0, 8) + "...",
+      railgunAddress: railgunAddress?.slice(0, 8) + "...",
+      hasSignature: !!signature,
+      hasEncryptedMnemonic: !!encryptedMnemonic,
+      hasCreationBlockNumbers: !!creationBlockNumbers,
+      signaturePreview: signature?.slice(0, 10) + "..." || "none",
+      storageType: "Redis-only (no localStorage)",
+    }
+  );
+
   try {
-    const response = await fetch('/api/wallet-metadata', {
-      method: 'POST',
+    const response = await fetch("/api/wallet-metadata", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
+        "Content-Type": "application/json",
+        Accept: "application/json",
       },
       body: JSON.stringify({
         walletAddress,
@@ -139,17 +185,17 @@ async function storeWalletMetadata(walletAddress, walletId, railgunAddress, sign
         railgunAddress,
         signature,
         encryptedMnemonic, // Store encrypted mnemonic in Redis for cross-device access
-        creationBlockNumbers // Store creation block numbers for faster future wallet loads
+        creationBlockNumbers, // Store creation block numbers for faster future wallet loads
       }),
     });
-    
+
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
-    
+
     return true;
   } catch (error) {
-    console.error('Failed to store wallet metadata:', error);
+    console.error("Failed to store wallet metadata:", error);
     return false;
   }
 }
@@ -159,7 +205,9 @@ async function storeWalletMetadata(walletAddress, walletId, railgunAddress, sign
  * This prevents Railgun from scanning from block 0, dramatically improving initialization speed
  */
 async function fetchCurrentBlockNumbers() {
-  console.log('🏗️ [BLOCK-FETCH] Fetching current block numbers for all networks...');
+  console.log(
+    "🏗️ [BLOCK-FETCH] Fetching current block numbers for all networks..."
+  );
 
   const networkConfigs = [
     { name: NetworkName.Ethereum, rpcUrl: RPC_URLS.ethereum, chainId: 1 },
@@ -173,22 +221,25 @@ async function fetchCurrentBlockNumbers() {
   // Fetch block numbers in parallel for better performance
   const fetchPromises = networkConfigs.map(async (network) => {
     try {
-      console.log(`🏗️ [BLOCK-FETCH] Fetching block number for ${network.name}...`);
+      console.log(
+        `🏗️ [BLOCK-FETCH] Fetching block number for ${network.name}...`
+      );
 
       // Use the proxied RPC endpoint that handles API keys and fallbacks
-      const proxyUrl = typeof window !== 'undefined'
-        ? `${window.location.origin}/api/rpc?chainId=${network.chainId}&provider=auto`
-        : network.rpcUrl; // Fallback for server-side
+      const proxyUrl =
+        typeof window !== "undefined"
+          ? `${window.location.origin}/api/rpc?chainId=${network.chainId}&provider=auto`
+          : network.rpcUrl; // Fallback for server-side
 
       const response = await fetch(proxyUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          jsonrpc: '2.0',
+          jsonrpc: "2.0",
           id: 1,
-          method: 'eth_blockNumber',
-          params: []
-        })
+          method: "eth_blockNumber",
+          params: [],
+        }),
       });
 
       if (!response.ok) {
@@ -206,9 +257,11 @@ async function fetchCurrentBlockNumbers() {
       blockNumbers[network.name] = blockNumber;
 
       console.log(`✅ [BLOCK-FETCH] ${network.name}: block ${blockNumber}`);
-
     } catch (error) {
-      console.warn(`⚠️ [BLOCK-FETCH] Failed to fetch block number for ${network.name}:`, error.message);
+      console.warn(
+        `⚠️ [BLOCK-FETCH] Failed to fetch block number for ${network.name}:`,
+        error.message
+      );
       // Don't set to undefined - let Railgun handle the fallback gracefully
       // The SDK will still work, just slower for this network
     }
@@ -216,7 +269,7 @@ async function fetchCurrentBlockNumbers() {
 
   await Promise.all(fetchPromises);
 
-  console.log('✅ [BLOCK-FETCH] Block number fetching complete:', blockNumbers);
+  console.log("✅ [BLOCK-FETCH] Block number fetching complete:", blockNumbers);
   return blockNumbers;
 }
 
@@ -229,24 +282,33 @@ const queryClient = new QueryClient();
 // Get selected chain from localStorage for WalletConnect config
 const getSelectedChainForWalletConnect = () => {
   try {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('lexie-selected-chain');
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("lexie-selected-chain");
       const parsed = saved ? parseInt(saved, 10) : null;
       if (parsed && [1, 137, 42161, 56].includes(parsed)) {
         return parsed;
       }
     }
   } catch (error) {
-    console.warn('[WalletContext] Failed to read selected chain from localStorage:', error);
+    console.warn(
+      "[WalletContext] Failed to read selected chain from localStorage:",
+      error
+    );
   }
   return 1; // Default to Ethereum
 };
 
 const selectedChainId = getSelectedChainForWalletConnect();
-const walletConnectChains = selectedChainId === 1 ? [mainnet] :
-                           selectedChainId === 137 ? [polygon] :
-                           selectedChainId === 42161 ? [arbitrum] :
-                           selectedChainId === 56 ? [bsc] : [mainnet];
+const walletConnectChains =
+  selectedChainId === 1
+    ? [mainnet]
+    : selectedChainId === 137
+    ? [polygon]
+    : selectedChainId === 42161
+    ? [arbitrum]
+    : selectedChainId === 56
+    ? [bsc]
+    : [mainnet];
 
 // Create wagmi config - MINIMAL, just for UI wallet connection
 const wagmiConfig = createConfig({
@@ -264,9 +326,9 @@ const wagmiConfig = createConfig({
     [mainnet.id]: custom({
       async request({ method, params }) {
         const response = await fetch(RPC_URLS.ethereum, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: 1, jsonrpc: '2.0', method, params }),
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: 1, jsonrpc: "2.0", method, params }),
         });
         const { result, error } = await response.json();
         if (error) throw new Error(`RPC error: ${JSON.stringify(error)}`);
@@ -276,9 +338,9 @@ const wagmiConfig = createConfig({
     [polygon.id]: custom({
       async request({ method, params }) {
         const response = await fetch(RPC_URLS.polygon, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: 1, jsonrpc: '2.0', method, params }),
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: 1, jsonrpc: "2.0", method, params }),
         });
         const { result, error } = await response.json();
         if (error) throw new Error(`RPC error: ${JSON.stringify(error)}`);
@@ -288,9 +350,9 @@ const wagmiConfig = createConfig({
     [arbitrum.id]: custom({
       async request({ method, params }) {
         const response = await fetch(RPC_URLS.arbitrum, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: 1, jsonrpc: '2.0', method, params }),
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: 1, jsonrpc: "2.0", method, params }),
         });
         const { result, error } = await response.json();
         if (error) throw new Error(`RPC error: ${JSON.stringify(error)}`);
@@ -300,9 +362,9 @@ const wagmiConfig = createConfig({
     [bsc.id]: custom({
       async request({ method, params }) {
         const response = await fetch(RPC_URLS.bsc, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: 1, jsonrpc: '2.0', method, params }),
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: 1, jsonrpc: "2.0", method, params }),
         });
         const { result, error } = await response.json();
         if (error) throw new Error(`RPC error: ${JSON.stringify(error)}`);
@@ -331,7 +393,7 @@ const WalletContext = createContext({
 export const useWallet = () => {
   const context = useContext(WalletContext);
   if (!context) {
-    throw new Error('useWallet must be used within a WalletProvider');
+    throw new Error("useWallet must be used within a WalletProvider");
   }
   return context;
 };
@@ -347,13 +409,17 @@ const WalletContextProvider = ({ children }) => {
   const [showLexieIdChoiceModal, setShowLexieIdChoiceModal] = useState(false);
   const [lexieIdChoicePromise, setLexieIdChoicePromise] = useState(null);
   const [lexieIdLinkPromise, setLexieIdLinkPromise] = useState(null);
-  const [showSignatureConfirmation, setShowSignatureConfirmation] = useState(false);
-  const [signatureConfirmationPromise, setSignatureConfirmationPromise] = useState(null);
-  const [pendingSignatureMessage, setPendingSignatureMessage] = useState('');
+  const [showSignatureConfirmation, setShowSignatureConfirmation] =
+    useState(false);
+  const [signatureConfirmationPromise, setSignatureConfirmationPromise] =
+    useState(null);
+  const [pendingSignatureMessage, setPendingSignatureMessage] = useState("");
 
   // Returning user chain selection modal
-  const [showReturningUserChainModal, setShowReturningUserChainModal] = useState(false);
-  const [returningUserChainPromise, setReturningUserChainPromise] = useState(null);
+  const [showReturningUserChainModal, setShowReturningUserChainModal] =
+    useState(false);
+  const [returningUserChainPromise, setReturningUserChainPromise] =
+    useState(null);
 
   // Wagmi hooks - ONLY for UI wallet connection
   const { address, isConnected, chainId, connector, status } = useAccount();
@@ -368,7 +434,7 @@ const WalletContextProvider = ({ children }) => {
     totalAttempts: 0,
     maxTotalAttempts: 9, // 3 networks × 3 attempts each = 9 max
     isBlocked: false,
-    blockedForSession: null // Track which wallet session caused the block
+    blockedForSession: null, // Track which wallet session caused the block
   });
 
   // Track chains currently undergoing an initial scan to prevent overlaps
@@ -390,7 +456,10 @@ const WalletContextProvider = ({ children }) => {
   // Update target chain ref when user selects chain in modal
   useEffect(() => {
     try {
-      const selected = parseInt(localStorage.getItem('lexie-selected-chain'), 10);
+      const selected = parseInt(
+        localStorage.getItem("lexie-selected-chain"),
+        10
+      );
       if (selected) {
         targetChainIdRef.current = selected;
       }
@@ -406,68 +475,97 @@ const WalletContextProvider = ({ children }) => {
   useEffect(() => {
     const handleTXIDScanComplete = async (event) => {
       const { chainId: scannedChainId } = event.detail;
-      console.log(`[WalletContext] 📡 Received TXID scan complete for chain ${scannedChainId}`);
+      console.log(
+        `[WalletContext] 📡 Received TXID scan complete for chain ${scannedChainId}`
+      );
 
       // Check if we have all required context
       if (!address || !railgunWalletID || !isRailgunInitialized) {
-        console.log('[WalletContext] ⏸️ Missing wallet context, skipping Redis persistence');
+        console.log(
+          "[WalletContext] ⏸️ Missing wallet context, skipping Redis persistence"
+        );
         return;
       }
 
       try {
         // Persist scanned chain to Redis by updating wallet metadata
         // Fetch existing metadata first to preserve fields
-        const getResp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+        const getResp = await fetch(
+          `/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`
+        );
         let existing = {};
         if (getResp.ok) {
           const data = await getResp.json();
-          const metaKey = data?.keys?.find((k) => k.walletId === railgunWalletID);
+          const metaKey = data?.keys?.find(
+            (k) => k.walletId === railgunWalletID
+          );
           if (metaKey) {
             existing = {
               railgunAddress: metaKey.railgunAddress,
               signature: metaKey.signature,
               encryptedMnemonic: metaKey.encryptedMnemonic,
               privateBalances: metaKey.privateBalances,
-              scannedChains: Array.from(new Set([...(metaKey.scannedChains || []), scannedChainId]))
+              scannedChains: Array.from(
+                new Set([...(metaKey.scannedChains || []), scannedChainId])
+              ),
             };
           }
         }
 
         // Post updated metadata back via existing endpoint
-        const persistResp = await fetch('/api/wallet-metadata', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const persistResp = await fetch("/api/wallet-metadata", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             walletAddress: address,
             walletId: railgunWalletID,
             ...existing,
-            scannedChains: Array.from(new Set([...(existing.scannedChains || []), scannedChainId]))
-          })
+            scannedChains: Array.from(
+              new Set([...(existing.scannedChains || []), scannedChainId])
+            ),
+          }),
         });
 
         if (persistResp.ok) {
-          console.log('[WalletContext] 💾 Persisted scannedChains to Redis:', {
+          console.log("[WalletContext] 💾 Persisted scannedChains to Redis:", {
             chainId: scannedChainId,
-            walletId: railgunWalletID?.slice(0,8) + '...'
+            walletId: railgunWalletID?.slice(0, 8) + "...",
           });
 
           // Notify UI to re-check readiness and unlock modal
           try {
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('railgun-scan-complete', { detail: { chainId: scannedChainId } }));
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(
+                new CustomEvent("railgun-scan-complete", {
+                  detail: { chainId: scannedChainId },
+                })
+              );
             }
           } catch {}
         } else {
-          console.warn('[WalletContext] ⚠️ Failed to persist scannedChains to Redis:', await persistResp.text());
+          console.warn(
+            "[WalletContext] ⚠️ Failed to persist scannedChains to Redis:",
+            await persistResp.text()
+          );
         }
       } catch (error) {
-        console.warn('[WalletContext] ⚠️ Error persisting scanned chain to Redis:', error);
+        console.warn(
+          "[WalletContext] ⚠️ Error persisting scanned chain to Redis:",
+          error
+        );
       }
     };
 
-    if (typeof window !== 'undefined') {
-      window.addEventListener('railgun-txid-scan-complete', handleTXIDScanComplete);
-      return () => window.removeEventListener('railgun-txid-scan-complete', handleTXIDScanComplete);
+    if (typeof window !== "undefined") {
+      window.addEventListener(
+        "railgun-txid-scan-complete",
+        handleTXIDScanComplete
+      );
+      return () =>
+        window.removeEventListener(
+          "railgun-txid-scan-complete",
+          handleTXIDScanComplete
+        );
     }
   }, [address, railgunWalletID, isRailgunInitialized]);
 
@@ -480,88 +578,120 @@ const WalletContextProvider = ({ children }) => {
     });
   }, []);
 
-  const confirmSignature = useCallback(async (selectedChainId) => {
-    if (signatureConfirmationPromise) {
-      const selectedChain = selectedChainId || targetChainIdRef.current || parseInt(localStorage.getItem('lexie-selected-chain'), 10);
+  const confirmSignature = useCallback(
+    async (selectedChainId) => {
+      if (signatureConfirmationPromise) {
+        const selectedChain =
+          selectedChainId ||
+          targetChainIdRef.current ||
+          parseInt(localStorage.getItem("lexie-selected-chain"), 10);
 
-      if (selectedChain && selectedChain !== chainIdRef.current) {  // Use ref for initial check
-        console.log(`[Signature Confirm] Waiting for chain switch: ${chainIdRef.current} → ${selectedChain}`);
+        if (selectedChain && selectedChain !== chainIdRef.current) {
+          // Use ref for initial check
+          console.log(
+            `[Signature Confirm] Waiting for chain switch: ${chainIdRef.current} → ${selectedChain}`
+          );
 
-        // Wait up to 10 seconds for chainId to update
-        const startTime = Date.now();
-        while (Date.now() - startTime < 10000) {
-          if (chainIdRef.current === selectedChain) {  // ✅ Poll the ref, not the closure variable!
-            console.log(`[Signature Confirm] ✅ Chain switched!`);
-            break;
+          // Wait up to 10 seconds for chainId to update
+          const startTime = Date.now();
+          while (Date.now() - startTime < 10000) {
+            if (chainIdRef.current === selectedChain) {
+              // ✅ Poll the ref, not the closure variable!
+              console.log(`[Signature Confirm] ✅ Chain switched!`);
+              break;
+            }
+            await new Promise((resolve) => setTimeout(resolve, 100));
           }
-          await new Promise(resolve => setTimeout(resolve, 100));
+
+          if (chainIdRef.current !== selectedChain) {
+            // Use ref for timeout check
+            console.warn(
+              `[Signature Confirm] ⚠️ Timeout, proceeding with chain ${chainIdRef.current}`
+            );
+          }
         }
 
-        if (chainIdRef.current !== selectedChain) {  // Use ref for timeout check
-          console.warn(`[Signature Confirm] ⚠️ Timeout, proceeding with chain ${chainIdRef.current}`);
-        }
+        signatureConfirmationPromise.resolve(true);
+        setSignatureConfirmationPromise(null);
+        setShowSignatureConfirmation(false);
+        setPendingSignatureMessage("");
       }
-
-      signatureConfirmationPromise.resolve(true);
-      setSignatureConfirmationPromise(null);
-      setShowSignatureConfirmation(false);
-      setPendingSignatureMessage('');
-    }
-  }, [signatureConfirmationPromise]);  // Remove chainId from dependencies
+    },
+    [signatureConfirmationPromise]
+  ); // Remove chainId from dependencies
 
   const cancelSignature = useCallback(() => {
     if (signatureConfirmationPromise) {
       signatureConfirmationPromise.resolve(false);
       setSignatureConfirmationPromise(null);
       setShowSignatureConfirmation(false);
-      setPendingSignatureMessage('');
+      setPendingSignatureMessage("");
     }
   }, [signatureConfirmationPromise]);
 
   // Ensure initial full scan is completed for a given chain before user transacts
-  const ensureChainScanned = useCallback(async (targetChainId) => {
-    // 🛡️ CRITICAL: Don't run scans if returning user modal is open
-    if (showReturningUserChainModal) {
-      console.log('[Railgun Init] ⏸️ Waiting for returning user to select chain before scanning');
-      return;
-    }
-
-    if (!isConnected || !address || !railgunWalletID) return;
-
-    // Use the centralized chain switch utility
-    const success = await switchToChain({
-      address,
-      railgunWalletID,
-      targetChainId,
-      onProgress: (progress) => {
-        console.log(`[Railgun Init] Progress: ${progress.phase}`, progress);
-      },
-      onError: (error) => {
-        console.warn(`[Railgun Init] Error for chain ${targetChainId}:`, error);
-      },
-      onComplete: (result) => {
-        console.log(`[Railgun Init] ✅ Chain ${targetChainId} scan completed:`, result);
+  const ensureChainScanned = useCallback(
+    async (targetChainId) => {
+      // 🛡️ CRITICAL: Don't run scans if returning user modal is open
+      if (showReturningUserChainModal) {
+        console.log(
+          "[Railgun Init] ⏸️ Waiting for returning user to select chain before scanning"
+        );
+        return;
       }
-    });
 
-    if (!success) {
-      console.warn(`[Railgun Init] ⚠️ Chain scan failed for ${targetChainId}`);
-    }
-  }, [isConnected, address, railgunWalletID, showReturningUserChainModal]);
+      if (!isConnected || !address || !railgunWalletID) return;
+
+      // Use the centralized chain switch utility
+      const success = await switchToChain({
+        address,
+        railgunWalletID,
+        targetChainId,
+        onProgress: (progress) => {
+          console.log(`[Railgun Init] Progress: ${progress.phase}`, progress);
+        },
+        onError: (error) => {
+          console.warn(
+            `[Railgun Init] Error for chain ${targetChainId}:`,
+            error
+          );
+        },
+        onComplete: (result) => {
+          console.log(
+            `[Railgun Init] ✅ Chain ${targetChainId} scan completed:`,
+            result
+          );
+        },
+      });
+
+      if (!success) {
+        console.warn(
+          `[Railgun Init] ⚠️ Chain scan failed for ${targetChainId}`
+        );
+      }
+    },
+    [isConnected, address, railgunWalletID, showReturningUserChainModal]
+  );
 
   // Reset rate limiter only on wallet disconnect/connect
   const resetRPCLimiter = () => {
     // Only reset if this is a different wallet session or user disconnected
     const currentSession = isConnected ? address : null;
-    
-    if (!isConnected || rpcLimiter.current.blockedForSession !== currentSession) {
+
+    if (
+      !isConnected ||
+      rpcLimiter.current.blockedForSession !== currentSession
+    ) {
       if (rpcLimiter.current.isBlocked) {
-        console.log('[RPC-Limiter] 🔄 Resetting rate limiter for new wallet session:', { 
-          previousSession: rpcLimiter.current.blockedForSession,
-          currentSession 
-        });
+        console.log(
+          "[RPC-Limiter] 🔄 Resetting rate limiter for new wallet session:",
+          {
+            previousSession: rpcLimiter.current.blockedForSession,
+            currentSession,
+          }
+        );
       }
-      
+
       rpcLimiter.current.totalAttempts = 0;
       rpcLimiter.current.isBlocked = false;
       rpcLimiter.current.blockedForSession = null;
@@ -571,7 +701,9 @@ const WalletContextProvider = ({ children }) => {
   // Reset rate limiter when wallet disconnects
   useEffect(() => {
     if (!isConnected) {
-      console.log('[RPC-Limiter] 🔄 Wallet disconnected - resetting rate limiter');
+      console.log(
+        "[RPC-Limiter] 🔄 Wallet disconnected - resetting rate limiter"
+      );
       rpcLimiter.current.totalAttempts = 0;
       rpcLimiter.current.isBlocked = false;
       rpcLimiter.current.blockedForSession = null;
@@ -580,67 +712,79 @@ const WalletContextProvider = ({ children }) => {
 
   // Global fetch interceptor to block RPC calls when rate limited
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       // Store original fetch
       const originalFetch = window.fetch;
-      
+
       // Intercept fetch calls
       window.fetch = async (...args) => {
         const [url, options] = args;
-        
+
         // Check if this is an RPC call (Alchemy direct or proxied via /api/rpc)
-        if (typeof url === 'string' && (url.includes('alchemy') || url.includes('/api/rpc'))) {
+        if (
+          typeof url === "string" &&
+          (url.includes("alchemy") || url.includes("/api/rpc"))
+        ) {
           resetRPCLimiter();
-          
+
           if (rpcLimiter.current.isBlocked) {
             // Parse the request body to check the method
-            let method = 'unknown';
+            let method = "unknown";
             try {
               if (options?.body) {
                 const body = JSON.parse(options.body);
-                method = body.method || 'unknown';
+                method = body.method || "unknown";
               }
             } catch (e) {
               // Failed to parse body, use default blocking
             }
-            
+
             // Block only balance/log polling methods that cause spam
             const blockedMethods = [
-              'eth_getLogs',           // Balance polling
-              'eth_getBalance',        // Balance checks
-              'eth_call',              // Contract calls for balance checks
-              'eth_getTransactionReceipt', // Transaction receipt polling
+              "eth_getLogs", // Balance polling
+              "eth_getBalance", // Balance checks
+              "eth_call", // Contract calls for balance checks
+              "eth_getTransactionReceipt", // Transaction receipt polling
             ];
-            
+
             // Allow essential methods for transactions
             const allowedMethods = [
-              'eth_gasPrice',          // Gas price for transactions
-              'eth_estimateGas',       // Gas estimation
-              'eth_sendTransaction',   // Sending transactions  
-              'eth_getTransactionCount', // Nonce
-              'eth_chainId',           // Chain ID
-              'eth_blockNumber',       // Current block
-              'net_version',           // Network version
+              "eth_gasPrice", // Gas price for transactions
+              "eth_estimateGas", // Gas estimation
+              "eth_sendTransaction", // Sending transactions
+              "eth_getTransactionCount", // Nonce
+              "eth_chainId", // Chain ID
+              "eth_blockNumber", // Current block
+              "net_version", // Network version
             ];
-            
+
             if (blockedMethods.includes(method)) {
-              console.warn(`[RPC-Interceptor] 🚫 Blocked ${method} call to:`, url);
-              throw new Error(`RPC call blocked due to rate limiting: ${method}`);
+              console.warn(
+                `[RPC-Interceptor] 🚫 Blocked ${method} call to:`,
+                url
+              );
+              throw new Error(
+                `RPC call blocked due to rate limiting: ${method}`
+              );
             }
-            
+
             if (allowedMethods.includes(method)) {
-              console.log(`[RPC-Interceptor] ✅ Allowing essential ${method} call for transactions`);
+              console.log(
+                `[RPC-Interceptor] ✅ Allowing essential ${method} call for transactions`
+              );
               return originalFetch.apply(window, args);
             }
-            
+
             // For unknown methods when blocked, log and allow (conservative approach)
-            console.warn(`[RPC-Interceptor] ⚠️ Unknown method ${method} - allowing due to uncertainty`);
+            console.warn(
+              `[RPC-Interceptor] ⚠️ Unknown method ${method} - allowing due to uncertainty`
+            );
           }
         }
-        
+
         return originalFetch.apply(window, args);
       };
-      
+
       // Cleanup on unmount
       return () => {
         window.fetch = originalFetch;
@@ -649,147 +793,190 @@ const WalletContextProvider = ({ children }) => {
   }, []);
 
   // RPC Retry wrapper with global rate limiting
-  const withRPCRetryLimit = async (providerLoadFn, networkName, maxRetries = 3) => {
+  const withRPCRetryLimit = async (
+    providerLoadFn,
+    networkName,
+    maxRetries = 3
+  ) => {
     resetRPCLimiter();
-    
+
     // Check global rate limit first
     if (rpcLimiter.current.isBlocked) {
-      console.warn(`[RPC-Limiter] 🚫 Global RPC limit reached. Blocked for this wallet session.`);
-      throw new Error(`Global RPC rate limit exceeded. Blocked for this wallet session. Please disconnect and reconnect to reset.`);
+      console.warn(
+        `[RPC-Limiter] 🚫 Global RPC limit reached. Blocked for this wallet session.`
+      );
+      throw new Error(
+        `Global RPC rate limit exceeded. Blocked for this wallet session. Please disconnect and reconnect to reset.`
+      );
     }
-    
+
     let lastError = null;
-    
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       // Check if we've hit the global limit
-      if (rpcLimiter.current.totalAttempts >= rpcLimiter.current.maxTotalAttempts) {
-        console.error(`[RPC-Limiter] 🚫 Global RPC limit (${rpcLimiter.current.maxTotalAttempts}) reached. Blocking all further attempts for this session.`);
+      if (
+        rpcLimiter.current.totalAttempts >= rpcLimiter.current.maxTotalAttempts
+      ) {
+        console.error(
+          `[RPC-Limiter] 🚫 Global RPC limit (${rpcLimiter.current.maxTotalAttempts}) reached. Blocking all further attempts for this session.`
+        );
         rpcLimiter.current.isBlocked = true;
         rpcLimiter.current.blockedForSession = isConnected ? address : null;
-        throw new Error(`Global RPC rate limit exceeded. Blocked for this wallet session. Please disconnect and reconnect to reset.`);
+        throw new Error(
+          `Global RPC rate limit exceeded. Blocked for this wallet session. Please disconnect and reconnect to reset.`
+        );
       }
-      
+
       try {
-        console.log(`[RPC-Retry] Attempt ${attempt}/${maxRetries} for ${networkName} (Global: ${rpcLimiter.current.totalAttempts + 1}/${rpcLimiter.current.maxTotalAttempts})`);
-        
+        console.log(
+          `[RPC-Retry] Attempt ${attempt}/${maxRetries} for ${networkName} (Global: ${
+            rpcLimiter.current.totalAttempts + 1
+          }/${rpcLimiter.current.maxTotalAttempts})`
+        );
+
         // Increment global counter before attempt
         rpcLimiter.current.totalAttempts++;
-        
+
         const result = await providerLoadFn();
-        
-        console.log(`[RPC-Retry] ✅ Success on attempt ${attempt} for ${networkName}`);
+
+        console.log(
+          `[RPC-Retry] ✅ Success on attempt ${attempt} for ${networkName}`
+        );
         return result;
-        
       } catch (error) {
         lastError = error;
-        console.warn(`[RPC-Retry] ❌ Attempt ${attempt}/${maxRetries} failed for ${networkName}:`, error.message);
-        
+        console.warn(
+          `[RPC-Retry] ❌ Attempt ${attempt}/${maxRetries} failed for ${networkName}:`,
+          error.message
+        );
+
         if (attempt === maxRetries) {
-          console.error(`[RPC-Retry] 🚫 All ${maxRetries} attempts failed for ${networkName}.`);
-          throw new Error(`Failed to load provider for ${networkName} after ${maxRetries} attempts: ${error.message}`);
+          console.error(
+            `[RPC-Retry] 🚫 All ${maxRetries} attempts failed for ${networkName}.`
+          );
+          throw new Error(
+            `Failed to load provider for ${networkName} after ${maxRetries} attempts: ${error.message}`
+          );
         }
-        
+
         // Wait before retry (exponential backoff)
         const delay = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // 1s, 2s, 4s max
-        console.log(`[RPC-Retry] ⏳ Waiting ${delay}ms before retry ${attempt + 1} for ${networkName}`);
-        await new Promise(resolve => setTimeout(resolve, delay));
+        console.log(
+          `[RPC-Retry] ⏳ Waiting ${delay}ms before retry ${
+            attempt + 1
+          } for ${networkName}`
+        );
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
     }
-    
+
     throw lastError;
   };
 
   // Get wallet signer for SDK operations using actual connected wallet
   const getWalletSigner = async (overrideProvider) => {
     // Prefer explicit injected provider when provided
-    let selectedProvider = overrideProvider || selectedInjectedProviderRef.current;
+    let selectedProvider =
+      overrideProvider || selectedInjectedProviderRef.current;
     if (!selectedProvider) {
       if (!connector) {
-        throw new Error('No connector available');
+        throw new Error("No connector available");
       }
       selectedProvider = await connector.getProvider();
     }
     if (!selectedProvider) {
-      throw new Error('Failed to get EIP-1193 provider');
+      throw new Error("Failed to get EIP-1193 provider");
     }
 
-    const { BrowserProvider } = await import('ethers');
+    const { BrowserProvider } = await import("ethers");
     const provider = new BrowserProvider(selectedProvider);
     const signer = await provider.getSigner();
-    
-    console.log('✅ Wallet signer created using actual EIP-1193 provider:', {
+
+    console.log("✅ Wallet signer created using actual EIP-1193 provider:", {
       connectorId: connector?.id,
       connectorName: connector?.name,
       address: await signer.getAddress(),
-      providerType: selectedProvider.constructor?.name || 'EIP1193Provider'
+      providerType: selectedProvider.constructor?.name || "EIP1193Provider",
     });
     return signer;
   };
 
   // Simple wallet connection - UI layer only
-  const connectWallet = async (connectorType = 'metamask', options = {}) => {
+  const connectWallet = async (connectorType = "metamask", options = {}) => {
     try {
       let targetConnector = null;
 
       // If UI passed a specific injected provider, capture it for signer preference
-      if (connectorType === 'injected' && options?.provider) {
+      if (connectorType === "injected" && options?.provider) {
         selectedInjectedProviderRef.current = options.provider;
       } else {
         selectedInjectedProviderRef.current = null;
       }
 
       // Map well-known brands to dedicated connectors when available
-      const brandName = (options?.name || '').toLowerCase();
+      const brandName = (options?.name || "").toLowerCase();
       const providerObj = options?.provider || {};
-      const isMetaMaskBrand = providerObj.isMetaMask || brandName.includes('metamask');
+      const isMetaMaskBrand =
+        providerObj.isMetaMask || brandName.includes("metamask");
 
-      if (connectorType === 'metamask' || isMetaMaskBrand) {
-        targetConnector = connectors.find(c => c.id === 'metaMask');
+      if (connectorType === "metamask" || isMetaMaskBrand) {
+        targetConnector = connectors.find((c) => c.id === "metaMask");
         // explicit brand path uses official connector only
         selectedInjectedProviderRef.current = null;
-      } else if (connectorType === 'walletconnect') {
-        targetConnector = connectors.find(c => c.id === 'walletConnect');
-      } else if (connectorType === 'injected') {
+      } else if (connectorType === "walletconnect") {
+        targetConnector = connectors.find((c) => c.id === "walletConnect");
+      } else if (connectorType === "injected") {
         if (options?.provider) {
           // Bind wagmi to the clicked provider through a minimal connector
-          const { clickedInjectedConnector } = await import('../connectors/clickedInjected.js');
-          const connector = clickedInjectedConnector(options.provider, options?.name);
+          const { clickedInjectedConnector } = await import(
+            "../connectors/clickedInjected.js"
+          );
+          const connector = clickedInjectedConnector(
+            options.provider,
+            options?.name
+          );
           // Pre-connect unload to guarantee clean slate even if connect fails mid-way
           try {
-            const { clearAllWallets } = await import('../utils/railgun/wallet');
+            const { clearAllWallets } = await import("../utils/railgun/wallet");
             await clearAllWallets();
           } catch {}
           await connect({ connector });
-          console.log('✅ Connected via clicked injected provider:', options?.name || 'Injected');
+          console.log(
+            "✅ Connected via clicked injected provider:",
+            options?.name || "Injected"
+          );
           // Belt-and-suspenders: ensure any stale Railgun SDK wallets are unloaded before hydration
           try {
-            const { clearAllWallets } = await import('../utils/railgun/wallet');
+            const { clearAllWallets } = await import("../utils/railgun/wallet");
             await clearAllWallets();
           } catch {}
           return;
         }
         // No provider supplied: fallback to generic injected connector
-        targetConnector = connectors.find(c => c.id === 'injected');
+        targetConnector = connectors.find((c) => c.id === "injected");
       }
-      
+
       if (targetConnector) {
         // Pre-connect unload to guarantee clean slate even if connect fails mid-way
         try {
-          const { clearAllWallets } = await import('../utils/railgun/wallet');
+          const { clearAllWallets } = await import("../utils/railgun/wallet");
           await clearAllWallets();
         } catch {}
         await connect({ connector: targetConnector });
-        console.log('✅ Connected via wagmi:', targetConnector.id, options?.name || '');
-
+        console.log(
+          "✅ Connected via wagmi:",
+          targetConnector.id,
+          options?.name || ""
+        );
 
         // Belt-and-suspenders: ensure any stale Railgun SDK wallets are unloaded before hydration
         try {
-          const { clearAllWallets } = await import('../utils/railgun/wallet');
+          const { clearAllWallets } = await import("../utils/railgun/wallet");
           await clearAllWallets();
         } catch {}
       }
     } catch (error) {
-      console.error('❌ Wagmi connection failed:', error);
+      console.error("❌ Wagmi connection failed:", error);
       throw error;
     }
   };
@@ -797,7 +984,9 @@ const WalletContextProvider = ({ children }) => {
   const disconnectWallet = async () => {
     // Prevent multiple simultaneous disconnect attempts
     if (disconnectWallet.isDisconnecting) {
-      console.log('🚫 [DISCONNECT] Disconnect already in progress, ignoring...');
+      console.log(
+        "🚫 [DISCONNECT] Disconnect already in progress, ignoring..."
+      );
       return;
     }
     disconnectWallet.isDisconnecting = true;
@@ -806,22 +995,28 @@ const WalletContextProvider = ({ children }) => {
     try {
       // 1. Unload ALL Railgun SDK wallet state first
       try {
-        console.log('🧹 [DISCONNECT] Clearing all Railgun wallet state...');
-        const { clearAllWallets } = await import('../utils/railgun/wallet');
+        console.log("🧹 [DISCONNECT] Clearing all Railgun wallet state...");
+        const { clearAllWallets } = await import("../utils/railgun/wallet");
         await clearAllWallets();
-        console.log('✅ [DISCONNECT] All Railgun wallets unloaded');
+        console.log("✅ [DISCONNECT] All Railgun wallets unloaded");
       } catch (error) {
-        console.warn('⚠️ [DISCONNECT] Failed to clear Railgun wallets:', error);
+        console.warn("⚠️ [DISCONNECT] Failed to clear Railgun wallets:", error);
       }
 
       // 2. Reset wallet-scoped UI/session flags to prevent stale gating on next connect
-      try { if (typeof window !== 'undefined') {
-        delete window.__LEXIE_INIT_POLL_ID;
-        window.dispatchEvent(new CustomEvent('force-disconnect'));
-        // Clear any init/scan flags used by UI gating
-        window.dispatchEvent(new CustomEvent('railgun-init-failed', { detail: { error: 'User disconnect' } }));
-      } } catch {}
-      
+      try {
+        if (typeof window !== "undefined") {
+          delete window.__LEXIE_INIT_POLL_ID;
+          window.dispatchEvent(new CustomEvent("force-disconnect"));
+          // Clear any init/scan flags used by UI gating
+          window.dispatchEvent(
+            new CustomEvent("railgun-init-failed", {
+              detail: { error: "User disconnect" },
+            })
+          );
+        }
+      } catch {}
+
       // 3. Immediate UI state reset for snappy UX
       setIsRailgunInitialized(false);
       setRailgunAddress(null);
@@ -832,7 +1027,7 @@ const WalletContextProvider = ({ children }) => {
 
       // Best-effort: pause Railgun polling quickly
       try {
-        const railgunWallet = await import('@railgun-community/wallet');
+        const railgunWallet = await import("@railgun-community/wallet");
         if (railgunWallet.pauseAllPollingProviders) {
           railgunWallet.pauseAllPollingProviders();
         }
@@ -841,56 +1036,73 @@ const WalletContextProvider = ({ children }) => {
       // Try to disconnect from the provider directly (for injected wallets)
       try {
         if (selectedInjectedProviderRef.current?.disconnect) {
-          console.log('[DISCONNECT] Calling provider.disconnect()');
+          console.log("[DISCONNECT] Calling provider.disconnect()");
           await selectedInjectedProviderRef.current.disconnect();
-        } else if (selectedInjectedProviderRef.current && typeof window !== 'undefined') {
+        } else if (
+          selectedInjectedProviderRef.current &&
+          typeof window !== "undefined"
+        ) {
           // Try wallet_revokePermissions for some wallets
           try {
             await selectedInjectedProviderRef.current.request({
-              method: 'wallet_revokePermissions',
-              params: [{ eth_accounts: {} }]
+              method: "wallet_revokePermissions",
+              params: [{ eth_accounts: {} }],
             });
-            console.log('[DISCONNECT] Called wallet_revokePermissions');
+            console.log("[DISCONNECT] Called wallet_revokePermissions");
           } catch (revokeError) {
             // wallet_revokePermissions not supported, that's fine
           }
         }
       } catch (providerDisconnectError) {
-        console.warn('⚠️ [DISCONNECT] Error disconnecting from provider:', providerDisconnectError);
+        console.warn(
+          "⚠️ [DISCONNECT] Error disconnecting from provider:",
+          providerDisconnectError
+        );
       }
 
       // Disconnect wallet (non-blocking UX)
       try {
         await disconnect();
       } catch (disconnectError) {
-        console.warn('⚠️ [DISCONNECT] Error disconnecting wallet:', disconnectError);
+        console.warn(
+          "⚠️ [DISCONNECT] Error disconnecting wallet:",
+          disconnectError
+        );
       }
 
       // Light cleanup of storage and globals without heavy timers/reload
       try {
-        if (typeof window !== 'undefined') {
+        if (typeof window !== "undefined") {
           // Preserve access code authentication across disconnects
-          const accessGranted = localStorage.getItem('app_access_granted');
-          const accessCodeUsed = localStorage.getItem('access_code_used');
+          const accessGranted = localStorage.getItem("app_access_granted");
+          const accessCodeUsed = localStorage.getItem("access_code_used");
 
-          try { localStorage.clear(); } catch {}
+          try {
+            localStorage.clear();
+          } catch {}
 
           // Restore access code authentication
           if (accessGranted) {
-            try { localStorage.setItem('app_access_granted', accessGranted); } catch {}
+            try {
+              localStorage.setItem("app_access_granted", accessGranted);
+            } catch {}
           }
           if (accessCodeUsed) {
-            try { localStorage.setItem('access_code_used', accessCodeUsed); } catch {}
+            try {
+              localStorage.setItem("access_code_used", accessCodeUsed);
+            } catch {}
           }
 
-          try { sessionStorage.clear(); } catch {}
+          try {
+            sessionStorage.clear();
+          } catch {}
           delete window.__RAILGUN_INITIAL_SCAN_DONE;
           delete window.__LEXIE_ENGINE_READY;
           delete window.__LEXIE_SUPPRESS_RAILGUN_INIT;
           delete window.__RAILGUN_ENGINE_INITIALIZED;
           delete window.__RAILGUN_WALLET_READY;
           delete window.__LEXIE_RAILGUN_DEBUG__;
-          window.dispatchEvent(new CustomEvent('force-disconnect'));
+          window.dispatchEvent(new CustomEvent("force-disconnect"));
         }
       } catch {}
 
@@ -898,23 +1110,40 @@ const WalletContextProvider = ({ children }) => {
       try {
         const lc = localStorage;
         if (lc) {
-          try { lc.removeItem('wagmi.wallet'); } catch {}
-          try { lc.removeItem('wagmi.store'); } catch {}
-          try { lc.removeItem('walletconnect'); } catch {}
-          try { lc.removeItem('WALLETCONNECT_DEEPLINK_CHOICE'); } catch {}
+          try {
+            lc.removeItem("wagmi.wallet");
+          } catch {}
+          try {
+            lc.removeItem("wagmi.store");
+          } catch {}
+          try {
+            lc.removeItem("walletconnect");
+          } catch {}
+          try {
+            lc.removeItem("WALLETCONNECT_DEEPLINK_CHOICE");
+          } catch {}
           const keys = Object.keys(lc);
           keys.forEach((k) => {
-            if (k.startsWith('wc@') || k.startsWith('wc:') || k.toLowerCase().includes('walletconnect') || k.toLowerCase().includes('web3modal')) {
-              try { lc.removeItem(k); } catch {}
+            if (
+              k.startsWith("wc@") ||
+              k.startsWith("wc:") ||
+              k.toLowerCase().includes("walletconnect") ||
+              k.toLowerCase().includes("web3modal")
+            ) {
+              try {
+                lc.removeItem(k);
+              } catch {}
             }
           });
         }
       } catch {}
 
       // Reset RPC limiter
-      try { resetRPCLimiter(); } catch {}
+      try {
+        resetRPCLimiter();
+      } catch {}
 
-      console.log('✅ [DISCONNECT] Fast disconnect complete (no reload)');
+      console.log("✅ [DISCONNECT] Fast disconnect complete (no reload)");
     } finally {
       disconnectingRef.current = false;
       disconnectWallet.isDisconnecting = false;
@@ -924,7 +1153,7 @@ const WalletContextProvider = ({ children }) => {
   // Official Railgun SDK Integration
   const initializeRailgun = async () => {
     await initializeRailgunWallet({
-              address,
+      address,
       chainId,
       signMessageAsync,
       requestSignatureConfirmation,
@@ -949,25 +1178,27 @@ const WalletContextProvider = ({ children }) => {
       chainsScanningRef,
       lastInitializedAddressRef,
       targetChainIdRef,
-      chainIdRef
+      chainIdRef,
     });
   };
 
   // Minimal engine bootstrap for client-only shielding (no wallet creation/signature)
   const ensureEngineForShield = useCallback(async () => {
     try {
-      if (typeof window !== 'undefined' && window.__LEXIE_ENGINE_READY) {
+      if (typeof window !== "undefined" && window.__LEXIE_ENGINE_READY) {
         return true;
       }
 
-      console.log('[Railgun Engine] 🔧 Initializing via engine.js (patched config, no wallet init)...');
-      const { initializeRailgun } = await import('../utils/railgun/engine.js');
+      console.log(
+        "[Railgun Engine] 🔧 Initializing via engine.js (patched config, no wallet init)..."
+      );
+      const { initializeRailgun } = await import("../utils/railgun/engine.js");
       await initializeRailgun();
-      if (typeof window !== 'undefined') window.__LEXIE_ENGINE_READY = true;
-      console.log('[Railgun Engine] ✅ Engine ready (engine.js)');
+      if (typeof window !== "undefined") window.__LEXIE_ENGINE_READY = true;
+      console.log("[Railgun Engine] ✅ Engine ready (engine.js)");
       return true;
     } catch (err) {
-      console.error('[Railgun Engine] ❌ Light engine start failed:', err);
+      console.error("[Railgun Engine] ❌ Light engine start failed:", err);
       return false;
     }
   }, [chainId]);
@@ -976,67 +1207,100 @@ const WalletContextProvider = ({ children }) => {
   useEffect(() => {
     // 🛡️ CRITICAL: Don't auto-initialize if returning user modal is open
     if (showReturningUserChainModal) {
-      console.log('[Railgun Init] ⏸️ Waiting for returning user to select chain before auto-initializing');
+      console.log(
+        "[Railgun Init] ⏸️ Waiting for returning user to select chain before auto-initializing"
+      );
       return;
     }
 
     // 🛡️ Prevent force reinitialization if already initialized
     if (isRailgunInitialized) {
-      console.log('✅ Railgun already initialized for:', address);
+      console.log("✅ Railgun already initialized for:", address);
 
       // 🎯 FIXED: Don't auto-resume polling - let useBalances hook control when to poll
-      console.log('⏸️ Providers remain paused - will resume only when balance refresh needed');
+      console.log(
+        "⏸️ Providers remain paused - will resume only when balance refresh needed"
+      );
       return;
     }
-    
+
     // Respect suppression flag (PaymentPage and other pages that don't need wallet creation)
-    if (typeof window !== 'undefined' && (window.__LEXIE_SUPPRESS_RAILGUN_INIT || window.__LEXIE_PAYMENT_PAGE)) {
-      console.log('[Railgun Init] ⏭️ Suppressed auto-init due to page flag (__LEXIE_SUPPRESS_RAILGUN_INIT or __LEXIE_PAYMENT_PAGE)');
+    if (
+      typeof window !== "undefined" &&
+      (window.__LEXIE_SUPPRESS_RAILGUN_INIT || window.__LEXIE_PAYMENT_PAGE)
+    ) {
+      console.log(
+        "[Railgun Init] ⏭️ Suppressed auto-init due to page flag (__LEXIE_SUPPRESS_RAILGUN_INIT or __LEXIE_PAYMENT_PAGE)"
+      );
       return;
     }
 
     // Bail if currently disconnecting to avoid race with stale wagmi state
     if (disconnectingRef.current) {
-      console.log('[Railgun Init] ⏳ Skipping auto-init: disconnect in progress');
+      console.log(
+        "[Railgun Init] ⏳ Skipping auto-init: disconnect in progress"
+      );
       return;
     }
 
     // Require wagmi status to be fully connected, not just isConnected
-    if (status !== 'connected') {
+    if (status !== "connected") {
       return;
     }
 
     // Prevent same-address re-init immediately after disconnect; require explicit reconnect
-    if (lastInitializedAddressRef.current && lastInitializedAddressRef.current === address) {
-      console.log('[Railgun Init] ⏭️ Skipping auto-init for same address until explicit reconnect');
+    if (
+      lastInitializedAddressRef.current &&
+      lastInitializedAddressRef.current === address
+    ) {
+      console.log(
+        "[Railgun Init] ⏭️ Skipping auto-init for same address until explicit reconnect"
+      );
       return;
     }
 
     if (isConnected && address && !isInitializing) {
       // Final safety check: ensure we have a valid supported chainId before initializing Railgun
-      if (!chainId || chainId === 'NaN' || isNaN(chainId)) {
-        console.log('⏳ [Railgun Init] Chain ID not yet available, deferring initialization...');
+      if (!chainId || chainId === "NaN" || isNaN(chainId)) {
+        console.log(
+          "⏳ [Railgun Init] Chain ID not yet available, deferring initialization..."
+        );
         return;
       }
 
       const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
       if (!supportedNetworks[chainId]) {
-        console.log(`🚫 [Railgun Init] Refusing to initialize on unsupported network (chainId: ${chainId})`);
+        console.log(
+          `🚫 [Railgun Init] Refusing to initialize on unsupported network (chainId: ${chainId})`
+        );
         return;
       }
 
-      console.log('🚀 Auto-initializing Railgun for connected wallet:', address);
+      console.log(
+        "🚀 Auto-initializing Railgun for connected wallet:",
+        address
+      );
       lastInitializedAddressRef.current = address;
       initializeRailgun();
     }
-  }, [isConnected, address, isRailgunInitialized, isInitializing, chainId, status, showReturningUserChainModal]);
+  }, [
+    isConnected,
+    address,
+    isRailgunInitialized,
+    isInitializing,
+    chainId,
+    status,
+    showReturningUserChainModal,
+  ]);
 
   // Update Railgun providers when chain or wallet changes - FIXED: Prevent infinite loops
   useEffect(() => {
     const updateRailgunProviders = async () => {
       // 🛡️ CRITICAL: Don't update providers if returning user modal is open
       if (showReturningUserChainModal) {
-        console.log('[Railgun Init] ⏸️ Waiting for returning user to select chain before updating providers');
+        console.log(
+          "[Railgun Init] ⏸️ Waiting for returning user to select chain before updating providers"
+        );
         return;
       }
 
@@ -1047,55 +1311,75 @@ const WalletContextProvider = ({ children }) => {
       // Check global rate limiter before attempting provider updates
       resetRPCLimiter();
       if (rpcLimiter.current.isBlocked) {
-        console.warn('[RPC-Limiter] 🚫 Global RPC limit reached. Skipping provider update (permanent until disconnect).');
+        console.warn(
+          "[RPC-Limiter] 🚫 Global RPC limit reached. Skipping provider update (permanent until disconnect)."
+        );
         return;
       }
 
       try {
         // Check if chain is already scanned before showing modal
-        const { checkChainScanStatus } = await import('../utils/railgun/chainSwitch');
-        const scanStatus = await checkChainScanStatus(address, railgunWalletId, chainId);
+        const { checkChainScanStatus } = await import(
+          "../utils/railgun/chainSwitch"
+        );
+        const scanStatus = await checkChainScanStatus(
+          address,
+          railgunWalletId,
+          chainId
+        );
 
-        if (!scanStatus.isScanned) {
-          // Only notify UI that a scan will begin if chain is not already scanned
-          try { window.dispatchEvent(new CustomEvent('railgun-scan-started', { detail: { chainId } })); } catch {}
+        if (!scanStatus.isScanned && chainId && typeof chainId === "number") {
+          // Only notify UI that a scan will begin if chain is not already scanned AND chainId is a valid number
+          try {
+            window.dispatchEvent(
+              new CustomEvent("railgun-scan-started", { detail: { chainId } })
+            );
+          } catch {}
         }
 
-        console.log('🔄 Updating Railgun providers for chain change...', { chainId, alreadyScanned: scanStatus.isScanned });
-        
-        const { loadProvider } = await import('@railgun-community/wallet');
-        
+        console.log("🔄 Updating Railgun providers for chain change...", {
+          chainId,
+          alreadyScanned: scanStatus.isScanned,
+        });
+
+        const { loadProvider } = await import("@railgun-community/wallet");
+
         const networkConfigs = [
-          { 
-            networkName: NetworkName.Ethereum, 
-            rpcUrl: RPC_URLS.ethereum, 
-            ankrUrl: '/api/rpc?chainId=1&provider=ankr',
-            chainId: 1 
+          {
+            networkName: NetworkName.Ethereum,
+            rpcUrl: RPC_URLS.ethereum,
+            ankrUrl: "/api/rpc?chainId=1&provider=ankr",
+            chainId: 1,
           },
-          { 
-            networkName: NetworkName.Polygon, 
-            rpcUrl: RPC_URLS.polygon, 
-            ankrUrl: '/api/rpc?chainId=137&provider=ankr',
-            chainId: 137 
+          {
+            networkName: NetworkName.Polygon,
+            rpcUrl: RPC_URLS.polygon,
+            ankrUrl: "/api/rpc?chainId=137&provider=ankr",
+            chainId: 137,
           },
-          { 
-            networkName: NetworkName.Arbitrum, 
-            rpcUrl: RPC_URLS.arbitrum, 
-            ankrUrl: '/api/rpc?chainId=42161&provider=ankr',
-            chainId: 42161 
+          {
+            networkName: NetworkName.Arbitrum,
+            rpcUrl: RPC_URLS.arbitrum,
+            ankrUrl: "/api/rpc?chainId=42161&provider=ankr",
+            chainId: 42161,
           },
-          { 
-            networkName: NetworkName.BNBChain, 
-            rpcUrl: RPC_URLS.bsc, 
-            ankrUrl: '/api/rpc?chainId=56&provider=ankr',
-            chainId: 56 
+          {
+            networkName: NetworkName.BNBChain,
+            rpcUrl: RPC_URLS.bsc,
+            ankrUrl: "/api/rpc?chainId=56&provider=ankr",
+            chainId: 56,
           },
         ];
 
         // Find the current network
-        const currentNetwork = networkConfigs.find(config => config.chainId === chainId);
+        const currentNetwork = networkConfigs.find(
+          (config) => config.chainId === chainId
+        );
         if (!currentNetwork) {
-          console.warn('⚠️ Unsupported chain for Railgun provider update:', chainId);
+          console.warn(
+            "⚠️ Unsupported chain for Railgun provider update:",
+            chainId
+          );
           return;
         }
 
@@ -1115,31 +1399,39 @@ const WalletContextProvider = ({ children }) => {
               {
                 provider: currentNetwork.ankrUrl, // Fallback: Ankr (proxied)
                 priority: 1,
-                weight: 1,                        // Slightly lower weight for fallback
-                maxLogsPerBatch: 10,              // Higher batch size for Ankr
-                stallTimeout: 3000,               // Slightly higher timeout
-              }
-            ]
+                weight: 1, // Slightly lower weight for fallback
+                maxLogsPerBatch: 10, // Higher batch size for Ankr
+                stallTimeout: 3000, // Slightly higher timeout
+              },
+            ],
           };
 
           // Wrap loadProvider with retry limit
           await withRPCRetryLimit(
-            () => loadProvider(fallbackProviderConfig, currentNetwork.networkName, 15000),
+            () =>
+              loadProvider(
+                fallbackProviderConfig,
+                currentNetwork.networkName,
+                15000
+              ),
             currentNetwork.networkName
           );
-          console.log(`✅ Updated Railgun provider for ${currentNetwork.networkName} using official format`);
-          
+          console.log(
+            `✅ Updated Railgun provider for ${currentNetwork.networkName} using official format`
+          );
+
           // 🎯 FIXED: Don't auto-resume polling after provider update - let useBalances hook control when to poll
-          console.log(`⏸️ Provider updated but remains paused - will resume only when balance refresh needed`);
+          console.log(
+            `⏸️ Provider updated but remains paused - will resume only when balance refresh needed`
+          );
         } catch (providerError) {
-          console.warn('⚠️ Failed to update Railgun provider:', providerError);
+          console.warn("⚠️ Failed to update Railgun provider:", providerError);
           // Don't throw - this is non-critical, RPC fallback will work
         }
 
         // Note: Chain scanning now handled by chain switch handler, not provider updates
-
       } catch (error) {
-        console.error('❌ Failed to update Railgun providers:', error);
+        console.error("❌ Failed to update Railgun providers:", error);
         // Don't throw - prevent crashing the app
       }
     };
@@ -1147,7 +1439,14 @@ const WalletContextProvider = ({ children }) => {
     // Run immediately on chain change to eliminate delay before vault creation/scan
     updateRailgunProviders();
     return undefined;
-  }, [isRailgunInitialized, showReturningUserChainModal]); // FIXED: Removed chainId dependency - providers don't change on chain switches
+  }, [
+    isRailgunInitialized,
+    showReturningUserChainModal,
+    chainId,
+    connector,
+    address,
+    railgunWalletId,
+  ]); // FIXED: Added missing dependencies for chainId and other variables used in closure
 
   // Handle chain switches - use centralized chain switch utility
   useEffect(() => {
@@ -1159,7 +1458,9 @@ const WalletContextProvider = ({ children }) => {
 
       // Skip if returning user modal is open
       if (showReturningUserChainModal) {
-        console.log('[Chain Switch] ⏸️ Waiting for returning user to select chain');
+        console.log(
+          "[Chain Switch] ⏸️ Waiting for returning user to select chain"
+        );
         return;
       }
 
@@ -1167,7 +1468,9 @@ const WalletContextProvider = ({ children }) => {
       chainSwitchInProgressRef.current.add(chainId);
 
       try {
-        console.log(`[Chain Switch] 🔄 Chain changed to ${chainId}, using chain switch utility...`);
+        console.log(
+          `[Chain Switch] 🔄 Chain changed to ${chainId}, using chain switch utility...`
+        );
 
         // Use the centralized chain switch utility
         const success = await switchToChain({
@@ -1181,8 +1484,11 @@ const WalletContextProvider = ({ children }) => {
             console.warn(`[Chain Switch] Error for chain ${chainId}:`, error);
           },
           onComplete: (result) => {
-            console.log(`[Chain Switch] ✅ Chain ${chainId} switch completed:`, result);
-          }
+            console.log(
+              `[Chain Switch] ✅ Chain ${chainId} switch completed:`,
+              result
+            );
+          },
         });
 
         if (!success) {
@@ -1195,42 +1501,76 @@ const WalletContextProvider = ({ children }) => {
     };
 
     handleChainSwitch();
-  }, [chainId, isRailgunInitialized, showReturningUserChainModal, address, railgunWalletID]);
+  }, [
+    chainId,
+    isRailgunInitialized,
+    showReturningUserChainModal,
+    address,
+    railgunWalletID,
+  ]);
 
   // Monitor WalletConnect connections and validate chains immediately when chainId becomes available
-  const walletConnectValidationRef = useRef({ toastShown: false, lastChainId: null, disconnecting: false });
+  const walletConnectValidationRef = useRef({
+    toastShown: false,
+    lastChainId: null,
+    disconnecting: false,
+  });
   const [walletConnectValidating, setWalletConnectValidating] = useState(false);
   useEffect(() => {
-    if (isConnected && connector?.id === 'walletConnect' && !walletConnectValidationRef.current.disconnecting) {
-      console.log(`[WalletConnect Monitor] Chain ID detected: ${chainId}, validating immediately... (toastShown: ${walletConnectValidationRef.current.toastShown})`);
+    if (
+      isConnected &&
+      connector?.id === "walletConnect" &&
+      !walletConnectValidationRef.current.disconnecting
+    ) {
+      console.log(
+        `[WalletConnect Monitor] Chain ID detected: ${chainId}, validating immediately... (toastShown: ${walletConnectValidationRef.current.toastShown})`
+      );
       setWalletConnectValidating(true);
 
       // If chainId is NaN, try to get it from the provider directly
-      if (chainId === 'NaN' || (typeof chainId === 'number' && isNaN(chainId))) {
-        console.log('[WalletConnect Monitor] chainId is NaN, attempting to fetch from provider...');
+      if (
+        chainId === "NaN" ||
+        (typeof chainId === "number" && isNaN(chainId))
+      ) {
+        console.log(
+          "[WalletConnect Monitor] chainId is NaN, attempting to fetch from provider..."
+        );
 
         // Try to get chainId from provider
         const getChainIdFromProvider = async () => {
           try {
-            const walletConnectConnector = connectors.find(c => c.id === 'walletConnect');
+            const walletConnectConnector = connectors.find(
+              (c) => c.id === "walletConnect"
+            );
             if (!walletConnectConnector) {
-              console.log('[WalletConnect Monitor] No WalletConnect connector found');
+              console.log(
+                "[WalletConnect Monitor] No WalletConnect connector found"
+              );
               return null;
             }
 
             const provider = await walletConnectConnector.getProvider();
             if (!provider) {
-              console.log('[WalletConnect Monitor] No WalletConnect provider found');
+              console.log(
+                "[WalletConnect Monitor] No WalletConnect provider found"
+              );
               return null;
             }
 
-            const chainIdHex = await provider.request({ method: 'eth_chainId' });
+            const chainIdHex = await provider.request({
+              method: "eth_chainId",
+            });
             const providerChainId = parseInt(chainIdHex, 16);
 
-            console.log(`[WalletConnect Monitor] Got chainId from provider: ${providerChainId}`);
+            console.log(
+              `[WalletConnect Monitor] Got chainId from provider: ${providerChainId}`
+            );
             return providerChainId;
           } catch (error) {
-            console.warn('[WalletConnect Monitor] Failed to get chainId from provider:', error);
+            console.warn(
+              "[WalletConnect Monitor] Failed to get chainId from provider:",
+              error
+            );
             return null;
           }
         };
@@ -1242,8 +1582,10 @@ const WalletContextProvider = ({ children }) => {
           } else {
             // If we can't get chainId from provider, wait a bit and try again
             setTimeout(() => {
-              if (isConnected && connector?.id === 'walletConnect') {
-                console.log('[WalletConnect Monitor] Retrying chainId validation...');
+              if (isConnected && connector?.id === "walletConnect") {
+                console.log(
+                  "[WalletConnect Monitor] Retrying chainId validation..."
+                );
                 // This will trigger the useEffect again
               }
             }, 1000);
@@ -1260,8 +1602,12 @@ const WalletContextProvider = ({ children }) => {
         const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
 
         // Check if chainId is valid and supported
-        const isValidChainIdLocal = chainIdToValidate && !isNaN(chainIdToValidate) && typeof chainIdToValidate === 'number';
-        const isSupportedNetwork = isValidChainIdLocal && supportedNetworks[chainIdToValidate];
+        const isValidChainIdLocal =
+          chainIdToValidate &&
+          !isNaN(chainIdToValidate) &&
+          typeof chainIdToValidate === "number";
+        const isSupportedNetwork =
+          isValidChainIdLocal && supportedNetworks[chainIdToValidate];
 
         if (!isSupportedNetwork) {
           const reason = !isValidChainIdLocal
@@ -1269,85 +1615,114 @@ const WalletContextProvider = ({ children }) => {
             : `Unsupported network: ${chainIdToValidate}`;
 
           // Check if we already handled this exact scenario
-          if (walletConnectValidationRef.current.toastShown && walletConnectValidationRef.current.lastChainId === chainIdToValidate) {
-            console.log(`[WalletConnect Monitor] Skipping duplicate validation for ${reason}`);
+          if (
+            walletConnectValidationRef.current.toastShown &&
+            walletConnectValidationRef.current.lastChainId === chainIdToValidate
+          ) {
+            console.log(
+              `[WalletConnect Monitor] Skipping duplicate validation for ${reason}`
+            );
             setWalletConnectValidating(false);
             return;
           }
 
-          console.log(`🚫 [WalletConnect Monitor] IMMEDIATE DISCONNECT: ${reason}`);
+          console.log(
+            `🚫 [WalletConnect Monitor] IMMEDIATE DISCONNECT: ${reason}`
+          );
           walletConnectValidationRef.current.toastShown = true;
           walletConnectValidationRef.current.lastChainId = chainIdToValidate;
           walletConnectValidationRef.current.disconnecting = true;
 
           // Show error toast immediately
-          if (typeof window !== 'undefined') {
+          if (typeof window !== "undefined") {
             // Import toast dynamically to avoid circular dependencies
-            import('react-hot-toast').then(({ toast }) => {
-            toast.custom((t) => (
-              <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-                <div className="rounded-lg border border-yellow-500/30 bg-black/90 text-yellow-200 shadow-2xl max-w-md">
-                  <div className="px-4 py-3 flex items-start gap-3">
-                    <div className="h-5 w-5 rounded-full bg-yellow-400 flex-shrink-0 mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium">Unsupported Network</div>
-                      <div className="text-xs text-yellow-300/80 mt-1">
-                        {isValidChainIdLocal
-                          ? `Your mobile wallet was connected to an unsupported network (Chain ID: ${chainIdToValidate}). Please switch to Ethereum, Arbitrum, Polygon, or BNB Chain to use LexieVault features.`
-                          : `Unable to determine your mobile wallet's network. Please ensure you're connected to Ethereum, Arbitrum, Polygon, or BNB Chain and try again.`
-                        }
+            import("react-hot-toast").then(({ toast }) => {
+              toast.custom(
+                (t) => (
+                  <div
+                    className={`font-mono pointer-events-auto ${
+                      t.visible ? "animate-enter" : "animate-leave"
+                    }`}
+                  >
+                    <div className="rounded-lg border border-yellow-500/30 bg-black/90 text-yellow-200 shadow-2xl max-w-md">
+                      <div className="px-4 py-3 flex items-start gap-3">
+                        <div className="h-5 w-5 rounded-full bg-yellow-400 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium">
+                            Unsupported Network
+                          </div>
+                          <div className="text-xs text-yellow-300/80 mt-1">
+                            {isValidChainIdLocal
+                              ? `Your mobile wallet was connected to an unsupported network (Chain ID: ${chainIdToValidate}). Please switch to Ethereum, Arbitrum, Polygon, or BNB Chain to use LexieVault features.`
+                              : `Unable to determine your mobile wallet's network. Please ensure you're connected to Ethereum, Arbitrum, Polygon, or BNB Chain and try again.`}
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          aria-label="Dismiss"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toast.dismiss(t.id);
+                          }}
+                          className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-yellow-900/30 text-yellow-300/80 flex-shrink-0"
+                        >
+                          ×
+                        </button>
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      aria-label="Dismiss"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toast.dismiss(t.id);
-                      }}
-                      className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-yellow-900/30 text-yellow-300/80 flex-shrink-0"
-                    >
-                      ×
-                    </button>
                   </div>
-                </div>
-              </div>
-            ), { duration: 8000 });
-          });
-        }
+                ),
+                { duration: 8000 }
+              );
+            });
+          }
 
-        // Force disconnect after showing the toast
-        setTimeout(async () => {
-          try {
-            await disconnect();
-            console.log('[WalletConnect Monitor] Disconnected from unsupported network');
-            // Reset flags when disconnected so it can show again for future connections
-            setTimeout(() => {
+          // Force disconnect after showing the toast
+          setTimeout(async () => {
+            try {
+              await disconnect();
+              console.log(
+                "[WalletConnect Monitor] Disconnected from unsupported network"
+              );
+              // Reset flags when disconnected so it can show again for future connections
+              setTimeout(() => {
+                walletConnectValidationRef.current.toastShown = false;
+                walletConnectValidationRef.current.lastChainId = null;
+                walletConnectValidationRef.current.disconnecting = false;
+                setWalletConnectValidating(false);
+              }, 2000); // Longer delay to ensure clean state
+            } catch (error) {
+              console.error(
+                "[WalletConnect Monitor] Disconnect failed:",
+                error
+              );
+              // Reset on failure
               walletConnectValidationRef.current.toastShown = false;
-              walletConnectValidationRef.current.lastChainId = null;
               walletConnectValidationRef.current.disconnecting = false;
               setWalletConnectValidating(false);
-            }, 2000); // Longer delay to ensure clean state
-          } catch (error) {
-            console.error('[WalletConnect Monitor] Disconnect failed:', error);
-            // Reset on failure
-            walletConnectValidationRef.current.toastShown = false;
-            walletConnectValidationRef.current.disconnecting = false;
-            setWalletConnectValidating(false);
-          }
-        }, 200); // Slightly longer delay
-
-            // Dispatch custom event for UI handling
-            if (typeof window !== 'undefined') {
-              window.dispatchEvent(new CustomEvent('walletconnect-unsupported-network', {
-                detail: { chainId: chainIdToValidate, supportedNetworks: [1, 137, 42161, 56] }
-              }));
             }
+          }, 200); // Slightly longer delay
 
-            // Also show error in console
-            console.error(`🚫 WalletConnect: Unsupported network (Chain ID: ${chainIdToValidate}). Please use Ethereum, Arbitrum, Polygon, or BNB Chain.`);
+          // Dispatch custom event for UI handling
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(
+              new CustomEvent("walletconnect-unsupported-network", {
+                detail: {
+                  chainId: chainIdToValidate,
+                  supportedNetworks: [1, 137, 42161, 56],
+                },
+              })
+            );
+          }
+
+          // Also show error in console
+          console.error(
+            `🚫 WalletConnect: Unsupported network (Chain ID: ${chainIdToValidate}). Please use Ethereum, Arbitrum, Polygon, or BNB Chain.`
+          );
         } else {
-          console.log(`✅ [WalletConnect Monitor] Network ${chainIdToValidate} validated - allowing connection`);
+          console.log(
+            `✅ [WalletConnect Monitor] Network ${chainIdToValidate} validated - allowing connection`
+          );
           // Reset flags for successful connections
           walletConnectValidationRef.current.toastShown = false;
           walletConnectValidationRef.current.lastChainId = null;
@@ -1363,34 +1738,37 @@ const WalletContextProvider = ({ children }) => {
 
   // 🛠️ Debug utilities for encrypted data management
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== "undefined") {
       window.__LEXIE_RAILGUN_DEBUG__ = {
         // Check current user's Redis wallet data status
         checkWalletData: () => {
-          if (!address) return { error: 'No wallet connected' };
-          
+          if (!address) return { error: "No wallet connected" };
+
           return {
             userAddress: address,
             currentRailgunAddress: railgunAddress,
-            currentWalletID: railgunWalletID?.slice(0, 8) + '...',
+            currentWalletID: railgunWalletID?.slice(0, 8) + "...",
             isInitialized: isRailgunInitialized,
-            storageType: 'Redis-only',
-            redisData: redisWalletData ? {
-              version: redisWalletData.version,
-              crossDeviceReady: redisWalletData.crossDeviceReady,
-              hasSignature: !!redisWalletData.signature,
-              hasEncryptedMnemonic: !!redisWalletData.encryptedMnemonic,
-              hasRailgunAddress: !!redisWalletData.railgunAddress,
-              hasWalletId: !!redisWalletData.walletId
-            } : 'No Redis data found',
-            persistenceStatus: redisWalletData?.crossDeviceReady ? 
-              '✅ Complete cross-device wallet data in Redis' : 
-              redisWalletData ? 'Partial Redis data - needs migration' : 
-              'No wallet data - new wallet needed',
-            crossDeviceCompatible: redisWalletData?.crossDeviceReady || false
+            storageType: "Redis-only",
+            redisData: redisWalletData
+              ? {
+                  version: redisWalletData.version,
+                  crossDeviceReady: redisWalletData.crossDeviceReady,
+                  hasSignature: !!redisWalletData.signature,
+                  hasEncryptedMnemonic: !!redisWalletData.encryptedMnemonic,
+                  hasRailgunAddress: !!redisWalletData.railgunAddress,
+                  hasWalletId: !!redisWalletData.walletId,
+                }
+              : "No Redis data found",
+            persistenceStatus: redisWalletData?.crossDeviceReady
+              ? "✅ Complete cross-device wallet data in Redis"
+              : redisWalletData
+              ? "Partial Redis data - needs migration"
+              : "No wallet data - new wallet needed",
+            crossDeviceCompatible: redisWalletData?.crossDeviceReady || false,
           };
         },
-        
+
         // Check RPC rate limiter status
         checkRPCLimiter: () => {
           resetRPCLimiter();
@@ -1400,48 +1778,67 @@ const WalletContextProvider = ({ children }) => {
             isBlocked: rpcLimiter.current.isBlocked,
             blockedForSession: rpcLimiter.current.blockedForSession,
             currentSession: isConnected ? address : null,
-            isBlockedForCurrentSession: rpcLimiter.current.isBlocked && rpcLimiter.current.blockedForSession === address,
-            status: rpcLimiter.current.isBlocked ? 
-              '🚫 BLOCKED - Too many failed RPC attempts. Disconnect and reconnect wallet to reset.' : 
-              `✅ ACTIVE - ${rpcLimiter.current.totalAttempts}/${rpcLimiter.current.maxTotalAttempts} attempts used`
+            isBlockedForCurrentSession:
+              rpcLimiter.current.isBlocked &&
+              rpcLimiter.current.blockedForSession === address,
+            status: rpcLimiter.current.isBlocked
+              ? "🚫 BLOCKED - Too many failed RPC attempts. Disconnect and reconnect wallet to reset."
+              : `✅ ACTIVE - ${rpcLimiter.current.totalAttempts}/${rpcLimiter.current.maxTotalAttempts} attempts used`,
           };
         },
-        
+
         // Manually reset RPC rate limiter (for debugging)
         resetRPCLimiter: () => {
           const oldStatus = { ...rpcLimiter.current };
           rpcLimiter.current.totalAttempts = 0;
           rpcLimiter.current.isBlocked = false;
           rpcLimiter.current.blockedForSession = null;
-          console.log('[Debug] 🔄 Manually reset RPC rate limiter');
+          console.log("[Debug] 🔄 Manually reset RPC rate limiter");
           return {
-            message: 'RPC rate limiter manually reset (debug only)',
+            message: "RPC rate limiter manually reset (debug only)",
             oldStatus,
-            newStatus: { ...rpcLimiter.current }
+            newStatus: { ...rpcLimiter.current },
           };
         },
-        
+
         // NOTE: Redis data cannot be cleared from frontend for security reasons
         clearLocalData: () => {
-          if (!address) return { error: 'No wallet connected' };
-          
-          console.log('ℹ️ Redis-only architecture: No local data to clear');
-          
+          if (!address) return { error: "No wallet connected" };
+
+          console.log("ℹ️ Redis-only architecture: No local data to clear");
+
           return {
             userAddress: address,
-            message: 'Redis-only architecture: All wallet data is stored in Redis for cross-device access.',
-            note: 'To reset wallet, contact support or use a different EOA address.'
+            message:
+              "Redis-only architecture: All wallet data is stored in Redis for cross-device access.",
+            note: "To reset wallet, contact support or use a different EOA address.",
           };
         },
       };
-      
-      console.log('🛠️ Railgun debug utilities available (Redis-only architecture):');
-      console.log('- window.__LEXIE_RAILGUN_DEBUG__.checkWalletData() // Check Redis wallet status');
-      console.log('- window.__LEXIE_RAILGUN_DEBUG__.checkRPCLimiter() // Check rate limiter status');  
-      console.log('- window.__LEXIE_RAILGUN_DEBUG__.resetRPCLimiter() // Reset rate limiter');
-      console.log('- window.__LEXIE_RAILGUN_DEBUG__.clearLocalData() // Info about Redis-only storage');
+
+      console.log(
+        "🛠️ Railgun debug utilities available (Redis-only architecture):"
+      );
+      console.log(
+        "- window.__LEXIE_RAILGUN_DEBUG__.checkWalletData() // Check Redis wallet status"
+      );
+      console.log(
+        "- window.__LEXIE_RAILGUN_DEBUG__.checkRPCLimiter() // Check rate limiter status"
+      );
+      console.log(
+        "- window.__LEXIE_RAILGUN_DEBUG__.resetRPCLimiter() // Reset rate limiter"
+      );
+      console.log(
+        "- window.__LEXIE_RAILGUN_DEBUG__.clearLocalData() // Info about Redis-only storage"
+      );
     }
-  }, [address, isConnected, railgunAddress, isRailgunInitialized, initializeRailgun]);
+  }, [
+    address,
+    isConnected,
+    railgunAddress,
+    isRailgunInitialized,
+    initializeRailgun,
+  ]);
 
   const value = {
     isConnected,
@@ -1463,24 +1860,31 @@ const WalletContextProvider = ({ children }) => {
     railgunError,
     canUseRailgun: isRailgunInitialized,
     railgunWalletId: railgunWalletID,
-    
+
     // Connection info
     connectedWalletType: connector?.id,
     connectedWalletName: connector?.name,
-    
+
     // 🔑 Wallet signer for SDK operations (avoids re-wrapping in BrowserProvider)
     getWalletSigner,
     walletProvider: getWalletSigner, // Backwards compatibility - but this returns a signer now
     ensureEngineForShield,
-    
+
     getCurrentNetwork: () => {
-      const networkNames = { 1: 'Ethereum', 137: 'Polygon', 42161: 'Arbitrum', 56: 'BNB Chain' };
+      const networkNames = {
+        1: "Ethereum",
+        137: "Polygon",
+        42161: "Arbitrum",
+        56: "BNB Chain",
+      };
       return { id: chainId, name: networkNames[chainId] || `Chain ${chainId}` };
     },
     checkChainReady: async () => {
       try {
         if (!address || !railgunWalletID || !chainId) return false;
-        const resp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+        const resp = await fetch(
+          `/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`
+        );
         if (!resp.ok) return false;
         const data = await resp.json();
         const meta = data?.keys?.find((k) => k.walletId === railgunWalletID);
@@ -1490,23 +1894,23 @@ const WalletContextProvider = ({ children }) => {
         return false;
       }
     },
-    
+
     supportedNetworks: { 1: true, 137: true, 42161: true, 56: true },
-    walletProviders: { METAMASK: 'metamask', WALLETCONNECT: 'walletconnect' },
-    
+    walletProviders: { METAMASK: "metamask", WALLETCONNECT: "walletconnect" },
+
     isWalletAvailable: (type) => {
-      if (type === 'metamask') return !!window.ethereum?.isMetaMask;
-      if (type === 'walletconnect') return true;
+      if (type === "metamask") return !!window.ethereum?.isMetaMask;
+      if (type === "walletconnect") return true;
       return false;
     },
-    
+
     getConnectionDebugInfo: () => ({
       isConnected,
       connectorId: connector?.id,
       connectorName: connector?.name,
       railgunInitialized: isRailgunInitialized,
       railgunAddress,
-      railgunWalletID: railgunWalletID?.slice(0, 8) + '...',
+      railgunWalletID: railgunWalletID?.slice(0, 8) + "...",
     }),
 
     // Lexie ID modal control
@@ -1521,20 +1925,20 @@ const WalletContextProvider = ({ children }) => {
       }
     },
 
-  // Lexie ID linking completion
-  onLexieIdLinked: () => {
-    if (lexieIdLinkPromise) {
-      lexieIdLinkPromise.resolve();
-    }
-  },
+    // Lexie ID linking completion
+    onLexieIdLinked: () => {
+      if (lexieIdLinkPromise) {
+        lexieIdLinkPromise.resolve();
+      }
+    },
 
-  // Returning user chain selection modal control
-  showReturningUserChainModal,
-  handleReturningUserChainChoice: (confirmed) => {
-    if (returningUserChainPromise) {
-      returningUserChainPromise.resolve(confirmed);
-    }
-  },
+    // Returning user chain selection modal control
+    showReturningUserChainModal,
+    handleReturningUserChainChoice: (confirmed) => {
+      if (returningUserChainPromise) {
+        returningUserChainPromise.resolve(confirmed);
+      }
+    },
 
     // Signature confirmation modal
     showSignatureConfirmation,
@@ -1547,9 +1951,7 @@ const WalletContextProvider = ({ children }) => {
   };
 
   return (
-    <WalletContext.Provider value={value}>
-      {children}
-    </WalletContext.Provider>
+    <WalletContext.Provider value={value}>{children}</WalletContext.Provider>
   );
 };
 
@@ -1557,12 +1959,10 @@ export const WalletProvider = ({ children }) => {
   return (
     <QueryClientProvider client={queryClient}>
       <WagmiProvider config={wagmiConfig}>
-        <WalletContextProvider>
-          {children}
-        </WalletContextProvider>
+        <WalletContextProvider>{children}</WalletContextProvider>
       </WagmiProvider>
     </QueryClientProvider>
   );
 };
 
-export default WalletProvider; 
+export default WalletProvider;
