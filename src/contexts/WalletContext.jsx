@@ -1507,7 +1507,6 @@ const WalletContextProvider = ({ children }) => {
 
     // Run immediately on chain change to eliminate delay before vault creation/scan
     updateRailgunProviders();
-    return undefined;
   }, [isRailgunInitialized, showReturningUserChainModal]); // REVERTED: Removed chainId dependencies to prevent constant re-initialization causing LevelDB corruption
 
   // Handle chain switches - use centralized chain switch utility
