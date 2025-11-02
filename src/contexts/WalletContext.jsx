@@ -1214,125 +1214,126 @@ const WalletContextProvider = ({ children }) => {
         return;
       }
 
-    // 🛡️ Prevent force reinitialization if already initialized
-    if (isRailgunInitialized) {
-      console.log("✅ Railgun already initialized for:", address);
+      // 🛡️ Prevent force reinitialization if already initialized
+      if (isRailgunInitialized) {
+        console.log("✅ Railgun already initialized for:", address);
 
-      // 🎯 FIXED: Don't auto-resume polling - let useBalances hook control when to poll
-      console.log(
-        "⏸️ Providers remain paused - will resume only when balance refresh needed"
-      );
-      return;
-    }
-
-    // Respect suppression flag (PaymentPage and other pages that don't need wallet creation)
-    if (
-      typeof window !== "undefined" &&
-      (window.__LEXIE_SUPPRESS_RAILGUN_INIT || window.__LEXIE_PAYMENT_PAGE)
-    ) {
-      console.log(
-        "[Railgun Init] ⏭️ Suppressed auto-init due to page flag (__LEXIE_SUPPRESS_RAILGUN_INIT or __LEXIE_PAYMENT_PAGE)"
-      );
-      return;
-    }
-
-    // Bail if currently disconnecting to avoid race with stale wagmi state
-    if (disconnectingRef.current) {
-      console.log(
-        "[Railgun Init] ⏳ Skipping auto-init: disconnect in progress"
-      );
-      return;
-    }
-
-    // Require wagmi status to be fully connected, not just isConnected
-    if (status !== "connected") {
-      return;
-    }
-
-    // Prevent same-address re-init immediately after disconnect; require explicit reconnect
-    if (
-      lastInitializedAddressRef.current &&
-      lastInitializedAddressRef.current === address
-    ) {
-      console.log(
-        "[Railgun Init] ⏭️ Skipping auto-init for same address until explicit reconnect"
-      );
-      return;
-    }
-
-    if (isConnected && address && !isInitializing) {
-      // Final safety check: ensure we have a valid supported chainId before initializing Railgun
-      if (!chainId || chainId === "NaN" || isNaN(chainId)) {
+        // 🎯 FIXED: Don't auto-resume polling - let useBalances hook control when to poll
         console.log(
-          "⏳ [Railgun Init] Chain ID not yet available from wagmi, attempting to fetch directly from provider..."
+          "⏸️ Providers remain paused - will resume only when balance refresh needed"
         );
+        return;
+      }
 
-        // Try to get chainId directly from the provider as fallback
-        if (connector) {
-          try {
-            const provider = await connector.getProvider();
-            if (provider && provider.request) {
-              const providerChainId = await provider.request({
-                method: "eth_chainId",
-              });
-              const parsedChainId = parseInt(providerChainId, 16);
-              console.log(
-                `[Railgun Init] Got chainId from provider: ${parsedChainId}`
-              );
+      // Respect suppression flag (PaymentPage and other pages that don't need wallet creation)
+      if (
+        typeof window !== "undefined" &&
+        (window.__LEXIE_SUPPRESS_RAILGUN_INIT || window.__LEXIE_PAYMENT_PAGE)
+      ) {
+        console.log(
+          "[Railgun Init] ⏭️ Suppressed auto-init due to page flag (__LEXIE_SUPPRESS_RAILGUN_INIT or __LEXIE_PAYMENT_PAGE)"
+        );
+        return;
+      }
 
-              // Continue with the provider chainId if it's valid
-              if (parsedChainId && !isNaN(parsedChainId)) {
-                // Update the check below to use the provider chainId
-                const supportedNetworks = {
-                  1: true,
-                  137: true,
-                  42161: true,
-                  56: true,
-                };
-                if (!supportedNetworks[parsedChainId]) {
+      // Bail if currently disconnecting to avoid race with stale wagmi state
+      if (disconnectingRef.current) {
+        console.log(
+          "[Railgun Init] ⏳ Skipping auto-init: disconnect in progress"
+        );
+        return;
+      }
+
+      // Require wagmi status to be fully connected, not just isConnected
+      if (status !== "connected") {
+        return;
+      }
+
+      // Prevent same-address re-init immediately after disconnect; require explicit reconnect
+      if (
+        lastInitializedAddressRef.current &&
+        lastInitializedAddressRef.current === address
+      ) {
+        console.log(
+          "[Railgun Init] ⏭️ Skipping auto-init for same address until explicit reconnect"
+        );
+        return;
+      }
+
+      if (isConnected && address && !isInitializing) {
+        // Final safety check: ensure we have a valid supported chainId before initializing Railgun
+        if (!chainId || chainId === "NaN" || isNaN(chainId)) {
+          console.log(
+            "⏳ [Railgun Init] Chain ID not yet available from wagmi, attempting to fetch directly from provider..."
+          );
+
+          // Try to get chainId directly from the provider as fallback
+          if (connector) {
+            try {
+              const provider = await connector.getProvider();
+              if (provider && provider.request) {
+                const providerChainId = await provider.request({
+                  method: "eth_chainId",
+                });
+                const parsedChainId = parseInt(providerChainId, 16);
+                console.log(
+                  `[Railgun Init] Got chainId from provider: ${parsedChainId}`
+                );
+
+                // Continue with the provider chainId if it's valid
+                if (parsedChainId && !isNaN(parsedChainId)) {
+                  // Update the check below to use the provider chainId
+                  const supportedNetworks = {
+                    1: true,
+                    137: true,
+                    42161: true,
+                    56: true,
+                  };
+                  if (!supportedNetworks[parsedChainId]) {
+                    console.log(
+                      `🚫 [Railgun Init] Refusing to initialize on unsupported network (chainId: ${parsedChainId})`
+                    );
+                    return;
+                  }
+                  // Proceed with initialization using provider chainId
                   console.log(
-                    `🚫 [Railgun Init] Refusing to initialize on unsupported network (chainId: ${parsedChainId})`
+                    "🚀 Auto-initializing Railgun for connected wallet (using provider chainId):",
+                    address
                   );
+                  lastInitializedAddressRef.current = address;
+                  initializeRailgun();
                   return;
                 }
-                // Proceed with initialization using provider chainId
-                console.log(
-                  "🚀 Auto-initializing Railgun for connected wallet (using provider chainId):",
-                  address
-                );
-                lastInitializedAddressRef.current = address;
-                initializeRailgun();
-                return;
               }
+            } catch (providerError) {
+              console.warn(
+                "[Railgun Init] Failed to get chainId from provider:",
+                providerError
+              );
             }
-          } catch (providerError) {
-            console.warn(
-              "[Railgun Init] Failed to get chainId from provider:",
-              providerError
-            );
           }
+
+          console.log(
+            "⏳ [Railgun Init] Chain ID still not available, deferring initialization..."
+          );
+          return;
+        }
+
+        const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
+        if (!supportedNetworks[chainId]) {
+          console.log(
+            `🚫 [Railgun Init] Refusing to initialize on unsupported network (chainId: ${chainId})`
+          );
+          return;
         }
 
         console.log(
-          "⏳ [Railgun Init] Chain ID still not available, deferring initialization..."
+          "🚀 Auto-initializing Railgun for connected wallet:",
+          address
         );
-        return;
+        lastInitializedAddressRef.current = address;
+        initializeRailgun();
       }
-
-      const supportedNetworks = { 1: true, 137: true, 42161: true, 56: true };
-      if (!supportedNetworks[chainId]) {
-        console.log(
-          `🚫 [Railgun Init] Refusing to initialize on unsupported network (chainId: ${chainId})`
-        );
-        return;
-      }
-
-      console.log(
-        "🚀 Auto-initializing Railgun for connected wallet:",
-        address
-      );
-      lastInitializedAddressRef.current = address;
-      initializeRailgun();
     };
 
     handleAutoInitialization();
