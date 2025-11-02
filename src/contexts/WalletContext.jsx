@@ -1324,7 +1324,7 @@ const WalletContextProvider = ({ children }) => {
         );
         const scanStatus = await checkChainScanStatus(
           address,
-          railgunWalletId,
+          railgunWalletID,
           chainId
         );
 
@@ -1445,7 +1445,7 @@ const WalletContextProvider = ({ children }) => {
     chainId,
     connector,
     address,
-    railgunWalletId,
+    railgunWalletID,
   ]); // FIXED: Added missing dependencies for chainId and other variables used in closure
 
   // Handle chain switches - use centralized chain switch utility
@@ -1644,14 +1644,14 @@ const WalletContextProvider = ({ children }) => {
                       t.visible ? "animate-enter" : "animate-leave"
                     }`}
                   >
-                    <div className="rounded-lg border border-yellow-500/30 bg-black/90 text-yellow-200 shadow-2xl max-w-md">
-                      <div className="px-4 py-3 flex items-start gap-3">
+                    <div className="max-w-md text-yellow-200 border rounded-lg shadow-2xl border-yellow-500/30 bg-black/90">
+                      <div className="flex items-start gap-3 px-4 py-3">
                         <div className="h-5 w-5 rounded-full bg-yellow-400 flex-shrink-0 mt-0.5" />
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium">
                             Unsupported Network
                           </div>
-                          <div className="text-xs text-yellow-300/80 mt-1">
+                          <div className="mt-1 text-xs text-yellow-300/80">
                             {isValidChainIdLocal
                               ? `Your mobile wallet was connected to an unsupported network (Chain ID: ${chainIdToValidate}). Please switch to Ethereum, Arbitrum, Polygon, or BNB Chain to use LexieVault features.`
                               : `Unable to determine your mobile wallet's network. Please ensure you're connected to Ethereum, Arbitrum, Polygon, or BNB Chain and try again.`}
@@ -1664,7 +1664,7 @@ const WalletContextProvider = ({ children }) => {
                             e.stopPropagation();
                             toast.dismiss(t.id);
                           }}
-                          className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-yellow-900/30 text-yellow-300/80 flex-shrink-0"
+                          className="flex items-center justify-center flex-shrink-0 w-5 h-5 ml-2 rounded hover:bg-yellow-900/30 text-yellow-300/80"
                         >
                           ×
                         </button>
