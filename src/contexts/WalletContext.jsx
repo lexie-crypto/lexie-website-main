@@ -1204,7 +1204,7 @@ const WalletContextProvider = ({ children }) => {
   }, [chainId]);
 
   // Auto-initialize Railgun when wallet connects (only if not already initialized)
-  useEffect(() => {
+  useEffect(async () => {
     // 🛡️ CRITICAL: Don't auto-initialize if returning user modal is open
     if (showReturningUserChainModal) {
       console.log(
@@ -1263,7 +1263,57 @@ const WalletContextProvider = ({ children }) => {
       // Final safety check: ensure we have a valid supported chainId before initializing Railgun
       if (!chainId || chainId === "NaN" || isNaN(chainId)) {
         console.log(
-          "⏳ [Railgun Init] Chain ID not yet available, deferring initialization..."
+          "⏳ [Railgun Init] Chain ID not yet available from wagmi, attempting to fetch directly from provider..."
+        );
+
+        // Try to get chainId directly from the provider as fallback
+        if (connector) {
+          try {
+            const provider = await connector.getProvider();
+            if (provider && provider.request) {
+              const providerChainId = await provider.request({
+                method: "eth_chainId",
+              });
+              const parsedChainId = parseInt(providerChainId, 16);
+              console.log(
+                `[Railgun Init] Got chainId from provider: ${parsedChainId}`
+              );
+
+              // Continue with the provider chainId if it's valid
+              if (parsedChainId && !isNaN(parsedChainId)) {
+                // Update the check below to use the provider chainId
+                const supportedNetworks = {
+                  1: true,
+                  137: true,
+                  42161: true,
+                  56: true,
+                };
+                if (!supportedNetworks[parsedChainId]) {
+                  console.log(
+                    `🚫 [Railgun Init] Refusing to initialize on unsupported network (chainId: ${parsedChainId})`
+                  );
+                  return;
+                }
+                // Proceed with initialization using provider chainId
+                console.log(
+                  "🚀 Auto-initializing Railgun for connected wallet (using provider chainId):",
+                  address
+                );
+                lastInitializedAddressRef.current = address;
+                initializeRailgun();
+                return;
+              }
+            }
+          } catch (providerError) {
+            console.warn(
+              "[Railgun Init] Failed to get chainId from provider:",
+              providerError
+            );
+          }
+        }
+
+        console.log(
+          "⏳ [Railgun Init] Chain ID still not available, deferring initialization..."
         );
         return;
       }
