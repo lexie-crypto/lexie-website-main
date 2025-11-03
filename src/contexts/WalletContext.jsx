@@ -452,6 +452,11 @@ const WalletContextProvider = ({ children }) => {
 
   // Track when chain switching is in progress to prevent double hydration
   const chainSwitchInProgressRef = useRef(new Set());
+  const cleanupRef = useRef({
+    timers: [],
+    abortControllers: [],
+    isActive: true, // Track if wallet context is still active
+  });
 
   // Update target chain ref when user selects chain in modal
   useEffect(() => {
@@ -991,7 +996,32 @@ const WalletContextProvider = ({ children }) => {
     }
     disconnectWallet.isDisconnecting = true;
     disconnectingRef.current = true;
+    try {
+      console.log("🛑 [DISCONNECT] Cancelling all pending async operations...");
 
+      // Mark context as inactive
+      cleanupRef.current.isActive = false;
+
+      // Cancel all pending timers
+      cleanupRef.current.timers.forEach((timer) => {
+        clearTimeout(timer);
+        console.log("🛑 [DISCONNECT] Cleared pending timer");
+      });
+      cleanupRef.current.timers = [];
+
+      // Abort all pending async operations
+      cleanupRef.current.abortControllers.forEach((controller) => {
+        if (!controller.signal.aborted) {
+          controller.abort();
+          console.log("🛑 [DISCONNECT] Aborted pending operation");
+        }
+      });
+      cleanupRef.current.abortControllers = [];
+
+      console.log("✅ [DISCONNECT] All pending operations cancelled");
+    } catch (cleanupError) {
+      console.warn("⚠️ [DISCONNECT] Error during cleanup:", cleanupError);
+    }
     try {
       // 1. Unload ALL Railgun SDK wallet state first
       try {
@@ -1148,6 +1178,11 @@ const WalletContextProvider = ({ children }) => {
       disconnectingRef.current = false;
       disconnectWallet.isDisconnecting = false;
     }
+    cleanupRef.current = {
+      timers: [],
+      abortControllers: [],
+      isActive: true,
+    };
   };
 
   // Official Railgun SDK Integration
@@ -1179,6 +1214,7 @@ const WalletContextProvider = ({ children }) => {
       lastInitializedAddressRef,
       targetChainIdRef,
       chainIdRef,
+      cleanupRef,
     });
   };
 
