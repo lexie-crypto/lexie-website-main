@@ -38,11 +38,13 @@ import {
   isTokenSupportedByRailgun,
 } from '../../utils/railgun/actions';
 import { deriveEncryptionKey, clearAllWallets } from '../../utils/railgun/wallet';
+import { syncBalancesAfterTransaction } from '../../utils/railgun/syncBalances';
 import LexieIdChoiceModal from './LexieIdChoiceModal';
 import LexieIdModal from './LexieIdModal';
 import CrossPlatformVerificationModal from './CrossPlatformVerificationModal';
 import GameOnboardingModal from './GameOnboardingModal';
 import SignRequestModal from './SignRequestModal';
+import { useChainSwitchModal } from '../../hooks/useChainSwitchModal';
 import SignatureConfirmationModal from './SignatureConfirmationModal';
 import ReturningUserChainSelectionModal from './ReturningUserChainSelectionModal';
 import { Navbar } from '../Navbar.jsx';
@@ -225,15 +227,22 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   const [activeTransactionMonitors, setActiveTransactionMonitors] = useState(0);
   const [shieldingTokens, setShieldingTokens] = useState(new Set());
   const [shieldAmounts, setShieldAmounts] = useState({});
-  const [showSignRequestPopup, setShowSignRequestPopup] = useState(false);
-  const [initProgress, setInitProgress] = useState({ percent: 0, message: '' });
-  const [isInitInProgress, setIsInitInProgress] = useState(false);
-  const [initFailedMessage, setInitFailedMessage] = useState('');
-  const [bootstrapProgress, setBootstrapProgress] = useState({ percent: 0, active: false });
-  const bootstrapLockedRef = useRef(false); // Prevents progress from resetting below 100% once reached
 
-  // Track which chain is being initialized
-  const [initializingChainId, setInitializingChainId] = useState(null);
+  // Use the chain switch modal hook
+  const {
+    showSignRequestPopup,
+    initProgress,
+    isInitInProgress,
+    initFailedMessage,
+    bootstrapProgress,
+    initializingChainId,
+    scanComplete,
+    handlePersistMetadata,
+    resetModal,
+    setInitializingChainId,
+    getNetworkNameById: modalGetNetworkNameById
+  } = useChainSwitchModal();
+
 
   // Helper to get network name by chain ID
   const getNetworkNameById = (chainId) => {
@@ -245,30 +254,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     }[Number(chainId)] || `Chain ${chainId}`;
   };
 
-  // Helper to persist metadata when modal unlocks
-  const handlePersistMetadata = async () => {
-    try {
-      console.log(`🔓 Modal unlocking - marking chain ${activeChainId} as scanned for wallet ${railgunWalletId}`);
-      const scanResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          walletAddress: address,
-          walletId: railgunWalletId,
-          railgunAddress: railgunAddress,
-          scannedChains: [activeChainId] // Mark this chain as scanned when modal unlocks
-        })
-      });
-
-      if (scanResp.ok) {
-        console.log(`✅ Modal unlocked - chain ${activeChainId} marked as scanned`);
-      } else {
-        console.warn(`⚠️ Failed to mark chain ${activeChainId} as scanned on modal unlock:`, await scanResp.text());
-      }
-    } catch (scanError) {
-      console.warn(`⚠️ Error marking chain ${activeChainId} as scanned on modal unlock:`, scanError);
-    }
-  };
 
   // Lexie ID linking state - now managed by LexieIdModal component
   const [showLexieModal, setShowLexieModal] = useState(false);
@@ -346,9 +331,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   // Cross-platform verification state - now managed by CrossPlatformVerificationModal component
   const [showVerificationModal, setShowVerificationModal] = useState(false);
-  
-  // Local state to show a refreshing indicator for Vault Balances
-  const [isRefreshingBalances, setIsRefreshingBalances] = useState(false);
 
   // Selected chain state - load from localStorage, no default
   const [selectedChainId, setSelectedChainId] = useState(() => {
@@ -368,14 +350,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   // Chain readiness state
   const [isChainReady, setIsChainReady] = useState(false);
-  const [scanComplete, setScanComplete] = useState(false);
-
-  // Use selectedChainId as the PRIMARY chain for all vault operations
-  // Fall back to wallet's chainId if no selection made
-  const activeChainId = selectedChainId || walletChainId;
-  const network = selectedChainId
-    ? { id: selectedChainId, name: {1: 'Ethereum', 137: 'Polygon', 42161: 'Arbitrum', 56: 'BNB Chain'}[selectedChainId] || `Chain ${selectedChainId}` }
-    : getCurrentNetwork();
 
   // Supported networks array
   const supportedNetworks = [
@@ -384,6 +358,30 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     { id: 42161, name: 'Arbitrum', symbol: 'ETH'},
     { id: 56, name: 'BNB Chain', symbol: 'BNB' },
   ];
+
+  // Use selectedChainId as the PRIMARY chain for all vault operations
+  // Fall back to wallet's chainId if no selection made
+  const activeChainId = selectedChainId || walletChainId;
+  const network = selectedChainId
+    ? { id: selectedChainId, name: {1: 'Ethereum', 137: 'Polygon', 42161: 'Arbitrum', 56: 'BNB Chain'}[selectedChainId] || `Chain ${selectedChainId}` }
+    : getCurrentNetwork();
+
+  // Update selectedChainId when wallet chain changes (for chain switches)
+  useEffect(() => {
+    if (walletChainId && supportedNetworks.some(net => net.id === walletChainId)) {
+      console.log('[VaultDesktop] Wallet chain changed, updating selectedChainId:', walletChainId);
+      setSelectedChainId(walletChainId);
+      // Persist to localStorage
+      localStorage.setItem('lexie-selected-chain', walletChainId.toString());
+    }
+  }, [walletChainId, supportedNetworks]);
+
+  // Set global variable for modal unlock utility to access current chain
+  React.useEffect(() => {
+    if (typeof window !== 'undefined' && activeChainId) {
+      window.__LEXIE_ACTIVE_CHAIN_ID = activeChainId;
+    }
+  }, [activeChainId]);
 
   // Check if current network is supported
   const isNetworkSupported = walletChainId && supportedNetworks.some(net => net.id === walletChainId);
@@ -500,75 +498,8 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     return networks[id] || `Chain ${id}`;
   };
 
-  // Check Redis on wallet connect - wait for Railgun initialization to complete first
-  useEffect(() => {
-    if (isConnected && address && railgunWalletId && activeChainId && isRailgunInitialized) {
-      console.log('[VaultDesktop] Wallet connected and Railgun initialized - checking Redis for scanned chains');
-      (async () => {
-        // Don't re-init if modal is already open
-        if (showSignRequestPopup) {
-          console.log('[VaultDesktop] Modal already open, skipping Redis check');
-          return;
-        }
 
-        // Retry Redis check with backoff to handle race with metadata writes
-        let scanned = null;
-        for (let attempt = 1; attempt <= 3; attempt++) {
-          scanned = await checkRedisScannedChains();
-          if (scanned !== null) break; // Got a definitive answer
-          if (attempt < 3) {
-            console.log(`[VaultDesktop] Redis check attempt ${attempt} returned null, retrying in 300ms...`);
-            await new Promise(resolve => setTimeout(resolve, 300));
-          }
-        }
 
-        if (scanned === false || scanned === null) {
-          console.log('[VaultDesktop] Chain not scanned on connect - will show signature confirmation modal');
-
-          // Set which chain we're initializing
-          setInitializingChainId(activeChainId);
-
-          // The signature confirmation modal will handle chain selection
-          // Guard reset-to-0: only reset progress if not already at 100%
-          setShowSignRequestPopup(true);
-          setIsInitInProgress(true);
-          setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);
-          setScanComplete(false);
-
-          // Use activeChainId, not network.name
-          const networkName = getNetworkNameById(activeChainId);
-          setInitProgress({
-            percent: 0,
-            message: `Setting up your LexieVault on ${networkName} Network...`
-          });
-        } else {
-          console.log('[VaultDesktop] Chain already scanned on connect - no modal needed');
-        }
-      })();
-    }
-  }, [isConnected, address, railgunWalletId, activeChainId, isRailgunInitialized, checkRedisScannedChains, showSignRequestPopup, selectedChainId, showReturningUserChainModal]);
-
-  // Track when initial connection hydration is complete
-  const initialConnectDoneRef = React.useRef(false);
-
-  // Mark initial connect as done once wallet metadata is ready or init completes
-  useEffect(() => {
-    const markDone = () => { initialConnectDoneRef.current = true; };
-    window.addEventListener('railgun-wallet-metadata-ready', markDone);
-    window.addEventListener('railgun-init-completed', markDone);
-    return () => {
-      window.removeEventListener('railgun-wallet-metadata-ready', markDone);
-      window.removeEventListener('railgun-init-completed', markDone);
-    };
-  }, []);
-
-  // Reset modal state when address changes
-  useEffect(() => {
-    setShowSignRequestPopup(false);
-    setIsInitInProgress(false);
-    setInitFailedMessage('');
-    setInitProgress({ percent: 0, message: '' });
-  }, [address]);
 
   // Update chain readiness
   useEffect(() => {
@@ -752,123 +683,36 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     };
   }, [isTransactionLocked]);
 
-  // Event listeners for vault balance refresh state
-  useEffect(() => {
-    const onPrivateStart = () => {
-      console.log('[VaultDesktop] Private balances refresh started - showing spinner');
-      setIsRefreshingBalances(true);
-    };
-    const onPrivateComplete = () => {
-      console.log('[VaultDesktop] Private balances refresh completed - hiding spinner');
-      setIsRefreshingBalances(false);
-    };
-    window.addEventListener('vault-private-refresh-start', onPrivateStart);
-    window.addEventListener('vault-private-refresh-complete', onPrivateComplete);
-    return () => {
-      window.removeEventListener('vault-private-refresh-start', onPrivateStart);
-      window.removeEventListener('vault-private-refresh-complete', onPrivateComplete);
-    };
-  }, []);
 
-  // Full refresh: SDK refresh + Redis persist, then UI reload
-  const refreshBalances = useCallback(async (showToast = true) => {
-    try {
-      try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
-      console.log('[VaultDesktop] Full refresh — ensuring chain scanned and refreshing balances...');
-
-      // Step 0: Ensure chain has been scanned for private transfers (critical for discovering transfers before first shield)
-      try {
-        if (canUseRailgun && railgunWalletId && address && activeChainId) {
-          console.log('[VaultDesktop] Ensuring chain is scanned before refresh...');
-          await ensureChainScanned(activeChainId);
-        }
-      } catch (scanErr) {
-        console.warn('[VaultDesktop] Chain scan check failed (continuing with refresh):', scanErr?.message);
-      }
-
-      // Step 1: ALWAYS trigger SDK refresh + persist authoritative balances to Redis
-      // (Balances can change even if chain was previously scanned)
-      console.log('[VaultDesktop] Triggering SDK balance refresh...');
-      try {
-        if (railgunWalletId && address && activeChainId) {
-          const { syncBalancesAfterTransaction } = await import('../../utils/railgun/syncBalances.js');
-          await syncBalancesAfterTransaction({
-            walletAddress: address,
-            walletId: railgunWalletId,
-            chainId: activeChainId,
-          });
-        }
-      } catch (sdkErr) {
-        console.warn('[VaultDesktop] SDK refresh + persist failed (continuing to UI refresh):', sdkErr?.message);
-      }
-
-      // Step 2: Always refresh UI from sources of truth (Redis + cache)
-      await refreshAllBalances();
-
-      if (showToast) {
-        toast.custom((t) => (
-          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-            <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
-              <div className="px-4 py-3 flex items-center gap-3">
-                <div className="h-3 w-3 rounded-full bg-emerald-400" />
-                <div>
-                  <div className="text-sm">Balances refreshed</div>
-                  <div className="text-xs text-green-400/80">Public and vault balances updated</div>
-                </div>
-                <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
-              </div>
-            </div>
-          </div>
-        ), { duration: 2500 });
-      }
-    } catch (error) {
-      console.error('[VaultDesktop] Full refresh failed:', error);
-      if (showToast) {
-        toast.custom((t) => (
-          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-            <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
-              <div className="px-4 py-3 flex items-center gap-3">
-                <div className="h-3 w-3 rounded-full bg-red-400" />
-                <div>
-                  <div className="text-sm">Failed to refresh balances</div>
-                  <div className="text-xs text-green-400/80">Please try again</div>
-                </div>
-                <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
-              </div>
-            </div>
-          </div>
-        ), { duration: 3500 });
-      }
-    } finally {
-      try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
-    }
-  }, [refreshAllBalances, railgunWalletId, address, activeChainId, ensureChainScanned, canUseRailgun]);
 
   // Placeholder functions for command bar icons
   const handleRefresh = useCallback(async () => {
-    // Placeholder: implement refresh functionality
     console.log('[VaultDesktop] Refresh clicked');
-    await refreshBalances();
-  }, [refreshBalances]);
+    try {
+      // Trigger full SDK balance refresh to discover new private transfers
+      if (canUseRailgun && railgunWalletId && address && walletChainId) {
+        console.log('[VaultDesktop] Triggering SDK balance refresh for private transfers...');
+        await syncBalancesAfterTransaction({
+          walletAddress: address,
+          walletId: railgunWalletId,
+          chainId: walletChainId,
+        });
+        console.log('[VaultDesktop] SDK balance refresh completed');
+      }
+
+      // Then refresh from Redis (which should now have updated balances)
+      await refreshAllBalances();
+      console.log('[VaultDesktop] Balance refresh completed');
+    } catch (error) {
+      console.error('[VaultDesktop] Balance refresh failed:', error);
+    }
+  }, [refreshAllBalances, canUseRailgun, railgunWalletId, address, walletChainId]);
 
   const handleInfoClick = useCallback(() => {
-    console.log('[VaultDesktop] Info clicked');
-    setShowInfoModal(true);
+    console.log('[VaultDesktop] Info clicked - opening documentation');
+    window.open('https://lexie-crypto.gitbook.io/lexie-crypto/', '_blank');
   }, []);
 
-  // Auto-refresh balances when wallet connects and Railgun is ready (full refresh including private transfers)
-  useEffect(() => {
-    // 🛡️ CRITICAL: Don't auto-refresh if returning user modal is open
-    if (showReturningUserChainModal) {
-      console.log('[VaultDesktop] ⏸️ Waiting for returning user to select chain before auto-refreshing');
-      return;
-    }
-
-    if (isConnected && address && activeChainId && canUseRailgun && railgunWalletId) {
-      console.log('[VaultDesktop] Wallet connected and Railgun ready - auto-refreshing balances...');
-      refreshBalances(false); // Full refresh but no toast notification
-    }
-  }, [isConnected, address, activeChainId, canUseRailgun, railgunWalletId, refreshBalances, showReturningUserChainModal]);
 
   // Auto-switch to privacy view when Railgun is ready
   useEffect(() => {
@@ -877,19 +721,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     }
   }, [canUseRailgun, railgunWalletId]);
 
-  // Re-check readiness immediately after scan completes
-  useEffect(() => {
-    const onScanComplete = () => {
-      console.log('[VaultDesktop] Chain scanning completed - unlocking modal');
-      setScanComplete(true);
-      setIsInitInProgress(false); // Unlock modal now that scanning is complete
-      setInitProgress({ percent: 100, message: 'Vault ready - initialization complete!' });
-      setIsChainReady(false);
-      checkChainReady().then((ready) => setIsChainReady(!!ready)).catch(() => setIsChainReady(false));
-    };
-    window.addEventListener('railgun-scan-complete', onScanComplete);
-    return () => window.removeEventListener('railgun-scan-complete', onScanComplete);
-  }, [checkChainReady]);
 
   // Fetch initial points when Lexie ID is available
   useEffect(() => {
@@ -1046,176 +877,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   // Countdown timer for verification code - now handled by CrossPlatformVerificationModal component
 
-  // Listen for signature request and init lifecycle events (like old WalletPage)
-  useEffect(() => {
-    const onSignRequest = () => {
-      setShowSignRequestPopup(true);
-      setIsInitInProgress(false);
-      setInitProgress({ percent: 0, message: '' });
-      setInitFailedMessage('');
-      console.log('[VaultDesktop] Signature requested - showing modal');
-    };
-    
-    const onInitStarted = (e) => {
-      // Open modal when init/scan starts
-      if (!showSignRequestPopup) {
-        setShowSignRequestPopup(true);
-      }
-      setScanComplete(false);
-      setIsChainReady(false);
-      setIsInitInProgress(true);
-      // Guard reset-to-0: don't reset progress if already at 100%
-      setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);
-      setInitFailedMessage('');
-
-      // Use eventChainId if available, otherwise use initializingChainId or activeChainId
-      const chainToInit = e?.detail?.chainId || initializingChainId || activeChainId;
-      setInitializingChainId(chainToInit);
-
-      const chainLabel = getNetworkNameById(chainToInit);
-      setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
-      console.log('[VaultDesktop] Initialization started');
-    };
-    
-    const onInitProgress = () => {
-      const chainLabel = network?.name || (activeChainId ? `Chain ${activeChainId}` : 'network');
-      setInitProgress((prev) => ({
-        percent: prev.percent,
-        message: prev.message || `Setting up your LexieVault on ${chainLabel}...`,
-      }));
-    };
-    
-    const onInitCompleted = () => {
-      // Do not set to 100% here; wait for checkChainReady to confirm
-      console.log('[VaultDesktop] SDK reported completed; awaiting confirmation');
-      setInitProgress((prev) => ({ ...prev, message: prev.message || 'Finalizing...' }));
-    };
-    
-    const onInitFailed = (e) => {
-      const msg = e?.detail?.error || 'Initialization failed';
-      setInitFailedMessage(msg);
-      setIsInitInProgress(false);
-      console.warn('[VaultDesktop] Initialization failed:', msg);
-    };
-
-    // Begin polling exactly when refreshBalances starts in context (like old WalletPage)
-    const onPollStart = async (e) => {
-      // Do not show init modal on initial connect fast-path; only after initial connect
-      if (!initialConnectDoneRef.current) return;
-      
-      try {
-        const ready = await checkChainReady();
-        if (!ready) onInitStarted(e);
-      } catch {
-        onInitStarted(e);
-      }
-    };
-    
-    const onScanStarted = async (e) => {
-      // Same guard: avoid modal during initial connect
-      if (!initialConnectDoneRef.current) return;
-      
-      try {
-        const ready = await checkChainReady();
-        if (!ready) onInitStarted(e);
-      } catch {
-        onInitStarted(e);
-      }
-    };
-
-    window.addEventListener('railgun-signature-requested', onSignRequest);
-    window.addEventListener('vault-poll-start', onPollStart);
-    window.addEventListener('railgun-init-started', onInitStarted); // full init always shows
-    window.addEventListener('railgun-scan-started', onScanStarted);
-    window.addEventListener('railgun-init-progress', onInitProgress);
-    window.addEventListener('railgun-init-completed', onInitCompleted);
-    window.addEventListener('railgun-init-failed', onInitFailed);
-
-    // Force unlock modal when initialization is complete
-    const onVaultInitComplete = () => {
-      console.log('[VaultDesktop] Force unlocking initialization modal');
-      setIsInitInProgress(false);
-      setInitProgress({ percent: 100, message: 'Initialization complete' });
-      // Don't reset bootstrap progress - let it stay at 100% until modal closes
-    };
-    window.addEventListener('vault-initialization-complete', onVaultInitComplete);
-
-    // Railgun initialization completed - only unlock modal if scanning is also complete
-    const onRailgunInitForceUnlock = () => {
-      console.log('[VaultDesktop] Railgun initialization completed - modal will unlock when scanning completes');
-      // Don't set isInitInProgress=false here - wait for scanning to complete
-      // Don't set scanComplete=true here - let actual scanning completion do that
-      setInitProgress({ percent: 95, message: 'Railgun ready - completing chain scan...' });
-    };
-    window.addEventListener('railgun-init-force-unlock', onRailgunInitForceUnlock);
-
-      // Handle bootstrap progress updates
-      const onBootstrapProgress = (e) => {
-        const { chainId: eventChainId, progress } = e.detail;
-
-        // Update which chain we're initializing
-        setInitializingChainId(eventChainId);
-
-        const bootstrapNetworkName = getNetworkNameById(eventChainId);
-
-        console.log('[VaultDesktop] Bootstrap progress event:', {
-          eventChainId,
-          progress,
-          currentChainId: walletChainId,
-          networkName: bootstrapNetworkName
-        });
-
-        // Always update progress bar during bootstrap (only one chain at a time)
-        const newPercent = Math.round(progress * 100) / 100;
-        console.log('[VaultDesktop] Updating progress bar for chain', eventChainId, 'progress:', progress, '->', newPercent + '%');
-
-        // Lock at 100% once reached - don't allow it to go below 100% until modal closes
-        setBootstrapProgress(prev => {
-          const finalPercent = bootstrapLockedRef.current && newPercent < prev.percent ? prev.percent : newPercent;
-          return { percent: finalPercent, active: true };
-        });
-
-        // When bootstrap reaches 100%, lock it and change message to "Creating..."
-        if (newPercent >= 100 && !bootstrapLockedRef.current) {
-          bootstrapLockedRef.current = true;
-          setInitProgress(prev => ({
-            ...prev,
-            message: `Creating your LexieVault on ${bootstrapNetworkName} Network...`
-          }));
-        }
-      };
-    window.addEventListener('chain-bootstrap-progress', onBootstrapProgress);
-    
-    return () => {
-      window.removeEventListener('railgun-signature-requested', onSignRequest);
-      window.removeEventListener('railgun-init-started', onInitStarted);
-      window.removeEventListener('vault-poll-start', onPollStart);
-      window.removeEventListener('railgun-init-progress', onInitProgress);
-      window.removeEventListener('railgun-scan-started', onScanStarted);
-      window.removeEventListener('railgun-init-completed', onInitCompleted);
-      window.removeEventListener('railgun-init-failed', onInitFailed);
-      window.removeEventListener('vault-initialization-complete', onVaultInitComplete);
-      window.removeEventListener('railgun-init-force-unlock', onRailgunInitForceUnlock);
-      window.removeEventListener('chain-bootstrap-progress', onBootstrapProgress);
-    };
-  }, [address, activeChainId, railgunWalletId, network, checkChainReady, showSignRequestPopup]);
-
-  // Unlock modal using the same readiness flag as old WalletPage
-  useEffect(() => {
-    if (showSignRequestPopup && isInitInProgress && scanComplete && isChainReady) {
-      setInitProgress({ percent: 100, message: 'Initialization complete' });
-      setIsInitInProgress(false);
-      // Keep progress bar at 100% until modal closes, will reset when modal opens again
-    }
-  }, [scanComplete, isChainReady, isInitInProgress, showSignRequestPopup]);
-
-  // Reset bootstrap progress when modal closes
-  useEffect(() => {
-    if (!showSignRequestPopup) {
-      setBootstrapProgress({ percent: 0, active: false });
-      bootstrapLockedRef.current = false; // Reset the 100% lock
-    }
-  }, [showSignRequestPopup]);
 
   // Auto-open Lexie ID modal for new wallet creation
   useEffect(() => {
@@ -1439,74 +1100,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     }
   }, [canUseRailgun, railgunWalletId, address, activeChainId, network, shieldAmounts, refreshBalancesAfterTransaction, getEncryptionKey, walletProvider]);
 
-  // Handle network switch
-  const handleNetworkSwitch = async (targetChainId) => {
-    console.log('[VaultDesktop] handleNetworkSwitch called with targetChainId=', targetChainId);
-    try {
-      // Block chain switching until secure vault engine is initialized
-      if (!canUseRailgun || !railgunWalletId) {
-        console.log('[VaultDesktop] Blocking switch: canUseRailgun=', canUseRailgun, 'railgunWalletId=', railgunWalletId);
-        toast.custom((t) => (
-          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-            <div className="rounded-lg border border-yellow-500/30 bg-black/90 text-yellow-200 shadow-2xl">
-              <div className="px-4 py-3 flex items-center gap-3">
-                <div className="h-3 w-3 rounded-full bg-yellow-400" />
-                <div>
-                  <div className="text-sm">Vault engine is starting…</div>
-                  <div className="text-xs text-yellow-400/80">Please wait for initialization to complete before switching networks.</div>
-                </div>
-                <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-yellow-900/30 text-yellow-300/80">×</button>
-              </div>
-            </div>
-          </div>
-        ), { duration: 2500 });
-        return;
-      }
-      
-      // Update our selected chain state (this will persist to localStorage via ChainSelector)
-      console.log('[VaultDesktop] Updating selected chain to', targetChainId);
-      setSelectedChainId(targetChainId);
-
-      // Switch network immediately for snappy UX
-      console.log('[VaultDesktop] Switching wallet network to', targetChainId);
-      await switchNetwork(targetChainId);
-      
-      const targetNetwork = supportedNetworks.find(net => net.id === targetChainId);
-      toast.custom((t) => (
-        <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-          <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
-            <div className="px-4 py-3 flex items-center gap-3">
-              <div className="h-3 w-3 rounded-full bg-emerald-400" />
-              <div>
-                <div className="text-sm">Network switched</div>
-                <div className="text-xs text-green-400/80">{targetNetwork?.name || `Chain ${targetChainId}`}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      ), { duration: 2000 });
-
-      // After switch: check Redis for target chain
-      const scanned = await checkRedisScannedChains(targetChainId);
-      if (scanned === false || scanned === null) {
-        console.log('[VaultDesktop] Target chain not scanned - showing modal');
-
-        setInitializingChainId(targetChainId); // Track which chain we're initializing
-        setShowSignRequestPopup(true);
-        setIsInitInProgress(true);
-        // Guard reset-to-0: don't reset progress if already at 100%
-        setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);
-
-        const chainLabel = getNetworkNameById(targetChainId);
-        setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
-      } else {
-        console.log('[VaultDesktop] Target chain already scanned - no modal needed');
-      }
-    } catch (error) {
-      console.error('[VaultDesktop] Error in handleNetworkSwitch:', error);
-      toast.error(`Failed to switch network: ${error.message}`);
-    }
-  };
 
   const [isChainMenuOpen, setIsChainMenuOpen] = useState(false);
   const [isMobileChainMenuOpen, setIsMobileChainMenuOpen] = useState(false);
@@ -1718,7 +1311,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                         {supportedNetworks.map((net) => (
                           <button
                             key={net.id}
-                            onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsMobileChainMenuOpen(false); handleNetworkSwitch(net.id); }}
+                            onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsMobileChainMenuOpen(false); switchNetwork(net.id); }}
                             className={`w-full text-left px-3 py-2 ${(!canUseRailgun || !railgunWalletId) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-900/30 focus:bg-emerald-900/30'} focus:outline-none`}
                             title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : `Switch to ${net.name}`}
                             aria-disabled={!canUseRailgun || !railgunWalletId}
@@ -1771,7 +1364,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                       {supportedNetworks.map((net) => (
                         <button
                           key={net.id}
-                          onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsChainMenuOpen(false); handleNetworkSwitch(net.id); }}
+                          onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsChainMenuOpen(false); switchNetwork(net.id); }}
                           className={`w-full text-left px-3 py-2 ${(!canUseRailgun || !railgunWalletId) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-900/30 focus:bg-emerald-900/30'} focus:outline-none`}
                           title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : `Switch to ${net.name}`}
                           aria-disabled={!canUseRailgun || !railgunWalletId}
@@ -1968,12 +1561,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                     </div>
                   </div>
 
-                  {isRefreshingBalances && (
-                    <div className="mb-3 flex items-center gap-2 text-sm text-green-300">
-                      <div className="h-4 w-4 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
-                      Getting your vault balances...
-                    </div>
-                  )}
 
                   {!canUseRailgun ? (
                     <div className="text-center py-4 text-green-400/70 text-xs">
@@ -2070,7 +1657,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
             {/* Privacy Actions */}
             {selectedView === 'privacy' && (
-              <PrivacyActions activeAction={activeAction} isRefreshingBalances={isRefreshingBalances} />
+              <PrivacyActions activeAction={activeAction} />
             )}
 
             {/* Transaction History */}
@@ -2140,7 +1727,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         railgunWalletId={railgunWalletId}
         railgunAddress={railgunAddress}
         onPersistMetadata={handlePersistMetadata}
-        onClose={() => setShowSignRequestPopup(false)}
+        onClose={resetModal}
       />
 
       <SignatureConfirmationModal
@@ -2152,7 +1739,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         walletChainId={walletChainId}
         switchNetwork={switchNetwork}
         pendingSignatureMessage={pendingSignatureMessage}
-        onConfirm={confirmSignature}
+        onConfirm={() => confirmSignature(selectedChainId)}
         onCancel={cancelSignature}
       />
 

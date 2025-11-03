@@ -110,7 +110,7 @@ const SignatureConfirmationModal = ({
 
           <div className="flex gap-3 pt-2">
             <button
-              onClick={onConfirm}
+              onClick={() => onConfirm(selectedChainId)}
               disabled={!selectedChainId || walletChainId !== selectedChainId}
               className={`flex-1 py-2.5 px-4 rounded border transition-all duration-200 text-sm font-medium ${
                 !selectedChainId || walletChainId !== selectedChainId
