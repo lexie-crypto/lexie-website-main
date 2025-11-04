@@ -1318,7 +1318,6 @@ const WalletContextProvider = ({ children }) => {
 
                 // Continue with the provider chainId if it's valid
                 if (parsedChainId && !isNaN(parsedChainId)) {
-                  // Update the check below to use the provider chainId
                   const supportedNetworks = {
                     1: true,
                     137: true,
@@ -1331,14 +1330,55 @@ const WalletContextProvider = ({ children }) => {
                     );
                     return;
                   }
-                  // Proceed with initialization using provider chainId
+
+                  // 🔧 FIX: Check Redis FIRST to see if this is a returning user
                   console.log(
-                    "🚀 Auto-initializing Railgun for connected wallet (using provider chainId):",
-                    address
+                    "🔍 [Railgun Init] Provider chainId available, checking if returning user before proceeding..."
                   );
-                  lastInitializedAddressRef.current = address;
-                  initializeRailgun();
-                  return;
+
+                  try {
+                    const { getWalletMetadata } = await import(
+                      "../../contexts/WalletContext"
+                    );
+                    const existingWalletData = await getWalletMetadata(address);
+
+                    if (
+                      existingWalletData?.walletId &&
+                      existingWalletData?.railgunAddress
+                    ) {
+                      // This is a RETURNING user - show the modal FIRST
+                      console.log(
+                        "👤 [Railgun Init] Returning user detected - showing chain selection modal BEFORE initialization"
+                      );
+
+                      // Update the target chain ref with the provider's chainId
+                      targetChainIdRef.current = parsedChainId;
+
+                      // Show the modal and WAIT for user to select chain
+                      setShowReturningUserChainModal(true);
+
+                      // Don't proceed with initialization yet - the modal will trigger it after user selects
+                      return;
+                    } else {
+                      // This is a NEW user - proceed with initialization using provider chainId
+                      console.log(
+                        "🆕 [Railgun Init] New user detected - proceeding with initialization on chain:",
+                        parsedChainId
+                      );
+                      lastInitializedAddressRef.current = address;
+                      initializeRailgun();
+                      return;
+                    }
+                  } catch (redisCheckError) {
+                    console.warn(
+                      "[Railgun Init] Failed to check Redis for existing wallet, proceeding with caution:",
+                      redisCheckError
+                    );
+                    // If Redis check fails, proceed with initialization (better than blocking the user)
+                    lastInitializedAddressRef.current = address;
+                    initializeRailgun();
+                    return;
+                  }
                 }
               }
             } catch (providerError) {
