@@ -1337,9 +1337,6 @@ const WalletContextProvider = ({ children }) => {
                   );
 
                   try {
-                    const { getWalletMetadata } = await import(
-                      "../../contexts/WalletContext"
-                    );
                     const existingWalletData = await getWalletMetadata(address);
 
                     if (
