@@ -241,9 +241,7 @@ const AdminDashboard = () => {
     addLog('📊 Loading analytics data...', 'info');
 
     try {
-      const analyticsParams = new URLSearchParams({
-        action: 'get-analytics'
-      });
+      const analyticsParams = new URLSearchParams();
 
       // Add time filters if selected
       if (analyticsPeriod !== 'all') {
@@ -255,7 +253,11 @@ const AdminDashboard = () => {
         }
       }
 
-      const analyticsResponse = await fetch(`/api/wallet-metadata?${analyticsParams}`, {
+      const analyticsUrl = analyticsParams.toString()
+        ? `/api/get-analytics?${analyticsParams}`
+        : '/api/get-analytics';
+
+      const analyticsResponse = await fetch(analyticsUrl, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
