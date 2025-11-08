@@ -1400,7 +1400,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
             {/* Boot log */}
             <div className="mb-6">
-              <div className="text-xs text-green-400/60 tracking-wide mb-3">LEXIEAI SYSTEM BOOT v2.1.3</div>
+              <div className="text-xs text-green-400/60 tracking-wide mb-3">LEXIE SYSTEM BOOT v2.1.3</div>
               <div className="space-y-1 text-green-300/80 text-xs leading-5 font-mono">
                 <div>✓ Vault interface loaded</div>
                 <div>✓ Network: {network?.name || 'Unknown'}</div>
@@ -1814,7 +1814,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
             href="https://www.lexiecrypto.com"
             className="hover:opacity-80 transition-opacity"
           >
-            <span className="text-4xl font-bold text-purple-300">LEXIEAI</span>
+            <span className="text-4xl font-bold text-purple-300">LEXIE</span>
           </a>
         </div>
       )}

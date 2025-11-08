@@ -112,21 +112,20 @@ function App() {
           toastOptions={{
             duration: 4000,
             style: {
-              background: '#0A0A0A',
-              color: '#FFFFFF',
-              border: '1px solid #FF4EFF',
-              boxShadow: '0 0 10px rgba(255, 78, 255, 0.3)',
+              background: '#1f2937',
+              color: '#f3f4f6',
+              border: '1px solid #6366f1',
             },
             success: {
               iconTheme: {
-                primary: '#FF69B4',
-                secondary: '#FFFFFF',
+                primary: '#10b981',
+                secondary: '#f3f4f6',
               },
             },
             error: {
               iconTheme: {
-                primary: '#FF4EFF',
-                secondary: '#FFFFFF',
+                primary: '#ef4444',
+                secondary: '#f3f4f6',
               },
             },
           }}
@@ -155,25 +154,24 @@ function App() {
             toastOptions={{
               duration: 4000,
               style: {
-                background: '#0A0A0A',
-                color: '#FFFFFF',
-                border: '1px solid #FF4EFF',
-                boxShadow: '0 0 10px rgba(255, 78, 255, 0.3)',
+                background: '#1f2937',
+                color: '#f3f4f6',
+                border: '1px solid #6366f1',
               },
               success: {
                 iconTheme: {
-                  primary: '#FF69B4',
-                  secondary: '#FFFFFF',
-                },
+                  primary: '#10b981',
+                  secondary: '#f3f4f6',
               },
-              error: {
-                iconTheme: {
-                  primary: '#FF4EFF',
-                  secondary: '#FFFFFF',
-                },
+            },
+            error: {
+              iconTheme: {
+                primary: '#ef4444',
+                secondary: '#f3f4f6',
               },
-            }}
-          />
+            },
+          }}
+        />
 
         <Analytics />
         </div>

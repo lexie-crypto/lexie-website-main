@@ -247,7 +247,7 @@ const WalletPageInner = () => {
             href="https://www.lexiecrypto.com"
             className="transition-opacity hover:opacity-80"
           >
-            <span className="text-4xl font-bold text-purple-300">LEXIEAI</span>
+            <span className="text-4xl font-bold text-purple-300">LEXIE</span>
           </a>
         </div>
       )}
