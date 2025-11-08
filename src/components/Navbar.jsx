@@ -33,7 +33,7 @@ export function Navbar({ onLexieChatOpen }) {
           {/* Logo - Far Left */}
           <a
             href="/"
-            className="flex-shrink-0 text-4xl font-bold text-purple-500/90 transition-colors hover:text-white"
+            className="flex-shrink-0 text-4xl font-bold text-purple-400/90 transition-colors hover:text-white"
           >
             LEXIE
           </a>

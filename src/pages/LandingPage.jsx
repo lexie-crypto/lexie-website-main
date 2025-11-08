@@ -995,7 +995,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="text-center md:text-left">
-              <div className="text-2xl font-bold text-purple-500/75 mb-2">LEXIEAI</div>
+              <div className="text-2xl font-bold text-pink-400/90 mb-2">LEXIE</div>
               <p className="text-gray-400">
                 Trade smarter. Quest deeper. Stay private.  
               </p>
