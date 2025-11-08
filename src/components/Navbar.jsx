@@ -14,7 +14,7 @@ export function Navbar({ onLexieChatOpen }) {
 
   // Mobile: sticky (scrolls with page), Desktop: fixed (stays at top)
   const baseClasses =
-    "sticky md:fixed top-0 md:left-0 md:right-0 z-40 w-full p-6 bg-cyber-bg backdrop-blur-sm border-b border-cyber-neutral/30";
+    "sticky md:fixed top-0 md:left-0 md:right-0 z-40 w-full p-6 bg-black";
   const containerClasses =
     "max-w-7xl mx-auto flex justify-between items-center";
 
@@ -33,22 +33,22 @@ export function Navbar({ onLexieChatOpen }) {
           {/* Logo - Far Left */}
           <a
             href="/"
-            className="flex-shrink-0 text-4xl font-bold text-cyber-primary transition-all duration-300 hover:text-cyber-glow hover:shadow-cyber"
+            className="flex-shrink-0 text-4xl font-bold text-purple-300 transition-colors hover:text-white"
           >
-            LEXIE
+            LEXIEAI
           </a>
 
           {/* Desktop Navigation - Right */}
           <div className="items-center hidden space-x-6 md:flex">
             <a
               href="https://lexie-crypto.gitbook.io/lexie-crypto/"
-              className="text-lg font-bold text-cyber-primary transition-all duration-300 hover:text-cyber-glow hover:shadow-cyber"
+              className="text-lg font-bold text-purple-300 transition-all duration-200 hover:text-purple-100"
             >
               Documentation
             </a>
             <a
               href="https://app.lexiecrypto.com/lexievault"
-              className="inline-flex items-center px-6 py-2 font-bold text-cyber-bg transition-all duration-300 transform bg-cyber-primary rounded-lg shadow-cyber hover:bg-cyber-secondary hover:shadow-cyber-hover hover:scale-105"
+              className="inline-flex items-center px-6 py-2 font-bold text-black transition-all duration-300 transform bg-purple-300 rounded-lg shadow-lg hover:bg-purple-300 hover:scale-105"
             >
               Launch App →
             </a>
@@ -57,7 +57,7 @@ export function Navbar({ onLexieChatOpen }) {
           {/* Mobile Menu Button */}
           <button
             onClick={toggleMobileMenu}
-            className="p-2 text-cyber-primary md:hidden hover:text-cyber-glow transition-colors"
+            className="p-2 text-purple-300 md:hidden hover:text-white"
             aria-label="Toggle mobile menu"
           >
             <svg
@@ -78,24 +78,24 @@ export function Navbar({ onLexieChatOpen }) {
 
         {/* Mobile Menu - FIXED: Now using absolute positioning */}
         {isMobileMenuOpen && (
-          <div className="absolute right-0 z-50 w-64 bg-cyber-bg border-t border-l border-cyber-primary/50 shadow-cyber top-full md:hidden backdrop-blur-sm">
+          <div className="absolute right-0 z-50 w-64 bg-black border-t border-l border-purple-800 shadow-xl top-full md:hidden">
             <div className="px-6 py-4 space-y-4">
               <a
                 href="https://app.lexiecrypto.com/lexievault"
-                className="block text-lg font-bold text-left text-cyber-primary transition-all duration-300 hover:text-cyber-glow hover:shadow-cyber"
+                className="block text-lg font-bold text-left text-purple-300 transition-colors hover:text-purple-100"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 LexieVault
               </a>
               <a
                 href="/chat"
-                className="block text-lg font-bold text-left text-cyber-primary transition-all duration-300 hover:text-cyber-glow hover:shadow-cyber"
+                className="block text-lg font-bold text-left text-purple-300 transition-colors hover:text-purple-100"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 LexieChat
               </a>
               <button
-                className="block text-lg font-bold text-left text-cyber-primary transition-all duration-300 hover:text-cyber-glow hover:shadow-cyber"
+                className="block text-lg font-bold text-left text-purple-300 transition-colors hover:text-purple-100"
                 onClick={() => {
                   setIsMobileMenuOpen(false);
                   if (currentLexieId) {
@@ -118,7 +118,7 @@ export function Navbar({ onLexieChatOpen }) {
                 href="https://lexie-crypto.gitbook.io/lexie-crypto/"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="block text-lg font-bold text-left text-cyber-primary transition-all duration-300 hover:text-cyber-glow hover:shadow-cyber"
+                className="block text-lg font-bold text-left text-purple-300 transition-colors hover:text-purple-100"
                 onClick={() => setIsMobileMenuOpen(false)}
               >
                 Documentation
