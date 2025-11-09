@@ -1333,6 +1333,8 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
               </div>
               {/* Desktop controls in original position */}
               <div className="hidden sm:flex items-center space-x-3">
+                {/* Play Titans button commented out for initial release */}
+                {/*
                 {currentLexieId && (
                   <button
                     onClick={() => {
@@ -1349,6 +1351,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                     Play Titans!
                   </button>
                 )}
+                */}
                 <div className="relative" ref={chainMenuRef}>
                   <button
                     onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsChainMenuOpen((v) => !v); }}
