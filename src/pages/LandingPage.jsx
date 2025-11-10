@@ -546,126 +546,194 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Interactive Terminal Section */}
-      <section className="relative z-30 py-20 bg-gradient-to-b from-black via-gray-900/50 to-black">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl lg:text-4xl font-bold text-white mb-4">
-              Watch Lexie in <span className="text-purple-400">Action</span>
+      {/* How It Works Section */}
+      <section className="relative z-30 py-20 bg-[#0a0a0a]">
+        <div className="max-w-7xl mx-auto px-6">
+          {/* Section Header */}
+          <div className="text-center mb-16">
+            <h2 className="text-4xl lg:text-5xl font-bold text-white mb-4">
+              <span className="text-fuchsia-400">👉</span> How It <span className="text-cyan-400">Works</span>
             </h2>
-            <p className="text-lg text-gray-300 max-w-2xl mx-auto">
-              See how Lexie's AI protocols work behind the scenes to protect and optimize your Web3 experience
+            <p className="text-xl text-gray-300 max-w-3xl mx-auto">
+              Create your private vault, fund it, and go dark on-chain — all in a few simple steps.
             </p>
           </div>
 
-          {/* Main Terminal */}
-          <div className="relative bg-gray-900 rounded-lg border border-gray-700 shadow-2xl overflow-hidden">
-            {/* Terminal Header */}
-            <div className="flex items-center justify-between bg-gray-800 px-4 py-3 border-b border-gray-700">
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                <span className="text-gray-400 ml-4 font-mono text-sm">lexie-ai-terminal</span>
-              </div>
-              <div className="flex items-center space-x-4">
-                <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  <span className="text-green-400 text-xs font-mono">ONLINE</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-                  <span className="text-blue-400 text-xs font-mono">SECURE</span>
-                </div>
-              </div>
+          {/* Steps Container */}
+          <div className="relative">
+            {/* Animated Flow Line - Vertical */}
+            <div className="absolute left-8 top-0 bottom-0 w-px bg-gradient-to-b from-fuchsia-500/50 via-cyan-500/50 to-green-500/50 hidden lg:block">
+              <div className="absolute inset-0 bg-gradient-to-b from-fuchsia-500/50 via-cyan-500/50 to-green-500/50 animate-pulse"></div>
+              {/* Flow indicators */}
+              <div className="absolute top-1/4 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-fuchsia-400 rounded-full animate-ping" style={{animationDelay: '0s'}}></div>
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-cyan-400 rounded-full animate-ping" style={{animationDelay: '0.5s'}}></div>
+              <div className="absolute top-3/4 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-green-400 rounded-full animate-ping" style={{animationDelay: '1s'}}></div>
             </div>
 
-            {/* Terminal Body */}
-            <div className="bg-black p-6 font-mono text-sm leading-relaxed h-[480px] overflow-hidden">
-              <div className="text-green-400">
-                {mainTerminalLines.map((line, index) => (
-                  <div key={index} className="mb-1">
-                    {line.startsWith('root@lexie:~$') ? (
-                      <div className="text-green-400">
-                        <span className="text-green-300">root@lexie</span>
-                        <span className="text-green-400">:</span>
-                        <span className="text-green-300">~</span>
-                        <span className="text-green-400">$ </span>
-                        <span className="text-green-200">{line.replace('root@lexie:~$ ', '')}</span>
-                      </div>
-                    ) : line.startsWith('✓') ? (
-                      <div className="text-green-300">{line}</div>
-                    ) : line.includes('ACTIVE') ? (
-                      <div>
-                        <span className="text-green-500">{line.split('[')[0]}</span>
-                        <span className="text-green-300 font-semibold">[ACTIVE]</span>
-                      </div>
-                    ) : line.includes('ENABLED') ? (
-                      <div className="text-green-300">{line}</div>
-                    ) : line.includes('ONLINE') ? (
-                      <div>
-                        <span className="text-green-500">{line.split(':')[0]}:</span>
-                        <span className="text-green-300 font-semibold"> ONLINE</span>
-                      </div>
-                    ) : line.includes('ACTIVATED') ? (
-                      <div>
-                        <span className="text-green-500">{line.split(':')[0]}:</span>
-                        <span className="text-green-300 font-semibold"> ACTIVATED</span>
-                      </div>
-                    ) : line.includes('MAXIMUM') ? (
-                      <div>
-                        <span className="text-green-500">{line.split(':')[0]}:</span>
-                        <span className="text-green-300 font-semibold"> MAXIMUM</span>
-                      </div>
-                    ) : line.includes('$') && line.includes('M') ? (
-                      <div className="text-green-200">{line}</div>
-                    ) : line.includes('%') ? (
-                      <div className="text-green-200">{line}</div>
-                    ) : line.includes('LOW') ? (
-                      <div>
-                        <span className="text-green-500">{line.split(':')[0]}:</span>
-                        <span className="text-green-300 font-semibold"> LOW</span>
-                      </div>
-                    ) : line === 'Ready for Web3 domination' ? (
-                      <div className="text-green-200 font-semibold">{line}</div>
-                    ) : line.startsWith('Loading') || line.startsWith('Connecting') || line.startsWith('Checking') || line.startsWith('Analyzing') ? (
-                      <div className="text-green-400">{line}</div>
-                    ) : (
-                      <div className="text-green-500">{line}</div>
-                    )}
+            <div className="space-y-8 lg:space-y-12">
+              {/* Step 1 */}
+              <div className="relative flex items-start space-x-6 lg:space-x-8">
+                <div className="flex-shrink-0">
+                  <div className="relative w-16 h-16 bg-gradient-to-br from-fuchsia-600 to-fuchsia-500 rounded-full flex items-center justify-center border-2 border-fuchsia-400 shadow-lg shadow-fuchsia-500/25 animate-pulse">
+                    <span className="text-2xl font-bold text-white">1</span>
+                    <div className="absolute inset-0 rounded-full bg-fuchsia-500/20 animate-ping"></div>
                   </div>
-                ))}
-                {isTyping && currentLineIndex < productTerminalLines.length && (
-                  <span className="animate-pulse text-green-300">█</span>
-                )}
+                </div>
+                <div className="flex-1 bg-black/40 backdrop-blur-sm border border-fuchsia-500/30 rounded-xl p-6 hover:border-fuchsia-500/60 transition-all duration-300">
+                  <h3 className="text-xl font-bold text-fuchsia-400 mb-2">Create a Private Vault</h3>
+                  <p className="text-gray-300 leading-relaxed">
+                    Connect your existing wallet (MetaMask, Trust Wallet, etc.) on BNB Chain, Ethereum, Polygon, or Arbitrum.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 2 */}
+              <div className="relative flex items-start space-x-6 lg:space-x-8">
+                <div className="flex-shrink-0">
+                  <div className="relative w-16 h-16 bg-gradient-to-br from-cyan-600 to-cyan-500 rounded-full flex items-center justify-center border-2 border-cyan-400 shadow-lg shadow-cyan-500/25 animate-pulse" style={{animationDelay: '0.2s'}}>
+                    <span className="text-2xl font-bold text-white">2</span>
+                    <div className="absolute inset-0 rounded-full bg-cyan-500/20 animate-ping"></div>
+                  </div>
+                </div>
+                <div className="flex-1 bg-black/40 backdrop-blur-sm border border-cyan-500/30 rounded-xl p-6 hover:border-cyan-500/60 transition-all duration-300">
+                  <h3 className="text-xl font-bold text-cyan-400 mb-2">Add Funds</h3>
+                  <p className="text-gray-300 leading-relaxed">
+                    Deposit assets from your wallet into your vault in one click.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 3 */}
+              <div className="relative flex items-start space-x-6 lg:space-x-8">
+                <div className="flex-shrink-0">
+                  <div className="relative w-16 h-16 bg-gradient-to-br from-purple-600 to-purple-500 rounded-full flex items-center justify-center border-2 border-purple-400 shadow-lg shadow-purple-500/25 animate-pulse" style={{animationDelay: '0.4s'}}>
+                    <span className="text-2xl font-bold text-white">3</span>
+                    <div className="absolute inset-0 rounded-full bg-purple-500/20 animate-ping"></div>
+                  </div>
+                </div>
+                <div className="flex-1 bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 hover:border-purple-500/60 transition-all duration-300">
+                  <h3 className="text-xl font-bold text-purple-400 mb-2">Cloak Your Assets</h3>
+                  <p className="text-gray-300 leading-relaxed">
+                    Once added, your balances and transactions become invisible to everyone but you.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 4 */}
+              <div className="relative flex items-start space-x-6 lg:space-x-8">
+                <div className="flex-shrink-0">
+                  <div className="relative w-16 h-16 bg-gradient-to-br from-magenta-600 to-magenta-500 rounded-full flex items-center justify-center border-2 border-magenta-400 shadow-lg shadow-magenta-500/25 animate-pulse" style={{animationDelay: '0.6s'}}>
+                    <span className="text-2xl font-bold text-white">4</span>
+                    <div className="absolute inset-0 rounded-full bg-magenta-500/20 animate-ping"></div>
+                  </div>
+                </div>
+                <div className="flex-1 bg-black/40 backdrop-blur-sm border border-magenta-500/30 rounded-xl p-6 hover:border-magenta-500/60 transition-all duration-300">
+                  <h3 className="text-xl font-bold text-magenta-400 mb-2">Send Privately</h3>
+                  <p className="text-gray-300 leading-relaxed">
+                    Transfer from vault to any wallet or another vault. The receiver won't see where funds originated or what's inside.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 5 */}
+              <div className="relative flex items-start space-x-6 lg:space-x-8">
+                <div className="flex-shrink-0">
+                  <div className="relative w-16 h-16 bg-gradient-to-br from-green-600 to-green-500 rounded-full flex items-center justify-center border-2 border-green-400 shadow-lg shadow-green-500/25 animate-pulse" style={{animationDelay: '0.8s'}}>
+                    <span className="text-2xl font-bold text-white">5</span>
+                    <div className="absolute inset-0 rounded-full bg-green-500/20 animate-ping"></div>
+                  </div>
+                </div>
+                <div className="flex-1 bg-black/40 backdrop-blur-sm border border-green-500/30 rounded-xl p-6 hover:border-green-500/60 transition-all duration-300">
+                  <h3 className="text-xl font-bold text-green-400 mb-2">Receive Anonymously</h3>
+                  <p className="text-gray-300 leading-relaxed">
+                    Share a payment link so others can deposit into your vault without viewing your holdings.
+                  </p>
+                </div>
               </div>
             </div>
 
-            {/* Terminal Footer */}
-            <div className="bg-gray-800 px-4 py-2 border-t border-gray-700">
-              <div className="flex items-center justify-between text-xs text-gray-400">
-                <div className="flex items-center space-x-4">
-                  <span>Process: lexie-ai-core</span>
-                  <span>•</span>
-                  <span>Memory: 2.1GB</span>
-                  <span>•</span>
-                  <span>CPU: 12%</span>
+            {/* Vault Flow Diagram */}
+            <div className="mt-16 text-center">
+              <div className="inline-flex items-center space-x-4 bg-black/60 backdrop-blur-sm border border-cyan-500/30 rounded-2xl p-8">
+                {/* Wallet Icon */}
+                <div className="flex flex-col items-center space-y-2">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-500 rounded-lg flex items-center justify-center">
+                    <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                  </div>
+                  <span className="text-xs text-gray-400 font-mono">Wallet</span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <span>Lines: {mainTerminalLines.length}</span>
-                  <span>•</span>
-                  <span className="text-green-400">Connected</span>
+
+                {/* Arrow */}
+                <div className="flex items-center">
+                  <svg className="w-6 h-6 text-cyan-400 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8.59 16.34l4.58-4.59-4.58-4.59L10 5.75l6 6-6 6z"/>
+                  </svg>
+                </div>
+
+                {/* Vault Icon */}
+                <div className="flex flex-col items-center space-y-2">
+                  <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-purple-500 rounded-lg flex items-center justify-center border-2 border-cyan-400/50">
+                    <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm3 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
+                    </svg>
+                  </div>
+                  <span className="text-xs text-gray-400 font-mono">Vault</span>
+                </div>
+
+                {/* Arrow */}
+                <div className="flex items-center">
+                  <svg className="w-6 h-6 text-purple-400 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8.59 16.34l4.58-4.59-4.58-4.59L10 5.75l6 6-6 6z"/>
+                  </svg>
+                </div>
+
+                {/* Shield Icon */}
+                <div className="flex flex-col items-center space-y-2">
+                  <div className="w-12 h-12 bg-gradient-to-br from-cyan-600 to-cyan-500 rounded-full flex items-center justify-center border-2 border-cyan-400 shadow-lg shadow-cyan-500/25">
+                    <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                    </svg>
+                  </div>
+                  <span className="text-xs text-gray-400 font-mono">Shielded</span>
+                </div>
+
+                {/* Arrow */}
+                <div className="flex items-center">
+                  <svg className="w-6 h-6 text-magenta-400 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8.59 16.34l4.58-4.59-4.58-4.59L10 5.75l6 6-6 6z"/>
+                  </svg>
+                </div>
+
+                {/* Vault Icon */}
+                <div className="flex flex-col items-center space-y-2">
+                  <div className="w-12 h-12 bg-gradient-to-br from-green-600 to-green-500 rounded-lg flex items-center justify-center border-2 border-green-400/50">
+                    <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm3 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/>
+                    </svg>
+                  </div>
+                  <span className="text-xs text-gray-400 font-mono">Vault</span>
+                </div>
+
+                {/* Arrow */}
+                <div className="flex items-center">
+                  <svg className="w-6 h-6 text-green-400 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8.59 16.34l4.58-4.59-4.58-4.59L10 5.75l6 6-6 6z"/>
+                  </svg>
+                </div>
+
+                {/* Wallet Icon */}
+                <div className="flex flex-col items-center space-y-2">
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-blue-500 rounded-lg flex items-center justify-center">
+                    <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                    </svg>
+                  </div>
+                  <span className="text-xs text-gray-400 font-mono">Wallet</span>
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Terminal Description */}
-          <div className="mt-8 text-center">
-            <p className="text-gray-400 max-w-3xl mx-auto">
-              This is a live simulation of Lexie's AI protocols. In the real application, these processes run continuously 
-              to analyze markets, execute trades, maintain security, and optimize your Web3 portfolio.
-            </p>
           </div>
         </div>
       </section>
