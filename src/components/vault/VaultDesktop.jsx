@@ -1202,11 +1202,8 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     <div className="relative h-screen w-full bg-[#0a0a0a] text-white overflow-x-hidden">
       {/* Background overlays */}
       <div className="fixed inset-0 z-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60"></div>
-        <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-purple-900/40 via-purple-800/20 to-transparent"></div>
+        <div className="absolute inset-0 bg-[#0a0a0a]"></div>
         <div className="absolute inset-0 opacity-30">
-          <div className="absolute inset-0 bg-[linear-gradient(rgba(147,51,234,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(147,51,234,0.2)_1px,transparent_1px)] bg-[size:40px_40px] animate-pulse"></div>
           <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.1)_1px,transparent_1px)] bg-[size:80px_80px] animate-pulse" style={{animationDelay: '1s'}}></div>
         </div>
         <div className="absolute inset-0 overflow-hidden">

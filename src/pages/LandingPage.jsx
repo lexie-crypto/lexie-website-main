@@ -465,7 +465,7 @@ export default function LandingPage() {
                   </div>
                   
                   {/* Holographic effect */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-purple-500/20 via-transparent to-blue-500/20 blur-sm"></div>
+                  <div className="absolute inset-0 bg-[#0a0a0a] blur-sm"></div>
                 </div>
 
                 {/* Terminal Footer */}
@@ -614,7 +614,7 @@ export default function LandingPage() {
       {/* Advanced AI Wallet Features Section */}
       <section id="features" className="relative z-30 py-32 overflow-hidden">
         {/* Section Background */}
-        <div className="absolute inset-0 bg-gradient-to-b from-purple-900/10 via-black/50 to-blue-900/10"></div>
+        <div className="absolute inset-0 bg-[#0a0a0a]"></div>
         
 
 
@@ -780,7 +780,7 @@ export default function LandingPage() {
       </section>
 
       {/* Why Lexie Section */}
-      <section className="relative z-30 py-20 bg-gradient-to-r from-purple-900/20 to-blue-900/20">
+      <section className="relative z-30 py-20 bg-[#0a0a0a]">
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="space-y-6">
@@ -900,7 +900,7 @@ export default function LandingPage() {
           </div>
 
           {/* Security metrics */}
-          <div className="mt-16 bg-gradient-to-r from-purple-900/30 to-blue-900/30 rounded-2xl p-8">
+          <div className="mt-16 bg-[#0a0a0a] rounded-2xl p-8">
             <div className="grid md:grid-cols-4 gap-8 text-center">
               <div>
                 <div className="text-3xl font-bold text-purple-400 mb-2">256-bit</div>
@@ -924,7 +924,7 @@ export default function LandingPage() {
       </section>
 
       {/* Final CTA Section */}
-      <section id="beta" className="relative z-30 py-20 bg-gradient-to-t from-purple-900/40 to-transparent">
+      <section id="beta" className="relative z-30 py-20 bg-[#0a0a0a]">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <div className="space-y-8">
             <h2 className="text-4xl lg:text-6xl font-bold text-white">
