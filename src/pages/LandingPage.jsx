@@ -340,42 +340,42 @@ export default function LandingPage() {
             {Array.from({ length: 12 }).map((_, i) => (
               <div
                 key={i}
-                className="absolute w-px bg-gradient-to-b from-transparent via-cyan-500/12 to-transparent animate-pulse"
+                className="absolute w-px bg-gradient-to-b from-transparent via-cyan-500/20 to-transparent animate-pulse"
                 style={{
                   left: `${(i * 8.33) + Math.random() * 2}%`,
                   top: '-20%',
                   height: '140%',
                   animationDelay: `${Math.random() * 4}s`,
                   animationDuration: `${2 + Math.random() * 2}s`,
-                  opacity: 0.4 + Math.random() * 0.4
+                  opacity: 0.6 + Math.random() * 0.3
                 }}
               ></div>
             ))}
             {Array.from({ length: 8 }).map((_, i) => (
               <div
                 key={`secondary-${i}`}
-                className="absolute w-px bg-gradient-to-b from-transparent via-purple-500/10 to-transparent animate-pulse"
+                className="absolute w-px bg-gradient-to-b from-transparent via-purple-500/15 to-transparent animate-pulse"
                 style={{
                   left: `${(i * 12.5) + 4 + Math.random() * 2}%`,
                   top: '-15%',
                   height: '130%',
                   animationDelay: `${Math.random() * 3}s`,
                   animationDuration: `${3 + Math.random() * 2}s`,
-                  opacity: 0.3 + Math.random() * 0.4
+                  opacity: 0.5 + Math.random() * 0.3
                 }}
               ></div>
             ))}
             {Array.from({ length: 6 }).map((_, i) => (
               <div
                 key={`tertiary-${i}`}
-                className="absolute w-px bg-gradient-to-b from-transparent via-green-500/8 to-transparent animate-pulse"
+                className="absolute w-px bg-gradient-to-b from-transparent via-green-500/12 to-transparent animate-pulse"
                 style={{
                   left: `${(i * 16.67) + 6 + Math.random() * 2}%`,
                   top: '-25%',
                   height: '150%',
                   animationDelay: `${Math.random() * 5}s`,
                   animationDuration: `${4 + Math.random() * 2}s`,
-                  opacity: 0.25 + Math.random() * 0.35
+                  opacity: 0.4 + Math.random() * 0.3
                 }}
               ></div>
             ))}
