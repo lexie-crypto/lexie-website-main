@@ -316,8 +316,44 @@ export default function LandingPage() {
         
 
       {/* Hero Section */}
-      <section className="relative z-30 min-h-screen flex items-center justify-center">
-        <div className="max-w-7xl mx-auto px-6 py-20">
+      <section className="relative z-30 min-h-screen flex items-center justify-center overflow-hidden">
+        {/* Cyberpunk Background Effects */}
+        <div className="absolute inset-0 bg-[#0A0A0A]">
+          {/* Grid Pattern */}
+          <div className="absolute inset-0 opacity-5">
+            <div className="absolute inset-0" style={{
+              backgroundImage: `
+                linear-gradient(rgba(168, 85, 247, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(168, 85, 247, 0.1) 1px, transparent 1px)
+              `,
+              backgroundSize: '50px 50px'
+            }}></div>
+          </div>
+
+          {/* Glowing Orbs */}
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
+          <div className="absolute top-1/2 right-1/3 w-64 h-64 bg-magenta-500/5 rounded-full blur-3xl animate-pulse" style={{animationDelay: '4s'}}></div>
+
+          {/* Animated Data Streams */}
+          <div className="absolute inset-0 overflow-hidden">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div
+                key={i}
+                className="absolute w-px bg-gradient-to-b from-transparent via-purple-500/20 to-transparent animate-pulse"
+                style={{
+                  left: `${20 + i * 15}%`,
+                  top: '-10%',
+                  height: '120%',
+                  animationDelay: `${i * 0.5}s`,
+                  animationDuration: '3s'
+                }}
+              ></div>
+            ))}
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-6 py-20 relative z-10">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             
             {/* Left side - Text content */}
@@ -325,69 +361,108 @@ export default function LandingPage() {
               {/* Main headline */}
               <div className="space-y-4">
                 <h1 className="text-5xl lg:text-7xl font-bold leading-tight">
-                  <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
+                  <span className="text-purple-400">
                     Lexie:
                   </span>
                   <br />
                   <span className="text-white">
-                    Your AI Companion
+                    ZK-Powered
                   </span>
                   <br />
                   <span className="text-purple-300">
-                    for Web3
+                    Privacy Vault
                   </span>
             </h1>
-                
+
                 <p className="text-xl text-gray-300 max-w-lg">
-                  Trade smarter. Quest deeper. Stay private.
+                  Go dark on-chain. Shield your assets. Cloak your moves. Trade smarter with AI.
                 </p>
               </div>
 
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-4">
                 <a
-                  href="https://t.me/lexieAI"
+                  href="https://app.lexiecrypto.com/lexievault"
               target="_blank"
               rel="noopener noreferrer"
-                  className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-300 shadow-lg hover:shadow-purple-500/25 hover:scale-105 text-center"
+                  className="px-8 py-4 bg-gradient-to-r from-magenta-600 via-purple-600 to-cyan-600 text-white font-semibold rounded-lg hover:from-magenta-700 hover:via-purple-700 hover:to-cyan-700 transition-all duration-300 shadow-lg hover:shadow-magenta-500/25 hover:scale-105 text-center"
             >
-                  Join Telegram
+                  Launch Privacy dApp
             </a>
             <a
-                  href="https://x.com/0xLexieAI"
+                    href="https://t.me/lexie_crypto_bot"
               target="_blank"
               rel="noopener noreferrer"
-                  className="px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-cyan-700 transition-all duration-300 shadow-lg hover:shadow-blue-500/25 hover:scale-105 text-center"
+                    className="px-8 py-4 border-2 border-purple-500 text-purple-300 font-semibold rounded-lg hover:bg-purple-500 hover:text-white transition-all duration-300 hover:scale-105 text-center"
             >
-                  Join Twitter
-            </a>
-            <a
-                    href="https://app.lexiecrypto.com/lexievault"
-              target="_blank"
-              rel="noopener noreferrer"
-                    className="px-8 py-4 border-2 border-purple-500 text-purple-300 font-semibold rounded-lg hover:bg-purple-500 hover:text-white transition-all duration-300 hover:scale-105 text-center animate-twitter-flicker"
-            >
-                    Launch Beta
+                    Chat with Lexie
             </a>
           </div>
         </div>
 
-            {/* Right side - Lexie Avatar */}
+            {/* Right side - ZK Privacy Terminal */}
             <div className="relative flex justify-center">
               {/* Terminal-style Background Frame */}
-              <div className="relative bg-gray-900 rounded-lg border border-gray-700 shadow-2xl overflow-hidden max-w-lg w-full">
+              <div className="relative bg-black rounded-lg border border-purple-500/30 shadow-2xl overflow-hidden max-w-lg w-full backdrop-blur-sm">
                 {/* Terminal Header */}
-                <div className="flex items-center justify-between bg-gray-800 px-4 py-3 border-b border-gray-700">
+                <div className="flex items-center justify-between bg-gray-900 px-4 py-3 border-b border-purple-500/20">
                   <div className="flex items-center space-x-2">
                     <div className="w-3 h-3 bg-red-500 rounded-full"></div>
                     <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
                     <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                    <span className="text-gray-400 ml-4 font-mono text-sm">lexie-ai</span>
+                    <span className="text-gray-400 ml-4 font-mono text-sm">zk-privacy-vault</span>
                   </div>
                   <div className="flex items-center space-x-4">
                     <div className="flex items-center space-x-2">
-                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                      <span className="text-green-400 text-xs font-mono">ONLINE</span>
+                      <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+                      <span className="text-purple-400 text-xs font-mono">SECURE</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
+                      <span className="text-cyan-400 text-xs font-mono">ZK-ACTIVE</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Terminal Body with ZK Visualization */}
+                <div className="bg-black px-6 pt-4 pb-6 relative h-96 flex flex-col">
+                  {/* ZK Shield Animation */}
+                  <div className="flex justify-center mb-4">
+                    <div className="relative">
+                      {/* Outer glow ring */}
+                      <div className="absolute inset-0 rounded-full bg-gradient-to-r from-purple-500/20 via-magenta-500/20 to-cyan-500/20 blur-xl animate-pulse"></div>
+                      {/* Shield icon */}
+                      <div className="relative w-16 h-16 bg-gradient-to-br from-purple-600 to-magenta-600 rounded-full flex items-center justify-center border-2 border-cyan-400/50 shadow-lg shadow-purple-500/25">
+                        <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                      </div>
+                      {/* ZK text overlay */}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="text-xs font-mono text-cyan-300 font-bold">ZK</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Terminal Commands */}
+                  <div className="flex-1 font-mono text-xs space-y-2 overflow-hidden">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-green-400">$</span>
+                      <span className="text-green-300">zk-proof generate --balance=2.4ETH</span>
+                    </div>
+                    <div className="text-cyan-400 ml-4">
+                      <span className="text-cyan-300">✓</span> Generating zero-knowledge proof...
+                    </div>
+                    <div className="text-cyan-400 ml-4">
+                      <span className="text-cyan-300">✓</span> Circuit compiled in 245ms
+                    </div>
+                    <div className="text-purple-400 ml-4 animate-pulse">
+                      Computing witness...
+                    </div>
+
+                    <div className="flex items-center space-x-2 mt-4">
+                      <span className="text-green-400">$</span>
+                      <span className="text-green-300">shield-transaction --amount=0.5ETH</span>
                     </div>
                   </div>
                 </div>
@@ -469,15 +544,17 @@ export default function LandingPage() {
                 </div>
 
                 {/* Terminal Footer */}
-                <div className="bg-gray-800 px-4 py-2 border-t border-gray-700">
+                <div className="bg-gray-900 px-4 py-2 border-t border-purple-500/20">
                   <div className="flex items-center justify-between text-xs text-gray-400">
                     <div className="flex items-center space-x-4">
-                      <span>Process: lexie-avatar</span>
+                      <span>Process: zk-vault-core</span>
                       <span>•</span>
-                      <span>Status: Active</span>
+                      <span>Status: SECURE</span>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <span className="text-green-400">Connected</span>
+                      <span className="text-purple-400">ZK-Enabled</span>
+                      <span>•</span>
+                      <span className="text-cyan-400">AI-Active</span>
                     </div>
                   </div>
                 </div>
