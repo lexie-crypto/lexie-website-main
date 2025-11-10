@@ -383,7 +383,7 @@ export default function LandingPage() {
         </div>
 
         <div className="max-w-7xl mx-auto px-6 py-20 relative z-10">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+          <div className="grid lg:grid-cols-2 gap-20 items-center">
             
             {/* Left side - Text content */}
             <div className="space-y-8">
