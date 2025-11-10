@@ -422,7 +422,7 @@ export default function LandingPage() {
                     href="https://app.lexiecrypto.com/lexievault"
               target="_blank"
               rel="noopener noreferrer"
-                    className="px-8 py-4 border-2 border-purple-500 text-white font-semibold rounded-lg hover:bg-purple-500 hover:text-white transition-all duration-300 hover:scale-105 text-center"
+                    className="px-8 py-4 border-2 border-purple-400 text-white font-semibold rounded-lg hover:bg-purple-500 hover:text-white transition-all duration-300 hover:scale-105 text-center"
             >
                     Launch Privacy Vault
             </a>
