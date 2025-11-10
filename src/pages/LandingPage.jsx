@@ -404,7 +404,7 @@ export default function LandingPage() {
             </h1>
 
                 <p className="text-xl text-gray-300 max-w-lg">
-                  Go Private on-chain. Hide your assets. Cloak your moves.
+                  Go private on-chain. Hide your assets. Cloak your moves.
                 </p>
               </div>
 
@@ -424,7 +424,7 @@ export default function LandingPage() {
               rel="noopener noreferrer"
                     className="px-8 py-4 border-2 border-purple-500 text-white font-semibold rounded-lg hover:bg-purple-500 hover:text-white transition-all duration-300 hover:scale-105 text-center"
             >
-                    Launch Privacy dApp
+                    Launch Privacy Vault
             </a>
           </div>
         </div>
