@@ -410,59 +410,12 @@ export default function LandingPage() {
                     <div className="w-3 h-3 bg-red-500 rounded-full"></div>
                     <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
                     <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                    <span className="text-gray-400 ml-4 font-mono text-sm">zk-privacy-vault</span>
+                    <span className="text-gray-400 ml-4 font-mono text-sm">lexie-ai</span>
                   </div>
                   <div className="flex items-center space-x-4">
                     <div className="flex items-center space-x-2">
-                      <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
-                      <span className="text-purple-400 text-xs font-mono">SECURE</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
-                      <span className="text-cyan-400 text-xs font-mono">ZK-ACTIVE</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Terminal Body with ZK Visualization */}
-                <div className="bg-black px-6 pt-4 pb-6 relative h-96 flex flex-col">
-                  {/* ZK Shield Animation */}
-                  <div className="flex justify-center mb-4">
-                    <div className="relative">
-                      {/* Outer glow ring */}
-                      <div className="absolute inset-0 rounded-full bg-gradient-to-r from-purple-500/20 via-magenta-500/20 to-cyan-500/20 blur-xl animate-pulse"></div>
-                      {/* Shield icon */}
-                      <div className="relative w-16 h-16 bg-gradient-to-br from-purple-600 to-magenta-600 rounded-full flex items-center justify-center border-2 border-cyan-400/50 shadow-lg shadow-purple-500/25">
-                        <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                        </svg>
-                      </div>
-                      {/* ZK text overlay */}
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <span className="text-xs font-mono text-cyan-300 font-bold">ZK</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Terminal Commands */}
-                  <div className="flex-1 font-mono text-xs space-y-2 overflow-hidden">
-                    <div className="flex items-center space-x-2">
-                      <span className="text-green-400">$</span>
-                      <span className="text-green-300">zk-proof generate --balance=2.4ETH</span>
-                    </div>
-                    <div className="text-cyan-400 ml-4">
-                      <span className="text-cyan-300">✓</span> Generating zero-knowledge proof...
-                    </div>
-                    <div className="text-cyan-400 ml-4">
-                      <span className="text-cyan-300">✓</span> Circuit compiled in 245ms
-                    </div>
-                    <div className="text-purple-400 ml-4 animate-pulse">
-                      Computing witness...
-                    </div>
-
-                    <div className="flex items-center space-x-2 mt-4">
-                      <span className="text-green-400">$</span>
-                      <span className="text-green-300">shield-transaction --amount=0.5ETH</span>
+                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                      <span className="text-green-400 text-xs font-mono">ONLINE</span>
                     </div>
                   </div>
                 </div>
