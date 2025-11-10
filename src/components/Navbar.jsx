@@ -14,7 +14,7 @@ export function Navbar({ onLexieChatOpen }) {
 
   // Mobile: sticky (scrolls with page), Desktop: fixed (stays at top)
   const baseClasses =
-    "sticky md:fixed top-0 md:left-0 md:right-0 z-40 w-full p-6 bg-black";
+    "sticky md:fixed top-0 md:left-0 md:right-0 z-40 w-full p-6 bg-[#0a0a0a]";
   const containerClasses =
     "max-w-7xl mx-auto flex justify-between items-center";
 
