@@ -335,18 +335,47 @@ export default function LandingPage() {
           <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
           <div className="absolute top-1/2 right-1/3 w-64 h-64 bg-magenta-500/5 rounded-full blur-3xl animate-pulse" style={{animationDelay: '4s'}}></div>
 
-          {/* Animated Data Streams */}
+          {/* Matrix-style Data Streams */}
           <div className="absolute inset-0 overflow-hidden">
-            {Array.from({ length: 5 }).map((_, i) => (
+            {Array.from({ length: 12 }).map((_, i) => (
               <div
                 key={i}
-                className="absolute w-px bg-gradient-to-b from-transparent via-purple-500/20 to-transparent animate-pulse"
+                className="absolute w-px bg-gradient-to-b from-transparent via-cyan-500/10 to-transparent animate-pulse"
                 style={{
-                  left: `${20 + i * 15}%`,
-                  top: '-10%',
-                  height: '120%',
-                  animationDelay: `${i * 0.5}s`,
-                  animationDuration: '3s'
+                  left: `${(i * 8.33) + Math.random() * 2}%`,
+                  top: '-20%',
+                  height: '140%',
+                  animationDelay: `${Math.random() * 4}s`,
+                  animationDuration: `${2 + Math.random() * 2}s`,
+                  opacity: 0.3 + Math.random() * 0.4
+                }}
+              ></div>
+            ))}
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div
+                key={`secondary-${i}`}
+                className="absolute w-px bg-gradient-to-b from-transparent via-purple-500/8 to-transparent animate-pulse"
+                style={{
+                  left: `${(i * 12.5) + 4 + Math.random() * 2}%`,
+                  top: '-15%',
+                  height: '130%',
+                  animationDelay: `${Math.random() * 3}s`,
+                  animationDuration: `${3 + Math.random() * 2}s`,
+                  opacity: 0.2 + Math.random() * 0.3
+                }}
+              ></div>
+            ))}
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={`tertiary-${i}`}
+                className="absolute w-px bg-gradient-to-b from-transparent via-green-500/6 to-transparent animate-pulse"
+                style={{
+                  left: `${(i * 16.67) + 6 + Math.random() * 2}%`,
+                  top: '-25%',
+                  height: '150%',
+                  animationDelay: `${Math.random() * 5}s`,
+                  animationDuration: `${4 + Math.random() * 2}s`,
+                  opacity: 0.15 + Math.random() * 0.25
                 }}
               ></div>
             ))}
