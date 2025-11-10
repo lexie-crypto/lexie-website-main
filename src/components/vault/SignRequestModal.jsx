@@ -55,7 +55,7 @@ const SignRequestModal = ({
                     <div className="flex items-center justify-between text-xs text-green-400/80">
                       <span>
                         {Math.min(bootstrapProgress.percent, isInitInProgress ? 99 : 100) === 99
-                          ? 'Syncing vault to the Zk Network'
+                          ? 'Syncing vault to the Zk Network...'
                           : 'Loading blockchain data...'}
                       </span>
                       <span>{Math.min(bootstrapProgress.percent, isInitInProgress ? 99 : 100)}%</span>
@@ -70,8 +70,8 @@ const SignRequestModal = ({
                 ) : (
                   <div className="flex items-center gap-3">
                     <div className={`h-5 w-5 rounded-full border-2 ${isInitInProgress || bootstrapProgress.active ? 'border-emerald-400 border-t-transparent animate-spin' : 'border-emerald-400'}`} />
-                    <div className="text-xs text-green-400/80 truncate" title={bootstrapProgress.active ? (bootstrapProgress.percent === 99 ? 'Syncing vault to the Zk Network' : 'Loading blockchain data...') : initProgress.message}>
-                      {bootstrapProgress.active ? (bootstrapProgress.percent === 99 ? 'Syncing vault to the Zk Network' : 'Loading blockchain data...') : (initProgress.message || 'Scanning...')}
+                    <div className="text-xs text-green-400/80 truncate" title={bootstrapProgress.active ? (bootstrapProgress.percent === 99 ? 'Syncing vault to the Zk Network...' : 'Loading blockchain data...') : initProgress.message}>
+                      {bootstrapProgress.active ? (bootstrapProgress.percent === 99 ? 'Syncing vault to the Zk Network...' : 'Loading blockchain data...') : (initProgress.message || 'Scanning...')}
                     </div>
                   </div>
                 )}
