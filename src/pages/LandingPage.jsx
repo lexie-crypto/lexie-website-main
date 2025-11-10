@@ -404,27 +404,27 @@ export default function LandingPage() {
             </h1>
 
                 <p className="text-xl text-gray-300 max-w-lg">
-                  Go dark on-chain. Shield your assets. Cloak your moves. Trade smarter with AI.
+                  Go Private on-chain. Hide your assets. Cloak your moves.
                 </p>
               </div>
 
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-4">
                 <a
-                  href="https://app.lexiecrypto.com/lexievault"
+                  href="https://t.me/lexie_crypto_bot"
               target="_blank"
               rel="noopener noreferrer"
-                  className="px-8 py-4 bg-gradient-to-r from-magenta-600 via-purple-600 to-cyan-600 text-white font-semibold rounded-lg hover:from-magenta-700 hover:via-purple-700 hover:to-cyan-700 transition-all duration-300 shadow-lg hover:shadow-magenta-500/25 hover:scale-105 text-center"
+                  className="px-8 py-4 bg-gradient-to-r from-purple-600 to-purple-700 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all duration-300 shadow-lg hover:shadow-purple-500/25 hover:scale-105 text-center"
             >
-                  Launch Privacy dApp
+                  Chat with Lexie
             </a>
             <a
-                    href="https://t.me/lexie_crypto_bot"
+                    href="https://app.lexiecrypto.com/lexievault"
               target="_blank"
               rel="noopener noreferrer"
                     className="px-8 py-4 border-2 border-purple-500 text-purple-300 font-semibold rounded-lg hover:bg-purple-500 hover:text-white transition-all duration-300 hover:scale-105 text-center"
             >
-                    Chat with Lexie
+                    Launch Privacy dApp
             </a>
           </div>
         </div>
