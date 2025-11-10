@@ -414,7 +414,7 @@ export default function LandingPage() {
                   href="https://t.me/lexie_crypto_bot"
               target="_blank"
               rel="noopener noreferrer"
-                  className="px-8 py-4 bg-gradient-to-r from-purple-600 to-purple-700 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-purple-800 transition-all duration-300 shadow-lg hover:shadow-purple-500/25 hover:scale-105 text-center"
+                  className="px-8 py-4 bg-white text-black font-semibold rounded-lg hover:bg-gray-100 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 text-center"
             >
                   Chat with Lexie
             </a>
@@ -422,7 +422,7 @@ export default function LandingPage() {
                     href="https://app.lexiecrypto.com/lexievault"
               target="_blank"
               rel="noopener noreferrer"
-                    className="px-8 py-4 border-2 border-purple-500 text-purple-300 font-semibold rounded-lg hover:bg-purple-500 hover:text-white transition-all duration-300 hover:scale-105 text-center"
+                    className="px-8 py-4 border-2 border-purple-500 text-white font-semibold rounded-lg hover:bg-purple-500 hover:text-white transition-all duration-300 hover:scale-105 text-center"
             >
                     Launch Privacy dApp
             </a>
