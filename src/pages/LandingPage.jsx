@@ -552,7 +552,7 @@ export default function LandingPage() {
           {/* Section Header */}
           <div className="text-center mb-16">
             <h2 className="text-4xl lg:text-5xl font-bold text-white mb-4">
-              <span className="text-fuchsia-400">👉</span> How It <span className="text-cyan-400">Works</span>
+              <span className="text-fuchsia-400"></span> How It <span className="text-purple-400">Works</span>
             </h2>
             <p className="text-xl text-gray-300 max-w-3xl mx-auto">
               Create your private vault, fund it, and go dark on-chain — all in a few simple steps.
@@ -562,25 +562,25 @@ export default function LandingPage() {
           {/* Steps Container */}
           <div className="relative">
             {/* Animated Flow Line - Vertical */}
-            <div className="absolute left-8 top-0 bottom-0 w-px bg-gradient-to-b from-fuchsia-500/50 via-cyan-500/50 to-green-500/50 hidden lg:block">
-              <div className="absolute inset-0 bg-gradient-to-b from-fuchsia-500/50 via-cyan-500/50 to-green-500/50 animate-pulse"></div>
+            <div className="absolute left-8 top-0 bottom-0 w-px bg-gradient-to-b from-purple-500/50 via-purple-400/50 to-purple-600/50 hidden lg:block">
+              <div className="absolute inset-0 bg-gradient-to-b from-purple-500/50 via-purple-400/50 to-purple-600/50 animate-pulse"></div>
               {/* Flow indicators */}
-              <div className="absolute top-1/4 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-fuchsia-400 rounded-full animate-ping" style={{animationDelay: '0s'}}></div>
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-cyan-400 rounded-full animate-ping" style={{animationDelay: '0.5s'}}></div>
-              <div className="absolute top-3/4 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-green-400 rounded-full animate-ping" style={{animationDelay: '1s'}}></div>
+              <div className="absolute top-1/4 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-purple-400 rounded-full animate-ping" style={{animationDelay: '0s'}}></div>
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-purple-500 rounded-full animate-ping" style={{animationDelay: '0.5s'}}></div>
+              <div className="absolute top-3/4 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-purple-300 rounded-full animate-ping" style={{animationDelay: '1s'}}></div>
             </div>
 
             <div className="space-y-8 lg:space-y-12">
               {/* Step 1 */}
               <div className="relative flex items-start space-x-6 lg:space-x-8">
                 <div className="flex-shrink-0">
-                  <div className="relative w-16 h-16 bg-gradient-to-br from-fuchsia-600 to-fuchsia-500 rounded-full flex items-center justify-center border-2 border-fuchsia-400 shadow-lg shadow-fuchsia-500/25 animate-pulse">
+                  <div className="relative w-16 h-16 bg-gradient-to-br from-purple-600 to-purple-500 rounded-full flex items-center justify-center border-2 border-purple-400 shadow-lg shadow-purple-500/25 animate-pulse">
                     <span className="text-2xl font-bold text-white">1</span>
-                    <div className="absolute inset-0 rounded-full bg-fuchsia-500/20 animate-ping"></div>
+                    <div className="absolute inset-0 rounded-full bg-purple-500/20 animate-ping"></div>
                   </div>
                 </div>
-                <div className="flex-1 bg-black/40 backdrop-blur-sm border border-fuchsia-500/30 rounded-xl p-6 hover:border-fuchsia-500/60 transition-all duration-300">
-                  <h3 className="text-xl font-bold text-fuchsia-400 mb-2">Create a Private Vault</h3>
+                <div className="flex-1 bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 hover:border-purple-500/60 transition-all duration-300">
+                  <h3 className="text-xl font-bold text-purple-400 mb-2">Create a Private Vault</h3>
                   <p className="text-gray-300 leading-relaxed">
                     Connect your existing wallet (MetaMask, Trust Wallet, etc.) on BNB Chain, Ethereum, Polygon, or Arbitrum.
                   </p>
@@ -590,13 +590,13 @@ export default function LandingPage() {
               {/* Step 2 */}
               <div className="relative flex items-start space-x-6 lg:space-x-8">
                 <div className="flex-shrink-0">
-                  <div className="relative w-16 h-16 bg-gradient-to-br from-cyan-600 to-cyan-500 rounded-full flex items-center justify-center border-2 border-cyan-400 shadow-lg shadow-cyan-500/25 animate-pulse" style={{animationDelay: '0.2s'}}>
+                  <div className="relative w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-400 rounded-full flex items-center justify-center border-2 border-purple-300 shadow-lg shadow-purple-500/25 animate-pulse" style={{animationDelay: '0.2s'}}>
                     <span className="text-2xl font-bold text-white">2</span>
-                    <div className="absolute inset-0 rounded-full bg-cyan-500/20 animate-ping"></div>
+                    <div className="absolute inset-0 rounded-full bg-purple-400/20 animate-ping"></div>
                   </div>
                 </div>
-                <div className="flex-1 bg-black/40 backdrop-blur-sm border border-cyan-500/30 rounded-xl p-6 hover:border-cyan-500/60 transition-all duration-300">
-                  <h3 className="text-xl font-bold text-cyan-400 mb-2">Add Funds</h3>
+                <div className="flex-1 bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 hover:border-purple-500/60 transition-all duration-300">
+                  <h3 className="text-xl font-bold text-purple-300 mb-2">Add Funds</h3>
                   <p className="text-gray-300 leading-relaxed">
                     Deposit assets from your wallet into your vault in one click.
                   </p>
@@ -606,13 +606,13 @@ export default function LandingPage() {
               {/* Step 3 */}
               <div className="relative flex items-start space-x-6 lg:space-x-8">
                 <div className="flex-shrink-0">
-                  <div className="relative w-16 h-16 bg-gradient-to-br from-purple-600 to-purple-500 rounded-full flex items-center justify-center border-2 border-purple-400 shadow-lg shadow-purple-500/25 animate-pulse" style={{animationDelay: '0.4s'}}>
+                  <div className="relative w-16 h-16 bg-gradient-to-br from-purple-400 to-purple-300 rounded-full flex items-center justify-center border-2 border-purple-200 shadow-lg shadow-purple-500/25 animate-pulse" style={{animationDelay: '0.4s'}}>
                     <span className="text-2xl font-bold text-white">3</span>
-                    <div className="absolute inset-0 rounded-full bg-purple-500/20 animate-ping"></div>
+                    <div className="absolute inset-0 rounded-full bg-purple-300/20 animate-ping"></div>
                   </div>
                 </div>
                 <div className="flex-1 bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 hover:border-purple-500/60 transition-all duration-300">
-                  <h3 className="text-xl font-bold text-purple-400 mb-2">Cloak Your Assets</h3>
+                  <h3 className="text-xl font-bold text-purple-200 mb-2">Cloak Your Assets</h3>
                   <p className="text-gray-300 leading-relaxed">
                     Once added, your balances and transactions become invisible to everyone but you.
                   </p>
@@ -622,13 +622,13 @@ export default function LandingPage() {
               {/* Step 4 */}
               <div className="relative flex items-start space-x-6 lg:space-x-8">
                 <div className="flex-shrink-0">
-                  <div className="relative w-16 h-16 bg-gradient-to-br from-magenta-600 to-magenta-500 rounded-full flex items-center justify-center border-2 border-magenta-400 shadow-lg shadow-magenta-500/25 animate-pulse" style={{animationDelay: '0.6s'}}>
+                  <div className="relative w-16 h-16 bg-gradient-to-br from-purple-700 to-purple-600 rounded-full flex items-center justify-center border-2 border-purple-500 shadow-lg shadow-purple-500/25 animate-pulse" style={{animationDelay: '0.6s'}}>
                     <span className="text-2xl font-bold text-white">4</span>
-                    <div className="absolute inset-0 rounded-full bg-magenta-500/20 animate-ping"></div>
+                    <div className="absolute inset-0 rounded-full bg-purple-600/20 animate-ping"></div>
                   </div>
                 </div>
-                <div className="flex-1 bg-black/40 backdrop-blur-sm border border-magenta-500/30 rounded-xl p-6 hover:border-magenta-500/60 transition-all duration-300">
-                  <h3 className="text-xl font-bold text-magenta-400 mb-2">Send Privately</h3>
+                <div className="flex-1 bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 hover:border-purple-500/60 transition-all duration-300">
+                  <h3 className="text-xl font-bold text-purple-500 mb-2">Send Privately</h3>
                   <p className="text-gray-300 leading-relaxed">
                     Transfer from vault to any wallet or another vault. The receiver won't see where funds originated or what's inside.
                   </p>
@@ -638,13 +638,13 @@ export default function LandingPage() {
               {/* Step 5 */}
               <div className="relative flex items-start space-x-6 lg:space-x-8">
                 <div className="flex-shrink-0">
-                  <div className="relative w-16 h-16 bg-gradient-to-br from-green-600 to-green-500 rounded-full flex items-center justify-center border-2 border-green-400 shadow-lg shadow-green-500/25 animate-pulse" style={{animationDelay: '0.8s'}}>
+                  <div className="relative w-16 h-16 bg-gradient-to-br from-purple-800 to-purple-700 rounded-full flex items-center justify-center border-2 border-purple-600 shadow-lg shadow-purple-500/25 animate-pulse" style={{animationDelay: '0.8s'}}>
                     <span className="text-2xl font-bold text-white">5</span>
-                    <div className="absolute inset-0 rounded-full bg-green-500/20 animate-ping"></div>
+                    <div className="absolute inset-0 rounded-full bg-purple-700/20 animate-ping"></div>
                   </div>
                 </div>
-                <div className="flex-1 bg-black/40 backdrop-blur-sm border border-green-500/30 rounded-xl p-6 hover:border-green-500/60 transition-all duration-300">
-                  <h3 className="text-xl font-bold text-green-400 mb-2">Receive Anonymously</h3>
+                <div className="flex-1 bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 hover:border-purple-500/60 transition-all duration-300">
+                  <h3 className="text-xl font-bold text-purple-600 mb-2">Receive Anonymously</h3>
                   <p className="text-gray-300 leading-relaxed">
                     Share a payment link so others can deposit into your vault without viewing your holdings.
                   </p>
