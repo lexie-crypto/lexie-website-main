@@ -49,21 +49,6 @@ const WalletConnectWindow = ({ isMobile, onWalletConnected }) => {
               ></div>
             </div>
             <div className="absolute inset-0 overflow-hidden scrollbar-terminal">
-              {Array.from({ length: 3 }).map((_, i) => (
-                <div
-                  key={i}
-                  className="absolute rounded-full animate-pulse"
-                  style={{
-                    left: `${20 + i * 30}%`,
-                    top: `${20 + i * 20}%`,
-                    width: `${200 + i * 100}px`,
-                    height: `${200 + i * 100}px`,
-                    background: `radial-gradient(circle, rgba(147, 51, 234, 0.1) 0%, rgba(147, 51, 234, 0.05) 50%, transparent 100%)`,
-                    animationDelay: `${i * 2}s`,
-                    animationDuration: `${6 + i * 2}s`,
-                  }}
-                />
-              ))}
             </div>
           </div>
 
@@ -133,21 +118,6 @@ const WalletConnectWindow = ({ isMobile, onWalletConnected }) => {
           ></div>
         </div>
         <div className="absolute inset-0 overflow-hidden scrollbar-terminal">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div
-              key={i}
-              className="absolute rounded-full animate-pulse"
-              style={{
-                left: `${20 + i * 30}%`,
-                top: `${20 + i * 20}%`,
-                width: `${200 + i * 100}px`,
-                height: `${200 + i * 100}px`,
-                background: `radial-gradient(circle, rgba(147, 51, 234, 0.1) 0%, rgba(147, 51, 234, 0.05) 50%, transparent 100%)`,
-                animationDelay: `${i * 2}s`,
-                animationDuration: `${6 + i * 2}s`,
-              }}
-            />
-          ))}
         </div>
       </div>
 
