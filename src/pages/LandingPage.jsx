@@ -19,6 +19,7 @@ export default function LandingPage() {
   const [bootIsTyping, setBootIsTyping] = useState(false);
   const [activeCardIndex, setActiveCardIndex] = useState(0);
   const [currentVisibleStep, setCurrentVisibleStep] = useState(-1);
+  const [openFAQ, setOpenFAQ] = useState(null);
   const carouselRef = useRef(null);
   const stepRefs = useRef([]);
   
@@ -135,6 +136,49 @@ export default function LandingPage() {
     '✓ AI companion online',
     'ALL SYSTEMS OPERATIONAL',
     'Ready for commands...'
+  ];
+
+  const faqData = [
+    {
+      question: "What is LexieVault and how does it work?",
+      answer: "LexieVault is a non-custodial privacy vault powered by zero-knowledge proofs. Once assets are shielded, your balances and transactions become invisible to everyone but you."
+    },
+    {
+      question: "How does Lexie ensure privacy and anonymity?",
+      answer: "Lexie uses zk-SNARK cryptography (the same tech behind Railgun) to hide sender, receiver, and amount — providing full on-chain privacy while staying completely transparent in validation."
+    },
+    {
+      question: "What networks does Lexie support?",
+      answer: "Currently supports BNB Chain, Ethereum, Polygon, and Arbitrum — with Optimism and Base coming soon."
+    },
+    {
+      question: "Which assets can I deposit?",
+      answer: "You can shield and transact with most ERC-20 tokens and NFTs (ERC-721)."
+    },
+    {
+      question: "Can I send or receive funds privately?",
+      answer: "Yes — send funds from vault to vault or to any wallet. Recipients won't see who sent them or what's in your vault."
+    },
+    {
+      question: "Does Lexie support compliance or KYC options?",
+      answer: "Yes — optional compliance tools include viewing keys, deposit limits, and travel-rule compatibility."
+    },
+    {
+      question: "What is LexieAI?",
+      answer: "LexieAI is your intelligent crypto assistant that provides real-time market data, yield insights, and technical analysis — currently on Telegram, with in-vault integration coming soon."
+    },
+    {
+      question: "Will Lexie offer swaps, lending, and yield farming?",
+      answer: "Yes — private swaps and yield go live in Phase 2, followed by lending and derivatives in Phase 3."
+    },
+    {
+      question: "How can I recover my vault?",
+      answer: "Lexie will support zero-knowledge social recovery and encrypted backup options similar to zk-email and zk-passport systems."
+    },
+    {
+      question: "Are there deposit limits?",
+      answer: "Deposit limits may apply for compliance reasons, but regular users won't be affected."
+    }
   ];
   
   useEffect(() => {
@@ -1177,7 +1221,7 @@ export default function LandingPage() {
                       </div>
                       <div className="flex-1">
                         <p className="text-gray-300 leading-relaxed group-hover/item:text-purple-300 transition-colors duration-300">
-                          Launch compliance tools (deposit limits, viewing keys, optional KYC)
+                          Launch advanced compliance tools using Chainalysis
                         </p>
                       </div>
                     </div>
@@ -1285,6 +1329,81 @@ export default function LandingPage() {
                 {/* Timeline Node */}
                 <div className="hidden lg:block absolute top-1/2 -right-4 transform -translate-y-1/2 w-8 h-8 bg-pink-500 rounded-full border-4 border-black shadow-lg shadow-pink-500/50"></div>
               </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ Section */}
+      <section className="relative z-30 py-20 bg-[#0a0a0a] overflow-hidden">
+        {/* Background Effects */}
+        <div className="absolute inset-0">
+          {/* Subtle Grid Pattern */}
+          <div className="absolute inset-0 opacity-5">
+            <div className="absolute inset-0" style={{
+              backgroundImage: `
+                linear-gradient(rgba(168, 85, 247, 0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(168, 85, 247, 0.08) 1px, transparent 1px)
+              `,
+              backgroundSize: '50px 50px'
+            }}></div>
+          </div>
+
+          {/* Floating Glow Orbs */}
+          <div className="absolute top-1/4 right-1/4 w-32 h-32 bg-fuchsia-500/3 rounded-full blur-2xl animate-pulse"></div>
+          <div className="absolute bottom-1/4 left-1/4 w-48 h-48 bg-cyan-500/3 rounded-full blur-2xl animate-pulse" style={{animationDelay: '1s'}}></div>
+        </div>
+
+        <div className="max-w-4xl mx-auto px-6 relative z-10">
+          {/* Section Header */}
+          <div className="text-center mb-16">
+            <h2 className="text-4xl lg:text-5xl font-bold text-white mb-4">
+              💬 Frequently Asked Questions
+            </h2>
+            <p className="text-xl text-gray-300">
+              Everything you need to know about Lexie and private DeFi
+            </p>
+          </div>
+
+          {/* FAQ Container */}
+          <div className="bg-black/40 backdrop-blur-sm border border-fuchsia-500/40 rounded-2xl p-8 shadow-2xl">
+            <div className="space-y-4">
+              {faqData.map((faq, index) => (
+                <div key={index} className="border-b border-cyan-500/20 last:border-b-0">
+                  <button
+                    className="w-full text-left py-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500/50 rounded-lg transition-all duration-300 hover:bg-fuchsia-500/5 group"
+                    onClick={() => setOpenFAQ(openFAQ === index ? null : index)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold text-fuchsia-400 group-hover:text-fuchsia-300 transition-colors duration-300 pr-4">
+                        {faq.question}
+                      </h3>
+                      <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full border-2 border-fuchsia-400/50 transition-all duration-300 ${
+                        openFAQ === index ? 'bg-fuchsia-500/20 rotate-180' : 'bg-transparent'
+                      }`}>
+                        <svg
+                          className={`w-3 h-3 text-fuchsia-400 transition-transform duration-300 ${
+                            openFAQ === index ? 'rotate-180' : ''
+                          }`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
+                  </button>
+
+                  <div className={`overflow-hidden transition-all duration-300 ${
+                    openFAQ === index ? 'max-h-96 opacity-100 pb-4' : 'max-h-0 opacity-0'
+                  }`}>
+                    <p className="text-gray-300/90 leading-relaxed pl-0">
+                      {faq.answer}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
