@@ -1006,7 +1006,7 @@ export default function LandingPage() {
           <div className="space-y-8">
             <h2 className="text-4xl lg:text-6xl font-bold text-white">
               Ready to Experience the 
-              <span className="block text-transparent bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text">
+              <span className="block text-transparent bg-gradient-to-r from-purple-200 to-purple-600 bg-clip-text">
                 Future of DeFi?
               </span>
             </h2>
@@ -1018,23 +1018,23 @@ export default function LandingPage() {
             
             <p className="text-xl text-gray-300 max-w-2xl mx-auto">
               Join thousands of early adopters who are already trading smarter 
-              with Lexie's AI-powered wallet. Beta access is limited.
+              with Lexie's ZK-powered privacy vault. Beta access is limited.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
               <a
-                href="https://t.me/Lexie_Crypto_Bot"
+                href="https://app.lexiecrypto.com/lexievault"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold text-base rounded-full hover:from-purple-700 hover:to-pink-700 transition-all duration-300 shadow-xl hover:shadow-purple-500/50 hover:scale-105 flex items-center space-x-2"
               >
                 <span>🚀</span>
-                <span>Join Beta</span>
+                <span>Launch dApp</span>
               </a>
               
               <div className="flex space-x-4">
                 <a
-                  href="https://t.me/lexie_crypto_bot"
+                  href="https://t.me/lexieAI"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-4 border-2 border-cyan-500 text-cyan-400 rounded-full hover:bg-cyan-500 hover:text-white transition-all duration-300 hover:scale-110"
