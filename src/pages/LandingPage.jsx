@@ -857,6 +857,149 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Why Lexie Section */}
+      <section className="relative z-30 py-20 bg-[#0a0a0a]">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="grid lg:grid-cols-2 gap-12 items-center">
+            <div className="space-y-6">
+              <h2 className="text-4xl lg:text-5xl font-bold text-white">
+                Why <span className="text-purple-400">Lexie</span>?
+              </h2>
+              <div className="space-y-4 text-lg text-gray-300">
+                <p>
+                  The fusion of AI and Web3 isn't just the future—it's happening now. 
+                  Lexie represents the next evolution of decentralized finance, where 
+                  artificial intelligence doesn't replace human decision-making but 
+                  amplifies it exponentially.
+                </p>
+                <p>
+                  While others build simple trading bots, we're crafting an intelligent 
+                  companion that understands the nuances of DeFi, learns from market 
+                  patterns, and protects your assets with military-grade security.
+                </p>
+              </div>
+              
+              {/* Live UI elements */}
+              <div className="space-y-3">
+                <div className="flex items-center space-x-3 text-green-400">
+                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                  <span className="font-mono text-sm">Neural network: ACTIVE</span>
+                </div>
+                <div className="flex items-center space-x-3 text-blue-400">
+                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                  <span className="font-mono text-sm">Market analysis: RUNNING</span>
+                </div>
+                <div className="flex items-center space-x-3 text-purple-400">
+                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+                  <span className="font-mono text-sm">Privacy protocols: ENABLED</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Code logs simulation */}
+            <div className="bg-black/60 border border-purple-500/30 rounded-lg p-6 font-mono text-sm">
+              <div className="flex items-center space-x-2 mb-4">
+                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                <span className="text-gray-400 ml-2">ai.logs</span>
+              </div>
+              <div className="space-y-2 text-green-400">
+                <div className="flex items-center space-x-2">
+                  <span className="text-green-600">[12:34:56]</span>
+                  <span className="text-green-400">Analyzing 47 DEX pools...</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-green-600">[12:34:57]</span>
+                  <span className="text-green-300">Best route found: 0.23% slippage</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-green-600">[12:34:58]</span>
+                  <span className="text-green-200">Executing trade...</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-green-600">[12:34:59]</span>
+                  <span className="text-green-300">Transaction confirmed ✓</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <span className="text-green-600">[12:35:00]</span>
+                  <span className="text-green-200">Profit: +$127.45 (+3.2%)</span>
+                </div>
+                <div className="flex items-center space-x-2 animate-pulse">
+                  <span className="text-green-600">[12:35:01]</span>
+                  <span className="text-green-400">Scanning for next opportunity...</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Security & Privacy Section */}
+      <section id="security" className="relative z-30 py-20">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="text-center mb-16">
+            <h2 className="text-4xl lg:text-5xl font-bold text-white mb-4">
+              Security & <span className="text-purple-400">Privacy First</span>
+            </h2>
+            <p className="text-xl text-gray-300 max-w-3xl mx-auto">
+              Your assets and privacy are protected by cutting-edge cryptographic protocols 
+              and zero-knowledge architectures
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8">
+            <div className="bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-8 text-center hover:border-purple-500/60 transition-all duration-300">
+              <div className="text-4xl mb-4">🔐</div>
+              <h3 className="text-xl font-semibold text-white mb-3">Zero-Knowledge Transactions</h3>
+              <p className="text-gray-300">
+                Complete transaction privacy using advanced ZK-proofs. Your on-chain history 
+                remains invisible to everyone.
+              </p>
+            </div>
+
+            <div className="bg-black/40 backdrop-blur-sm border border-blue-500/30 rounded-xl p-8 text-center hover:border-blue-500/60 transition-all duration-300">
+              <div className="text-4xl mb-4">🔑</div>
+              <h3 className="text-xl font-semibold text-white mb-3">Powered by Railgun</h3>
+              <p className="text-gray-300">
+                Audited by top security firms and trusted by Vitalik Buterin.
+              </p>
+            </div>
+
+            <div className="bg-black/40 backdrop-blur-sm border border-green-500/30 rounded-xl p-8 text-center hover:border-green-500/60 transition-all duration-300">
+              <div className="text-4xl mb-4">🛡️</div>
+              <h3 className="text-xl font-semibold text-white mb-3">HMAC-Secured</h3>
+              <p className="text-gray-300">
+                Military-grade authentication protocols ensure that every interaction 
+                with our AI is verified and secure.
+              </p>
+            </div>
+          </div>
+
+          {/* Security metrics */}
+          <div className="mt-16 bg-[#0a0a0a] rounded-2xl p-8">
+            <div className="grid md:grid-cols-4 gap-8 text-center">
+              <div>
+                <div className="text-3xl font-bold text-purple-400 mb-2">256-bit</div>
+                <div className="text-gray-300">Encryption</div>
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-blue-400 mb-2">100%</div>
+                <div className="text-gray-300">Uptime</div>
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-green-400 mb-2">0</div>
+                <div className="text-gray-300">Breaches</div>
+              </div>
+              <div>
+                <div className="text-3xl font-bold text-pink-400 mb-2">24/7</div>
+                <div className="text-gray-300">Monitoring</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Roadmap Section */}
       <section className="relative z-30 py-20 bg-[#0a0a0a] overflow-hidden">
         {/* Background Effects */}
@@ -901,7 +1044,7 @@ export default function LandingPage() {
           {/* Section Header */}
           <div className="text-center mb-20">
             <h2 className="text-4xl lg:text-6xl font-bold text-white mb-6">
-              <span className="text-transparent bg-gradient-to-r from-purple-400 via-fuchsia-400 to-cyan-400 bg-clip-text">Roadmap</span>
+              Roadmap
             </h2>
             <p className="text-xl text-gray-300 max-w-3xl mx-auto">
               From privacy vault to full private DeFi ecosystem — our journey to revolutionize decentralized finance
@@ -1141,149 +1284,6 @@ export default function LandingPage() {
 
                 {/* Timeline Node */}
                 <div className="hidden lg:block absolute top-1/2 -right-4 transform -translate-y-1/2 w-8 h-8 bg-pink-500 rounded-full border-4 border-black shadow-lg shadow-pink-500/50"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Why Lexie Section */}
-      <section className="relative z-30 py-20 bg-[#0a0a0a]">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <div className="space-y-6">
-              <h2 className="text-4xl lg:text-5xl font-bold text-white">
-                Why <span className="text-purple-400">Lexie</span>?
-              </h2>
-              <div className="space-y-4 text-lg text-gray-300">
-                <p>
-                  The fusion of AI and Web3 isn't just the future—it's happening now. 
-                  Lexie represents the next evolution of decentralized finance, where 
-                  artificial intelligence doesn't replace human decision-making but 
-                  amplifies it exponentially.
-                </p>
-                <p>
-                  While others build simple trading bots, we're crafting an intelligent 
-                  companion that understands the nuances of DeFi, learns from market 
-                  patterns, and protects your assets with military-grade security.
-                </p>
-              </div>
-              
-              {/* Live UI elements */}
-              <div className="space-y-3">
-                <div className="flex items-center space-x-3 text-green-400">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  <span className="font-mono text-sm">Neural network: ACTIVE</span>
-                </div>
-                <div className="flex items-center space-x-3 text-blue-400">
-                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-                  <span className="font-mono text-sm">Market analysis: RUNNING</span>
-                </div>
-                <div className="flex items-center space-x-3 text-purple-400">
-                  <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
-                  <span className="font-mono text-sm">Privacy protocols: ENABLED</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Code logs simulation */}
-            <div className="bg-black/60 border border-purple-500/30 rounded-lg p-6 font-mono text-sm">
-              <div className="flex items-center space-x-2 mb-4">
-                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                <span className="text-gray-400 ml-2">ai.logs</span>
-              </div>
-              <div className="space-y-2 text-green-400">
-                <div className="flex items-center space-x-2">
-                  <span className="text-green-600">[12:34:56]</span>
-                  <span className="text-green-400">Analyzing 47 DEX pools...</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-green-600">[12:34:57]</span>
-                  <span className="text-green-300">Best route found: 0.23% slippage</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-green-600">[12:34:58]</span>
-                  <span className="text-green-200">Executing trade...</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-green-600">[12:34:59]</span>
-                  <span className="text-green-300">Transaction confirmed ✓</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-green-600">[12:35:00]</span>
-                  <span className="text-green-200">Profit: +$127.45 (+3.2%)</span>
-                </div>
-                <div className="flex items-center space-x-2 animate-pulse">
-                  <span className="text-green-600">[12:35:01]</span>
-                  <span className="text-green-400">Scanning for next opportunity...</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Security & Privacy Section */}
-      <section id="security" className="relative z-30 py-20">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl lg:text-5xl font-bold text-white mb-4">
-              Security & <span className="text-purple-400">Privacy First</span>
-            </h2>
-            <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-              Your assets and privacy are protected by cutting-edge cryptographic protocols 
-              and zero-knowledge architectures
-            </p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            <div className="bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-8 text-center hover:border-purple-500/60 transition-all duration-300">
-              <div className="text-4xl mb-4">🔐</div>
-              <h3 className="text-xl font-semibold text-white mb-3">Zero-Knowledge Transactions</h3>
-              <p className="text-gray-300">
-                Complete transaction privacy using advanced ZK-proofs. Your on-chain history 
-                remains invisible to everyone.
-              </p>
-            </div>
-
-            <div className="bg-black/40 backdrop-blur-sm border border-blue-500/30 rounded-xl p-8 text-center hover:border-blue-500/60 transition-all duration-300">
-              <div className="text-4xl mb-4">🔑</div>
-              <h3 className="text-xl font-semibold text-white mb-3">Powered by Railgun</h3>
-              <p className="text-gray-300">
-                Audited by top security firms and trusted by Vitalik Buterin.
-              </p>
-            </div>
-
-            <div className="bg-black/40 backdrop-blur-sm border border-green-500/30 rounded-xl p-8 text-center hover:border-green-500/60 transition-all duration-300">
-              <div className="text-4xl mb-4">🛡️</div>
-              <h3 className="text-xl font-semibold text-white mb-3">HMAC-Secured</h3>
-              <p className="text-gray-300">
-                Military-grade authentication protocols ensure that every interaction 
-                with our AI is verified and secure.
-              </p>
-            </div>
-          </div>
-
-          {/* Security metrics */}
-          <div className="mt-16 bg-[#0a0a0a] rounded-2xl p-8">
-            <div className="grid md:grid-cols-4 gap-8 text-center">
-              <div>
-                <div className="text-3xl font-bold text-purple-400 mb-2">256-bit</div>
-                <div className="text-gray-300">Encryption</div>
-              </div>
-              <div>
-                <div className="text-3xl font-bold text-blue-400 mb-2">99.9%</div>
-                <div className="text-gray-300">Uptime</div>
-              </div>
-              <div>
-                <div className="text-3xl font-bold text-green-400 mb-2">0</div>
-                <div className="text-gray-300">Breaches</div>
-              </div>
-              <div>
-                <div className="text-3xl font-bold text-pink-400 mb-2">24/7</div>
-                <div className="text-gray-300">Monitoring</div>
               </div>
             </div>
           </div>
