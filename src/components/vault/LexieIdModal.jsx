@@ -35,7 +35,7 @@ const LexieIdModal = ({
           <div>
             <h3 className="text-lg font-bold text-emerald-300 mb-2">Setup Your LexieID</h3>
             <p className="text-green-400/80 text-sm">
-             Grab a LexieID for easy P2P vault transfers and to be able to login to the LexieTitans game.
+             Grab a LexieID for easy P2P vault transfers.
             </p>
           </div>
 
@@ -112,7 +112,7 @@ const LexieIdModal = ({
                             }
                             setLexieNeedsCode(false); setLexieCode('');
                             setLexieMessage('✅ Successfully claimed and linked your Lexie ID!');
-                            handleLexieIdLink(chosen, true); // Auto-open game for new LexieID choice
+                            handleLexieIdLink(chosen, false); // Auto-open game disabled for initial release
                             setTimeout(() => {
                               onClose();
                               setLexieIdInput('');
@@ -160,7 +160,7 @@ const LexieIdModal = ({
                             const json = await verifyResp.json().catch(() => ({}));
                             if (!verifyResp.ok || !json.success) { setLexieMessage('Verification failed. Check the code and try again.'); return; }
                             setLexieNeedsCode(false); setLexieCode(''); setLexieMessage('✅ Linked successfully to your Railgun wallet.');
-                            handleLexieIdLink(chosen, true); // Auto-open game for LexieID choice
+                            handleLexieIdLink(chosen, false); // Auto-open game disabled for initial release
                             setTimeout(() => {
                               onClose();
                               setLexieIdInput('');
