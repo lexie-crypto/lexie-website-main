@@ -18,7 +18,7 @@ export default function LandingPage() {
   const [bootCurrentChar, setBootCurrentChar] = useState(0);
   const [bootIsTyping, setBootIsTyping] = useState(false);
   const [activeCardIndex, setActiveCardIndex] = useState(0);
-  const [visibleSteps, setVisibleSteps] = useState(new Set());
+  const [currentVisibleStep, setCurrentVisibleStep] = useState(-1);
   const carouselRef = useRef(null);
   const stepRefs = useRef([]);
   
@@ -306,7 +306,7 @@ export default function LandingPage() {
   // Scroll-triggered step animations
   useEffect(() => {
     const handleScroll = () => {
-      const newVisibleSteps = new Set();
+      let latestVisibleStep = -1;
 
       stepRefs.current.forEach((ref, index) => {
         if (ref) {
@@ -315,12 +315,12 @@ export default function LandingPage() {
 
           // Trigger animation when step is 70% visible from bottom
           if (rect.top < windowHeight * 0.7) {
-            newVisibleSteps.add(index);
+            latestVisibleStep = index; // Keep track of the latest visible step
           }
         }
       });
 
-      setVisibleSteps(newVisibleSteps);
+      setCurrentVisibleStep(latestVisibleStep);
     };
 
     window.addEventListener('scroll', handleScroll);
@@ -601,14 +601,14 @@ export default function LandingPage() {
               {/* Step 1 */}
               <div ref={el => stepRefs.current[0] = el} className="relative flex items-start space-x-6 lg:space-x-8">
                 <div className="flex-shrink-0">
-                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-600 to-purple-500 rounded-full flex items-center justify-center border-2 border-purple-400 shadow-lg shadow-purple-500/25 transition-all duration-500 ${visibleSteps.has(0) ? 'scale-110' : 'scale-100'}`}>
+                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-600 to-purple-500 rounded-full flex items-center justify-center border-2 border-purple-400 shadow-lg shadow-purple-500/25 transition-all duration-500 ${currentVisibleStep === 0 ? 'scale-110' : 'scale-100'}`}>
                     <span className="text-2xl font-bold text-white">1</span>
-                    <div className={`absolute inset-0 rounded-full bg-purple-500/20 transition-all duration-500 ${visibleSteps.has(0) ? 'animate-ping opacity-100' : 'opacity-0'}`}></div>
+                    <div className={`absolute inset-0 rounded-full bg-purple-500/20 transition-all duration-500 ${currentVisibleStep === 0 ? 'animate-ping opacity-100' : 'opacity-0'}`}></div>
                   </div>
                 </div>
-                <div className={`flex-1 bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 transition-all duration-500 ${visibleSteps.has(0) ? 'hover:border-purple-500/60 transform scale-[1.02]' : ''}`}>
-                  <h3 className={`text-xl font-bold text-purple-400 mb-2 transition-all duration-500 ${visibleSteps.has(0) ? 'text-purple-300' : ''}`}>Create a Private Vault</h3>
-                  <p className={`text-gray-300 leading-relaxed transition-all duration-500 ${visibleSteps.has(0) ? 'text-gray-200' : ''}`}>
+                <div className={`flex-1 bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 transition-all duration-500 ${currentVisibleStep === 0 ? 'hover:border-purple-500/60 transform scale-[1.02]' : ''}`}>
+                  <h3 className={`text-xl font-bold text-purple-400 mb-2 transition-all duration-500 ${currentVisibleStep === 0 ? 'text-purple-300' : ''}`}>Create a Private Vault</h3>
+                  <p className={`text-gray-300 leading-relaxed transition-all duration-500 ${currentVisibleStep === 0 ? 'text-gray-200' : ''}`}>
                     Connect your existing wallet (MetaMask, Trust Wallet, etc.) on BNB Chain, Ethereum, Polygon, or Arbitrum.
                   </p>
                 </div>
@@ -617,14 +617,14 @@ export default function LandingPage() {
               {/* Step 2 */}
               <div ref={el => stepRefs.current[1] = el} className="relative flex items-start space-x-6 lg:space-x-8">
                 <div className="flex-shrink-0">
-                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-400 rounded-full flex items-center justify-center border-2 border-purple-300 shadow-lg shadow-purple-500/25 transition-all duration-500 ${visibleSteps.has(1) ? 'scale-110' : 'scale-100'}`}>
+                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-400 rounded-full flex items-center justify-center border-2 border-purple-300 shadow-lg shadow-purple-500/25 transition-all duration-500 ${currentVisibleStep === 1 ? 'scale-110' : 'scale-100'}`}>
                     <span className="text-2xl font-bold text-white">2</span>
-                    <div className={`absolute inset-0 rounded-full bg-purple-400/20 transition-all duration-500 ${visibleSteps.has(1) ? 'animate-ping opacity-100' : 'opacity-0'}`}></div>
+                    <div className={`absolute inset-0 rounded-full bg-purple-400/20 transition-all duration-500 ${currentVisibleStep === 1 ? 'animate-ping opacity-100' : 'opacity-0'}`}></div>
                   </div>
                 </div>
-                <div className={`flex-1 bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 transition-all duration-500 ${visibleSteps.has(1) ? 'hover:border-purple-500/60 transform scale-[1.02]' : ''}`}>
-                  <h3 className={`text-xl font-bold text-purple-300 mb-2 transition-all duration-500 ${visibleSteps.has(1) ? 'text-purple-200' : ''}`}>Add Funds</h3>
-                  <p className={`text-gray-300 leading-relaxed transition-all duration-500 ${visibleSteps.has(1) ? 'text-gray-200' : ''}`}>
+                <div className={`flex-1 bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 transition-all duration-500 ${currentVisibleStep === 1 ? 'hover:border-purple-500/60 transform scale-[1.02]' : ''}`}>
+                  <h3 className={`text-xl font-bold text-purple-300 mb-2 transition-all duration-500 ${currentVisibleStep === 1 ? 'text-purple-200' : ''}`}>Add Funds</h3>
+                  <p className={`text-gray-300 leading-relaxed transition-all duration-500 ${currentVisibleStep === 1 ? 'text-gray-200' : ''}`}>
                     Deposit assets from your wallet into your vault in one click.
                   </p>
                 </div>
@@ -633,14 +633,14 @@ export default function LandingPage() {
               {/* Step 3 */}
               <div ref={el => stepRefs.current[2] = el} className="relative flex items-start space-x-6 lg:space-x-8">
                 <div className="flex-shrink-0">
-                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-400 to-purple-300 rounded-full flex items-center justify-center border-2 border-purple-200 shadow-lg shadow-purple-500/25 transition-all duration-500 ${visibleSteps.has(2) ? 'scale-110' : 'scale-100'}`}>
+                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-400 to-purple-300 rounded-full flex items-center justify-center border-2 border-purple-200 shadow-lg shadow-purple-500/25 transition-all duration-500 ${currentVisibleStep === 2 ? 'scale-110' : 'scale-100'}`}>
                     <span className="text-2xl font-bold text-white">3</span>
-                    <div className={`absolute inset-0 rounded-full bg-purple-300/20 transition-all duration-500 ${visibleSteps.has(2) ? 'animate-ping opacity-100' : 'opacity-0'}`}></div>
+                    <div className={`absolute inset-0 rounded-full bg-purple-300/20 transition-all duration-500 ${currentVisibleStep === 2 ? 'animate-ping opacity-100' : 'opacity-0'}`}></div>
                   </div>
                 </div>
-                <div className={`flex-1 bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 transition-all duration-500 ${visibleSteps.has(2) ? 'hover:border-purple-500/60 transform scale-[1.02]' : ''}`}>
-                  <h3 className={`text-xl font-bold text-purple-200 mb-2 transition-all duration-500 ${visibleSteps.has(2) ? 'text-purple-100' : ''}`}>Cloak Your Assets</h3>
-                  <p className={`text-gray-300 leading-relaxed transition-all duration-500 ${visibleSteps.has(2) ? 'text-gray-200' : ''}`}>
+                <div className={`flex-1 bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 transition-all duration-500 ${currentVisibleStep === 2 ? 'hover:border-purple-500/60 transform scale-[1.02]' : ''}`}>
+                  <h3 className={`text-xl font-bold text-purple-200 mb-2 transition-all duration-500 ${currentVisibleStep === 2 ? 'text-purple-100' : ''}`}>Cloak Your Assets</h3>
+                  <p className={`text-gray-300 leading-relaxed transition-all duration-500 ${currentVisibleStep === 2 ? 'text-gray-200' : ''}`}>
                     Once added, your balances and transactions become invisible to everyone but you.
                   </p>
                 </div>
@@ -649,14 +649,14 @@ export default function LandingPage() {
               {/* Step 4 */}
               <div ref={el => stepRefs.current[3] = el} className="relative flex items-start space-x-6 lg:space-x-8">
                 <div className="flex-shrink-0">
-                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-700 to-purple-600 rounded-full flex items-center justify-center border-2 border-purple-500 shadow-lg shadow-purple-500/25 transition-all duration-500 ${visibleSteps.has(3) ? 'scale-110' : 'scale-100'}`}>
+                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-700 to-purple-600 rounded-full flex items-center justify-center border-2 border-purple-500 shadow-lg shadow-purple-500/25 transition-all duration-500 ${currentVisibleStep === 3 ? 'scale-110' : 'scale-100'}`}>
                     <span className="text-2xl font-bold text-white">4</span>
-                    <div className={`absolute inset-0 rounded-full bg-purple-600/20 transition-all duration-500 ${visibleSteps.has(3) ? 'animate-ping opacity-100' : 'opacity-0'}`}></div>
+                    <div className={`absolute inset-0 rounded-full bg-purple-600/20 transition-all duration-500 ${currentVisibleStep === 3 ? 'animate-ping opacity-100' : 'opacity-0'}`}></div>
                   </div>
                 </div>
-                <div className={`flex-1 bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 transition-all duration-500 ${visibleSteps.has(3) ? 'hover:border-purple-500/60 transform scale-[1.02]' : ''}`}>
-                  <h3 className={`text-xl font-bold text-purple-500 mb-2 transition-all duration-500 ${visibleSteps.has(3) ? 'text-purple-400' : ''}`}>Send Privately</h3>
-                  <p className={`text-gray-300 leading-relaxed transition-all duration-500 ${visibleSteps.has(3) ? 'text-gray-200' : ''}`}>
+                <div className={`flex-1 bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 transition-all duration-500 ${currentVisibleStep === 3 ? 'hover:border-purple-500/60 transform scale-[1.02]' : ''}`}>
+                  <h3 className={`text-xl font-bold text-purple-500 mb-2 transition-all duration-500 ${currentVisibleStep === 3 ? 'text-purple-400' : ''}`}>Send Privately</h3>
+                  <p className={`text-gray-300 leading-relaxed transition-all duration-500 ${currentVisibleStep === 3 ? 'text-gray-200' : ''}`}>
                     Transfer from vault to any wallet or another vault. The receiver won't see where funds originated or what's inside.
                   </p>
                 </div>
@@ -665,14 +665,14 @@ export default function LandingPage() {
               {/* Step 5 */}
               <div ref={el => stepRefs.current[4] = el} className="relative flex items-start space-x-6 lg:space-x-8">
                 <div className="flex-shrink-0">
-                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-800 to-purple-700 rounded-full flex items-center justify-center border-2 border-purple-600 shadow-lg shadow-purple-500/25 transition-all duration-500 ${visibleSteps.has(4) ? 'scale-110' : 'scale-100'}`}>
+                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-800 to-purple-700 rounded-full flex items-center justify-center border-2 border-purple-600 shadow-lg shadow-purple-500/25 transition-all duration-500 ${currentVisibleStep === 4 ? 'scale-110' : 'scale-100'}`}>
                     <span className="text-2xl font-bold text-white">5</span>
-                    <div className={`absolute inset-0 rounded-full bg-purple-700/20 transition-all duration-500 ${visibleSteps.has(4) ? 'animate-ping opacity-100' : 'opacity-0'}`}></div>
+                    <div className={`absolute inset-0 rounded-full bg-purple-700/20 transition-all duration-500 ${currentVisibleStep === 4 ? 'animate-ping opacity-100' : 'opacity-0'}`}></div>
                   </div>
                 </div>
-                <div className={`flex-1 bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 transition-all duration-500 ${visibleSteps.has(4) ? 'hover:border-purple-500/60 transform scale-[1.02]' : ''}`}>
-                  <h3 className={`text-xl font-bold text-purple-600 mb-2 transition-all duration-500 ${visibleSteps.has(4) ? 'text-purple-500' : ''}`}>Receive Anonymously</h3>
-                  <p className={`text-gray-300 leading-relaxed transition-all duration-500 ${visibleSteps.has(4) ? 'text-gray-200' : ''}`}>
+                <div className={`flex-1 bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 transition-all duration-500 ${currentVisibleStep === 4 ? 'hover:border-purple-500/60 transform scale-[1.02]' : ''}`}>
+                  <h3 className={`text-xl font-bold text-purple-600 mb-2 transition-all duration-500 ${currentVisibleStep === 4 ? 'text-purple-500' : ''}`}>Receive Anonymously</h3>
+                  <p className={`text-gray-300 leading-relaxed transition-all duration-500 ${currentVisibleStep === 4 ? 'text-gray-200' : ''}`}>
                     Share a payment link so others can deposit into your vault without viewing your holdings.
                   </p>
                 </div>
