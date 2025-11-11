@@ -35,7 +35,7 @@ export function Navbar({ onLexieChatOpen }) {
             href="/"
             className="flex-shrink-0 text-5xl font-bold text-purple-300 transition-colors hover:text-white"
           >
-            LEXIEAI
+            LEXIE
           </a>
 
           {/* Desktop Navigation - Right */}
