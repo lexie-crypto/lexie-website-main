@@ -758,7 +758,7 @@ export default function LandingPage() {
               <span className="text-fuchsia-400"></span> How It <span className="text-purple-400">Works</span>
             </h2>
             <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-              Create your private vault, fund it, and go dark on-chain — all in a few simple steps.
+              Create your private vault, fund it, and go stealth on-chain — all in a few simple steps.
             </p>
           </div>
 
