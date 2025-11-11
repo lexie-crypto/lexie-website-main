@@ -857,6 +857,293 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Roadmap Section */}
+      <section className="relative z-30 py-20 bg-[#0a0a0a] overflow-hidden">
+        {/* Background Effects */}
+        <div className="absolute inset-0">
+          {/* Animated Grid Pattern */}
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute inset-0" style={{
+              backgroundImage: `
+                linear-gradient(rgba(168, 85, 247, 0.15) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(168, 85, 247, 0.15) 1px, transparent 1px)
+              `,
+              backgroundSize: '60px 60px',
+              animation: 'gridMove 20s linear infinite'
+            }}></div>
+          </div>
+
+          {/* Flowing Data Streams */}
+          <div className="absolute inset-0 overflow-hidden">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div
+                key={i}
+                className="absolute w-px bg-gradient-to-b from-transparent via-purple-500/20 to-transparent animate-pulse"
+                style={{
+                  left: `${(i * 12.5) + 5}%`,
+                  top: '-20%',
+                  height: '140%',
+                  animationDelay: `${i * 0.8}s`,
+                  animationDuration: `${3 + Math.random() * 2}s`,
+                  opacity: 0.7 + Math.random() * 0.3
+                }}
+              ></div>
+            ))}
+          </div>
+
+          {/* Glowing Connectors */}
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+            <div className="relative w-full h-px bg-gradient-to-r from-green-500/50 via-purple-500/50 to-pink-500/50 animate-pulse"></div>
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-6 relative z-10">
+          {/* Section Header */}
+          <div className="text-center mb-20">
+            <h2 className="text-4xl lg:text-6xl font-bold text-white mb-6">
+              <span className="text-transparent bg-gradient-to-r from-purple-400 via-fuchsia-400 to-cyan-400 bg-clip-text">Roadmap</span>
+            </h2>
+            <p className="text-xl text-gray-300 max-w-3xl mx-auto">
+              From privacy vault to full private DeFi ecosystem — our journey to revolutionize decentralized finance
+            </p>
+          </div>
+
+          {/* Roadmap Timeline */}
+          <div className="relative">
+            {/* Desktop Timeline Line */}
+            <div className="hidden lg:block absolute top-1/2 left-0 right-0 h-px bg-gradient-to-r from-green-500/30 via-purple-500/50 to-pink-500/30 transform -translate-y-1/2"></div>
+
+            {/* Phases */}
+            <div className="grid lg:grid-cols-3 gap-8 lg:gap-12">
+              {/* Phase 1 - Completed */}
+              <div className="relative group">
+                {/* Phase Card */}
+                <div className="bg-black/60 backdrop-blur-sm border-2 border-green-500/40 rounded-2xl p-8 hover:border-green-400/60 transition-all duration-500 hover:transform hover:scale-105 hover:shadow-2xl hover:shadow-green-500/20">
+                  {/* Phase Header */}
+                  <div className="text-center mb-8">
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-green-600 to-green-500 rounded-full border-2 border-green-400 shadow-lg shadow-green-500/25 mb-4">
+                      <span className="text-2xl">🏆</span>
+                    </div>
+                    <h3 className="text-2xl font-bold text-green-400 mb-2">Phase 1</h3>
+                    <div className="inline-flex items-center space-x-2 bg-green-500/20 border border-green-500/30 rounded-full px-4 py-2">
+                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                      <span className="text-green-400 font-semibold text-sm">COMPLETED</span>
+                    </div>
+                  </div>
+
+                  {/* Phase Items */}
+                  <div className="space-y-4">
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center mt-0.5">
+                        <span className="text-black text-sm font-bold">✓</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-green-300 transition-colors duration-300">
+                          Ship Privacy Vault (private shield/unshield; zero-knowledge proofs)
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center mt-0.5">
+                        <span className="text-black text-sm font-bold">✓</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-green-300 transition-colors duration-300">
+                          Launch LexieAI on Telegram (market data & crypto intelligence)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Timeline Node */}
+                <div className="hidden lg:block absolute top-1/2 -right-4 transform -translate-y-1/2 w-8 h-8 bg-green-500 rounded-full border-4 border-black shadow-lg shadow-green-500/50"></div>
+              </div>
+
+              {/* Phase 2 - Current */}
+              <div className="relative group">
+                {/* Phase Card */}
+                <div className="bg-black/60 backdrop-blur-sm border-2 border-purple-500/40 rounded-2xl p-8 hover:border-purple-400/60 transition-all duration-500 hover:transform hover:scale-105 hover:shadow-2xl hover:shadow-purple-500/20">
+                  {/* Phase Header */}
+                  <div className="text-center mb-8">
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-600 to-purple-500 rounded-full border-2 border-purple-400 shadow-lg shadow-purple-500/25 mb-4">
+                      <span className="text-2xl">🚀</span>
+                    </div>
+                    <h3 className="text-2xl font-bold text-purple-400 mb-2">Phase 2</h3>
+                    <div className="inline-flex items-center space-x-2 bg-purple-500/20 border border-purple-500/30 rounded-full px-4 py-2">
+                      <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+                      <span className="text-purple-400 font-semibold text-sm">CURRENT</span>
+                    </div>
+                  </div>
+
+                  {/* Phase Items */}
+                  <div className="space-y-4">
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-purple-400 mt-0.5">
+                        <span className="text-lg">🚀</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-purple-300 transition-colors duration-300">
+                          Launch Lexie Token
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-purple-400 mt-0.5">
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-purple-300 transition-colors duration-300">
+                          Add private swaps and yield farming to the vault
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-purple-400 mt-0.5">
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-purple-300 transition-colors duration-300">
+                          Integrate LexieAI directly into the vault (AI market insights inside app)
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-purple-400 mt-0.5">
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-purple-300 transition-colors duration-300">
+                          Expand multi-chain support for Solana, Base, and more
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-purple-400 mt-0.5">
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-purple-300 transition-colors duration-300">
+                          Add NFT shielding (ERC-721 support)
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-purple-400 mt-0.5">
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-purple-300 transition-colors duration-300">
+                          Launch compliance tools (deposit limits, viewing keys, optional KYC)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Timeline Node */}
+                <div className="hidden lg:block absolute top-1/2 -right-4 transform -translate-y-1/2 w-8 h-8 bg-purple-500 rounded-full border-4 border-black shadow-lg shadow-purple-500/50"></div>
+              </div>
+
+              {/* Phase 3 - Future */}
+              <div className="relative group">
+                {/* Phase Card */}
+                <div className="bg-black/60 backdrop-blur-sm border-2 border-pink-500/40 rounded-2xl p-8 hover:border-pink-400/60 transition-all duration-500 hover:transform hover:scale-105 hover:shadow-2xl hover:shadow-pink-500/20">
+                  {/* Phase Header */}
+                  <div className="text-center mb-8">
+                    <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-pink-600 to-pink-500 rounded-full border-2 border-pink-400 shadow-lg shadow-pink-500/25 mb-4">
+                      <span className="text-2xl">💫</span>
+                    </div>
+                    <h3 className="text-2xl font-bold text-pink-400 mb-2">Phase 3</h3>
+                    <div className="inline-flex items-center space-x-2 bg-pink-500/20 border border-pink-500/30 rounded-full px-4 py-2">
+                      <div className="w-2 h-2 bg-pink-400 rounded-full animate-pulse"></div>
+                      <span className="text-pink-400 font-semibold text-sm">FUTURE</span>
+                    </div>
+                  </div>
+
+                  {/* Phase Items */}
+                  <div className="space-y-4">
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-pink-400 mt-0.5">
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-pink-300 transition-colors duration-300">
+                          Native wallet & mobile app with optional privacy mode
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-pink-400 mt-0.5">
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-pink-300 transition-colors duration-300">
+                          Private cross-chain DeFi (Aztec-style bridging to protocols like Uniswap, Aave)
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-pink-400 mt-0.5">
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-pink-300 transition-colors duration-300">
+                          Private lending, borrowing, and derivatives
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-pink-400 mt-0.5">
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-pink-300 transition-colors duration-300">
+                          Remote proving & off-chain deposits
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-pink-400 mt-0.5">
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-pink-300 transition-colors duration-300">
+                          ZK-based social recovery (ZKemail/ZKpassport integration)
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-pink-400 mt-0.5">
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-pink-300 transition-colors duration-300">
+                          Private multi-signature vaults
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-pink-400 mt-0.5">
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-pink-300 transition-colors duration-300">
+                          Governance & staking for token holders
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Timeline Node */}
+                <div className="hidden lg:block absolute top-1/2 -right-4 transform -translate-y-1/2 w-8 h-8 bg-pink-500 rounded-full border-4 border-black shadow-lg shadow-pink-500/50"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Why Lexie Section */}
       <section className="relative z-30 py-20 bg-[#0a0a0a]">
         <div className="max-w-7xl mx-auto px-6">
@@ -1094,9 +1381,16 @@ export default function LandingPage() {
         </div>
       </footer>
 
-        {/* Custom styles - CLEAN VERSION */}
+        {/* Custom styles */}
         <style jsx>{`
-          /* No custom animations needed - using only Tailwind defaults */
+          @keyframes gridMove {
+            0% {
+              transform: translate(0, 0);
+            }
+            100% {
+              transform: translate(60px, 60px);
+            }
+          }
         `}</style>
       </main>
     </>
