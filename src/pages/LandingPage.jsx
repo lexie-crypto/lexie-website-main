@@ -645,7 +645,7 @@ export default function LandingPage() {
               {/* Section Title */}
               <div className="space-y-4">
                 <h2 className="text-4xl lg:text-5xl font-bold text-white">
-                  What is <span className="text-fuchsia-300">Lexie</span>?
+                  What is <span className="text-purple-300">Lexie</span>?
                 </h2>
                 <p className="text-xl text-gray-300">
                   Your AI companion for private trading and crypto intelligence.
