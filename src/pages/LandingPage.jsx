@@ -1366,23 +1366,23 @@ export default function LandingPage() {
           </div>
 
           {/* FAQ Container */}
-          <div className="bg-black/40 backdrop-blur-sm border border-fuchsia-500/40 rounded-2xl p-8 shadow-2xl">
+          <div className="bg-black/40 backdrop-blur-sm border border-purple-500/40 rounded-2xl p-8 shadow-2xl">
             <div className="space-y-4">
               {faqData.map((faq, index) => (
                 <div key={index} className="border-b border-cyan-500/20 last:border-b-0">
                   <button
-                    className="w-full text-left py-4 focus:outline-none focus:ring-2 focus:ring-fuchsia-500/50 rounded-lg transition-all duration-300 hover:bg-fuchsia-500/5 group"
+                    className="w-full text-left py-4 focus:outline-none focus:ring-2 focus:ring-purple-500/50 rounded-lg transition-all duration-300 hover:bg-purple-500/5 group"
                     onClick={() => setOpenFAQ(openFAQ === index ? null : index)}
                   >
                     <div className="flex items-center justify-between">
                       <h3 className="text-lg font-semibold text-purple-400 group-hover:text-purple-300 transition-colors duration-300 pr-4">
                         {faq.question}
                       </h3>
-                      <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full border-2 border-fuchsia-400/50 transition-all duration-300 ${
-                        openFAQ === index ? 'bg-fuchsia-500/20 rotate-180' : 'bg-transparent'
+                      <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full border-2 border-purple-400/50 transition-all duration-300 ${
+                        openFAQ === index ? 'bg-purple-500/20 rotate-180' : 'bg-transparent'
                       }`}>
                         <svg
-                          className={`w-3 h-3 text-fuchsia-400 transition-transform duration-300 ${
+                          className={`w-3 h-3 text-purple-400 transition-transform duration-300 ${
                             openFAQ === index ? 'rotate-180' : ''
                           }`}
                           fill="none"
