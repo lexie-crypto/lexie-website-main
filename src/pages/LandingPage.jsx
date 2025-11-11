@@ -651,17 +651,73 @@ export default function LandingPage() {
               {/* Main Holographic Container */}
               <div className="relative w-80 h-80 bg-gradient-to-br from-black/80 to-purple-900/20 rounded-2xl border border-purple-500/30 backdrop-blur-sm overflow-hidden shadow-2xl shadow-purple-500/10">
 
-                {/* Background Circuit Pattern */}
-                <div className="absolute inset-0 opacity-10">
-                  <svg className="w-full h-full" viewBox="0 0 400 400" fill="none">
+                {/* Candlestick Chart Background */}
+                <div className="absolute inset-0 opacity-20">
+                  <svg className="w-full h-full" viewBox="0 0 400 300" fill="none">
                     <defs>
-                      <pattern id="circuit" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
-                        <path d="M10 10h20v20h-20z" stroke="currentColor" strokeWidth="0.5" fill="none"/>
-                        <circle cx="20" cy="20" r="1" fill="currentColor"/>
-                        <path d="M20 10v10M10 20h10M30 20h10M20 30v10" stroke="currentColor" strokeWidth="0.5"/>
-                      </pattern>
+                      <linearGradient id="candleGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="rgb(168, 85, 247)" stopOpacity="0.8"/>
+                        <stop offset="50%" stopColor="rgb(168, 85, 247)" stopOpacity="0.4"/>
+                        <stop offset="100%" stopColor="rgb(168, 85, 247)" stopOpacity="0.2"/>
+                      </linearGradient>
                     </defs>
-                    <rect width="100%" height="100%" fill="url(#circuit)" className="text-purple-400"/>
+
+                    {/* Grid Lines */}
+                    <g stroke="currentColor" strokeWidth="0.5" opacity="0.3" className="text-purple-400">
+                      <line x1="0" y1="50" x2="400" y2="50"/>
+                      <line x1="0" y1="100" x2="400" y2="100"/>
+                      <line x1="0" y1="150" x2="400" y2="150"/>
+                      <line x1="0" y1="200" x2="400" y2="200"/>
+                      <line x1="0" y1="250" x2="400" y2="250"/>
+                      <line x1="50" y1="0" x2="50" y2="300"/>
+                      <line x1="150" y1="0" x2="150" y2="300"/>
+                      <line x1="250" y1="0" x2="250" y2="300"/>
+                      <line x1="350" y1="0" x2="350" y2="300"/>
+                    </g>
+
+                    {/* Candlesticks */}
+                    <g stroke="currentColor" className="text-fuchsia-400">
+                      {/* Candle 1 - Bullish */}
+                      <line x1="60" y1="80" x2="60" y2="160" strokeWidth="1"/>
+                      <rect x="55" y="100" width="10" height="40" fill="url(#candleGradient)" strokeWidth="1"/>
+                      <line x1="60" y1="75" x2="60" y2="85" strokeWidth="2"/>
+                      <line x1="60" y1="155" x2="60" y2="165" strokeWidth="2"/>
+
+                      {/* Candle 2 - Bearish */}
+                      <line x1="110" y1="120" x2="110" y2="180" strokeWidth="1"/>
+                      <rect x="105" y="135" width="10" height="25" fill="rgb(239, 68, 68)" opacity="0.7" strokeWidth="1"/>
+                      <line x1="110" y1="115" x2="110" y2="125" strokeWidth="2"/>
+                      <line x1="110" y1="175" x2="110" y2="185" strokeWidth="2"/>
+
+                      {/* Candle 3 - Bullish */}
+                      <line x1="160" y1="90" x2="160" y2="170" strokeWidth="1"/>
+                      <rect x="155" y="110" width="10" height="35" fill="url(#candleGradient)" strokeWidth="1"/>
+                      <line x1="160" y1="85" x2="160" y2="95" strokeWidth="2"/>
+                      <line x1="160" y1="165" x2="160" y2="175" strokeWidth="2"/>
+
+                      {/* Candle 4 - Small Range */}
+                      <line x1="210" y1="130" x2="210" y2="160" strokeWidth="1"/>
+                      <rect x="205" y="135" width="10" height="15" fill="url(#candleGradient)" strokeWidth="1"/>
+                      <line x1="210" y1="125" x2="210" y2="135" strokeWidth="2"/>
+                      <line x1="210" y1="155" x2="210" y2="165" strokeWidth="2"/>
+
+                      {/* Candle 5 - Volatile */}
+                      <line x1="260" y1="60" x2="260" y2="190" strokeWidth="1"/>
+                      <rect x="255" y="120" width="10" height="30" fill="url(#candleGradient)" strokeWidth="1"/>
+                      <line x1="260" y1="55" x2="260" y2="65" strokeWidth="2"/>
+                      <line x1="260" y1="185" x2="260" y2="195" strokeWidth="2"/>
+
+                      {/* Candle 6 - Bullish */}
+                      <line x1="310" y1="100" x2="310" y2="180" strokeWidth="1"/>
+                      <rect x="305" y="125" width="10" height="30" fill="url(#candleGradient)" strokeWidth="1"/>
+                      <line x1="310" y1="95" x2="310" y2="105" strokeWidth="2"/>
+                      <line x1="310" y1="175" x2="310" y2="185" strokeWidth="2"/>
+                    </g>
+
+                    {/* Price Line */}
+                    <g stroke="rgb(34, 197, 94)" strokeWidth="1.5" opacity="0.8">
+                      <path d="M20 140 Q60 130 100 145 T180 135 Q220 125 260 140 T340 130 Q380 120 400 135"/>
+                    </g>
                   </svg>
                 </div>
 
@@ -681,53 +737,26 @@ export default function LandingPage() {
                   </div>
                 </div>
 
-                {/* Trading Chart Panels */}
+                {/* Floating Data Panels */}
                 <div className="absolute top-6 right-6 space-y-3">
-                  {/* Token Pair Panel */}
+                  {/* Price Alert Panel */}
                   <div className="bg-black/80 backdrop-blur-sm border border-fuchsia-500/40 rounded-lg p-3 shadow-lg">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-blue-400 rounded-full flex items-center justify-center text-xs font-bold text-white">W</div>
-                        <span className="text-white text-sm font-semibold">WETH/USDC</span>
-                      </div>
-                      <div className="text-fuchsia-400 text-xs font-mono">UNI</div>
+                    <div className="flex items-center space-x-2 mb-1">
+                      <div className="w-2 h-2 bg-fuchsia-400 rounded-full animate-pulse"></div>
+                      <span className="text-fuchsia-400 text-xs font-mono">ALERT</span>
                     </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-gray-400 text-xs">Price</span>
-                        <span className="text-white text-sm font-mono">$1,847.32</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400 text-xs">24h</span>
-                        <span className="text-green-400 text-sm font-mono">+2.8%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400 text-xs">Vol</span>
-                        <span className="text-cyan-400 text-sm font-mono">$12.4M</span>
-                      </div>
-                    </div>
+                    <div className="text-white text-sm font-semibold">$PEPE +127%</div>
+                    <div className="text-gray-400 text-xs">2m ago</div>
                   </div>
 
-                  {/* DEX Pool Panel */}
+                  {/* Market Data Panel */}
                   <div className="bg-black/80 backdrop-blur-sm border border-cyan-500/40 rounded-lg p-3 shadow-lg">
-                    <div className="flex items-center space-x-2 mb-2">
+                    <div className="flex items-center space-x-2 mb-1">
                       <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
-                      <span className="text-cyan-400 text-xs font-mono">POOL</span>
+                      <span className="text-cyan-400 text-xs font-mono">MARKET</span>
                     </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between">
-                        <span className="text-gray-400 text-xs">TVL</span>
-                        <span className="text-white text-sm font-mono">$2.4B</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400 text-xs">APY</span>
-                        <span className="text-green-400 text-sm font-mono">24.7%</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-400 text-xs">Fee</span>
-                        <span className="text-purple-400 text-sm font-mono">0.3%</span>
-                      </div>
-                    </div>
+                    <div className="text-white text-sm font-semibold">BTC $67,432</div>
+                    <div className="text-green-400 text-xs">+2.3%</div>
                   </div>
                 </div>
 
