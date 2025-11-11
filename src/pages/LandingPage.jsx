@@ -633,7 +633,7 @@ export default function LandingPage() {
                     </svg>
                   </div>
                   <div className="flex flex-col">
-                    <span className="text-fuchsia-400 font-semibold text-sm">Available on Telegram</span>
+                    <span className="text-fuchsia-400 font-semibold text-sm">Chat with Lexie on Telegram</span>
                     <span className="text-gray-400 text-xs">@lexie_crypto_bot</span>
                   </div>
                   <svg className="w-4 h-4 text-fuchsia-400 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
