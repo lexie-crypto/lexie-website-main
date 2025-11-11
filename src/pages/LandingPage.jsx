@@ -595,7 +595,6 @@ export default function LandingPage() {
               {/* Flow indicators */}
               <div className="absolute top-1/4 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-purple-400 rounded-full animate-ping" style={{animationDelay: '0s'}}></div>
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-purple-500 rounded-full animate-ping" style={{animationDelay: '0.5s'}}></div>
-              <div className="absolute top-3/4 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-purple-300 rounded-full animate-ping" style={{animationDelay: '1s'}}></div>
             </div>
 
             <div className="space-y-8 lg:space-y-12">
