@@ -618,29 +618,6 @@ export default function LandingPage() {
                   In coming updates, she'll also provide swaps, yield pools, market data, technical analysis, and alpha discovery — all without leaving a footprint on-chain.
                 </p>
               </div>
-
-              {/* Telegram Badge */}  
-              <div className="flex items-center space-x-4">
-                <a
-                  href="https://t.me/lexie_crypto_bot"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center space-x-3 px-6 py-3 bg-black/60 backdrop-blur-sm border border-fuchsia-500/40 rounded-full hover:border-fuchsia-500/80 hover:bg-fuchsia-500/10 transition-all duration-300 group"
-                >
-                  <div className="w-8 h-8 bg-gradient-to-br from-fuchsia-500 to-purple-500 rounded-full flex items-center justify-center">
-                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
-                    </svg>
-                  </div>
-                  <div className="flex flex-col">
-                    <span className="text-fuchsia-400 font-semibold text-sm">Chat with Lexie on Telegram</span>
-                    <span className="text-gray-400 text-xs">@lexie_crypto_bot</span>
-                  </div>
-                  <svg className="w-4 h-4 text-fuchsia-400 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </a>
-              </div>
             </div>
 
             {/* Right side - Holographic Lexie Illustration */}
