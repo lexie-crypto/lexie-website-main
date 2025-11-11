@@ -81,6 +81,16 @@ const AccessCodeGate = ({ children }) => {
   // Access code authentication screen
   return (
     <div className="relative w-full min-h-screen overflow-x-hidden overflow-y-auto text-white bg-black scrollbar-terminal">
+      {/* LEXIE Logo - redirects to main site */}
+      <div className="absolute z-50 md:top-6 md:left-5 -top-2 left-1 md:pl-6">
+        <a
+          href="https://www.lexiecrypto.com"
+          className="transition-opacity hover:opacity-80"
+        >
+          <span className="text-5xl font-bold text-purple-300">LEXIE</span>
+        </a>
+      </div>
+
       {/* Background overlays */}
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-[#0a0a0a]"></div>

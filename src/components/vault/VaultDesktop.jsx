@@ -1799,7 +1799,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
             href="https://www.lexiecrypto.com"
             className="hover:opacity-80 transition-opacity"
           >
-            <span className="text-4xl font-bold text-purple-300">LEXIE</span>
+            <span className="text-5xl font-bold text-purple-300">LEXIE</span>
           </a>
         </div>
       )}
