@@ -615,7 +615,7 @@ export default function LandingPage() {
                   She ensures your crypto activities remain completely private and untraceable on-chain.
                 </p>
                 <p>
-                  In coming updates, she'll also provide swaps, yield pools, market data, technical analysis, and alpha discovery — all completely private and untraceable on-chain.
+                  In coming updates, she'll also provide swaps, yield pools, market data, technical analysis, and alpha discovery — all without leaving a footprint on-chain.
                 </p>
               </div>
 
