@@ -604,25 +604,22 @@ export default function LandingPage() {
                   What is <span className="text-fuchsia-300">Lexie</span>?
                 </h2>
                 <p className="text-xl text-gray-300">
-                  Your AI companion for crypto intelligence and private trading.
+                  Your AI companion for private trading and crypto intelligence.
                 </p>
               </div>
 
               {/* Body Content */}
               <div className="space-y-6 text-lg text-gray-300 leading-relaxed">
                 <p>
-                  Lexie is a ZK-powered AI that helps users activate stealth mode on-chain, shielding wallet balances and transaction data through advanced zero-knowledge proofs.
-                  She ensures your crypto activities remain completely private and untraceable.
+                  Lexie is a ZK-powered AI that activates stealth mode on-chain, shielding your wallet balances and transaction data through advanced zero-knowledge proofs.
+                  She ensures your crypto activities remain completely private and untraceable on-chain.
                 </p>
                 <p>
-                  In coming updates, she'll also provide market data, yield pools, technical analysis, and alpha discovery — all while maintaining your complete privacy.
-                </p>
-                <p>
-                  When integrated inside LexieVault, she'll deliver private, on-chain market intelligence right where you store your assets, combining stealth trading with smart market insights.
+                  In coming updates, she'll also provide swaps, yield pools, market data, technical analysis, and alpha discovery — all completely private and untraceable on-chain.
                 </p>
               </div>
 
-              {/* Telegram Badge */}
+              {/* Telegram Badge */}  
               <div className="flex items-center space-x-4">
                 <a
                   href="https://t.me/lexie_crypto_bot"
