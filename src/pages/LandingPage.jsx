@@ -953,17 +953,16 @@ export default function LandingPage() {
               <div className="text-4xl mb-4">🔐</div>
               <h3 className="text-xl font-semibold text-white mb-3">Zero-Knowledge Transactions</h3>
               <p className="text-gray-300">
-                Complete transaction privacy using advanced ZK-proofs. Your trading history 
-                remains invisible to everyone, including us.
+                Complete transaction privacy using advanced ZK-proofs. Your on-chain history 
+                remains invisible to everyone.
               </p>
             </div>
 
             <div className="bg-black/40 backdrop-blur-sm border border-blue-500/30 rounded-xl p-8 text-center hover:border-blue-500/60 transition-all duration-300">
               <div className="text-4xl mb-4">🔑</div>
-              <h3 className="text-xl font-semibold text-white mb-3">Key Sharding</h3>
+              <h3 className="text-xl font-semibold text-white mb-3">Powered by Railgun</h3>
               <p className="text-gray-300">
-                Your private keys are sharded across multiple secure enclaves. No single point 
-                of failure, maximum security.
+                Audited by top security firms and trusted by Vitalik Buterin.
               </p>
             </div>
 
