@@ -87,6 +87,7 @@ export function Navbar({ onLexieChatOpen }) {
               >
                 LexieVault
               </a>
+              {/*
               <a
                 href="/chat"
                 className="block text-lg font-bold text-left text-purple-300 transition-colors hover:text-purple-100"
@@ -114,6 +115,7 @@ export function Navbar({ onLexieChatOpen }) {
               >
                 LexieTitans
               </button>
+              */}
               <a
                 href="https://lexie-crypto.gitbook.io/lexie-crypto/"
                 target="_blank"
