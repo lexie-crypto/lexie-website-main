@@ -681,26 +681,53 @@ export default function LandingPage() {
                   </div>
                 </div>
 
-                {/* Floating Data Panels */}
+                {/* Trading Chart Panels */}
                 <div className="absolute top-6 right-6 space-y-3">
-                  {/* Price Alert Panel */}
+                  {/* Token Pair Panel */}
                   <div className="bg-black/80 backdrop-blur-sm border border-fuchsia-500/40 rounded-lg p-3 shadow-lg">
-                    <div className="flex items-center space-x-2 mb-1">
-                      <div className="w-2 h-2 bg-fuchsia-400 rounded-full animate-pulse"></div>
-                      <span className="text-fuchsia-400 text-xs font-mono">ALERT</span>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-blue-400 rounded-full flex items-center justify-center text-xs font-bold text-white">W</div>
+                        <span className="text-white text-sm font-semibold">WETH/USDC</span>
+                      </div>
+                      <div className="text-fuchsia-400 text-xs font-mono">UNI</div>
                     </div>
-                    <div className="text-white text-sm font-semibold">$PEPE +127%</div>
-                    <div className="text-gray-400 text-xs">2m ago</div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400 text-xs">Price</span>
+                        <span className="text-white text-sm font-mono">$1,847.32</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400 text-xs">24h</span>
+                        <span className="text-green-400 text-sm font-mono">+2.8%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400 text-xs">Vol</span>
+                        <span className="text-cyan-400 text-sm font-mono">$12.4M</span>
+                      </div>
+                    </div>
                   </div>
 
-                  {/* Market Data Panel */}
+                  {/* DEX Pool Panel */}
                   <div className="bg-black/80 backdrop-blur-sm border border-cyan-500/40 rounded-lg p-3 shadow-lg">
-                    <div className="flex items-center space-x-2 mb-1">
+                    <div className="flex items-center space-x-2 mb-2">
                       <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
-                      <span className="text-cyan-400 text-xs font-mono">MARKET</span>
+                      <span className="text-cyan-400 text-xs font-mono">POOL</span>
                     </div>
-                    <div className="text-white text-sm font-semibold">BTC $67,432</div>
-                    <div className="text-green-400 text-xs">+2.3%</div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between">
+                        <span className="text-gray-400 text-xs">TVL</span>
+                        <span className="text-white text-sm font-mono">$2.4B</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400 text-xs">APY</span>
+                        <span className="text-green-400 text-sm font-mono">24.7%</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-400 text-xs">Fee</span>
+                        <span className="text-purple-400 text-sm font-mono">0.3%</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
