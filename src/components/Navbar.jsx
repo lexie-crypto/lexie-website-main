@@ -50,7 +50,7 @@ export function Navbar({ onLexieChatOpen }) {
               href="https://app.lexiecrypto.com/lexievault"
               className="inline-flex items-center px-6 py-2 font-bold text-lg text-black transition-all duration-300 transform bg-purple-300 rounded-lg shadow-lg hover:bg-purple-300 hover:scale-105"
             >
-              Launch App →
+              Launch dApp →
             </a>
           </div>
 
