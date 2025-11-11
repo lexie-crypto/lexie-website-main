@@ -574,6 +574,178 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* What is Lexie Section */}
+      <section className="relative z-30 py-20 bg-[#0E0F17] overflow-hidden">
+        {/* Background Effects */}
+        <div className="absolute inset-0">
+          {/* Subtle Grid Pattern */}
+          <div className="absolute inset-0 opacity-5">
+            <div className="absolute inset-0" style={{
+              backgroundImage: `
+                linear-gradient(rgba(168, 85, 247, 0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(168, 85, 247, 0.08) 1px, transparent 1px)
+              `,
+              backgroundSize: '40px 40px'
+            }}></div>
+          </div>
+
+          {/* Floating Glow Orbs */}
+          <div className="absolute top-1/3 right-1/4 w-64 h-64 bg-fuchsia-500/3 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute bottom-1/3 left-1/4 w-48 h-48 bg-cyan-500/3 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-6 relative z-10">
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
+            {/* Left side - Text content */}
+            <div className="space-y-8">
+              {/* Section Title */}
+              <div className="space-y-4">
+                <h2 className="text-4xl lg:text-5xl font-bold text-white">
+                  What is <span className="text-fuchsia-400">Lexie</span>?
+                </h2>
+                <p className="text-xl text-gray-300">
+                  Your AI companion for crypto intelligence and private trading.
+                </p>
+              </div>
+
+              {/* Body Content */}
+              <div className="space-y-6 text-lg text-gray-300 leading-relaxed">
+                <p>
+                  Lexie is a ZK-powered AI that helps users activate stealth mode on-chain, shielding wallet balances and transaction data through advanced zero-knowledge proofs.
+                  She ensures your crypto activities remain completely private and untraceable.
+                </p>
+                <p>
+                  In coming updates, she'll also provide market data, yield pools, technical analysis, and alpha discovery — all while maintaining your complete privacy.
+                </p>
+                <p>
+                  When integrated inside LexieVault, she'll deliver private, on-chain market intelligence right where you store your assets, combining stealth trading with smart market insights.
+                </p>
+              </div>
+
+              {/* Telegram Badge */}
+              <div className="flex items-center space-x-4">
+                <a
+                  href="https://t.me/lexie_crypto_bot"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center space-x-3 px-6 py-3 bg-black/60 backdrop-blur-sm border border-fuchsia-500/40 rounded-full hover:border-fuchsia-500/80 hover:bg-fuchsia-500/10 transition-all duration-300 group"
+                >
+                  <div className="w-8 h-8 bg-gradient-to-br from-fuchsia-500 to-purple-500 rounded-full flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12 0a12 12 0 0 0-.056 0zm4.962 7.224c.1-.002.321.023.465.14a.506.506 0 0 1 .171.325c.016.093.036.306.02.472-.18 1.898-.962 6.502-1.36 8.627-.168.9-.499 1.201-.82 1.23-.696.065-1.225-.46-1.9-.902-1.056-.693-1.653-1.124-2.678-1.8-1.185-.78-.417-1.21.258-1.91.177-.184 3.247-2.977 3.307-3.23.007-.032.014-.15-.056-.212s-.174-.041-.249-.024c-.106.024-1.793 1.14-5.061 3.345-.48.33-.913.49-1.302.48-.428-.008-1.252-.241-1.865-.44-.752-.245-1.349-.374-1.297-.789.027-.216.325-.437.893-.663 3.498-1.524 5.83-2.529 6.998-3.014 3.332-1.386 4.025-1.627 4.476-1.635z"/>
+                    </svg>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-fuchsia-400 font-semibold text-sm">Available on Telegram</span>
+                    <span className="text-gray-400 text-xs">@lexie_crypto_bot</span>
+                  </div>
+                  <svg className="w-4 h-4 text-fuchsia-400 group-hover:translate-x-1 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </a>
+              </div>
+            </div>
+
+            {/* Right side - Holographic Lexie Illustration */}
+            <div className="relative flex justify-center">
+              {/* Main Holographic Container */}
+              <div className="relative w-80 h-80 bg-gradient-to-br from-black/80 to-purple-900/20 rounded-2xl border border-purple-500/30 backdrop-blur-sm overflow-hidden shadow-2xl shadow-purple-500/10">
+
+                {/* Background Circuit Pattern */}
+                <div className="absolute inset-0 opacity-10">
+                  <svg className="w-full h-full" viewBox="0 0 400 400" fill="none">
+                    <defs>
+                      <pattern id="circuit" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+                        <path d="M10 10h20v20h-20z" stroke="currentColor" strokeWidth="0.5" fill="none"/>
+                        <circle cx="20" cy="20" r="1" fill="currentColor"/>
+                        <path d="M20 10v10M10 20h10M30 20h10M20 30v10" stroke="currentColor" strokeWidth="0.5"/>
+                      </pattern>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#circuit)" className="text-purple-400"/>
+                  </svg>
+                </div>
+
+                {/* Central AI Avatar */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="relative">
+                    {/* Outer Glow Ring */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-fuchsia-500/20 via-purple-500/20 to-cyan-500/20 rounded-full blur-xl animate-pulse scale-150"></div>
+
+                    {/* Avatar Circle */}
+                    <div className="relative w-32 h-32 bg-gradient-to-br from-purple-600 via-fuchsia-500 to-cyan-500 rounded-full flex items-center justify-center border-2 border-cyan-400/50 shadow-lg shadow-purple-500/25">
+                      <div className="w-24 h-24 bg-gradient-to-br from-black to-purple-900 rounded-full flex items-center justify-center">
+                        <div className="text-4xl">🤖</div>
+                      </div>
+                      {/* Scanning Line */}
+                      <div className="absolute inset-0 rounded-full border-2 border-cyan-400/30 animate-ping"></div>
+                    </div>
+
+                    {/* Lexie Text */}
+                    <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2">
+                      <div className="text-center">
+                        <div className="text-fuchsia-400 font-bold text-lg">LEXIE</div>
+                        <div className="text-cyan-400 text-xs font-mono">AI COMPANION</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Floating Data Panels */}
+                <div className="absolute top-6 right-6 space-y-3">
+                  {/* Price Alert Panel */}
+                  <div className="bg-black/80 backdrop-blur-sm border border-fuchsia-500/40 rounded-lg p-3 shadow-lg">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <div className="w-2 h-2 bg-fuchsia-400 rounded-full animate-pulse"></div>
+                      <span className="text-fuchsia-400 text-xs font-mono">ALERT</span>
+                    </div>
+                    <div className="text-white text-sm font-semibold">$PEPE +127%</div>
+                    <div className="text-gray-400 text-xs">2m ago</div>
+                  </div>
+
+                  {/* Market Data Panel */}
+                  <div className="bg-black/80 backdrop-blur-sm border border-cyan-500/40 rounded-lg p-3 shadow-lg">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
+                      <span className="text-cyan-400 text-xs font-mono">MARKET</span>
+                    </div>
+                    <div className="text-white text-sm font-semibold">BTC $67,432</div>
+                    <div className="text-green-400 text-xs">+2.3%</div>
+                  </div>
+                </div>
+
+                {/* Floating Elements */}
+                <div className="absolute bottom-6 left-6">
+                  <div className="bg-black/80 backdrop-blur-sm border border-purple-500/40 rounded-lg p-3 shadow-lg">
+                    <div className="text-purple-400 text-xs font-mono mb-1">ANALYZING</div>
+                    <div className="text-white text-sm font-semibold">47 pools</div>
+                    <div className="text-gray-400 text-xs">scanned</div>
+                  </div>
+                </div>
+
+                {/* Animated Waveforms */}
+                <div className="absolute bottom-4 left-4 right-4">
+                  <svg className="w-full h-8" viewBox="0 0 300 32" fill="none">
+                    <path
+                      d="M0 16 Q25 8 50 16 T100 16 Q125 24 150 16 T200 16 Q225 8 250 16 T300 16"
+                      stroke="url(#waveGradient)"
+                      strokeWidth="2"
+                      className="animate-pulse"
+                    />
+                    <defs>
+                      <linearGradient id="waveGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="rgb(168, 85, 247)" stopOpacity="0.6"/>
+                        <stop offset="50%" stopColor="rgb(139, 92, 246)" stopOpacity="0.8"/>
+                        <stop offset="100%" stopColor="rgb(6, 182, 212)" stopOpacity="0.6"/>
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* How It Works Section */}
       <section className="relative z-30 py-20 bg-[#0a0a0a]">
         <div className="max-w-7xl mx-auto px-6">
