@@ -838,9 +838,8 @@ const PaymentPage = () => {
 
       {/* Background overlays (match other pages) */}
       <div className="fixed inset-0 z-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
+        <div className="absolute inset-0 bg-[#0a0a0a]"></div>
         <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60"></div>
-        <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-purple-900/40 via-purple-800/20 to-transparent"></div>
       </div>
 
       <div className="relative z-10 max-w-3xl mx-auto px-6 sm:px-8 lg:px-12 py-12">

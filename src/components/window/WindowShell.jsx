@@ -418,8 +418,9 @@ const WindowShell = ({
       {/* Window Content */}
       <div
         id={`window-content-${id}`}
-        className="relative bg-black overflow-hidden scrollbar-terminal"
+        className="relative overflow-hidden scrollbar-terminal"
         style={{
+          background: 'linear-gradient(180deg, #0C0C0E 0%, #0F0F18 100%)',
           height: appType === 'game'
             ? (isMaximized
                 ? `calc(100vh - ${topSafe + bottomSafe + totalChromeHeight}px)`

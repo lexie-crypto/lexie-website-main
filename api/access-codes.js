@@ -92,7 +92,7 @@ export default async function handler(req, res) {
       }
 
       backendPath = '/api/access-codes/verify';
-      backendUrl = `https://api.lexiecrypto.com${backendPath}`;
+      backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}${backendPath}`;
 
     } else if (req.method === 'POST' && action === 'create-access-code') {
       console.log(`✅ [ACCESS-CODES-PROXY-${requestId}] Create access code`);
@@ -106,13 +106,13 @@ export default async function handler(req, res) {
       }
 
       backendPath = '/api/access-codes/create';
-      backendUrl = `https://api.lexiecrypto.com${backendPath}`;
+      backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}${backendPath}`;
 
     } else if (req.method === 'GET' && action === 'list-access-codes') {
       console.log(`✅ [ACCESS-CODES-PROXY-${requestId}] List access codes`);
 
       backendPath = '/api/access-codes/list';
-      backendUrl = `https://api.lexiecrypto.com${backendPath}`;
+      backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}${backendPath}`;
 
     } else if (req.method === 'DELETE' && action === 'deactivate-access-code') {
       console.log(`✅ [ACCESS-CODES-PROXY-${requestId}] Deactivate access code`);
@@ -126,13 +126,13 @@ export default async function handler(req, res) {
       }
 
       backendPath = `/api/access-codes/deactivate/${codeId}`;
-      backendUrl = `https://api.lexiecrypto.com${backendPath}`;
+      backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}${backendPath}`;
 
     } else if (req.method === 'GET' && action === 'get-access-code-stats') {
       console.log(`✅ [ACCESS-CODES-PROXY-${requestId}] Get access code stats`);
 
       backendPath = '/api/access-codes/stats';
-      backendUrl = `https://api.lexiecrypto.com${backendPath}`;
+      backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}${backendPath}`;
 
     } else {
       console.log(`❌ [ACCESS-CODES-PROXY-${requestId}] Unknown action: ${action}`);

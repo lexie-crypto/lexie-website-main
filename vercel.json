@@ -8,7 +8,7 @@
     },
     {
       "source": "/api/(.*)",
-      "destination": "https://api.lexiecrypto.com/api/$1"
+      "destination": "https://$API_BASE_URL/api/$1"
     },
     {
       "source": "/(.*)",

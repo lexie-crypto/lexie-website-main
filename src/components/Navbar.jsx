@@ -14,7 +14,7 @@ export function Navbar({ onLexieChatOpen }) {
 
   // Mobile: sticky (scrolls with page), Desktop: fixed (stays at top)
   const baseClasses =
-    "sticky md:fixed top-0 md:left-0 md:right-0 z-40 w-full p-6 bg-black";
+    "sticky md:fixed top-0 md:left-0 md:right-0 z-40 w-full p-6 bg-[#0a0a0a]";
   const containerClasses =
     "max-w-7xl mx-auto flex justify-between items-center";
 
@@ -33,24 +33,24 @@ export function Navbar({ onLexieChatOpen }) {
           {/* Logo - Far Left */}
           <a
             href="/"
-            className="flex-shrink-0 text-4xl font-bold text-purple-300 transition-colors hover:text-white"
+            className="flex-shrink-0 text-5xl font-bold text-purple-300 transition-colors hover:text-white"
           >
-            LEXIEAI
+            LEXIE
           </a>
 
           {/* Desktop Navigation - Right */}
           <div className="items-center hidden space-x-6 md:flex">
             <a
               href="https://lexie-crypto.gitbook.io/lexie-crypto/"
-              className="text-lg font-bold text-purple-300 transition-all duration-200 hover:text-purple-100"
+              className="text-xl font-bold text-purple-300 transition-all duration-200 hover:text-purple-100"
             >
               Documentation
             </a>
             <a
               href="https://app.lexiecrypto.com/lexievault"
-              className="inline-flex items-center px-6 py-2 font-bold text-black transition-all duration-300 transform bg-purple-300 rounded-lg shadow-lg hover:bg-purple-300 hover:scale-105"
+              className="inline-flex items-center px-6 py-2 font-bold text-lg text-black transition-all duration-300 transform bg-purple-300 rounded-lg shadow-lg hover:bg-purple-300 hover:scale-105"
             >
-              Launch App →
+              Launch dApp →
             </a>
           </div>
 
