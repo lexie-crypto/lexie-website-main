@@ -1375,7 +1375,7 @@ export default function LandingPage() {
                     onClick={() => setOpenFAQ(openFAQ === index ? null : index)}
                   >
                     <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold text-purple-400 group-hover:text-purple-300 transition-colors duration-300 pr-4">
+                      <h3 className="text-lg font-semibold text-white group-hover:text-gray-200 transition-colors duration-300 pr-4">
                         {faq.question}
                       </h3>
                       <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full border-2 border-purple-400/50 transition-all duration-300 ${
