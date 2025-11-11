@@ -769,24 +769,6 @@ export default function LandingPage() {
                   </div>
                 </div>
 
-                {/* Animated Waveforms */}
-                <div className="absolute bottom-4 left-4 right-4">
-                  <svg className="w-full h-8" viewBox="0 0 300 32" fill="none">
-                    <path
-                      d="M0 16 Q25 8 50 16 T100 16 Q125 24 150 16 T200 16 Q225 8 250 16 T300 16"
-                      stroke="url(#waveGradient)"
-                      strokeWidth="2"
-                      className="animate-pulse"
-                    />
-                    <defs>
-                      <linearGradient id="waveGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="rgb(168, 85, 247)" stopOpacity="0.6"/>
-                        <stop offset="50%" stopColor="rgb(139, 92, 246)" stopOpacity="0.8"/>
-                        <stop offset="100%" stopColor="rgb(6, 182, 212)" stopOpacity="0.6"/>
-                      </linearGradient>
-                    </defs>
-                  </svg>
-                </div>
               </div>
             </div>
           </div>
