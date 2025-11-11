@@ -1358,7 +1358,7 @@ export default function LandingPage() {
           {/* Section Header */}
           <div className="text-center mb-16">
             <h2 className="text-4xl lg:text-5xl font-bold text-white mb-4">
-              💬 Frequently Asked Questions
+              FAQs
             </h2>
             <p className="text-xl text-gray-300">
               Everything you need to know about Lexie and private DeFi
@@ -1375,7 +1375,7 @@ export default function LandingPage() {
                     onClick={() => setOpenFAQ(openFAQ === index ? null : index)}
                   >
                     <div className="flex items-center justify-between">
-                      <h3 className="text-lg font-semibold text-fuchsia-400 group-hover:text-fuchsia-300 transition-colors duration-300 pr-4">
+                      <h3 className="text-lg font-semibold text-purple-400 group-hover:text-purple-300 transition-colors duration-300 pr-4">
                         {faq.question}
                       </h3>
                       <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full border-2 border-fuchsia-400/50 transition-all duration-300 ${
