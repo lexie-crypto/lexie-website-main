@@ -674,7 +674,6 @@ export default function LandingPage() {
                     {/* Avatar Circle */}
                     <div className="relative w-32 h-32 bg-gradient-to-br from-purple-600 via-fuchsia-500 to-cyan-500 rounded-full flex items-center justify-center border-2 border-cyan-400/50 shadow-lg shadow-purple-500/25">
                       <div className="w-24 h-24 bg-gradient-to-br from-black to-purple-900 rounded-full flex items-center justify-center">
-                        <div className="text-4xl">🤖</div>
                       </div>
                       {/* Scanning Line */}
                       <div className="absolute inset-0 rounded-full border-2 border-cyan-400/30 animate-ping"></div>
