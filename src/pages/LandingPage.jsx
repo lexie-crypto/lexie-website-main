@@ -678,14 +678,6 @@ export default function LandingPage() {
                       {/* Scanning Line */}
                       <div className="absolute inset-0 rounded-full border-2 border-cyan-400/30 animate-ping"></div>
                     </div>
-
-                    {/* Lexie Text */}
-                    <div className="absolute -bottom-8 left-1/2 transform -translate-x-1/2">
-                      <div className="text-center">
-                        <div className="text-fuchsia-400 font-bold text-lg">LEXIE</div>
-                        <div className="text-cyan-400 text-xs font-mono">AI COMPANION</div>
-                      </div>
-                    </div>
                   </div>
                 </div>
 
