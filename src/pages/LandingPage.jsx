@@ -149,11 +149,11 @@ export default function LandingPage() {
     },
     {
       question: "What networks does Lexie support?",
-      answer: "Currently supports BNB Chain, Ethereum, Polygon, and Arbitrum — with Optimism and Base coming soon."
+      answer: "Currently supports BNB Chain, Ethereum, Polygon, and Arbitrum — with Solana and Base coming soon."
     },
     {
       question: "Which assets can I deposit?",
-      answer: "You can shield and transact with most ERC-20 tokens and NFTs (ERC-721)."
+      answer: "Currently, you can shield and transact with BNB, ETH, POL, ARB, USDT, USDC, and DAI with more token support coming soon."
     },
     {
       question: "Can I send or receive funds privately?",
@@ -161,7 +161,7 @@ export default function LandingPage() {
     },
     {
       question: "Does Lexie support compliance or KYC options?",
-      answer: "Yes — optional compliance tools include viewing keys, deposit limits, and travel-rule compatibility."
+      answer: "Yes — optional compliance tools include OFAC sanctions screening and government regulatory compliance."
     },
     {
       question: "What is LexieAI?",
@@ -173,11 +173,11 @@ export default function LandingPage() {
     },
     {
       question: "How can I recover my vault?",
-      answer: "Lexie will support zero-knowledge social recovery and encrypted backup options similar to zk-email and zk-passport systems."
+      answer: "Lexie will support zero-knowledge social recovery and encrypted backup options similar to zk-email and zk-passport systems, but currently only supports EOA recovery."
     },
     {
       question: "Are there deposit limits?",
-      answer: "Deposit limits may apply for compliance reasons, but regular users won't be affected."
+      answer: "There are no deposit limits."
     }
   ];
   
