@@ -602,7 +602,7 @@ export default function LandingPage() {
               {/* Step 1 */}
               <div ref={el => stepRefs.current[0] = el} className="relative flex items-start space-x-6 lg:space-x-8">
                 <div className="flex-shrink-0">
-                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-600 to-purple-500 rounded-full flex items-center justify-center border-2 border-purple-400 shadow-lg shadow-purple-500/25 transition-all duration-500 ${visibleSteps.has(0) ? 'animate-pulse scale-110' : 'scale-100'}`}>
+                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-600 to-purple-500 rounded-full flex items-center justify-center border-2 border-purple-400 shadow-lg shadow-purple-500/25 transition-all duration-500 ${visibleSteps.has(0) ? 'scale-110' : 'scale-100'}`}>
                     <span className="text-2xl font-bold text-white">1</span>
                     <div className={`absolute inset-0 rounded-full bg-purple-500/20 transition-all duration-500 ${visibleSteps.has(0) ? 'animate-ping opacity-100' : 'opacity-0'}`}></div>
                   </div>
@@ -618,7 +618,7 @@ export default function LandingPage() {
               {/* Step 2 */}
               <div ref={el => stepRefs.current[1] = el} className="relative flex items-start space-x-6 lg:space-x-8">
                 <div className="flex-shrink-0">
-                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-400 rounded-full flex items-center justify-center border-2 border-purple-300 shadow-lg shadow-purple-500/25 transition-all duration-500 ${visibleSteps.has(1) ? 'animate-pulse scale-110' : 'scale-100'}`}>
+                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-400 rounded-full flex items-center justify-center border-2 border-purple-300 shadow-lg shadow-purple-500/25 transition-all duration-500 ${visibleSteps.has(1) ? 'scale-110' : 'scale-100'}`}>
                     <span className="text-2xl font-bold text-white">2</span>
                     <div className={`absolute inset-0 rounded-full bg-purple-400/20 transition-all duration-500 ${visibleSteps.has(1) ? 'animate-ping opacity-100' : 'opacity-0'}`}></div>
                   </div>
@@ -634,7 +634,7 @@ export default function LandingPage() {
               {/* Step 3 */}
               <div ref={el => stepRefs.current[2] = el} className="relative flex items-start space-x-6 lg:space-x-8">
                 <div className="flex-shrink-0">
-                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-400 to-purple-300 rounded-full flex items-center justify-center border-2 border-purple-200 shadow-lg shadow-purple-500/25 transition-all duration-500 ${visibleSteps.has(2) ? 'animate-pulse scale-110' : 'scale-100'}`}>
+                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-400 to-purple-300 rounded-full flex items-center justify-center border-2 border-purple-200 shadow-lg shadow-purple-500/25 transition-all duration-500 ${visibleSteps.has(2) ? 'scale-110' : 'scale-100'}`}>
                     <span className="text-2xl font-bold text-white">3</span>
                     <div className={`absolute inset-0 rounded-full bg-purple-300/20 transition-all duration-500 ${visibleSteps.has(2) ? 'animate-ping opacity-100' : 'opacity-0'}`}></div>
                   </div>
@@ -650,7 +650,7 @@ export default function LandingPage() {
               {/* Step 4 */}
               <div ref={el => stepRefs.current[3] = el} className="relative flex items-start space-x-6 lg:space-x-8">
                 <div className="flex-shrink-0">
-                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-700 to-purple-600 rounded-full flex items-center justify-center border-2 border-purple-500 shadow-lg shadow-purple-500/25 transition-all duration-500 ${visibleSteps.has(3) ? 'animate-pulse scale-110' : 'scale-100'}`}>
+                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-700 to-purple-600 rounded-full flex items-center justify-center border-2 border-purple-500 shadow-lg shadow-purple-500/25 transition-all duration-500 ${visibleSteps.has(3) ? 'scale-110' : 'scale-100'}`}>
                     <span className="text-2xl font-bold text-white">4</span>
                     <div className={`absolute inset-0 rounded-full bg-purple-600/20 transition-all duration-500 ${visibleSteps.has(3) ? 'animate-ping opacity-100' : 'opacity-0'}`}></div>
                   </div>
@@ -666,7 +666,7 @@ export default function LandingPage() {
               {/* Step 5 */}
               <div ref={el => stepRefs.current[4] = el} className="relative flex items-start space-x-6 lg:space-x-8">
                 <div className="flex-shrink-0">
-                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-800 to-purple-700 rounded-full flex items-center justify-center border-2 border-purple-600 shadow-lg shadow-purple-500/25 transition-all duration-500 ${visibleSteps.has(4) ? 'animate-pulse scale-110' : 'scale-100'}`}>
+                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-800 to-purple-700 rounded-full flex items-center justify-center border-2 border-purple-600 shadow-lg shadow-purple-500/25 transition-all duration-500 ${visibleSteps.has(4) ? 'scale-110' : 'scale-100'}`}>
                     <span className="text-2xl font-bold text-white">5</span>
                     <div className={`absolute inset-0 rounded-full bg-purple-700/20 transition-all duration-500 ${visibleSteps.has(4) ? 'animate-ping opacity-100' : 'opacity-0'}`}></div>
                   </div>
