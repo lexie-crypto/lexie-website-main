@@ -216,7 +216,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     lastUpdateTime,
     loadPrivateBalancesFromMetadata,
     isPrivateBalancesLoading,
-  } = useBalances();
+  } = useBalances(activeChainId);
 
   const [showPrivateMode, setShowPrivateMode] = useState(false);
   const [selectedView, setSelectedView] = useState('balances');
@@ -366,15 +366,26 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     ? { id: selectedChainId, name: {1: 'Ethereum', 137: 'Polygon', 42161: 'Arbitrum', 56: 'BNB Chain'}[selectedChainId] || `Chain ${selectedChainId}` }
     : getCurrentNetwork();
 
-  // Update selectedChainId when wallet chain changes (for chain switches)
+  // Persist selectedChainId to localStorage whenever it changes
   useEffect(() => {
-    if (walletChainId && supportedNetworks.some(net => net.id === walletChainId)) {
-      console.log('[VaultDesktop] Wallet chain changed, updating selectedChainId:', walletChainId);
-      setSelectedChainId(walletChainId);
-      // Persist to localStorage
-      localStorage.setItem('lexie-selected-chain', walletChainId.toString());
+    if (selectedChainId && supportedNetworks.some(net => net.id === selectedChainId)) {
+      try {
+        localStorage.setItem('lexie-selected-chain', selectedChainId.toString());
+        console.log('[VaultDesktop] Saved selectedChainId to localStorage:', selectedChainId);
+      } catch (error) {
+        console.warn('[VaultDesktop] Failed to save selectedChainId to localStorage:', error);
+      }
     }
-  }, [walletChainId, supportedNetworks]);
+  }, [selectedChainId, supportedNetworks]);
+
+  // Update selectedChainId when wallet chain changes (for chain switches), but only if user hasn't selected a chain yet
+  useEffect(() => {
+    if (walletChainId && supportedNetworks.some(net => net.id === walletChainId) && selectedChainId === null) {
+      console.log('[VaultDesktop] Wallet chain changed, setting initial selectedChainId:', walletChainId);
+      setSelectedChainId(walletChainId);
+      // Persist to localStorage (already handled by the above useEffect)
+    }
+  }, [walletChainId, supportedNetworks, selectedChainId]);
 
   // Set global variable for modal unlock utility to access current chain
   React.useEffect(() => {
@@ -1311,7 +1322,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                         {supportedNetworks.map((net) => (
                           <button
                             key={net.id}
-                            onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsMobileChainMenuOpen(false); switchNetwork(net.id); }}
+                            onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsMobileChainMenuOpen(false); setSelectedChainId(net.id); switchNetwork(net.id); }}
                             className={`w-full text-left px-3 py-2 ${(!canUseRailgun || !railgunWalletId) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-900/30 focus:bg-emerald-900/30'} focus:outline-none`}
                             title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : `Switch to ${net.name}`}
                             aria-disabled={!canUseRailgun || !railgunWalletId}
@@ -1364,7 +1375,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                       {supportedNetworks.map((net) => (
                         <button
                           key={net.id}
-                          onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsChainMenuOpen(false); switchNetwork(net.id); }}
+                          onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsChainMenuOpen(false); setSelectedChainId(net.id); switchNetwork(net.id); }}
                           className={`w-full text-left px-3 py-2 ${(!canUseRailgun || !railgunWalletId) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-900/30 focus:bg-emerald-900/30'} focus:outline-none`}
                           title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : `Switch to ${net.name}`}
                           aria-disabled={!canUseRailgun || !railgunWalletId}
