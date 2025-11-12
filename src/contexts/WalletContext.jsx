@@ -536,7 +536,7 @@ const WalletContextProvider = ({ children }) => {
       console.log(`[Railgun Init] 🆕 Detected new wallet ${railgunWalletID?.slice(0, 8)}... - will skip full scan`);
     }
 
-    // Use the centralized chain switch utility
+    // Use the centralized chain switch utility function
     const success = await switchToChain({
       address,
       railgunWalletID,
