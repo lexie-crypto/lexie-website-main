@@ -368,7 +368,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   // Persist selectedChainId to localStorage whenever it changes
   useEffect(() => {
-    if (selectedChainId && supportedNetworks.some(net => net.id === selectedChainId)) {
+    if (selectedChainId) {
       try {
         localStorage.setItem('lexie-selected-chain', selectedChainId.toString());
         console.log('[VaultDesktop] Saved selectedChainId to localStorage:', selectedChainId);
@@ -376,7 +376,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         console.warn('[VaultDesktop] Failed to save selectedChainId to localStorage:', error);
       }
     }
-  }, [selectedChainId, supportedNetworks]);
+  }, [selectedChainId]);
 
   // Update selectedChainId when wallet chain changes (for chain switches), but only if user hasn't selected a chain yet
   useEffect(() => {
@@ -385,7 +385,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       setSelectedChainId(walletChainId);
       // Persist to localStorage (already handled by the above useEffects)
     }
-  }, [walletChainId, supportedNetworks, selectedChainId]);
+  }, [walletChainId, selectedChainId]);
 
   // Set global variable for modal unlock utility to access current chain
   React.useEffect(() => {
