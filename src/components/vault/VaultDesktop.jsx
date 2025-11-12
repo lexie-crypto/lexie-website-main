@@ -383,7 +383,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     if (walletChainId && supportedNetworks.some(net => net.id === walletChainId) && selectedChainId === null) {
       console.log('[VaultDesktop] Wallet chain changed, setting initial selectedChainId:', walletChainId);
       setSelectedChainId(walletChainId);
-      // Persist to localStorage (already handled by the above useEffect)
+      // Persist to localStorage (already handled by the above useEffects)
     }
   }, [walletChainId, supportedNetworks, selectedChainId]);
 
