@@ -31,7 +31,8 @@ export async function switchToChain({
   targetChainId,
   onProgress = () => {},
   onError = () => {},
-  onComplete = () => {}
+  onComplete = () => {},
+  isNewWallet = false
 }) {
   try {
     console.log(`[ChainSwitch] Starting chain switch to ${targetChainId}`, {
@@ -62,7 +63,39 @@ export async function switchToChain({
       // Continue with scanning anyway - some chains might not have bootstrap data
     }
 
-    // Step 3: Scan chain for balances
+    // 🚀 OPTIMIZATION: Skip full scan for new wallets (they have no transactions)
+    if (isNewWallet) {
+      console.log(`[ChainSwitch] ⏭️ Skipping full scan for new wallet ${railgunWalletID?.slice(0, 8)}... on chain ${targetChainId}`);
+
+      // Mark as scanned in memory only (no Redis persistence needed for new wallets)
+      if (typeof window !== 'undefined') {
+        window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
+        window.__RAILGUN_INITIAL_SCAN_DONE[targetChainId] = true;
+      }
+
+      console.log(`[ChainSwitch] Chain switch to ${targetChainId} completed successfully (new wallet - scan skipped)`);
+
+      // Dispatch final completion event for UI
+      try {
+        window.dispatchEvent(new CustomEvent('railgun-init-completed', {
+          detail: { address, chainId: targetChainId }
+        }));
+        window.dispatchEvent(new CustomEvent('railgun-scan-complete', { detail: { chainId: targetChainId } }));
+      } catch (eventError) {
+        console.warn('[ChainSwitch] Failed to dispatch completion event:', eventError);
+      }
+
+      onComplete({
+        chainId: targetChainId,
+        scanned: false,  // Not actually scanned
+        bootstrapLoaded: bootstrapResult.loaded,
+        skippedScan: true
+      });
+
+      return true;
+    }
+
+    // Step 3: Scan chain for balances (existing wallets only)
     onProgress({ phase: 'scanning-balances', chainId: targetChainId });
     const scanResult = await scanChainForBalances(railgunWalletID, targetChainId, address);
 

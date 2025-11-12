@@ -1083,6 +1083,13 @@ export const initializeRailgunWallet = async ({
           crossDevice: true
         });
 
+        // 🏷️ Mark this as a new wallet created in this session (skip full scan)
+        if (typeof window !== 'undefined') {
+          window.__RAILGUN_NEW_WALLET_CREATED = window.__RAILGUN_NEW_WALLET_CREATED || new Set();
+          window.__RAILGUN_NEW_WALLET_CREATED.add(railgunWalletInfo.id);
+          console.log(`🏷️ Marked wallet ${railgunWalletInfo.id?.slice(0, 8)}... as new - will skip full scan`);
+        }
+
         // 🚰 HYDRATION: Check if newly created wallet needs hydration (edge case)
         // Skip hydration for master wallet - it's the data source, not consumer
         const { isMasterWallet } = await import('../sync/idb-sync/scheduler.js');
@@ -1357,6 +1364,13 @@ export const initializeRailgunWallet = async ({
     // Signal init completed for UI with 100%
     try { window.dispatchEvent(new CustomEvent('railgun-init-completed', { detail: { address } })); } catch {}
 
+    // 🧹 Clean up new wallet flags after initialization completes
+    if (typeof window !== 'undefined' && window.__RAILGUN_NEW_WALLET_CREATED) {
+      // Clear all new wallet flags since initialization is complete
+      window.__RAILGUN_NEW_WALLET_CREATED.clear();
+      console.log('🧹 Cleared new wallet flags after initialization completion');
+    }
+
     // 🎯 FIXED: Don't auto-resume polling after init - let useBalances hook control when to poll
     console.log('⏸️ Providers remain paused after init - will resume only when balance refresh needed');
 
@@ -1366,6 +1380,13 @@ export const initializeRailgunWallet = async ({
     setIsRailgunInitialized(false);
     setRailgunAddress(null);
     setRailgunWalletID(null);
+
+    // 🧹 Clean up new wallet flags on error too
+    if (typeof window !== 'undefined' && window.__RAILGUN_NEW_WALLET_CREATED) {
+      window.__RAILGUN_NEW_WALLET_CREATED.clear();
+      console.log('🧹 Cleared new wallet flags after initialization error');
+    }
+
     try { window.dispatchEvent(new CustomEvent('railgun-init-failed', { detail: { error: error?.message || String(error) } })); } catch {}
   } finally {
     setIsInitializing(false);

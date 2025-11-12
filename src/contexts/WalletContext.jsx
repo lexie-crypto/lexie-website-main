@@ -528,11 +528,20 @@ const WalletContextProvider = ({ children }) => {
 
     if (!isConnected || !address || !railgunWalletID) return;
 
+    // 🚀 OPTIMIZATION: Check if this is a new wallet created in this session
+    const isNewWallet = typeof window !== 'undefined' &&
+      window.__RAILGUN_NEW_WALLET_CREATED?.has(railgunWalletID);
+
+    if (isNewWallet) {
+      console.log(`[Railgun Init] 🆕 Detected new wallet ${railgunWalletID?.slice(0, 8)}... - will skip full scan`);
+    }
+
     // Use the centralized chain switch utility
     const success = await switchToChain({
       address,
       railgunWalletID,
       targetChainId,
+      isNewWallet,  // Pass the new wallet flag
       onProgress: (progress) => {
         console.log(`[Railgun Init] Progress: ${progress.phase}`, progress);
       },
