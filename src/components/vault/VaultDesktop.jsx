@@ -58,6 +58,14 @@ const SUPPORTED_NETWORKS = [
   { id: 56, name: 'BNB Chain', symbol: 'BNB' },
 ];
 
+// Network name mapping - moved outside component to avoid initialization order issues
+const NETWORK_NAMES = {
+  1: 'Ethereum',
+  137: 'Polygon',
+  42161: 'Arbitrum',
+  56: 'BNB Chain'
+};
+
 // Titans Game component that loads the actual game from game.lexiecrypto.com
 const TitansGame = ({ lexieId, walletAddress, embedded, theme, onLoad, onError, onClose }) => {
   const [isLoading, setIsLoading] = useState(true);
@@ -254,12 +262,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   // Helper to get network name by chain ID
   const getNetworkNameById = (chainId) => {
-    return {
-      1: 'Ethereum',
-      137: 'Polygon',
-      42161: 'Arbitrum',
-      56: 'BNB Chain'
-    }[Number(chainId)] || `Chain ${chainId}`;
+    return NETWORK_NAMES[Number(chainId)] || `Chain ${chainId}`;
   };
 
 
@@ -364,7 +367,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   // Fall back to wallet's chainId if no selection made
   const activeChainId = selectedChainId || walletChainId;
   const network = selectedChainId
-    ? { id: selectedChainId, name: {1: 'Ethereum', 137: 'Polygon', 42161: 'Arbitrum', 56: 'BNB Chain'}[selectedChainId] || `Chain ${selectedChainId}` }
+    ? { id: selectedChainId, name: NETWORK_NAMES[selectedChainId] || `Chain ${selectedChainId}` }
     : getCurrentNetwork();
 
   // Persist selectedChainId to localStorage whenever it changes
@@ -501,13 +504,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   // Helper function to get network name
   const getNetworkName = (id) => {
-    const networks = {
-      1: 'Ethereum',
-      42161: 'Arbitrum',
-      137: 'Polygon',
-      56: 'BNB Chain'
-    };
-    return networks[id] || `Chain ${id}`;
+    return NETWORK_NAMES[id] || `Chain ${id}`;
   };
 
 
