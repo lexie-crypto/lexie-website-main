@@ -86,9 +86,40 @@ export const syncBalancesAfterTransaction = async ({
     console.log('[syncBalances] Attaching SDK balance callback listener...');
     const callbackPromise = waitForSDKBalanceCallback(walletId, chainId, 45000);
 
-    // STEP 2: Trigger official SDK refresh (same as post-shield pattern)
-    console.log('[syncBalances] Triggering SDK refreshBalances...');
-    await refreshBalances(chain, [walletId]);
+    // STEP 2: Trigger official SDK refresh with block-range optimization
+    console.log('[syncBalances] Triggering SDK refreshBalances with block-range optimization...');
+
+    // 🚀 BLOCK-RANGE SCANNING: Use creation block numbers for optimized scanning
+    let creationBlockNumbers = null;
+    try {
+      const metaResponse = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(walletAddress)}`);
+      if (metaResponse.ok) {
+        const metaData = await metaResponse.json();
+        const walletEntry = metaData?.keys?.find(k => k.walletId === walletId);
+        creationBlockNumbers = walletEntry?.creationBlockNumbers || null;
+        if (creationBlockNumbers) {
+          console.log('[syncBalances] 🚀 Using creation block numbers for optimized scanning:', creationBlockNumbers);
+        }
+      }
+    } catch (metadataError) {
+      console.warn('[syncBalances] Failed to fetch creation block numbers:', metadataError.message);
+    }
+
+    // Use our block-range optimized refresh function
+    const { refreshBalances: optimizedRefreshBalances } = await import('../balanceRefresh.jsx');
+    const success = await optimizedRefreshBalances({
+      walletAddress,
+      walletId,
+      chainId,
+      refreshAllBalances: () => Promise.resolve(), // No-op since we're in sync function
+      showToast: false,
+      skipUIUpdate: true,
+      creationBlockNumbers
+    });
+
+    if (!success) {
+      console.warn('[syncBalances] Block-range refresh failed, this may affect balance accuracy');
+    }
 
     // STEP 3: Wait for SDK callback with balance data
     console.log('[syncBalances] Waiting for SDK balance callback...');
