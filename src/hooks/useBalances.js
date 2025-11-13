@@ -959,7 +959,7 @@ export function useBalances(targetChainId = null) {
 
   // Load private balances using SDK refresh when Railgun wallet is ready (same as refresh button)
   useEffect(() => {
-    if (railgunWalletId && address && isRailgunInitialized && bootstrappedChains.has(chainId)) {
+    if (railgunWalletId && address && isRailgunInitialized && chainId && bootstrappedChains.has(chainId)) {
       console.log('[useBalances] 🛡️ Railgun wallet ready - triggering SDK balance refresh (like refresh button)...');
       setIsPrivateBalancesLoading(true);
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
@@ -968,16 +968,24 @@ export function useBalances(targetChainId = null) {
       (async () => {
         try {
           // Step 0: Ensure chain has been scanned for private transfers (critical for discovering transfers before first shield)
-          console.log('[useBalances] Ensuring chain is scanned before initial SDK refresh...');
-          await ensureChainScanned(chainId);
+          if (chainId) {
+            console.log('[useBalances] Ensuring chain is scanned before initial SDK refresh...');
+            await ensureChainScanned(chainId);
+          } else {
+            console.log('[useBalances] Skipping chain scan - no valid chainId');
+          }
 
-          const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
-          await syncBalancesAfterTransaction({
-            walletAddress: address,
-            walletId: railgunWalletId,
-            chainId,
-          });
-          console.log('[useBalances] ✅ SDK balance refresh completed on wallet connect');
+          if (chainId) {
+            const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
+            await syncBalancesAfterTransaction({
+              walletAddress: address,
+              walletId: railgunWalletId,
+              chainId,
+            });
+            console.log('[useBalances] ✅ SDK balance refresh completed on wallet connect');
+          } else {
+            console.log('[useBalances] Skipping SDK balance refresh - no valid chainId');
+          }
 
           // Modal unlock is now handled by centralized unlock utility during scan completion
           // The scan should have already unlocked the modal
