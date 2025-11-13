@@ -428,7 +428,8 @@ const WalletContextProvider = ({ children }) => {
               signature: metaKey.signature,
               encryptedMnemonic: metaKey.encryptedMnemonic,
               privateBalances: metaKey.privateBalances,
-              scannedChains: Array.from(new Set([...(metaKey.scannedChains || []), scannedChainId]))
+              scannedChains: Array.from(new Set([...(metaKey.scannedChains || []), scannedChainId])),
+              hydratedChains: metaKey.hydratedChains || [] // Preserve existing hydratedChains
             };
           }
         }
@@ -612,6 +613,23 @@ const WalletContextProvider = ({ children }) => {
 
                   // Mark chain as hydrated in Redis metadata
                   try {
+                    // First fetch existing metadata to get current hydratedChains
+                    const getResp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
+                    let existingHydratedChains = [];
+
+                    if (getResp.ok) {
+                      const existingData = await getResp.json();
+                      const metaKey = existingData?.keys?.find((k) => k.walletId === railgunWalletID);
+                      if (metaKey?.hydratedChains) {
+                        existingHydratedChains = Array.isArray(metaKey.hydratedChains)
+                          ? metaKey.hydratedChains
+                          : [];
+                      }
+                    }
+
+                    // Merge with new chain (avoid duplicates)
+                    const updatedHydratedChains = [...new Set([...existingHydratedChains, railgunChain.id])];
+
                     const persistResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
@@ -619,11 +637,11 @@ const WalletContextProvider = ({ children }) => {
                         walletAddress: address,
                         walletId: railgunWalletID,
                         railgunAddress: railgunAddress,
-                        hydratedChains: [railgunChain.id]
+                        hydratedChains: updatedHydratedChains
                       })
                     });
                     if (persistResp.ok) {
-                      console.log(`[Railgun Init] ✅ Marked hydratedChains += ${railgunChain.id} after bootstrap`);
+                      console.log(`[Railgun Init] ✅ Marked hydratedChains += ${railgunChain.id} (merged with existing: ${existingHydratedChains.join(',')}) after bootstrap`);
                     } else {
                       console.error(`[Railgun Init] ❌ Failed to mark hydratedChains += ${railgunChain.id}:`, await persistResp.text());
                     }
@@ -671,7 +689,8 @@ const WalletContextProvider = ({ children }) => {
               signature: metaKey.signature,
               encryptedMnemonic: metaKey.encryptedMnemonic,
               privateBalances: metaKey.privateBalances,
-              scannedChains: Array.from(new Set([...(metaKey.scannedChains || []), railgunChain.id]))
+              scannedChains: Array.from(new Set([...(metaKey.scannedChains || []), railgunChain.id])),
+              hydratedChains: metaKey.hydratedChains || [] // Preserve existing hydratedChains
             };
           }
         }

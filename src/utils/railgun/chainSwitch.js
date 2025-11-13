@@ -388,7 +388,8 @@ export async function persistScanResults(address, railgunWalletID, targetChainId
           signature: metaKey.signature,
           encryptedMnemonic: metaKey.encryptedMnemonic,
           privateBalances: metaKey.privateBalances,
-          scannedChains: Array.from(new Set([...(metaKey.scannedChains || []), targetChainId]))
+          scannedChains: Array.from(new Set([...(metaKey.scannedChains || []), targetChainId])),
+          hydratedChains: metaKey.hydratedChains || [] // Preserve existing hydratedChains
         };
       }
     }
