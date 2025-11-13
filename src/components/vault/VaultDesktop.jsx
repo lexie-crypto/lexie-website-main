@@ -1827,7 +1827,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         </div>
       )}
 
-      {/* Lexie Logo - Only show on desktop */}
+      {/* Lexie Logo - Only show on desktops */}
       {!mobileMode && (
         <div className="fixed bottom-2 right-1 z-10">
           <img
