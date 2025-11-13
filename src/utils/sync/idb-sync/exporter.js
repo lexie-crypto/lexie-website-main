@@ -384,7 +384,7 @@ export const restoreFullSnapshot = async (walletId, timestamp, signal) => {
  * @param {string} walletId - Wallet ID to export data for
  * @returns {Promise<Object|null>} Complete LevelDB snapshot or null if no data
  */
-const exportWalletSnapshot = async (walletId) => {
+export const exportWalletSnapshot = async (walletId) => {
   try {
     console.log('[IDB-Snapshot-Export] Creating complete LevelDB snapshot for backup...');
 
@@ -464,40 +464,3 @@ const exportWalletSnapshot = async (walletId) => {
     throw error;
   }
 };
-
-/**
- * Clear all data from LevelDB database
- * @returns {Promise<void>}
- */
-const clearLevelDB = async () => {
-  try {
-    console.log('[IDB-Clear] Clearing all data from LevelDB...');
-
-    const db = await openLevelJSDB();
-    const transaction = db.transaction(['railgun-engine-db'], 'readwrite');
-    const store = transaction.objectStore('railgun-engine-db');
-
-    return new Promise((resolve, reject) => {
-      const request = store.clear();
-
-      request.onsuccess = () => {
-        console.log('[IDB-Clear] LevelDB cleared successfully');
-        db.close();
-        resolve();
-      };
-
-      request.onerror = () => {
-        console.error('[IDB-Clear] Failed to clear LevelDB:', request.error);
-        db.close();
-        reject(request.error);
-      };
-    });
-
-  } catch (error) {
-    console.error('[IDB-Clear] Clear operation failed:', error);
-    throw error;
-  }
-};
-
-// Export functions for use in backup module
-export { exportWalletSnapshot, clearLevelDB };

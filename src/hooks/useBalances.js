@@ -86,10 +86,8 @@ const CHAIN_RPC_MAPPING = {
   56: RPC_URLS.bsc,
 };
 
-export function useBalances(targetChainId = null) {
-  const { address, chainId: walletChainId, railgunWalletId, isRailgunInitialized, ensureChainScanned } = useWallet();
-  // Use targetChainId if provided, otherwise fall back to walletChainId
-  const chainId = targetChainId || walletChainId;
+export function useBalances() {
+  const { address, chainId, railgunWalletId, isRailgunInitialized, ensureChainScanned } = useWallet();
 
   // State
   const [publicBalances, setPublicBalances] = useState([]);
@@ -971,13 +969,24 @@ export function useBalances(targetChainId = null) {
           console.log('[useBalances] Ensuring chain is scanned before initial SDK refresh...');
           await ensureChainScanned(chainId);
 
-          // 🚀 FAST-SYNC: Skip full SDK scan - bootstrap provides historical data
-          // Users can manually refresh if they need current balances
-          console.log('[useBalances] 🚀 Fast-sync: Skipping full SDK scan (bootstrap provides historical data)');
+          const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
+          await syncBalancesAfterTransaction({
+            walletAddress: address,
+            walletId: railgunWalletId,
+            chainId,
+          });
+          console.log('[useBalances] ✅ SDK balance refresh completed on wallet connect');
 
-          // Modal unlock is now handled by centralized unlock utility during scan completion
-          // The scan should have already unlocked the modal
-          console.log('[useBalances] Modal unlock handled by scan completion event');
+          // Unlock the initialization modal if it's still locked
+          try {
+            window.dispatchEvent(new CustomEvent('railgun-init-completed', { detail: { address, walletId: railgunWalletId } }));
+            window.dispatchEvent(new CustomEvent('railgun-scan-complete', { detail: { chainId } }));
+
+            // Also dispatch a direct modal unlock event
+            window.dispatchEvent(new CustomEvent('vault-initialization-complete', {
+              detail: { address, walletId: railgunWalletId, chainId }
+            }));
+          } catch {}
 
         } catch (error) {
           console.error('[useBalances] ❌ SDK balance refresh failed on wallet connect:', error.message);

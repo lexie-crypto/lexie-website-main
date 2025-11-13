@@ -1355,10 +1355,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             walletId: railgunWalletId,
             railgunAddress: railgunAddress,
             tokenSymbol: selectedToken.symbol,
-            combinedRelayerFee: result.combinedRelayerFee,
-            relayerFee: result.relayerFee,
-            gasFee: result.gasFee,
-            feeToken: result.feeToken,
             tokenAddress: tokenAddr,
             decimals: selectedToken.decimals,
             amount: amount,
@@ -1874,15 +1870,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       // Optional: Graph monitoring (transfer)
       try {
         const { monitorTransactionInGraph } = await import('../utils/railgun/transactionMonitor.js');
-        console.log('[PrivacyActions] 🚀 Starting transfer transaction monitoring:', {
-          txHash: tx.txHash?.slice(0, 10) + '...',
-          senderRailgunAddress: railgunAddress?.slice(0, 10) + '...',
-          senderWalletAddress: address?.slice(0, 10) + '...',
-          recipientAddress: timelineRecipientAddress?.slice(0, 10) + '...',
-          tokenSymbol: selectedToken.symbol,
-          displayAmount: actualAmount
-        });
-
         monitorTransactionInGraph({
           txHash: tx.txHash,
           chainId,
@@ -1898,10 +1885,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             amount: amountInUnits,
             displayAmount: actualAmount,
             recipientAddress: timelineRecipientAddress, // Use resolved Railgun address
-            combinedRelayerFee: tx.combinedRelayerFee,
-            relayerFee: tx.relayerFee,
-            gasFee: tx.gasFee,
-            feeToken: tx.feeToken,
             memoText: memoText, // Add memo text
           },
         })
@@ -2565,7 +2548,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 type="number"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                onWheel={(e) => e.preventDefault()}
                 placeholder="0.0"
                 step="any"
                 min="0"

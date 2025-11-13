@@ -20,35 +20,10 @@ const LexieIdOrAddress = ({ railgunAddress, fallbackDisplay }) => {
 
       setLoading(true);
       try {
-        // Try Railgun address lookup (works for 0zk addresses)
-        let id = null;
-
-        if (railgunAddress.startsWith('0zk')) {
-          // This is a Railgun address, look it up directly
-          id = await lookupLexieId(railgunAddress);
-        } else if (railgunAddress.startsWith('0x') && railgunAddress.length === 42) {
-          // This is an EOA address, try to resolve it
-          console.log('🔄 [LEXIE_LOOKUP] EOA address detected, attempting resolution:', railgunAddress.slice(0, 10) + '...');
-          try {
-            // First get the wallet ID for this EOA
-            const resolveResponse = await fetch(`/api/wallet-metadata?action=resolve-wallet-id&type=by-eoa&identifier=${encodeURIComponent(railgunAddress)}`);
-            if (resolveResponse.ok) {
-              const resolveData = await resolveResponse.json();
-              if (resolveData.success && resolveData.walletId) {
-                // Now we have the wallet ID, but we need to get the associated data
-                // For now, we'll just show the EOA address since we don't have a direct EOA->LexieID endpoint
-                console.log('ℹ️ [LEXIE_LOOKUP] Resolved EOA to wallet ID, but no direct Lexie ID lookup available:', resolveData.walletId);
-              }
-            }
-          } catch (resolveError) {
-            console.warn('⚠️ [LEXIE_LOOKUP] EOA resolution failed:', resolveError.message);
-          }
-        }
-
+        const id = await lookupLexieId(railgunAddress);
         setLexieId(id);
       } catch (error) {
         console.error('Failed to lookup Lexie ID:', error);
-        setLexieId(null);
       } finally {
         setLoading(false);
       }
@@ -61,22 +36,16 @@ const LexieIdOrAddress = ({ railgunAddress, fallbackDisplay }) => {
     return <span className="text-gray-400">Loading...</span>;
   }
 
-  // For EOA addresses that couldn't be resolved, show a cleaner format
-  const displayText = lexieId ? `@${lexieId}` :
-    (railgunAddress.startsWith('0x') && railgunAddress.length === 42) ?
-      `${railgunAddress.slice(0, 6)}...${railgunAddress.slice(-4)}` :
-      fallbackDisplay;
-
   return (
     <span
       onClick={() => navigator.clipboard.writeText(lexieId || railgunAddress)}
       className="cursor-pointer hover:text-blue-200 transition-colors select-all"
-      title={`Click to copy ${lexieId ? 'Lexie ID' : 'address'}`}
+      title={`Click to copy ${lexieId ? 'Lexie ID' : 'Railgun address'}`}
     >
       {lexieId ? (
-        <span className="text-emerald-300 font-medium">{displayText}</span>
+        <span className="text-emerald-300 font-medium">@{lexieId}</span>
       ) : (
-        <span className="text-gray-300">{displayText}</span>
+        fallbackDisplay
       )}
     </span>
   );
@@ -314,45 +283,35 @@ const TransactionHistory = () => {
 
               {/* Token Amounts */}
               <div className="mb-3">
-                {(() => {
-                  console.log('💰 [TransactionHistory] Token amount debug for tx:', {
-                    txid: tx.txid?.substring(0, 10) + '...',
-                    hasTokenAmounts: !!tx.tokenAmounts,
-                    tokenAmountsLength: tx.tokenAmounts?.length || 0,
-                    firstTokenAmount: tx.tokenAmounts?.[0],
-                    hasToken: !!tx.token,
-                    amount: tx.amount,
-                    amountType: typeof tx.amount,
-                    isPrivateTransfer: tx.isPrivateTransfer
-                  });
-
-                  // Use the same logic as AdminHistoryPage - display amount directly if available
-                  return tx.amount !== undefined && tx.amount !== null ? (
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-1 gap-1">
+                {tx.tokenAmounts && tx.tokenAmounts.length > 0 ? (
+                  tx.tokenAmounts.map((token, index) => (
+                    <div key={index} className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-1 gap-1">
                       <div className="flex items-center space-x-2 min-w-0">
-                        <span className="text-green-200 font-medium">{tx.token || 'USDC'}</span>
+                        <span className="text-green-200 font-medium">{token.symbol}</span>
+                        {/* Token address hidden for cleaner display */}
                       </div>
                       <div className="text-green-200 font-medium text-right">
-                        {typeof tx.amount === 'string' ? tx.amount : tx.amount.toString()}
+                        {token.formattedAmount}
                       </div>
                     </div>
-                  ) : tx.tokenAmounts && tx.tokenAmounts.length > 0 ? (
-                    tx.tokenAmounts.map((token, index) => (
-                      <div key={index} className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-1 gap-1">
-                        <div className="flex items-center space-x-2 min-w-0">
-                          <span className="text-green-200 font-medium">{token.symbol}</span>
-                        </div>
-                        <div className="text-green-200 font-medium text-right">
-                          {token.formattedAmount}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-green-400/70 text-sm italic">
-                      No token amounts available
+                  ))
+                ) : tx.token && tx.amount !== undefined && tx.amount !== null ? (
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-1 gap-1">
+                    <div className="flex items-center space-x-2 min-w-0">
+                      <span className="text-green-200 font-medium">{tx.token}</span>
                     </div>
-                  );
-                })()}
+                    <div className="text-green-200 font-medium text-right">
+                      {tx.isPrivateTransfer ?
+                        formatTokenAmount(tx.amount.toString(), getTokenDecimals(tx.tokenAddress || tx.token, chainId)) :
+                        tx.amount
+                      }
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-green-400/70 text-sm italic">
+                    No token amounts available
+                  </div>
+                )}
               </div>
 
               {/* Description + Memo */}
@@ -409,15 +368,7 @@ const TransactionHistory = () => {
                 {/* Recipient/Sender Address for Private Transfers */}
                 {tx.isPrivateTransfer && (tx.recipientAddress || tx.senderAddress) && (
                   <div className="mt-1 text-blue-300 break-words">
-                    {tx.transactionType === 'Receive Transaction' && tx.senderAddress ? (
-                      <div>
-                        <span className="text-blue-400/80">From LexieID: </span>
-                        <LexieIdOrAddress
-                          railgunAddress={tx.senderAddress}
-                          fallbackDisplay={`${tx.senderAddress.slice(0, 8)}...${tx.senderAddress.slice(-6)}`}
-                        />
-                      </div>
-                    ) : tx.transactionType === 'Send Transaction' && tx.recipientAddress ? (
+                    {tx.recipientAddress ? (
                       <div>
                         <span className="text-blue-400/80">To LexieID: </span>
                         <LexieIdOrAddress
@@ -427,18 +378,10 @@ const TransactionHistory = () => {
                       </div>
                     ) : tx.senderAddress ? (
                       <div>
-                        <span className="text-blue-400/80">From: </span>
+                        <span className="text-blue-400/80">Sender: </span>
                         <LexieIdOrAddress
                           railgunAddress={tx.senderAddress}
                           fallbackDisplay={`${tx.senderAddress.slice(0, 8)}...${tx.senderAddress.slice(-6)}`}
-                        />
-                      </div>
-                    ) : tx.recipientAddress ? (
-                      <div>
-                        <span className="text-blue-400/80">To: </span>
-                        <LexieIdOrAddress
-                          railgunAddress={tx.recipientAddress}
-                          fallbackDisplay={`${tx.recipientAddress.slice(0, 8)}...${tx.recipientAddress.slice(-6)}`}
                         />
                       </div>
                     ) : null}

@@ -18,7 +18,7 @@ const SignatureConfirmationModal = ({
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center z-50 p-4 font-mono">
-      <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden scrollbar-none max-h-[90vh] overflow-y-auto">
+      <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden scrollbar-none">
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
           <div className="flex items-center gap-3">
             <span className="text-sm tracking-wide text-gray-400">vault-signature-confirm</span>
@@ -96,7 +96,7 @@ const SignatureConfirmationModal = ({
 
           <div className="bg-black/40 border border-green-500/20 rounded p-3">
             <div className="text-green-200 text-xs mb-2 font-medium">Message to sign:</div>
-            <pre className="whitespace-pre-wrap break-words text-green-300 text-xs font-mono bg-black/60 p-2 rounded border border-green-500/10 max-w-full overflow-x-auto">
+            <pre className="whitespace-pre-wrap text-green-300 text-xs font-mono bg-black/60 p-2 rounded border border-green-500/10">
               {pendingSignatureMessage}
             </pre>
           </div>
@@ -110,7 +110,7 @@ const SignatureConfirmationModal = ({
 
           <div className="flex gap-3 pt-2">
             <button
-              onClick={() => onConfirm(selectedChainId)}
+              onClick={onConfirm}
               disabled={!selectedChainId || walletChainId !== selectedChainId}
               className={`flex-1 py-2.5 px-4 rounded border transition-all duration-200 text-sm font-medium ${
                 !selectedChainId || walletChainId !== selectedChainId

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { Analytics } from "@vercel/analytics/react";
@@ -9,8 +9,6 @@ import WalletPage from './pages/WalletPage';
 import PaymentPage from './pages/PaymentPage';
 import AdminHistoryPage from './pages/AdminHistoryPage';
 import ChatPage from './pages/ChatPage';
-import TermsAndConditions from './pages/TermsAndConditions';
-import PrivacyPolicy from './pages/PrivacyPolicy';
 
 // PaymentPage moved to subdomain - redirect component
 const PaymentRedirect = () => {
@@ -20,7 +18,7 @@ const PaymentRedirect = () => {
   React.useEffect(() => {
     // Get current URL parameters
     const urlParams = new URLSearchParams(window.location.search);
-    const subdomainUrl = `https://pay.lexiecrypto.com/pay?${urlParams.toString()}`;
+    const subdomainUrl = `https://staging.pay.lexiecrypto.com/pay?${urlParams.toString()}`;
 
     console.log('[PaymentRedirect] Attempting redirect to:', subdomainUrl);
 
@@ -63,7 +61,7 @@ const PaymentRedirect = () => {
   }, [redirectAttempted]);
 
   const urlParams = new URLSearchParams(window.location.search);
-  const subdomainUrl = `https://pay.lexiecrypto.com/pay?${urlParams.toString()}`;
+  const subdomainUrl = `https://staging.pay.lexiecrypto.com/pay?${urlParams.toString()}`;
 
   return (
     <div className="h-screen bg-black text-white flex items-center justify-center">
@@ -98,9 +96,43 @@ const PaymentRedirect = () => {
 };
 
 function App() {
+  const [showMobileDebug, setShowMobileDebug] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
   // Check if we're on the payment subdomain
   const isPaymentSubdomain = typeof window !== 'undefined' &&
-    window.location.hostname === 'pay.lexiecrypto.com';
+    window.location.hostname === 'staging.pay.lexiecrypto.com';
+
+  // Detect mobile and initialize Eruda
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      setIsMobile(mobile);
+
+      // Auto-initialize Eruda on mobile devices
+      if (mobile && typeof window !== 'undefined') {
+        // Small delay to ensure DOM is ready
+        setTimeout(async () => {
+          try {
+            const eruda = await import('eruda');
+            eruda.default.init({
+              defaults: {
+                displaySize: 50,
+                transparency: 0.9,
+                theme: 'Monokai Pro'
+              }
+            });
+            setShowMobileDebug(true);
+            console.log('🛠️ Eruda mobile debugging initialized');
+          } catch (error) {
+            console.error('Failed to initialize Eruda:', error);
+          }
+        }, 1000);
+      }
+    };
+
+    checkMobile();
+  }, []);
 
   // If on payment subdomain, serve PaymentPage directly
   if (isPaymentSubdomain) {
@@ -144,9 +176,8 @@ function App() {
             <Route path="/chat" element={<ChatPage />} />
             <Route path="/pay" element={<PaymentRedirect />} />
             <Route path="/admin-history" element={<AdminHistoryPage />} />
-            <Route path="/t&cs" element={<TermsAndConditions />} />
-            <Route path="/privacy" element={<PrivacyPolicy />} />
           </Routes>
+
 
           {/* Toast notifications */}
           <Toaster
@@ -180,4 +211,4 @@ function App() {
   );
 }
 
-export default App;
+export default App; 

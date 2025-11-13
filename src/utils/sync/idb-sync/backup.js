@@ -20,7 +20,7 @@ export const createWalletBackup = async (walletId, eoa) => {
       eoa: eoa?.slice(0, 8) + '...'
     });
 
-    // Export complete LevelDB snapshot (IndexedDB should already be clean from wallet creation)
+    // Export complete LevelDB snapshot (should be minimal at wallet creation time)
     const snapshotData = await exportWalletSnapshot(walletId);
 
     if (!snapshotData) {

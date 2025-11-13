@@ -500,7 +500,7 @@ class HydrationManager {
 
     console.log(`[IDB-Hydration] Processing ${chunkCount} chunks, starting from ${processedChunks}`);
 
-    const CONCURRENT_DOWNLOADS = 6; // Download 2 chunks in parallel to reduce server load
+    const CONCURRENT_DOWNLOADS = 2; // Download 2 chunks in parallel to reduce server load
 
     // Process chunks in batches for parallel downloading
     for (let batchStart = processedChunks; batchStart < chunkCount; batchStart += CONCURRENT_DOWNLOADS) {
@@ -1102,24 +1102,6 @@ export const loadChainBootstrap = async (walletId, chainId, options = {}) => {
   try {
     console.log(`[IDB-Hydration] Starting chain ${chainId} bootstrap for wallet ${walletId}`);
 
-    // First check if chain has already been hydrated in Redis
-    if (!force && address) {
-      try {
-        console.log(`[IDB-Hydration] Checking if chain ${chainId} already hydrated in Redis for address ${address}...`);
-        const { checkChainHydratedInRedis } = await import('./hydrationCheckUtils.js');
-        const { isHydrated } = await checkChainHydratedInRedis(address, walletId, chainId);
-
-        if (isHydrated) {
-          console.log(`[IDB-Hydration] Chain ${chainId} already hydrated in Redis for wallet ${walletId}, skipping hydration`);
-          if (onComplete) onComplete();
-          return;
-        }
-      } catch (redisError) {
-        console.warn(`[IDB-Hydration] Failed to check Redis hydration status:`, redisError.message);
-        // Continue with hydration if Redis check fails
-      }
-    }
-
     // Per-wallet:chain session lock: bail if already hydrating this wallet:chain
     if (isChainHydrating(walletId, chainId)) {
       console.log(`[IDB-Hydration] Wallet ${walletId} chain ${chainId} already being hydrated, skipping`);
@@ -1130,25 +1112,68 @@ export const loadChainBootstrap = async (walletId, chainId, options = {}) => {
     const lockKey = `${walletId}:${Number(chainId)}`;
     hydratingChains.add(lockKey);
 
-    // Check if chain has already been hydrated in Redis before proceeding with hydration
+    // Check if chain has already been scanned in Redis before proceeding with hydration
     if (!force && address) {
       try {
-        console.log(`[IDB-Hydration] Checking if chain ${chainId} already hydrated in Redis for address ${address}...`);
-        const { checkChainHydratedInRedis } = await import('./hydrationCheckUtils.js');
-        const { isHydrated } = await checkChainHydratedInRedis(address, walletId, chainId);
+        console.log(`[IDB-Hydration] Checking if chain ${chainId} already scanned in Redis for address ${address}...`);
+        console.log(`[IDB-Hydration] Checking wallet ID: ${walletId}`);
+        const response = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
 
-        if (isHydrated) {
-          console.log(`[IDB-Hydration] Chain ${chainId} already hydrated in Redis, skipping hydration`);
-          // Remove from hydrating set since we're not proceeding
-          hydratingChains.delete(`${walletId}:${Number(chainId)}`);
-          if (onComplete) {
-            const result = onComplete();
-            // Await the onComplete callback if it returns a promise
-            if (result && typeof result.then === 'function') {
-              await result;
+        if (response.ok) {
+          const data = await response.json();
+          const walletKeys = Array.isArray(data.keys) ? data.keys : [];
+          console.log(`[IDB-Hydration] Found ${walletKeys.length} wallet keys for address ${address}`);
+          console.log(`[IDB-Hydration] Wallet key IDs:`, walletKeys.map(k => k.walletId?.slice(0, 8) + '...' || 'undefined'));
+
+          // Use same logic as ensureChainScanned - find key by walletId only (EOA check via API)
+          const matchingKey = walletKeys.find(key => key.walletId === walletId) || null;
+          console.log(`[IDB-Hydration] Matching key found: ${!!matchingKey}`);
+          if (matchingKey) {
+            console.log(`[IDB-Hydration] Matching key details:`, {
+              walletId: matchingKey.walletId?.slice(0, 8) + '...',
+              hasHydratedChains: !!matchingKey.hydratedChains,
+              hydratedChains: matchingKey.hydratedChains,
+              hasMeta: !!matchingKey.meta,
+              metaHydratedChains: matchingKey.meta?.hydratedChains
+            });
+          }
+
+          if (matchingKey) {
+            // Check hydratedChains array (prevents duplicate hydration)
+            const hydratedChains = Array.isArray(matchingKey?.hydratedChains)
+              ? matchingKey.hydratedChains
+              : (Array.isArray(matchingKey?.meta?.hydratedChains) ? matchingKey.meta.hydratedChains : []);
+
+            const normalizedHydratedChains = hydratedChains
+              .map(n => (typeof n === 'string' && n?.startsWith?.('0x') ? parseInt(n, 16) : Number(n)))
+              .filter(n => Number.isFinite(n));
+
+            const isChainHydrated = normalizedHydratedChains.includes(Number(chainId));
+
+            console.log(`[IDB-Hydration] Hydrated chains check:`, {
+              rawHydratedChains: hydratedChains,
+              normalizedHydratedChains,
+              checkingForChain: Number(chainId),
+              isChainHydrated,
+              isLocked: isChainHydrating(walletId, chainId)
+            });
+
+            console.log(`[IDB-Hydration] Hydration guard: hydrated=${isChainHydrated}, locked=${isChainHydrating(walletId, chainId)} -> ${isChainHydrated ? 'skip' : 'proceed'}`);
+
+            if (isChainHydrated) {
+              console.log(`[IDB-Hydration] Chain ${chainId} already hydrated in Redis, skipping hydration`);
+              // Remove from hydrating set since we're not proceeding
+              hydratingChains.delete(`${walletId}:${Number(chainId)}`);
+              if (onComplete) {
+                const result = onComplete();
+                // Await the onComplete callback if it returns a promise
+                if (result && typeof result.then === 'function') {
+                  await result;
+                }
+              }
+              return; // Skip hydration entirely
             }
           }
-          return; // Skip hydration entirely
         }
       } catch (redisCheckError) {
         console.warn(`[IDB-Hydration] Failed to check Redis hydratedChains, proceeding with hydration:`, redisCheckError);

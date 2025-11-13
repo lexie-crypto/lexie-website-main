@@ -241,7 +241,9 @@ const AdminDashboard = () => {
     addLog('📊 Loading analytics data...', 'info');
 
     try {
-      const analyticsParams = new URLSearchParams();
+      const analyticsParams = new URLSearchParams({
+        action: 'get-analytics'
+      });
 
       // Add time filters if selected
       if (analyticsPeriod !== 'all') {
@@ -253,11 +255,7 @@ const AdminDashboard = () => {
         }
       }
 
-      const analyticsUrl = analyticsParams.toString()
-        ? `/api/get-analytics?${analyticsParams}`
-        : '/api/get-analytics';
-
-      const analyticsResponse = await fetch(analyticsUrl, {
+      const analyticsResponse = await fetch(`/api/wallet-metadata?${analyticsParams}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -1605,33 +1603,6 @@ ${JSON.stringify(tx, null, 2)}
                       <div className="flex justify-between items-center">
                         <span className="text-gray-400">Volume (24h):</span>
                         <span className="text-purple-300 font-medium">{analyticsData.volume24h ? `$${analyticsData.volume24h.toLocaleString(undefined, {maximumFractionDigits: 2})}` : 'N/A'}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Total Fees Collected:</span>
-                        <span className="text-orange-300 font-medium">
-                          {analyticsData.totalFeesCollectedUSD && analyticsData.totalFeesCollectedUSD > 0
-                            ? `$${analyticsData.totalFeesCollectedUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                            : '$0.00'
-                          }
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Relayer Fees:</span>
-                        <span className="text-blue-300 font-medium">
-                          {analyticsData.totalRelayerFeesUSD && analyticsData.totalRelayerFeesUSD > 0
-                            ? `$${analyticsData.totalRelayerFeesUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                            : '$0.00'
-                          }
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-400">Gas Reclamation Fees:</span>
-                        <span className="text-green-300 font-medium">
-                          {analyticsData.totalGasFeesUSD && analyticsData.totalGasFeesUSD > 0
-                            ? `$${analyticsData.totalGasFeesUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                            : '$0.00'
-                          }
-                        </span>
                       </div>
                     </div>
                   </div>

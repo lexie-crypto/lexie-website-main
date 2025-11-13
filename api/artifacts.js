@@ -18,11 +18,11 @@ export default async function handler(req, res) {
     'https://wallet.lexiecrypto.com',
     'http://localhost:3000',
     'http://localhost:5173',
-    'https://lexiecrypto.com',
-    'https://app.lexiecrypto.com',
-    'https://chatroom.lexiecrypto.com',
-    'https://wallet.lexiecrypto.com',
-    'https://pay.lexiecrypto.com',
+    'https://staging.lexiecrypto.com',
+    'https://staging.app.lexiecrypto.com',
+    'https://staging.chatroom.lexiecrypto.com',
+    'https://staging.wallet.lexiecrypto.com',
+    'https://staging.pay.lexiecrypto.com',
     'https://pay.lexiecrypto.com',
   ];
 
@@ -86,32 +86,32 @@ export default async function handler(req, res) {
     if (parsedAction) {
       // Action-based routing (query parameter)
       if (parsedAction === 'health') {
-        backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/wallet-metadata/artifacts/health`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/artifacts/health`;
       } else if (parsedAction === 'get') {
         const key = actionParams.key || url.searchParams.get('key');
         if (!key) {
           return res.status(400).json({ error: 'Missing key parameter for get action', requestId });
         }
-        backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/wallet-metadata/artifacts/get/${encodeURIComponent(key)}`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/artifacts/get/${encodeURIComponent(key)}`;
       } else if (parsedAction === 'exists') {
         const key = actionParams.key || url.searchParams.get('key');
         if (!key) {
           return res.status(400).json({ error: 'Missing key parameter for exists action', requestId });
         }
-        backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/wallet-metadata/artifacts/exists/${encodeURIComponent(key)}`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/artifacts/exists/${encodeURIComponent(key)}`;
       } else if (parsedAction === 'store') {
-        backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/wallet-metadata/artifacts/store`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/artifacts/store`;
       } else if (parsedAction === 'batch') {
-        backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/wallet-metadata/artifacts/batch`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/artifacts/batch`;
       } else if (parsedAction === 'preload') {
-        backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/wallet-metadata/artifacts/preload`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/artifacts/preload`;
       } else if (parsedAction === 'sync-chunk') {
-        backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/idb-sync/chunk`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/chunk`;
       } else if (parsedAction === 'sync-finalize') {
-        backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/idb-sync/finalize`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/finalize`;
       } else if (parsedAction === 'sync-manifest') {
         const chainId = actionParams.chainId;
-        let url = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/idb-sync/manifest`;
+        let url = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/manifest`;
         if (chainId) {
           url += `?chainId=${encodeURIComponent(chainId)}`;
         }
@@ -120,14 +120,14 @@ export default async function handler(req, res) {
         const chainId = actionParams.chainId;
         if (chainId) {
           // Chain-specific latest request
-          backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/idb-sync/latest?chainId=${encodeURIComponent(chainId)}`;
+          backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/latest?chainId=${encodeURIComponent(chainId)}`;
         } else {
           // Legacy wallet-specific request (shouldn't be used anymore)
           const walletId = actionParams.walletId;
           if (!walletId) {
             return res.status(400).json({ error: 'Missing required parameter: chainId or walletId', requestId });
           }
-          backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/idb-sync/latest?walletId=${encodeURIComponent(walletId)}`;
+          backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/latest?walletId=${encodeURIComponent(walletId)}`;
         }
       } else if (parsedAction === 'idb-sync-manifest') {
         const chainId = actionParams.chainId;
@@ -135,14 +135,14 @@ export default async function handler(req, res) {
         if (!chainId || !timestamp) {
           return res.status(400).json({ error: 'Missing required parameters: chainId and timestamp', requestId });
         }
-        backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/idb-sync/manifest?chainId=${encodeURIComponent(chainId)}&timestamp=${encodeURIComponent(timestamp)}`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/manifest?chainId=${encodeURIComponent(chainId)}&timestamp=${encodeURIComponent(timestamp)}`;
       } else if (parsedAction === 'idb-sync-snapshot') {
         const ts = actionParams.ts;
         const chainId = actionParams.chainId;
         if (!ts || !chainId) {
           return res.status(400).json({ error: 'Missing required parameters: ts, chainId', requestId });
         }
-        backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/idb-sync/snapshot?ts=${encodeURIComponent(ts)}&chainId=${encodeURIComponent(chainId)}`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/snapshot?ts=${encodeURIComponent(ts)}&chainId=${encodeURIComponent(chainId)}`;
       } else if (parsedAction === 'idb-sync-chunk') {
         const ts = actionParams.ts;
         const n = actionParams.n;
@@ -150,41 +150,41 @@ export default async function handler(req, res) {
         if (!ts || n === undefined || !chainId) {
           return res.status(400).json({ error: 'Missing required parameters: ts, n, chainId', requestId });
         }
-        backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/idb-sync/chunk?ts=${encodeURIComponent(ts)}&n=${encodeURIComponent(n)}&chainId=${encodeURIComponent(chainId)}`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/chunk?ts=${encodeURIComponent(ts)}&n=${encodeURIComponent(n)}&chainId=${encodeURIComponent(chainId)}`;
       } else if (parsedAction === 'idb-wallet-backup-upload') {
-        backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/wallet/sync/idb-wallet-backup-upload`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet/sync/idb-wallet-backup-upload`;
       } else if (parsedAction === 'idb-wallet-backup-download') {
         // For backup download, backupKey comes as a separate query parameter, not embedded in action
         const backupKey = url.searchParams.get('backupKey');
         if (!backupKey) {
           return res.status(400).json({ error: 'Missing required parameter: backupKey', requestId });
         }
-        backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/wallet/sync/idb-wallet-backup-download?backupKey=${encodeURIComponent(backupKey)}`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet/sync/idb-wallet-backup-download?backupKey=${encodeURIComponent(backupKey)}`;
       } else if (parsedAction === 'reset-wallet-chains') {
-        backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/wallet/sync/reset-wallet-chains`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet/sync/reset-wallet-chains`;
       } else if (parsedAction === 'wallet-backup-exists') {
-        backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/wallet/sync/wallet-backup-exists`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet/sync/wallet-backup-exists`;
       } else {
         return res.status(400).json({ error: 'Unknown action', requestId });
       }
     } else {
       // Path-based routing (legacy support)
       if (artifactsPath === '/' || artifactsPath === '') {
-        backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/wallet-metadata/artifacts/health`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/artifacts/health`;
       } else if (artifactsPath.startsWith('/get/')) {
         const key = artifactsPath.replace('/get/', '');
-        backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/wallet-metadata/artifacts/get/${encodeURIComponent(key)}`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/artifacts/get/${encodeURIComponent(key)}`;
       } else if (artifactsPath.startsWith('/exists/')) {
         const key = artifactsPath.replace('/exists/', '');
-        backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/wallet-metadata/artifacts/exists/${encodeURIComponent(key)}`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/artifacts/exists/${encodeURIComponent(key)}`;
       } else if (artifactsPath === '/store') {
-        backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/wallet-metadata/artifacts/store`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/artifacts/store`;
       } else if (artifactsPath === '/batch') {
-        backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/wallet-metadata/artifacts/batch`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/artifacts/batch`;
       } else if (artifactsPath === '/preload') {
-        backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/wallet-metadata/artifacts/preload`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata/artifacts/preload`;
       } else {
-        backendUrl = `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/wallet-metadata${artifactsPath}`;
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet-metadata${artifactsPath}`;
       }
     }
 

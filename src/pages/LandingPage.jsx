@@ -34,7 +34,7 @@ export default function LandingPage() {
       });
       
       // Update active card index
-      const newIndex = (activeCardIndex + 1) % 3;
+      const newIndex = (activeCardIndex + 1) % 9;
       setActiveCardIndex(newIndex);
       
       // Check if we've scrolled past the second set, reset to first set position
@@ -59,7 +59,7 @@ export default function LandingPage() {
       });
       
       // Update active card index
-      const newIndex = (activeCardIndex - 1 + 3) % 3;
+      const newIndex = (activeCardIndex - 1 + 9) % 9;
       setActiveCardIndex(newIndex);
       
       // Check if we've scrolled before the first set, reset to second set position
@@ -75,7 +75,7 @@ export default function LandingPage() {
     if (carouselRef.current) {
       const container = carouselRef.current;
       const cardWidth = 352; // Width of one card plus gap (320px + 32px)
-      const cardsPerSet = 3; // Number of cards in each set
+      const cardsPerSet = 9; // Number of cards in each set
       const middleSetStart = cardWidth * cardsPerSet; // Start of middle set
       const targetPosition = middleSetStart + (cardIndex * cardWidth);
       
@@ -247,7 +247,7 @@ export default function LandingPage() {
       // Set initial position to show Predictive Intelligence (first card of middle set) flush left
       const container = carouselRef.current;
       const cardWidth = 352; // Width of one card plus gap (320px card + 32px gap)
-      const cardsPerSet = 3; // Number of cards in each set
+      const cardsPerSet = 9; // Number of cards in each set
       const initialOffset = cardWidth * cardsPerSet; // Start of middle set where Predictive Intelligence is
       
       setTimeout(() => {
@@ -383,7 +383,7 @@ export default function LandingPage() {
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-4">
                 <a
-                  href="https://t.me/lexieAI"
+                  href="https://t.me/lexie_crypto_bot"
               target="_blank"
               rel="noopener noreferrer"
                   className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-300 shadow-lg hover:shadow-purple-500/25 hover:scale-105 text-center"
@@ -391,20 +391,20 @@ export default function LandingPage() {
                   Join Telegram
             </a>
             <a
-                  href="https://x.com/0xLexieAI"
+                  href="https://forms.gle/sbTJFRccd14qJLPEA"
               target="_blank"
               rel="noopener noreferrer"
                   className="px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-cyan-700 transition-all duration-300 shadow-lg hover:shadow-blue-500/25 hover:scale-105 text-center"
             >
-                  Join Twitter
+                  Join Beta
             </a>
             <a
-                    href="https://app.lexiecrypto.com/lexievault"
+                    href="https://x.com/0xLexieAI"
               target="_blank"
               rel="noopener noreferrer"
                     className="px-8 py-4 border-2 border-purple-500 text-purple-300 font-semibold rounded-lg hover:bg-purple-500 hover:text-white transition-all duration-300 hover:scale-105 text-center animate-twitter-flicker"
             >
-                    Launch Beta
+                    Join Twitter
             </a>
           </div>
         </div>
@@ -660,10 +660,17 @@ export default function LandingPage() {
           <div className="text-center mb-20">
             <h2 className="text-5xl lg:text-7xl font-bold text-white mb-6">
               <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
-                LEXIE PLATFORM
+                TACTICAL
               </span>
+              <br />
+              <span className="text-white">AI ARSENAL</span>
             </h2>
+            <p className="text-xl text-gray-300 max-w-3xl mx-auto leading-relaxed">
+              Deploy advanced AI protocols for Web3 domination. Each module engineered for maximum efficiency and stealth operations.
+            </p>
           </div>
+
+
 
           {/* Feature Panels Container with External Navigation */}
           <div className="relative flex items-center">
@@ -687,31 +694,85 @@ export default function LandingPage() {
                 {[...Array(3)].map((_, setIndex) => {
                   const features = [
                 {
-                  title: "LexieVault",
-                  missionType: "VAULT_PROTOCOL",
-                  description: "zk-secured, non-custodial vault for shielding, sending, and receiving assets with gasless transactions and full on-chain confidentiality",
-                  icon: "🛡️",
+                  title: "Predictive Intelligence",
+                  missionType: "INTELLIGENCE_PROTOCOL",
+                  description: "Machine learning technical analysis for predictive trading pattern recognition",
+                  icon: "🧠",
+                  color: "indigo",
+                  status: "LEARNING",
+                  efficiency: "89.1%"
+                },
+                {
+                  title: "Auto-Airdrop Quester",
+                  missionType: "STEALTH_OPS",
+                  description: "Deploys autonomous agents to discover and execute airdrop campaigns",
+                  icon: "🎯",
                   color: "purple",
-                  status: "SECURE",
+                  status: "ACTIVE",
+                  efficiency: "99.7%"
+                },
+                {
+                  title: "Dark Wallet Mode",
+                  missionType: "GHOST_PROTOCOL",
+                  description: "Zero-knowledge transaction obfuscation with quantum-resistant privacy layers",
+                  icon: "👻",
+                  color: "gray",
+                  status: "PHANTOM",
                   efficiency: "100%"
                 },
                 {
-                  title: "LexieChat",
-                  missionType: "AI_ANALYST",
-                  description: "AI-powered crypto analyst that provides real-time prices, news, and technical analysis with optional Degen Mode for unfiltered alpha",
-                  icon: "🤖",
+                  title: "Smart DCA Engine",
+                  missionType: "MARKET_INTEL",
+                  description: "Advanced algorithmic averaging with real-time analysis and instant execution",
+                  icon: "📈",
                   color: "blue",
-                  status: "ANALYZING",
-                  efficiency: "97.3%"
+                  status: "OPTIMIZING",
+                  efficiency: "94.2%"
                 },
                 {
-                  title: "LexieTitans",
-                  missionType: "GAMING_PROTOCOL",
-                  description: "Tap-to-earn Web3 game where you charge Titans, complete quests, earn points, and climb leaderboards for rewards",
+                  title: "Guardian Consent Mode",
+                  missionType: "FORTRESS_PROTOCOL",
+                  description: "Multi-layer security matrix with AI-powered threat detection and response systems",
+                  icon: "🛡️",
+                  color: "green",
+                  status: "VIGILANT",
+                  efficiency: "100%"
+                },
+                {
+                  title: "Auto-Liquidity Hops",
+                  missionType: "PATHFINDER",
+                  description: "Neural network routing across 47+ DEX protocols for optimal execution paths",
+                  icon: "🔄",
+                  color: "pink",
+                  status: "SCANNING",
+                  efficiency: "96.8%"
+                },
+                {
+                  title: "On-Chain Quest Mode",
+                  missionType: "GAMIFICATION",
+                  description: "Automated DeFi interaction campaigns with reward optimization algorithms",
                   icon: "⚔️",
                   color: "yellow",
-                  status: "ACTIVE",
-                  efficiency: "95.8%"
+                  status: "QUESTING",
+                  efficiency: "92.4%"
+                },
+                {
+                  title: "Delegated DAO Voting",
+                  missionType: "DEMOCRACY_BOT",
+                  description: "Proposal analysis with automated voting based on user-defined preferences",
+                  icon: "🗳️",
+                  color: "red",
+                  status: "ANALYZING",
+                  efficiency: "91.6%"
+                },
+                {
+                  title: "Alpha Loop Integration",
+                  missionType: "INTEL_FEED",
+                  description: "Real-time market intelligence and risk assessment",
+                  icon: "🔮",
+                  color: "cyan",
+                  status: "MONITORING",
+                  efficiency: "97.3%"
                 }
                   ];
                   
@@ -800,7 +861,7 @@ export default function LandingPage() {
 
           {/* Navigation Dots - Hidden on Mobile */}
           <div className="hidden md:flex justify-center space-x-2 mt-8">
-            {Array.from({ length: 3 }).map((_, i) => (
+            {Array.from({ length: 9 }).map((_, i) => (
               <button
                 key={i}
                 onClick={() => scrollToCard(i)}
@@ -812,6 +873,29 @@ export default function LandingPage() {
                 aria-label={`Go to card ${i + 1}`}
               />
             ))}
+          </div>
+
+          {/* Command Console */}
+          <div className="mt-16 bg-black/80 border border-purple-500/40 rounded-lg p-6 font-mono text-sm">
+            <div className="flex items-center space-x-2 mb-4">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span className="text-green-400">LEXIE.AI_CONSOLE</span>
+              <span className="text-gray-500">// TACTICAL_OVERVIEW</span>
+            </div>
+            <div className="grid md:grid-cols-3 gap-6 text-center">
+              <div>
+                <div className="text-2xl font-bold text-purple-400 mb-1">9</div>
+                <div className="text-gray-400">Active Modules</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-cyan-400 mb-1">$2.4M+</div>
+                <div className="text-gray-400">Protected Assets</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-green-400 mb-1">96.7%</div>
+                <div className="text-gray-400">Success Rate</div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -1042,8 +1126,6 @@ export default function LandingPage() {
               <a href="#features" className="text-gray-400 hover:text-purple-300 transition-colors">Features</a>
               <a href="#security" className="text-gray-400 hover:text-purple-300 transition-colors">Security</a>
               <a href="#beta" className="text-gray-400 hover:text-purple-300 transition-colors">Beta</a>
-              <a href="/t&cs" className="text-gray-400 hover:text-purple-300 transition-colors">Terms & Conditions</a>
-              <a href="/privacy" className="text-gray-400 hover:text-purple-300 transition-colors">Privacy Policy</a>
               <a href="mailto:lexie@lexiecrypto.com" className="text-gray-400 hover:text-purple-300 transition-colors">Contact</a>
             </div>
           </div>

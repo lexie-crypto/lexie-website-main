@@ -378,29 +378,18 @@ export const setupScanningCallbacks = () => {
 
   // ✅ Official UTXO Merkle tree scan progress callback from Railgun SDK
   setOnUTXOMerkletreeScanCallback((event) => {
-    // Handle completion status - treat 'Complete' as 100% progress
-    const progressPercent = event.scanStatus === 'Complete'
-      ? 100
-      : (event.progress * 100 || 0);
-
-    console.log(`[ScanningService] 📊 UTXO scan progress: ${progressPercent}%`);
-
+    console.log(`[ScanningService] 📊 UTXO scan progress: ${event.progress * 100}%`);
+    
     // Update internal progress tracking
     const networkName = event.chain?.name;
     if (networkName) {
       const currentProgress = getScanProgress(networkName);
       scanProgress.set(networkName, {
         ...currentProgress,
-        utxo: progressPercent,
+        utxo: event.progress * 100 || 0,
       });
-
-      // Update overall scan status if complete
-      if (event.scanStatus === 'Complete') {
-        scanStatus.set(networkName, ScanStatus.COMPLETE);
-        lastScanTime.set(networkName, Date.now());
-      }
     }
-
+    
     // Dispatch custom event for UI compatibility
     window.dispatchEvent(new CustomEvent('railgun-utxo-scan', {
       detail: { networkName: event.chain?.name, scanData: event },
@@ -409,45 +398,18 @@ export const setupScanningCallbacks = () => {
 
   // ✅ Official TXID Merkle tree scan progress callback from Railgun SDK
   setOnTXIDMerkletreeScanCallback((event) => {
-    // Handle completion status - treat 'Complete' as 100% progress
-    const progressPercent = event.scanStatus === 'Complete'
-      ? 100
-      : (event.progress * 100 || 0);
-
-    console.log(`[ScanningService] 📊 TXID scan progress: ${progressPercent}%`);
-
+    console.log(`[ScanningService] 📊 TXID scan progress: ${event.progress * 100}%`);
+    
     // Update internal progress tracking
     const networkName = event.chain?.name;
     if (networkName) {
       const currentProgress = getScanProgress(networkName);
       scanProgress.set(networkName, {
         ...currentProgress,
-        txid: progressPercent,
+        txid: event.progress * 100 || 0,
       });
-
-      // Update overall scan status if complete
-      if (event.scanStatus === 'Complete') {
-        scanStatus.set(networkName, ScanStatus.COMPLETE);
-        lastScanTime.set(networkName, Date.now());
-
-        // 🔓 Notify WalletContext that scan is complete for this chain
-        if (progressPercent === 100 && event.chain?.id) {
-          console.log(`[ScanningService] 🎯 TXID scan complete for chain ${event.chain.id}, notifying WalletContext`);
-
-          // Set the global flag that WalletContext monitors for Redis persistence and modal unlocking
-          if (typeof window !== 'undefined') {
-            window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
-            window.__RAILGUN_INITIAL_SCAN_DONE[event.chain.id] = true;
-
-            // Dispatch event to notify WalletContext immediately
-            window.dispatchEvent(new CustomEvent('railgun-txid-scan-complete', {
-              detail: { chainId: event.chain.id, networkName }
-            }));
-          }
-        }
-      }
     }
-
+    
     // Dispatch custom event for UI compatibility
     window.dispatchEvent(new CustomEvent('railgun-txid-scan', {
       detail: { networkName: event.chain?.name, scanData: event },
