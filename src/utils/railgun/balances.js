@@ -31,7 +31,7 @@ const getRailgunNetworkName = (chainId) => {
 // Native gas token mapping by chain ID
 const NATIVE_GAS_TOKENS = {
   1: 'ETH',      // Ethereum
-  137: 'MATIC',  // Polygon
+  137: 'POL',    // Polygon (POL after rebrand)
   56: 'BNB',     // BSC
   42161: 'ETH',  // Arbitrum (uses ETH)
 };
@@ -169,6 +169,34 @@ export const refreshPrivateBalancesAndStore = async (walletID, chainId) => {
 };
 
 /**
+ * Round balance down to 8 decimal places to prevent precision issues
+ * @param {string} balanceWei - Balance in wei/base units
+ * @param {number} decimals - Token decimals
+ * @returns {string} Rounded balance in wei/base units
+ */
+export const roundBalanceTo8Decimals = (balanceWei, decimals) => {
+  try {
+    if (!balanceWei || balanceWei === '0' || decimals < 8) return balanceWei;
+
+    // Convert to BigInt
+    const balanceBigInt = BigInt(balanceWei);
+
+    // For 8 decimal places, we truncate at the 10^(decimals-8) level
+    // For 18 decimals, we truncate at 10^10 level
+    const truncateLevel = decimals - 8;
+    const divisor = BigInt(10) ** BigInt(truncateLevel);
+
+    // Truncate by dividing and multiplying back
+    const truncated = (balanceBigInt / divisor) * divisor;
+
+    return truncated.toString();
+  } catch (error) {
+    console.error('[RailgunBalances] Failed to round balance:', error);
+    return balanceWei;
+  }
+};
+
+/**
  * Parse token amount from decimal string to base units
  * @param {string} amount - Amount in decimal format
  * @param {number} decimals - Token decimals
@@ -185,7 +213,9 @@ export const parseTokenAmount = (amount, decimals) => {
 
     // Remove leading zeros and handle negative
     const cleanAmount = fullAmount.replace(/^0+/, '') || '0';
-    return cleanAmount;
+
+    // Apply 8 decimal place rounding to prevent precision issues
+    return roundBalanceTo8Decimals(cleanAmount, decimals);
   } catch (error) {
     console.error('[RailgunBalances] Failed to parse token amount:', error);
     return '0';

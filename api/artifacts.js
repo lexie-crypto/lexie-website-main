@@ -151,6 +151,19 @@ export default async function handler(req, res) {
           return res.status(400).json({ error: 'Missing required parameters: ts, n, chainId', requestId });
         }
         backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/idb-sync/chunk?ts=${encodeURIComponent(ts)}&n=${encodeURIComponent(n)}&chainId=${encodeURIComponent(chainId)}`;
+      } else if (parsedAction === 'idb-wallet-backup-upload') {
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet/sync/idb-wallet-backup-upload`;
+      } else if (parsedAction === 'idb-wallet-backup-download') {
+        // For backup download, backupKey comes as a separate query parameter, not embedded in action
+        const backupKey = url.searchParams.get('backupKey');
+        if (!backupKey) {
+          return res.status(400).json({ error: 'Missing required parameter: backupKey', requestId });
+        }
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet/sync/idb-wallet-backup-download?backupKey=${encodeURIComponent(backupKey)}`;
+      } else if (parsedAction === 'reset-wallet-chains') {
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet/sync/reset-wallet-chains`;
+      } else if (parsedAction === 'wallet-backup-exists') {
+        backendUrl = `${process.env.API_BASE_URL || 'https://staging.api.lexiecrypto.com'}/api/wallet/sync/wallet-backup-exists`;
       } else {
         return res.status(400).json({ error: 'Unknown action', requestId });
       }

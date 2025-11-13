@@ -9,6 +9,7 @@ import { ethers, formatUnits, Contract } from 'ethers';
 import { useWallet } from '../contexts/WalletContext';
 import { fetchTokenPrices } from '../utils/pricing/coinGecko';
 import { RPC_URLS } from '../config/environment';
+import { roundBalanceTo8Decimals } from '../utils/railgun/balances';
 
 // ERC20 ABI for balance checking
 const ERC20_ABI = [
@@ -86,7 +87,7 @@ const CHAIN_RPC_MAPPING = {
 };
 
 export function useBalances() {
-  const { address, chainId, railgunWalletId, isRailgunInitialized } = useWallet();
+  const { address, chainId, railgunWalletId, isRailgunInitialized, ensureChainScanned } = useWallet();
 
   // State
   const [publicBalances, setPublicBalances] = useState([]);
@@ -167,7 +168,7 @@ export function useBalances() {
       // Include wrapped base-token symbols to ensure pricing coverage
       const priceSymbols = [
         ...symbols,
-        'WETH', 'WMATIC', 'WPOL', 'WBNB', 'WBTC', // wrapped base tokens
+        'WETH', 'WPOL', 'WBNB', 'WBTC', // wrapped base tokens (WPOL instead of WMATIC)
       ];
       const uniqueSymbols = [...new Set(priceSymbols)];
       const prices = await fetchTokenPrices(uniqueSymbols);
@@ -185,8 +186,9 @@ export function useBalances() {
     // Resolve common wrapper/alias symbols to their base asset prices if needed
     const aliasMap = {
       WETH: 'ETH',
-      WMATIC: 'MATIC',
-      WPOL: 'POL', // WPOL wraps POL
+      WMATIC: 'POL', // WMATIC wraps POL (Polygon rebrand)
+      MATIC: 'POL',  // Native MATIC is now POL
+      WPOL: 'POL',   // WPOL wraps POL
       WBNB: 'BNB',
       WBTC: 'BTC',
       'USDC.e': 'USDC',
@@ -375,13 +377,19 @@ export function useBalances() {
                 // Convert scientific notation to decimal string for parseUnits
                 const decimalStr = numeric.toFixed(20).replace(/\.?0+$/, ''); // Remove trailing zeros
                 weiBalanceStr = ethers.parseUnits(decimalStr, decimals).toString();
+                // Round balance down to 8 decimal places
+                weiBalanceStr = roundBalanceTo8Decimals(weiBalanceStr, decimals);
               } else if (typeof storedBalance === 'number') {
                 // Stored as decimal number
                 numeric = storedBalance;
                 weiBalanceStr = ethers.parseUnits(storedBalance.toString(), decimals).toString();
+                // Round balance down to 8 decimal places
+                weiBalanceStr = roundBalanceTo8Decimals(weiBalanceStr, decimals);
               } else {
                 // Assume stored as wei string
                 weiBalanceStr = balanceStr;
+                // Round balance down to 8 decimal places
+                weiBalanceStr = roundBalanceTo8Decimals(weiBalanceStr, decimals);
                 try {
                   numeric = parseFloat(ethers.formatUnits(weiBalanceStr, decimals));
                 } catch (e) {
@@ -390,6 +398,8 @@ export function useBalances() {
                   try {
                     numeric = Number(weiBalanceStr);
                     weiBalanceStr = ethers.parseUnits(weiBalanceStr, decimals).toString();
+                    // Round balance down to 8 decimal places
+                    weiBalanceStr = roundBalanceTo8Decimals(weiBalanceStr, decimals);
                   } catch (e2) {
                     console.warn('[useBalances] Failed to parse Redis balance, falling back to 0:', weiBalanceStr);
                     numeric = 0;
@@ -539,7 +549,7 @@ export function useBalances() {
       const allSymbols = [
         ...new Set([
           ...(TOKEN_LISTS[chainId] || []).map(t => t.symbol),
-          'ETH', 'MATIC', 'POL', 'BNB', 'BTC', // Native tokens + BTC for WBTC pricing
+          'ETH', 'POL', 'BNB', 'BTC', // Native tokens + BTC for WBTC pricing (POL instead of MATIC)
         ])
       ];
       const freshPrices = await fetchAndCachePrices(allSymbols);
@@ -579,15 +589,21 @@ export function useBalances() {
                   // Convert scientific notation to decimal string for parseUnits
                   const decimalStr = numeric.toFixed(20).replace(/\.?0+$/, ''); // Remove trailing zeros
                   weiBalanceStr = ethers.parseUnits(decimalStr, decimals).toString();
+                  // Round balance down to 8 decimal places
+                  weiBalanceStr = roundBalanceTo8Decimals(weiBalanceStr, decimals);
                 } else if (typeof backendBalance === 'number') {
                   // Backend returned decimal number
                   numeric = backendBalance;
                   const decimals = token.decimals ?? 18;
                   weiBalanceStr = ethers.parseUnits(backendBalance.toString(), decimals).toString();
+                  // Round balance down to 8 decimal places
+                  weiBalanceStr = roundBalanceTo8Decimals(weiBalanceStr, decimals);
                 } else {
                   // Backend returned wei string
                   const decimals = token.decimals ?? 18;
                   weiBalanceStr = backendBalance.toString();
+                  // Round balance down to 8 decimal places
+                  weiBalanceStr = roundBalanceTo8Decimals(weiBalanceStr, decimals);
                   try {
                     numeric = parseFloat(ethers.formatUnits(weiBalanceStr, decimals));
                   } catch (e) {
@@ -919,13 +935,25 @@ export function useBalances() {
     try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
     // Clear immediately to avoid showing previous-chain balances
     setPrivateBalances([]);
-    // Load for the active chain
-    loadPrivateBalancesFromMetadata(address, railgunWalletId)
-      .finally(() => {
+
+    // Load for the active chain - chains should already be scanned/hydrated by modal flow
+    (async () => {
+      try {
+        // Chain switching should only happen after modal confirmation,
+        // so chains should already be scanned and hydrated.
+        // Just refresh balances from Redis without triggering expensive operations.
+        console.log('[useBalances] Loading balances for chain (should already be ready):', chainId);
+        await loadPrivateBalancesFromMetadata(address, railgunWalletId);
+      } catch (error) {
+        console.warn('[useBalances] Error during chain switch balance refresh:', error);
+        // Fallback to loading from Redis anyway
+        await loadPrivateBalancesFromMetadata(address, railgunWalletId);
+      } finally {
         setIsPrivateBalancesLoading(false);
         try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
-      });
-  }, [chainId]);
+      }
+    })();
+  }, [chainId, address, railgunWalletId]);
 
   // Load private balances using SDK refresh when Railgun wallet is ready (same as refresh button)
   useEffect(() => {
@@ -937,6 +965,10 @@ export function useBalances() {
       // Use the same SDK refresh + persist logic as the refresh button
       (async () => {
         try {
+          // Step 0: Ensure chain has been scanned for private transfers (critical for discovering transfers before first shield)
+          console.log('[useBalances] Ensuring chain is scanned before initial SDK refresh...');
+          await ensureChainScanned(chainId);
+
           const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
           await syncBalancesAfterTransaction({
             walletAddress: address,
@@ -964,7 +996,7 @@ export function useBalances() {
         }
       })();
     }
-  }, [railgunWalletId, address, isRailgunInitialized, chainId, bootstrappedChains]);
+  }, [railgunWalletId, address, isRailgunInitialized, chainId, bootstrappedChains, ensureChainScanned]);
 
   // Listen for chain bootstrap completion to sequence balance refresh
   useEffect(() => {
@@ -1012,7 +1044,10 @@ export function useBalances() {
             // Handle the case where getTokenInfo might fail - use fallback token data
             const symbol = tokenInfo?.symbol || `TOKEN_${token.tokenAddress?.slice(-6)}` || 'UNKNOWN';
             const decimals = tokenInfo?.decimals || 18;
-            const balanceStr = token.amount?.toString() || '0';
+            let balanceStr = token.amount?.toString() || '0';
+
+            // Round balance down to 8 decimal places to prevent precision issues
+            balanceStr = roundBalanceTo8Decimals(balanceStr, decimals);
 
             // Convert wei amount to decimal without precision loss
             let numericBalance;
@@ -1195,15 +1230,21 @@ export function useBalances() {
                         // Convert scientific notation to decimal string for parseUnits
                         const decimalStr = numeric.toFixed(20).replace(/\.?0+$/, ''); // Remove trailing zeros
                         weiBalanceStr = ethers.parseUnits(decimalStr, decimals).toString();
+                        // Round balance down to 8 decimal places
+                        weiBalanceStr = roundBalanceTo8Decimals(weiBalanceStr, decimals);
                       } else if (typeof backendBalance === 'number') {
                         // Backend returned decimal number - convert to wei
                         numeric = backendBalance;
                         const decimals = token.decimals ?? 18;
                         weiBalanceStr = ethers.parseUnits(backendBalance.toString(), decimals).toString();
+                        // Round balance down to 8 decimal places
+                        weiBalanceStr = roundBalanceTo8Decimals(weiBalanceStr, decimals);
                       } else {
                         // Backend returned wei string - convert to decimal
                         const decimals = token.decimals ?? 18;
                         weiBalanceStr = backendBalance.toString();
+                        // Round balance down to 8 decimal places
+                        weiBalanceStr = roundBalanceTo8Decimals(weiBalanceStr, decimals);
                         try {
                           numeric = parseFloat(ethers.formatUnits(weiBalanceStr, decimals));
                         } catch (e) {
@@ -1271,15 +1312,21 @@ export function useBalances() {
                           // Convert scientific notation to decimal string for parseUnits
                           const decimalStr = numeric.toFixed(20).replace(/\.?0+$/, ''); // Remove trailing zeros
                           weiBalanceStr = ethers.parseUnits(decimalStr, decimals).toString();
+                          // Round balance down to 8 decimal places
+                          weiBalanceStr = roundBalanceTo8Decimals(weiBalanceStr, decimals);
                         } else if (typeof backendBalance === 'number') {
                           // Backend returned decimal number
                           numeric = backendBalance;
                           const decimals = b.decimals ?? 18;
                           weiBalanceStr = ethers.parseUnits(backendBalance.toString(), decimals).toString();
+                          // Round balance down to 8 decimal places
+                          weiBalanceStr = roundBalanceTo8Decimals(weiBalanceStr, decimals);
                         } else {
                           // Backend returned wei string
                           const decimals = b.decimals ?? 18;
                           weiBalanceStr = backendBalance.toString();
+                          // Round balance down to 8 decimal places
+                          weiBalanceStr = roundBalanceTo8Decimals(weiBalanceStr, decimals);
                           try {
                             numeric = parseFloat(ethers.formatUnits(weiBalanceStr, decimals));
                           } catch (e) {

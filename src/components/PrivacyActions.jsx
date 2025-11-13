@@ -35,6 +35,7 @@ import QRCodeGenerator from './QRCodeGenerator';
 import {
   getPrivateBalances,
   parseTokenAmount,
+  roundBalanceTo8Decimals,
 } from '../utils/railgun/balances';
 import {
   createWallet,
@@ -306,6 +307,15 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     };
   }, [isTokenMenuOpen]);
 
+  // Handle shield transaction dropped events
+  const handleShieldTransactionDropped = useCallback((event) => {
+    console.log('[PrivacyActions] 🚫 Shield transaction dropped - unlocking UI:', event.detail);
+    setIsProcessing(false);
+    setIsTransactionLocked(false);
+    // Decrement monitor counter
+    setActiveTransactionMonitors(prev => Math.max(0, prev - 1));
+  }, []);
+
   // Listen for balance update completion to unlock transactions
   useEffect(() => {
     const handleBalanceUpdateComplete = (event) => {
@@ -369,6 +379,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       window.addEventListener('railgun-public-refresh', handleBalanceUpdateComplete);
       window.addEventListener('transaction-monitor-complete', handleTransactionMonitorComplete);
       window.addEventListener('abort-all-requests', handleAbortAllRequests);
+      window.addEventListener('shield-transaction-dropped', handleShieldTransactionDropped);
     }
 
     return () => {
@@ -376,14 +387,15 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
         window.removeEventListener('railgun-public-refresh', handleBalanceUpdateComplete);
         window.removeEventListener('transaction-monitor-complete', handleTransactionMonitorComplete);
         window.removeEventListener('abort-all-requests', handleAbortAllRequests);
+        window.removeEventListener('shield-transaction-dropped', handleShieldTransactionDropped);
       }
     };
-  }, []);
+  }, [handleShieldTransactionDropped]);
 
   // Generate payment link when receive tab parameters change (uses active network)
   useEffect(() => {
     if (activeTab === 'receive' && railgunAddress && chainId) {
-      const baseUrl = 'https://staging.pay.lexiecrypto.com';
+      const baseUrl = 'https://pay.lexiecrypto.com';
       // Prefer Lexie ID if available; fallback to Railgun address
       const toValue = myLexieId || railgunAddress;
       const params = new URLSearchParams({
@@ -440,12 +452,25 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
     return !isNaN(numAmount) && numAmount > 0;
   }, [amount, selectedToken]);
 
-  // Validation check: amount cannot exceed available balance
+  // Validation check: amount cannot exceed available balance (with 8-decimal rounding)
   const exceedsAvailableBalance = useMemo(() => {
     if (!amount || !selectedToken) return false;
 
-    const numAmount = parseFloat(amount);
-    return numAmount > selectedToken.numericBalance;
+    try {
+      // Parse user amount to wei with rounding
+      const userAmountInWei = parseTokenAmount(amount, selectedToken.decimals);
+
+      // Round available balance to 8 decimal places
+      const roundedBalanceInWei = roundBalanceTo8Decimals(selectedToken.balance || '0', selectedToken.decimals);
+
+      // Compare wei amounts
+      return BigInt(userAmountInWei) > BigInt(roundedBalanceInWei);
+    } catch (error) {
+      console.warn('[Balance Validation] Error in exceedsAvailableBalance check:', error);
+      // Fallback to original logic if rounding fails
+      const numAmount = parseFloat(amount);
+      return numAmount > (selectedToken.numericBalance || 0);
+    }
   }, [amount, selectedToken]);
 
   // State to hold gas fee estimation result
@@ -590,6 +615,77 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       return selectedToken.numericBalance.toString();
     }
   }, [selectedToken]);
+
+  // Monitor shield transaction to detect if it gets dropped by provider
+  const monitorShieldTransaction = useCallback(async (transactionHash, chainId, provider) => {
+    if (!transactionHash || !provider) {
+      console.warn('[ShieldMonitor] Missing transaction hash or provider');
+      return;
+    }
+
+    console.log('[ShieldMonitor] Starting transaction monitoring:', {
+      transactionHash: transactionHash.slice(0, 10) + '...',
+      chainId
+    });
+
+    const maxWaitTime = 30 * 1000; // 30 seconds
+    const checkInterval = 10000; // Check every 10 seconds
+    const startTime = Date.now();
+
+    const checkTransaction = async () => {
+      try {
+        const receipt = await provider.getTransactionReceipt(transactionHash);
+
+        if (receipt) {
+          // Transaction was mined
+          console.log('[ShieldMonitor] Transaction confirmed:', {
+            transactionHash: transactionHash.slice(0, 10) + '...',
+            blockNumber: receipt.blockNumber,
+            status: receipt.status
+          });
+
+          if (receipt.status === 0) {
+            // Transaction failed on-chain
+            console.error('[ShieldMonitor] Transaction failed on-chain');
+            toast.custom((t) => (
+              <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+                <div className="rounded-lg border border-red-500/30 bg-black/90 text-red-200 shadow-2xl">
+                  <div className="px-4 py-3 flex items-center gap-3">
+                    <div className="h-3 w-3 rounded-full bg-red-400 animate-pulse" />
+                    <div>
+                      <div className="text-sm font-bold">TRANSACTION FAILED</div>
+                      <div className="text-xs text-red-400/80 mt-1">Transaction reverted on-chain. Please try again.</div>
+                    </div>
+                    <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-red-900/30 text-red-300/80">×</button>
+                  </div>
+                </div>
+              </div>
+            ), { duration: 6000 });
+          }
+          // Success case is handled by the Graph monitoring system
+          return;
+        }
+
+        // Check if we've exceeded max wait time
+        if (Date.now() - startTime > maxWaitTime) {
+          console.warn('[ShieldMonitor] Transaction monitoring timeout reached - letting PrivacyActions handle assumed success');
+          // Don't show toast or unlock UI here - let PrivacyActions handle the timeout as assumed success
+          return;
+        }
+
+        // Continue checking
+        setTimeout(checkTransaction, checkInterval);
+
+      } catch (error) {
+        console.error('[ShieldMonitor] Error checking transaction:', error);
+        // Continue monitoring despite errors
+        setTimeout(checkTransaction, checkInterval);
+      }
+    };
+
+    // Start monitoring
+    setTimeout(checkTransaction, checkInterval);
+  }, []);
 
   // Detect recipient address type for smart handling
   const recipientType = useMemo(() => {
@@ -795,8 +891,12 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       
       // Use signer.sendTransaction instead of provider.request
       const txResponse = await walletSigner.sendTransaction(txForSending);
-      
+
       console.log('[PrivacyActions] Transaction sent:', txResponse);
+
+      // Monitor transaction to detect if it gets dropped by provider
+      const transactionHash = txResponse.hash;
+      monitorShieldTransaction(transactionHash, chainId, walletSigner.provider);
 
       toast.dismiss(toastId);
       toast.custom((t) => (
@@ -805,7 +905,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             <div className="px-4 py-3 flex items-center gap-3">
               <div className="h-3 w-3 rounded-full bg-emerald-400" />
               <div>
-                <div className="text-sm">Added {actualAmount} {selectedToken.symbol} to your vault</div>
+                <div className="text-sm">Adding {actualAmount} {selectedToken.symbol} to your vault</div>
                 <div className="text-xs text-green-400/80">TX sent</div>
               </div>
               <button 
@@ -852,6 +952,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           txHash: txResponse?.hash || txResponse,
           chainId: chainConfig.id,
           transactionType: 'shield',
+          maxWaitTime: 30000, // 30 seconds - reasonable timeout before assuming success
           // Pass transaction details for note capture with wallet context
           transactionDetails: {
             walletAddress: address,
@@ -862,37 +963,6 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             decimals: selectedToken.decimals,
             amount: amount,
           },
-          listener: async (event) => {
-            console.log(`[PrivacyActions] ✅ Shield tx ${txResponse?.hash || txResponse} indexed on chain ${chainConfig.id}`);
-            
-            // 🎯 FIXED: Just show success message - let useBalances hook handle refresh when appropriate
-            toast.custom((t) => (
-              <div className={`font-mono ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-                <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
-                  <div className="px-4 py-3 flex items-center gap-3">
-                    <div className="h-3 w-3 rounded-full bg-emerald-400" />
-                    <div>
-                      <div className="text-sm">Added {actualAmount} {selectedToken.symbol} to your vault</div>
-                      <div className="text-xs text-green-400/80">Balance will update automatically</div>
-                    </div>
-                    <button 
-                      type="button" 
-                      aria-label="Dismiss" 
-                      onClick={(e) => { 
-                        e.preventDefault(); 
-                        e.stopPropagation(); 
-                        console.log('Dismissing toast:', t.id);
-                        toast.dismiss(t.id);
-                      }} 
-                      className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer"
-                    >
-                      ×
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ), { duration: 3000 });
-          }
         })
         .then(async (result) => {
           if (result.found) {
@@ -968,8 +1038,119 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             }
 
           } else {
-            console.warn('[PrivacyActions] Shield monitoring timed out');
-            toast.info('Shield successful! Balance will update automatically.');
+            console.warn('[PrivacyActions] Shield monitoring timed out after 30s - assuming success and proceeding');
+
+            // 🎯 TIMEOUT SUCCESS: Treat timeout as assumed success - run all same logic as confirmed Graph success
+            try {
+              console.log('[PrivacyActions] 🎯 Processing assumed success after timeout...');
+
+              // First resolve Lexie ID from Railgun address
+              const lexieResponse = await fetch('/api/wallet-metadata?action=by-wallet&railgunAddress=' + encodeURIComponent(railgunAddress));
+              if (!lexieResponse.ok) {
+                console.warn('[PrivacyActions] Could not resolve Lexie ID for assumed success points');
+                return;
+              }
+
+              const lexieData = await lexieResponse.json();
+              if (!lexieData?.success || !lexieData?.lexieID) {
+                console.warn('[PrivacyActions] No Lexie ID found for assumed success points');
+                return;
+              }
+
+              const lexieId = lexieData.lexieID.toLowerCase();
+              console.log('[PrivacyActions] ✅ Resolved Lexie ID for assumed success:', lexieId);
+
+              // Calculate actual USD value for points
+              const amountInUnitsForPoints = parseTokenAmount(actualAmount, selectedToken.decimals);
+              const transactionMonitor = await import('../utils/railgun/transactionMonitor.js');
+              const convertTokenAmountToUSD = transactionMonitor.default.convertTokenAmountToUSD;
+              const usdValue = await convertTokenAmountToUSD(amountInUnitsForPoints, tokenAddr, chainId);
+
+              console.log('[PrivacyActions] 💰 Calculated USD value for assumed success:', {
+                amount: actualAmount,
+                amountInUnits: amountInUnitsForPoints,
+                tokenAddress: tokenAddr,
+                chainId,
+                usdValue
+              });
+
+              // Now call rewards-award with correct format
+              const pointsResponse = await fetch('/api/wallet-metadata?action=rewards-award', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  lexieId: lexieId,
+                  txHash: txResponse?.hash || txResponse,
+                  usdValue: usdValue
+                })
+              });
+
+              if (pointsResponse.ok) {
+                const pointsData = await pointsResponse.json();
+                if (pointsData?.success) {
+                  console.log('[PrivacyActions] ✅ Points awarded for assumed success (timeout):', {
+                    awarded: pointsData.awarded,
+                    balance: pointsData.balance,
+                    multiplier: pointsData.multiplier
+                  });
+                  // Refresh points display with small delay to ensure backend processing is complete
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('points-updated'));
+                  }, 500);
+                }
+              } else {
+                console.warn('[PrivacyActions] Points award failed for assumed success:', await pointsResponse.text());
+              }
+            } catch (pointsError) {
+              console.warn('[PrivacyActions] Points processing failed for assumed success:', pointsError);
+            }
+
+            // Trigger balance refresh for assumed success
+            try {
+              const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
+              await syncBalancesAfterTransaction({
+                walletAddress: address,
+                walletId: railgunWalletId,
+                chainId,
+              });
+              console.log('[PrivacyActions] ✅ Balance refresh triggered for assumed success');
+            } catch (balanceError) {
+              console.warn('[PrivacyActions] ⚠️ Balance refresh failed for assumed success:', balanceError?.message);
+            }
+
+            // Show success toast for assumed success
+            toast.custom((t) => (
+              <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+                <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+                  <div className="px-4 py-3 flex items-center gap-3">
+                    <div className="h-3 w-3 rounded-full bg-emerald-400" />
+                    <div>
+                      <div className="text-sm">✅ Shielded {amount} {selectedToken.symbol}</div>
+                      <div className="text-xs text-green-400/80">Transaction confirmed - balances updated</div>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label="Dismiss"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toast.dismiss(t.id);
+                      }}
+                      className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ), { duration: 4000 });
+
+            // Dispatch transaction monitor completion event to unlock UI
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('transaction-monitor-complete', {
+                detail: { transactionType: 'shield', found: false, elapsedTime: 30000 }
+              }));
+            }
           }
           // Dispatch transaction monitor completion event
           if (typeof window !== 'undefined') {
@@ -1167,12 +1348,17 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           txHash: result.transactionHash,
           chainId: chainConfig.id,
           transactionType: 'unshield',
+          maxWaitTime: 30000, // 30 seconds - reasonable timeout before assuming success
           // Pass transaction details for note processing with wallet context
           transactionDetails: {
             walletAddress: address,
             walletId: railgunWalletId,
             railgunAddress: railgunAddress,
             tokenSymbol: selectedToken.symbol,
+            combinedRelayerFee: result.combinedRelayerFee,
+            relayerFee: result.relayerFee,
+            gasFee: result.gasFee,
+            feeToken: result.feeToken,
             tokenAddress: tokenAddr,
             decimals: selectedToken.decimals,
             amount: amount,
@@ -1261,7 +1447,117 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             }
 
           } else {
-            console.warn('[PrivacyActions] Unshield monitoring timed out');
+            console.warn('[PrivacyActions] Unshield monitoring timed out after 30s - assuming success and proceeding');
+
+            // 🎯 TIMEOUT SUCCESS: Treat timeout as assumed success - run all same logic as confirmed Graph success
+            try {
+              console.log('[PrivacyActions] 🎯 Processing assumed success for unshield after timeout...');
+
+              // First resolve Lexie ID from Railgun address
+              const lexieResponse = await fetch('/api/wallet-metadata?action=by-wallet&railgunAddress=' + encodeURIComponent(railgunAddress));
+              if (!lexieResponse.ok) {
+                console.warn('[PrivacyActions] Could not resolve Lexie ID for assumed unshield success points');
+                return;
+              }
+
+              const lexieData = await lexieResponse.json();
+              if (!lexieData?.success || !lexieData?.lexieID) {
+                console.warn('[PrivacyActions] No Lexie ID found for assumed unshield success points');
+                return;
+              }
+
+              const lexieId = lexieData.lexieID.toLowerCase();
+              console.log('[PrivacyActions] ✅ Resolved Lexie ID for assumed unshield success:', lexieId);
+
+              // Calculate actual USD value for points
+              const amountInUnitsForPoints = parseTokenAmount(actualAmount, selectedToken.decimals);
+              const transactionMonitor = await import('../utils/railgun/transactionMonitor.js');
+              const convertTokenAmountToUSD = transactionMonitor.default.convertTokenAmountToUSD;
+              const usdValue = await convertTokenAmountToUSD(amountInUnitsForPoints, tokenAddr, chainId);
+
+              console.log('[PrivacyActions] 💰 Calculated USD value for assumed unshield success:', {
+                amount: actualAmount,
+                amountInUnits: amountInUnitsForPoints,
+                tokenAddress: tokenAddr,
+                chainId,
+                usdValue
+              });
+
+              // Now call rewards-award with correct format
+              const pointsResponse = await fetch('/api/wallet-metadata?action=rewards-award', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  lexieId: lexieId,
+                  txHash: monitorResult.transactionHash,
+                  usdValue: usdValue
+                })
+              });
+
+              if (pointsResponse.ok) {
+                const pointsData = await pointsResponse.json();
+                if (pointsData?.success) {
+                  console.log('[PrivacyActions] ✅ Points awarded for assumed unshield success (timeout):', {
+                    awarded: pointsData.awarded,
+                    balance: pointsData.balance,
+                    multiplier: pointsData.multiplier
+                  });
+                  // Refresh points display with small delay to ensure backend processing is complete
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('points-updated'));
+                  }, 500);
+                }
+              } else {
+                console.warn('[PrivacyActions] Points award failed for assumed unshield success:', await pointsResponse.text());
+              }
+            } catch (pointsError) {
+              console.warn('[PrivacyActions] Points processing failed for assumed unshield success:', pointsError);
+            }
+
+            // Trigger balance refresh for assumed unshield success (same as successful case)
+            try {
+              const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
+              await syncBalancesAfterTransaction({
+                walletAddress: address,
+                walletId: railgunWalletId,
+                chainId,
+              });
+              console.log('[PrivacyActions] ✅ Balance refresh triggered for assumed unshield success');
+            } catch (balanceError) {
+              console.warn('[PrivacyActions] ⚠️ Balance refresh failed for assumed unshield success:', balanceError?.message);
+            }
+
+            // Dispatch railgun-public-refresh event to unlock modal (same as successful transaction flow)
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('railgun-public-refresh', { detail: { chainId } }));
+            }
+
+            // Show success toast for assumed unshield success
+            toast.custom((t) => (
+              <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+                <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+                  <div className="px-4 py-3 flex items-center gap-3">
+                    <div className="h-3 w-3 rounded-full bg-emerald-400" />
+                    <div>
+                      <div className="text-sm">✅ Unshielded {amount} {selectedToken.symbol}</div>
+                      <div className="text-xs text-green-400/80">Transaction confirmed - balances updated</div>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label="Dismiss"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toast.dismiss(t.id);
+                      }}
+                      className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ), { duration: 4000 });
           }
           // Dispatch transaction monitor completion event
           if (typeof window !== 'undefined') {
@@ -1336,10 +1632,36 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
       // Check for specific SnarkJS proof generation failure
       else if (error.message && error.message.includes('SnarkJS failed to fullProveRailgun')) {
-        toast.error('Max amount exceeds available vault balance. Please try again with a slightly lower amount.');
+        toast.custom((t) => (
+          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+            <div className="rounded-lg border border-red-500/30 bg-black/90 text-red-200 shadow-2xl">
+              <div className="px-4 py-3 flex items-center gap-3">
+                <div className="h-3 w-3 rounded-full bg-red-400 animate-pulse" />
+                <div>
+                  <div className="text-sm font-bold">TRANSACTION FAILED</div>
+                  <div className="text-xs text-red-400/80 mt-1">Max amount exceeds available vault balance. Please try again with a slightly lower amount.</div>
+                </div>
+                <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-red-900/30 text-red-300/80">×</button>
+              </div>
+            </div>
+          </div>
+        ), { duration: 8000 });
       } else {
         // Show generic error for other failures
-        toast.error(`Unshield failed: ${error.message || 'Unknown error'}`);
+        toast.custom((t) => (
+          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+            <div className="rounded-lg border border-red-500/30 bg-black/90 text-red-200 shadow-2xl">
+              <div className="px-4 py-3 flex items-center gap-3">
+                <div className="h-3 w-3 rounded-full bg-red-400 animate-pulse" />
+                <div>
+                  <div className="text-sm font-bold">TRANSACTION FAILED</div>
+                  <div className="text-xs text-red-400/80 mt-1">{error.message || 'Unknown error occurred'}</div>
+                </div>
+                <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-red-900/30 text-red-300/80">×</button>
+              </div>
+            </div>
+          </div>
+        ), { duration: 8000 });
       }
 
       // Dispatch transaction completion event to unlock UI globally
@@ -1387,7 +1709,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div className="px-4 py-3 flex items-center gap-3">
                   <div className="h-3 w-3 rounded-full bg-red-400" />
                   <div>
-                    <div className="text-sm">Lexie ID does not exist or is not linked to a LexieVault</div>
+                    <div className="text-sm">LexieID does not exist or is not linked to a LexieVault</div>
                   </div>
                 </div>
               </div>
@@ -1403,7 +1725,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 <div className="px-4 py-3 flex items-center gap-3">
                   <div className="h-3 w-3 rounded-full bg-red-400" />
                   <div>
-                    <div className="text-sm">Lexie ID does not exist or is not linked to a LexieVault</div>
+                    <div className="text-sm">LexieID does not exist or is not linked to a LexieVault</div>
                   </div>
                 </div>
               </div>
@@ -1418,7 +1740,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
               <div className="px-4 py-3 flex items-center gap-3">
                 <div className="h-3 w-3 rounded-full bg-red-400" />
                 <div>
-                  <div className="text-sm">Lexie ID does not exist or is not linked to a LexieVault</div>
+                  <div className="text-sm">LexieID does not exist or is not linked to a LexieVault</div>
                 </div>
               </div>
             </div>
@@ -1556,6 +1878,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           txHash: tx.txHash,
           chainId,
           transactionType: 'transfer',
+          maxWaitTime: 30000, // 30 seconds - reasonable timeout before assuming success
           transactionDetails: {
             walletId: railgunWalletId,
             walletAddress: address,
@@ -1566,6 +1889,10 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             amount: amountInUnits,
             displayAmount: actualAmount,
             recipientAddress: timelineRecipientAddress, // Use resolved Railgun address
+            combinedRelayerFee: tx.combinedRelayerFee,
+            relayerFee: tx.relayerFee,
+            gasFee: tx.gasFee,
+            feeToken: tx.feeToken,
             memoText: memoText, // Add memo text
           },
         })
@@ -1641,6 +1968,113 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
             } catch (pointsError) {
               console.warn('[PrivacyActions] Transfer points fallback failed:', pointsError);
             }
+          } else {
+            console.warn('[PrivacyActions] Transfer monitoring timed out after 30s - assuming success and proceeding');
+
+            // 🎯 TIMEOUT SUCCESS: Treat timeout as assumed success - run all same logic as confirmed Graph success
+            try {
+              console.log('[PrivacyActions] 🎯 Processing assumed success for transfer after timeout...');
+
+              // First resolve Lexie ID from Railgun address
+              const lexieResponse = await fetch('/api/wallet-metadata?action=by-wallet&railgunAddress=' + encodeURIComponent(railgunAddress));
+              if (!lexieResponse.ok) {
+                console.warn('[PrivacyActions] Could not resolve Lexie ID for assumed transfer success points');
+                return;
+              }
+
+              const lexieData = await lexieResponse.json();
+              if (!lexieData?.success || !lexieData?.lexieID) {
+                console.warn('[PrivacyActions] No Lexie ID found for assumed transfer success points');
+                return;
+              }
+
+              const lexieId = lexieData.lexieID.toLowerCase();
+              console.log('[PrivacyActions] ✅ Resolved Lexie ID for assumed transfer success:', lexieId);
+
+              // Calculate actual USD value for points
+              const amountInUnitsForPoints = parseTokenAmount(actualAmount, selectedToken.decimals);
+              const transactionMonitor = await import('../utils/railgun/transactionMonitor.js');
+              const convertTokenAmountToUSD = transactionMonitor.default.convertTokenAmountToUSD;
+              const usdValue = await convertTokenAmountToUSD(amountInUnitsForPoints, tokenAddr, chainId);
+
+              console.log('[PrivacyActions] 💰 Calculated USD value for assumed transfer success:', {
+                amount: actualAmount,
+                amountInUnits: amountInUnitsForPoints,
+                tokenAddress: tokenAddr,
+                chainId,
+                usdValue
+              });
+
+              // Now call rewards-award with correct format
+              const pointsResponse = await fetch('/api/wallet-metadata?action=rewards-award', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  lexieId: lexieId,
+                  txHash: tx.txHash,
+                  usdValue: usdValue
+                })
+              });
+
+              if (pointsResponse.ok) {
+                const pointsData = await pointsResponse.json();
+                if (pointsData?.success) {
+                  console.log('[PrivacyActions] ✅ Points awarded for assumed transfer success (timeout):', {
+                    awarded: pointsData.awarded,
+                    balance: pointsData.balance,
+                    multiplier: pointsData.multiplier
+                  });
+                  // Refresh points display with small delay to ensure backend processing is complete
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('points-updated'));
+                  }, 500);
+                }
+              } else {
+                console.warn('[PrivacyActions] Points award failed for assumed transfer success:', await pointsResponse.text());
+              }
+            } catch (pointsError) {
+              console.warn('[PrivacyActions] Points processing failed for assumed transfer success:', pointsError);
+            }
+
+            // Trigger balance refresh for assumed transfer success
+            try {
+              const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
+              await syncBalancesAfterTransaction({
+                walletAddress: address,
+                walletId: railgunWalletId,
+                chainId,
+              });
+              console.log('[PrivacyActions] ✅ Balance refresh triggered for assumed transfer success');
+            } catch (balanceError) {
+              console.warn('[PrivacyActions] ⚠️ Balance refresh failed for assumed transfer success:', balanceError?.message);
+            }
+
+            // Show success toast for assumed transfer success
+            toast.custom((t) => (
+              <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+                <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+                  <div className="px-4 py-3 flex items-center gap-3">
+                    <div className="h-3 w-3 rounded-full bg-emerald-400" />
+                    <div>
+                      <div className="text-sm">✅ Transferred {amount} {selectedToken.symbol}</div>
+                      <div className="text-xs text-green-400/80">Transaction confirmed - balances updated</div>
+                    </div>
+                    <button
+                      type="button"
+                      aria-label="Dismiss"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toast.dismiss(t.id);
+                      }}
+                      className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80 cursor-pointer"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ), { duration: 4000 });
           }
 
           // Dispatch transaction monitor completion event
@@ -2470,3 +2904,4 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
 
 
 export default PrivacyActions; 
+

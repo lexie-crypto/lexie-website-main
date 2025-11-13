@@ -36,7 +36,15 @@ import {
   isTokenSupportedByRailgun,
 } from '../../utils/railgun/actions';
 import { deriveEncryptionKey, clearAllWallets } from '../../utils/railgun/wallet';
-import { Navbar } from '../Navbar';
+import LexieIdChoiceModal from './LexieIdChoiceModal';
+import LexieIdModal from './LexieIdModal';
+import CrossPlatformVerificationModal from './CrossPlatformVerificationModal';
+import GameOnboardingModal from './GameOnboardingModal';
+import SignRequestModal from './SignRequestModal';
+import SignatureConfirmationModal from './SignatureConfirmationModal';
+import ReturningUserChainSelectionModal from './ReturningUserChainSelectionModal';
+import { Navbar } from '../Navbar.jsx';
+import ChatPage from '../../pages/ChatPage.tsx';
 
 // Titans Game component that loads the actual game from game.lexiecrypto.com
 const TitansGame = ({ lexieId, walletAddress, embedded, theme, onLoad, onError, onClose }) => {
@@ -107,8 +115,8 @@ const TitansGame = ({ lexieId, walletAddress, embedded, theme, onLoad, onError, 
         title="Titans Game"
         onLoad={handleIframeLoad}
         onError={handleIframeError}
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-presentation"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-presentation allow-modals"
       />
     </div>
   );
@@ -134,12 +142,29 @@ const TitansGameWindow = ({ lexieId, walletAddress, onClose }) => {
   );
 };
 
-const VaultDesktopInner = () => {
+const VaultDesktopInner = ({ mobileMode = false }) => {
+  const [isMobile, setIsMobile] = React.useState(false);
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia === 'undefined') {
+      return;
+    }
+    const mq = window.matchMedia('(max-width: 639px)');
+    const apply = () => { setIsMobile(mq.matches); };
+    apply();
+    if (mq.addEventListener) mq.addEventListener('change', apply);
+    else if (mq.addListener) mq.addListener(apply);
+    return () => {
+      if (mq.removeEventListener) mq.removeEventListener('change', apply);
+      else if (mq.removeListener) mq.removeListener(apply);
+    };
+  }, []);
+
   const {
     isConnected,
     isConnecting,
     address,
-    chainId,
+    chainId: walletChainId,
     railgunWalletId,
     railgunAddress,
     isRailgunInitialized,
@@ -148,7 +173,6 @@ const VaultDesktopInner = () => {
     railgunError,
     connectWallet,
     disconnectWallet,
-    switchNetwork,
     getCurrentNetwork,
     walletProviders,
     isWalletAvailable,
@@ -158,8 +182,8 @@ const VaultDesktopInner = () => {
     shouldShowLexieIdModal,
     clearLexieIdModalFlag,
     showLexieIdChoiceModal,
-    handleLexieIdChoice,
     onLexieIdLinked,
+    ensureChainScanned,
   } = useWallet();
 
   // Window management hooks
@@ -205,20 +229,70 @@ const VaultDesktopInner = () => {
   const [bootstrapProgress, setBootstrapProgress] = useState({ percent: 0, active: false });
   const bootstrapLockedRef = useRef(false); // Prevents progress from resetting below 100% once reached
 
-  // Lexie ID linking state
-  const [lexieIdInput, setLexieIdInput] = useState('');
-  const [lexieLinking, setLexieLinking] = useState(false);
-  const [lexieCode, setLexieCode] = useState('');
-  const [lexieNeedsCode, setLexieNeedsCode] = useState(false);
-  const [lexieMessage, setLexieMessage] = useState('');
+  // Track which chain is being initialized
+  const [initializingChainId, setInitializingChainId] = useState(null);
+
+  // Helper to get network name by chain ID
+  const getNetworkNameById = (chainId) => {
+    return {
+      1: 'Ethereum',
+      137: 'Polygon',
+      42161: 'Arbitrum',
+      56: 'BNB Chain'
+    }[Number(chainId)] || `Chain ${chainId}`;
+  };
+
+  // Helper to persist metadata when modal unlocks
+  const handlePersistMetadata = async () => {
+    try {
+      console.log(`🔓 Modal unlocking - marking chain ${activeChainId} as scanned for wallet ${railgunWalletId}`);
+      const scanResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          walletAddress: address,
+          walletId: railgunWalletId,
+          railgunAddress: railgunAddress,
+          scannedChains: [activeChainId] // Mark this chain as scanned when modal unlocks
+        })
+      });
+
+      if (scanResp.ok) {
+        console.log(`✅ Modal unlocked - chain ${activeChainId} marked as scanned`);
+      } else {
+        console.warn(`⚠️ Failed to mark chain ${activeChainId} as scanned on modal unlock:`, await scanResp.text());
+      }
+    } catch (scanError) {
+      console.warn(`⚠️ Error marking chain ${activeChainId} as scanned on modal unlock:`, scanError);
+    }
+  };
+
+  // Lexie ID linking state - now managed by LexieIdModal component
   const [showLexieModal, setShowLexieModal] = useState(false);
   const [currentLexieId, setCurrentLexieId] = useState('');
   const [pointsBalance, setPointsBalance] = useState(null);
   const [pointsBreakdown, setPointsBreakdown] = useState(null);
   const [showTitansGame, setShowTitansGame] = useState(false);
+  const [showLexieChat, setShowLexieChat] = useState(false);
+  const [showGameOnboardingModal, setShowGameOnboardingModal] = useState(false);
+  const [pendingLexieId, setPendingLexieId] = useState('');
+
+  // Chat visibility for desktop WindowShell
+  const isLexieChatVisible = showLexieChat;
+
+  // Signature confirmation from WalletContext
+  const {
+    showSignatureConfirmation,
+    pendingSignatureMessage,
+    confirmSignature,
+    cancelSignature,
+    switchNetwork,
+    showReturningUserChainModal,
+    handleReturningUserChainChoice,
+  } = useWallet();
 
   // Handle LexieID linking and game opening
-  const handleLexieIdLink = useCallback((lexieId) => {
+  const handleLexieIdLink = useCallback((lexieId, autoOpenGame = false) => {
     setCurrentLexieId(lexieId);
     // Set localStorage for Titans game integration
     if (lexieId && address) {
@@ -230,45 +304,88 @@ const VaultDesktopInner = () => {
       localStorage.removeItem("connectedWallet");
       localStorage.removeItem("linkedLexieId");
     }
-    // Auto-open Titans game when LexieID is linked
-    if (lexieId) {
-      setTimeout(() => {
-        setShowTitansGame(true);
-        // Signal to WalletContext that Lexie ID linking is complete
-        onLexieIdLinked();
-      }, 1000); // Small delay to allow UI to settle
+
+    // For new users on desktop, show game onboarding modal instead of auto-opening game
+    if (lexieId && autoOpenGame && !isMobile) {
+      setPendingLexieId(lexieId);
+      setShowGameOnboardingModal(true);
+      // Don't signal completion yet - wait for game onboarding choice
     } else {
-      // If unlinking, also signal completion (though this shouldn't happen in the new flow)
+      // Signal completion without opening game (mobile or no auto-open)
       onLexieIdLinked();
     }
-  }, [address, onLexieIdLinked]);
+  }, [address, onLexieIdLinked, isMobile]);
 
-  // Cross-platform verification state
+  // Handle LexieID choice from LexieIdChoiceModal
+  const handleLexieIdChoice = useCallback((wantsLexieId) => {
+    if (wantsLexieId) {
+      // Show the LexieIdModal to let them choose/enter their LexieID
+      setShowLexieModal(true);
+    } else {
+      // Skip LexieID, signal completion without LexieID
+      onLexieIdLinked();
+    }
+  }, [onLexieIdLinked]);
+
+  // Handle game onboarding choice
+  const handleGameOnboardingChoice = useCallback((wantsToPlay) => {
+    setShowGameOnboardingModal(false);
+
+    if (wantsToPlay && pendingLexieId && !isMobile) {
+      // Open the game only on desktop
+      setTimeout(() => {
+        setShowTitansGame(true);
+      }, 500); // Small delay to allow modal to close
+    }
+
+    // Always signal completion
+    onLexieIdLinked();
+    setPendingLexieId('');
+  }, [pendingLexieId, isMobile, onLexieIdLinked]);
+
+  // Cross-platform verification state - now managed by CrossPlatformVerificationModal component
   const [showVerificationModal, setShowVerificationModal] = useState(false);
-  const [verificationCode, setVerificationCode] = useState('');
-  const [verificationLexieId, setVerificationLexieId] = useState('');
-  const [verificationExpiresAt, setVerificationExpiresAt] = useState(0);
-  const [verificationTimeLeft, setVerificationTimeLeft] = useState(0);
   
   // Local state to show a refreshing indicator for Vault Balances
   const [isRefreshingBalances, setIsRefreshingBalances] = useState(false);
-  
+
+  // Selected chain state - load from localStorage, no default
+  const [selectedChainId, setSelectedChainId] = useState(() => {
+    try {
+      const saved = localStorage.getItem('lexie-selected-chain');
+      const parsed = saved ? parseInt(saved, 10) : null;
+      // Validate that the saved chain is still supported
+      const isValidChain = parsed && supportedNetworks.some(net => net.id === parsed);
+      const chainId = isValidChain ? parsed : null;
+      console.log('[VaultDesktop] Loaded chain selection from localStorage:', { saved, parsed, isValidChain, chainId });
+      return chainId;
+    } catch (error) {
+      console.warn('[VaultDesktop] Failed to load chain selection from localStorage:', error);
+      return null; // No fallback
+    }
+  });
+
   // Chain readiness state
   const [isChainReady, setIsChainReady] = useState(false);
   const [scanComplete, setScanComplete] = useState(false);
 
-  const network = getCurrentNetwork();
+  // Use selectedChainId as the PRIMARY chain for all vault operations
+  // Fall back to wallet's chainId if no selection made
+  const activeChainId = selectedChainId || walletChainId;
+  const network = selectedChainId
+    ? { id: selectedChainId, name: {1: 'Ethereum', 137: 'Polygon', 42161: 'Arbitrum', 56: 'BNB Chain'}[selectedChainId] || `Chain ${selectedChainId}` }
+    : getCurrentNetwork();
 
   // Supported networks array
   const supportedNetworks = [
     { id: 1, name: 'Ethereum', symbol: 'ETH' },
-    { id: 137, name: 'Polygon', symbol: 'MATIC' },
-    { id: 42161, name: 'Arbitrum', symbol: 'ETH' },
+    { id: 137, name: 'Polygon', symbol: 'POL' },
+    { id: 42161, name: 'Arbitrum', symbol: 'ETH'},
     { id: 56, name: 'BNB Chain', symbol: 'BNB' },
   ];
 
   // Check if current network is supported
-  const isNetworkSupported = chainId && supportedNetworks.some(net => net.id === chainId);
+  const isNetworkSupported = walletChainId && supportedNetworks.some(net => net.id === walletChainId);
 
   // Track if we were just disconnected due to unsupported network
   const [wasDisconnectedForUnsupportedNetwork, setWasDisconnectedForUnsupportedNetwork] = useState(false);
@@ -297,7 +414,7 @@ const VaultDesktopInner = () => {
   const checkRedisScannedChains = useCallback(async (targetChainId = null) => {
     if (!address || !railgunWalletId) return null;
     
-    const checkChainId = targetChainId || chainId;
+    const checkChainId = targetChainId || activeChainId;
     if (!checkChainId) return null;
 
     try {
@@ -353,7 +470,7 @@ const VaultDesktopInner = () => {
       const isChainReady = isChainHydrated || isChainScanned;
 
       console.log('[VaultDesktop] Redis check result:', {
-        chainId: Number(checkChainId),
+        chainId: Number(activeChainId),
         hydratedChains: normalizedHydratedChains,
         scannedChains: normalizedScannedChains,
         isChainHydrated,
@@ -367,7 +484,7 @@ const VaultDesktopInner = () => {
       console.error('[VaultDesktop] Redis check error:', error);
       return null;
     }
-  }, [address, railgunWalletId, chainId]);
+  }, [address, railgunWalletId, activeChainId]);
 
   // Remove the complex modal gating logic - we'll use the same approach as old WalletPage
 
@@ -382,10 +499,10 @@ const VaultDesktopInner = () => {
     return networks[id] || `Chain ${id}`;
   };
 
-  // Check Redis on wallet connect
+  // Check Redis on wallet connect - wait for Railgun initialization to complete first
   useEffect(() => {
-    if (isConnected && address && railgunWalletId && chainId) {
-      console.log('[VaultDesktop] Wallet connected - checking Redis for scanned chains');
+    if (isConnected && address && railgunWalletId && activeChainId && isRailgunInitialized) {
+      console.log('[VaultDesktop] Wallet connected and Railgun initialized - checking Redis for scanned chains');
       (async () => {
         // Don't re-init if modal is already open
         if (showSignRequestPopup) {
@@ -405,14 +522,20 @@ const VaultDesktopInner = () => {
         }
 
         if (scanned === false || scanned === null) {
-          console.log('[VaultDesktop] Chain not scanned on connect - showing modal');
+          console.log('[VaultDesktop] Chain not scanned on connect - will show signature confirmation modal');
 
+          // Set which chain we're initializing
+          setInitializingChainId(activeChainId);
+
+          // The signature confirmation modal will handle chain selection
           // Guard reset-to-0: only reset progress if not already at 100%
           setShowSignRequestPopup(true);
           setIsInitInProgress(true);
           setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);
           setScanComplete(false);
-          const networkName = getNetworkName(chainId);
+
+          // Use activeChainId, not network.name
+          const networkName = getNetworkNameById(activeChainId);
           setInitProgress({
             percent: 0,
             message: `Setting up your LexieVault on ${networkName} Network...`
@@ -422,7 +545,7 @@ const VaultDesktopInner = () => {
         }
       })();
     }
-  }, [isConnected, address, railgunWalletId, chainId, checkRedisScannedChains, showSignRequestPopup]);
+  }, [isConnected, address, railgunWalletId, activeChainId, isRailgunInitialized, checkRedisScannedChains, showSignRequestPopup, selectedChainId, showReturningUserChainModal]);
 
   // Track when initial connection hydration is complete
   const initialConnectDoneRef = React.useRef(false);
@@ -460,7 +583,7 @@ const VaultDesktopInner = () => {
       }
     })();
     return () => { mounted = false; };
-  }, [canUseRailgun, railgunWalletId, address, chainId, checkChainReady]);
+  }, [canUseRailgun, railgunWalletId, address, activeChainId, checkChainReady]);
 
   // Disconnect handler
   const handleDisconnect = useCallback(async () => {
@@ -610,6 +733,24 @@ const VaultDesktopInner = () => {
     };
   }, [currentLexieId]);
 
+  // Auto-unlock transaction lock after 30 seconds as safety fallback
+  useEffect(() => {
+    if (!isTransactionLocked) return;
+
+    console.log('[VaultDesktop] ⏰ Starting 30-second safety timeout for transaction lock');
+
+    const timeoutId = setTimeout(() => {
+      console.log('[VaultDesktop] ⏰ Safety timeout reached - auto-unlocking transaction UI');
+      setIsTransactionLocked(false);
+      setActiveTransactionMonitors(0);
+    }, 60000); // 60 seconds
+
+    return () => {
+      console.log('[VaultDesktop] ⏰ Clearing safety timeout (transaction completed normally)');
+      clearTimeout(timeoutId);
+    };
+  }, [isTransactionLocked]);
+
   // Event listeners for vault balance refresh state
   useEffect(() => {
     const onPrivateStart = () => {
@@ -629,70 +770,107 @@ const VaultDesktopInner = () => {
   }, []);
 
   // Full refresh: SDK refresh + Redis persist, then UI reload
-  const refreshBalances = useCallback(async () => {
+  const refreshBalances = useCallback(async (showToast = true) => {
     try {
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
-      console.log('[VaultDesktop] Full refresh — SDK refresh + Redis persist, then UI fetch...');
+      console.log('[VaultDesktop] Full refresh — checking scan status first...');
 
-      // Step 1: Trigger SDK refresh + persist authoritative balances to Redis
+      // Check if chain is already scanned in Redis
+      let alreadyScanned = false;
       try {
-        if (railgunWalletId && address && chainId) {
-          const { syncBalancesAfterTransaction } = await import('../../utils/railgun/syncBalances.js');
-          await syncBalancesAfterTransaction({
-            walletAddress: address,
-            walletId: railgunWalletId,
-            chainId,
-          });
+        if (railgunWalletId && address && activeChainId) {
+          alreadyScanned = await checkRedisScannedChains(activeChainId);
         }
-      } catch (sdkErr) {
-        console.warn('[VaultDesktop] SDK refresh + persist failed (continuing to UI refresh):', sdkErr?.message);
+      } catch (checkErr) {
+        console.warn('[VaultDesktop] Scan status check failed:', checkErr?.message);
       }
 
-      // Step 2: Refresh UI from sources of truth
+      // Only trigger SDK refresh if chain NOT already scanned
+      if (!alreadyScanned) {
+        console.log('[VaultDesktop] Chain not scanned - triggering SDK refresh...');
+
+        // Step 0: Ensure chain has been scanned for private transfers (critical for discovering transfers before first shield)
+        try {
+          if (canUseRailgun && railgunWalletId && address && activeChainId) {
+            console.log('[VaultDesktop] Ensuring chain is scanned before refresh...');
+            await ensureChainScanned(activeChainId);
+          }
+        } catch (scanErr) {
+          console.warn('[VaultDesktop] Chain scan check failed (continuing with refresh):', scanErr?.message);
+        }
+
+        // Step 1: Trigger SDK refresh + persist authoritative balances to Redis
+        try {
+          if (railgunWalletId && address && activeChainId) {
+            const { syncBalancesAfterTransaction } = await import('../../utils/railgun/syncBalances.js');
+            await syncBalancesAfterTransaction({
+              walletAddress: address,
+              walletId: railgunWalletId,
+              chainId: activeChainId,
+            });
+          }
+        } catch (sdkErr) {
+          console.warn('[VaultDesktop] SDK refresh + persist failed (continuing to UI refresh):', sdkErr?.message);
+        }
+      } else {
+        console.log('[VaultDesktop] Chain already scanned - skipping SDK refresh, loading from Redis...');
+      }
+
+      // Step 2: Always refresh UI from sources of truth (Redis + cache)
       await refreshAllBalances();
 
-      toast.custom((t) => (
-        <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-          <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
-            <div className="px-4 py-3 flex items-center gap-3">
-              <div className="h-3 w-3 rounded-full bg-emerald-400" />
-              <div>
-                <div className="text-sm">Balances refreshed</div>
-                <div className="text-xs text-green-400/80">Public and vault balances updated</div>
+      if (showToast) {
+        toast.custom((t) => (
+          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+            <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+              <div className="px-4 py-3 flex items-center gap-3">
+                <div className="h-3 w-3 rounded-full bg-emerald-400" />
+                <div>
+                  <div className="text-sm">Balances refreshed</div>
+                  <div className="text-xs text-green-400/80">Public and vault balances updated</div>
+                </div>
+                <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
               </div>
-              <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
             </div>
           </div>
-        </div>
-      ), { duration: 2500 });
+        ), { duration: 2500 });
+      }
     } catch (error) {
       console.error('[VaultDesktop] Full refresh failed:', error);
-      toast.custom((t) => (
-        <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-          <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
-            <div className="px-4 py-3 flex items-center gap-3">
-              <div className="h-3 w-3 rounded-full bg-red-400" />
-              <div>
-                <div className="text-sm">Failed to refresh balances</div>
-                <div className="text-xs text-green-400/80">Please try again</div>
+      if (showToast) {
+        toast.custom((t) => (
+          <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
+            <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
+              <div className="px-4 py-3 flex items-center gap-3">
+                <div className="h-3 w-3 rounded-full bg-red-400" />
+                <div>
+                  <div className="text-sm">Failed to refresh balances</div>
+                  <div className="text-xs text-green-400/80">Please try again</div>
+                </div>
+                <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
               </div>
-              <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
             </div>
           </div>
-        </div>
-      ), { duration: 3500 });
+        ), { duration: 3500 });
+      }
     } finally {
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
     }
-  }, [refreshAllBalances, railgunWalletId, address, chainId]);
+  }, [refreshAllBalances, railgunWalletId, address, activeChainId, checkRedisScannedChains, ensureChainScanned, canUseRailgun]);
 
-  // Auto-refresh public balances when wallet connects
+  // Auto-refresh balances when wallet connects and Railgun is ready (full refresh including private transfers)
   useEffect(() => {
-    if (isConnected && address && chainId) {
-      console.log('[VaultDesktop] Wallet connected - auto-refreshing public balances...');
-      refreshAllBalances();
+    // 🛡️ CRITICAL: Don't auto-refresh if returning user modal is open
+    if (showReturningUserChainModal) {
+      console.log('[VaultDesktop] ⏸️ Waiting for returning user to select chain before auto-refreshing');
+      return;
     }
-  }, [isConnected, address, chainId]);
+
+    if (isConnected && address && activeChainId && canUseRailgun && railgunWalletId) {
+      console.log('[VaultDesktop] Wallet connected and Railgun ready - auto-refreshing balances...');
+      refreshBalances(false); // Full refresh but no toast notification
+    }
+  }, [isConnected, address, activeChainId, canUseRailgun, railgunWalletId, refreshBalances, showReturningUserChainModal]);
 
   // Auto-switch to privacy view when Railgun is ready
   useEffect(() => {
@@ -704,7 +882,10 @@ const VaultDesktopInner = () => {
   // Re-check readiness immediately after scan completes
   useEffect(() => {
     const onScanComplete = () => {
+      console.log('[VaultDesktop] Chain scanning completed - unlocking modal');
       setScanComplete(true);
+      setIsInitInProgress(false); // Unlock modal now that scanning is complete
+      setInitProgress({ percent: 100, message: 'Vault ready - initialization complete!' });
       setIsChainReady(false);
       checkChainReady().then((ready) => setIsChainReady(!!ready)).catch(() => setIsChainReady(false));
     };
@@ -865,26 +1046,7 @@ const VaultDesktopInner = () => {
   }, [currentLexieId]);
 
 
-  // Update countdown timer for verification code
-  useEffect(() => {
-    if (!showVerificationModal || verificationTimeLeft <= 0) return;
-
-    const interval = setInterval(() => {
-      setVerificationTimeLeft(prev => {
-        const newTime = prev - 1;
-        if (newTime <= 0) {
-          setShowVerificationModal(false);
-          setVerificationCode('');
-          setVerificationLexieId('');
-          setVerificationExpiresAt(0);
-          return 0;
-        }
-        return newTime;
-      });
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [showVerificationModal, verificationTimeLeft]);
+  // Countdown timer for verification code - now handled by CrossPlatformVerificationModal component
 
   // Listen for signature request and init lifecycle events (like old WalletPage)
   useEffect(() => {
@@ -907,13 +1069,18 @@ const VaultDesktopInner = () => {
       // Guard reset-to-0: don't reset progress if already at 100%
       setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);
       setInitFailedMessage('');
-      const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
+
+      // Use eventChainId if available, otherwise use initializingChainId or activeChainId
+      const chainToInit = e?.detail?.chainId || initializingChainId || activeChainId;
+      setInitializingChainId(chainToInit);
+
+      const chainLabel = getNetworkNameById(chainToInit);
       setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
       console.log('[VaultDesktop] Initialization started');
     };
     
     const onInitProgress = () => {
-      const chainLabel = network?.name || (chainId ? `Chain ${chainId}` : 'network');
+      const chainLabel = network?.name || (activeChainId ? `Chain ${activeChainId}` : 'network');
       setInitProgress((prev) => ({
         percent: prev.percent,
         message: prev.message || `Setting up your LexieVault on ${chainLabel}...`,
@@ -975,10 +1142,30 @@ const VaultDesktopInner = () => {
     };
     window.addEventListener('vault-initialization-complete', onVaultInitComplete);
 
+    // Railgun initialization completed - only unlock modal if scanning is also complete
+    const onRailgunInitForceUnlock = () => {
+      console.log('[VaultDesktop] Railgun initialization completed - modal will unlock when scanning completes');
+      // Don't set isInitInProgress=false here - wait for scanning to complete
+      // Don't set scanComplete=true here - let actual scanning completion do that
+      setInitProgress({ percent: 95, message: 'Railgun ready - completing chain scan...' });
+    };
+    window.addEventListener('railgun-init-force-unlock', onRailgunInitForceUnlock);
+
       // Handle bootstrap progress updates
       const onBootstrapProgress = (e) => {
         const { chainId: eventChainId, progress } = e.detail;
-        console.log('[VaultDesktop] Bootstrap progress event:', { eventChainId, progress, currentChainId: chainId, networkName: network?.name });
+
+        // Update which chain we're initializing
+        setInitializingChainId(eventChainId);
+
+        const bootstrapNetworkName = getNetworkNameById(eventChainId);
+
+        console.log('[VaultDesktop] Bootstrap progress event:', {
+          eventChainId,
+          progress,
+          currentChainId: walletChainId,
+          networkName: bootstrapNetworkName
+        });
 
         // Always update progress bar during bootstrap (only one chain at a time)
         const newPercent = Math.round(progress * 100) / 100;
@@ -993,10 +1180,9 @@ const VaultDesktopInner = () => {
         // When bootstrap reaches 100%, lock it and change message to "Creating..."
         if (newPercent >= 100 && !bootstrapLockedRef.current) {
           bootstrapLockedRef.current = true;
-          const networkName = network?.name || `Chain ${eventChainId}`;
           setInitProgress(prev => ({
             ...prev,
-            message: `Creating your LexieVault on ${networkName} Network...`
+            message: `Creating your LexieVault on ${bootstrapNetworkName} Network...`
           }));
         }
       };
@@ -1011,9 +1197,10 @@ const VaultDesktopInner = () => {
       window.removeEventListener('railgun-init-completed', onInitCompleted);
       window.removeEventListener('railgun-init-failed', onInitFailed);
       window.removeEventListener('vault-initialization-complete', onVaultInitComplete);
+      window.removeEventListener('railgun-init-force-unlock', onRailgunInitForceUnlock);
       window.removeEventListener('chain-bootstrap-progress', onBootstrapProgress);
     };
-  }, [address, chainId, railgunWalletId, network, checkChainReady, showSignRequestPopup]);
+  }, [address, activeChainId, railgunWalletId, network, checkChainReady, showSignRequestPopup]);
 
   // Unlock modal using the same readiness flag as old WalletPage
   useEffect(() => {
@@ -1047,9 +1234,9 @@ const VaultDesktopInner = () => {
             <div className="px-4 py-3 flex items-center gap-3">
               <div className="h-3 w-3 rounded-full bg-purple-400" />
               <div>
-                <div className="text-sm">Get Your Lexie ID</div>
+                <div className="text-sm">Get Your LexieID</div>
                 <div className="text-xs text-purple-400/80">
-                  Claim your ID for easy transfers and to play LexieTitans!
+                  Claim your LexieID for easy transfers and to play LexieTitans!
                 </div>
               </div>
               <button
@@ -1095,19 +1282,19 @@ const VaultDesktopInner = () => {
 
   // Get encryption key
   const getEncryptionKey = useCallback(async () => {
-    if (!address || !chainId) {
+    if (!address || !walletChainId) {
       throw new Error('Wallet not connected');
     }
 
     try {
       const secret = address.toLowerCase();
-      const salt = `lexie-railgun-${chainId}`;
+      const salt = `lexie-railgun-${activeChainId}`;
       return await deriveEncryptionKey(secret, salt, 100000);
     } catch (error) {
       console.error('[VaultDesktop] Failed to derive encryption key:', error);
       throw new Error('Failed to derive encryption key');
     }
-  }, [address, chainId]);
+  }, [address, activeChainId]);
 
   // Handle individual token shielding
   const handleShieldToken = useCallback(async (token) => {
@@ -1127,14 +1314,14 @@ const VaultDesktopInner = () => {
       setShieldingTokens(prev => new Set([...prev, token.symbol]));
       
       // Validate token is supported by Railgun
-      if (!isTokenSupportedByRailgun(token.address, chainId)) {
+      if (!isTokenSupportedByRailgun(token.address, activeChainId)) {
         throw new Error(`${token.symbol} is not supported by Railgun on this network`);
       }
 
       // Check sufficient balance
       const requestedAmount = parseFloat(amount);
       const availableAmount = token.numericBalance || 0;
-      
+
       if (availableAmount < requestedAmount) {
         throw new Error(`Insufficient balance. Available: ${availableAmount} ${token.symbol}`);
       }
@@ -1143,7 +1330,7 @@ const VaultDesktopInner = () => {
       const amountInUnits = parseTokenAmount(amount, token.decimals);
 
       // Get chain configuration
-      const chainConfig = { type: network.name.toLowerCase(), id: chainId };
+      const chainConfig = { type: network.name.toLowerCase(), id: activeChainId };
 
       // Get encryption key
       const key = await getEncryptionKey();
@@ -1252,7 +1439,7 @@ const VaultDesktopInner = () => {
         return newSet;
       });
     }
-  }, [canUseRailgun, railgunWalletId, address, chainId, network, shieldAmounts, refreshBalancesAfterTransaction, getEncryptionKey, walletProvider]);
+  }, [canUseRailgun, railgunWalletId, address, activeChainId, network, shieldAmounts, refreshBalancesAfterTransaction, getEncryptionKey, walletProvider]);
 
   // Handle network switch
   const handleNetworkSwitch = async (targetChainId) => {
@@ -1278,8 +1465,12 @@ const VaultDesktopInner = () => {
         return;
       }
       
+      // Update our selected chain state (this will persist to localStorage via ChainSelector)
+      console.log('[VaultDesktop] Updating selected chain to', targetChainId);
+      setSelectedChainId(targetChainId);
+
       // Switch network immediately for snappy UX
-      console.log('[VaultDesktop] Switching network to', targetChainId);
+      console.log('[VaultDesktop] Switching wallet network to', targetChainId);
       await switchNetwork(targetChainId);
       
       const targetNetwork = supportedNetworks.find(net => net.id === targetChainId);
@@ -1301,11 +1492,14 @@ const VaultDesktopInner = () => {
       const scanned = await checkRedisScannedChains(targetChainId);
       if (scanned === false || scanned === null) {
         console.log('[VaultDesktop] Target chain not scanned - showing modal');
+
+        setInitializingChainId(targetChainId); // Track which chain we're initializing
         setShowSignRequestPopup(true);
         setIsInitInProgress(true);
         // Guard reset-to-0: don't reset progress if already at 100%
         setBootstrapProgress(prev => prev.percent < 100 ? { percent: 0, active: true } : prev);
-        const chainLabel = targetNetwork?.name || `Chain ${targetChainId}`;
+
+        const chainLabel = getNetworkNameById(targetChainId);
         setInitProgress({ percent: 0, message: `Setting up your LexieVault on ${chainLabel} Network...` });
       } else {
         console.log('[VaultDesktop] Target chain already scanned - no modal needed');
@@ -1318,12 +1512,13 @@ const VaultDesktopInner = () => {
 
   const [isChainMenuOpen, setIsChainMenuOpen] = useState(false);
   const [isMobileChainMenuOpen, setIsMobileChainMenuOpen] = useState(false);
+  const [isModalChainMenuOpen, setIsModalChainMenuOpen] = useState(false);
   const chainMenuRef = useRef(null);
   const mobileChainMenuRef = useRef(null);
 
   // Close custom chain menu on outside click or ESC
   useEffect(() => {
-    if (!isChainMenuOpen && !isMobileChainMenuOpen) return;
+    if (!isChainMenuOpen && !isMobileChainMenuOpen && !isModalChainMenuOpen) return;
     const onClickOutside = (e) => {
       if (chainMenuRef.current && !chainMenuRef.current.contains(e.target)) {
         setIsChainMenuOpen(false);
@@ -1332,10 +1527,11 @@ const VaultDesktopInner = () => {
         setIsMobileChainMenuOpen(false);
       }
     };
-    const onKey = (e) => { 
+    const onKey = (e) => {
       if (e.key === 'Escape') {
         setIsChainMenuOpen(false);
         setIsMobileChainMenuOpen(false);
+        setIsModalChainMenuOpen(false);
       }
     };
     document.addEventListener('mousedown', onClickOutside);
@@ -1344,14 +1540,11 @@ const VaultDesktopInner = () => {
       document.removeEventListener('mousedown', onClickOutside);
       document.removeEventListener('keydown', onKey);
     };
-  }, [isChainMenuOpen, isMobileChainMenuOpen]);
+  }, [isChainMenuOpen, isMobileChainMenuOpen, isModalChainMenuOpen]);
 
   if (!isConnected || (isConnected && !isNetworkSupported) || walletConnectValidating) {
     return (
-      <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
-        {/* Navigation */}
-        <Navbar />
-
+      <div className="relative h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
         {/* Background overlays */}
         <div className="fixed inset-0 z-0">
           <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
@@ -1361,7 +1554,7 @@ const VaultDesktopInner = () => {
             <div className="absolute inset-0 bg-[linear-gradient(rgba(147,51,234,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(147,51,234,0.2)_1px,transparent_1px)] bg-[size:40px_40px] animate-pulse"></div>
             <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.1)_1px,transparent_1px)] bg-[size:80px_80px] animate-pulse" style={{animationDelay: '1s'}}></div>
           </div>
-          <div className="absolute inset-0 overflow-hidden">
+          <div className="absolute inset-0 overflow-hidden scrollbar-terminal">
             {Array.from({ length: 3 }).map((_, i) => (
               <div 
                 key={i} 
@@ -1400,7 +1593,7 @@ const VaultDesktopInner = () => {
               </p>
 
               <div className="space-y-4">
-                <InjectedProviderButtons disabled={isConnecting} />
+                <InjectedProviderButtons disabled={isConnecting} selectedChainId={selectedChainId} />
               </div>
 
               <div className="mt-6 text-sm text-green-400/70 text-center">
@@ -1415,10 +1608,7 @@ const VaultDesktopInner = () => {
   }
 
   return (
-    <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
-      {/* Navigation */}
-      <Navbar />
-
+    <div className="relative h-screen w-full bg-black text-white overflow-x-hidden">
       {/* Background overlays */}
       <div className="fixed inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
@@ -1456,6 +1646,7 @@ const VaultDesktopInner = () => {
           statusTone={statusConfig.statusTone}
           footerLeft={footerContent}
           variant="vault"
+          fullscreen={false}
         >
           <div className="font-mono text-green-300 space-y-4">
             {/* Header */}
@@ -1521,11 +1712,11 @@ const VaultDesktopInner = () => {
                       title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : 'Select network'}
                       aria-disabled={!canUseRailgun || !railgunWalletId}
                     >
-                      {supportedNetworks.find(n => n.id === chainId)?.name || 'Select'}
+                      {supportedNetworks.find(n => n.id === activeChainId)?.name || 'Select'}
                       <span className="ml-1">▾</span>
                     </button>
                     {isMobileChainMenuOpen && (
-                      <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden z-50">
+                      <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden scrollbar-none z-[2000]">
                         {supportedNetworks.map((net) => (
                           <button
                             key={net.id}
@@ -1574,11 +1765,11 @@ const VaultDesktopInner = () => {
                     title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : 'Select network'}
                     aria-disabled={!canUseRailgun || !railgunWalletId}
                   >
-                    {supportedNetworks.find(n => n.id === chainId)?.name || 'Select'}
+                    {supportedNetworks.find(n => n.id === activeChainId)?.name || 'Select'}
                     <span className="ml-1">▾</span>
                   </button>
                   {isChainMenuOpen && (
-                    <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden z-50">
+                    <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden scrollbar-none z-50">
                       {supportedNetworks.map((net) => (
                         <button
                           key={net.id}
@@ -1624,7 +1815,7 @@ const VaultDesktopInner = () => {
                 <div>✓ Network: {network?.name || 'Unknown'}</div>
                 <div>✓ Public balances: {Array.isArray(publicBalances) ? publicBalances.filter(token => {
                   const usdValue = parseFloat(token.balanceUSD || '0');
-                  return usdValue >= 0.01 && token.chainId === chainId;
+                  return usdValue >= 0.01 && token.chainId === walletChainId;
                 }).length : 0}</div>
                 <div>✓ Vault balances: {Array.isArray(privateBalances) ? privateBalances.length : 0}</div>
                 <div>{canUseRailgun ? '✓ Secure vault online' : '… Initializing secure vault'}</div>
@@ -1641,14 +1832,14 @@ const VaultDesktopInner = () => {
               <div className="flex flex-wrap gap-2 mb-2">
                 <button
                   onClick={refreshBalances}
-                  disabled={isLoading || !isConnected || isTransactionLocked}
+                  disabled={isLoading || !isConnected || isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-emerald-400/40 bg-emerald-900/20 hover:bg-emerald-900/40 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
                 >
                   refresh
                 </button>
                 <button
                   onClick={() => setSelectedView('balances')}
-                  disabled={isTransactionLocked}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   balances
@@ -1658,7 +1849,7 @@ const VaultDesktopInner = () => {
                     setActiveAction('contacts');
                     setSelectedView('privacy');
                   }}
-                  disabled={isTransactionLocked}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-pink-400/40 bg-pink-900/20 hover:bg-pink-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   contacts
@@ -1668,7 +1859,7 @@ const VaultDesktopInner = () => {
                     setActiveAction('shield');
                     setSelectedView('privacy');
                   }}
-                  disabled={isTransactionLocked}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-purple-300/50 bg-purple-300/10 hover:bg-purple-300/20 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   add
@@ -1678,7 +1869,7 @@ const VaultDesktopInner = () => {
                     setActiveAction('receive');
                     setSelectedView('privacy');
                   }}
-                  disabled={isTransactionLocked}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   receive
@@ -1688,7 +1879,7 @@ const VaultDesktopInner = () => {
                     setActiveAction('transfer');
                     setSelectedView('privacy');
                   }}
-                  disabled={isTransactionLocked}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-cyan-400/40 bg-cyan-900/20 hover:bg-cyan-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   send
@@ -1698,14 +1889,14 @@ const VaultDesktopInner = () => {
                     setActiveAction('unshield');
                     setSelectedView('privacy');
                   }}
-                  disabled={isTransactionLocked}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-amber-400/40 bg-amber-900/20 hover:bg-amber-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   remove
                 </button>
                 <button
                   onClick={() => setSelectedView('history')}
-                  disabled={isTransactionLocked}
+                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
                   className="px-2 py-1 rounded border border-purple-400/40 bg-purple-900/20 hover:bg-purple-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
                 >
                   history
@@ -1796,15 +1987,8 @@ const VaultDesktopInner = () => {
 
                 {/* Public Balances */}
                 <div className="border-t border-teal-500/10 pt-6">
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center mb-4">
                     <div className="text-emerald-300 text-sm font-medium font-mono">{network?.name || 'Network'} Public Balances</div>
-                    <button
-                      onClick={refreshBalances}
-                      disabled={isLoading || !isConnected}
-                      className="text-emerald-400 hover:text-emerald-300 text-xs disabled:opacity-50"
-                    >
-                      {isLoading ? 'Refreshing...' : 'Refresh'}
-                    </button>
                   </div>
 
                   <div className="space-y-2">
@@ -1816,7 +2000,7 @@ const VaultDesktopInner = () => {
                       return (
                         <>
                           {filteredBalances.map((token) => {
-                            const isSupported = isTokenSupportedByRailgun(token.address, chainId);
+                            const isSupported = isTokenSupportedByRailgun(token.address, walletChainId);
                             const isShieldingThis = shieldingTokens.has(token.symbol);
 
                             return (
@@ -1862,7 +2046,6 @@ const VaultDesktopInner = () => {
           </div>
         </WindowShell>
 
-
         {/* Error Messages */}
         {balanceErrors && (
           <div className="mt-4 p-3 bg-red-900/20 border border-red-500/40 rounded-lg">
@@ -1873,415 +2056,77 @@ const VaultDesktopInner = () => {
 
       </div>
 
-      {/* Lexie ID Choice Modal */}
-      {showLexieIdChoiceModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center z-[100] p-4 font-mono">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-lg w-full overflow-hidden">
-            {/* Modal Terminal Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
-              <div className="flex items-center gap-3">
-                <span className="text-sm tracking-wide text-gray-400">lexie-id</span>
-              </div>
-              <div className="text-green-400 text-xs">WAITING</div>
-            </div>
+      <LexieIdChoiceModal
+        isOpen={showLexieIdChoiceModal}
+        onChoice={handleLexieIdChoice}
+      />
 
-            {/* Modal Content */}
-            <div className="p-6 text-green-300 space-y-4">
-              <div className="space-y-2">
-                <h3 className="text-lg font-bold text-emerald-300">LEXIE ID SETUP</h3>
-                <p className="text-green-400/80 text-sm leading-5">
-                  Want a LexieID? Claim yours to unlock P2P transfers and play LexieTitans while your vault is being created.
-                </p>
-              </div>
+      <GameOnboardingModal
+        isOpen={showGameOnboardingModal}
+        onChoice={handleGameOnboardingChoice}
+        lexieId={pendingLexieId}
+      />
 
-              {/* Terminal-style instructions */}
-              <div className="bg-black/40 border border-green-500/20 rounded p-3">
-                <div className="text-green-200 text-xs mb-2 font-medium">Benefits:</div>
-                <div className="text-green-300/80 text-xs space-y-1">
-                  <div>• Vault-to-Vault transfers</div>
-                  <div>• Access to LexieTitans game</div>
-                  <div>• Enhanced features</div>
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-2">
-                <button
-                  onClick={() => handleLexieIdChoice(true)}
-                  className="flex-1 bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-200 py-2.5 px-4 rounded border border-emerald-400/40 hover:border-emerald-400 transition-all duration-200 text-sm font-medium"
-                >
-                  Yes, claim LexieID
-                </button>
-                <button
-                  onClick={() => handleLexieIdChoice(false)}
-                  className="flex-1 bg-purple-700/30 hover:bg-purple-700/50 text-gray-300 py-2.5 px-4 rounded border border-purple-500/40 hover:border-purple-400 transition-all duration-200 text-sm font-medium"
-                >
-                  No, skip for now
-                </button>
-              </div>
-
-              {/* Footer info */}
-              <div className="text-center">
-                <div className="text-green-300/60 text-xs">
-                💡 Tip: You can always claim a LexieID later from the vault interface
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Lexie ID Modal */}
-      {showLexieModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-[99] p-4 font-mono">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-4xl w-full overflow-hidden">
-            {/* Modal Terminal Header */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
-              <div className="flex items-center gap-3">
-                <span className="text-sm tracking-wide text-gray-400">lexie-id-setup</span>
-              </div>
-              <button
-                onClick={() => {
-                  setShowLexieModal(false);
-                  setLexieNeedsCode(false);
-                  setLexieCode('');
-                  setLexieMessage('');
-                  setLexieIdInput('');
-                }}
-                className="text-green-400/70 hover:text-green-300 transition-colors"
-              >
-                ✕
-              </button>
-            </div>
-
-            {/* Modal Content */}
-            <div className="p-6 text-green-300 space-y-4">
-              <div>
-                <h3 className="text-lg font-bold text-emerald-300 mb-2">Setup Your LexieID</h3>
-                <p className="text-green-400/80 text-sm">
-                 Grab a LexieID for easy P2P vault transfers and to be able to login to the LexieTitans game.
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                <div className="bg-black/40 border border-green-500/20 rounded p-3">
-                  <div className="text-green-400/80 text-xs mb-2">Enter your LexieID:</div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        value={lexieIdInput}
-                        onChange={(e) => setLexieIdInput(e.target.value)}
-                        placeholder="e.g. LexieLaine123"
-                        className="bg-black text-green-200 rounded px-2 py-1 text-sm border border-green-500/40 focus:border-emerald-400 focus:outline-none flex-1"
-                        disabled={lexieLinking}
-                      />
-                      {!lexieNeedsCode ? (
-                        <button
-                          onClick={async () => {
-                            try {
-                              setLexieMessage('');
-                              setLexieLinking(true);
-                              const chosen = (lexieIdInput || '').trim().toLowerCase();
-                              if (!chosen || chosen.length < 3) {
-                                setLexieMessage('Please enter a valid Lexie ID (3-20 chars).');
-                                setLexieLinking(false);
-                                return;
-                              }
-                              // Check status
-                              const statusResp = await fetch(`/api/wallet-metadata?action=lexie-status&lexieID=${encodeURIComponent(chosen)}`, { method: 'GET' });
-                              if (!statusResp.ok) { setLexieMessage('Failed to check Lexie ID status.'); setLexieLinking(false); return; }
-                              const statusJson = await statusResp.json();
-                              if (!statusJson.success) { setLexieMessage('Failed to check Lexie ID status.'); setLexieLinking(false); return; }
-                              const exists = !!statusJson.exists; const linked = !!statusJson.linked; const owner = statusJson.owner;
-
-                              if (exists && linked) {
-                                setLexieMessage('This Lexie ID is already taken. Please try another one.');
-                                setLexieLinking(false);
-                                return;
-                              }
-
-                              if (!exists) {
-                                // Lexie ID doesn't exist - claim it directly
-                                // First, get the railgunAddress from wallet metadata in Redis
-                                const walletMetadataResp = await fetch(`/api/wallet-metadata?walletAddress=${address}`);
-                                if (!walletMetadataResp.ok) {
-                                  setLexieMessage('Failed to fetch wallet metadata.');
-                                  setLexieLinking(false);
-                                  return;
-                                }
-                                const walletMetadata = await walletMetadataResp.json();
-                                if (!walletMetadata.success || !walletMetadata.keys || walletMetadata.keys.length === 0) {
-                                  setLexieMessage('No wallet metadata found.');
-                                  setLexieLinking(false);
-                                  return;
-                                }
-
-                                // Get the railgunAddress from the first (most recent) wallet metadata entry
-                                const railgunAddressFromMetadata = walletMetadata.keys[0].railgunAddress;
-                                if (!railgunAddressFromMetadata) {
-                                  setLexieMessage('Railgun address not found in wallet metadata.');
-                                  setLexieLinking(false);
-                                  return;
-                                }
-
-                                const claimResp = await fetch('/api/wallet-metadata?action=lexie-claim', {
-                                  method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ lexieID: chosen, eoaAddress: address, railgunAddress: railgunAddressFromMetadata })
-                                });
-                                const claimJson = await claimResp.json().catch(() => ({}));
-                                if (!claimResp.ok || !claimJson.success) {
-                                  setLexieMessage(claimJson.error || 'Failed to claim Lexie ID.');
-                                  setLexieLinking(false);
-                                  return;
-                                }
-                                setLexieNeedsCode(false); setLexieCode('');
-                                setLexieMessage('✅ Successfully claimed and linked your Lexie ID!');
-                                handleLexieIdLink(chosen);
-                                setTimeout(() => {
+      <LexieIdModal
+        isOpen={showLexieModal}
+        address={address}
+        railgunAddress={railgunAddress}
+        onLexieIdLinked={handleLexieIdLink}
+        onClose={() => {
                                   setShowLexieModal(false);
                                   setLexieIdInput('');
                                   setLexieMessage('');
-                                }, 2000);
-                                setLexieLinking(false);
-                                return;
-                              }
+        }}
+      />
 
-                              // Lexie ID exists but is not linked - user can link it (proves ownership via Telegram code)
-                              const startResp = await fetch('/api/wallet-metadata?action=lexie-link-start', {
-                                method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ lexieID: chosen, railgunAddress })
-                              });
-                              const startJson = await startResp.json().catch(() => ({}));
-                              if (startResp.status === 404) { setLexieMessage('Lexie ID not found.'); setLexieLinking(false); return; }
-                              if (!startResp.ok || !startJson.success) { setLexieMessage('Failed to start verification.'); setLexieLinking(false); return; }
-                              setLexieNeedsCode(true); setLexieMessage('We sent a 4‑digit code to your Telegram. Enter it below to confirm.');
-                            } catch (_) { setLexieMessage('Unexpected error starting Lexie link.'); } finally { setLexieLinking(false); }
-                          }}
-                          disabled={lexieLinking || !lexieIdInput}
-                          className="bg-emerald-600/30 hover:bg-emerald-600/50 disabled:bg-black/40 text-emerald-200 px-3 py-1 rounded text-sm border border-emerald-400/40"
-                        >
-                          {lexieLinking ? 'Working...' : 'Add'}
-                        </button>
-                      ) : (
-                        <div className="flex gap-2">
-                          <input
-                            type="text"
-                            value={lexieCode}
-                            onChange={(e) => setLexieCode(e.target.value)}
-                            placeholder="4-digit code"
-                            className="bg-black text-green-200 rounded px-2 py-1 text-sm border border-green-500/40 focus:border-emerald-400 focus:outline-none w-20"
-                            disabled={lexieLinking}
-                          />
-                          <button
-                            onClick={async () => {
-                              try {
-                                setLexieLinking(true); setLexieMessage('');
-                                const chosen = (lexieIdInput || '').trim().toLowerCase();
-                                const verifyResp = await fetch('/api/wallet-metadata?action=lexie-link-verify', {
-                                  method: 'POST', headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({ lexieID: chosen, code: (lexieCode || '').trim() })
-                                });
-                                const json = await verifyResp.json().catch(() => ({}));
-                                if (!verifyResp.ok || !json.success) { setLexieMessage('Verification failed. Check the code and try again.'); return; }
-                                setLexieNeedsCode(false); setLexieCode(''); setLexieMessage('✅ Linked successfully to your Railgun wallet.');
-                                handleLexieIdLink(chosen);
-                                setTimeout(() => {
-                                  setShowLexieModal(false);
-                                  setLexieIdInput('');
-                                  setLexieMessage('');
-                                }, 2000);
-                              } catch (_) { setLexieMessage('Unexpected verification error.'); } finally { setLexieLinking(false); }
-                            }}
-                            disabled={lexieLinking || !lexieCode}
-                            className="bg-green-600/30 hover:bg-green-600/50 disabled:bg-black/40 text-green-200 px-2 py-1 rounded text-sm border border-green-400/40"
-                          >
-                            Verify
-                          </button>
-                          <button
-                            onClick={() => { setLexieNeedsCode(false); setLexieCode(''); setLexieMessage(''); }}
-                            className="bg-gray-600/30 hover:bg-gray-500/30 text-gray-300 px-2 py-1 rounded text-sm border border-gray-500/40"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                    {lexieMessage && <div className="mt-2 text-xs text-green-300/80">{lexieMessage}</div>}
-                  </div>
+      <CrossPlatformVerificationModal
+        isOpen={showVerificationModal}
+        onClose={() => setShowVerificationModal(false)}
+      />
 
-                  {/* Instructions */}
-                  <div className="bg-purple-900/20 border border-purple-500/40 rounded p-3">
-                    <div className="text-purple-300 text-xs font-medium mb-2">How it works:</div>
-                    <p className="text-purple-200/80 text-xs mb-3">
-                      Enter any available LexieID above and we'll claim it for you instantly. If it's already taken, try another one!
-                    </p>
-                    <div className="text-purple-300/60 text-xs">
-                    💡 Tip: Already have a LexieID? Enter it above to link it to your vault.
-                    </div>
-                  </div>
-                </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <SignRequestModal
+        isOpen={showSignRequestPopup}
+        isInitInProgress={isInitInProgress}
+        initProgress={initProgress}
+        initFailedMessage={initFailedMessage}
+        address={address}
+        getNetworkNameById={getNetworkNameById}
+        initializingChainId={initializingChainId}
+        activeChainId={activeChainId}
+        bootstrapProgress={bootstrapProgress}
+        railgunWalletId={railgunWalletId}
+        railgunAddress={railgunAddress}
+        onPersistMetadata={handlePersistMetadata}
+        onClose={() => setShowSignRequestPopup(false)}
+      />
 
-      {/* Cross-Platform Verification Modal */}
-      {showVerificationModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4 font-mono">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
-              <div className="flex items-center gap-3">
-                <span className="text-sm tracking-wide text-gray-400">telegram-link</span>
-              </div>
-              <button
-                onClick={() => {
-                  setShowVerificationModal(false);
-                  setVerificationCode('');
-                  setVerificationLexieId('');
-                  setVerificationExpiresAt(0);
-                  setVerificationTimeLeft(0);
-                }}
-                className="text-green-400/70 hover:text-green-300 transition-colors"
-              >
-                ✕
-              </button>
-            </div>
+      <SignatureConfirmationModal
+        isOpen={showSignatureConfirmation}
+        selectedChainId={selectedChainId}
+        setSelectedChainId={setSelectedChainId}
+        setInitializingChainId={setInitializingChainId}
+        supportedNetworks={supportedNetworks}
+        walletChainId={walletChainId}
+        switchNetwork={switchNetwork}
+        pendingSignatureMessage={pendingSignatureMessage}
+        onConfirm={confirmSignature}
+        onCancel={cancelSignature}
+      />
 
-            <div className="p-6 text-green-300 space-y-4">
-              <div>
-                <h3 className="text-lg font-bold text-emerald-300 mb-2">Link to Telegram</h3>
-                <p className="text-green-400/80 text-sm">
-                  Your LexieID <span className="text-purple-300 font-mono">{verificationLexieId}</span> is being linked to Telegram.
-                </p>
-              </div>
+      <ReturningUserChainSelectionModal
+        isOpen={showReturningUserChainModal}
+        selectedChainId={selectedChainId}
+        setSelectedChainId={setSelectedChainId}
+        setInitializingChainId={setInitializingChainId}
+        supportedNetworks={supportedNetworks}
+        walletChainId={walletChainId}
+        switchNetwork={switchNetwork}
+        onConfirm={() => handleReturningUserChainChoice(true)}
+        onCancel={() => handleReturningUserChainChoice(false)}
+      />
 
-              <div className="bg-black/40 border border-purple-500/20 rounded p-4">
-                <div className="text-center space-y-3">
-                  <div className="text-purple-300 text-sm font-medium">Verification Code</div>
-                  <div className="text-3xl font-mono font-bold text-emerald-300 tracking-wider">
-                    {verificationCode}
-                  </div>
-                  <div className="text-purple-300/60 text-xs">
-                    Expires in {Math.floor(verificationTimeLeft / 60)}:{(verificationTimeLeft % 60).toString().padStart(2, '0')}
-                  </div>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(verificationCode);
-                      toast.success('Code copied to clipboard');
-                    }}
-                    className="bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 px-3 py-1 rounded text-sm border border-purple-400/40 transition-colors"
-                  >
-                    Copy Code
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-blue-900/20 border border-blue-500/40 rounded p-3">
-                <div className="text-blue-300 text-xs font-medium mb-1">Next Steps:</div>
-                <div className="text-blue-200/80 text-xs space-y-1">
-                  <div>1. Switch to Telegram</div>
-                  <div>2. Enter this code when prompted</div>
-                  <div>3. Your LexieID will be linked across both platforms</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Sign-in & Initialization Popup */}
-      {showSignRequestPopup && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-[1px] flex items-center justify-center z-50 p-4 font-mono">
-          <div className="bg-gray-900 border border-gray-700 rounded-lg shadow-2xl max-w-md w-full overflow-hidden">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-700 bg-gray-800">
-              <div className="flex items-center gap-3">
-                <span className="text-sm tracking-wide text-gray-400">vault-sign</span>
-              </div>
-              {isInitInProgress ? (
-                <div className="text-yellow-400 text-xs">LOCKED</div>
-              ) : null}
-            </div>
-            <div className="p-6 text-green-300 space-y-4">
-              {!isInitInProgress && initProgress.percent < 100 && !initFailedMessage ? (
-                <>
-                  <h3 className="text-lg font-bold text-emerald-300">Sign to Create Your LexieVault</h3>
-                  <p className="text-green-400/80 text-sm">
-                    A signature request was sent to your wallet. Please approve this message to begin creating your LexieVault.
-                  </p>
-                  <div className="bg-black/40 border border-green-500/20 rounded p-3 text-xs">
-                    <div>Message preview:</div>
-                    <pre className="mt-2 whitespace-pre-wrap text-green-200">LexieVault Creation Address: {address}. Sign this message to create your LexieVault.</pre>
-                  </div>
-                </>
-              ) : initFailedMessage ? (
-                <>
-                  <h3 className="text-lg font-bold text-red-300">Vault Initialization Failed</h3>
-                  <p className="text-red-300/80 text-sm">{initFailedMessage}</p>
-                </>
-              ) : (
-                <>
-                  <h3 className="text-lg font-bold text-emerald-300">Initializing Your LexieVault on {network?.name || 'network'} Network</h3>
-                  <p className="text-green-400/80 text-sm">You only need to do this once. This may take a few minutes. Do not close this window.</p>
-                  <div className="bg-black/40 border border-green-500/20 rounded p-4 space-y-3">
-                    {bootstrapProgress.active && bootstrapProgress.percent > 0 ? (
-                      <>
-                        <div className="flex items-center justify-between text-xs text-green-400/80">
-                          <span>Loading blockchain data...</span>
-                          <span>{bootstrapProgress.percent}%</span>
-                        </div>
-                        <div className="w-full bg-gray-700 rounded-full h-2">
-                          <div
-                            className="bg-gradient-to-r from-emerald-400 to-green-400 h-2 rounded-full transition-all duration-300 ease-out"
-                            style={{ width: `${bootstrapProgress.percent}%` }}
-                          />
-                        </div>
-                      </>
-                    ) : (
-                      <div className="flex items-center gap-3">
-                        <div className={`h-5 w-5 rounded-full border-2 ${isInitInProgress || bootstrapProgress.active ? 'border-emerald-400 border-t-transparent animate-spin' : 'border-emerald-400'}`} />
-                        <div className="text-xs text-green-400/80 truncate" title={bootstrapProgress.active ? 'Loading blockchain data...' : initProgress.message}>
-                          {bootstrapProgress.active ? 'Loading blockchain data...' : (initProgress.message || 'Scanning...')}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="mt-2">
-                    <div className="text-green-400/60 text-xs text-center">
-                      🔐 Your vault is being created securely using zero-knowledge cryptography.
-                    </div>
-                  </div>
-                </>
-              )}
-              <div className="flex items-center justify-end gap-2 pt-2">
-                {!isInitInProgress && initProgress.percent >= 100 && !initFailedMessage ? (
-                  <button
-                    onClick={() => setShowSignRequestPopup(false)}
-                    className="px-3 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 text-xs"
-                  >
-                    ×
-                  </button>
-                ) : initFailedMessage ? (
-                  <button
-                    onClick={() => setShowSignRequestPopup(false)}
-                    className="px-3 py-1 rounded border border-red-500/40 bg-black hover:bg-red-900/20 text-xs text-red-300"
-                  >
-                    Dismiss
-                  </button>
-                ) : (
-                  <button
-                    disabled
-                    className="px-3 py-1 rounded border border-green-500/40 bg-black/40 text-xs text-green-400/60 cursor-not-allowed"
-                  >
-                    Please wait…
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Taskbar for minimized windows */}
-      <Taskbar />
+      {/* Taskbar for minimized windows - Hidden on mobile */}
+      {!mobileMode && <Taskbar />}
 
       {/* Titans Game Window */}
       {showTitansGame && (
@@ -2294,6 +2139,7 @@ const VaultDesktopInner = () => {
           footerLeft="Process: titans-game"
           footerRight={`@lex:${currentLexieId}`}
           variant="game"
+          fullscreen={mobileMode}
           onClose={() => setShowTitansGame(false)}
           initialSize={{ width: 1000, height: 700 }}
           initialPosition={{ x: 50, y: 50 }}
@@ -2307,11 +2153,66 @@ const VaultDesktopInner = () => {
           />
         </WindowShell>
       )}
+
+      {/* LexieAI Chat Window - Desktop */}
+      {isLexieChatVisible && !isMobile && (
+        <WindowShell
+          id="lexie-chat-terminal"
+          title="LexieAI-chat"
+          appType="chat"
+          statusLabel="Enable Degen Mode"
+          statusTone="online"
+          footerLeft="LexieAI Chat Terminal"
+          footerRight="Secure LexieAI Communication Channel"
+          variant="vault"
+          fullscreen={false}
+          onClose={() => setShowLexieChat(false)}
+          initialSize={{ width: 1000, height: 700 }}
+          initialPosition={{ x: 200, y: 100 }}
+          minSize={{ width: 800, height: 600 }}
+          className="z-[98]"
+        >
+          <ChatPage />
+        </WindowShell>
+      )}
+
+
+      {/* Logo in top left - redirects to main site - only on desktop */}
+      {!isMobile && (
+        <div className="absolute md:top-6 md:left-5 -top-2 left-1 z-50 md:pl-6">
+          <a
+            href="https://www.lexiecrypto.com"
+            className="hover:opacity-80 transition-opacity"
+          >
+            <span className="text-4xl font-bold text-purple-300">LEXIEAI</span>
+          </a>
+        </div>
+      )}
+
+      {/* Lexie Logo - Only show on desktop */}
+      {!mobileMode && (
+        <div className="fixed bottom-2 right-1 z-10">
+          <img
+            src="/lexie.png"
+            alt="Lexie"
+            className="w-[320px] h-[320px] opacity-80 hover:opacity-80 transition-opacity cursor-pointer"
+            title="Click here to open up LexieChat"
+            onClick={() => {
+              const windowState = getWindowState('lexie-chat-terminal');
+              // If window exists and is closed, reopen it first
+              if (windowState && windowState.isClosed) {
+                reopenWindow('lexie-chat-terminal');
+              }
+              setShowLexieChat(true);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 };
 
-const VaultDesktop = () => {
+const VaultDesktop = ({ externalWindowProvider = false }) => {
   const [isMobile, setIsMobile] = React.useState(false);
   const [isReady, setIsReady] = React.useState(false);
 
@@ -2335,20 +2236,18 @@ const VaultDesktop = () => {
 
   if (isMobile) {
     return (
-      <div className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
-        <nav className="sticky top-0 z-40 w-full p-6 bg-black">
-          <div className="max-w-7xl mx-auto flex justify-between items-center">
-            <div className="text-4xl font-bold text-purple-300">LEXIEAI</div>
-          </div>
-        </nav>
-        <div className="flex items-center justify-center px-6 py-16">
-          <div className="max-w-md w-full text-center font-mono text-green-300">
-            <div className="text-lg text-green-200 mb-2">Not available on mobile yet…</div>
-            <div className="text-green-400/80 text-sm">Please open this page on a desktop to access LexieVault.</div>
-          </div>
-        </div>
+      <div className="min-h-screen bg-black">
+        <Navbar />
+        <WindowProvider>
+          <VaultDesktopInner mobileMode={true} />
+        </WindowProvider>
       </div>
     );
+  }
+
+  // If external WindowProvider is provided (like in WalletPage), don't wrap with our own
+  if (externalWindowProvider) {
+    return <VaultDesktopInner />;
   }
 
   return (
@@ -2359,3 +2258,5 @@ const VaultDesktop = () => {
 };
 
 export default VaultDesktop;
+
+
