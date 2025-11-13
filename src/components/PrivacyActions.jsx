@@ -2565,6 +2565,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
                 type="number"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
+                onWheel={(e) => e.preventDefault()}
                 placeholder="0.0"
                 step="any"
                 min="0"
