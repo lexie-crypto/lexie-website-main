@@ -222,6 +222,29 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   const { providers } = useInjectedProviders();
 
+  // Selected chain state - load from localStorage, no default
+  const [selectedChainId, setSelectedChainId] = useState(() => {
+    try {
+      const saved = localStorage.getItem('lexie-selected-chain');
+      const parsed = saved ? parseInt(saved, 10) : null;
+      // Validate that the saved chain is still supported
+      const isValidChain = parsed && SUPPORTED_NETWORKS.some(net => net.id === parsed);
+      const chainId = isValidChain ? parsed : null;
+      console.log('[VaultDesktop] Loaded chain selection from localStorage:', { saved, parsed, isValidChain, chainId });
+      return chainId;
+    } catch (error) {
+      console.warn('[VaultDesktop] Failed to load chain selection from localStorage:', error);
+      return null; // No fallback
+    }
+  });
+
+  // Use selectedChainId as the PRIMARY chain for all vault operations
+  // Fall back to wallet's chainId if no selection made
+  const activeChainId = selectedChainId || walletChainId;
+  const network = selectedChainId
+    ? { id: selectedChainId, name: NETWORK_NAMES[selectedChainId] || `Chain ${selectedChainId}` }
+    : getCurrentNetwork();
+
   const {
     publicBalances,
     privateBalances,
@@ -343,32 +366,8 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   // Cross-platform verification state - now managed by CrossPlatformVerificationModal component
   const [showVerificationModal, setShowVerificationModal] = useState(false);
 
-  // Selected chain state - load from localStorage, no default
-  const [selectedChainId, setSelectedChainId] = useState(() => {
-    try {
-      const saved = localStorage.getItem('lexie-selected-chain');
-      const parsed = saved ? parseInt(saved, 10) : null;
-      // Validate that the saved chain is still supported
-      const isValidChain = parsed && SUPPORTED_NETWORKS.some(net => net.id === parsed);
-      const chainId = isValidChain ? parsed : null;
-      console.log('[VaultDesktop] Loaded chain selection from localStorage:', { saved, parsed, isValidChain, chainId });
-      return chainId;
-    } catch (error) {
-      console.warn('[VaultDesktop] Failed to load chain selection from localStorage:', error);
-      return null; // No fallback
-    }
-  });
-
   // Chain readiness state
   const [isChainReady, setIsChainReady] = useState(false);
-
-
-  // Use selectedChainId as the PRIMARY chain for all vault operations
-  // Fall back to wallet's chainId if no selection made
-  const activeChainId = selectedChainId || walletChainId;
-  const network = selectedChainId
-    ? { id: selectedChainId, name: NETWORK_NAMES[selectedChainId] || `Chain ${selectedChainId}` }
-    : getCurrentNetwork();
 
   // Persist selectedChainId to localStorage whenever it changes
   useEffect(() => {
@@ -1897,4 +1896,3 @@ const VaultDesktop = ({ externalWindowProvider = false }) => {
 };
 
 export default VaultDesktop;
-
