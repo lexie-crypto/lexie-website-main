@@ -214,52 +214,13 @@ export async function submitRelayedTransaction({
     }
     
     async function handleResponse(response) {
-      // Handle provider overload errors specially
       if (!response.ok) {
-        let errorText;
-        let errorJson;
-
-        try {
-          errorText = await response.text();
-          errorJson = JSON.parse(errorText);
-        } catch {
-          errorJson = { error: errorText || 'Unknown error' };
-        }
-
-        // Check for provider overload errors that may still have generated a transaction hash
-        const isProviderOverload = errorJson.error && (
-          errorJson.error.includes('Pending acquire queue has reached its maximum size') ||
-          errorJson.error.includes('ChainException') ||
-          errorJson.code === -32005
-        );
-
-        if (isProviderOverload) {
-          console.warn('⚠️ [RELAYER] Provider overload detected, checking for transaction hash...');
-
-          // If we have a transaction hash despite the error, treat it as successful
-          if (errorJson.transactionHash) {
-            console.log('✅ [RELAYER] Transaction hash found despite provider overload - treating as success:', {
-              transactionHash: errorJson.transactionHash,
-              gasUsed: errorJson.gasUsed,
-              totalFee: errorJson.totalFee
-            });
-
-            return {
-              transactionHash: errorJson.transactionHash,
-              gasUsed: errorJson.gasUsed,
-              totalFee: errorJson.totalFee,
-              providerOverload: true,
-              retryable: true,
-              code: -32005
-            };
-          }
-        }
-
-        throw new Error(`Transaction submission failed: ${errorJson.error}`);
+        const error = await response.json();
+        throw new Error(`Transaction submission failed: ${error.error}`);
       }
 
       const result = await response.json();
-
+      
       console.log('✅ [RELAYER] Transaction submitted successfully:', {
         transactionHash: result.transactionHash,
         gasUsed: result.gasUsed,

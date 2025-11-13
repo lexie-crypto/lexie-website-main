@@ -2116,17 +2116,6 @@ const WalletContextProvider = ({ children }) => {
         crossDevice: true
       });
 
-      // Force unlock modal when Railgun initialization completes
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('railgun-init-force-unlock', {
-          detail: {
-            userAddress: address,
-            railgunAddress: railgunWalletInfo.railgunAddress,
-            walletID: railgunWalletInfo.id
-          }
-        }));
-      }
-
       // Signal init completed for UI with 100%
       try { window.dispatchEvent(new CustomEvent('railgun-init-completed', { detail: { address } })); } catch {}
 

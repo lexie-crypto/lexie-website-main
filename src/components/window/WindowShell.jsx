@@ -279,7 +279,7 @@ const WindowShell = ({
         </div>
 
         {/* Status Section */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <div className={`w-2 h-2 rounded-full animate-pulse ${statusTone === 'online' ? 'bg-green-400' : 'bg-yellow-400'}`} />
           <span className={`font-mono text-xs ${statusTone === 'online' ? 'text-green-400' : 'text-yellow-300'}`}>
             {statusLabel}
@@ -290,7 +290,7 @@ const WindowShell = ({
       {/* Window Content */}
       <div
         id={`window-content-${id}`}
-        className="relative bg-black overflow-hidden scrollbar-terminal"
+        className="relative bg-black overflow-hidden"
         style={{
           height: appType === 'game'
             ? (isMaximized
