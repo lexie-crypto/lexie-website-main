@@ -524,13 +524,13 @@ const WalletContextProvider = ({ children }) => {
   // Ensure initial full scan is completed for a given chain before user transacts
   const ensureChainScanned = useCallback(async (targetChainId) => {
     try {
-      // 🛡️ CRITICAL: Don't run scans if returning user modal is open
-      if (showReturningUserChainModal) {
-        console.log('[Railgun Init] ⏸️ Waiting for returning user to select chain before scanning');
-        return;
-      }
+    // 🛡️ CRITICAL: Don't run scans if returning user modal is open
+    if (showReturningUserChainModal) {
+      console.log('[Railgun Init] ⏸️ Waiting for returning user to select chain before scanning');
+      return;
+    }
 
-      if (!isConnected || !address || !railgunWalletID) return;
+    if (!isConnected || !address || !railgunWalletID) return;
 
       // Resolve Railgun chain config by chainId
       const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
@@ -594,6 +594,45 @@ const WalletContextProvider = ({ children }) => {
           const isHydrating = isChainHydrating(railgunWalletID, targetChainId);
           if (alreadyHydratedInRedis || isHydrating) {
             console.log(`[Railgun Init] ⏭️ Chain ${targetChainId} already ${alreadyHydratedInRedis ? 'hydrated' : 'hydrating'}, skipping bootstrap`);
+
+            // 🚀 FAST-SYNC FIX: If chain is hydrated but not scanned, mark it as scanned
+            // This ensures hydratedChains and scannedChains stay in sync
+            if (alreadyHydratedInRedis && !alreadyScannedInRedis && !alreadyScannedInWindow) {
+              console.log(`[Railgun Init] 🚀 FAST-SYNC: Chain ${targetChainId} is hydrated but not scanned - marking as scanned since bootstrap data exists`);
+
+              try {
+                // Mark as scanned in Redis
+                const persistResp = await fetch('/api/wallet-metadata', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    walletAddress: address,
+                    walletId: railgunWalletID,
+                    railgunAddress: railgunAddress,
+                    scannedChains: [railgunChain.id] // Add this chain to scannedChains
+                  })
+                });
+
+                if (persistResp.ok) {
+                  console.log(`[Railgun Init] ✅ FAST-SYNC: Marked hydrated chain ${railgunChain.id} as scanned`);
+
+                  // Mark as scanned in memory
+                  if (typeof window !== 'undefined') {
+                    window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
+                    window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id] = true;
+                  }
+
+                  // Dispatch scan complete event so UI knows chain is ready
+                  try {
+                    window.dispatchEvent(new CustomEvent('railgun-scan-complete', { detail: { chainId: railgunChain.id } }));
+                  } catch {}
+                } else {
+                  console.error(`[Railgun Init] ❌ Failed to mark hydrated chain as scanned:`, await persistResp.text());
+                }
+              } catch (error) {
+                console.warn(`[Railgun Init] ⚠️ Error marking hydrated chain as scanned:`, error);
+              }
+            }
           } else if (!isScanning) {
             console.log(`[Railgun Init] 🚀 Loading chain ${railgunChain.id} bootstrap for lightweight scan...`);
             const { checkChainBootstrapAvailable, loadChainBootstrap } = await import('../utils/sync/idb-sync/hydration.js');
@@ -601,8 +640,8 @@ const WalletContextProvider = ({ children }) => {
             const hasBootstrap = await checkChainBootstrapAvailable(targetChainId);
             if (hasBootstrap) {
               await loadChainBootstrap(railgunWalletID, targetChainId, {
-                address,
-                onProgress: (progress) => {
+      address,
+      onProgress: (progress) => {
                   console.log(`[Railgun Init] 🚀 Chain ${railgunChain.id} bootstrap progress: ${progress}%`);
                   try {
                     window.dispatchEvent(new CustomEvent('chain-bootstrap-progress', {
