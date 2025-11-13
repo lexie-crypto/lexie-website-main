@@ -7,11 +7,10 @@
  */
 
 import { useCallback } from 'react';
-import { syncBalancesAfterTransaction } from './railgun/syncBalances.js';
 import { toast } from 'react-hot-toast';
 
 /**
- * Full balance refresh: SDK refresh + Redis persist + UI update
+ * Light balance refresh: SDK refresh + UI updates (no Redis persistence)
  * @param {Object} params
  * @param {string} params.walletAddress - User's wallet address
  * @param {string} params.walletId - Railgun wallet ID
@@ -35,21 +34,25 @@ export const refreshBalances = async ({
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
     }
 
-    console.log('[BalanceRefresh] Full refresh — SDK + Redis' + (skipUIUpdate ? '' : ' + UI') + '...');
+    console.log('[BalanceRefresh] Light refresh — SDK' + (skipUIUpdate ? '' : ' + UI') + '...');
 
-    // Step 1: SDK refresh + persist to Redis
-    console.log('[BalanceRefresh] Triggering SDK balance refresh...');
+    // Step 1: Light SDK balance refresh (no Redis persistence)
+    console.log('[BalanceRefresh] Triggering light SDK balance refresh...');
     let sdkSuccess = false;
     try {
       if (walletId && walletAddress && chainId) {
-        sdkSuccess = await syncBalancesAfterTransaction({
-          walletAddress,
-          walletId,
-          chainId,
-        });
+        const { refreshBalances } = await import('@railgun-community/wallet');
+        const { NETWORK_CONFIG } = await import('@railgun-community/shared-models');
+        const chain = Object.values(NETWORK_CONFIG).find((c) => c.chain.id === chainId)?.chain;
+
+        if (chain) {
+          await refreshBalances(chain, [walletId]);
+          sdkSuccess = true;
+          console.log('[BalanceRefresh] Light SDK balance refresh completed');
+        }
       }
     } catch (sdkErr) {
-      console.warn('[BalanceRefresh] SDK refresh failed' + (skipUIUpdate ? '' : ' (continuing to UI)') + ':', sdkErr?.message);
+      console.warn('[BalanceRefresh] Light SDK refresh failed' + (skipUIUpdate ? '' : ' (continuing to UI)') + ':', sdkErr?.message);
     }
 
     // Step 2: Refresh UI from Redis/cache (skip if requested)
@@ -76,7 +79,7 @@ export const refreshBalances = async ({
       ), { duration: 2500 });
     }
 
-    console.log('[BalanceRefresh] ✅ Full refresh completed');
+    console.log('[BalanceRefresh] ✅ Light refresh completed');
     return true;
 
   } catch (error) {
