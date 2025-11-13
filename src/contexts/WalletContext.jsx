@@ -714,7 +714,7 @@ const WalletContextProvider = ({ children }) => {
     }
   }, [isConnected, address, railgunWalletID, showReturningUserChainModal]);
 
-  // Reset rate limiter only on wallet disconnect/connect
+  // Reset rate limiter only on wallet disconnect/connects
   const resetRPCLimiter = () => {
     // Only reset if this is a different wallet session or user disconnected
     const currentSession = isConnected ? address : null;
