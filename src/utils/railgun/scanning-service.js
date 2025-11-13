@@ -172,7 +172,7 @@ export const performFullRescan = async (railgunWalletIDs = []) => {
         // Use refreshBalances for each chain individually 
         await refreshBalances(railgunChain, railgunWalletIDs);
         
-        // Update status for this network
+        // Update status for this networks
         scanStatus.set(networkName, ScanStatus.COMPLETE);
         scanProgress.set(networkName, { utxo: 100, txid: 100 });
         lastScanTime.set(networkName, Date.now());
