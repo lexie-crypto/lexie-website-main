@@ -722,9 +722,30 @@ const WalletContextProvider = ({ children }) => {
 
       // Perform lightweight scan (refreshBalances) now that bootstrap is loaded
       try {
-        const { refreshBalances } = await import('@railgun-community/wallet');
-        await refreshBalances(railgunChain, [railgunWalletID]);
-        console.log(`[Railgun Init] ✅ Light scan completed for chain ${railgunChain.id}`);
+        // 🚀 BLOCK-RANGE SCANNING: Use creation block numbers for optimized scanning
+        const { refreshBalances } = await import('../utils/balanceRefresh.jsx');
+        const walletData = await getWalletMetadata(address);
+        const creationBlockNumbers = walletData?.creationBlockNumbers || null;
+
+        if (creationBlockNumbers) {
+          console.log(`[Railgun Init] 🚀 Using creation block numbers for optimized scanning:`, creationBlockNumbers);
+        }
+
+        const success = await refreshBalances({
+          walletAddress: address,
+          walletId: railgunWalletID,
+          chainId: railgunChain.id,
+          refreshAllBalances: () => Promise.resolve(), // No-op since we're in init
+          showToast: false,
+          skipUIUpdate: true,
+          creationBlockNumbers
+        });
+
+        if (success) {
+          console.log(`[Railgun Init] ✅ Light scan completed for chain ${railgunChain.id}`);
+        } else {
+          console.warn(`[Railgun Init] ⚠️ Light scan failed for chain ${railgunChain.id}`);
+        }
       } catch (scanError) {
         console.warn(`[Railgun Init] ⚠️ Light scan failed for chain ${railgunChain.id}:`, scanError.message);
         // Don't throw - allow initialization to complete even if scanning fails
