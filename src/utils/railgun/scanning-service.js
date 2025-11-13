@@ -171,7 +171,7 @@ export const performFullRescan = async (railgunWalletIDs = []) => {
         
         // 🚀 BLOCK-RANGE SCANNING: Use optimized refresh with creation blocks
         if (railgunWalletIDs.length === 1) {
-          // Single wallet - try to get creation blocks for optimization
+          // Single wallet - try to get creation blocks for optimizations
           try {
             // We don't have wallet address here, so skip creation block optimization for rescans
             // Creation blocks are most important for initial scans, less critical for rescans
