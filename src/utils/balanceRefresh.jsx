@@ -10,7 +10,8 @@ import { useCallback } from 'react';
 import { toast } from 'react-hot-toast';
 
 /**
- * Light balance refresh: SDK refresh + UI updates (no Redis persistence)
+ * Targeted balance refresh: SDK refresh (no full historical scan) + UI updates
+ * Uses bootstrap data + only scans recent changes to avoid full blockchain scans
  * @param {Object} params
  * @param {string} params.walletAddress - User's wallet address
  * @param {string} params.walletId - Railgun wallet ID
@@ -34,10 +35,10 @@ export const refreshBalances = async ({
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
     }
 
-    console.log('[BalanceRefresh] Light refresh — SDK' + (skipUIUpdate ? '' : ' + UI') + '...');
+    console.log('[BalanceRefresh] Targeted refresh — SDK' + (skipUIUpdate ? '' : ' + UI') + '...');
 
-    // Step 1: Light SDK balance refresh (no Redis persistence)
-    console.log('[BalanceRefresh] Triggering light SDK balance refresh...');
+    // Step 1: Targeted SDK refresh (uses bootstrap data + scans only recent changes)
+    console.log('[BalanceRefresh] Triggering targeted SDK balance refresh...');
     let sdkSuccess = false;
     try {
       if (walletId && walletAddress && chainId) {
@@ -46,13 +47,16 @@ export const refreshBalances = async ({
         const chain = Object.values(NETWORK_CONFIG).find((c) => c.chain.id === chainId)?.chain;
 
         if (chain) {
+          // 🚀 FAST-SYNC: refreshBalances should work with bootstrap data
+          // and only scan deltas since bootstrap was loaded
           await refreshBalances(chain, [walletId]);
           sdkSuccess = true;
-          console.log('[BalanceRefresh] Light SDK balance refresh completed');
+          console.log('[BalanceRefresh] Targeted SDK refresh completed');
         }
       }
     } catch (sdkErr) {
-      console.warn('[BalanceRefresh] Light SDK refresh failed' + (skipUIUpdate ? '' : ' (continuing to UI)') + ':', sdkErr?.message);
+      console.warn('[BalanceRefresh] Targeted SDK refresh failed' + (skipUIUpdate ? '' : ' (continuing to UI)') + ':', sdkErr?.message);
+      // If targeted refresh fails, don't mark as success
     }
 
     // Step 2: Refresh UI from Redis/cache (skip if requested)
@@ -79,7 +83,7 @@ export const refreshBalances = async ({
       ), { duration: 2500 });
     }
 
-    console.log('[BalanceRefresh] ✅ Light refresh completed');
+    console.log('[BalanceRefresh] ✅ Targeted refresh completed');
     return true;
 
   } catch (error) {

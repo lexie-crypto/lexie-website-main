@@ -971,13 +971,9 @@ export function useBalances(targetChainId = null) {
           console.log('[useBalances] Ensuring chain is scanned before initial SDK refresh...');
           await ensureChainScanned(chainId);
 
-          const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
-          await syncBalancesAfterTransaction({
-            walletAddress: address,
-            walletId: railgunWalletId,
-            chainId,
-          });
-          console.log('[useBalances] ✅ SDK balance refresh completed on wallet connect');
+          // 🚀 FAST-SYNC: Skip full SDK scan - bootstrap provides historical data
+          // Users can manually refresh if they need current balances
+          console.log('[useBalances] 🚀 Fast-sync: Skipping full SDK scan (bootstrap provides historical data)');
 
           // Modal unlock is now handled by centralized unlock utility during scan completion
           // The scan should have already unlocked the modal

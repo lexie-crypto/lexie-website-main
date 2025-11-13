@@ -682,8 +682,14 @@ const WalletContextProvider = ({ children }) => {
       }
 
       // Perform lightweight scan (refreshBalances) now that bootstrap is loaded
-      const { refreshBalances } = await import('@railgun-community/wallet');
-      await refreshBalances(railgunChain, [railgunWalletID]);
+      try {
+        const { refreshBalances } = await import('@railgun-community/wallet');
+        await refreshBalances(railgunChain, [railgunWalletID]);
+        console.log(`[Railgun Init] ✅ Light scan completed for chain ${railgunChain.id}`);
+      } catch (scanError) {
+        console.warn(`[Railgun Init] ⚠️ Light scan failed for chain ${railgunChain.id}:`, scanError.message);
+        // Don't throw - allow initialization to complete even if scanning fails
+      }
 
       // Mark as scanned in memory and Redis metadata
       if (typeof window !== 'undefined') {
