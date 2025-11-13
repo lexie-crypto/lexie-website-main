@@ -75,7 +75,8 @@ async function getWalletMetadata(walletAddress) {
           allKeys: result.keys,
           privateBalances: metaKey.privateBalances || [],
           lastBalanceUpdate: metaKey.lastBalanceUpdate,
-          scannedChains: metaKey.scannedChains || []
+          scannedChains: metaKey.scannedChains || [],
+          creationBlockNumbers: metaKey.creationBlockNumbers || {}
         };
       }
       
@@ -102,7 +103,8 @@ async function getWalletMetadata(walletAddress) {
           allKeys: result.keys,
           privateBalances: firstKey.privateBalances || [],
           lastBalanceUpdate: firstKey.lastBalanceUpdate,
-          scannedChains: firstKey.scannedChains || []
+          scannedChains: firstKey.scannedChains || [],
+          creationBlockNumbers: firstKey.creationBlockNumbers || {}
         };
       }
     }
@@ -611,24 +613,25 @@ const WalletContextProvider = ({ children }) => {
                 onComplete: async () => {
                   console.log(`[Railgun Init] 🚀 Chain ${railgunChain.id} bootstrap loaded successfully`);
 
-                  // Mark chain as hydrated in Redis metadata
+                  // 🚀 FAST-SYNC: Mark chain as BOTH hydrated AND scanned since bootstrap provides blockchain state
                   try {
-                    // First fetch existing metadata to get current hydratedChains
+                    // First fetch existing metadata to get current chains
                     const getResp = await fetch(`/api/wallet-metadata?walletAddress=${encodeURIComponent(address)}`);
                     let existingHydratedChains = [];
+                    let existingScannedChains = [];
 
                     if (getResp.ok) {
                       const existingData = await getResp.json();
                       const metaKey = existingData?.keys?.find((k) => k.walletId === railgunWalletID);
-                      if (metaKey?.hydratedChains) {
-                        existingHydratedChains = Array.isArray(metaKey.hydratedChains)
-                          ? metaKey.hydratedChains
-                          : [];
+                      if (metaKey) {
+                        existingHydratedChains = Array.isArray(metaKey.hydratedChains) ? metaKey.hydratedChains : [];
+                        existingScannedChains = Array.isArray(metaKey.scannedChains) ? metaKey.scannedChains : [];
                       }
                     }
 
                     // Merge with new chain (avoid duplicates)
                     const updatedHydratedChains = [...new Set([...existingHydratedChains, railgunChain.id])];
+                    const updatedScannedChains = [...new Set([...existingScannedChains, railgunChain.id])];
 
                     const persistResp = await fetch('/api/wallet-metadata?action=persist-metadata', {
                       method: 'POST',
@@ -637,16 +640,28 @@ const WalletContextProvider = ({ children }) => {
                         walletAddress: address,
                         walletId: railgunWalletID,
                         railgunAddress: railgunAddress,
-                        hydratedChains: updatedHydratedChains
+                        hydratedChains: updatedHydratedChains,
+                        scannedChains: updatedScannedChains // 🚀 FAST-SYNC: Mark as scanned too!
                       })
                     });
                     if (persistResp.ok) {
-                      console.log(`[Railgun Init] ✅ Marked hydratedChains += ${railgunChain.id} (merged with existing: ${existingHydratedChains.join(',')}) after bootstrap`);
+                      console.log(`[Railgun Init] ✅ FAST-SYNC: Marked both hydratedChains += ${railgunChain.id} AND scannedChains += ${railgunChain.id} after bootstrap`);
+
+                      // Mark as scanned in memory too
+                      if (typeof window !== 'undefined') {
+                        window.__RAILGUN_INITIAL_SCAN_DONE = window.__RAILGUN_INITIAL_SCAN_DONE || {};
+                        window.__RAILGUN_INITIAL_SCAN_DONE[railgunChain.id] = true;
+                      }
+
+                      // Dispatch scan complete event so UI knows chain is ready
+                      try {
+                        window.dispatchEvent(new CustomEvent('railgun-scan-complete', { detail: { chainId: railgunChain.id } }));
+                      } catch {}
                     } else {
-                      console.error(`[Railgun Init] ❌ Failed to mark hydratedChains += ${railgunChain.id}:`, await persistResp.text());
+                      console.error(`[Railgun Init] ❌ Failed to mark chains after bootstrap:`, await persistResp.text());
                     }
                   } catch (persistError) {
-                    console.warn(`[Railgun Init] ⚠️ Error marking chain ${railgunChain.id} as hydrated:`, persistError);
+                    console.warn(`[Railgun Init] ⚠️ Error marking chains after bootstrap:`, persistError);
                   }
                 },
                 onError: (error) => {
