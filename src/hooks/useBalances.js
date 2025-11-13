@@ -87,7 +87,7 @@ const CHAIN_RPC_MAPPING = {
 };
 
 export function useBalances(targetChainId = null) {
-  const { address, chainId: walletChainId, railgunWalletId, isRailgunInitialized, ensureChainScanned } = useWallet();
+  const { address, chainId: walletChainId, railgunWalletId, isRailgunInitialized } = useWallet();
   // Use targetChainId if provided, otherwise fall back to walletChainId
   const chainId = targetChainId || walletChainId;
 
@@ -964,30 +964,25 @@ export function useBalances(targetChainId = null) {
       setIsPrivateBalancesLoading(true);
       try { window.dispatchEvent(new CustomEvent('vault-private-refresh-start')); } catch {}
 
-      // Use the same SDK refresh + persist logic as the refresh button
+      // Use balance update callback instead of full scan
       (async () => {
         try {
-          // Step 0: Ensure chain has been scanned for private transfers (critical for discovering transfers before first shield)
-          console.log('[useBalances] Ensuring chain is scanned before initial SDK refresh...');
-          await ensureChainScanned(chainId);
+          // 🚀 FAST-SYNC: Use balance update callback instead of full scan
+          // The balance callback will handle updates automatically as they come in
+          console.log('[useBalances] 🚀 Using balance update callback for real-time balance updates');
 
-          // 🚀 FAST-SYNC: Skip full SDK scan - bootstrap provides historical data
-          // Users can manually refresh if they need current balances
-          console.log('[useBalances] 🚀 Fast-sync: Skipping full SDK scan (bootstrap provides historical data)');
-
-          // Modal unlock is now handled by centralized unlock utility during scan completion
-          // The scan should have already unlocked the modal
-          console.log('[useBalances] Modal unlock handled by scan completion event');
+          // Balance updates will be handled by the onBalanceUpdateCallback
+          // No need for manual scan - callbacks will trigger UI updates automatically
 
         } catch (error) {
-          console.error('[useBalances] ❌ SDK balance refresh failed on wallet connect:', error.message);
+          console.error('[useBalances] ❌ Balance callback setup failed on wallet connect:', error.message);
         } finally {
           setIsPrivateBalancesLoading(false);
           try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
         }
       })();
     }
-  }, [railgunWalletId, address, isRailgunInitialized, chainId, bootstrappedChains, ensureChainScanned]);
+  }, [railgunWalletId, address, isRailgunInitialized, chainId, bootstrappedChains]);
 
   // Listen for chain bootstrap completion to sequence balance refresh
   useEffect(() => {
