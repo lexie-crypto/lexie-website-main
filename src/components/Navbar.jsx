@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useWallet } from '../contexts/WalletContext';
 import MobileTitansGame from './MobileTitansGame.jsx';
 
-export function Navbar({ onLexieChatOpen }) {
+export function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isTitansGameOpen, setIsTitansGameOpen] = useState(false);
 
@@ -12,8 +12,7 @@ export function Navbar({ onLexieChatOpen }) {
   // Get lexieId from localStorage (same way as VaultDesktop)
   const currentLexieId = localStorage.getItem('linkedLexieId');
 
-  // Mobile: sticky (scrolls with page), Desktop: fixed (stays at top)
-  const baseClasses = "sticky md:fixed top-0 md:left-0 md:right-0 z-40 w-full p-6 bg-black";
+  const baseClasses = "sticky top-0 z-40 w-full p-6 bg-black";
   const containerClasses = "max-w-7xl mx-auto flex justify-between items-center";
 
   const toggleMobileMenu = () => {
@@ -22,8 +21,7 @@ export function Navbar({ onLexieChatOpen }) {
 
   return (
     <>
-      {/* FIXED: Added relative positioning to navbar container */}
-      <nav className={`${baseClasses} relative`}>
+      <nav className={baseClasses}>
         <div className={containerClasses}>
           {/* Logo - Far Left */}
           <a href="/" className="text-4xl font-bold text-purple-300 hover:text-white transition-colors flex-shrink-0">
@@ -55,28 +53,22 @@ export function Navbar({ onLexieChatOpen }) {
           </button>
         </div>
 
-        {/* Mobile Menu - FIXED: Now using absolute positioning */}
+        {/* Mobile Menu */}
         {isMobileMenuOpen && (
-          <div className="absolute top-full right-0 w-64 md:hidden bg-black border-t border-l border-purple-800 shadow-xl z-50">
+          <div className="md:hidden bg-black border-t border-purple-800">
             <div className="px-6 py-4 space-y-4">
               <a href="https://staging.app.lexiecrypto.com/lexievault" className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors text-left" onClick={() => setIsMobileMenuOpen(false)}>
                 LexieVault
               </a>
-              <a
-                href="/chat"
-                className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors text-left"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
+              <button className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors text-left" onClick={() => setIsMobileMenuOpen(false)}>
                 LexieChat
-              </a>
+              </button>
               <button
                 className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors text-left"
                 onClick={() => {
                   setIsMobileMenuOpen(false);
                   if (currentLexieId) {
-                    // Open LexieTitans game in new tab on mobile
-                    const gameUrl = `https://game.lexiecrypto.com/?lexieId=${encodeURIComponent(currentLexieId)}&walletAddress=${encodeURIComponent(address || '')}&embedded=true&theme=terminal`;
-                    window.open(gameUrl, '_blank');
+                    setIsTitansGameOpen(true);
                   } else {
                     // If no Lexie ID, show alert or handle gracefully
                     alert('Please get a Lexie ID first to play LexieTitans!');
@@ -85,18 +77,10 @@ export function Navbar({ onLexieChatOpen }) {
               >
                 LexieTitans
               </button>
-              <a
-                href="https://lexie-crypto.gitbook.io/lexie-crypto/"
-                className="block text-lg font-bold text-purple-300 hover:text-purple-100 transition-colors text-left"
-                onClick={() => setIsMobileMenuOpen(false)}
-              >
-                Documentation
-              </a>
             </div>
           </div>
         )}
       </nav>
-
 
       {/* Mobile Titans Game Modal */}
       <MobileTitansGame

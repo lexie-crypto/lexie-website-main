@@ -123,9 +123,9 @@ export function LexieChat() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="px-3 py-1 bg-gray-800 border border-green-500/30 rounded-lg hover:bg-gray-700 transition-colors text-green-400 text-sm font-medium"
+                className="p-2 bg-gray-800 border border-green-500/30 rounded-lg hover:bg-gray-700 transition-colors"
               >
-                {isMobileMenuOpen ? 'Close' : 'History'}
+                {isMobileMenuOpen ? <XIcon size={20} className="text-green-400" /> : <MenuIcon size={20} className="text-green-400" />}
               </button>
             </div>
           </div>
@@ -186,7 +186,7 @@ export function LexieChat() {
     <div className="relative z-10 w-full md:max-w-screen-xl md:mx-auto md:px-4 md:sm:px-6 md:lg:px-8 md:py-8 min-h-screen min-w-0 mobile-app-wrapper scrollbar-terminal">
       <div className="font-mono text-green-300 space-y-1 min-h-[18.75rem] md:h-screen flex flex-col md:min-h-0 md:min-w-0 mobile-chat-layout md:px-8 md:pt-4 md:pb-6">
         {/* Mobile Menu Button */}
-        <div className="md:hidden flex items-center justify-between pb-4 pt-4 flex-shrink-0">
+        <div className="md:hidden flex items-center justify-between -pb-6 flex-shrink-0">
           <div>
             <h1 className="text-xl font-bold text-emerald-300">LexieAI Chat Terminal</h1>
             <div className="flex items-center pt-1space-x-2 text-sm">
@@ -196,16 +196,14 @@ export function LexieChat() {
               <div>✓ LexieAI online</div>
               <div className="pt-1 text-emerald-300">Ready for commands...</div>
             </div>
-            {/* Mobile Controls - Vertical Stack */}
-            <div className="flex flex-col items-start mt-3 gap-2">
-              <DegenModeButton />
-              <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="px-3 py-1 bg-gray-800 border border-green-500/30 rounded-lg hover:bg-gray-700 transition-colors text-green-400 text-sm font-medium"
-              >
-                {isMobileMenuOpen ? 'Close' : 'History'}
-              </button>
-            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              className="p-2 bg-gray-800 border border-green-500/30 rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              {isMobileMenuOpen ? <XIcon size={20} className="text-green-400" /> : <MenuIcon size={20} className="text-green-400" />}
+            </button>
           </div>
         </div>
 

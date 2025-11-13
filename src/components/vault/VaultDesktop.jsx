@@ -43,7 +43,6 @@ import SignRequestModal from './SignRequestModal';
 import SignatureConfirmationModal from './SignatureConfirmationModal';
 import ReturningUserChainSelectionModal from './ReturningUserChainSelectionModal';
 import { Navbar } from '../Navbar.jsx';
-import ChatPage from '../../pages/ChatPage.tsx';
 
 // Titans Game component that loads the actual game from game.lexiecrypto.com
 const TitansGame = ({ lexieId, walletAddress, embedded, theme, onLoad, onError, onClose }) => {
@@ -142,23 +141,6 @@ const TitansGameWindow = ({ lexieId, walletAddress, onClose }) => {
 };
 
 const VaultDesktopInner = ({ mobileMode = false }) => {
-  const [isMobile, setIsMobile] = React.useState(false);
-
-  React.useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia === 'undefined') {
-      return;
-    }
-    const mq = window.matchMedia('(max-width: 639px)');
-    const apply = () => { setIsMobile(mq.matches); };
-    apply();
-    if (mq.addEventListener) mq.addEventListener('change', apply);
-    else if (mq.addListener) mq.addListener(apply);
-    return () => {
-      if (mq.removeEventListener) mq.removeEventListener('change', apply);
-      else if (mq.removeListener) mq.removeListener(apply);
-    };
-  }, []);
-
   const {
     isConnected,
     isConnecting,
@@ -275,9 +257,6 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   const [showTitansGame, setShowTitansGame] = useState(false);
   const [showLexieChat, setShowLexieChat] = useState(false);
 
-  // Chat visibility for desktop WindowShell
-  const isLexieChatVisible = showLexieChat;
-
   // Signature confirmation from WalletContext
   const {
     showSignatureConfirmation,
@@ -305,14 +284,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     // Auto-open Titans game only when explicitly requested (when user chooses LexieID)
     if (lexieId && autoOpenGame) {
       setTimeout(() => {
-        if (isMobile) {
-          // Open LexieTitans game in new tab on mobile
-          const gameUrl = `https://game.lexiecrypto.com/?lexieId=${encodeURIComponent(lexieId)}&walletAddress=${encodeURIComponent(address || '')}&embedded=true&theme=terminal`;
-          window.open(gameUrl, '_blank');
-        } else {
-          // Open in window shell on desktop
-          setShowTitansGame(true);
-        }
+        setShowTitansGame(true);
         // Signal to WalletContext that Lexie ID linking is complete
         onLexieIdLinked();
       }, 1000); // Small delay to allow UI to settle
@@ -320,7 +292,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       // Signal completion without auto-opening game
       onLexieIdLinked();
     }
-  }, [address, onLexieIdLinked, isMobile]);
+  }, [address, onLexieIdLinked]);
 
   // Cross-platform verification state - now managed by CrossPlatformVerificationModal component
   const [showVerificationModal, setShowVerificationModal] = useState(false);
@@ -722,7 +694,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       console.log('[VaultDesktop] ⏰ Safety timeout reached - auto-unlocking transaction UI');
       setIsTransactionLocked(false);
       setActiveTransactionMonitors(0);
-    }, 60000); // 60 seconds
+    }, 30000); // 30 seconds
 
     return () => {
       console.log('[VaultDesktop] ⏰ Clearing safety timeout (transaction completed normally)');
@@ -1695,7 +1667,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                       <span className="ml-1">▾</span>
                     </button>
                     {isMobileChainMenuOpen && (
-                      <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden scrollbar-none z-[2000]">
+                      <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden scrollbar-none z-50">
                         {supportedNetworks.map((net) => (
                           <button
                             key={net.id}
@@ -2127,39 +2099,34 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         </WindowShell>
       )}
 
-      {/* LexieAI Chat Window - Desktop */}
-      {isLexieChatVisible && !isMobile && (
+      {/* LexieAI Chat Window */}
+      {showLexieChat && (
         <WindowShell
           id="lexie-chat-terminal"
           title="LexieAI-chat"
-          appType="chat"
+          appType="game"
           statusLabel="Enable Degen Mode"
           statusTone="online"
           footerLeft="LexieAI Chat Terminal"
           footerRight="Secure LexieAI Communication Channel"
           variant="vault"
-          fullscreen={false}
+          fullscreen={mobileMode}
           onClose={() => setShowLexieChat(false)}
           initialSize={{ width: 1000, height: 700 }}
           initialPosition={{ x: 200, y: 100 }}
           minSize={{ width: 800, height: 600 }}
           className="z-[98]"
         >
-          <ChatPage />
+          <div className="h-full w-full bg-black relative">
+            <iframe
+              src={currentLexieId ? `/chat?lexieId=${encodeURIComponent(currentLexieId)}` : "/chat"}
+              className="w-full h-full border-0"
+              title="LexieAI Chat"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-presentation"
+            />
+          </div>
         </WindowShell>
-      )}
-
-
-      {/* Logo in top left - redirects to main site - only on desktop */}
-      {!isMobile && (
-        <div className="absolute md:top-6 md:left-5 -top-2 left-1 z-50 md:pl-6">
-          <a
-            href="https://www.lexiecrypto.com"
-            className="hover:opacity-80 transition-opacity"
-          >
-            <span className="text-4xl font-bold text-purple-300">LEXIEAI</span>
-          </a>
-        </div>
       )}
 
       {/* Lexie Logo - Only show on desktop */}

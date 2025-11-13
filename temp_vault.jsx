@@ -41,6 +41,7 @@ import LexieIdModal from './LexieIdModal';
 import CrossPlatformVerificationModal from './CrossPlatformVerificationModal';
 import SignRequestModal from './SignRequestModal';
 import SignatureConfirmationModal from './SignatureConfirmationModal';
+import NetworkSelectionModal from './NetworkSelectionModal';
 import { Navbar } from '../Navbar.jsx';
 
 // Titans Game component that loads the actual game from game.lexiecrypto.com
@@ -212,6 +213,15 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   // Track which chain is being initialized
   const [initializingChainId, setInitializingChainId] = useState(null);
+
+  // Track if existing wallet has completed network selection
+  const [hasCompletedNetworkSelection, setHasCompletedNetworkSelection] = useState(() => {
+    try {
+      return localStorage.getItem('lexie-network-selection-completed') === 'true';
+    } catch (error) {
+      return false;
+    }
+  });
 
   // Helper to get network name by chain ID
   const getNetworkNameById = (chainId) => {
@@ -1467,7 +1477,8 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     };
   }, [isChainMenuOpen, isMobileChainMenuOpen, isModalChainMenuOpen]);
 
-  if (!isConnected || (isConnected && !isNetworkSupported) || walletConnectValidating) {
+  // Show connection screen if not connected or validating
+  if (!isConnected || walletConnectValidating) {
     return (
       <div className="relative h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
         {/* Background overlays */}
@@ -1481,10 +1492,10 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
           </div>
           <div className="absolute inset-0 overflow-hidden scrollbar-terminal">
             {Array.from({ length: 3 }).map((_, i) => (
-              <div 
-                key={i} 
+              <div
+                key={i}
                 className="absolute rounded-full animate-pulse"
-                style={{ 
+                style={{
                   left: `${20 + i * 30}%`,
                   top: `${20 + i * 20}%`,
                   width: `${200 + i * 100}px`,
@@ -1532,627 +1543,63 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     );
   }
 
-  return (
-    <div className="relative h-screen w-full bg-black text-white overflow-x-hidden">
-      {/* Background overlays */}
-      <div className="fixed inset-0 z-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60"></div>
-        <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-purple-900/40 via-purple-800/20 to-transparent"></div>
-        <div className="absolute inset-0 opacity-30">
-          <div className="absolute inset-0 bg-[linear-gradient(rgba(147,51,234,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(147,51,234,0.2)_1px,transparent_1px)] bg-[size:40px_40px] animate-pulse"></div>
-          <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.1)_1px,transparent_1px)] bg-[size:80px_80px] animate-pulse" style={{animationDelay: '1s'}}></div>
-        </div>
-        <div className="absolute inset-0 overflow-hidden">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div 
-              key={i} 
-              className="absolute rounded-full animate-pulse"
-              style={{ 
-                left: `${20 + i * 30}%`,
-                top: `${20 + i * 20}%`,
-                width: `${200 + i * 100}px`,
-                height: `${200 + i * 100}px`,
-                background: `radial-gradient(circle, rgba(147, 51, 234, 0.1) 0%, rgba(147, 51, 234, 0.05) 50%, transparent 100%)`,
-                animationDelay: `${i * 2}s`,
-                animationDuration: `${6 + i * 2}s`,
-              }}
-            />
-          ))}
-        </div>
-      </div>
-
-      <div className="relative z-10 px-4 sm:px-6 lg:px-8 py-8">
-        <WindowShell
-          id="lexie-vault-terminal"
-          title="lexie-vault"
-          appType="vault"
-          statusLabel={statusConfig.statusLabel}
-          statusTone={statusConfig.statusTone}
-          footerLeft={footerContent}
-          variant="vault"
-          fullscreen={false}
-        >
-          <div className="font-mono text-green-300 space-y-4">
-            {/* Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-green-500/20 pb-4 gap-2">
-              <div>
-                <h1 className="text-xl font-bold text-emerald-300">LexieVault</h1>
-                <div className="flex items-center space-x-2 text-sm flex-wrap">
-                  <span className="text-green-400/80">
-                    {address?.slice(0, 6)}...{address?.slice(-4)}
-                  </span>
-                  <span className="text-purple-300/60">•</span>
-                  {currentLexieId ? (
-                    <div className="flex items-center space-x-2">
-                      <span className="text-purple-300 font-medium">{currentLexieId}</span>
-                      <ClipboardDocumentIcon
-                        className="h-3.5 w-3.5 text-purple-300 hover:text-purple-400 cursor-pointer transition-colors"
-                        onClick={() => {
-                          navigator.clipboard.writeText(currentLexieId);
-                          toast.custom((t) => (
-                            <div className={`font-mono pointer-events-auto ${t.visible ? 'animate-enter' : 'animate-leave'}`}>
-                              <div className="rounded-lg border border-green-500/30 bg-black/90 text-green-200 shadow-2xl">
-                                <div className="px-4 py-3 flex items-center gap-3">
-                                  <div className="h-3 w-3 rounded-full bg-emerald-400" />
-                                  <div>
-                                    <div className="text-sm">Lexie ID copied to clipboard</div>
-                                    <div className="text-xs text-green-400/80">{currentLexieId}</div>
-                                  </div>
-                                  <button type="button" aria-label="Dismiss" onClick={(e) => { e.stopPropagation(); toast.dismiss(t.id); }} className="ml-2 h-5 w-5 flex items-center justify-center rounded hover:bg-green-900/30 text-green-300/80">×</button>
-                                </div>
-                              </div>
-                            </div>
-                          ), { duration: 2500 });
-                        }}
-                        title="Copy Lexie ID"
-                      />
-                      <span
-                        className="ml-2 text-purple-300"
-                        title={
-                          pointsBreakdown
-                            ? `Vault Points: ${pointsBreakdown.vault?.toFixed(2) || '0.00'}\nGame Points: ${pointsBreakdown.game?.toFixed(2) || '0.00'}`
-                            : "Points = $ value × streak. Min $5. Streak resets if you skip a day."
-                        }
-                      >
-                        <span className="text-purple-300/60">•</span> points{' '}
-                        {pointsBalance !== null && pointsBalance !== undefined ? pointsBalance.toFixed(2) : '0.00'}
-                      </span>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => setShowLexieModal(true)}
-                      className="bg-purple-300 hover:bg-purple-400 text-black px-2 py-0.5 rounded text-xs font-medium transition-colors"
-                    >
-                      Get a Lexie ID
-                    </button>
-                  )}
-                </div>
-                {/* Mobile controls under Lexie ID */}
-                <div className="flex items-center gap-2 mt-2 sm:hidden">
-                  <div className="relative" ref={mobileChainMenuRef}>
-                    <button
-                      onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsMobileChainMenuOpen((v) => !v); }}
-                      className={`px-2 py-1 text-sm bg-black text-green-300 rounded border border-green-500/40 hover:border-emerald-400 ${(!canUseRailgun || !railgunWalletId) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : 'Select network'}
-                      aria-disabled={!canUseRailgun || !railgunWalletId}
-                    >
-                      {supportedNetworks.find(n => n.id === activeChainId)?.name || 'Select'}
-                      <span className="ml-1">▾</span>
-                    </button>
-                    {isMobileChainMenuOpen && (
-                      <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden scrollbar-none z-50">
-                        {supportedNetworks.map((net) => (
-                          <button
-                            key={net.id}
-                            onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsMobileChainMenuOpen(false); handleNetworkSwitch(net.id); }}
-                            className={`w-full text-left px-3 py-2 ${(!canUseRailgun || !railgunWalletId) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-900/30 focus:bg-emerald-900/30'} focus:outline-none`}
-                            title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : `Switch to ${net.name}`}
-                            aria-disabled={!canUseRailgun || !railgunWalletId}
-                          >
-                            {net.name}
-                          </button>
-                        ))}
-                        <div className="h-[1px] bg-green-500/40" />
-                      </div>
-                    )}
-                  </div>
-                  <button
-                    onClick={handleDisconnect}
-                    className="bg-black hover:bg-red-900/30 text-red-300 px-3 py-1 rounded text-sm border border-red-500/40"
-                  >
-                    Disconnect
-                  </button>
-                </div>
-              </div>
-              {/* Desktop controls in original position */}
-              <div className="hidden sm:flex items-center space-x-3">
-                {currentLexieId && (
-                  <button
-                    onClick={() => {
-                      const windowState = getWindowState('titans-game-terminal');
-                      // If window exists and is closed, reopen it first
-                      if (windowState && windowState.isClosed) {
-                        reopenWindow('titans-game-terminal');
-                      }
-                      setShowTitansGame(true);
-                    }}
-                    className="bg-purple-600/30 hover:bg-purple-600/50 text-purple-200 px-3 py-1 rounded text-sm border border-purple-400/40 transition-colors"
-                    title="Play LexieTitans Game"
-                  >
-                    Play Titans!
-                  </button>
-                )}
-                <div className="relative" ref={chainMenuRef}>
-                  <button
-                    onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsChainMenuOpen((v) => !v); }}
-                    className={`px-2 py-1 text-sm bg-black text-green-300 rounded border border-green-500/40 hover:border-emerald-400 ${(!canUseRailgun || !railgunWalletId) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : 'Select network'}
-                    aria-disabled={!canUseRailgun || !railgunWalletId}
-                  >
-                    {supportedNetworks.find(n => n.id === activeChainId)?.name || 'Select'}
-                    <span className="ml-1">▾</span>
-                  </button>
-                  {isChainMenuOpen && (
-                    <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden scrollbar-none z-50">
-                      {supportedNetworks.map((net) => (
-                        <button
-                          key={net.id}
-                          onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsChainMenuOpen(false); handleNetworkSwitch(net.id); }}
-                          className={`w-full text-left px-3 py-2 ${(!canUseRailgun || !railgunWalletId) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-900/30 focus:bg-emerald-900/30'} focus:outline-none`}
-                          title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : `Switch to ${net.name}`}
-                          aria-disabled={!canUseRailgun || !railgunWalletId}
-                        >
-                          {net.name}
-                        </button>
-                      ))}
-                      <div className="h-[1px] bg-green-500/40" />
-                    </div>
-                  )}
-                </div>
-                <button
-                  onClick={handleDisconnect}
-                  className="bg-black hover:bg-red-900/30 text-red-300 px-3 py-1 rounded text-sm border border-red-500/40"
-                >
-                  Disconnect
-                </button>
-              </div>
-            </div>
-
-            {/* Transaction Lock Status */}
-            {isTransactionLocked && (
-              <div className="mt-4 p-3 bg-yellow-900/20 border border-yellow-500/40 rounded-lg">
-                <div className="flex items-center space-x-2">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-400"></div>
-                  <div>
-                    <div className="text-yellow-300 text-sm font-medium">Transaction in Progress</div>
-                    <div className="text-yellow-300/80 text-xs">Please wait for balance updates to complete. This may take a few seconds.</div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Boot log */}
-            <div className="mb-6">
-              <div className="text-xs text-green-400/60 tracking-wide mb-3">LEXIEAI SYSTEM BOOT v2.1.3</div>
-              <div className="space-y-1 text-green-300/80 text-xs leading-5 font-mono">
-                <div>✓ Vault interface loaded</div>
-                <div>✓ Network: {network?.name || 'Unknown'}</div>
-                <div>✓ Public balances: {Array.isArray(publicBalances) ? publicBalances.filter(token => {
-                  const usdValue = parseFloat(token.balanceUSD || '0');
-                  return usdValue >= 0.01 && token.chainId === walletChainId;
-                }).length : 0}</div>
-                <div>✓ Vault balances: {Array.isArray(privateBalances) ? privateBalances.length : 0}</div>
-                <div>{canUseRailgun ? '✓ Secure vault online' : '… Initializing secure vault'}</div>
-                <div className="pt-1 text-emerald-300">Ready for commands...</div>
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="border-t border-teal-500/10 my-6"></div>
-
-            {/* Command Panel */}
-            <div className="mb-6">
-              <div className="text-xs text-green-400/60 mb-3 font-mono">LEXIE TERMINAL • commands</div>
-              <div className="flex flex-wrap gap-2 mb-2">
-                <button
-                  onClick={refreshBalances}
-                  disabled={isLoading || !isConnected || isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                  className="px-2 py-1 rounded border border-emerald-400/40 bg-emerald-900/20 hover:bg-emerald-900/40 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
-                >
-                  refresh
-                </button>
-                <button
-                  onClick={() => setSelectedView('balances')}
-                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                  className="px-2 py-1 rounded border border-green-500/40 bg-black hover:bg-green-900/20 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
-                >
-                  balances
-                </button>
-                <button
-                  onClick={() => {
-                    setActiveAction('contacts');
-                    setSelectedView('privacy');
-                  }}
-                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                  className="px-2 py-1 rounded border border-pink-400/40 bg-pink-900/20 hover:bg-pink-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
-                >
-                  contacts
-                </button>
-                <button
-                  onClick={() => {
-                    setActiveAction('shield');
-                    setSelectedView('privacy');
-                  }}
-                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                  className="px-2 py-1 rounded border border-purple-300/50 bg-purple-300/10 hover:bg-purple-300/20 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
-                >
-                  add
-                </button>
-                <button
-                  onClick={() => {
-                    setActiveAction('receive');
-                    setSelectedView('privacy');
-                  }}
-                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                  className="px-2 py-1 rounded border border-blue-400/40 bg-blue-900/20 hover:bg-blue-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
-                >
-                  receive
-                </button>
-                <button
-                  onClick={() => {
-                    setActiveAction('transfer');
-                    setSelectedView('privacy');
-                  }}
-                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                  className="px-2 py-1 rounded border border-cyan-400/40 bg-cyan-900/20 hover:bg-cyan-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
-                >
-                  send
-                </button>
-                <button
-                  onClick={() => {
-                    setActiveAction('unshield');
-                    setSelectedView('privacy');
-                  }}
-                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                  className="px-2 py-1 rounded border border-amber-400/40 bg-amber-900/20 hover:bg-amber-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
-                >
-                  remove
-                </button>
-                <button
-                  onClick={() => setSelectedView('history')}
-                  disabled={isTransactionLocked || !canUseRailgun || !railgunWalletId}
-                  className="px-2 py-1 rounded border border-purple-400/40 bg-purple-900/20 hover:bg-purple-900/40 disabled:bg-gray-600/20 disabled:cursor-not-allowed text-xs"
-                >
-                  history
-                </button>
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="border-t border-teal-500/10 my-6"></div>
-
-            {/* Wallet Balances */}
-            {selectedView === 'balances' && (
-              <>
-                {/* Private Balances */}
-                <div className="mb-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="text-emerald-300 text-sm font-medium font-mono">{network?.name || 'Network'} Vault Balances</div>
-                    <div className="flex items-center space-x-2">
-                      {canUseRailgun && privateBalances.length > 0 && (
-                        <button
-                          onClick={() => setShowPrivateBalances(!showPrivateBalances)}
-                          className={`px-2 py-0.5 rounded text-xs border ${
-                            showPrivateBalances 
-                              ? 'bg-emerald-600/30 text-emerald-200 border-emerald-400/40' 
-                              : 'bg-black text-green-300 hover:bg-green-900/20 border-green-500/40'
-                          }`}
-                        >
-                          {showPrivateBalances ? 'Hide' : 'Show'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {isRefreshingBalances && (
-                    <div className="mb-3 flex items-center gap-2 text-sm text-green-300">
-                      <div className="h-4 w-4 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
-                      Getting your vault balances...
-                    </div>
-                  )}
-
-                  {!canUseRailgun ? (
-                    <div className="text-center py-4 text-green-400/70 text-xs">
-                      Secure vault engine not ready
-                    </div>
-                  ) : isPrivateBalancesLoading ? (
-                    <div className="text-center py-4 text-green-300 text-xs">Getting your vault balances...</div>
-                  ) : privateBalances.length === 0 ? (
-                    <div className="text-center py-4 text-green-300 text-xs">
-                      No vault tokens yet
-                      <div className="text-green-400/70 mt-1">Add some tokens to start using secure vault</div>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="text-green-200 text-xs">
-                        {privateBalances.length} Vault Token{privateBalances.length !== 1 ? 's' : ''}
-                      </div>
-
-                      {(showPrivateBalances || privateBalances.length <= 3) && 
-                        privateBalances.map((token) => (
-                          <div key={token.symbol} className="p-2 bg-black/60 rounded text-xs">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center space-x-2">
-                                <div className="text-green-200 font-medium">{token.symbol}</div>
-                                <div className="text-green-400/70">• {token.name || `${token.symbol} Token`}</div>
-                              </div>
-                              <div className="text-green-200">{Number(token.numericBalance).toFixed(6).replace(/\.?0+$/, '')}</div>
-                            </div>
-                            {token.balanceUSD !== undefined && (
-                              <div className="text-right text-green-400/70 mt-1">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
-                            )}
-                          </div>
-                        ))
-                      }
-
-                      {!showPrivateBalances && privateBalances.length > 3 && (
-                        <div className="text-center py-2">
-                          <button
-                            onClick={() => setShowPrivateBalances(true)}
-                            className="text-emerald-300 hover:text-emerald-200 text-xs"
-                          >
-                            Show {privateBalances.length - 3} more vault tokens
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Public Balances */}
-                <div className="border-t border-teal-500/10 pt-6">
-                  <div className="flex items-center mb-4">
-                    <div className="text-emerald-300 text-sm font-medium font-mono">{network?.name || 'Network'} Public Balances</div>
-                  </div>
-
-                  <div className="space-y-2">
-                    {(() => {
-                      const filteredBalances = publicBalances.filter(token => {
-                        const usdValue = parseFloat(token.balanceUSD || '0');
-                        return usdValue >= 0.01;
-                      });
-                      return (
-                        <>
-                          {filteredBalances.map((token) => {
-                            const isSupported = isTokenSupportedByRailgun(token.address, walletChainId);
-                            const isShieldingThis = shieldingTokens.has(token.symbol);
-
-                            return (
-                              <div key={token.symbol} className="p-2 bg-black/60 rounded text-xs">
-                                <div className="flex items-center justify-between">
-                                  <div className="flex items-center space-x-2 min-w-0">
-                                    <div className="text-green-200 font-medium">{token.symbol}</div>
-                                    <div className="text-green-400/70 truncate">• {token.name || `${token.symbol} Token`}</div>
-                                  </div>
-                                  <div className="flex items-center space-x-2">
-                                    <div className="text-green-200">{Number(token.numericBalance).toFixed(6).replace(/\.?0+$/, '')}</div>
-                                  </div>
-                                </div>
-                                <div className="text-right text-green-400/70 mt-1">${typeof token.balanceUSD === 'string' && token.balanceUSD.startsWith('$') ? token.balanceUSD.substring(1) : token.balanceUSD}</div>
-                              </div>
-                            );
-                          })}
-
-                          {filteredBalances.length === 0 && !isLoading && (
-                            <div className="text-center py-4 text-green-400/70 text-xs">No tokens found</div>
-                          )}
-                        </>
-                      );
-                    })()}
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* Privacy Actions */}
-            {selectedView === 'privacy' && (
-              <PrivacyActions activeAction={activeAction} isRefreshingBalances={isRefreshingBalances} />
-            )}
-
-            {/* Transaction History */}
-            {selectedView === 'history' && (
-              <div className="border-t border-teal-500/10 pt-6">
-                <div className="text-emerald-300 text-sm font-medium font-mono mb-4">Transaction History</div>
-                <TransactionHistory />
-              </div>
-            )}
-
-          </div>
-        </WindowShell>
-
-        {/* Error Messages */}
-        {balanceErrors && (
-          <div className="mt-4 p-3 bg-red-900/20 border border-red-500/40 rounded-lg">
-            <p className="text-red-300 text-sm">Balance error: {balanceErrors}</p>
-          </div>
-        )}
-
-
-      </div>
-
-      <LexieIdChoiceModal
-        isOpen={showLexieIdChoiceModal}
-        onChoice={handleLexieIdChoice}
-      />
-
-      <LexieIdModal
-        isOpen={showLexieModal}
-        address={address}
-        railgunAddress={railgunAddress}
-        onLexieIdLinked={handleLexieIdLink}
-        onClose={() => {
-                                  setShowLexieModal(false);
-                                  setLexieIdInput('');
-                                  setLexieMessage('');
-        }}
-      />
-
-      <CrossPlatformVerificationModal
-        isOpen={showVerificationModal}
-        onClose={() => setShowVerificationModal(false)}
-      />
-
-      <SignRequestModal
-        isOpen={showSignRequestPopup}
-        isInitInProgress={isInitInProgress}
-        initProgress={initProgress}
-        initFailedMessage={initFailedMessage}
-        address={address}
-        getNetworkNameById={getNetworkNameById}
-        initializingChainId={initializingChainId}
-        activeChainId={activeChainId}
-        bootstrapProgress={bootstrapProgress}
-        railgunWalletId={railgunWalletId}
-        railgunAddress={railgunAddress}
-        onPersistMetadata={handlePersistMetadata}
-        onClose={() => setShowSignRequestPopup(false)}
-      />
-
-      <SignatureConfirmationModal
-        isOpen={showSignatureConfirmation}
-        selectedChainId={selectedChainId}
-        setSelectedChainId={setSelectedChainId}
-        setInitializingChainId={setInitializingChainId}
-        supportedNetworks={supportedNetworks}
-        walletChainId={walletChainId}
-        switchNetwork={switchNetwork}
-        pendingSignatureMessage={pendingSignatureMessage}
-        onConfirm={confirmSignature}
-        onCancel={cancelSignature}
-      />
-
-      {/* Taskbar for minimized windows - Hidden on mobile */}
-      {!mobileMode && <Taskbar />}
-
-      {/* Titans Game Window */}
-      {showTitansGame && (
-        <WindowShell
-          id="titans-game-terminal"
-          title="titans-game"
-          appType="game"
-          statusLabel="Playing"
-          statusTone="success"
-          footerLeft="Process: titans-game"
-          footerRight={`@lex:${currentLexieId}`}
-          variant="game"
-          fullscreen={mobileMode}
-          onClose={() => setShowTitansGame(false)}
-          initialSize={{ width: 1000, height: 700 }}
-          initialPosition={{ x: 50, y: 50 }}
-          minSize={{ width: 800, height: 600 }}
-          className="z-[99]"
-        >
-          <TitansGameWindow
-            lexieId={currentLexieId}
-            walletAddress={address}
-            onClose={() => setShowTitansGame(false)}
-          />
-        </WindowShell>
-      )}
-
-      {/* LexieAI Chat Window */}
-      {showLexieChat && (
-        <WindowShell
-          id="lexie-chat-terminal"
-          title="LexieAI-chat"
-          appType="game"
-          statusLabel="Enable Degen Mode"
-          statusTone="online"
-          footerLeft="LexieAI Chat Terminal"
-          footerRight="Secure LexieAI Communication Channel"
-          variant="vault"
-          fullscreen={mobileMode}
-          onClose={() => setShowLexieChat(false)}
-          initialSize={{ width: 1000, height: 700 }}
-          initialPosition={{ x: 200, y: 100 }}
-          minSize={{ width: 800, height: 600 }}
-          className="z-[98]"
-        >
-          <div className="h-full w-full bg-black relative">
-            <iframe
-              src={currentLexieId ? `/chat?lexieId=${encodeURIComponent(currentLexieId)}` : "/chat"}
-              className="w-full h-full border-0"
-              title="LexieAI Chat"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-presentation"
-            />
-          </div>
-        </WindowShell>
-      )}
-
-      {/* Lexie Logo - Only show on desktop */}
-      {!mobileMode && (
-        <div className="fixed bottom-2 right-1 z-10">
-          <img
-            src="/lexie.png"
-            alt="Lexie"
-            className="w-[320px] h-[320px] opacity-80 hover:opacity-80 transition-opacity cursor-pointer"
-            title="Click here to open up LexieChat"
-            onClick={() => {
-              const windowState = getWindowState('lexie-chat-terminal');
-              // If window exists and is closed, reopen it first
-              if (windowState && windowState.isClosed) {
-                reopenWindow('lexie-chat-terminal');
-              }
-              setShowLexieChat(true);
-            }}
-          />
-        </div>
-      )}
-    </div>
-  );
-};
-
-const VaultDesktop = () => {
-  const [isMobile, setIsMobile] = React.useState(false);
-  const [isReady, setIsReady] = React.useState(false);
-
-  React.useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia === 'undefined') {
-      setIsReady(true);
-      return;
-    }
-    const mq = window.matchMedia('(max-width: 639px)');
-    const apply = () => { setIsMobile(mq.matches); setIsReady(true); };
-    apply();
-    if (mq.addEventListener) mq.addEventListener('change', apply);
-    else if (mq.addListener) mq.addListener(apply);
-    return () => {
-      if (mq.removeEventListener) mq.removeEventListener('change', apply);
-      else if (mq.removeListener) mq.removeListener(apply);
-    };
-  }, []);
-
-  if (!isReady) return null;
-
-  if (isMobile) {
+  // Show network selection modal for existing wallets that haven't completed network selection
+  if (isConnected && railgunWalletId && !hasCompletedNetworkSelection) {
     return (
-      <div className="min-h-screen bg-black">
-        <Navbar />
-        <WindowProvider>
-          <VaultDesktopInner mobileMode={true} />
-        </WindowProvider>
+      <div className="relative h-screen w-full bg-black text-white overflow-x-hidden scrollbar-terminal">
+        {/* Background overlays - same as connection screen */}
+        <div className="fixed inset-0 z-0">
+          <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
+          <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60"></div>
+          <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-purple-900/40 via-purple-800/20 to-transparent"></div>
+          <div className="absolute inset-0 opacity-30">
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(147,51,234,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(147,51,234,0.2)_1px,transparent_1px)] bg-[size:40px_40px] animate-pulse"></div>
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.1)_1px,transparent_1px)] bg-[size:80px_80px] animate-pulse" style={{animationDelay: '1s'}}></div>
+          </div>
+          <div className="absolute inset-0 overflow-hidden scrollbar-terminal">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div
+                key={i}
+                className="absolute rounded-full animate-pulse"
+                style={{
+                  left: `${20 + i * 30}%`,
+                  top: `${20 + i * 20}%`,
+                  width: `${200 + i * 100}px`,
+                  height: `${200 + i * 100}px`,
+                  background: `radial-gradient(circle, rgba(147, 51, 234, 0.1) 0%, rgba(147, 51, 234, 0.05) 50%, transparent 100%)`,
+                  animationDelay: `${i * 2}s`,
+                  animationDuration: `${6 + i * 2}s`,
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
+        <NetworkSelectionModal
+          isOpen={true}
+          selectedChainId={selectedChainId}
+          setSelectedChainId={setSelectedChainId}
+          supportedNetworks={supportedNetworks}
+          walletChainId={walletChainId}
+          switchNetwork={switchNetwork}
+          onConfirm={() => {
+            // Mark network selection as completed
+            setHasCompletedNetworkSelection(true);
+            try {
+              localStorage.setItem('lexie-network-selection-completed', 'true');
+            } catch (error) {
+              console.warn('[VaultDesktop] Failed to save network selection completion to localStorage:', error);
+            }
+          }}
+          onCancel={() => {
+            // Disconnect wallet on cancel
+            handleDisconnect();
+          }}
+        />
       </div>
     );
   }
 
   return (
-    <WindowProvider>
-      <VaultDesktopInner />
-    </WindowProvider>
+    <div>Main Vault Interface</div>
   );
-};
-
-export default VaultDesktop;
-
