@@ -50,6 +50,22 @@ import ReturningUserChainSelectionModal from './ReturningUserChainSelectionModal
 import { Navbar } from '../Navbar.jsx';
 import ChatPage from '../../pages/ChatPage.tsx';
 
+// Supported networks configuration - moved outside component to avoid initialization order issues
+const SUPPORTED_NETWORKS = [
+  { id: 1, name: 'Ethereum', symbol: 'ETH' },
+  { id: 137, name: 'Polygon', symbol: 'POL' },
+  { id: 42161, name: 'Arbitrum', symbol: 'ETH'},
+  { id: 56, name: 'BNB Chain', symbol: 'BNB' },
+];
+
+// Network name mapping - moved outside component to avoid initialization order issues
+const NETWORK_NAMES = {
+  1: 'Ethereum',
+  137: 'Polygon',
+  42161: 'Arbitrum',
+  56: 'BNB Chain'
+};
+
 // Titans Game component that loads the actual game from game.lexiecrypto.com
 const TitansGame = ({ lexieId, walletAddress, embedded, theme, onLoad, onError, onClose }) => {
   const [isLoading, setIsLoading] = useState(true);
@@ -206,6 +222,29 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   const { providers } = useInjectedProviders();
 
+  // Selected chain state - load from localStorage, no default
+  const [selectedChainId, setSelectedChainId] = useState(() => {
+    try {
+      const saved = localStorage.getItem('lexie-selected-chain');
+      const parsed = saved ? parseInt(saved, 10) : null;
+      // Validate that the saved chain is still supported
+      const isValidChain = parsed && SUPPORTED_NETWORKS.some(net => net.id === parsed);
+      const chainId = isValidChain ? parsed : null;
+      console.log('[VaultDesktop] Loaded chain selection from localStorage:', { saved, parsed, isValidChain, chainId });
+      return chainId;
+    } catch (error) {
+      console.warn('[VaultDesktop] Failed to load chain selection from localStorage:', error);
+      return null; // No fallback
+    }
+  });
+
+  // Use selectedChainId as the PRIMARY chain for all vault operations
+  // Fall back to wallet's chainId if no selection made
+  const activeChainId = selectedChainId || walletChainId;
+  const network = selectedChainId
+    ? { id: selectedChainId, name: NETWORK_NAMES[selectedChainId] || `Chain ${selectedChainId}` }
+    : getCurrentNetwork();
+
   const {
     publicBalances,
     privateBalances,
@@ -216,7 +255,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     lastUpdateTime,
     loadPrivateBalancesFromMetadata,
     isPrivateBalancesLoading,
-  } = useBalances();
+  } = useBalances(activeChainId);
 
   const [showPrivateMode, setShowPrivateMode] = useState(false);
   const [selectedView, setSelectedView] = useState('balances');
@@ -246,12 +285,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   // Helper to get network name by chain ID
   const getNetworkNameById = (chainId) => {
-    return {
-      1: 'Ethereum',
-      137: 'Polygon',
-      42161: 'Arbitrum',
-      56: 'BNB Chain'
-    }[Number(chainId)] || `Chain ${chainId}`;
+    return NETWORK_NAMES[Number(chainId)] || `Chain ${chainId}`;
   };
 
 
@@ -332,49 +366,29 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   // Cross-platform verification state - now managed by CrossPlatformVerificationModal component
   const [showVerificationModal, setShowVerificationModal] = useState(false);
 
-  // Selected chain state - load from localStorage, no default
-  const [selectedChainId, setSelectedChainId] = useState(() => {
-    try {
-      const saved = localStorage.getItem('lexie-selected-chain');
-      const parsed = saved ? parseInt(saved, 10) : null;
-      // Validate that the saved chain is still supported
-      const isValidChain = parsed && supportedNetworks.some(net => net.id === parsed);
-      const chainId = isValidChain ? parsed : null;
-      console.log('[VaultDesktop] Loaded chain selection from localStorage:', { saved, parsed, isValidChain, chainId });
-      return chainId;
-    } catch (error) {
-      console.warn('[VaultDesktop] Failed to load chain selection from localStorage:', error);
-      return null; // No fallback
-    }
-  });
-
   // Chain readiness state
   const [isChainReady, setIsChainReady] = useState(false);
 
-  // Supported networks array
-  const supportedNetworks = [
-    { id: 1, name: 'Ethereum', symbol: 'ETH' },
-    { id: 137, name: 'Polygon', symbol: 'POL' },
-    { id: 42161, name: 'Arbitrum', symbol: 'ETH'},
-    { id: 56, name: 'BNB Chain', symbol: 'BNB' },
-  ];
-
-  // Use selectedChainId as the PRIMARY chain for all vault operations
-  // Fall back to wallet's chainId if no selection made
-  const activeChainId = selectedChainId || walletChainId;
-  const network = selectedChainId
-    ? { id: selectedChainId, name: {1: 'Ethereum', 137: 'Polygon', 42161: 'Arbitrum', 56: 'BNB Chain'}[selectedChainId] || `Chain ${selectedChainId}` }
-    : getCurrentNetwork();
-
-  // Update selectedChainId when wallet chain changes (for chain switches)
+  // Persist selectedChainId to localStorage whenever it changes
   useEffect(() => {
-    if (walletChainId && supportedNetworks.some(net => net.id === walletChainId)) {
-      console.log('[VaultDesktop] Wallet chain changed, updating selectedChainId:', walletChainId);
-      setSelectedChainId(walletChainId);
-      // Persist to localStorage
-      localStorage.setItem('lexie-selected-chain', walletChainId.toString());
+    if (selectedChainId) {
+      try {
+        localStorage.setItem('lexie-selected-chain', selectedChainId.toString());
+        console.log('[VaultDesktop] Saved selectedChainId to localStorage:', selectedChainId);
+      } catch (error) {
+        console.warn('[VaultDesktop] Failed to save selectedChainId to localStorage:', error);
+      }
     }
-  }, [walletChainId, supportedNetworks]);
+  }, [selectedChainId]);
+
+  // Update selectedChainId when wallet chain changes (for chain switches), but only if user hasn't selected a chain yet
+  useEffect(() => {
+    if (walletChainId && SUPPORTED_NETWORKS.some(net => net.id === walletChainId) && selectedChainId === null) {
+      console.log('[VaultDesktop] Wallet chain changed, setting initial selectedChainId:', walletChainId);
+      setSelectedChainId(walletChainId);
+      // Persist to localStorage (already handled by the above useEffects)
+    }
+  }, [walletChainId, selectedChainId]);
 
   // Set global variable for modal unlock utility to access current chain
   React.useEffect(() => {
@@ -384,7 +398,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   }, [activeChainId]);
 
   // Check if current network is supported
-  const isNetworkSupported = walletChainId && supportedNetworks.some(net => net.id === walletChainId);
+  const isNetworkSupported = walletChainId && SUPPORTED_NETWORKS.some(net => net.id === walletChainId);
 
   // Track if we were just disconnected due to unsupported network
   const [wasDisconnectedForUnsupportedNetwork, setWasDisconnectedForUnsupportedNetwork] = useState(false);
@@ -489,13 +503,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   // Helper function to get network name
   const getNetworkName = (id) => {
-    const networks = {
-      1: 'Ethereum',
-      42161: 'Arbitrum',
-      137: 'Polygon',
-      56: 'BNB Chain'
-    };
-    return networks[id] || `Chain ${id}`;
+    return NETWORK_NAMES[id] || `Chain ${id}`;
   };
 
 
@@ -1285,15 +1293,15 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                       title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : 'Select network'}
                       aria-disabled={!canUseRailgun || !railgunWalletId}
                     >
-                      {supportedNetworks.find(n => n.id === activeChainId)?.name || 'Select'}
+                      {SUPPORTED_NETWORKS.find(n => n.id === activeChainId)?.name || 'Select'}
                       <span className="ml-1">▾</span>
                     </button>
                     {isMobileChainMenuOpen && (
                       <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden scrollbar-none z-[2000]">
-                        {supportedNetworks.map((net) => (
+                        {SUPPORTED_NETWORKS.map((net) => (
                           <button
                             key={net.id}
-                            onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsMobileChainMenuOpen(false); switchNetwork(net.id); }}
+                            onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsMobileChainMenuOpen(false); setSelectedChainId(net.id); switchNetwork(net.id); }}
                             className={`w-full text-left px-3 py-2 ${(!canUseRailgun || !railgunWalletId) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-900/30 focus:bg-emerald-900/30'} focus:outline-none`}
                             title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : `Switch to ${net.name}`}
                             aria-disabled={!canUseRailgun || !railgunWalletId}
@@ -1341,15 +1349,15 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                     title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : 'Select network'}
                     aria-disabled={!canUseRailgun || !railgunWalletId}
                   >
-                    {supportedNetworks.find(n => n.id === activeChainId)?.name || 'Select'}
+                    {SUPPORTED_NETWORKS.find(n => n.id === activeChainId)?.name || 'Select'}
                     <span className="ml-1">▾</span>
                   </button>
                   {isChainMenuOpen && (
                     <div className="absolute mt-1 left-0 w-40 bg-black text-green-300 border border-green-500/40 rounded shadow-xl overflow-hidden scrollbar-none z-50">
-                      {supportedNetworks.map((net) => (
+                      {SUPPORTED_NETWORKS.map((net) => (
                         <button
                           key={net.id}
-                          onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsChainMenuOpen(false); switchNetwork(net.id); }}
+                          onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsChainMenuOpen(false); setSelectedChainId(net.id); switchNetwork(net.id); }}
                           className={`w-full text-left px-3 py-2 ${(!canUseRailgun || !railgunWalletId) ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-900/30 focus:bg-emerald-900/30'} focus:outline-none`}
                           title={(!canUseRailgun || !railgunWalletId) ? 'Waiting for vault engine to initialize' : `Switch to ${net.name}`}
                           aria-disabled={!canUseRailgun || !railgunWalletId}
@@ -1720,7 +1728,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         selectedChainId={selectedChainId}
         setSelectedChainId={setSelectedChainId}
         setInitializingChainId={setInitializingChainId}
-        supportedNetworks={supportedNetworks}
+        supportedNetworks={SUPPORTED_NETWORKS}
         walletChainId={walletChainId}
         switchNetwork={switchNetwork}
         pendingSignatureMessage={pendingSignatureMessage}
@@ -1733,7 +1741,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         selectedChainId={selectedChainId}
         setSelectedChainId={setSelectedChainId}
         setInitializingChainId={setInitializingChainId}
-        supportedNetworks={supportedNetworks}
+        supportedNetworks={SUPPORTED_NETWORKS}
         walletChainId={walletChainId}
         switchNetwork={switchNetwork}
         onConfirm={() => handleReturningUserChainChoice(true)}
@@ -1854,4 +1862,3 @@ const VaultDesktop = ({ externalWindowProvider = false }) => {
 };
 
 export default VaultDesktop;
-
