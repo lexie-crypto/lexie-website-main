@@ -168,7 +168,7 @@ export function useBalances() {
       // Include wrapped base-token symbols to ensure pricing coverage
       const priceSymbols = [
         ...symbols,
-        'WETH', 'WPOL', 'WBNB', 'WBTC', // wrapped base tokens (WPOL instead of WMATIC)
+        'WETH', 'WMATIC', 'WPOL', 'WBNB', 'WBTC', // wrapped base tokens
       ];
       const uniqueSymbols = [...new Set(priceSymbols)];
       const prices = await fetchTokenPrices(uniqueSymbols);
@@ -186,9 +186,8 @@ export function useBalances() {
     // Resolve common wrapper/alias symbols to their base asset prices if needed
     const aliasMap = {
       WETH: 'ETH',
-      WMATIC: 'POL', // WMATIC wraps POL (Polygon rebrand)
-      MATIC: 'POL',  // Native MATIC is now POL
-      WPOL: 'POL',   // WPOL wraps POL
+      WMATIC: 'MATIC',
+      WPOL: 'POL', // WPOL wraps POL
       WBNB: 'BNB',
       WBTC: 'BTC',
       'USDC.e': 'USDC',
@@ -549,7 +548,7 @@ export function useBalances() {
       const allSymbols = [
         ...new Set([
           ...(TOKEN_LISTS[chainId] || []).map(t => t.symbol),
-          'ETH', 'POL', 'BNB', 'BTC', // Native tokens + BTC for WBTC pricing (POL instead of MATIC)
+          'ETH', 'MATIC', 'POL', 'BNB', 'BTC', // Native tokens + BTC for WBTC pricing
         ])
       ];
       const freshPrices = await fetchAndCachePrices(allSymbols);
@@ -936,13 +935,25 @@ export function useBalances() {
     // Clear immediately to avoid showing previous-chain balances
     setPrivateBalances([]);
 
-    // Load for the active chain - chains should already be scanned/hydrated by modal flow
+    // Load for the active chain - ensure chain is scanned first, then SDK refresh if needed
     (async () => {
       try {
-        // Chain switching should only happen after modal confirmation,
-        // so chains should already be scanned and hydrated.
-        // Just refresh balances from Redis without triggering expensive operations.
-        console.log('[useBalances] Loading balances for chain (should already be ready):', chainId);
+        // Ensure chain has been scanned for private transfers
+        console.log('[useBalances] Ensuring chain is scanned on chain switch...');
+        await ensureChainScanned(chainId);
+
+        // If Railgun is initialized, do a full SDK refresh for this chain
+        if (isRailgunInitialized) {
+          console.log('[useBalances] Chain switch - triggering SDK refresh for chain:', chainId);
+          const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
+          await syncBalancesAfterTransaction({
+            walletAddress: address,
+            walletId: railgunWalletId,
+            chainId,
+          });
+        }
+
+        // Load balances from Redis (which should now have fresh data)
         await loadPrivateBalancesFromMetadata(address, railgunWalletId);
       } catch (error) {
         console.warn('[useBalances] Error during chain switch balance refresh:', error);
@@ -953,7 +964,7 @@ export function useBalances() {
         try { window.dispatchEvent(new CustomEvent('vault-private-refresh-complete')); } catch {}
       }
     })();
-  }, [chainId, address, railgunWalletId]);
+  }, [chainId, address, railgunWalletId, isRailgunInitialized, ensureChainScanned]);
 
   // Load private balances using SDK refresh when Railgun wallet is ready (same as refresh button)
   useEffect(() => {

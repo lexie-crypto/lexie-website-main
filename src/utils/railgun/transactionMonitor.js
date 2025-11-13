@@ -1982,4 +1982,3 @@ export default {
   monitorTransferTransaction,
   convertTokenAmountToUSD,
 }; 
-

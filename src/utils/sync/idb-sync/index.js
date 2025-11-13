@@ -92,6 +92,10 @@ export const getQueueStats = async () => {
   return queueMod.getQueueStats();
 };
 
+export const clearQueue = async () => {
+  const queueMod = await getQueueModule();
+  return queueMod.clearQueue();
+};
 
 export const getStateStatus = async () => {
   const stateMod = await getStateModule();
@@ -195,6 +199,7 @@ if (typeof window !== 'undefined') {
     reset: async () => {
       console.log('[IDB-Sync-Debug] Resetting sync system');
       try {
+        await clearQueue();
         await resetSyncState();
         console.log('[IDB-Sync-Debug] Sync system reset complete');
       } catch (error) {
