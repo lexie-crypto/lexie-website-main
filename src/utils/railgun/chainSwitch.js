@@ -318,6 +318,19 @@ export async function scanChainForBalances(railgunWalletID, targetChainId, walle
     }, 1000);
 
     try {
+      // 🚀 BLOCK-RANGE SCANNING: Fetch creation block numbers for optimized scanning
+      let creationBlockNumbers = null;
+      try {
+        const { getWalletMetadata } = await import('../../contexts/WalletContext');
+        const walletData = await getWalletMetadata(walletAddress);
+        creationBlockNumbers = walletData?.creationBlockNumbers || null;
+        if (creationBlockNumbers) {
+          console.log(`[ChainSwitch] 🚀 Using creation block numbers for optimized scanning:`, creationBlockNumbers);
+        }
+      } catch (metadataError) {
+        console.warn('[ChainSwitch] Failed to fetch creation block numbers:', metadataError.message);
+      }
+
       // Use balance refresh utility with skipUIUpdate=true (no UI updates/toasts during chain switch)
       const success = await refreshBalances({
         walletAddress,
@@ -325,7 +338,8 @@ export async function scanChainForBalances(railgunWalletID, targetChainId, walle
         chainId: targetChainId,
         refreshAllBalances: () => Promise.resolve(), // No-op since we're skipping UI updates
         showToast: false,
-        skipUIUpdate: true
+        skipUIUpdate: true,
+        creationBlockNumbers // NEW: Pass creation block numbers for block-range scanning
       });
 
       if (!success) {
@@ -388,7 +402,8 @@ export async function persistScanResults(address, railgunWalletID, targetChainId
           signature: metaKey.signature,
           encryptedMnemonic: metaKey.encryptedMnemonic,
           privateBalances: metaKey.privateBalances,
-          scannedChains: Array.from(new Set([...(metaKey.scannedChains || []), targetChainId]))
+          scannedChains: Array.from(new Set([...(metaKey.scannedChains || []), targetChainId])),
+          hydratedChains: metaKey.hydratedChains || [] // Preserve existing hydratedChains
         };
       }
     }
