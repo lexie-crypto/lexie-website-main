@@ -5,7 +5,7 @@
 
 // Master wallet configuration - 4 separate masters, one per chain
 export const MASTER_WALLETS = {
-  1: '1c80dc912b7bf8c6f20a5c87266135ccd64cfa36ae8073aaf4f0bdce219905e5', // Ethereum
+  1: '27015fd6707c3c353cd905b03a8686ed75ec70143ba15ba4f9cb7f1770d63ffc', // Ethereum
   42161: 'acb533b21926c92b0253d4c9c1bc0695d754a451801a41e3053c6ca5613c5b4a', // Arbitrum
   137: '2a2c448d74c6b62fc2a445685a0e3bc27551ebe727117247df7d316c4870a94f', // Polygon
   56: '14f2b0294da45b86101e8108cea9ad00d5dd24673c59d235d0006f34daf88db3' // BNB
