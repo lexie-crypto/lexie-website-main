@@ -628,7 +628,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
       chainId
     });
 
-    const maxWaitTime = 30 * 1000; // 30 seconds
+    const maxWaitTime = 60 * 1000; // 60 seconds
     const checkInterval = 10000; // Check every 10 seconds
     const startTime = Date.now();
 
@@ -952,7 +952,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           txHash: txResponse?.hash || txResponse,
           chainId: chainConfig.id,
           transactionType: 'shield',
-          maxWaitTime: 30000, // 30 seconds - reasonable timeout before assuming success
+          maxWaitTime: 60000, // 60 seconds - reasonable timeout before assuming success
           // Pass transaction details for note capture with wallet context
           transactionDetails: {
             walletAddress: address,
@@ -1348,7 +1348,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           txHash: result.transactionHash,
           chainId: chainConfig.id,
           transactionType: 'unshield',
-          maxWaitTime: 30000, // 30 seconds - reasonable timeout before assuming success
+          maxWaitTime: 60000, // 60 seconds - reasonable timeout before assuming success
           // Pass transaction details for note processing with wallet context
           transactionDetails: {
             walletAddress: address,
@@ -1887,7 +1887,7 @@ const PrivacyActions = ({ activeAction = 'shield', isRefreshingBalances = false 
           txHash: tx.txHash,
           chainId,
           transactionType: 'transfer',
-          maxWaitTime: 30000, // 30 seconds - reasonable timeout before assuming success
+          maxWaitTime: 60000, // 60 seconds - reasonable timeout before assuming success
           transactionDetails: {
             walletId: railgunWalletId,
             walletAddress: address,
