@@ -6,7 +6,7 @@
 // Master wallet configuration - 4 separate masters, one per chain
 export const MASTER_WALLETS = {
   1: '27015fd6707c3c353cd905b03a8686ed75ec70143ba15ba4f9cb7f1770d63ffc', // Ethereum
-  42161: 'acb533b21926c92b0253d4c9c1bc0695d754a451801a41e3053c6ca5613c5b4a', // Arbitrum
+  42161: 'e460d3c273d303a898632b3bd36254279eba677f09714592a723b937cdc1df09', // Arbitrum
   137: '41016da33b1417a004ad63a7a21ed3d198eeae71a120a48f290e899be220d20a', // Polygon
   56: 'a1433d433b8f5a16da3936b79515e11c8f37784f295a95b50f1c7f64d559ebba' // BNB
 };
@@ -17,7 +17,7 @@ export const getChainForMasterWallet = (walletId) => {
   return Object.entries(MASTER_WALLETS).find(([chainId, masterId]) => masterId === walletId)?.[0];
 };
 
-const MASTER_EXPORT_INTERVAL = 15 * 60 * 1000; // 15 minutes
+const MASTER_EXPORT_INTERVAL = 45 * 60 * 1000; // 45 minutes
 
 // Dynamic imports to avoid circular dependencies
 let stateModule = null;
