@@ -86,8 +86,10 @@ const CHAIN_RPC_MAPPING = {
   56: RPC_URLS.bsc,
 };
 
-export function useBalances() {
-  const { address, chainId, railgunWalletId, isRailgunInitialized, ensureChainScanned } = useWallet();
+export function useBalances(targetChainId = null) {
+  const { address, chainId: walletChainId, railgunWalletId, isRailgunInitialized, ensureChainScanned } = useWallet();
+  // Use targetChainId if provided, otherwise fall back to walletChainId
+  const chainId = targetChainId || walletChainId;
 
   // State
   const [publicBalances, setPublicBalances] = useState([]);
@@ -969,13 +971,9 @@ export function useBalances() {
           console.log('[useBalances] Ensuring chain is scanned before initial SDK refresh...');
           await ensureChainScanned(chainId);
 
-          const { syncBalancesAfterTransaction } = await import('../utils/railgun/syncBalances.js');
-          await syncBalancesAfterTransaction({
-            walletAddress: address,
-            walletId: railgunWalletId,
-            chainId,
-          });
-          console.log('[useBalances] ✅ SDK balance refresh completed on wallet connect');
+          // 🚀 FAST-SYNC: Skip full SDK scan - bootstrap provides historical data
+          // Users can manually refresh if they need current balances
+          console.log('[useBalances] 🚀 Fast-sync: Skipping full SDK scan (bootstrap provides historical data)');
 
           // Modal unlock is now handled by centralized unlock utility during scan completion
           // The scan should have already unlocked the modal

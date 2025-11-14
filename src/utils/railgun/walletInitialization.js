@@ -407,11 +407,11 @@ export const initializeRailgunWallet = async ({
         throw new Error(`Invalid existingWalletID: ${typeof existingWalletID}`);
       }
 
-      const railgunWalletInfo = await loadWalletByID(
-        encryptionKey,
-        existingWalletID,
-        false
-      );
+      // 🚀 FAST-SYNC: Pass creation block numbers to avoid full historical scans
+      const creationBlockNumbers = redisWalletData?.creationBlockNumbers || {};
+      console.log('🚀 Fast-sync: Using stored creation block numbers for existing wallet:', creationBlockNumbers);
+
+      const railgunWalletInfo = await loadWalletByID(encryptionKey, existingWalletID, false, creationBlockNumbers);
 
       // Verify wallet loaded correctly
       if (!railgunWalletInfo?.id || !railgunWalletInfo?.railgunAddress) {
@@ -1104,14 +1104,12 @@ export const initializeRailgunWallet = async ({
       );
 
       try {
-        railgunWalletInfo = await loadWalletByID(
-          encryptionKey,
-          savedWalletID,
-          false
-        );
-        console.log(
-          "✅ Existing Railgun wallet loaded successfully in full init"
-        );
+        // 🚀 FAST-SYNC: Pass creation block numbers to avoid full historical scans
+        const creationBlockNumbers = redisWalletData?.creationBlockNumbers || {};
+        console.log('🚀 Fast-sync: Using stored creation block numbers for existing wallet:', creationBlockNumbers);
+
+        railgunWalletInfo = await loadWalletByID(encryptionKey, savedWalletID, false, creationBlockNumbers);
+        console.log('✅ Existing Railgun wallet loaded successfully in full init');
       } catch (loadError) {
         // 🔍 Check if this is a "Key not found in database" error indicating LevelDB wipe
         const isDatabaseKeyNotFound =
@@ -1152,15 +1150,13 @@ export const initializeRailgunWallet = async ({
               await resetChainScanningState(savedWalletID, address);
 
               // Retry loading the wallet after restoration
-              try {
-                railgunWalletInfo = await loadWalletByID(
-                  encryptionKey,
-                  savedWalletID,
-                  false
-                );
-                console.log(
-                  "✅ Wallet loaded successfully after backup restoration!"
-                );
+                try {
+                  // 🚀 FAST-SYNC: Pass creation block numbers to avoid full historical scans
+                  const creationBlockNumbers = redisWalletData?.creationBlockNumbers || {};
+                  console.log('🚀 Fast-sync: Using stored creation block numbers for restored wallet:', creationBlockNumbers);
+
+                  railgunWalletInfo = await loadWalletByID(encryptionKey, savedWalletID, false, creationBlockNumbers);
+                  console.log('✅ Wallet loaded successfully after backup restoration!');
 
                 // Update wallet state
                 setRailgunWalletID(savedWalletID);
