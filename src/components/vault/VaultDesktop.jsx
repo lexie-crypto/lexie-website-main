@@ -1207,32 +1207,14 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   }
 
   return (
-    <div className="relative h-screen w-full bg-black text-white overflow-x-hidden">
+    <div className="relative h-screen w-full bg-[#0a0a0a] text-white overflow-x-hidden">
       {/* Background overlays */}
       <div className="fixed inset-0 z-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
-        <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60"></div>
-        <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-purple-900/40 via-purple-800/20 to-transparent"></div>
+        <div className="absolute inset-0 bg-[#0a0a0a]"></div>
         <div className="absolute inset-0 opacity-30">
-          <div className="absolute inset-0 bg-[linear-gradient(rgba(147,51,234,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(147,51,234,0.2)_1px,transparent_1px)] bg-[size:40px_40px] animate-pulse"></div>
           <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.1)_1px,transparent_1px)] bg-[size:80px_80px] animate-pulse" style={{animationDelay: '1s'}}></div>
         </div>
         <div className="absolute inset-0 overflow-hidden">
-          {Array.from({ length: 3 }).map((_, i) => (
-            <div 
-              key={i} 
-              className="absolute rounded-full animate-pulse"
-              style={{ 
-                left: `${20 + i * 30}%`,
-                top: `${20 + i * 20}%`,
-                width: `${200 + i * 100}px`,
-                height: `${200 + i * 100}px`,
-                background: `radial-gradient(circle, rgba(147, 51, 234, 0.1) 0%, rgba(147, 51, 234, 0.05) 50%, transparent 100%)`,
-                animationDelay: `${i * 2}s`,
-                animationDuration: `${6 + i * 2}s`,
-              }}
-            />
-          ))}
         </div>
       </div>
 
@@ -1341,6 +1323,8 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
               </div>
               {/* Desktop controls in original position */}
               <div className="hidden sm:flex items-center space-x-3">
+                {/* Play Titans button commented out for initial release */}
+                {/*
                 {currentLexieId && (
                   <button
                     onClick={() => {
@@ -1357,6 +1341,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                     Play Titans!
                   </button>
                 )}
+                */}
                 <div className="relative" ref={chainMenuRef}>
                   <button
                     onClick={() => { if (!canUseRailgun || !railgunWalletId) return; setIsChainMenuOpen((v) => !v); }}
@@ -1408,7 +1393,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
             {/* Boot log */}
             <div className="mb-6">
-              <div className="text-xs text-green-400/60 tracking-wide mb-3">LEXIEAI SYSTEM BOOT v2.1.3</div>
+              <div className="text-xs text-green-400/60 tracking-wide mb-3">LEXIE SYSTEM BOOT v2.1.3</div>
               <div className="space-y-1 text-green-300/80 text-xs leading-5 font-mono">
                 <div>✓ Vault interface loaded</div>
                 <div>✓ Network: {network?.name || 'Unknown'}</div>
@@ -1822,30 +1807,11 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
             href="https://www.lexiecrypto.com"
             className="hover:opacity-80 transition-opacity"
           >
-            <span className="text-4xl font-bold text-purple-300">LEXIEAI</span>
+            <span className="text-5xl font-bold text-purple-300">LEXIE</span>
           </a>
         </div>
       )}
 
-      {/* Lexie Logo - Only show on desktops */}
-      {!mobileMode && (
-        <div className="fixed bottom-2 right-1 z-10">
-          <img
-            src="/lexie.png"
-            alt="Lexie"
-            className="w-[320px] h-[320px] opacity-80 hover:opacity-80 transition-opacity cursor-pointer"
-            title="Click here to open up LexieChat"
-            onClick={() => {
-              const windowState = getWindowState('lexie-chat-terminal');
-              // If window exists and is closed, reopen it first
-              if (windowState && windowState.isClosed) {
-                reopenWindow('lexie-chat-terminal');
-              }
-              setShowLexieChat(true);
-            }}
-          />
-        </div>
-      )}
     </div>
   );
 };

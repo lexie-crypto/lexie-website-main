@@ -15,7 +15,7 @@ async function getMemoryContext(lexieId, limit = 10, hmacSecret) {
   console.log(`📚 [MEMORY] Retrieving context for LexieID: ${lexieId}, limit: ${limit}`);
 
   // Target backend
-  const targets = ['https://api.lexiecrypto.com/api/lexie/memory'];
+  const targets = [`${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/lexie/memory`];
 
   // Generate HMAC headers
   const method = 'GET';
@@ -78,7 +78,7 @@ async function storeChatMemory(lexieId, userMessage, assistantMessage, personali
   console.log(`💾 [MEMORY] Storing chat memory for LexieID: ${lexieId}`);
 
   // Target backend
-  const targets = ['https://api.lexiecrypto.com/api/lexie/memory'];
+  const targets = [`${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/lexie/memory`];
 
   // Generate HMAC headers
   const method = 'POST';
@@ -291,9 +291,9 @@ export default async function handler(req, res) {
     const isLocalClient = /^(http:\/\/localhost|http:\/\/127\.0\.0\.1)/.test(clientOrigin);
     const isDevEnv = process.env.NODE_ENV !== 'production';
 
-    let targets = ['https://api.lexiecrypto.com/api/lexie/chat'];
+    let targets = [`${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/lexie/chat`];
     if (isLocalClient || isDevEnv) {
-      targets = ['http://localhost:3000/api/lexie/chat', 'https://api.lexiecrypto.com/api/lexie/chat'];
+      targets = ['http://localhost:3000/api/lexie/chat', `${process.env.API_BASE_URL || 'https://api.lexiecrypto.com'}/api/lexie/chat`];
     }
     console.log(`📡 [CHAT-PROXY-${requestId}] Client origin: ${clientOrigin}, isLocalClient: ${isLocalClient}, isDevEnv: ${isDevEnv}`);
     console.log(`📡 [CHAT-PROXY-${requestId}] Target sequence:`, targets);

@@ -18,7 +18,10 @@ export default function LandingPage() {
   const [bootCurrentChar, setBootCurrentChar] = useState(0);
   const [bootIsTyping, setBootIsTyping] = useState(false);
   const [activeCardIndex, setActiveCardIndex] = useState(0);
+  const [currentVisibleStep, setCurrentVisibleStep] = useState(-1);
+  const [openFAQ, setOpenFAQ] = useState(null);
   const carouselRef = useRef(null);
+  const stepRefs = useRef([]);
   
   const scrollCarousel = () => {
     if (carouselRef.current) {
@@ -133,6 +136,49 @@ export default function LandingPage() {
     '✓ AI companion online',
     'ALL SYSTEMS OPERATIONAL',
     'Ready for commands...'
+  ];
+
+  const faqData = [
+    {
+      question: "What is LexieVault and how does it work?",
+      answer: "LexieVault is a non-custodial privacy vault powered by zero-knowledge proofs. Once assets are shielded, your balances and transactions become invisible to everyone but you."
+    },
+    {
+      question: "How does Lexie ensure privacy and anonymity?",
+      answer: "Lexie uses zk-SNARK cryptography (the same tech behind Railgun) to hide sender, receiver, and amount — providing full on-chain privacy while staying completely transparent in validation."
+    },
+    {
+      question: "What networks does Lexie support?",
+      answer: "Currently supports BNB Chain, Ethereum, Polygon, and Arbitrum — with Solana and Base coming soon."
+    },
+    {
+      question: "Which assets can I deposit?",
+      answer: "Currently, you can shield and transact with BNB, ETH, POL, ARB, USDT, USDC, and DAI with more token support coming soon."
+    },
+    {
+      question: "Can I send or receive funds privately?",
+      answer: "Yes — send funds from vault to vault or to any wallet. Recipients won't see who sent them or what's in your vault."
+    },
+    {
+      question: "Does Lexie support compliance or KYC options?",
+      answer: "Yes — optional compliance tools include OFAC sanctions screening and government regulatory compliance."
+    },
+    {
+      question: "What is LexieAI?",
+      answer: "LexieAI is your intelligent crypto assistant that provides real-time market data, yield insights, and technical analysis — currently on Telegram, with in-vault integration coming soon."
+    },
+    {
+      question: "Will Lexie offer swaps, lending, and yield farming?",
+      answer: "Yes — private swaps and yield go live in Phase 2, followed by lending and derivatives in Phase 3."
+    },
+    {
+      question: "How can I recover my vault?",
+      answer: "Lexie will support zero-knowledge social recovery and encrypted backup options similar to zk-email and zk-passport systems, but currently only supports EOA recovery."
+    },
+    {
+      question: "Are there deposit limits?",
+      answer: "There are no deposit limits."
+    }
   ];
   
   useEffect(() => {
@@ -300,13 +346,39 @@ export default function LandingPage() {
       return () => clearTimeout(nextLineDelay);
     }
   }, [isTyping, currentLineIndex, currentCharIndex, productTerminalLines]);
-  
+
+  // Scroll-triggered step animations
+  useEffect(() => {
+    const handleScroll = () => {
+      let latestVisibleStep = -1;
+
+      stepRefs.current.forEach((ref, index) => {
+        if (ref) {
+          const rect = ref.getBoundingClientRect();
+          const windowHeight = window.innerHeight;
+
+          // Trigger animation when step is 70% visible from bottom
+          if (rect.top < windowHeight * 0.7) {
+            latestVisibleStep = index; // Keep track of the latest visible step
+          }
+        }
+      });
+
+      setCurrentVisibleStep(latestVisibleStep);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    handleScroll(); // Check initial visibility
+
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
   return (
     <>
       {/* Navigation */}
       <Navbar />
 
-      <main className="relative min-h-screen w-full bg-black text-white overflow-x-hidden">
+      <main className="relative min-h-screen w-full bg-[#0A0A0A] text-white overflow-x-hidden">
         {/* Loading overlay */}
         <div className={`fixed inset-0 z-50 bg-black flex items-center justify-center transition-opacity duration-500 ${bgLoaded ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
           <div className="text-purple-300 text-2xl font-mono">
@@ -314,107 +386,127 @@ export default function LandingPage() {
           </div>
         </div>
         
-        {/* Enhanced Cyberpunk Background */}
-        <div className="fixed inset-0 z-0">
-          {/* Base gradient layers */}
-          <div className="absolute inset-0 bg-gradient-to-br from-black via-purple-900/30 to-blue-900/20"></div>
-          
-          {/* Futuristic cityscape silhouette */}
-          <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-black/60"></div>
-          <div className="absolute bottom-0 left-0 right-0 h-1/3 bg-gradient-to-t from-purple-900/40 via-purple-800/20 to-transparent"></div>
-          
-          {/* Dynamic grid system */}
-          <div className="absolute inset-0 opacity-30">
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(147,51,234,0.2)_1px,transparent_1px),linear-gradient(90deg,rgba(147,51,234,0.2)_1px,transparent_1px)] bg-[size:40px_40px] animate-pulse"></div>
-            <div className="absolute inset-0 bg-[linear-gradient(rgba(59,130,246,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.1)_1px,transparent_1px)] bg-[size:80px_80px] animate-pulse" style={{animationDelay: '1s'}}></div>
-        </div>
-
-
-            
-          {/* Subtle ambient orbs */}
-          <div className="absolute inset-0 overflow-hidden">
-            {Array.from({ length: 3 }).map((_, i) => (
-                <div 
-                  key={i} 
-                className="absolute rounded-full animate-pulse"
-                  style={{ 
-                  left: `${20 + i * 30}%`,
-                  top: `${20 + i * 20}%`,
-                  width: `${200 + i * 100}px`,
-                  height: `${200 + i * 100}px`,
-                  background: `radial-gradient(circle, rgba(147, 51, 234, 0.1) 0%, rgba(147, 51, 234, 0.05) 50%, transparent 100%)`,
-                  animationDelay: `${i * 2}s`,
-                  animationDuration: `${6 + i * 2}s`,
-                }}
-              />
-              ))}
-            </div>
-          </div>
-
 
       {/* Hero Section */}
-      <section className="relative z-30 min-h-screen flex items-center justify-center">
-        <div className="max-w-7xl mx-auto px-6 py-20">
-          <div className="grid lg:grid-cols-2 gap-12 items-center">
+      <section className="relative z-30 min-h-screen flex items-center justify-center overflow-hidden">
+        {/* Cyberpunk Background Effects */}
+        <div className="absolute inset-0 bg-[#0A0A0A]">
+          {/* Grid Pattern */}
+          <div className="absolute inset-0 opacity-5">
+            <div className="absolute inset-0" style={{
+              backgroundImage: `
+                linear-gradient(rgba(168, 85, 247, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(168, 85, 247, 0.1) 1px, transparent 1px)
+              `,
+              backgroundSize: '50px 50px'
+            }}></div>
+          </div>
+
+          {/* Glowing Orbs */}
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-purple-500/5 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-cyan-500/5 rounded-full blur-3xl animate-pulse" style={{animationDelay: '2s'}}></div>
+          <div className="absolute top-1/2 right-1/3 w-64 h-64 bg-magenta-500/5 rounded-full blur-3xl animate-pulse" style={{animationDelay: '4s'}}></div>
+
+          {/* Matrix-style Data Streams */}
+          <div className="absolute inset-0 overflow-hidden">
+            {Array.from({ length: 12 }).map((_, i) => (
+              <div
+                key={i}
+                className="absolute w-px bg-gradient-to-b from-transparent via-cyan-500/20 to-transparent animate-pulse"
+                style={{
+                  left: `${(i * 8.33) + Math.random() * 2}%`,
+                  top: '-20%',
+                  height: '140%',
+                  animationDelay: `${Math.random() * 4}s`,
+                  animationDuration: `${2 + Math.random() * 2}s`,
+                  opacity: 0.6 + Math.random() * 0.3
+                }}
+              ></div>
+            ))}
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div
+                key={`secondary-${i}`}
+                className="absolute w-px bg-gradient-to-b from-transparent via-purple-500/15 to-transparent animate-pulse"
+                style={{
+                  left: `${(i * 12.5) + 4 + Math.random() * 2}%`,
+                  top: '-15%',
+                  height: '130%',
+                  animationDelay: `${Math.random() * 3}s`,
+                  animationDuration: `${3 + Math.random() * 2}s`,
+                  opacity: 0.5 + Math.random() * 0.3
+                }}
+              ></div>
+            ))}
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div
+                key={`tertiary-${i}`}
+                className="absolute w-px bg-gradient-to-b from-transparent via-green-500/12 to-transparent animate-pulse"
+                style={{
+                  left: `${(i * 16.67) + 6 + Math.random() * 2}%`,
+                  top: '-25%',
+                  height: '150%',
+                  animationDelay: `${Math.random() * 5}s`,
+                  animationDuration: `${4 + Math.random() * 2}s`,
+                  opacity: 0.4 + Math.random() * 0.3
+                }}
+              ></div>
+            ))}
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-6 py-20 relative z-10">
+          <div className="grid lg:grid-cols-2 gap-48 items-center">
             
             {/* Left side - Text content */}
             <div className="space-y-8">
               {/* Main headline */}
               <div className="space-y-4">
                 <h1 className="text-5xl lg:text-7xl font-bold leading-tight">
-                  <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
+                  <span className="text-purple-400">
                     Lexie:
                   </span>
                   <br />
                   <span className="text-white">
-                    Your AI Companion
+                    ZK-Powered
                   </span>
                   <br />
                   <span className="text-purple-300">
-                    for Web3
+                    Privacy Vault
                   </span>
             </h1>
-                
+
                 <p className="text-xl text-gray-300 max-w-lg">
-                  Trade smarter. Quest deeper. Stay private.
+                  Go private on-chain. Hide your assets. Cloak your moves.
                 </p>
               </div>
 
               {/* CTA Buttons */}
               <div className="flex flex-col sm:flex-row gap-4">
                 <a
-                  href="https://t.me/lexieAI"
+                  href="https://t.me/lexie_crypto_bot"
               target="_blank"
               rel="noopener noreferrer"
-                  className="px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all duration-300 shadow-lg hover:shadow-purple-500/25 hover:scale-105 text-center"
+                  className="px-8 py-4 bg-white text-black font-semibold rounded-lg hover:bg-gray-100 transition-all duration-300 shadow-lg hover:shadow-xl hover:scale-105 text-center"
             >
-                  Join Telegram
-            </a>
-            <a
-                  href="https://x.com/0xLexieAI"
-              target="_blank"
-              rel="noopener noreferrer"
-                  className="px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-semibold rounded-lg hover:from-blue-700 hover:to-cyan-700 transition-all duration-300 shadow-lg hover:shadow-blue-500/25 hover:scale-105 text-center"
-            >
-                  Join Twitter
+                  Chat with Lexie
             </a>
             <a
                     href="https://app.lexiecrypto.com/lexievault"
               target="_blank"
               rel="noopener noreferrer"
-                    className="px-8 py-4 border-2 border-purple-500 text-purple-300 font-semibold rounded-lg hover:bg-purple-500 hover:text-white transition-all duration-300 hover:scale-105 text-center animate-twitter-flicker"
+                    className="px-8 py-4 border-2 border-purple-300 text-white font-semibold rounded-lg hover:bg-purple-300 hover:text-black transition-all duration-300 hover:scale-105 text-center"
             >
-                    Launch Beta
+                    Launch Privacy Vault
             </a>
           </div>
         </div>
 
-            {/* Right side - Lexie Avatar */}
+            {/* Right side - ZK Privacy Terminal */}
             <div className="relative flex justify-center">
               {/* Terminal-style Background Frame */}
-              <div className="relative bg-gray-900 rounded-lg border border-gray-700 shadow-2xl overflow-hidden max-w-lg w-full">
+              <div className="relative bg-black rounded-lg border border-purple-500/30 shadow-2xl overflow-hidden max-w-lg w-full backdrop-blur-sm">
                 {/* Terminal Header */}
-                <div className="flex items-center justify-between bg-gray-800 px-4 py-3 border-b border-gray-700">
+                <div className="flex items-center justify-between bg-gray-900 px-4 py-3 border-b border-purple-500/20">
                   <div className="flex items-center space-x-2">
                     <div className="w-3 h-3 bg-red-500 rounded-full"></div>
                     <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
@@ -502,19 +594,21 @@ export default function LandingPage() {
                   </div>
                   
                   {/* Holographic effect */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-purple-500/20 via-transparent to-blue-500/20 blur-sm"></div>
+                  <div className="absolute inset-0 bg-[#0a0a0a] blur-sm"></div>
                 </div>
 
                 {/* Terminal Footer */}
-                <div className="bg-gray-800 px-4 py-2 border-t border-gray-700">
+                <div className="bg-gray-900 px-4 py-2 border-t border-purple-500/20">
                   <div className="flex items-center justify-between text-xs text-gray-400">
                     <div className="flex items-center space-x-4">
-                      <span>Process: lexie-avatar</span>
+                      <span>Process: zk-vault-core</span>
                       <span>•</span>
-                      <span>Status: Active</span>
+                      <span>Status: SECURE</span>
                     </div>
                     <div className="flex items-center space-x-2">
-                      <span className="text-green-400">Connected</span>
+                      <span className="text-purple-400">ZK-Enabled</span>
+                      <span>•</span>
+                      <span className="text-cyan-400">AI-Active</span>
                     </div>
                   </div>
                 </div>
@@ -524,300 +618,291 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Interactive Terminal Section */}
-      <section className="relative z-30 py-20 bg-gradient-to-b from-black via-gray-900/50 to-black">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl lg:text-4xl font-bold text-white mb-4">
-              Watch Lexie in <span className="text-purple-400">Action</span>
-            </h2>
-            <p className="text-lg text-gray-300 max-w-2xl mx-auto">
-              See how Lexie's AI protocols work behind the scenes to protect and optimize your Web3 experience
-            </p>
+      {/* What is Lexie Section */}
+      <section className="relative z-30 py-20 bg-[#0E0F17] overflow-hidden">
+        {/* Background Effects */}
+        <div className="absolute inset-0">
+          {/* Subtle Grid Pattern */}
+          <div className="absolute inset-0 opacity-5">
+            <div className="absolute inset-0" style={{
+              backgroundImage: `
+                linear-gradient(rgba(168, 85, 247, 0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(168, 85, 247, 0.08) 1px, transparent 1px)
+              `,
+              backgroundSize: '40px 40px'
+            }}></div>
           </div>
 
-          {/* Main Terminal */}
-          <div className="relative bg-gray-900 rounded-lg border border-gray-700 shadow-2xl overflow-hidden">
-            {/* Terminal Header */}
-            <div className="flex items-center justify-between bg-gray-800 px-4 py-3 border-b border-gray-700">
-              <div className="flex items-center space-x-2">
-                <div className="w-3 h-3 bg-red-500 rounded-full"></div>
-                <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
-                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                <span className="text-gray-400 ml-4 font-mono text-sm">lexie-ai-terminal</span>
+          {/* Floating Glow Orbs */}
+          <div className="absolute top-1/3 right-1/4 w-64 h-64 bg-fuchsia-500/3 rounded-full blur-3xl animate-pulse"></div>
+          <div className="absolute bottom-1/3 left-1/4 w-48 h-48 bg-cyan-500/3 rounded-full blur-3xl animate-pulse" style={{animationDelay: '1s'}}></div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-6 relative z-10">
+          <div className="grid lg:grid-cols-2 gap-16 items-center">
+            {/* Left side - Text content */}
+            <div className="space-y-8">
+              {/* Section Title */}
+              <div className="space-y-4">
+                <h2 className="text-4xl lg:text-5xl font-bold text-white">
+                  What is <span className="text-purple-400">Lexie</span>?
+                </h2>
+                <p className="text-xl text-gray-300">
+                  Your AI companion for private trading and crypto intelligence.
+                </p>
               </div>
-              <div className="flex items-center space-x-4">
-                <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                  <span className="text-green-400 text-xs font-mono">ONLINE</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
-                  <span className="text-blue-400 text-xs font-mono">SECURE</span>
-                </div>
+
+              {/* Body Content */}
+              <div className="space-y-6 text-lg text-gray-300 leading-relaxed">
+                <p>
+                  Lexie is a ZK-powered AI that activates stealth mode on-chain, shielding your wallet balances and transaction data through advanced zero-knowledge proofs.
+                  She ensures your crypto activities remain completely private and untraceable on-chain.
+                </p>
+                <p>
+                  In coming updates, she'll also provide swaps, yield pools, market data, technical analysis, and alpha discovery — all without leaving a footprint on-chain.
+                </p>
               </div>
             </div>
 
-            {/* Terminal Body */}
-            <div className="bg-black p-6 font-mono text-sm leading-relaxed h-[480px] overflow-hidden">
-              <div className="text-green-400">
-                {mainTerminalLines.map((line, index) => (
-                  <div key={index} className="mb-1">
-                    {line.startsWith('root@lexie:~$') ? (
-                      <div className="text-green-400">
-                        <span className="text-green-300">root@lexie</span>
-                        <span className="text-green-400">:</span>
-                        <span className="text-green-300">~</span>
-                        <span className="text-green-400">$ </span>
-                        <span className="text-green-200">{line.replace('root@lexie:~$ ', '')}</span>
+            {/* Right side - Holographic Lexie Illustration */}
+            <div className="relative flex justify-center">
+              {/* Main Holographic Container */}
+              <div className="relative w-80 h-80 bg-gradient-to-br from-black/80 to-purple-900/20 rounded-2xl border border-purple-500/30 backdrop-blur-sm overflow-hidden shadow-2xl shadow-purple-500/10">
+
+                {/* Candlestick Chart Background */}
+                <div className="absolute inset-0 opacity-20">
+                  <svg className="w-full h-full" viewBox="0 0 400 300" fill="none">
+                    <defs>
+                      <linearGradient id="candleGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                        <stop offset="0%" stopColor="rgb(168, 85, 247)" stopOpacity="0.8"/>
+                        <stop offset="50%" stopColor="rgb(168, 85, 247)" stopOpacity="0.4"/>
+                        <stop offset="100%" stopColor="rgb(168, 85, 247)" stopOpacity="0.2"/>
+                      </linearGradient>
+                    </defs>
+
+                    {/* Grid Lines */}
+                    <g stroke="currentColor" strokeWidth="0.5" opacity="0.3" className="text-purple-400">
+                      <line x1="0" y1="50" x2="400" y2="50"/>
+                      <line x1="0" y1="100" x2="400" y2="100"/>
+                      <line x1="0" y1="150" x2="400" y2="150"/>
+                      <line x1="0" y1="200" x2="400" y2="200"/>
+                      <line x1="0" y1="250" x2="400" y2="250"/>
+                      <line x1="50" y1="0" x2="50" y2="300"/>
+                      <line x1="150" y1="0" x2="150" y2="300"/>
+                      <line x1="250" y1="0" x2="250" y2="300"/>
+                      <line x1="350" y1="0" x2="350" y2="300"/>
+                    </g>
+
+                    {/* Candlesticks */}
+                    <g stroke="currentColor" className="text-fuchsia-400">
+                      {/* Candle 1 - Bullish */}
+                      <line x1="60" y1="80" x2="60" y2="160" strokeWidth="1"/>
+                      <rect x="55" y="100" width="10" height="40" fill="url(#candleGradient)" strokeWidth="1"/>
+                      <line x1="60" y1="75" x2="60" y2="85" strokeWidth="2"/>
+                      <line x1="60" y1="155" x2="60" y2="165" strokeWidth="2"/>
+
+                      {/* Candle 2 - Bearish */}
+                      <line x1="110" y1="120" x2="110" y2="180" strokeWidth="1"/>
+                      <rect x="105" y="135" width="10" height="25" fill="rgb(239, 68, 68)" opacity="0.7" strokeWidth="1"/>
+                      <line x1="110" y1="115" x2="110" y2="125" strokeWidth="2"/>
+                      <line x1="110" y1="175" x2="110" y2="185" strokeWidth="2"/>
+
+                      {/* Candle 3 - Bullish */}
+                      <line x1="160" y1="90" x2="160" y2="170" strokeWidth="1"/>
+                      <rect x="155" y="110" width="10" height="35" fill="url(#candleGradient)" strokeWidth="1"/>
+                      <line x1="160" y1="85" x2="160" y2="95" strokeWidth="2"/>
+                      <line x1="160" y1="165" x2="160" y2="175" strokeWidth="2"/>
+
+                      {/* Candle 4 - Small Range */}
+                      <line x1="210" y1="130" x2="210" y2="160" strokeWidth="1"/>
+                      <rect x="205" y="135" width="10" height="15" fill="url(#candleGradient)" strokeWidth="1"/>
+                      <line x1="210" y1="125" x2="210" y2="135" strokeWidth="2"/>
+                      <line x1="210" y1="155" x2="210" y2="165" strokeWidth="2"/>
+
+                      {/* Candle 5 - Volatile */}
+                      <line x1="260" y1="60" x2="260" y2="190" strokeWidth="1"/>
+                      <rect x="255" y="120" width="10" height="30" fill="url(#candleGradient)" strokeWidth="1"/>
+                      <line x1="260" y1="55" x2="260" y2="65" strokeWidth="2"/>
+                      <line x1="260" y1="185" x2="260" y2="195" strokeWidth="2"/>
+
+                      {/* Candle 6 - Bullish */}
+                      <line x1="310" y1="100" x2="310" y2="180" strokeWidth="1"/>
+                      <rect x="305" y="125" width="10" height="30" fill="url(#candleGradient)" strokeWidth="1"/>
+                      <line x1="310" y1="95" x2="310" y2="105" strokeWidth="2"/>
+                      <line x1="310" y1="175" x2="310" y2="185" strokeWidth="2"/>
+                    </g>
+
+                    {/* Price Line */}
+                    <g stroke="rgb(34, 197, 94)" strokeWidth="1.5" opacity="0.8">
+                      <path d="M20 140 Q60 130 100 145 T180 135 Q220 125 260 140 T340 130 Q380 120 400 135"/>
+                    </g>
+                  </svg>
+                </div>
+
+                {/* Central AI Avatar */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <div className="relative">
+                    {/* Outer Glow Ring */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-fuchsia-500/20 via-purple-500/20 to-cyan-500/20 rounded-full blur-xl animate-pulse scale-150"></div>
+
+                    {/* Avatar Circle */}
+                    <div className="relative w-32 h-32 bg-gradient-to-br from-purple-600 via-fuchsia-500 to-cyan-500 rounded-full flex items-center justify-center border-2 border-cyan-400/50 shadow-lg shadow-purple-500/25">
+                      <div className="w-24 h-24 bg-gradient-to-br from-black to-purple-900 rounded-full flex items-center justify-center">
                       </div>
-                    ) : line.startsWith('✓') ? (
-                      <div className="text-green-300">{line}</div>
-                    ) : line.includes('ACTIVE') ? (
-                      <div>
-                        <span className="text-green-500">{line.split('[')[0]}</span>
-                        <span className="text-green-300 font-semibold">[ACTIVE]</span>
-                      </div>
-                    ) : line.includes('ENABLED') ? (
-                      <div className="text-green-300">{line}</div>
-                    ) : line.includes('ONLINE') ? (
-                      <div>
-                        <span className="text-green-500">{line.split(':')[0]}:</span>
-                        <span className="text-green-300 font-semibold"> ONLINE</span>
-                      </div>
-                    ) : line.includes('ACTIVATED') ? (
-                      <div>
-                        <span className="text-green-500">{line.split(':')[0]}:</span>
-                        <span className="text-green-300 font-semibold"> ACTIVATED</span>
-                      </div>
-                    ) : line.includes('MAXIMUM') ? (
-                      <div>
-                        <span className="text-green-500">{line.split(':')[0]}:</span>
-                        <span className="text-green-300 font-semibold"> MAXIMUM</span>
-                      </div>
-                    ) : line.includes('$') && line.includes('M') ? (
-                      <div className="text-green-200">{line}</div>
-                    ) : line.includes('%') ? (
-                      <div className="text-green-200">{line}</div>
-                    ) : line.includes('LOW') ? (
-                      <div>
-                        <span className="text-green-500">{line.split(':')[0]}:</span>
-                        <span className="text-green-300 font-semibold"> LOW</span>
-                      </div>
-                    ) : line === 'Ready for Web3 domination' ? (
-                      <div className="text-green-200 font-semibold">{line}</div>
-                    ) : line.startsWith('Loading') || line.startsWith('Connecting') || line.startsWith('Checking') || line.startsWith('Analyzing') ? (
-                      <div className="text-green-400">{line}</div>
-                    ) : (
-                      <div className="text-green-500">{line}</div>
-                    )}
+                      {/* Scanning Line */}
+                      <div className="absolute inset-0 rounded-full border-2 border-cyan-400/30 animate-ping"></div>
+                    </div>
                   </div>
-                ))}
-                {isTyping && currentLineIndex < productTerminalLines.length && (
-                  <span className="animate-pulse text-green-300">█</span>
-                )}
+                </div>
+
+                {/* Floating Data Panels */}
+                <div className="absolute top-6 right-6 space-y-3">
+                  {/* Price Alert Panel */}
+                  <div className="bg-black/80 backdrop-blur-sm border border-fuchsia-500/40 rounded-lg p-3 shadow-lg">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <div className="w-2 h-2 bg-fuchsia-400 rounded-full animate-pulse"></div>
+                      <span className="text-fuchsia-400 text-xs font-mono">ALERT</span>
+                    </div>
+                    <div className="text-white text-sm font-semibold">$PEPE +127%</div>
+                    <div className="text-gray-400 text-xs">2m ago</div>
+                  </div>
+
+                  {/* Market Data Panel */}
+                  <div className="bg-black/80 backdrop-blur-sm border border-cyan-500/40 rounded-lg p-3 shadow-lg">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <div className="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></div>
+                      <span className="text-cyan-400 text-xs font-mono">MARKET</span>
+                    </div>
+                    <div className="text-white text-sm font-semibold">BTC $67,432</div>
+                    <div className="text-green-400 text-xs">+2.3%</div>
+                  </div>
+                </div>
+
+                {/* Floating Elements */}
+                <div className="absolute bottom-6 left-6">
+                  <div className="bg-black/80 backdrop-blur-sm border border-purple-500/40 rounded-lg p-3 shadow-lg">
+                    <div className="text-purple-400 text-xs font-mono mb-1">ANALYZING</div>
+                    <div className="text-white text-sm font-semibold">47 pools</div>
+                    <div className="text-gray-400 text-xs">scanned</div>
+                  </div>
+                </div>
+
               </div>
             </div>
-
-            {/* Terminal Footer */}
-            <div className="bg-gray-800 px-4 py-2 border-t border-gray-700">
-              <div className="flex items-center justify-between text-xs text-gray-400">
-                <div className="flex items-center space-x-4">
-                  <span>Process: lexie-ai-core</span>
-                  <span>•</span>
-                  <span>Memory: 2.1GB</span>
-                  <span>•</span>
-                  <span>CPU: 12%</span>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span>Lines: {mainTerminalLines.length}</span>
-                  <span>•</span>
-                  <span className="text-green-400">Connected</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Terminal Description */}
-          <div className="mt-8 text-center">
-            <p className="text-gray-400 max-w-3xl mx-auto">
-              This is a live simulation of Lexie's AI protocols. In the real application, these processes run continuously 
-              to analyze markets, execute trades, maintain security, and optimize your Web3 portfolio.
-            </p>
           </div>
         </div>
       </section>
 
-      {/* Advanced AI Wallet Features Section */}
-      <section id="features" className="relative z-30 py-32 overflow-hidden">
-        {/* Section Background */}
-        <div className="absolute inset-0 bg-gradient-to-b from-purple-900/10 via-black/50 to-blue-900/10"></div>
-        
-
-
-        <div className="max-w-7xl mx-auto px-6 relative">
+      {/* How It Works Section */}
+      <section className="relative z-30 py-20 bg-[#0a0a0a]">
+        <div className="max-w-7xl mx-auto px-6">
           {/* Section Header */}
-          <div className="text-center mb-20">
-            <h2 className="text-5xl lg:text-7xl font-bold text-white mb-6">
-              <span className="bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
-                LEXIE PLATFORM
-              </span>
+          <div className="text-center mb-16">
+            <h2 className="text-4xl lg:text-5xl font-bold text-white mb-4">
+              <span className="text-fuchsia-400"></span> How It <span className="text-purple-400">Works</span>
             </h2>
+            <p className="text-xl text-gray-300 max-w-3xl mx-auto">
+              Create your private vault, fund it, and go stealth on-chain — all in a few simple steps.
+            </p>
           </div>
 
-          {/* Feature Panels Container with External Navigation */}
-          <div className="relative flex items-center">
-            {/* Scroll Left Arrow - External - Hidden on Mobile */}
-            <div className="hidden md:flex flex-shrink-0 mr-6">
-              <button 
-                onClick={scrollCarouselLeft}
-                className="flex items-center space-x-2 bg-black/80 backdrop-blur-sm border border-purple-500/40 rounded-full px-4 py-2 hover:border-purple-500/80 hover:bg-purple-500/20 transition-all duration-300 cursor-pointer group"
-              >
-                <svg className="w-5 h-5 text-purple-400 group-hover:text-purple-300 transition-colors duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                <span className="text-purple-300 text-sm font-mono group-hover:text-purple-200">SCROLL</span>
-              </button>
+          {/* Steps Container */}
+          <div className="relative">
+            {/* Animated Flow Line - Vertical */}
+            <div className="absolute left-8 top-0 bottom-0 w-px bg-gradient-to-b from-purple-500/50 via-purple-400/50 to-purple-600/50 hidden lg:block">
+              <div className="absolute inset-0 bg-gradient-to-b from-purple-500/50 via-purple-400/50 to-purple-600/50 animate-pulse"></div>
+              {/* Flow indicators */}
+              <div className="absolute top-1/4 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-purple-400 rounded-full animate-ping" style={{animationDelay: '0s'}}></div>
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-purple-500 rounded-full animate-ping" style={{animationDelay: '0.5s'}}></div>
             </div>
-            
-            {/* Carousel Container */}
-            <div className="flex-1 overflow-hidden">
-              <div ref={carouselRef} className="flex space-x-4 md:space-x-8 pb-8 overflow-x-auto scrollbar-hide snap-x snap-mandatory" style={{scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitOverflowScrolling: 'touch'}}>
-                {/* Create three sets of cards for infinite scroll */}
-                {[...Array(3)].map((_, setIndex) => {
-                  const features = [
-                {
-                  title: "LexieVault",
-                  missionType: "VAULT_PROTOCOL",
-                  description: "zk-secured, non-custodial vault for shielding, sending, and receiving assets with gasless transactions and full on-chain confidentiality",
-                  icon: "🛡️",
-                  color: "purple",
-                  status: "SECURE",
-                  efficiency: "100%"
-                },
-                {
-                  title: "LexieChat",
-                  missionType: "AI_ANALYST",
-                  description: "AI-powered crypto analyst that provides real-time prices, news, and technical analysis with optional Degen Mode for unfiltered alpha",
-                  icon: "🤖",
-                  color: "blue",
-                  status: "ANALYZING",
-                  efficiency: "97.3%"
-                },
-                {
-                  title: "LexieTitans",
-                  missionType: "GAMING_PROTOCOL",
-                  description: "Tap-to-earn Web3 game where you charge Titans, complete quests, earn points, and climb leaderboards for rewards",
-                  icon: "⚔️",
-                  color: "yellow",
-                  status: "ACTIVE",
-                  efficiency: "95.8%"
-                }
-                  ];
-                  
-                  return features.map((feature, index) => (
-                <div
-                  key={`${setIndex}-${index}`}
-                  className="group relative flex-shrink-0 w-72 sm:w-80 h-80 sm:h-96 snap-center"
-                  style={{ animationDelay: `${index * 0.2}s` }}
-                >
-                  {/* Main Panel */}
-                  <div className="relative h-full bg-black/60 backdrop-blur-sm border border-purple-500/30 rounded-xl p-4 sm:p-6 overflow-hidden transition-all duration-500 hover:border-purple-500/80 hover:shadow-2xl hover:shadow-purple-500/25 sm:group-hover:scale-105">
-                    
-                    {/* Background Glow Effect */}
-                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-gradient-to-br from-purple-500/5 via-transparent to-purple-500/10"></div>
-                    
-                    {/* Panel Header */}
-                    <div className="relative z-10 flex items-center justify-between mb-3 sm:mb-4">
-                      <div className="text-2xl sm:text-3xl p-1.5 sm:p-2 rounded-lg bg-purple-500/20">
-                        {feature.icon}
-                      </div>
-                      <div className="px-2 py-1 rounded text-xs font-mono border border-purple-500/40 bg-purple-500/20 text-purple-300">
-                        {feature.status}
-                      </div>
-                    </div>
 
-                    {/* Mission Type */}
-                    <div className="relative z-10 mb-2 sm:mb-3">
-                      <div className="text-xs font-mono text-gray-500 mb-1">// MISSION_TYPE:</div>
-                      <div className="font-mono font-semibold text-xs sm:text-sm tracking-wider text-purple-300">
-                        {feature.missionType}
-                      </div>
-                    </div>
-
-                    {/* Title */}
-                    <h3 className="relative z-10 text-lg sm:text-xl font-bold text-white mb-3 sm:mb-4 group-hover:text-purple-300 transition-colors duration-300">
-                      {feature.title}
-                    </h3>
-
-                    {/* Description */}
-                    <p className="relative z-10 text-gray-300 text-xs sm:text-sm leading-relaxed mb-4 sm:mb-6 group-hover:text-gray-100 transition-colors duration-300">
-                      {feature.description}
-                    </p>
-
-                    {/* Efficiency Meter */}
-                    <div className="relative z-10 mt-auto">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-mono text-gray-500">EFFICIENCY</span>
-                        <span className="text-xs font-mono text-purple-400">{feature.efficiency}</span>
-                      </div>
-                      <div className="w-full bg-gray-800 rounded-full h-1.5">
-                        <div 
-                          className="h-1.5 bg-gradient-to-r from-purple-500 to-purple-400 rounded-full transition-all duration-1000 group-hover:animate-pulse"
-                          style={{ width: feature.efficiency }}
-                        ></div>
-                      </div>
-                    </div>
-
-                    {/* Corner Accents */}
-                    <div className="absolute top-2 left-2 w-4 h-4 border-l-2 border-t-2 border-purple-500/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                    <div className="absolute top-2 right-2 w-4 h-4 border-r-2 border-t-2 border-purple-500/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                    <div className="absolute bottom-2 left-2 w-4 h-4 border-l-2 border-b-2 border-purple-500/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                    <div className="absolute bottom-2 right-2 w-4 h-4 border-r-2 border-b-2 border-purple-500/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+            <div className="space-y-8 lg:space-y-12">
+              {/* Step 1 */}
+              <div ref={el => stepRefs.current[0] = el} className="relative flex items-start space-x-6 lg:space-x-8">
+                <div className="flex-shrink-0">
+                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-600 to-purple-500 rounded-full flex items-center justify-center border-2 border-purple-400 shadow-lg shadow-purple-500/25 transition-all duration-500 ${currentVisibleStep === 0 ? 'scale-110' : 'scale-100'}`}>
+                    <span className="text-2xl font-bold text-white">1</span>
+                    <div className={`absolute inset-0 rounded-full bg-purple-500/20 transition-all duration-500 ${currentVisibleStep === 0 ? 'animate-ping opacity-100' : 'opacity-0'}`}></div>
                   </div>
-
-                  {/* Floating Connection Lines */}
-                  <div className="absolute -bottom-4 left-1/2 w-px h-8 bg-gradient-to-b from-purple-500/50 to-transparent transform -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                 </div>
-                  ));
-                }).flat()}
+                <div className={`flex-1 bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 transition-all duration-500 ${currentVisibleStep === 0 ? 'hover:border-purple-500/60 transform scale-[1.02]' : ''}`}>
+                  <h3 className={`text-xl font-bold text-purple-400 mb-2 transition-all duration-500 ${currentVisibleStep === 0 ? 'text-purple-300' : ''}`}>Create a Private Vault</h3>
+                  <p className={`text-gray-300 leading-relaxed transition-all duration-500 ${currentVisibleStep === 0 ? 'text-gray-200' : ''}`}>
+                    Connect your existing wallet (MetaMask, Trust Wallet, etc.) on BNB Chain, Ethereum, Polygon, or Arbitrum.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 2 */}
+              <div ref={el => stepRefs.current[1] = el} className="relative flex items-start space-x-6 lg:space-x-8">
+                <div className="flex-shrink-0">
+                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-400 rounded-full flex items-center justify-center border-2 border-purple-300 shadow-lg shadow-purple-500/25 transition-all duration-500 ${currentVisibleStep === 1 ? 'scale-110' : 'scale-100'}`}>
+                    <span className="text-2xl font-bold text-white">2</span>
+                    <div className={`absolute inset-0 rounded-full bg-purple-400/20 transition-all duration-500 ${currentVisibleStep === 1 ? 'animate-ping opacity-100' : 'opacity-0'}`}></div>
+                  </div>
+                </div>
+                <div className={`flex-1 bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 transition-all duration-500 ${currentVisibleStep === 1 ? 'hover:border-purple-500/60 transform scale-[1.02]' : ''}`}>
+                  <h3 className={`text-xl font-bold text-purple-300 mb-2 transition-all duration-500 ${currentVisibleStep === 1 ? 'text-purple-200' : ''}`}>Add Funds</h3>
+                  <p className={`text-gray-300 leading-relaxed transition-all duration-500 ${currentVisibleStep === 1 ? 'text-gray-200' : ''}`}>
+                    Deposit assets from your wallet into your vault in one click.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 3 */}
+              <div ref={el => stepRefs.current[2] = el} className="relative flex items-start space-x-6 lg:space-x-8">
+                <div className="flex-shrink-0">
+                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-400 to-purple-300 rounded-full flex items-center justify-center border-2 border-purple-200 shadow-lg shadow-purple-500/25 transition-all duration-500 ${currentVisibleStep === 2 ? 'scale-110' : 'scale-100'}`}>
+                    <span className="text-2xl font-bold text-white">3</span>
+                    <div className={`absolute inset-0 rounded-full bg-purple-300/20 transition-all duration-500 ${currentVisibleStep === 2 ? 'animate-ping opacity-100' : 'opacity-0'}`}></div>
+                  </div>
+                </div>
+                <div className={`flex-1 bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 transition-all duration-500 ${currentVisibleStep === 2 ? 'hover:border-purple-500/60 transform scale-[1.02]' : ''}`}>
+                  <h3 className={`text-xl font-bold text-purple-200 mb-2 transition-all duration-500 ${currentVisibleStep === 2 ? 'text-purple-100' : ''}`}>Cloak Your Assets</h3>
+                  <p className={`text-gray-300 leading-relaxed transition-all duration-500 ${currentVisibleStep === 2 ? 'text-gray-200' : ''}`}>
+                    Once added, your balances and transactions become invisible to everyone but you.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 4 */}
+              <div ref={el => stepRefs.current[3] = el} className="relative flex items-start space-x-6 lg:space-x-8">
+                <div className="flex-shrink-0">
+                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-700 to-purple-600 rounded-full flex items-center justify-center border-2 border-purple-500 shadow-lg shadow-purple-500/25 transition-all duration-500 ${currentVisibleStep === 3 ? 'scale-110' : 'scale-100'}`}>
+                    <span className="text-2xl font-bold text-white">4</span>
+                    <div className={`absolute inset-0 rounded-full bg-purple-600/20 transition-all duration-500 ${currentVisibleStep === 3 ? 'animate-ping opacity-100' : 'opacity-0'}`}></div>
+                  </div>
+                </div>
+                <div className={`flex-1 bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 transition-all duration-500 ${currentVisibleStep === 3 ? 'hover:border-purple-500/60 transform scale-[1.02]' : ''}`}>
+                  <h3 className={`text-xl font-bold text-purple-500 mb-2 transition-all duration-500 ${currentVisibleStep === 3 ? 'text-purple-400' : ''}`}>Send Privately</h3>
+                  <p className={`text-gray-300 leading-relaxed transition-all duration-500 ${currentVisibleStep === 3 ? 'text-gray-200' : ''}`}>
+                    Transfer from vault to any wallet or another vault. The receiver won't see where funds originated or what's inside.
+                  </p>
+                </div>
+              </div>
+
+              {/* Step 5 */}
+              <div ref={el => stepRefs.current[4] = el} className="relative flex items-start space-x-6 lg:space-x-8">
+                <div className="flex-shrink-0">
+                  <div className={`relative w-16 h-16 bg-gradient-to-br from-purple-800 to-purple-700 rounded-full flex items-center justify-center border-2 border-purple-600 shadow-lg shadow-purple-500/25 transition-all duration-500 ${currentVisibleStep === 4 ? 'scale-110' : 'scale-100'}`}>
+                    <span className="text-2xl font-bold text-white">5</span>
+                    <div className={`absolute inset-0 rounded-full bg-purple-700/20 transition-all duration-500 ${currentVisibleStep === 4 ? 'animate-ping opacity-100' : 'opacity-0'}`}></div>
+                  </div>
+                </div>
+                <div className={`flex-1 bg-black/40 backdrop-blur-sm border border-purple-500/30 rounded-xl p-6 transition-all duration-500 ${currentVisibleStep === 4 ? 'hover:border-purple-500/60 transform scale-[1.02]' : ''}`}>
+                  <h3 className={`text-xl font-bold text-purple-600 mb-2 transition-all duration-500 ${currentVisibleStep === 4 ? 'text-purple-500' : ''}`}>Receive Anonymously</h3>
+                  <p className={`text-gray-300 leading-relaxed transition-all duration-500 ${currentVisibleStep === 4 ? 'text-gray-200' : ''}`}>
+                    Share a payment link so others can deposit into your vault without viewing your holdings.
+                  </p>
+                </div>
               </div>
             </div>
-            
-            {/* Scroll Right Arrow - External - Hidden on Mobile */}
-            <div className="hidden md:flex flex-shrink-0 ml-6">
-              <button 
-                onClick={scrollCarousel}
-                className="flex items-center space-x-2 bg-black/80 backdrop-blur-sm border border-purple-500/40 rounded-full px-4 py-2 hover:border-purple-500/80 hover:bg-purple-500/20 transition-all duration-300 cursor-pointer group"
-              >
-                <span className="text-purple-300 text-sm font-mono group-hover:text-purple-200">SCROLL</span>
-                <svg className="w-5 h-5 text-purple-400 group-hover:text-purple-300 transition-colors duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          {/* Navigation Dots - Hidden on Mobile */}
-          <div className="hidden md:flex justify-center space-x-2 mt-8">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <button
-                key={i}
-                onClick={() => scrollToCard(i)}
-                className={`w-2 h-2 rounded-full transition-all duration-300 cursor-pointer hover:scale-125 ${
-                  activeCardIndex === i 
-                    ? 'bg-purple-400 w-3 h-3' 
-                    : 'bg-purple-500/40 hover:bg-purple-400'
-                }`}
-                aria-label={`Go to card ${i + 1}`}
-              />
-            ))}
           </div>
         </div>
       </section>
 
       {/* Why Lexie Section */}
-      <section className="relative z-30 py-20 bg-gradient-to-r from-purple-900/20 to-blue-900/20">
+      <section className="relative z-30 py-20 bg-[#0a0a0a]">
         <div className="max-w-7xl mx-auto px-6">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div className="space-y-6">
@@ -912,17 +997,16 @@ export default function LandingPage() {
               <div className="text-4xl mb-4">🔐</div>
               <h3 className="text-xl font-semibold text-white mb-3">Zero-Knowledge Transactions</h3>
               <p className="text-gray-300">
-                Complete transaction privacy using advanced ZK-proofs. Your trading history 
-                remains invisible to everyone, including us.
+                Complete transaction privacy using advanced ZK-proofs. Your on-chain history 
+                remains invisible to everyone.
               </p>
             </div>
 
             <div className="bg-black/40 backdrop-blur-sm border border-blue-500/30 rounded-xl p-8 text-center hover:border-blue-500/60 transition-all duration-300">
               <div className="text-4xl mb-4">🔑</div>
-              <h3 className="text-xl font-semibold text-white mb-3">Key Sharding</h3>
+              <h3 className="text-xl font-semibold text-white mb-3">Powered by Railgun</h3>
               <p className="text-gray-300">
-                Your private keys are sharded across multiple secure enclaves. No single point 
-                of failure, maximum security.
+                Audited by top security firms and trusted by Vitalik Buterin.
               </p>
             </div>
 
@@ -937,14 +1021,14 @@ export default function LandingPage() {
           </div>
 
           {/* Security metrics */}
-          <div className="mt-16 bg-gradient-to-r from-purple-900/30 to-blue-900/30 rounded-2xl p-8">
+          <div className="mt-16 bg-[#0a0a0a] rounded-2xl p-8">
             <div className="grid md:grid-cols-4 gap-8 text-center">
               <div>
                 <div className="text-3xl font-bold text-purple-400 mb-2">256-bit</div>
                 <div className="text-gray-300">Encryption</div>
               </div>
               <div>
-                <div className="text-3xl font-bold text-blue-400 mb-2">99.9%</div>
+                <div className="text-3xl font-bold text-blue-400 mb-2">100%</div>
                 <div className="text-gray-300">Uptime</div>
               </div>
               <div>
@@ -960,13 +1044,303 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Roadmap Section */}
+      <section className="relative z-30 py-20 bg-[#0a0a0a] overflow-hidden">
+        {/* Background Effects */}
+        <div className="absolute inset-0">
+          {/* Animated Grid Pattern */}
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute inset-0" style={{
+              backgroundImage: `
+                linear-gradient(rgba(168, 85, 247, 0.15) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(168, 85, 247, 0.15) 1px, transparent 1px)
+              `,
+              backgroundSize: '60px 60px',
+              animation: 'gridMove 20s linear infinite'
+            }}></div>
+          </div>
+
+          {/* Flowing Data Streams */}
+          <div className="absolute inset-0 overflow-hidden">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div
+                key={i}
+                className="absolute w-px bg-gradient-to-b from-transparent via-purple-500/20 to-transparent animate-pulse"
+                style={{
+                  left: `${(i * 12.5) + 5}%`,
+                  top: '-20%',
+                  height: '140%',
+                  animationDelay: `${i * 0.8}s`,
+                  animationDuration: `${3 + Math.random() * 2}s`,
+                  opacity: 0.7 + Math.random() * 0.3
+                }}
+              ></div>
+            ))}
+          </div>
+
+          {/* Glowing Connectors */}
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+            <div className="relative w-full h-px bg-gradient-to-r from-green-500/50 via-purple-500/50 to-pink-500/50 animate-pulse"></div>
+          </div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-6 relative z-10">
+          {/* Section Header */}
+          <div className="text-center mb-20">
+            <h2 className="text-4xl lg:text-6xl font-bold text-white mb-6">
+              Roadmap
+            </h2>
+            <p className="text-xl text-gray-300 max-w-3xl mx-auto">
+              From privacy vault to full private DeFi ecosystem — our journey to revolutionize decentralized finance
+            </p>
+          </div>
+
+          {/* Roadmap Timeline */}
+          <div className="relative">
+            {/* Desktop Timeline Line */}
+            <div className="hidden lg:block absolute top-1/2 left-0 right-0 h-px bg-gradient-to-r from-green-500/30 via-purple-500/50 to-pink-500/30 transform -translate-y-1/2"></div>
+
+            {/* Phases */}
+            <div className="grid lg:grid-cols-3 gap-8 lg:gap-12">
+              {/* Phase 1 - Completed */}
+              <div className="relative group">
+                {/* Phase Card */}
+                <div className="bg-black/60 backdrop-blur-sm border-2 border-green-500/40 rounded-2xl p-8 hover:border-green-400/60 transition-all duration-500 hover:transform hover:scale-105 hover:shadow-2xl hover:shadow-green-500/20">
+                  {/* Phase Header */}
+                  <div className="text-center mb-8">
+                    <h3 className="text-2xl font-bold text-green-400 mb-2">Phase 1</h3>
+                    <div className="inline-flex items-center space-x-2 bg-green-500/20 border border-green-500/30 rounded-full px-4 py-2">
+                      <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                      <span className="text-green-400 font-semibold text-sm">COMPLETED</span>
+                    </div>
+                  </div>
+
+                  {/* Phase Items */}
+                  <div className="space-y-4">
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center mt-0.5">
+                        <span className="text-black text-sm font-bold">✓</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-green-300 transition-colors duration-300">
+                          Ship Privacy Vault (private shield/unshield; zero-knowledge proofs)
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center mt-0.5">
+                        <span className="text-black text-sm font-bold">✓</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-green-300 transition-colors duration-300">
+                          Launch LexieAI on Telegram (market data & crypto intelligence)
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Timeline Node */}
+                <div className="hidden lg:block absolute top-1/2 -right-4 transform -translate-y-1/2 w-8 h-8 bg-green-500 rounded-full border-4 border-black shadow-lg shadow-green-500/50"></div>
+              </div>
+
+              {/* Phase 2 - Current */}
+              <div className="relative group">
+                {/* Phase Card */}
+                <div className="bg-black/60 backdrop-blur-sm border-2 border-purple-500/40 rounded-2xl p-8 hover:border-purple-400/60 transition-all duration-500 hover:transform hover:scale-105 hover:shadow-2xl hover:shadow-purple-500/20">
+                  {/* Phase Header */}
+                  <div className="text-center mb-8">
+                    <h3 className="text-2xl font-bold text-purple-400 mb-2">Phase 2</h3>
+                    <div className="inline-flex items-center space-x-2 bg-purple-500/20 border border-purple-500/30 rounded-full px-4 py-2">
+                      <div className="w-2 h-2 bg-purple-400 rounded-full animate-pulse"></div>
+                      <span className="text-purple-400 font-semibold text-sm">CURRENT</span>
+                    </div>
+                  </div>
+
+                  {/* Phase Items */}
+                  <div className="space-y-4">
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-purple-400 mt-0.5 flex items-center justify-center">
+                        <span className="text-lg">•</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-purple-300 transition-colors duration-300">
+                          Launch Lexie Token
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-purple-400 mt-0.5 flex items-center justify-center">
+                        <span className="text-lg">•</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-purple-300 transition-colors duration-300">
+                          Add private swaps and yield farming to the vault
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-purple-400 mt-0.5 flex items-center justify-center">
+                        <span className="text-lg">•</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-purple-300 transition-colors duration-300">
+                          Integrate LexieAI directly into the vault (AI market insights inside app)
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-purple-400 mt-0.5 flex items-center justify-center">
+                        <span className="text-lg">•</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-purple-300 transition-colors duration-300">
+                          Expand multi-chain support for Solana, Base, and more
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-purple-400 mt-0.5 flex items-center justify-center">
+                        <span className="text-lg">•</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-purple-300 transition-colors duration-300">
+                          Add NFT shielding (ERC-721 support)
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-purple-400 mt-0.5 flex items-center justify-center">
+                        <span className="text-lg">•</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-purple-300 transition-colors duration-300">
+                          Launch advanced compliance tools using Chainalysis
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Timeline Node */}
+                <div className="hidden lg:block absolute top-1/2 -right-4 transform -translate-y-1/2 w-8 h-8 bg-purple-500 rounded-full border-4 border-black shadow-lg shadow-purple-500/50"></div>
+              </div>
+
+              {/* Phase 3 - Future */}
+              <div className="relative group">
+                {/* Phase Card */}
+                <div className="bg-black/60 backdrop-blur-sm border-2 border-pink-500/40 rounded-2xl p-8 hover:border-pink-400/60 transition-all duration-500 hover:transform hover:scale-105 hover:shadow-2xl hover:shadow-pink-500/20">
+                  {/* Phase Header */}
+                  <div className="text-center mb-8">
+                    <h3 className="text-2xl font-bold text-pink-400 mb-2">Phase 3</h3>
+                    <div className="inline-flex items-center space-x-2 bg-pink-500/20 border border-pink-500/30 rounded-full px-4 py-2">
+                      <div className="w-2 h-2 bg-pink-400 rounded-full animate-pulse"></div>
+                      <span className="text-pink-400 font-semibold text-sm">FUTURE</span>
+                    </div>
+                  </div>
+
+                  {/* Phase Items */}
+                  <div className="space-y-4">
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-pink-400 mt-0.5 flex items-center justify-center">
+                        <span className="text-lg">•</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-pink-300 transition-colors duration-300">
+                          Native wallet & mobile app with optional privacy mode
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-pink-400 mt-0.5 flex items-center justify-center">
+                        <span className="text-lg">•</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-pink-300 transition-colors duration-300">
+                          Private cross-chain DeFi (Aztec-style bridging to protocols like Uniswap, Aave)
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-pink-400 mt-0.5 flex items-center justify-center">
+                        <span className="text-lg">•</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-pink-300 transition-colors duration-300">
+                          Private lending, borrowing, and derivatives
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-pink-400 mt-0.5 flex items-center justify-center">
+                        <span className="text-lg">•</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-pink-300 transition-colors duration-300">
+                          Remote proving & off-chain deposits
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-pink-400 mt-0.5 flex items-center justify-center">
+                        <span className="text-lg">•</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-pink-300 transition-colors duration-300">
+                          ZK-based social recovery (ZKemail/ZKpassport integration)
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-pink-400 mt-0.5 flex items-center justify-center">
+                        <span className="text-lg">•</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-pink-300 transition-colors duration-300">
+                          Private multi-signature vaults
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start space-x-3 group/item">
+                      <div className="flex-shrink-0 w-6 h-6 text-pink-400 mt-0.5 flex items-center justify-center">
+                        <span className="text-lg">•</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-gray-300 leading-relaxed group-hover/item:text-pink-300 transition-colors duration-300">
+                          Governance & staking for token holders
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Timeline Node */}
+                <div className="hidden lg:block absolute top-1/2 -right-4 transform -translate-y-1/2 w-8 h-8 bg-pink-500 rounded-full border-4 border-black shadow-lg shadow-pink-500/50"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Final CTA Section */}
-      <section id="beta" className="relative z-30 py-20 bg-gradient-to-t from-purple-900/40 to-transparent">
+      <section id="beta" className="relative z-30 py-20 bg-[#0a0a0a]">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <div className="space-y-8">
             <h2 className="text-4xl lg:text-6xl font-bold text-white">
               Ready to Experience the 
-              <span className="block text-transparent bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text">
+              <span className="block text-transparent bg-gradient-to-r from-purple-200 to-purple-600 bg-clip-text">
                 Future of DeFi?
               </span>
             </h2>
@@ -978,23 +1352,23 @@ export default function LandingPage() {
             
             <p className="text-xl text-gray-300 max-w-2xl mx-auto">
               Join thousands of early adopters who are already trading smarter 
-              with Lexie's AI-powered wallet. Beta access is limited.
+              with Lexie's ZK-powered privacy vault. Beta access is limited.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
               <a
-                href="https://t.me/Lexie_Crypto_Bot"
+                href="https://app.lexiecrypto.com/lexievault"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="group px-8 py-4 bg-gradient-to-r from-purple-600 to-pink-600 text-white font-semibold text-base rounded-full hover:from-purple-700 hover:to-pink-700 transition-all duration-300 shadow-xl hover:shadow-purple-500/50 hover:scale-105 flex items-center space-x-2"
               >
                 <span>🚀</span>
-                <span>Join Beta</span>
+                <span>Launch dApp</span>
               </a>
               
               <div className="flex space-x-4">
                 <a
-                  href="https://t.me/lexie_crypto_bot"
+                  href="https://t.me/lexieAI"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="p-4 border-2 border-cyan-500 text-cyan-400 rounded-full hover:bg-cyan-500 hover:text-white transition-all duration-300 hover:scale-110"
@@ -1027,12 +1401,87 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* FAQ Section */}
+      <section className="relative z-30 py-20 bg-[#0a0a0a] overflow-hidden">
+        {/* Background Effects */}
+        <div className="absolute inset-0">
+          {/* Subtle Grid Pattern */}
+          <div className="absolute inset-0 opacity-5">
+            <div className="absolute inset-0" style={{
+              backgroundImage: `
+                linear-gradient(rgba(168, 85, 247, 0.08) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(168, 85, 247, 0.08) 1px, transparent 1px)
+              `,
+              backgroundSize: '50px 50px'
+            }}></div>
+          </div>
+
+          {/* Floating Glow Orbs */}
+          <div className="absolute top-1/4 right-1/4 w-32 h-32 bg-fuchsia-500/3 rounded-full blur-2xl animate-pulse"></div>
+          <div className="absolute bottom-1/4 left-1/4 w-48 h-48 bg-cyan-500/3 rounded-full blur-2xl animate-pulse" style={{animationDelay: '1s'}}></div>
+        </div>
+
+        <div className="max-w-4xl mx-auto px-6 relative z-10">
+          {/* Section Header */}
+          <div className="text-center mb-16">
+            <h2 className="text-4xl lg:text-5xl font-bold text-white mb-4">
+              FAQs
+            </h2>
+            <p className="text-xl text-gray-300">
+              Everything you need to know about Lexie and private DeFi
+            </p>
+          </div>
+
+          {/* FAQ Container */}
+          <div className="bg-black/40 backdrop-blur-sm border border-purple-500/40 rounded-2xl p-8 shadow-2xl">
+            <div className="space-y-4">
+              {faqData.map((faq, index) => (
+                <div key={index} className="border-b border-cyan-500/20 last:border-b-0">
+                  <button
+                    className="w-full text-left py-4 focus:outline-none focus:ring-2 focus:ring-purple-500/50 rounded-lg transition-all duration-300 hover:bg-purple-500/5 group"
+                    onClick={() => setOpenFAQ(openFAQ === index ? null : index)}
+                  >
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold text-white group-hover:text-gray-200 transition-colors duration-300 pr-4">
+                        {faq.question}
+                      </h3>
+                      <div className={`flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-full border-2 border-purple-400/50 transition-all duration-300 ${
+                        openFAQ === index ? 'bg-purple-500/20 rotate-180' : 'bg-transparent'
+                      }`}>
+                        <svg
+                          className={`w-3 h-3 text-purple-400 transition-transform duration-300 ${
+                            openFAQ === index ? 'rotate-180' : ''
+                          }`}
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </div>
+                    </div>
+                  </button>
+
+                  <div className={`overflow-hidden transition-all duration-300 ${
+                    openFAQ === index ? 'max-h-96 opacity-100 pb-4' : 'max-h-0 opacity-0'
+                  }`}>
+                    <p className="text-gray-300/90 leading-relaxed pl-0">
+                      {faq.answer}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Footer */}
       <footer className="relative z-30 py-12 border-t border-purple-500/20">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row justify-between items-center space-y-4 md:space-y-0">
             <div className="text-center md:text-left">
-              <div className="text-2xl font-bold text-purple-300 mb-2">LEXIEAI</div>
+              <div className="text-2xl font-bold text-purple-300/90 mb-2">LEXIE</div>
               <p className="text-gray-400">
                 Trade smarter. Quest deeper. Stay private.  
               </p>
@@ -1054,9 +1503,16 @@ export default function LandingPage() {
         </div>
       </footer>
 
-        {/* Custom styles - CLEAN VERSION */}
+        {/* Custom styles */}
         <style jsx>{`
-          /* No custom animations needed - using only Tailwind defaults */
+          @keyframes gridMove {
+            0% {
+              transform: translate(0, 0);
+            }
+            100% {
+              transform: translate(60px, 60px);
+            }
+          }
         `}</style>
       </main>
     </>
