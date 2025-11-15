@@ -12,8 +12,38 @@ const ReturningUserChainSelectionModal = ({
   onCancel
 }) => {
   const [isModalChainMenuOpen, setIsModalChainMenuOpen] = useState(false);
+  const [isSwitchingNetwork, setIsSwitchingNetwork] = useState(false);
 
   if (!isOpen) return null;
+
+  const handleNetworkSelect = async (network) => {
+    console.log(`[Returning User Modal] User selected chain ${network.id}, current wallet chainId: ${walletChainId}`);
+    setSelectedChainId(network.id);
+    setInitializingChainId(network.id);
+    setIsModalChainMenuOpen(false);
+
+    // If wallet is on different chain, switch it
+    if (walletChainId !== network.id) {
+      setIsSwitchingNetwork(true);
+      try {
+        await switchNetwork(network.id);
+        console.log(`[Returning User Modal] Successfully switched wallet to chain ${network.id}`);
+      } catch (error) {
+        console.error(`[Returning User Modal] Failed to switch wallet to chain ${network.id}:`, error);
+      } finally {
+        setIsSwitchingNetwork(false);
+      }
+    }
+  };
+
+  const handleConfirm = () => {
+    console.log('[Returning User Modal] 🚀 Confirm button clicked, calling onConfirm callback');
+    onConfirm();
+  };
+
+  // Button should be enabled as soon as a chain is selected
+  // The actual network switch and balance refresh will happen in the callback
+  const isConfirmDisabled = !selectedChainId;
 
   return (
     <>
@@ -45,12 +75,13 @@ const ReturningUserChainSelectionModal = ({
           <div className="space-y-2">
             <div className="text-green-200 text-sm font-medium">Select Network:</div>
             <div className="relative">
-              <button
-                onClick={() => setIsModalChainMenuOpen((v) => !v)}
-                className="px-3 py-2 bg-black/60 border border-emerald-500/40 rounded-md text-emerald-200 font-mono text-sm flex items-center gap-2 hover:bg-black/80 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-400 transition-all duration-200"
-                aria-haspopup="listbox"
-                aria-expanded={isModalChainMenuOpen}
-              >
+                <button
+                  onClick={() => setIsModalChainMenuOpen((v) => !v)}
+                  disabled={isSwitchingNetwork}
+                  className="px-3 py-2 bg-black/60 border border-emerald-500/40 rounded-md text-emerald-200 font-mono text-sm flex items-center gap-2 hover:bg-black/80 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-400 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-haspopup="listbox"
+                  aria-expanded={isModalChainMenuOpen}
+                >
                 {supportedNetworks.find(n => n.id === selectedChainId)?.name || 'Choose Network'}
                 <span className="ml-1">▾</span>
               </button>
@@ -64,19 +95,7 @@ const ReturningUserChainSelectionModal = ({
                       <button
                         key={network.id}
                         type="button"
-                        onClick={async () => {
-                          console.log(`[Returning User Modal] User selected chain ${network.id}, current wallet chainId: ${walletChainId}`);
-                          setSelectedChainId(network.id);
-                          setInitializingChainId(network.id); // Track which chain we're initializing
-                          setIsModalChainMenuOpen(false);
-                          // Also switch the wallet to the selected network
-                          try {
-                            await switchNetwork(network.id);
-                            console.log(`[Returning User Modal] Successfully switched wallet to chain ${network.id}, wallet should now be on chainId: ${network.id}`);
-                          } catch (error) {
-                            console.error(`[Returning User Modal] Failed to switch wallet to chain ${network.id}:`, error);
-                          }
-                        }}
+                        onClick={() => handleNetworkSelect(network)}
                         className={`w-full px-3 py-2 text-left flex items-center justify-between hover:bg-emerald-900/20 transition-colors duration-150 ${network.id === selectedChainId ? 'bg-emerald-900/30' : ''}`}
                       >
                         <div className="flex items-center gap-2">
@@ -103,39 +122,44 @@ const ReturningUserChainSelectionModal = ({
             </div>
           </div>
 
-          <div className="flex gap-3 pt-2">
-            <button
-              onClick={onConfirm}
-              disabled={!selectedChainId || walletChainId !== selectedChainId}
-              className={`flex-1 py-2.5 px-4 rounded border transition-all duration-200 text-sm font-medium ${
-                !selectedChainId || walletChainId !== selectedChainId
-                  ? 'bg-gray-700/30 text-gray-500 cursor-not-allowed border-gray-500/40'
-                  : 'bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-200 border-emerald-400/40 hover:border-emerald-400'
-              }`}
-            >
-              {!selectedChainId
-                ? 'Select Network First'
-                : walletChainId !== selectedChainId
-                ? 'Switching Network...'
-                : 'Continue to Vault'
-              }
-            </button>
-            <button
-              onClick={onCancel}
-              className="flex-1 bg-gray-700/30 hover:bg-gray-700/50 text-gray-300 py-2.5 px-4 rounded border border-gray-500/40 hover:border-gray-400 transition-all duration-200 text-sm font-medium"
-            >
-              Cancel
-            </button>
-          </div>
-
-          {(!selectedChainId || walletChainId !== selectedChainId) && (
-            <div className="text-center text-yellow-300/80 text-xs mt-2">
-              {!selectedChainId
-                ? 'Please select a network above to continue'
-                : 'Waiting for wallet to switch networks...'
-              }
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={handleConfirm}
+                disabled={isConfirmDisabled || isSwitchingNetwork}
+                className={`flex-1 py-2.5 px-4 rounded border transition-all duration-200 text-sm font-medium ${
+                  isConfirmDisabled || isSwitchingNetwork
+                    ? 'bg-gray-700/30 text-gray-500 cursor-not-allowed border-gray-500/40'
+                    : 'bg-emerald-900/30 hover:bg-emerald-900/50 text-emerald-200 border-emerald-400/40 hover:border-emerald-400'
+                }`}
+              >
+                {isSwitchingNetwork
+                  ? 'Switching Network...'
+                  : !selectedChainId
+                  ? 'Select Network First'
+                  : 'Continue to Vault'
+                }
+              </button>
+              <button
+                onClick={onCancel}
+                disabled={isSwitchingNetwork}
+                className="flex-1 bg-gray-700/30 hover:bg-gray-700/50 text-gray-300 py-2.5 px-4 rounded border border-gray-500/40 hover:border-gray-400 transition-all duration-200 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
             </div>
-          )}
+
+            {isSwitchingNetwork && (
+              <div className="flex items-center justify-center gap-2 text-yellow-300/80 text-xs mt-2">
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-yellow-400"></div>
+                <span>Switching wallet network...</span>
+              </div>
+            )}
+
+            {!selectedChainId && !isSwitchingNetwork && (
+              <div className="text-center text-yellow-300/80 text-xs mt-2">
+                Please select a network above to continue
+              </div>
+            )}
         </div>
       </div>
     </div>
