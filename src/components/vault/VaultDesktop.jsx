@@ -266,6 +266,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   const [activeTransactionMonitors, setActiveTransactionMonitors] = useState(0);
   const [shieldingTokens, setShieldingTokens] = useState(new Set());
   const [shieldAmounts, setShieldAmounts] = useState({});
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
   // Use the chain switch modal hook
   const {
@@ -696,6 +697,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   // Placeholder functions for command bar icons
   const handleRefresh = useCallback(async () => {
     console.log('[VaultDesktop] Refresh clicked');
+    setIsManualRefreshing(true);
     try {
       // Trigger full SDK balance refresh to discover new private transfers
       if (canUseRailgun && railgunWalletId && address && walletChainId) {
@@ -713,6 +715,8 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       console.log('[VaultDesktop] Balance refresh completed');
     } catch (error) {
       console.error('[VaultDesktop] Balance refresh failed:', error);
+    } finally {
+      setIsManualRefreshing(false);
     }
   }, [refreshAllBalances, canUseRailgun, railgunWalletId, address, walletChainId]);
 
@@ -1512,7 +1516,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                   </button>
                   <button
                     onClick={handleRefresh}
-                    disabled={isLoading || !isConnected || isTransactionLocked || !canUseRailgun || !railgunWalletId}
+                    disabled={isLoading || !isConnected || isTransactionLocked || !canUseRailgun || !railgunWalletId || isManualRefreshing}
                     className="p-1.5 rounded border border-emerald-400/40 bg-emerald-900/20 hover:bg-emerald-900/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-lg hover:shadow-emerald-400/20"
                     title="Refresh all wallet balances"
                     aria-label="Refresh"
@@ -1558,7 +1562,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                         </button>
                         <button
                           onClick={handleRefresh}
-                          disabled={isLoading || !isConnected || isTransactionLocked || !canUseRailgun || !railgunWalletId}
+                          disabled={isLoading || !isConnected || isTransactionLocked || !canUseRailgun || !railgunWalletId || isManualRefreshing}
                           className="p-1.5 rounded border border-emerald-400/40 bg-emerald-900/20 hover:bg-emerald-900/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-lg hover:shadow-emerald-400/20"
                           title="Refresh all wallet balances"
                           aria-label="Refresh"
@@ -1574,8 +1578,11 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                     <div className="text-center py-4 text-green-400/70 text-xs">
                       Secure vault engine not ready
                     </div>
-                  ) : isPrivateBalancesLoading ? (
-                    <div className="text-center py-4 text-green-300 text-xs">Getting your vault balances...</div>
+                  ) : (isManualRefreshing || isPrivateBalancesLoading) ? (
+                    <div className="text-center py-4 text-green-300 text-xs flex items-center justify-center gap-2">
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Refreshing your balances...
+                    </div>
                   ) : privateBalances.length === 0 ? (
                     <div className="text-center py-4 text-green-300 text-xs">
                       No vault tokens yet
