@@ -1550,7 +1550,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                           {showPrivateBalances ? 'Hide' : 'Show'}
                         </button>
                       )}
-                      {/* Mobile-only refresh and info buttons */}
+                      {/* Mobile-only refresh and info button */}
                       <div className="flex md:hidden gap-1 ml-2">
                       <button
                           onClick={handleInfoClick}
