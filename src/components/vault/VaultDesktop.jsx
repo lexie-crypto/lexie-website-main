@@ -727,7 +727,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     // First, handle the chain choice (this resolves the promise in WalletContext)
     handleReturningUserChainChoice(true);
 
-    // Then perform the same balance refresh as manual refresh
+    // Then perform the same balance refresh as manual y
     try {
       console.log('[VaultDesktop] Triggering balance refresh after network selection...');
       setIsManualRefreshing(true);
