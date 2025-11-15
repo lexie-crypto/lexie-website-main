@@ -742,7 +742,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         console.log('[VaultDesktop] SDK balance refresh completed for new network');
       }
 
-      // Then refresh from Redis (which should now have updated balances)
+      // Then refresh from Redis (which should now have updated balance)
       await refreshAllBalances();
       console.log('[VaultDesktop] Balance refresh completed after network selection');
     } catch (error) {
