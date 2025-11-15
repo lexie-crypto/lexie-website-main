@@ -723,6 +723,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   // Handle returning user chain selection confirmation with full SDK callback refresh
   const handleReturningUserChainConfirm = useCallback(async () => {
+    console.log('[VaultDesktop] 🔥🔥🔥 handleReturningUserChainConfirm FUNCTION CALLED 🔥🔥🔥');
     console.log('[VaultDesktop] Returning user chain selection confirmed - starting full SDK callback refresh');
     // First, handle the chain choice (this resolves the promise in WalletContext)
     handleReturningUserChainChoice(true);
@@ -733,7 +734,15 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       setIsManualRefreshing(true);
 
       // Use syncBalancesAfterTransaction which triggers SDK refresh and persists to Redis
+      console.log('[VaultDesktop] Checking conditions:', {
+        canUseRailgun,
+        railgunWalletId,
+        address,
+        walletChainId
+      });
+
       if (canUseRailgun && railgunWalletId && address && walletChainId) {
+        console.log('[VaultDesktop] ✅ All conditions met, proceeding with refresh...');
         console.log('[VaultDesktop] Calling syncBalancesAfterTransaction for SDK refresh...');
         await syncBalancesAfterTransaction({
           walletAddress: address,
