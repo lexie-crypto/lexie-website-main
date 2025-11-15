@@ -732,16 +732,16 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       console.log('[VaultDesktop] Triggering full SDK callback refresh after network selection...');
       setIsManualRefreshing(true);
 
-      // Use refreshBalances which triggers SDK refresh and lets all callbacks be processed by useBalances hook
+      // Use syncBalancesAfterTransaction which triggers SDK refresh and persists to Redis
       if (canUseRailgun && railgunWalletId && address && walletChainId) {
-        console.log('[VaultDesktop] Calling refreshBalances for full SDK callback processing...');
-        await refreshBalances({
+        console.log('[VaultDesktop] Calling syncBalancesAfterTransaction for SDK refresh...');
+        await syncBalancesAfterTransaction({
           walletAddress: address,
           walletId: railgunWalletId,
-          chainId: walletChainId,
-          refreshAllBalances,
-          showToast: false, // Don't show toast for automatic refresh
+          chainId: walletChainId
         });
+
+        await refreshAllBalances();
         console.log('[VaultDesktop] Full SDK callback refresh completed');
       }
     } catch (error) {
