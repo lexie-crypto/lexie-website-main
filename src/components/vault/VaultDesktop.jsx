@@ -721,17 +721,35 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     }
   }, [refreshAllBalances, canUseRailgun, railgunWalletId, address, walletChainId]);
 
-  // Handle returning user chain selection confirmation with balance refresh
+  // Handle returning user chain selection confirmation with full SDK callback refresh
   const handleReturningUserChainConfirm = useCallback(async () => {
-    console.log('[VaultDesktop] Returning user chain selection confirmed - starting automatic refresh');
+    console.log('[VaultDesktop] Returning user chain selection confirmed - starting full SDK callback refresh');
     // First, handle the chain choice (this resolves the promise in WalletContext)
     handleReturningUserChainChoice(true);
 
-    // Then trigger the same refresh as the manual refresh button
-    console.log('[VaultDesktop] Triggering automatic balance refresh after network selection...');
-    await handleRefresh();
-    console.log('[VaultDesktop] Automatic balance refresh completed after network selection');
-  }, [handleReturningUserChainChoice, handleRefresh]);
+    // Then perform full SDK callback refresh for returning users
+    try {
+      console.log('[VaultDesktop] Triggering full SDK callback refresh after network selection...');
+      setIsManualRefreshing(true);
+
+      // Use refreshBalances which triggers SDK refresh and lets all callbacks be processed by useBalances hook
+      if (canUseRailgun && railgunWalletId && address && walletChainId) {
+        console.log('[VaultDesktop] Calling refreshBalances for full SDK callback processing...');
+        await refreshBalances({
+          walletAddress: address,
+          walletId: railgunWalletId,
+          chainId: walletChainId,
+          refreshAllBalances,
+          showToast: false, // Don't show toast for automatic refresh
+        });
+        console.log('[VaultDesktop] Full SDK callback refresh completed');
+      }
+    } catch (error) {
+      console.error('[VaultDesktop] Full SDK callback refresh failed:', error);
+    } finally {
+      setIsManualRefreshing(false);
+    }
+  }, [handleReturningUserChainChoice, refreshAllBalances, canUseRailgun, railgunWalletId, address, walletChainId]);
 
   const handleInfoClick = useCallback(() => {
     console.log('[VaultDesktop] Info clicked - opening documentation');
