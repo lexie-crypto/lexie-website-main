@@ -701,12 +701,12 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     setIsManualRefreshing(true);
     try {
       // Trigger full SDK balance refresh to discover new private transfers
-      if (canUseRailgun && railgunWalletId && address && walletChainId) {
-        console.log('[VaultDesktop] Triggering SDK balance refresh for private transfers...');
+      if (canUseRailgun && railgunWalletId && address && activeChainId) {
+        console.log('[VaultDesktop] Triggering SDK balance refresh for private transfers on chain:', activeChainId);
         await syncBalancesAfterTransaction({
           walletAddress: address,
           walletId: railgunWalletId,
-          chainId: walletChainId,
+          chainId: activeChainId,
         });
         console.log('[VaultDesktop] SDK balance refresh completed');
       }
@@ -719,7 +719,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     } finally {
       setIsManualRefreshing(false);
     }
-  }, [refreshAllBalances, canUseRailgun, railgunWalletId, address, walletChainId]);
+  }, [refreshAllBalances, canUseRailgun, railgunWalletId, address, activeChainId]);
 
   // Handle returning user chain selection confirmation - triggers manual refresh
   const handleReturningUserChainConfirm = useCallback(async () => {
