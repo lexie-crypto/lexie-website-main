@@ -39,6 +39,7 @@ import {
 } from '../../utils/railgun/actions';
 import { deriveEncryptionKey, clearAllWallets } from '../../utils/railgun/wallet';
 import { syncBalancesAfterTransaction } from '../../utils/railgun/syncBalances';
+import { refreshBalances } from '../../utils/balanceRefresh';
 import LexieIdChoiceModal from './LexieIdChoiceModal';
 import LexieIdModal from './LexieIdModal';
 import CrossPlatformVerificationModal from './CrossPlatformVerificationModal';
@@ -731,7 +732,13 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       console.log('[VaultDesktop] Triggering balance refresh after network selection...');
       setIsManualRefreshing(true);
 
-      // Trigger full SDK balance refresh to discover private transfers on new network
+      // Ensure the chain is scanned before refreshing (critical for discovering transfers)
+      if (canUseRailgun && railgunWalletId && address && selectedChainId) {
+        console.log('[VaultDesktop] Ensuring chain is scanned before refresh...');
+        await ensureChainScanned(selectedChainId);
+      }
+
+      // Trigger full SDK balance refresh to discover new private transfers (same as manual refresh)
       if (canUseRailgun && railgunWalletId && address && selectedChainId) {
         console.log('[VaultDesktop] Triggering SDK balance refresh for new network...');
         await syncBalancesAfterTransaction({
@@ -742,7 +749,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         console.log('[VaultDesktop] SDK balance refresh completed for new network');
       }
 
-      // Then refresh from Redis (which should now have updated balance)
+      // Then refresh UI from Redis (which should now have updated balances)
       await refreshAllBalances();
       console.log('[VaultDesktop] Balance refresh completed after network selection');
     } catch (error) {
