@@ -723,41 +723,15 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
 
   // Handle returning user chain selection confirmation with balance refresh
   const handleReturningUserChainConfirm = useCallback(async () => {
-    console.log('[VaultDesktop] Returning user chain selection confirmed');
+    console.log('[VaultDesktop] Returning user chain selection confirmed - starting automatic refresh');
     // First, handle the chain choice (this resolves the promise in WalletContext)
     handleReturningUserChainChoice(true);
 
-    // Then perform the same balance refresh as manual refresh
-    try {
-      console.log('[VaultDesktop] Triggering balance refresh after network selection...');
-      setIsManualRefreshing(true);
-
-      // Ensure the chain is scanned before refreshing (critical for discovering transfers)
-      if (canUseRailgun && railgunWalletId && address && selectedChainId) {
-        console.log('[VaultDesktop] Ensuring chain is scanned before refresh...');
-        await ensureChainScanned(selectedChainId);
-      }
-
-      // Trigger full SDK balance refresh to discover new private transfers (same as manual refresh)
-      if (canUseRailgun && railgunWalletId && address && selectedChainId) {
-        console.log('[VaultDesktop] Triggering SDK balance refresh for new network...');
-        await syncBalancesAfterTransaction({
-          walletAddress: address,
-          walletId: railgunWalletId,
-          chainId: selectedChainId,
-        });
-        console.log('[VaultDesktop] SDK balance refresh completed for new network');
-      }
-
-      // Then refresh UI from Redis (which should now have updated balances)
-      await refreshAllBalances();
-      console.log('[VaultDesktop] Balance refresh completed after network selection');
-    } catch (error) {
-      console.error('[VaultDesktop] Balance refresh failed after network selection:', error);
-    } finally {
-      setIsManualRefreshing(false);
-    }
-  }, [handleReturningUserChainChoice, refreshAllBalances, canUseRailgun, railgunWalletId, address, selectedChainId]);
+    // Then trigger the same refresh as the manual refresh button
+    console.log('[VaultDesktop] Triggering automatic balance refresh after network selection...');
+    await handleRefresh();
+    console.log('[VaultDesktop] Automatic balance refresh completed after network selection');
+  }, [handleReturningUserChainChoice, handleRefresh]);
 
   const handleInfoClick = useCallback(() => {
     console.log('[VaultDesktop] Info clicked - opening documentation');
