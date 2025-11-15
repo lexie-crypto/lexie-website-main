@@ -720,6 +720,38 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
     }
   }, [refreshAllBalances, canUseRailgun, railgunWalletId, address, walletChainId]);
 
+  // Handle returning user chain selection confirmation with balance refresh
+  const handleReturningUserChainConfirm = useCallback(async () => {
+    console.log('[VaultDesktop] Returning user chain selection confirmed');
+    // First, handle the chain choice (this resolves the promise in WalletContext)
+    handleReturningUserChainChoice(true);
+
+    // Then perform the same balance refresh as manual refresh
+    try {
+      console.log('[VaultDesktop] Triggering balance refresh after network selection...');
+      setIsManualRefreshing(true);
+
+      // Trigger full SDK balance refresh to discover private transfers on new network
+      if (canUseRailgun && railgunWalletId && address && selectedChainId) {
+        console.log('[VaultDesktop] Triggering SDK balance refresh for new network...');
+        await syncBalancesAfterTransaction({
+          walletAddress: address,
+          walletId: railgunWalletId,
+          chainId: selectedChainId,
+        });
+        console.log('[VaultDesktop] SDK balance refresh completed for new network');
+      }
+
+      // Then refresh from Redis (which should now have updated balances)
+      await refreshAllBalances();
+      console.log('[VaultDesktop] Balance refresh completed after network selection');
+    } catch (error) {
+      console.error('[VaultDesktop] Balance refresh failed after network selection:', error);
+    } finally {
+      setIsManualRefreshing(false);
+    }
+  }, [handleReturningUserChainChoice, refreshAllBalances, canUseRailgun, railgunWalletId, address, selectedChainId]);
+
   const handleInfoClick = useCallback(() => {
     console.log('[VaultDesktop] Info clicked - opening documentation');
     window.open('https://lexie-crypto.gitbook.io/lexie-crypto/', '_blank');
@@ -1751,7 +1783,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         supportedNetworks={SUPPORTED_NETWORKS}
         walletChainId={walletChainId}
         switchNetwork={switchNetwork}
-        onConfirm={() => handleReturningUserChainChoice(true)}
+        onConfirm={handleReturningUserChainConfirm}
         onCancel={() => handleReturningUserChainChoice(false)}
       />
 
