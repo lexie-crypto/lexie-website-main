@@ -2283,8 +2283,66 @@ export const privateTransferWithRelayer = async ({
     // Calculate fees the same way as unshield (deduct from transfer amount)
     const RELAYER_FEE_BPS = 50n; // 0.5% (same as unshield)
 
+    // Initialize fee variables (same pattern as unshield)
+    let relayerFeeBn = 0n;
+    let gasFeeDeducted = 0n; // Initialize gas fee deduction at function scope
+    let combinedRelayerFee = 0n; // Hoisted variable for gas reclamation access
+
+    // Calculate relayer fee from the user's amount, then add gas reclamation like unshield
+    relayerFeeBn = calculateRelayerFee(originalAmountBn);
+
+    // ESTIMATE GAS COST BEFORE PROOF GENERATION (same as unshield)
+    console.log('🤑 [PRIVATE TRANSFER] Estimating gas cost for reclamation (like unshield)...');
+
+    // Get network gas prices for estimation
+    let networkGasPrices = null;
+    try {
+      // Get current network gas prices for realistic estimation
+      const { ethers } = await import('ethers');
+
+      // Try to get provider for gas price fetching (similar to unshield approach)
+      try {
+        // Use our proxied RPC to avoid exposing keys (same as unshield)
+        const origin = (typeof window !== 'undefined' ? window.location.origin : '');
+        const provider = new ethers.JsonRpcProvider(origin + '/api/rpc?chainId=' + chainId + '&provider=auto');
+        const feeData = await provider.getFeeData();
+        networkGasPrices = feeData;
+      } catch (providerError) {
+        console.warn('⚠️ [PRIVATE TRANSFER] Failed to get network gas prices:', providerError.message);
+      }
+
+      // Snapshot token prices once for both preview and proof (single source)
+      const nativeGasToken = getNativeGasToken(chainId);
+      const feeTokenInfo = getKnownTokenDecimals(tokenAddress, chainId);
+      const feeTokenSymbol = feeTokenInfo?.symbol || tokenAddress;
+      const tokenSymbols = [nativeGasToken, feeTokenSymbol];
+      const tokenPrices = await fetchTokenPrices(tokenSymbols);
+
+      console.log('💰 [PRIVATE TRANSFER] Token prices snapshot for fee calculation:', {
+        nativeGasToken,
+        feeTokenSymbol,
+        prices: Object.fromEntries(
+          Object.entries(tokenPrices).map(([k, v]) => [k, v?.toFixed(4)])
+        )
+      });
+
+      // Calculate gas reclamation fee using the exact same estimator as UI preview
+      gasFeeDeducted = await calculateGasReclamationERC20(
+        tokenAddress,
+        chainId,
+        tokenPrices
+      );
+    } catch (gasError) {
+      console.warn('⚠️ [PRIVATE TRANSFER] Gas reclamation calculation failed:', gasError.message);
+      gasFeeDeducted = 0n; // Fallback to no gas reclamation
+    }
+
+    // COMBINE FEES FOR BROADCASTER: relayer fee + estimated gas reclamation
+    // This amount gets baked into the proof and cannot be changed
+    combinedRelayerFee = relayerFeeBn + gasFeeDeducted;
+
     // Calculate fee amount using ORIGINAL amount (same as unshield)
-    let relayerFeeAmount = (originalAmountBn * RELAYER_FEE_BPS) / 10000n; // 0.5% of transfer amount
+    let relayerFeeAmount = relayerFeeBn;
 
     // Try to use API-provided fee if available (convert to BigInt if it's a string)
     if (feeQuote && feeQuote.relayerFee) {
@@ -2299,15 +2357,17 @@ export const privateTransferWithRelayer = async ({
       });
     }
 
-    // Deduct fee from transfer amount (like unshield does)
-    const netRecipientAmount = originalAmountBn - relayerFeeAmount;
+    // Deduct COMBINED fee from transfer amount (like unshield does with gas reclamation)
+    const netRecipientAmount = originalAmountBn - combinedRelayerFee;
 
-    console.log('💰 [PRIVATE TRANSFER] Fee calculation (like unshield):', {
+    console.log('💰 [PRIVATE TRANSFER] Fee calculation (like unshield with gas reclamation):', {
       originalAmount: originalAmountBn.toString(),
       relayerFee: relayerFeeAmount.toString(),
+      gasFeeDeducted: gasFeeDeducted.toString(),
+      combinedRelayerFee: combinedRelayerFee.toString(),
       netRecipientAmount: netRecipientAmount.toString(),
-      verification: `${netRecipientAmount.toString()} + ${relayerFeeAmount.toString()} = ${(netRecipientAmount + relayerFeeAmount).toString()}`,
-      amountsMatch: (netRecipientAmount + relayerFeeAmount) === originalAmountBn
+      verification: `${netRecipientAmount.toString()} + ${combinedRelayerFee.toString()} = ${(netRecipientAmount + combinedRelayerFee).toString()}`,
+      amountsMatch: (netRecipientAmount + combinedRelayerFee) === originalAmountBn
     });
 
     // Update the recipient amount to be net of fees (BigInt like unshield path)
@@ -2323,6 +2383,8 @@ export const privateTransferWithRelayer = async ({
       originalAmountBn: originalAmountBn.toString(),
       netRecipientAmount: netRecipientAmount.toString(),
       relayerFeeAmount: relayerFeeAmount.toString(),
+      gasFeeDeducted: gasFeeDeducted.toString(),
+      combinedRelayerFee: combinedRelayerFee.toString(),
       memoText: processedMemoText || 'none'
     });
 
@@ -2334,10 +2396,11 @@ export const privateTransferWithRelayer = async ({
     console.log('🔧 [PRIVATE TRANSFER] Switching from transfer-specific to generic SDK functions');
 
     // Create broadcaster fee recipient (separate from main transfer) - amount as BigInt
+    // Use COMBINED fee (relayer + gas reclamation) like unshield does
     const broadcasterFeeERC20AmountRecipient = {
       tokenAddress,
       recipientAddress: relayerRailgunAddress,
-      amount: relayerFeeAmount,
+      amount: combinedRelayerFee,
     };
 
     // ===== FALLBACK: Use working gas estimation pattern =====
@@ -2753,8 +2816,9 @@ export const privateTransferWithRelayer = async ({
       userAddress: null,
       feeDetails: {
         relayerFee: relayerFeeAmount.toString(),
+        gasFee: gasFeeDeducted.toString(),
         protocolFee: '0',
-        totalFee: relayerFeeAmount.toString(),
+        totalFee: combinedRelayerFee.toString(),
         chainId: String(chainId),
         tokenAddress,
         proofTimestamp: new Date().toISOString(),
@@ -2793,40 +2857,48 @@ export const privateTransferWithRelayer = async ({
 
     // Transaction monitoring removed - SDK handles balance updates
 
-    // For transfers, use the calculated relayer fee amount
-    // This is simpler than unshield since we deduct fees upfront like unshield does
-    const transferFee = relayerFeeAmount;
+    // For transfers, use the calculated fees (same as unshield with gas reclamation)
     const transferFeeToken = tokenAddress; // Fee is deducted in the same token as the transfer
 
     // Store fee data directly in Redis when calculated
     try {
       const traceId = `transfer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
-      // For transfers, we don't have detailed fee breakdown, so use simplified USD calculation
-      // Assume transfer fees are in the same token as the transfer and use conservative pricing
-      const feeTokenSymbol = transferFeeToken || 'ETH';
-      const conservativePrice = feeTokenSymbol.includes('USD') ? 1.0 : 2000; // $1 for USD-pegged, $2000 for ETH
-      const transferFeeUSD = parseFloat(transferFee.toString()) / Math.pow(10, 18) * conservativePrice;
+      // Get current token prices for accurate USD conversion (same as unshield)
+      const nativeGasToken = getNativeGasToken(chainId);
+      const feeTokenInfo = getKnownTokenDecimals(tokenAddress, chainId);
+      const feeTokenSymbol = feeTokenInfo?.symbol || tokenAddress;
+      const feeTokenDecimals = feeTokenInfo?.decimals || 18;
+      const priceKeys = [nativeGasToken, feeTokenSymbol];
+      const currentPrices = await fetchTokenPrices(priceKeys);
 
-      console.log('💰 [FEE-STORE] Storing transfer fee data:', {
+      // Calculate USD values using actual token prices (same as unshield)
+      const relayerFeeUSD = parseFloat(relayerFeeAmount.toString()) / Math.pow(10, feeTokenDecimals) * (currentPrices[feeTokenSymbol] || 0);
+      const gasFeeUSD = parseFloat(gasFeeDeducted.toString()) / Math.pow(10, feeTokenDecimals) * (currentPrices[feeTokenSymbol] || 0);
+      const combinedFeeUSD = relayerFeeUSD + gasFeeUSD;
+
+      console.log('💰 [FEE-STORE] Storing transfer fee data with gas reclamation:', {
         traceId,
         relayerFeeUSD: relayerFeeUSD.toFixed(4),
-        feeToken: feeTokenSymbol,
+        gasFeeUSD: gasFeeUSD.toFixed(4),
+        combinedFeeUSD: combinedFeeUSD.toFixed(4),
+        relayerToken: feeTokenSymbol,
+        gasToken: nativeGasToken,
         decimals: feeTokenDecimals,
-        price: currentPrices[feeTokenSymbol]
+        prices: currentPrices
       });
 
       await storeFeeDataDirectly(traceId, {
-        combinedRelayerFeeUSD: relayerFeeUSD.toFixed(4),
+        combinedRelayerFeeUSD: combinedFeeUSD.toFixed(4),
         relayerFeeUSD: relayerFeeUSD.toFixed(4),
-        gasFeeUSD: '0.0000', // Transfers don't have gas reclamation
+        gasFeeUSD: gasFeeUSD.toFixed(4), // Now transfers do have gas reclamation like unshield
         relayerToken: feeTokenSymbol,
-        gasToken: null,
+        gasToken: nativeGasToken,
         calculatedAt: Date.now(),
         transactionType: 'transfer',
         userAmount: originalAmountBn.toString()
       });
-      console.log('✅ [FEE-STORE] Transfer fee data stored:', traceId);
+      console.log('✅ [FEE-STORE] Transfer fee data stored with gas reclamation:', traceId);
     } catch (feeStoreError) {
       console.warn('⚠️ [FEE-STORE] Failed to store transfer fee data:', feeStoreError.message);
     }
@@ -2834,9 +2906,9 @@ export const privateTransferWithRelayer = async ({
     return {
       transactionHash: relayed.transactionHash,
       relayed: true,
-      combinedRelayerFee: transferFee.toString(),
-      relayerFee: transferFee.toString(), // For transfers, we track the combined fee as relayer fee
-      gasFee: '0', // Transfers don't have separate gas reclamation
+      combinedRelayerFee: combinedRelayerFee.toString(),
+      relayerFee: relayerFeeAmount.toString(),
+      gasFee: gasFeeDeducted.toString(), // Now transfers do have gas reclamation like unshield
       feeToken: transferFeeToken
     };
   } catch (e) {
