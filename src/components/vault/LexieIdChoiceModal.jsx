@@ -28,7 +28,7 @@ const LexieIdChoiceModal = ({ isOpen, onChoice }) => {
             <div className="text-green-200 text-xs mb-2 font-medium">Benefits:</div>
             <div className="text-green-300/80 text-xs space-y-1">
               <div>• Vault-to-Vault transfers</div>
-              <div>• Access to LexieTitans game</div>
+              <div>• Access to ecosystem rewards</div>
               <div>• Enhanced features</div>
             </div>
           </div>

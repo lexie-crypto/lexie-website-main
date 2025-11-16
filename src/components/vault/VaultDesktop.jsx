@@ -39,6 +39,7 @@ import {
 } from '../../utils/railgun/actions';
 import { deriveEncryptionKey, clearAllWallets } from '../../utils/railgun/wallet';
 import { syncBalancesAfterTransaction } from '../../utils/railgun/syncBalances';
+import { refreshBalances } from '../../utils/balanceRefresh';
 import LexieIdChoiceModal from './LexieIdChoiceModal';
 import LexieIdModal from './LexieIdModal';
 import CrossPlatformVerificationModal from './CrossPlatformVerificationModal';
@@ -266,6 +267,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   const [activeTransactionMonitors, setActiveTransactionMonitors] = useState(0);
   const [shieldingTokens, setShieldingTokens] = useState(new Set());
   const [shieldAmounts, setShieldAmounts] = useState({});
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
   // Use the chain switch modal hook
   const {
@@ -696,6 +698,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
   // Placeholder functions for command bar icons
   const handleRefresh = useCallback(async () => {
     console.log('[VaultDesktop] Refresh clicked');
+    setIsManualRefreshing(true);
     try {
       // Trigger full SDK balance refresh to discover new private transfers
       if (canUseRailgun && railgunWalletId && address && walletChainId) {
@@ -713,8 +716,48 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
       console.log('[VaultDesktop] Balance refresh completed');
     } catch (error) {
       console.error('[VaultDesktop] Balance refresh failed:', error);
+    } finally {
+      setIsManualRefreshing(false);
     }
   }, [refreshAllBalances, canUseRailgun, railgunWalletId, address, walletChainId]);
+
+  // Handle returning user chain selection confirmation with balance refresh
+  const handleReturningUserChainConfirm = useCallback(async () => {
+    console.log('[VaultDesktop] Returning user chain selection confirmed');
+    // First, handle the chain choice (this resolves the promise in WalletContext)
+    handleReturningUserChainChoice(true);
+
+    // Then perform the same balance refresh as manual y
+    try {
+      console.log('[VaultDesktop] Triggering balance refresh after network selection...');
+      setIsManualRefreshing(true);
+
+      // Ensure the chain is scanned before refreshing (critical for discovering transfers)
+      if (canUseRailgun && railgunWalletId && address && selectedChainId) {
+        console.log('[VaultDesktop] Ensuring chain is scanned before refresh...');
+        await ensureChainScanned(selectedChainId);
+      }
+
+      // Trigger full SDK balance refresh to discover new private transfers (same as manual refresh)
+      if (canUseRailgun && railgunWalletId && address && selectedChainId) {
+        console.log('[VaultDesktop] Triggering SDK balance refresh for new network...');
+        await syncBalancesAfterTransaction({
+          walletAddress: address,
+          walletId: railgunWalletId,
+          chainId: selectedChainId,
+        });
+        console.log('[VaultDesktop] SDK balance refresh completed for new network');
+      }
+
+      // Then refresh UI from Redis (which should now have updated balances)
+      await refreshAllBalances();
+      console.log('[VaultDesktop] Balance refresh completed after network selection');
+    } catch (error) {
+      console.error('[VaultDesktop] Balance refresh failed after network selection:', error);
+    } finally {
+      setIsManualRefreshing(false);
+    }
+  }, [handleReturningUserChainChoice, refreshAllBalances, canUseRailgun, railgunWalletId, address, selectedChainId]);
 
   const handleInfoClick = useCallback(() => {
     console.log('[VaultDesktop] Info clicked - opening documentation');
@@ -1497,7 +1540,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                   </button>
                   <button
                     onClick={handleRefresh}
-                    disabled={isLoading || !isConnected || isTransactionLocked || !canUseRailgun || !railgunWalletId}
+                    disabled={isLoading || !isConnected || isTransactionLocked || !canUseRailgun || !railgunWalletId || isManualRefreshing}
                     className="p-1.5 rounded border border-emerald-400/40 bg-emerald-900/20 hover:bg-emerald-900/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-lg hover:shadow-emerald-400/20"
                     title="Refresh all wallet balances"
                     aria-label="Refresh"
@@ -1531,7 +1574,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                           {showPrivateBalances ? 'Hide' : 'Show'}
                         </button>
                       )}
-                      {/* Mobile-only refresh and info buttons */}
+                      {/* Mobile-only refresh and info button */}
                       <div className="flex md:hidden gap-1 ml-2">
                       <button
                           onClick={handleInfoClick}
@@ -1543,7 +1586,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                         </button>
                         <button
                           onClick={handleRefresh}
-                          disabled={isLoading || !isConnected || isTransactionLocked || !canUseRailgun || !railgunWalletId}
+                          disabled={isLoading || !isConnected || isTransactionLocked || !canUseRailgun || !railgunWalletId || isManualRefreshing}
                           className="p-1.5 rounded border border-emerald-400/40 bg-emerald-900/20 hover:bg-emerald-900/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 hover:shadow-lg hover:shadow-emerald-400/20"
                           title="Refresh all wallet balances"
                           aria-label="Refresh"
@@ -1559,8 +1602,11 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
                     <div className="text-center py-4 text-green-400/70 text-xs">
                       Secure vault engine not ready
                     </div>
-                  ) : isPrivateBalancesLoading ? (
-                    <div className="text-center py-4 text-green-300 text-xs">Getting your vault balances...</div>
+                  ) : (isManualRefreshing || isPrivateBalancesLoading) ? (
+                    <div className="text-center py-4 text-green-300 text-xs flex items-center justify-center gap-2">
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      Refreshing your balances...
+                    </div>
                   ) : privateBalances.length === 0 ? (
                     <div className="text-center py-4 text-green-300 text-xs">
                       No vault tokens yet
@@ -1744,7 +1790,7 @@ const VaultDesktopInner = ({ mobileMode = false }) => {
         supportedNetworks={SUPPORTED_NETWORKS}
         walletChainId={walletChainId}
         switchNetwork={switchNetwork}
-        onConfirm={() => handleReturningUserChainChoice(true)}
+        onConfirm={handleReturningUserChainConfirm}
         onCancel={() => handleReturningUserChainChoice(false)}
       />
 
