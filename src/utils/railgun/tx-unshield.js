@@ -2289,7 +2289,7 @@ export const privateTransferWithRelayer = async ({
     let combinedRelayerFee = 0n; // Hoisted variable for gas reclamation access
 
     // Calculate relayer fee from the user's amount, then add gas reclamation like unshield
-    relayerFeeBn = calculateRelayerFee(userAmountGross);
+    relayerFeeBn = calculateRelayerFee(originalAmountBn);
 
     // ESTIMATE GAS COST BEFORE PROOF GENERATION (same as unshield)
     console.log('🤑 [PRIVATE TRANSFER] Estimating gas cost for reclamation (like unshield)...');
